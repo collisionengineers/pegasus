@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
@@ -22,6 +23,9 @@ internal static class IdentityPersistenceTestServices
             })
             .AddEntityFrameworkStores<PegasusDbContext>()
             .AddDefaultTokenProviders();
+        // The staff-identity surfaces are composed by the Web host beside its
+        // Identity; a persistence test that exercises them composes the same.
+        services.AddPegasusStaffIdentity();
         services.AddOpenIddict()
             .AddCore(options => options
                 .UseEntityFrameworkCore()

@@ -39,7 +39,7 @@ public sealed class CaseMatchIntegrationTests
     /// <summary>
     /// A manual upload has no accepted mail route and no credential binding, so
     /// the Principal is the one the accepting staff member allocated. The case
-    /// must still carry it as its work provider, or the EVA export sends an
+    /// must still carry it as its work provider, or the case export writes an
     /// empty Work Provider and no index row exists for images to match against.
     /// </summary>
     [Fact]
@@ -102,15 +102,17 @@ public sealed class CaseMatchIntegrationTests
         var projection = await harness.GetRequiredDataAsync(caseId);
 
         var lease = await harness.AcquireLeaseAsync(caseId, projection.Version, "case-match-lease-1");
-        await harness.SaveCase.ExecuteAsync(
-            new SaveCaseRequest(
+        await harness.WorkspaceStore.SaveAsync(
+            new SaveCaseWorkspaceRequest(
                 caseId,
                 projection.Version,
                 harness.StaffActor,
                 "case-match-save-1",
                 "Registration corrected from the client's V5C",
-                lease.Token,
-                new CaseEditableData(VehicleRegistration: "XY65 ZZZ")),
+                lease.Token)
+            {
+                Vehicle = new("XY65 ZZZ", null, null, null, null)
+            },
             CancellationToken.None);
 
         var row = await harness.SingleIndexRowAsync(caseId);
@@ -437,7 +439,7 @@ public sealed class CaseMatchIntegrationTests
             ActionActor staffActor,
             EfCaseDataStore dataStore,
             AcceptIntake acceptIntake,
-            SaveCase saveCase,
+            EfCaseWorkspaceStore workspaceStore,
             AcquireCaseEditLease acquireLease)
         {
             this.database = database;
@@ -446,14 +448,14 @@ public sealed class CaseMatchIntegrationTests
             StaffActor = staffActor;
             this.dataStore = dataStore;
             this.acceptIntake = acceptIntake;
-            SaveCase = saveCase;
+            WorkspaceStore = workspaceStore;
             this.acquireLease = acquireLease;
         }
 
         public PooledDbContextFactory<PegasusDbContext> Factory { get; }
         public Guid ReceiptId { get; }
         public ActionActor StaffActor { get; }
-        public SaveCase SaveCase { get; }
+        public EfCaseWorkspaceStore WorkspaceStore { get; }
 
         public static async Task<Harness> CreateAsync()
         {
@@ -471,7 +473,7 @@ public sealed class CaseMatchIntegrationTests
 
                 IPrincipalCaseMatchPolicy[] matchPolicies = [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())];
                 var acceptanceStore = new EfCaseAcceptanceStore(factory, timeProvider, matchPolicies);
-                var dataStore = new EfCaseDataStore(factory, timeProvider, matchPolicies);
+                var dataStore = new EfCaseDataStore(factory);
                 var workflowStore = new EfCaseWorkflowStore(factory, timeProvider);
                 return new(
                     database,
@@ -486,7 +488,7 @@ public sealed class CaseMatchIntegrationTests
                         new DiscardingCommittedWorkPublisher(),
                         new TriageCasePairing(new EfTriageStore(factory,
                             [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider))),
-                    new SaveCase(dataStore),
+                    new EfCaseWorkspaceStore(factory, timeProvider, matchPolicies),
                     new AcquireCaseEditLease(workflowStore));
             }
             catch

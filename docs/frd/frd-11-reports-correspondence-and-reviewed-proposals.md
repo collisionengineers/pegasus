@@ -241,8 +241,9 @@ versioned, retained and gated on readiness. Generation, approval, issue,
 sending, external receipt and Case closure are separate recorded events.
 Generation returns draft assessment and fee-note files with bytes, hashes,
 page counts, template version and engine version. It is not approval, issue,
-sending, receipt, reference allocation or correction custody. A human must
-approve before issue.
+sending, receipt, reference allocation or correction custody. Staff or the
+Automation actor approve before issue
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#reports)).
 
 **What a generation freezes.** The Case version, signatory account and
 signature digest, Current estimate identity, version and breakdown, the
@@ -282,6 +283,10 @@ the report's name and the covering message, and its one **Send report** sends
 them. There is no separate preparation and no second confirmation. The
 staff-send operation is the record of what was sent. The form stays offered
 after a send, whatever its outcome, so the same report can be sent again.
+The Automation Actor sends a report through the same command with
+`pegasus_report_send`, choosing what the form holds; its send records the
+Automation actor as the sender (operator, 7 October 2026;
+[FRD-10](frd-10-mcp-automation-and-actor-boundary.md#sending)).
 
 **What a delivery is called (v28 P23).** The attached report is named for the
 people who read it — the Case's reference, the vehicle's registration and the
@@ -295,7 +300,8 @@ that it supersedes the report dated the day the superseded generation carried.
 Before Send report, staff read the message in an editable box and may
 change it. The text they submit is what is sent; it cannot be blank
 or longer than 5000 characters. Custody keeps its own name for the same bytes.
-A send is a staff send that actually left the approved mailbox. The subject
+A send, by staff or the Automation actor, is a staff-mail send that actually
+left the approved mailbox. The subject
 stays the Case or Audit reference. A send the mailbox provider refuses is
 shown as a failed send.
 
@@ -346,10 +352,10 @@ recipient settings can include the original instruction sender and any
 number of extra addresses. The original sender comes from the originating
 instruction, never the latest reply; an unresolved sender adds no invented
 address. Claim Source is never copied implicitly. The settings only suggest:
-the human staff member sending the report may edit To and Cc, and what they
-submit is what the delivery is addressed to.
-Every delivery still needs a staff-controlled send. Default report dates and
-displayed times use Europe/London.
+whoever sends the report, staff or the Automation actor, may edit To and Cc,
+and what they submit is what the delivery is addressed to. Every delivery is
+a deliberate send by staff or the Automation actor; nothing sends a report on
+its own. Default report dates and displayed times use Europe/London.
 
 ### Report generation entry point
 
@@ -366,7 +372,9 @@ offered again for a confirmed report whose separate fee note is not (operator,
 7 October 2026). Generate for the other companion documents of the confirmed
 generation — the Repair Spec and the images — is offered the same way, in or
 out of edit mode, with the same one-off lease (operator, 28 September 2026,
-issue 912).
+issue 912). The Automation Actor generates the report and its companion
+documents through the same command
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#reports)).
 
 **After Generate report** (operator, 27 September 2026). A report that was
 generated and stored opens in the Case page's document viewer by itself,
@@ -404,8 +412,8 @@ report, the fee note, the Repair Spec or the images.
 | Storing failed, or any other fault | "The report could not be generated." |
 
 A fee-note preview shows the recorded fee and description without saving
-anything. Native Assign Engineer opens engineering work without an EVA
-export; EVA is optional and never gates report readiness.
+anything. Assign Engineer opens engineering work. The Case export
+([FRD-07](frd-07-case-export.md)) never gates report readiness.
 
 The report prints its images six to a page, two across and three down, in
 the order the Engineer set (operator, 27 September 2026). The Overview prints
@@ -656,7 +664,7 @@ Deployment and live acceptance are separate evidence tiers
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-04](frd-04-parties-accounts-and-access.md),
-  [FRD-07](frd-07-eva-and-external-engineering-handoff.md),
+  [FRD-07](frd-07-case-export.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-14](frd-14-record-edit-leases.md),
   [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md),

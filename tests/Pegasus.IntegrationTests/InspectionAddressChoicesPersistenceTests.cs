@@ -118,18 +118,34 @@ public sealed class InspectionAddressChoicesPersistenceTests
             .ExecuteAsync(
                 new(caseId, current.Version, actor, $"lease-{Guid.NewGuid():N}"),
                 CancellationToken.None);
-        await services.GetRequiredService<ISaveCase>().ExecuteAsync(
-            new(
+        await services.GetRequiredService<ICaseWorkspaceStore>().SaveAsync(
+            new SaveCaseWorkspaceRequest(
                 caseId,
                 current.Version,
                 actor,
                 $"save-{Guid.NewGuid():N}",
                 "Confirmed inspection choice fixture",
-                lease.Token,
-                new(
-                    InspectionAddress: address,
-                    InspectionMode: mode,
-                    StorageLocation: storageLocation)),
+                lease.Token)
+            {
+                Inspection = new(
+                    mode == CaseInspectionMode.ImageBasedAssessment
+                        ? CaseReportAddressTreatment.ImageBasedAssessment
+                        : CaseReportAddressTreatment.PhysicalVehicleLocation,
+                    address,
+                    null,
+                    storageLocation,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null)
+            },
             CancellationToken.None);
     }
 

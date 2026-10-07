@@ -1,13 +1,13 @@
-using System.Globalization;
 using Pegasus.Core.Cases;
-using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.PrincipalApi;
 
 /// <summary>
 /// What a Principal says it is instructing (API-01; FRD-09 § Accepted API-01
-/// submission contract).
+/// submission contract): the Case type, the verdict on the original report an
+/// Audit audits, and the instruction fields as the draft every downstream
+/// owner already reads.
 ///
 /// The first accepted contract read the business values back out of the
 /// submitted documents through the Principal's extraction policy. That policy
@@ -18,157 +18,53 @@ namespace Pegasus.Core.PrincipalApi;
 ///
 /// A declaration is evidence like any other: it is recorded with its own
 /// provenance (<see cref="IntakeEvidenceSource.PrincipalDeclaration"/>) and is
-/// never confused with something a document said or a person keyed.
+/// never confused with something a document said or a person keyed. The draft
+/// carries no Principal code: the credential decides the Principal, and
+/// processing stamps it from the submission's binding.
 /// </summary>
-public enum PrincipalInstructionKind
+public sealed record PrincipalInstruction(
+    CaseType CaseType,
+    AuditAssessment? OriginalReportVerdict,
+    InstructionDraft Draft);
+
+/// <summary>
+/// One declared field the Principal got wrong, named by its path in the request
+/// body so the refusal can say which field and why. This is deliberately not an
+/// <see cref="ArgumentException"/>: the fault is in a submitted document's
+/// field, not in a method parameter, and reporting it as the latter both
+/// misnames the fault and misleads the caller.
+/// </summary>
+public sealed class PrincipalInstructionValidationException(string field, string message)
+    : Exception(message)
 {
-    Inspection,
-    Audit,
-    AuditReport,
-    Triage
+    public string Field { get; } = field;
 }
 
 /// <summary>
 /// The wire vocabulary, in one place. The values are the operator's own words
-/// (2026-08-28) and are matched case-insensitively; the mapping onto the
-/// domain's <see cref="CaseType"/> is stated here rather than inferred at each
-/// call site.
+/// (2026-08-28) and are matched case-insensitively. Inspection and Audit is
+/// <c>auditreport</c> on the wire: Collision Engineers inspects, then audits
+/// its own report. A declared verdict decides the Audit reference prefix
+/// (operator, 2026-08-28).
 /// </summary>
-public static class PrincipalInstructionKinds
+public static class PrincipalInstructionVocabulary
 {
-    public const string Inspection = "inspection";
-    public const string Audit = "audit";
-    public const string AuditReport = "auditreport";
-    public const string Triage = "triage";
-
-    public static readonly string[] All = [Inspection, Audit, AuditReport, Triage];
-
-    public static PrincipalInstructionKind Parse(string? value)
-    {
-        var normalized = value?.Trim();
-        return normalized switch
+    public static readonly IReadOnlyDictionary<string, CaseType> CaseTypes =
+        new Dictionary<string, CaseType>(StringComparer.OrdinalIgnoreCase)
         {
-            not null when Matches(normalized, Inspection) => PrincipalInstructionKind.Inspection,
-            not null when Matches(normalized, Audit) => PrincipalInstructionKind.Audit,
-            not null when Matches(normalized, AuditReport) => PrincipalInstructionKind.AuditReport,
-            not null when Matches(normalized, Triage) => PrincipalInstructionKind.Triage,
-            _ => throw new ArgumentException(
-                $"The case type must be one of: {string.Join(", ", All)}.",
-                nameof(value))
+            ["inspection"] = CaseType.Inspection,
+            ["audit"] = CaseType.Audit,
+            ["auditreport"] = CaseType.InspectionAndAudit,
+            ["triage"] = CaseType.Triage
         };
-    }
 
-    public static string Format(PrincipalInstructionKind kind) => kind switch
-    {
-        PrincipalInstructionKind.Inspection => Inspection,
-        PrincipalInstructionKind.Audit => Audit,
-        PrincipalInstructionKind.AuditReport => AuditReport,
-        PrincipalInstructionKind.Triage => Triage,
-        _ => throw new ArgumentOutOfRangeException(nameof(kind), "The instruction kind is invalid.")
-    };
-
-    /// <summary>
-    /// The Case type this kind allocates, or null for
-    /// <see cref="PrincipalInstructionKind.Triage"/>, which allocates no Case/PO
-    /// at all and opens a Triage record instead (FRD-03).
-    /// </summary>
-    public static CaseType? ToCaseType(PrincipalInstructionKind kind) => kind switch
-    {
-        PrincipalInstructionKind.Inspection => CaseType.Inspection,
-        PrincipalInstructionKind.Audit => CaseType.Audit,
-        PrincipalInstructionKind.AuditReport => CaseType.InspectionAndAudit,
-        PrincipalInstructionKind.Triage => null,
-        _ => throw new ArgumentOutOfRangeException(nameof(kind), "The instruction kind is invalid.")
-    };
-
-    /// <summary>
-    /// Whether the kind audits an incoming original report, and therefore must
-    /// state a verdict on it. The report file itself is optional at submission
-    /// and may arrive later.
-    ///
-    /// Only a standalone Audit does. Inspection + Audit is Collision Engineers
-    /// inspecting and then auditing its <em>own</em> report (FRD-01 § Case
-    /// types): there is no other firm's report to attach, and its reference is
-    /// the ordinary Inspection Case/PO with no Audit prefix.
-    /// </summary>
-    public static bool RequiresOriginalReport(PrincipalInstructionKind kind) =>
-        kind is PrincipalInstructionKind.Audit;
-
-    private static bool Matches(string value, string expected) =>
-        string.Equals(value, expected, StringComparison.OrdinalIgnoreCase);
-}
-
-/// <summary>
-/// The wire vocabulary for the original report's outcome. The operator ruled on
-/// 2026-08-28 that a declared verdict decides the reference prefix, so this is
-/// the value <see cref="CaseReferenceFormat.CasePo"/> is given.
-/// </summary>
-public static class PrincipalReportVerdicts
-{
-    public const string Repairable = "repairable";
-    public const string TotalLoss = "total-loss";
-
-    public static readonly string[] All = [Repairable, TotalLoss];
-
-    public static AuditAssessment? Parse(string? value)
-    {
-        var normalized = value?.Trim();
-        if (string.IsNullOrEmpty(normalized))
+    public static readonly IReadOnlyDictionary<string, AuditAssessment> ReportVerdicts =
+        new Dictionary<string, AuditAssessment>(StringComparer.OrdinalIgnoreCase)
         {
-            return null;
-        }
-
-        return normalized switch
-        {
-            not null when Matches(normalized, Repairable) => AuditAssessment.Repairable,
-            not null when Matches(normalized, TotalLoss) => AuditAssessment.TotalLoss,
-            _ => throw new ArgumentException(
-                $"The original report verdict must be one of: {string.Join(", ", All)}.",
-                nameof(value))
+            ["repairable"] = AuditAssessment.Repairable,
+            ["total-loss"] = AuditAssessment.TotalLoss
         };
-    }
 
-    private static bool Matches(string value, string expected) =>
-        string.Equals(value, expected, StringComparison.OrdinalIgnoreCase);
-}
-
-/// <summary>
-/// The role a Principal gives one submitted file. Optional on the wire: absent,
-/// the file is retained as an ordinary attachment and nothing is inferred about
-/// what it is (operator decision, 2026-08-28).
-/// </summary>
-public static class PrincipalFileRoles
-{
-    public const string Instruction = "instruction";
-    public const string OriginalReport = "originalreport";
-    public const string Image = "image";
-    public const string Correspondence = "correspondence";
-    public const string Other = "other";
-
-    public static readonly string[] All =
-        [Instruction, OriginalReport, Image, Correspondence, Other];
-
-    public static DocumentSemanticRole? Parse(string? value)
-    {
-        var normalized = value?.Trim();
-        if (string.IsNullOrEmpty(normalized))
-        {
-            return null;
-        }
-
-        return normalized switch
-        {
-            not null when Matches(normalized, Instruction) => DocumentSemanticRole.Instruction,
-            not null when Matches(normalized, OriginalReport) => DocumentSemanticRole.AuditReport,
-            not null when Matches(normalized, Image) => DocumentSemanticRole.Image,
-            not null when Matches(normalized, Correspondence) => DocumentSemanticRole.Correspondence,
-            not null when Matches(normalized, Other) => DocumentSemanticRole.Other,
-            _ => throw new ArgumentException(
-                $"A file role must be one of: {string.Join(", ", All)}.",
-                nameof(value))
-        };
-    }
-
-    private static bool Matches(string value, string expected) =>
-        string.Equals(value, expected, StringComparison.OrdinalIgnoreCase);
+    public static string WireName(CaseType caseType) =>
+        CaseTypes.Single(pair => pair.Value == caseType).Key;
 }

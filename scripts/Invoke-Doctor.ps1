@@ -448,6 +448,62 @@ else {
         -Advisory
 }
 
+# The local live-integration settings file is optional: a plain Offline run
+# has none. When it exists it must be owner-only and parse cleanly, because a
+# malformed file refuses Start. Advisory, so the plain profile is unchanged.
+$localSettingsPath = Get-PegasusLocalSettingsPath -LocalDevelopmentRoot (Join-Path $repositoryRoot 'artifacts/local-development')
+$localSettingsDetail = 'not configured; the run uses the offline stand-ins.'
+$localSettingsReady = $true
+if ([System.IO.File]::Exists($localSettingsPath)) {
+    try {
+        $localSettings = Read-PegasusLocalSettingsFile -Path $localSettingsPath
+        $localSettingsDetail = "$($localSettings.Count) setting(s); live integrations: $(Format-PegasusLiveIntegrationFlags -Flags (Get-PegasusLiveIntegrationFlags -Settings $localSettings))."
+    }
+    catch {
+        $localSettingsReady = $false
+        $localSettingsDetail = $_.Exception.Message
+    }
+}
+Add-Check `
+    -Name 'Local live settings file' `
+    -Passed $localSettingsReady `
+    -Detail $localSettingsDetail `
+    -Repair 'pwsh ./scripts/New-LocalLiveSettings.ps1 -BoxHoldingFolderId <id> -Approve (or remove the file)' `
+    -Advisory
+
+# The verification walk drives a headless Chromium over DevTools; the lifecycle
+# itself never needs a browser.
+$chromiumPath = $null
+if (-not [string]::IsNullOrWhiteSpace($env:CHROME) -and [System.IO.File]::Exists($env:CHROME)) {
+    $chromiumPath = $env:CHROME
+}
+if ($null -eq $chromiumPath) {
+    $playwrightRoot = Join-Path $HOME '.cache/ms-playwright'
+    if ([System.IO.Directory]::Exists($playwrightRoot)) {
+        $chromiumPath = Get-ChildItem -LiteralPath $playwrightRoot -Directory -Filter 'chromium-*' |
+            Sort-Object Name -Descending |
+            ForEach-Object { Get-ChildItem -LiteralPath $_.FullName -Directory -Filter 'chrome-linux*' } |
+            ForEach-Object { Join-Path $_.FullName 'chrome' } |
+            Where-Object { [System.IO.File]::Exists($_) } |
+            Select-Object -First 1
+    }
+}
+if ($null -eq $chromiumPath) {
+    foreach ($candidate in @('chromium', 'chromium-browser', 'google-chrome', 'chrome')) {
+        $found = Get-ApplicationPath -Name $candidate
+        if ($null -ne $found) {
+            $chromiumPath = $found
+            break
+        }
+    }
+}
+Add-Check `
+    -Name 'Chromium for the local verification walk' `
+    -Passed ($null -ne $chromiumPath) `
+    -Detail $(if ($null -ne $chromiumPath) { "Found $chromiumPath." } else { 'No Chromium, Chrome or CHROME path found; Invoke-LocalVerification.ps1 cannot run.' }) `
+    -Repair 'Install Chromium (for example npx playwright install chromium) or set CHROME to a Chrome/Chromium executable' `
+    -Advisory
+
 if ($Profile -eq 'Cloud') {
     $cloudApplications = @(
         [pscustomobject]@{

@@ -213,8 +213,12 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         //   configuration in one command (1);
         // - the report snapshot takes the Case's works from the frame at the same version (1);
         // - the Case's AI jobs are read once for the drafts and the pending research (1).
-        // It sends 48 since the Next action reads the Case's newest linked cancellation
-        // (FRD-13) in one statement.
+        // It sent 48 once the Next action read the Case's newest linked cancellation
+        // (FRD-13) in one statement. On 7 October 2026 three changes landed together: one
+        // fewer once a host with no Glass's composed reads no Glass's credential for the
+        // Estimate section (this host composes the unavailable gateway); two fewer once the
+        // EVA route and submission reads went with EVA; one more for the frame's
+        // linked-Triage read for the aside's Linked cases card. That is 46.
         // The save sent 43 until the lease it reclaims read only the Case's workflow row,
         // then 37, 35 once its edit basis read the data in two fewer commands, and 34 once
         // the save writes the work the request names and stales that work's report alone
@@ -233,7 +237,9 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             + Environment.NewLine + saveDescription);
     }
 
-    private const int CasePageCommands = 48;
+    // 48 - 1 (no Glass's credential read, #1086) - 2 (EVA reads removed, #1091)
+    // + 1 (the frame's linked-Triage read for the Linked cases card, #1087).
+    private const int CasePageCommands = 46;
 
     private const int CaseSaveCommands = 35;
 
@@ -322,7 +328,8 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         // folds CI measured 105 (43 and 62) against 84 (43 and 41). The Next action's
         // linked-cancellation read (one statement) makes them 83 (35 and 48) and 67
         // (the save and 32); the save at 34 makes them 82 and 66, and at 35 (the workflow
-        // mutation lock) 83 and 67.
+        // mutation lock) 83 and 67. Removing EVA's two reads and adding the linked-Triage
+        // read (7 October 2026) make the answer 31 and the answered commit 66.
         Assert.True(
             firstCommands < redirectedCommands,
             $"An answered commit sent {firstCommands} SQL commands; the save and its redirected page send {redirectedCommands}.");
@@ -341,9 +348,11 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     /// the frame and the workspace, the report's readiness and current generation, the Case's
     /// AI jobs and the workflow configuration, the valuation opening, and the workspace extras.
     /// The report snapshot takes the Case's works from the frame, as the page's does. The
-    /// frame includes the Next action's linked-cancellation read, one statement.
+    /// frame includes the Next action's linked-cancellation read and the Linked cases card's
+    /// linked-Triage read, one statement each.
     /// </summary>
-    private const int CommitAnswerCommands = 32;
+    // 32 - 2 (EVA reads removed, #1091) + 1 (the linked-Triage read, #1087).
+    private const int CommitAnswerCommands = 31;
 
     private static async Task<(HttpStatusCode Status, string Body, string? Location)> CommitAsync(
         HttpClient client,

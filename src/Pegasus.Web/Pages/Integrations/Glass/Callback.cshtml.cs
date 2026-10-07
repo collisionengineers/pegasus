@@ -62,6 +62,7 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 public sealed class CallbackModel(
     IGlassRepairEstimateGateway glassEstimates,
     IGlassRepairEstimateSessionReader glassSessions,
+    GlassRepairEstimateAvailability glassAvailability,
     ProviderWorkQueue glassWork) : StaffPageModel
 {
     public Task<IActionResult> OnGetAsync(string correlation, CancellationToken cancellationToken) =>
@@ -74,6 +75,11 @@ public sealed class CallbackModel(
         string correlation,
         CancellationToken cancellationToken)
     {
+        if (!glassAvailability.Enabled)
+        {
+            // No launch from this host ever handed a provider this address.
+            return NotFound();
+        }
         if (User.Identity?.IsAuthenticated != true)
         {
             // The browser names where a navigation came from; a cross-site

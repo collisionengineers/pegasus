@@ -131,8 +131,8 @@ repeat every ten seconds.
   its permanent reference for its Box folder, and keeps its source emails,
   instruction documents, images, correspondence and reports there.
 - If Box fails after the reference is allocated, the Case stays `Not ready`
-  (a Triage Case keeps its Triage state) with the failure shown and
-  staff-started retry or recovery recorded. The
+  (a Triage Case keeps its Triage state) with the failure shown and a
+  retry or recovery started by staff or the Automation Actor recorded. The
   reference is not rolled back, reused or reallocated. No background or
   automatic business retry is allowed.
 - Staff may add manually received WhatsApp evidence with its source and
@@ -358,8 +358,8 @@ the page comes back on the Images tab. In report follows the same rule
 ([FRD-16](frd-16-case-record-workspace.md)).
 
 Third party replaces the former one-way `ThirdPartyVehicleConfirmedAtUtc`
-flag and keeps its EVA-exclusion behaviour
-([FRD-07](frd-07-eva-and-external-engineering-handoff.md#eva-handoff-routes)).
+flag and keeps the image out of the Case export
+([FRD-07](frd-07-case-export.md#export-case)).
 The migration that introduced tags turned every recorded confirmation into a
 Third party tag on the same occurrence, keeping its original moment, actor
 and operation key, then dropped the three flag columns and their index.
@@ -378,7 +378,8 @@ There is no way back from a tag to the flag.
 
 - Corrupt, encrypted or non-renderable input is never sent to OCR.
 - A scan-like or ambiguous estimate is refused with no OCR fallback.
-- A Box failure after allocation leaves the Case Not ready; staff retry it.
+- A Box failure after allocation leaves the Case Not ready; staff or the
+  Automation Actor retry it.
 - Missing or corrupt retained bytes fail closed during re-evaluation.
 - Unexpected content in a Vehicle images folder makes the fold fail closed.
 - Unconfirmed custody returns an availability response, never staging bytes.
@@ -398,7 +399,7 @@ test subtree. Deployment and live acceptance are separate evidence tiers
 - Capabilities: `AI-04`, `DOC-01`–`DOC-05`, `DOC-07`, `DOC-08`, `EXT-14`,
   `INT-10`–`INT-12`, `INT-14`–`INT-16` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
-  [FRD-07](frd-07-eva-and-external-engineering-handoff.md),
+  [FRD-07](frd-07-case-export.md),
   [FRD-09](frd-09-principal-and-intermediary-routes.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-18](frd-18-manual-upload.md),

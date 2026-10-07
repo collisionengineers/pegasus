@@ -121,6 +121,11 @@ refuses it), and **Mark completed** on any other Case (operator, 2 October
 2026).
 Once the Case has an Audit, the **Views** card heads the aside
 ([Inspection and Audit views](#inspection-and-audit-views)).
+While a Triage Case is linked to the Case, a **Linked cases** card follows
+Views and precedes Figures: one row per linked Triage, its `t.` Case/PO as a
+link, its state and its current finding; there is no card while nothing is
+linked (operator, 7 October 2026;
+[FRD-03](frd-03-triage.md#triage-findings-on-the-linked-case)).
 Below 1441px the aside folds into a strip above the sections.
 
 Actions post in place and the record's parts refresh without navigation.
@@ -144,10 +149,13 @@ it has landed; a Refresh pressed during a save is declined. A save that is
 refused or lost stops what waited on it. A value the browser cannot accept
 is not sent: the status word says so. The page never redraws what the
 operator is typing in: after a save the notices, the ribbon, the aside and
-the dialogs are drawn afresh and every section stays as it is, so a blocker
-clears, the state chip moves and a newly permitted action appears within the
-round trip. The server answers a save with those parts alone, and the page is
-not reloaded (operator, 29 September 2026). The answer also carries the
+the dialogs are drawn afresh, so a blocker clears, the state chip moves and a
+newly permitted action appears within the round trip. The server answers a
+save with those parts alone, and the page is not reloaded (operator, 29
+September 2026). A section that shows another's value (the Engineer's Value
+and the salvage share in Settlement, a registration in the Report title)
+follows the save: once nothing waits on it, the page catches up, below, and
+Files and Notes stay as loaded (operator, 7 October 2026). The answer also carries the
 version, the lease and the key the next save sends, and the Files section
 when a crop or rotation was recorded. A save that ends editing redirects to
 the page, as every other command does. A refusal refuses the whole save, keeps
@@ -161,10 +169,11 @@ a save refusal, so each field saves as it is left (operator, 6 October 2026).
 it ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). When a save's
 answer, or the minute heartbeat's, shows the Case past the version the page
 holds, or a save is refused or not confirmed, the page catches up once
-nothing is in flight: it reads the Case again and draws afresh the ribbon,
-the notices, the aside, the dialogs (unless one is open) and each section
-that holds no value not yet sent, keeping the place, the focused control and
-what is typed in it. A section holding a value not yet sent stays as the
+nothing is in flight; after a save that landed it catches up once nothing
+waits on the queue either. It reads the Case again and draws afresh the
+ribbon, the notices, the aside, the dialogs (unless one is open) and each
+section that holds no value not yet sent and no open dialog, keeping the
+place, the focused control and what is typed in it. A section holding a value not yet sent stays as the
 operator has it. When a colleague now holds the Case, every section stays as
 it is, so what the operator typed remains to copy. The ribbon has **Done**, which ends editing and releases
 the lease; there is no Save and no Cancel, because nothing is unsaved: a
@@ -257,8 +266,9 @@ An item taken outside a session runs under a lease claimed for that one
 action and consumed by it, the way Generate report does
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)); a refused action
 frees the lease it claimed, as does a request abandoned mid-action. While a
-colleague holds the lease the menu offers nothing that needs one: the ribbon
-names them and offers Take over, a Completed or Query Case included. A
+colleague holds the lease the menu offers nothing that needs one, so only
+Export case remains; the ribbon names them and offers Take over, a Completed
+or Query Case included. A
 Completed or Query Case offers no Edit, since its sections read and Return
 to Engineer needs no session. The rules behind each action are in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
@@ -267,9 +277,9 @@ to Engineer needs no session. The rules behind each action are in
   eligible enabled staff account. The one handoff assigns them and
   enters With Engineer. There is no reviewed checkbox and no separate start
   action ([FRD-13](frd-13-case-lifecycle-and-workflow.md#assign-engineer)).
-- **Send to EVA**, when the Principal's report-generation policy offers it.
-  Sending never changes the Case state
-  ([FRD-07](frd-07-eva-and-external-engineering-handoff.md)).
+- **Export case**, on every standard Case in every state. It downloads the
+  Case export, needs no lease and never changes the Case
+  ([FRD-07](frd-07-case-export.md#export-case)).
 - **Mark report sent**, in With Engineer. It confirms detected or linked
   Sent evidence and enters post-report work. It never completes the Case and
   never records a manual assertion
@@ -363,12 +373,14 @@ itself, never the e-mail it arrived in:
 - when staff **Mark as original report**, from that document.
 
 A filled cell is tagged **Extracted** until staff change it. A fill lands
-only on a cell staff have not recorded and never clears one, so a
-staff-entered value is never overwritten. A cell stays blank for staff when
-the report prints no value for it, prints two different values, or prints a
-word the cell's list does not hold. Roadworthiness reads a printed Yes/No or
-Roadworthy/Unroadworthy. Repairable status reads a printed Repairable,
-Repair or Total loss; the report never fills Cash in lieu or Contract repair.
+only on a cell neither staff nor the Automation Actor has recorded, and never
+clears one, so their values are never overwritten; a value another fill
+recorded takes the newer reading (operator, 7 October 2026). A cell stays
+blank for staff when the report prints no value for it, prints two different
+values, or prints a word the cell's list does not hold. Roadworthiness reads
+a printed Yes/No or Roadworthy/Unroadworthy. Repairable status reads a
+printed Repairable, Repair or Total loss; the report never fills Cash in lieu
+or Contract repair.
 
 Repairable status alone falls back to the Audit's intake verdict — the
 report's literal repairable or total-loss wording, or the Principal API's
@@ -405,8 +417,9 @@ Transmission keeps its place among them and is edited in place, picked from
 Manual, Automatic, Semi-automatic, CVT or Unknown, because no approved lookup
 returns it (operator, 24 September 2026). One **Look up DVLA & MOT** action
 (`EXT-01`) fills an empty Make, Model, Year or Mileage and a Vehicle type
-that staff have not recorded, and records the lookup's own facts. It never
-overwrites an extracted or staff-entered value. There is no checks panel and
+that neither staff nor the Automation Actor has recorded, and records the
+lookup's own facts. It never overwrites an extracted, staff-entered or
+Automation-recorded value. There is no checks panel and
 no suggestion table. Run Experian check stays the disabled seam. A labelled
 Vehicle history area holds the history-check narrative as read-only text,
 editable in edit mode
@@ -698,8 +711,9 @@ on Documents.
 
 Notes merges Case notes, business events, chase outcomes and AI events,
 newest first, each with date, time and actor. A general correspondence send
-appears here once its Sent item is observed, as the staff sender,
-**Correspondence sent** and the subject; the message body is never history
+appears here once its Sent item is observed, as its sender (the member of
+staff, or Automation for the Automation Actor), **Correspondence sent** and
+the subject; the message body is never history
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 **Add Case note** sits at the top and needs no edit session. **Record chase** is a dialog, offered while a
 chase is scheduled and the lease is held
@@ -911,7 +925,7 @@ evidence tiers
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md),
   [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md),
   [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md),
-  [FRD-07](frd-07-eva-and-external-engineering-handoff.md),
+  [FRD-07](frd-07-case-export.md),
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),
   [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md),
   [FRD-12](frd-12-operator-experience.md),

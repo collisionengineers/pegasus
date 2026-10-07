@@ -165,7 +165,7 @@ internal static class CaseDataSnapshotFactory
             // create path takes whatever an operator keyed, and staff can key a
             // different principal entirely to correct a Principal that posted
             // under the wrong account. Labelling that "authenticated credential
-            // binding" would export a provenance to the EVA archive that no
+            // binding" would export a provenance to the case export archive that no
             // credential ever supplied — the same falsehood AddExtractedValue
             // avoids forty lines below by mapping a person-keyed value to
             // StaffCorrection. A staff-created case records the Principal the
@@ -204,16 +204,17 @@ internal static class CaseDataSnapshotFactory
     }
 
     /// <summary>
-    /// The Principal a staff member allocated the case to, where neither an
-    /// accepted mail route nor a credential binding supplied one. A manual
+    /// The Principal a staff member or the Automation Actor (ADR-0064)
+    /// allocated the case to, where neither an accepted mail route nor a
+    /// credential binding supplied one. A manual
     /// upload is the ordinary case: the uniquely selected document profile only
     /// proposes a Principal and the operator decides, so the accepted value is
     /// theirs whether they took the proposal or overrode it to correct a
     /// document that named the wrong party. It is therefore recorded as their
     /// confirmation at acceptance, not as something a document or a credential
-    /// stated. A confirmation is a person's decision, so a non-staff caller
+    /// stated. A confirmation is a casework decision, so a system-worker caller
     /// without a route or binding records nothing here. Recording nothing left the case with no Principal at all:
-    /// the EVA export sent an empty Work Provider and the case-match index
+    /// the case export wrote an empty Work Provider and the case-match index
     /// projected no row, so images never associated automatically.
     /// </summary>
     private static void AddStaffAllocatedPrincipal(
@@ -221,7 +222,7 @@ internal static class CaseDataSnapshotFactory
         CaseAcceptanceRequest request,
         DateTimeOffset acceptedAtUtc)
     {
-        if (request.Actor.Kind != ActorKind.Staff
+        if (request.Actor.Kind is not (ActorKind.Staff or ActorKind.Automation)
             || string.IsNullOrWhiteSpace(request.PrincipalCode))
         {
             return;
@@ -378,30 +379,38 @@ internal static class CaseDataSnapshotFactory
                 resolution.State,
                 principalIsImageBased)
             || string.IsNullOrWhiteSpace(resolution.ResolvedValue)
-            || resolution.ResolvedByStaffId is not { } staffId
+            || resolution.ResolvedByKind is not { } settlerKind
+            || string.IsNullOrWhiteSpace(resolution.ResolvedBy)
             || resolution.ResolvedAtUtc is not { } resolvedAtUtc)
         {
             return;
         }
 
-        var actor = staffId.ToString("D");
+        var actor = resolution.ResolvedBy;
         // Where the value came from, in the terms the case record keeps: an
         // accepted suggestion is the extraction the acceptance confirmed, and
-        // both a correction and a supplied address are a person's own words,
-        // so both carry staff provenance.
+        // both a correction and a supplied address are keyed values, as any
+        // Case-data edit is. The label names who keyed it: a member of staff
+        // or the Automation actor (ADR-0064), never staff for the Actor.
         var sourceKind = resolution.State == InspectionAddressResolutionState.Accepted
             ? CaseDataCodes.CaseAcceptance
             : CaseDataCodes.StaffCorrection;
+        // A corrected or supplied address is the settler's own: Create case's
+        // draft writes the same value back to its review field as a keyed
+        // candidate ("keyed by staff"), and inheriting that row's provenance
+        // would name staff for the Automation actor.
+        var inheritUnderlying = resolution.State == InspectionAddressResolutionState.Accepted;
+        var settledBy = InspectionAddressResolutionPolicy.SettlerWord(settlerKind);
         var addressLabel = resolution.State switch
         {
-            InspectionAddressResolutionState.Corrected => "staff-corrected inspection address",
-            InspectionAddressResolutionState.Supplied => "staff-supplied inspection address",
+            InspectionAddressResolutionState.Corrected => $"{settledBy}-corrected inspection address",
+            InspectionAddressResolutionState.Supplied => $"{settledBy}-supplied inspection address",
             _ => "accepted inspection address"
         };
         var modeLabel = resolution.State switch
         {
-            InspectionAddressResolutionState.Corrected => "staff-corrected inspection mode",
-            InspectionAddressResolutionState.Supplied => "staff-supplied inspection mode",
+            InspectionAddressResolutionState.Corrected => $"{settledBy}-corrected inspection mode",
+            InspectionAddressResolutionState.Supplied => $"{settledBy}-supplied inspection mode",
             _ => "accepted inspection mode"
         };
         UpsertConfirmed(
@@ -414,7 +423,8 @@ internal static class CaseDataSnapshotFactory
             Ext18InspectionAddressPolicy.PolicyKey,
             Ext18InspectionAddressPolicy.PolicyVersion,
             sourceKind,
-            addressLabel);
+            addressLabel,
+            inheritUnderlying);
         UpsertConfirmed(
             snapshot,
             CaseDataFieldNames.InspectionMode,
@@ -430,7 +440,8 @@ internal static class CaseDataSnapshotFactory
             Ext18InspectionAddressPolicy.PolicyKey,
             Ext18InspectionAddressPolicy.PolicyVersion,
             sourceKind,
-            modeLabel);
+            modeLabel,
+            inheritUnderlying);
     }
 
     private static void AddAcceptedDeadline(
@@ -547,12 +558,15 @@ internal static class CaseDataSnapshotFactory
         string fallbackPolicyKey,
         int fallbackPolicyVersion,
         string fallbackSourceKind = CaseDataCodes.CaseAcceptance,
-        string fallbackSourceLabel = "accepted case review")
+        string fallbackSourceLabel = "accepted case review",
+        bool inheritUnderlying = true)
     {
-        var underlying = snapshot.Fields.SingleOrDefault(
-            item => item.FieldName == fieldName
-                && item.ValueKind is CaseDataCodes.Fact or CaseDataCodes.Suggestion
-                && string.Equals(item.Value, value, StringComparison.OrdinalIgnoreCase));
+        var underlying = inheritUnderlying
+            ? snapshot.Fields.SingleOrDefault(
+                item => item.FieldName == fieldName
+                    && item.ValueKind is CaseDataCodes.Fact or CaseDataCodes.Suggestion
+                    && string.Equals(item.Value, value, StringComparison.OrdinalIgnoreCase))
+            : null;
         snapshot.Fields.RemoveAll(
             item => item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Confirmed);
         snapshot.Fields.Add(new()

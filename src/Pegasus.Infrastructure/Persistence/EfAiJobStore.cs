@@ -176,8 +176,12 @@ public sealed class EfAiJobStore(
             throw new InvalidOperationException(
                 "The AI job changed concurrently; reload and retry.");
         }
+        // Only the holder moves a held job on (progress, complete, fail,
+        // release). Cancelling or confirming is not a client transition, so
+        // another Automation client may cancel a held job as staff may.
         if (current == AiJobState.Taken
             && transition.Actor.Kind == ActorKind.Automation
+            && transition.TargetState is not (AiJobState.Cancelled or AiJobState.Completed)
             && !string.Equals(entity.TakenBy, transition.Actor.SubjectId, StringComparison.Ordinal))
         {
             throw new InvalidOperationException("The AI job is taken by another client.");

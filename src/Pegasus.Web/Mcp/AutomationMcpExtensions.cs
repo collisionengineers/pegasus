@@ -162,14 +162,22 @@ public static class AutomationMcpExtensions
             })
             .WithHttpTransport(transport => transport.Stateless = true)
             .WithTools<CaseMcpTools>()
+            .WithTools<CaseEditMcpTools>()
+            .WithTools<CaseLifecycleMcpTools>()
             .WithTools<EditLeaseMcpTools>()
             .WithTools<IntakeMcpTools>()
             .WithTools<DocumentMcpTools>()
+            .WithTools<DocumentActionMcpTools>()
+            .WithTools<ReportMcpTools>()
+            .WithTools<ReportPreparationMcpTools>()
             .WithTools<AssessmentMcpTools>()
             .WithTools<MailMcpTools>()
             .WithTools<UnidentifiedMcpTools>()
             .WithTools<TriageMcpTools>()
-            .WithTools<AiJobMcpTools>();
+            .WithTools<AiJobMcpTools>()
+            .WithTools<IntakeActionMcpTools>()
+            .WithTools<WorkCentreMcpTools>()
+            .WithTools<SendMcpTools>();
         return services;
     }
 

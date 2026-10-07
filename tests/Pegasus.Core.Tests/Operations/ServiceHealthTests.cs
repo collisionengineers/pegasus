@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Custody;
-using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
@@ -51,26 +50,6 @@ public sealed class ServiceHealthTests
             expected,
             ServiceHealthPolicy.DispatchState(
                 new(active, retryScheduled, failed, hasCompleted ? FixedUtcNow : null)));
-    }
-
-    [Fact]
-    public void EvaStateAsksForAPersonOnARecentFailureAndReportsObservedActivity()
-    {
-        var failure = new EvaSubmissionFailure(
-            Guid.NewGuid(),
-            EvaSubmissionOutcome.Rejected,
-            "validation",
-            FixedUtcNow.AddHours(-1));
-
-        Assert.Equal(
-            ServiceHealthState.ReviewRequired,
-            ServiceHealthPolicy.EvaState(new(FixedUtcNow.AddHours(-1)), [failure]));
-        Assert.Equal(
-            ServiceHealthState.Configured,
-            ServiceHealthPolicy.EvaState(new(null), []));
-        Assert.Equal(
-            ServiceHealthState.Current,
-            ServiceHealthPolicy.EvaState(new(FixedUtcNow.AddDays(-2)), []));
     }
 
     [Fact]
@@ -165,7 +144,6 @@ public sealed class ServiceHealthTests
             Dispatch = new(1, 0, 0, FixedUtcNow.AddMinutes(-6)),
             Operations = [],
             LimitReached = true,
-            EvaActivity = new(FixedUtcNow.AddHours(-3)),
             AiCounts = new(0, 0),
             RecentJobs = [Job(jobTime, closedAtUtc: null)],
             SendToAiEnabled = true,
@@ -202,12 +180,6 @@ public sealed class ServiceHealthTests
             row => Assert.Equal((ServiceHealthArea.Custody, ServiceHealthState.Configured), (row.Area, row.State)),
             row =>
             {
-                Assert.Equal((ServiceHealthArea.Eva, ServiceHealthState.Current), (row.Area, row.State));
-                Assert.Equal(FixedUtcNow.AddHours(-3), row.LatestEvidenceAtUtc);
-                Assert.Equal(ServiceHealthDependency.EvaApi, row.Dependency);
-            },
-            row =>
-            {
                 Assert.Equal((ServiceHealthArea.Ai, ServiceHealthState.Current), (row.Area, row.State));
                 Assert.Equal(jobTime, row.LatestEvidenceAtUtc);
                 Assert.Equal(ServiceHealthDependency.AiConnector, row.Dependency);
@@ -218,15 +190,14 @@ public sealed class ServiceHealthTests
                 Assert.Equal(FixedUtcNow.AddMinutes(-40), row.LatestEvidenceAtUtc);
                 Assert.Equal(ServiceHealthDependency.AutomationClient, row.Dependency);
             });
-        Assert.Equal(FixedUtcNow - ServiceHealthPolicy.EvaRecentFailureWindow, sources.EvaFailuresSinceUtc);
     }
 
     [Fact]
     public async Task SnapshotStartsEveryContextOwningReadTogetherAndReadsTheIngressSwitchAlone()
     {
-        // Ten sources open their own context; each one waits here until all
-        // ten are in flight, so awaiting them one after another cannot pass.
-        var sources = new Sources { ConcurrentReadsExpected = 10 };
+        // Eight sources open their own context; each one waits here until all
+        // eight are in flight, so awaiting them one after another cannot pass.
+        var sources = new Sources { ConcurrentReadsExpected = 8 };
 
         var snapshot = await Build(sources).ExecuteAsync(StaffActor(), CancellationToken.None);
 
@@ -235,7 +206,6 @@ public sealed class ServiceHealthTests
             {
                 ServiceHealthArea.Intake,
                 ServiceHealthArea.Custody,
-                ServiceHealthArea.Eva,
                 ServiceHealthArea.Ai,
                 ServiceHealthArea.Automation
             },
@@ -279,7 +249,6 @@ public sealed class ServiceHealthTests
             sources,
             sources,
             sources,
-            sources,
             new FixedTimeProvider(FixedUtcNow));
 
     private static ActionActor StaffActor() =>
@@ -291,7 +260,7 @@ public sealed class ServiceHealthTests
             AiJobKind.Estimate,
             AiJobSubjectKind.Case,
             Guid.NewGuid(),
-            "EVA31003",
+            "QDOS31003",
             "Draft an estimate",
             80,
             1000m,
@@ -322,8 +291,8 @@ public sealed class ServiceHealthTests
             id,
             state,
             Guid.NewGuid(),
-            "EVA31003",
-            "EVA",
+            "QDOS31003",
+            "QDOS",
             lastActivityAtUtc,
             kind,
             attemptCount,
@@ -344,7 +313,6 @@ public sealed class ServiceHealthTests
         IApprovedMailboxPollStatusQueries,
         IServiceHealthQueries,
         IRequestOperationsProjectionStore,
-        IEvaSubmissionQueries,
         IAiJobQueries,
         ISendToAiControl,
         IAutomationIngressStatusQueries,
@@ -354,8 +322,6 @@ public sealed class ServiceHealthTests
         public IReadOnlyList<SentEvidencePollStatus> SentPolls { get; init; } = [];
         public IntakeDispatchHealth Dispatch { get; init; } = new(0, 0, 0, null);
         public IReadOnlyList<RequestOperationProjection> Operations { get; init; } = [];
-        public EvaSubmissionActivity EvaActivity { get; init; } = new(null);
-        public IReadOnlyList<EvaSubmissionFailure> EvaFailures { get; init; } = [];
         public AiJobCounts AiCounts { get; init; } = new(0, 0);
         public IReadOnlyList<AiJobRecord> RecentJobs { get; init; } = [];
         public bool SendToAiEnabled { get; init; } = true;
@@ -363,7 +329,6 @@ public sealed class ServiceHealthTests
         public DateTimeOffset? LatestAutomationActivityAtUtc { get; init; }
 
         public bool Read { get; private set; }
-        public DateTimeOffset? EvaFailuresSinceUtc { get; private set; }
 
         /// <summary>
         /// When above zero, each factory-backed read waits until this many
@@ -422,23 +387,6 @@ public sealed class ServiceHealthTests
             Overlapped(new RequestOperationsProjection(Operations.ToImmutableArray(), LimitReached));
 
         public bool LimitReached { get; init; }
-
-        public Task<EvaSubmissionRecord?> GetLatestAsync(
-            Guid caseId,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException("Not used by the snapshot.");
-
-        public Task<IReadOnlyList<EvaSubmissionFailure>> GetRecentFailuresAsync(
-            DateTimeOffset sinceUtc,
-            int maximumResults,
-            CancellationToken cancellationToken = default)
-        {
-            EvaFailuresSinceUtc = sinceUtc;
-            return Overlapped(EvaFailures);
-        }
-
-        public Task<EvaSubmissionActivity> GetActivityAsync(
-            CancellationToken cancellationToken = default) => Overlapped(EvaActivity);
 
         public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by the snapshot.");

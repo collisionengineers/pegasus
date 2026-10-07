@@ -4,11 +4,10 @@ using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
+using Pegasus.Core.CaseExport;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Assessment;
 using Pegasus.Infrastructure.Custody;
-using Pegasus.Infrastructure.Eva;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.ThirdPartyReports;
@@ -255,50 +254,19 @@ public static class DependencyInjection
         // Infrastructure.
         services.AddScoped<IAcceptIntake, AcceptIntake>();
         services.AddScoped<IPrincipalInspectionModeStore, EfPrincipalInspectionModeStore>();
-        services.AddScoped<IEvaSubmissionModeStore, EfEvaSubmissionModeStore>();
-        services.AddScoped<IEvaSubmissionQueries, EfEvaSubmissionQueries>();
-        services.AddScoped<IAutomaticEvaReviewSubmissionStore, EfAutomaticEvaReviewSubmissionStore>();
         services.AddScoped<IReportRecipientSuggestionQueries, EfReportRecipientSuggestionQueries>();
         services.AddScoped<ICaseChaserRecipientQueries, EfCaseChaserRecipientQueries>();
         services.AddScoped<IPrincipalSalvageMatrixQueries, EfPrincipalSalvageMatrixQueries>();
         services.AddScoped<ICaseReportSendHistoryQueries, EfCaseReportSendHistoryQueries>();
-        services.AddScoped<EfStaffAccountAdministration>();
         // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
-        // hosts) that never compose ASP.NET Identity, unlike EfStaffAccountAdministration.
+        // hosts) that never compose ASP.NET Identity. The administration and
+        // per-user credential surfaces live in AddPegasusStaffIdentity.
         services.AddScoped<EfStaffAccountQueries>();
         services.AddScoped<IStaffAccountQueries>(provider => provider.GetRequiredService<EfStaffAccountQueries>());
         services.AddScoped<ICaseEngineerChoices>(provider => provider.GetRequiredService<EfStaffAccountQueries>());
-        services.AddScoped<ICreateStaffAccountStore>(provider =>
-            provider.GetRequiredService<EfStaffAccountAdministration>());
-        services.AddScoped<IDisableStaffAccountStore>(provider =>
-            provider.GetRequiredService<EfStaffAccountAdministration>());
-        services.AddScoped<IUpdateStaffAccountSettingsStore>(provider =>
-            provider.GetRequiredService<EfStaffAccountAdministration>());
-        services.AddScoped<IEnableStaffAccountStore>(provider =>
-            provider.GetRequiredService<EfStaffAccountAdministration>());
-        services.AddScoped<IForceStaffLogoutStore>(provider =>
-            provider.GetRequiredService<EfStaffAccountAdministration>());
-        services.AddScoped<IResetStaffPasswordStore>(provider =>
-            provider.GetRequiredService<EfStaffAccountAdministration>());
-        services.AddScoped<IDeleteStaffAccountStore>(provider =>
-            provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IListStaffAccounts, ListStaffAccounts>();
         services.AddScoped<IGetStaffAccount, GetStaffAccount>();
         services.AddScoped<IDescribeCaseEditAuthorityHolder, DescribeCaseEditAuthorityHolder>();
-        services.AddScoped<ICreateStaffAccount, CreateStaffAccount>();
-        services.AddScoped<IDisableStaffAccount, DisableStaffAccount>();
-        services.AddScoped<IUpdateStaffAccountSettings, UpdateStaffAccountSettings>();
-        services.AddScoped<IEnableStaffAccount, EnableStaffAccount>();
-        services.AddScoped<IForceStaffLogout, ForceStaffLogout>();
-        services.AddScoped<IResetStaffPassword, ResetStaffPassword>();
-        services.AddScoped<IDeleteStaffAccount, DeleteStaffAccount>();
-        services.AddScoped<IStaffPasswordChangeStore, EfStaffPasswordChange>();
-        services.AddScoped<IChangeStaffPassword, ChangeStaffPassword>();
-        services.AddScoped<EfPerUserExternalCredentialStore>();
-        services.AddScoped<IPerUserExternalCredentialReader>(provider =>
-            provider.GetRequiredService<EfPerUserExternalCredentialStore>());
-        services.AddScoped<IPerUserExternalCredentialAdministration>(provider =>
-            provider.GetRequiredService<EfPerUserExternalCredentialStore>());
         services.AddScoped<EfOrganizationAdministration>();
         services.AddScoped<IOrganizationAdministrationStore>(
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
@@ -467,11 +435,7 @@ public static class DependencyInjection
         services.AddScoped<IGetCaseFilesSection, GetCaseFilesSection>();
         services.AddScoped<IValidateCaseRenderLease, ValidateCaseRenderLease>();
         services.AddScoped<IListCaseReferences, ListCaseReferences>();
-        services.AddScoped<EfCaseDataStore>();
-        services.AddScoped<ICaseDataStore>(
-            provider => provider.GetRequiredService<EfCaseDataStore>());
-        services.AddScoped<ICaseDataQueries>(
-            provider => provider.GetRequiredService<EfCaseDataStore>());
+        services.AddScoped<ICaseDataQueries, EfCaseDataStore>();
         services.AddScoped<InspectionAddressChoicesQueries>();
         services.AddScoped<IInspectionAddressChoicesQueries>(
             provider => provider.GetRequiredService<InspectionAddressChoicesQueries>());
@@ -479,7 +443,6 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<InspectionAddressChoicesQueries>());
         services.AddScoped<ICaseNoteStore, EfCaseNoteStore>();
         services.AddScoped<IAddCaseNote, AddCaseNote>();
-        services.AddScoped<ISaveCase, SaveCase>();
         services.AddScoped<ICaseWorkspaceStore, EfCaseWorkspaceStore>();
         services.AddScoped<ISaveCaseWorkspace, SaveCaseWorkspace>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
@@ -501,18 +464,11 @@ public static class DependencyInjection
             provider.GetRequiredService<EfGlassRepairEstimateSessionStore>());
         services.AddScoped<IGlassRepairEstimateSessionReader>(provider =>
             provider.GetRequiredService<EfGlassRepairEstimateSessionStore>());
-        services.AddSingleton(provider => GlassRepairEstimateOptions.Create(
-            key => provider.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()[key]));
-        services.AddHttpClient(GlassRepairEstimateOptions.HttpClientName)
-            .ConfigureHttpClient((provider, client) =>
-                client.Timeout = provider.GetRequiredService<GlassRepairEstimateOptions>().RequestTimeout)
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-            {
-                AllowAutoRedirect = false,
-                UseCookies = false,
-            });
+        // The Glass's gateway itself is composed by the host, which decides
+        // whether this process reaches the provider at all (AddGlassRepairEstimates
+        // or AddUnavailableGlassRepairEstimates). The session store and the
+        // Case authority stay here: the Case record reads sessions in every profile.
         services.AddScoped<IGlassRepairEstimateCaseAuthority, EfGlassRepairEstimateCaseAuthority>();
-        services.AddScoped<IGlassRepairEstimateGateway, GlassRepairEstimateGateway>();
         services.AddScoped<IImportRawEstimate, ImportRawEstimate>();
         services.AddScoped<ISaveEstimate, SaveEstimate>();
         services.AddScoped<IDuplicateEstimate, DuplicateEstimate>();
@@ -557,8 +513,9 @@ public static class DependencyInjection
         // Guide providers register beside their adapter (Glass's through
         // AddGlassGuideValuation); a host that composes none answers Get
         // valuation with the card's notice. A fetched valuation's report is
-        // filed by the host's own scheduler.
-        services.AddScoped<IFetchGuideValuation, FetchGuideValuation>();
+        // filed by the host's own scheduler, so the fetch use case is
+        // registered beside that scheduler (Web), not here: the Worker has
+        // none, and its host validates every registration at build.
         services.AddScoped<IFillGlassVin, EfGlassVinFill>();
         services.AddScoped<IFileGuideValuationReport, FileGuideValuationReport>();
         services.AddScoped<IWorkAiJob, WorkAiJob>();
@@ -596,7 +553,6 @@ public static class DependencyInjection
         services.AddScoped<IReturnCaseToReview, ReturnCaseToReview>();
         services.AddScoped<ICaseEngineerEligibility, EfCaseEngineerEligibility>();
         services.AddScoped<IAssignCaseEngineer, AssignCaseEngineer>();
-        services.AddScoped<ISetCaseSignOffEngineer, SetCaseSignOffEngineer>();
         services.AddScoped<IStartCaseWork, StartCaseWork>();
         services.AddScoped<IHoldCase, HoldCase>();
         services.AddScoped<IReleaseCase, ReleaseCase>();
@@ -611,7 +567,7 @@ public static class DependencyInjection
         services.AddScoped<IArchiveCase, ArchiveCase>();
         services.AddScoped<IRecordManualCaseChase, RecordManualCaseChase>();
 
-        // The document, EVA and custody surface is composed for every profile that
+        // The document, export and custody surface is composed for every profile that
         // has durable content storage. Only the implementations differ; a profile
         // must never silently resolve a different service set.
         var composesDocumentSurface = localArtifactRootFactory is not null || documentStorage is not null;
@@ -641,7 +597,6 @@ public static class DependencyInjection
                 provider.GetRequiredService<EfCaseArtifactCustody>());
             services.AddScoped<ICaseArtifactCustodyStatus>(provider =>
                 provider.GetRequiredService<EfCaseArtifactCustody>());
-            services.AddSingleton<IEvaHandoffProxy, LocalEvaHandoffProxy>();
             services.AddSingleton<ICaseCustody>(provider =>
                 new LocalCaseCustody(
                     Path.Combine(localArtifactRootFactory(provider), "custody"),
@@ -650,7 +605,6 @@ public static class DependencyInjection
         else if (documentStorage is not null)
         {
             documentStorage(services);
-            services.AddSingleton<IEvaHandoffProxy, LocalEvaHandoffProxy>();
         }
         else
         {
@@ -670,12 +624,10 @@ public static class DependencyInjection
                     provider.GetRequiredService<MimeKitPdfPigOpenXmlIntakeSourceReader>()));
             services.AddScoped<ProcessIntake>();
 
-            // Shared by both EVA routes so the archive and the API submission
-            // cannot state the same case differently.
-            services.AddScoped<EvaCaseImageReader>();
-            services.AddScoped<EvaHandoffStore>();
+            services.AddScoped<CaseExportImageReader>();
+            services.AddScoped<EfCaseExportStore>();
             services.AddScoped<IExportCaseBundle>(provider =>
-                provider.GetRequiredService<EvaHandoffStore>());
+                provider.GetRequiredService<EfCaseExportStore>());
 
             services.AddScoped<EfDocumentCustodyStore>();
             services.AddScoped<IAddCaseDocument>(provider =>
@@ -728,6 +680,52 @@ public static class DependencyInjection
             services.AddScoped<IMarketResearchAiJobCompletionStore, EfMarketResearchAiJobCompletionStore>();
             services.AddScoped<ICompleteMarketResearchAiJob, CompleteMarketResearchAiJob>();
         }
+        return services;
+    }
+
+    /// <summary>
+    /// The staff-identity surfaces only a host with ASP.NET Identity and Data
+    /// Protection can construct: account administration and password change
+    /// over <c>UserManager</c>, and the per-staff vendor credentials protected
+    /// with the host's key ring (ADR-0043). Web composes this after
+    /// <see cref="AddPegasusInfrastructure"/>; the Worker never does, and its
+    /// host validates every registration at build in Development, so leaving
+    /// these in the shared set made the Worker process exit before its first
+    /// function.
+    /// </summary>
+    public static IServiceCollection AddPegasusStaffIdentity(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddScoped<EfStaffAccountAdministration>();
+        services.AddScoped<ICreateStaffAccountStore>(provider =>
+            provider.GetRequiredService<EfStaffAccountAdministration>());
+        services.AddScoped<IDisableStaffAccountStore>(provider =>
+            provider.GetRequiredService<EfStaffAccountAdministration>());
+        services.AddScoped<IUpdateStaffAccountSettingsStore>(provider =>
+            provider.GetRequiredService<EfStaffAccountAdministration>());
+        services.AddScoped<IEnableStaffAccountStore>(provider =>
+            provider.GetRequiredService<EfStaffAccountAdministration>());
+        services.AddScoped<IForceStaffLogoutStore>(provider =>
+            provider.GetRequiredService<EfStaffAccountAdministration>());
+        services.AddScoped<IResetStaffPasswordStore>(provider =>
+            provider.GetRequiredService<EfStaffAccountAdministration>());
+        services.AddScoped<IDeleteStaffAccountStore>(provider =>
+            provider.GetRequiredService<EfStaffAccountAdministration>());
+        services.AddScoped<ICreateStaffAccount, CreateStaffAccount>();
+        services.AddScoped<IDisableStaffAccount, DisableStaffAccount>();
+        services.AddScoped<IUpdateStaffAccountSettings, UpdateStaffAccountSettings>();
+        services.AddScoped<IEnableStaffAccount, EnableStaffAccount>();
+        services.AddScoped<IForceStaffLogout, ForceStaffLogout>();
+        services.AddScoped<IResetStaffPassword, ResetStaffPassword>();
+        services.AddScoped<IDeleteStaffAccount, DeleteStaffAccount>();
+        services.AddScoped<IStaffPasswordChangeStore, EfStaffPasswordChange>();
+        services.AddScoped<IChangeStaffPassword, ChangeStaffPassword>();
+        services.AddScoped<EfPerUserExternalCredentialStore>();
+        services.AddScoped<IPerUserExternalCredentialReader>(provider =>
+            provider.GetRequiredService<EfPerUserExternalCredentialStore>());
+        services.AddScoped<IPerUserExternalCredentialAdministration>(provider =>
+            provider.GetRequiredService<EfPerUserExternalCredentialStore>());
         return services;
     }
 
@@ -903,48 +901,12 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// EXT-04: the EVA API submission route.
-    ///
-    /// Composed separately from the document surface and from the other
-    /// external adapters, because it is the one route that is switched on per
-    /// principal rather than per deployment. A host that does not call this
-    /// has no <see cref="ISubmitCaseToEva"/> at all, which is the honest
-    /// shape: the case page then offers only the export, and a principal's
-    /// toggles are unreachable rather than half-working.
-    ///
-    /// The options come through a factory rather than a value so they are
-    /// parsed at first use. Parsing at host build is what crash-looped the
-    /// worker when the platform handed over an unresolved Key Vault reference,
-    /// and EVA's credentials arrive by exactly that route.
-    /// </summary>
-    public static IServiceCollection AddEvaApiSubmission(
-        this IServiceCollection services,
-        Func<IServiceProvider, EvaApiOptions> optionsFactory)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(optionsFactory);
-
-        services.AddSingleton(optionsFactory);
-        services.AddSingleton(provider =>
-            provider.GetRequiredService<EvaApiOptions>().Instruction);
-        services.AddHttpClient(nameof(EvaApiTransport), client =>
-            client.Timeout = TimeSpan.FromSeconds(100));
-        services.AddSingleton<IEvaApiTransport>(provider => new EvaApiTransport(
-            provider.GetRequiredService<EvaApiOptions>(),
-            provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(EvaApiTransport)),
-            provider.GetRequiredService<TimeProvider>()));
-        services.AddScoped<EvaSubmissionStore>();
-        services.AddScoped<ISubmitCaseToEva>(provider =>
-            provider.GetRequiredService<EvaSubmissionStore>());
-        return services;
-    }
-
-    /// <summary>
     /// Connects Glass's as a guide valuation source (ADR-0060). A host that
     /// does not call this has no Glass's provider, so the Case's Glass's card
     /// says it is unavailable and offers no Get valuation. The account comes
-    /// through a factory and is read on each valuation, for the same
-    /// unresolved-Key-Vault-reference reason as EVA's options; the Glass's
+    /// through a factory and is read on each valuation, because the
+    /// platform can hand over an unresolved Key Vault reference, which must
+    /// not fail the host at build; the Glass's
     /// origin and request timeout are the estimate adapter's own.
     /// </summary>
     public static IServiceCollection AddGlassGuideValuation(
@@ -978,12 +940,9 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(vehicleOptions);
 
         services.AddSingleton(graphOptions);
-        services.AddSingleton(vehicleOptions);
         services.AddHttpClient(nameof(GraphMailClient), client =>
                 client.Timeout = TimeSpan.FromSeconds(100))
             .WithRotatingConnectionPool();
-        services.AddHttpClient(nameof(DvlaDvsaProductionAdapter), client =>
-            client.Timeout = TimeSpan.FromSeconds(100));
         services.AddSingleton(provider => new GraphMailClient(
             provider.GetRequiredService<TokenCredential>(),
             provider.GetRequiredService<GraphApprovedMailboxOptions>().BaseUri,
@@ -996,6 +955,25 @@ public static class DependencyInjection
         services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
         services.AddScoped<PollApprovedInbox>();
         services.AddScoped<PollSentEvidence>();
+        return services.AddLiveVehicleLookup(vehicleOptions);
+    }
+
+    /// <summary>
+    /// The live DVLA/DVSA vehicle-lookup adapter on its own. Production reaches
+    /// it through <see cref="AddProductionExternalAdapters"/>; a DevelopmentOffline
+    /// Worker that opts into live lookups composes exactly this and nothing of
+    /// Graph, so the two hosts share one registration rather than a copy.
+    /// </summary>
+    public static IServiceCollection AddLiveVehicleLookup(
+        this IServiceCollection services,
+        DvlaDvsaProductionOptions vehicleOptions)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(vehicleOptions);
+
+        services.AddSingleton(vehicleOptions);
+        services.AddHttpClient(nameof(DvlaDvsaProductionAdapter), client =>
+            client.Timeout = TimeSpan.FromSeconds(100));
         services.AddSingleton(VehicleLookupAvailability.ProductionLive);
         services.AddSingleton<IVehicleLookupAdapter>(provider => new DvlaDvsaProductionAdapter(
             provider.GetRequiredService<DvlaDvsaProductionOptions>(),
@@ -1070,5 +1048,50 @@ public static class DependencyInjection
             provider.GetRequiredService<GraphMailClient>(),
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(GraphStaffMailSender)),
             provider.GetRequiredService<IStaffMailUploadProgress>()));
+    }
+
+    /// <summary>
+    /// EXT-06: the Glass's repair-estimate gateway, for a host that reaches the
+    /// provider. The options arrive as a value, not a factory: none of them is
+    /// a secret, so a malformed or missing <c>Glass:*</c> setting fails at host
+    /// build naming its key, as <see cref="GlassRepairEstimateOptions"/> promises,
+    /// rather than at an Engineer's Launch on a Case record.
+    /// </summary>
+    public static IServiceCollection AddGlassRepairEstimates(
+        this IServiceCollection services,
+        GlassRepairEstimateOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
+
+        services.AddSingleton(options);
+        services.AddSingleton(GlassRepairEstimateAvailability.Configured);
+        // The handler must not follow redirects and must not manage cookies: a
+        // Glass's session's cookie jar is per session and durable, so the adapter
+        // carries it in protected state rather than in a pooled handler.
+        services.AddHttpClient(GlassRepairEstimateOptions.HttpClientName)
+            .ConfigureHttpClient(client => client.Timeout = options.RequestTimeout)
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                AllowAutoRedirect = false,
+                UseCookies = false,
+            });
+        services.AddScoped<IGlassRepairEstimateGateway, GlassRepairEstimateGateway>();
+        return services;
+    }
+
+    /// <summary>
+    /// A host that does not reach Glass's. The Case record still reads the
+    /// sessions it holds, offers no Glass's control, and refuses a Glass's
+    /// command outright; the gateway registered here is the fence behind that
+    /// refusal, never a stand-in for the provider.
+    /// </summary>
+    public static IServiceCollection AddUnavailableGlassRepairEstimates(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddSingleton(GlassRepairEstimateAvailability.Unavailable);
+        services.AddScoped<IGlassRepairEstimateGateway, UnavailableGlassRepairEstimateGateway>();
+        return services;
     }
 }

@@ -408,10 +408,9 @@ public sealed partial class AssessmentEstimateImportWebTests
 
     /// <summary>
     /// An imported line with no value arrives <c>Unpriced</c> — "To be
-    /// confirmed". Pricing it is the point of the editor, and
-    /// <c>AssessmentPolicy</c> refuses a line that is both marked To be
-    /// confirmed and priced ("A line marked To be confirmed cannot also carry a
-    /// price."), so the flag must clear when a price is entered.
+    /// confirmed". Pricing it is the point of the editor, and a line that
+    /// carries a price is not To be confirmed, so the flag must clear when a
+    /// price is entered.
     ///
     /// Carrying every evidence field forward unconditionally — the first shape
     /// of the fix for the evidence-destroying save — made this save impossible.
@@ -474,7 +473,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             $"/Cases/{caseId:D}?handler=Save&section=estimate",
             new FormUrlEncodedContent(fields));
 
-        // A refusal here is the regression: Core rejects Unpriced with a price.
+        // A refusal here is the regression: the priced line must save.
         Assert.Equal(HttpStatusCode.Redirect, saveResponse.StatusCode);
         Assert.Equal(2, store.SavedEstimates.Count);
 

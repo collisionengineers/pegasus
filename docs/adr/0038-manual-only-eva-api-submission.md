@@ -57,5 +57,5 @@ setting remains frozen with its historical identity.
 
 ## Links
 
-- [FRD-07 — Direct EVA API submission](../frd/frd-07-eva-and-external-engineering-handoff.md#direct-eva-api-submission)
+- [FRD-07 — Direct EVA API submission](../frd/frd-07-case-export.md#direct-eva-api-submission)
 - [ADR-0034 — Per-Principal EVA API submission settings](0034-per-principal-eva-api-submission-settings.md)

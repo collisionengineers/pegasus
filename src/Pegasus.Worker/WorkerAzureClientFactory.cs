@@ -76,7 +76,7 @@ internal static class WorkerAzureClientFactory
 
     private const string DevelopmentStorageKey = "AzureWebJobsStorage";
     private const string IntakeStorageConnectionStringKey = "IntakeStorage:ConnectionString";
-    private const string IntakeArtifactContainerName = "transient-intake";
+    internal const string IntakeArtifactContainerName = "transient-intake";
     private const string IntakeWorkQueueName = "intake-work";
     private const string AzuriteAccountName = "devstoreaccount1";
 
@@ -153,7 +153,13 @@ internal static class WorkerAzureClientFactory
 
         return new(
             new WorkerQueueClients(
-                new QueueClient(queueConnectionString, IntakeWorkQueueName)),
+                // Pinned to the newest service version the repository's Azurite
+                // pin (3.36.0) speaks; the SDK's default is ahead of it, and
+                // Azurite refuses the request rather than downgrading.
+                new QueueClient(
+                    queueConnectionString,
+                    IntakeWorkQueueName,
+                    new QueueClientOptions(QueueClientOptions.ServiceVersion.V2025_11_05))),
             new WorkerStorageProvisioning(allowLocalCreateIfNotExists: true));
     }
 

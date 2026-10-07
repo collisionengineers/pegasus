@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Pegasus.Core.CaseExport;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Web.Pages.Cases.Documents;
@@ -24,19 +24,15 @@ public sealed partial class ExportModel(
         caseId == Guid.Empty ? NotFound() : RedirectToDetails(caseId);
 
     /// <summary>
-    /// The case's own export — the EVA-format archive of
-    /// its photographs and the thirteen mapped fields, and since the hand-off
-    /// was folded into the export the only act that produces one.
+    /// The case's own export — the archive of its photographs and the
+    /// thirteen mapped fields, offered on every standard Case.
     ///
-    /// A POST, and it was a GET until then. The export now records the
-    /// once-per-case `First sent to Engineer` proxy, and a GET that records a
-    /// business event is a hazard: a browser prefetch or an ordinary refresh
-    /// would both fire it, and it carried no antiforgery token. There is no
-    /// GET handler left, so the route answers 405 to one.
+    /// A POST, because the export records an action-history row, and a GET
+    /// that records one is a hazard: a browser prefetch or an ordinary refresh
+    /// would both fire it, and it carries no antiforgery token.
     ///
     /// It takes no case version or edit lease. Its operation key makes the
-    /// action-history record replay-safe; the proxy's separate once-per-case
-    /// guarantee remains the primary key on `EvaFirstHandoffProxies`.
+    /// action-history record replay-safe.
     /// </summary>
     public async Task<IActionResult> OnPostBundleAsync(
         Guid caseId,
@@ -83,11 +79,7 @@ public sealed partial class ExportModel(
         // transport failure is an ordinary way for it to fail. Without
         // HttpRequestException here the operator got the generic error page
         // instead of their case with a reason on it.
-        //
-        // This route now writes the First sent to Engineer proxy, and
-        // as a GET it never wrote anything at all. A failed write arrives here
-        // as InvalidOperationException — EvaHandoffStore translates it, so no
-        // page has to know what EF throws.
+
         catch (Exception exception) when (exception is ArgumentException
             or InvalidOperationException
             or InvalidDataException

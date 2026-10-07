@@ -311,6 +311,22 @@ public static class PrincipalCredentialPolicy
         && secret[SecretPrefix.Length + KeyIdLength] == '_'
         && secret.Skip(SecretPrefix.Length + KeyIdLength + 1).All(IsBase64UrlCharacter);
 
+    /// <summary>
+    /// The key id a presented secret carries, or null when the secret is not
+    /// well formed. Shape only: it names the credential row to verify
+    /// against, and is never evidence that the caller holds it.
+    /// </summary>
+    public static string? KeyIdOf(string? secret)
+    {
+        if (secret is not { Length: SecretLength })
+        {
+            return null;
+        }
+
+        var keyId = secret.Substring(SecretPrefix.Length, KeyIdLength);
+        return IsWellFormed(keyId, secret) ? keyId : null;
+    }
+
     public static PrincipalCredentialAuthentication? Authenticate(
         PrincipalCredentialVerification? verification)
     {

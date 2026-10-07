@@ -65,21 +65,24 @@ receipt, classification and extraction rules as any other attachment. Which
 fields Pegasus reads from the Tractable PDF is an
 [open decision](../open-decisions.md).
 
-**Direct Case creation** is a staff path. It uses the same permanent Case/PO
-allocator as intake acceptance. Staff must supply the identity-critical Case
-facts. The action is recorded. No intake receipt and no invented source
-provenance are created. Its Received date, which is the Case's instruction
-date, is the date staff created it
+**Direct Case creation** is a staff path that the Automation Actor also
+takes, through `pegasus_case_create`
+([ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)). It uses
+the same permanent Case/PO allocator as intake acceptance. The creator must
+supply the identity-critical Case facts. The action is recorded in the
+creator's name. No intake receipt and no invented source provenance are
+created. Its Received date, which is the Case's instruction date, is the
+date it was created
 ([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#instruction-field-meanings)).
 Ordinary detail may still be missing, so the new Case starts in `Not ready`
 until its normal requirements are met. A Triage created this way needs only
 its Principal and registration, starts `Open` and follows the Triage states
 ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
 
-A staff-created Case, and any other staff acceptance with no accepted mail
-route or Principal API credential to name the Principal, records
-`principal_code` as a Confirmed value from the accepted Principal with
-source kind case acceptance. Match indexing and EVA export then name the
+A Case created directly, and any other acceptance by staff or the
+Automation Actor with no accepted mail route or Principal API credential to
+name the Principal, records `principal_code` as a Confirmed value from the
+accepted Principal with source kind case acceptance. Match indexing and the Case export then name the
 Principal instead of an empty value.
 
 **Image-only material** with a usable registration becomes an
@@ -136,12 +139,13 @@ once both are known resolves that item. Grouped vehicle images are judged
 as one group: one usable registration follows the Case or Image-initiated
 route, no usable registration is one Unidentified item with every file, and
 two different valid registrations are the Conflicting identification reason.
-Automation may list and look up items by exact U-reference and uses the
-same Core resolution command as staff
+Automation may list and look up items by exact U-reference, and resolves,
+closes with reason and reopens them through the same Core commands as staff
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md)).
 
-**Open, closed, resolved.** An item is open or resolved. Staff may **Close
-with reason** (free text) any readable item that must not become a Case.
+**Open, closed, resolved.** An item is open or resolved. Staff, or the
+Automation Actor, may **Close with reason** (free text) any readable item
+that must not become a Case.
 The closed item is resolved, listed under Closed items with its reason, and
 **Reopen** (with a reason) returns it to open with a "Resolved to Open"
 history row. Resolving an item to a destination needs an operation key, the
@@ -265,7 +269,10 @@ and is offered only where it applies:
   processing failure.
 
 Each records the actor, reason, time, and before and after state, and
-replays by operation key.
+replays by operation key. The Automation Actor retries an allocation,
+settles a received item's inspection address, and turns the item into a Case
+as **Create case** does, through `pegasus_intake_action`
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#queue-and-intake-tools)).
 
 A retained message's attachments each state their own outcome in operator
 words: Case created, Linked to Case, Vehicle images, Triage, Unidentified,

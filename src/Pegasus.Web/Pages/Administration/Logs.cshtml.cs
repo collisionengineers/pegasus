@@ -449,13 +449,33 @@ public sealed class LogsModel(
             or "pegasus_edit_renew"
             or "pegasus_edit_end"
             or "pegasus_case_update_details"
+            or "pegasus_case_note_add"
+            or "pegasus_valuation_list"
+            or "pegasus_valuation_save"
             or "pegasus_document_add"
             or "pegasus_document_download"
             or "pegasus_estimate_import"
             or "pegasus_estimate_save"
             or "pegasus_estimate_list"
+            or "pegasus_estimate_get"
+            or "pegasus_estimate_act"
             or "pegasus_assessment_get"
-            or "pegasus_assessment_update";
+            or "pegasus_assessment_update"
+            or "pegasus_case_action"
+            or "pegasus_report_list"
+            or "pegasus_report_action"
+            or "pegasus_document_action"
+            or "pegasus_report_wording_get"
+            or "pegasus_report_wording_save"
+            or "pegasus_image_preparation_get"
+            or "pegasus_image_prepare"
+            or "pegasus_report_send"
+            // A mail send is recorded against the Case it is filed under (the
+            // Triage Case for a Triage reply).
+            or "pegasus_mail_send"
+            // A dismissed record is a Case, an Unidentified item or an AI job;
+            // only a Case resolves to a reference here.
+            or "pegasus_work_centre_dismiss";
 
     // Disabled and deleted accounts are retained rows, so this resolves them
     // too; only a genuinely absent identity falls through to "Former staff".

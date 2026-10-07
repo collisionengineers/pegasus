@@ -49,6 +49,9 @@ a staff member types in, imports or brings back from Glass's becomes Current
 when it is created (operator, 25 September 2026). The one it replaces stays
 in the list, and **Use repair spec** switches back to it. An AI draft only
 proposes: it stays a Draft until a staff member presses **Use repair spec**.
+The Automation Actor may edit any live spec in place, the Current one
+included, but never puts a spec in use (operator, 7 October 2026;
+[FRD-10](frd-10-mcp-automation-and-actor-boundary.md#ai-job-and-estimate-tools)).
 The Current spec stays editable while the Case is writable; each change marks
 a generated report stale, and the numbered versions below keep the history.
 Create audit copies every live estimate, with its lines and its Current
@@ -137,7 +140,7 @@ export and the calculation PDF land the same spec:
 
 - An additional operation (the XML's `Extra costs`, which includes Glass's
   own set-up time; the PDF's Auxiliary work or Additional costs `EC` row) is
-  a Specialist line, as EVA files it. With hours it is priced by work units
+  a Specialist line. With hours it is priced by work units
   at the spec's rate; with none, its amount is a fixed Specialist sum.
 - An included operation is a no-charge Other line, with neither hours nor a
   price, noted as included in its row. It is never a new part.
@@ -456,6 +459,14 @@ keeps the original document and its source hash before importing the spec;
 the same Case and hash replay the same import. Printed totals, rates, line
 structure and provider identity must agree. PDF net labour is not reduced
 again by the XML-specific overlap rule.
+
+Each Audatex LABOUR and PAINT WORK section prints its own time basis,
+`Time Basis N WU = 1 HR`; the basis can differ between the two sections of
+one report. The section's work units reconcile to its printed total and are
+then divided by that basis, so every line carries hours, and paint time is
+paint hours. A section without a readable basis refuses the import. The
+printed Total Paint And Material Cost lands on the first paint line, as
+materials sit on lines. Extras keep their printed price.
 
 Readable embedded text is required. An unusable font map, a scan-like page
 or a parser failure gives an explicit refusal, never an OCR request

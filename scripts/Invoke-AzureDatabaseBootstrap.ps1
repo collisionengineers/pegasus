@@ -61,7 +61,8 @@ function Get-MigrationPermissionMatrix {
         '20260917161519_RemovePublicUploadLinks.cs',
         '20260924180000_CaseWorksAndTriageCases.cs',
         '20260929090000_RetireUnusedTables.cs',
-        '20261006150000_DropCaseReportDeliveryIntents.cs'
+        '20261006150000_DropCaseReportDeliveryIntents.cs',
+        '20261007184000_RemoveEva.cs'
     ) | ForEach-Object {
         $terminalSource = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $migrationPath) $_)
         [regex]::Matches($terminalSource, 'DropTable\(\s*name:\s*"(?<table>[A-Za-z0-9]+)"') |
@@ -359,16 +360,11 @@ function Get-MigrationPermissionMatrix {
         $expected.Add("pegasus_worker_runtime_role|G|$permission|ApprovedMailboxSubscriptions")
     }
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|ApprovedMailboxSubscriptions')
-    # 20260827143200_GrantEvaSubmissions: EXT-04 gave a case a second route to
-    # EVA. Web writes an attempt when an operator sends by hand, the Worker
-    # when a principal's automatic setting submits a case that reached Review,
-    # and both read prior attempts for the once-per-case and replay checks.
-    # Observed attempts are retained without update or deletion permissions.
-    foreach ($role in @('pegasus_web_runtime_role', 'pegasus_worker_runtime_role')) {
-        foreach ($permission in @('SELECT', 'INSERT')) {
-            $expected.Add("$role|G|$permission|EvaSubmissions")
-        }
-    }
+    # 20260827143200_GrantEvaSubmissions granted both roles SELECT/INSERT on
+    # EvaSubmissions; 20261007184000_RemoveEva dropped the table, and SQL
+    # Server drops a table's permission rows with it, so the matrix expects
+    # nothing. The migration is named here because it still carries a GRANT,
+    # which Test-AzureDeploymentPlan.ps1 requires this script to account for.
     # 20260828084644_GrantAiJobs: the pull-based AI job ledger arrived
     # (ADR-0035). Only Web touches it — staff create, cancel and confirm from
     # the application and external AI clients claim and finish jobs through
@@ -396,24 +392,15 @@ function Get-MigrationPermissionMatrix {
     # accepted submission and reads rows back for idempotent replay and the
     # Principal's own result lookup. The Worker processes the staged files and
     # reads the row to bind each one to the Principal whose credential
-    # submitted it; it never writes one. The row is created when the
-    # submission is received and completed in place once the request has been
-    # durably retained — the staged receipt id the result lookup reads back —
-    # so Web also holds UPDATE. A submission is never removed: no DELETE for
-    # either role.
-    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+    # submitted it; it never writes one. A submission is never removed: no
+    # DELETE for either role. 20260829212237_GrantProviderSubmissionAcceptRecovery
+    # once gave both roles UPDATE to write the staged-receipt back-reference;
+    # 20261007180000_SimplifyPrincipalSubmissions removed that column and
+    # revoked UPDATE, because nothing updates a submission row any more.
+    foreach ($permission in @('SELECT', 'INSERT')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|PrincipalSubmissions")
     }
     $expected.Add('pegasus_worker_runtime_role|G|SELECT|PrincipalSubmissions')
-    # 20260829212237_GrantProviderSubmissionAcceptRecovery: the accept path
-    # was made recoverable. Web writes the four accept records in four
-    # separate transactions, so a process loss between them used to leave a
-    # submission whose staged receipt id was never written back — the result
-    # lookup then answered Received forever, and the Accepted history row was
-    # never appended. A Worker reconciliation pass now completes those records
-    # in place, which is why the Worker holds UPDATE here and no longer only
-    # SELECT. It still never inserts a submission and never removes one.
-    $expected.Add('pegasus_worker_runtime_role|G|UPDATE|PrincipalSubmissions')
     # 20260829095336_CaseValuations: the Web Case workspace creates and edits
     # valuation rows, and the Assessment workspace reads the current Engineer
     # value in the same process. Worker has no caller and no grant. Valuations
@@ -426,16 +413,11 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE', 'DELETE')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|EditScopes")
     }
-    # 20260909144000_PrincipalReportGenerationPolicies: Review transitions
-    # persist an automatic EVA intent in either host; only
-    # Worker dispatches and records its outcome.
+    # 20260909144000_PrincipalReportGenerationPolicies granted the runtime
+    # roles on AutomaticEvaReviewSubmissions; 20261007184000_RemoveEva dropped
+    # that table with its permission rows, so the matrix expects nothing.
     # 20260904210022_EngineerNotes grants are absent because
     # 20260909145000_GuidanceAndRemoveEngineerNotes retires and drops that table.
-    foreach ($permission in @('SELECT', 'INSERT')) {
-        $expected.Add("pegasus_web_runtime_role|G|$permission|AutomaticEvaReviewSubmissions")
-        $expected.Add("pegasus_worker_runtime_role|G|$permission|AutomaticEvaReviewSubmissions")
-    }
-    $expected.Add('pegasus_worker_runtime_role|G|UPDATE|AutomaticEvaReviewSubmissions')
     # 20260906054658_V1PlatformFoundation: v1 schema owners and holding custody.
     $v1Tables = @('UserExternalCredentials','StaffMailSendOperations','ValuationPresets','LabourRateCards','AppliedValuationSnapshots','GlassRepairEstimateSessions','CaseReportGenerations','GeneratedCaseArtifacts','RetainedInstructionAnalyses','IntakeSourceCandidates','IntakeOcrOperations','DocumentContentCacheEntries')
     foreach ($table in $v1Tables) {
@@ -468,7 +450,7 @@ function Get-MigrationPermissionMatrix {
     $expected.Add('pegasus_worker_runtime_role|G|UPDATE|CaseReportGenerations')
     $expected.Add('pegasus_worker_runtime_role|G|SELECT|GeneratedCaseArtifacts')
     # 20260910120000_CaseImageTags: Web applies and removes image tags and
-    # creates vocabulary entries; the Worker only reads them for the EVA bundle.
+    # creates vocabulary entries; the Worker only reads them.
     # Tags are immutable once created (no UPDATE) and the vocabulary is never
     # deleted; only the Web removes an occurrence's tag row.
     foreach ($permission in @('SELECT', 'INSERT')) {
@@ -612,6 +594,9 @@ function Get-MigrationPermissionMatrix {
     # chaser's chase when the Sent poll observes the send. It never deletes one.
     $expected.Add('pegasus_worker_runtime_role|G|SELECT|CaseManualChases')
     $expected.Add('pegasus_worker_runtime_role|G|INSERT|CaseManualChases')
+    # 20261007183000_GrantWorkerTriageFindings: the Worker's automatic Triage
+    # link reads the Triage's current finding to fill the Case's empty findings.
+    $expected.Add('pegasus_worker_runtime_role|G|SELECT|TriageFindings')
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier
     # migrations this matrix reads still name them, and SQL Server keeps a
     # table's permission rows across a rename, so the rows read here are the

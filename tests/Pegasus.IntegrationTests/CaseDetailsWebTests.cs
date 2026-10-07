@@ -9,7 +9,6 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
@@ -68,11 +67,6 @@ public sealed class CaseDetailsWebTests
             StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// FRD-07: the EVA handoff is a Review act. Outside
-    /// Review the workspace offers no EVA control and draws no handoff, rather
-    /// than drawing a disabled one.
-    /// </summary>
     [Fact]
     public async Task TheRecordRendersTenOrderedSectionHostsAndJumpLinks()
     {
@@ -380,7 +374,7 @@ public sealed class CaseDetailsWebTests
         Assert.Equal(1, Occurrences(html, $"/Cases/{store.CaseId:D}?handler=Save"));
         Assert.Equal(1, Occurrences(html, "id=\"case-edit-form\""));
         Assert.Equal(1, Occurrences(html, "data-edit-save"));
-        // Each editable value SaveCase writes appears once across the
+        // Each editable value the Case save writes appears once across the
         // record, so no control is shadowed by a stale copy of itself.
         foreach (var field in new[]
         {

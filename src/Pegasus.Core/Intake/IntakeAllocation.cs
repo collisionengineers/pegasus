@@ -222,13 +222,12 @@ public sealed class AllocateIntake(
     /// assets. It used to be a constant `true`, so every automatic case was
     /// born claiming complete images whatever arrived — and since the Review
     /// gate reduces to this one flag, an audit with an instruction, a report
-    /// and no photographs went straight to Review while the EVA export refused
-    /// the very same case for having no images.
+    /// and no photographs went straight to Review.
     /// </summary>
     private static CaseCompleteness AutomaticCompleteness(IntakeReceipt receipt) =>
         new(InstructionComplete: true,
             // The one owner of which assets are photographs, so Review and
-            // the EVA export agree by construction rather than by a second rule.
+            // the case export agree by construction rather than by a second rule.
             ImagesComplete: InstructionEvidenceImages.Select(receipt.AssetRecords).Count > 0);
 
     public async Task<IntakeAllocationResult?> AttemptAutomaticAsync(
@@ -255,7 +254,7 @@ public sealed class AllocateIntake(
         // the accepted route classification. Both arrive here as one CaseType.
         var caseType = binding is null
             ? receipt.MailClassificationDecision?.CaseType
-            : PrincipalInstructionKinds.ToCaseType(binding.Instruction.Kind);
+            : binding.Instruction.CaseType;
         var principalCode = EstablishedPrincipalCode(receipt, binding)
             ?? throw new InvalidOperationException(
                 "Automatic allocation requires an accepted principal route or a Principal submission binding.");
@@ -334,7 +333,7 @@ public sealed class AllocateIntake(
         if (caseNotes is null
             || result.State.Status != IntakeAllocationProjectionStatus.Succeeded
             || result.State.CaseId is not { } caseId
-            || string.IsNullOrWhiteSpace(binding.Instruction.Notes))
+            || string.IsNullOrWhiteSpace(binding.Instruction.Draft.Notes))
         {
             return;
         }
@@ -344,7 +343,7 @@ public sealed class AllocateIntake(
                 caseId,
                 ActionActor.Principal(binding.PrincipalId),
                 $"principal-note:{receipt.Id:N}",
-                binding.Instruction.Notes),
+                binding.Instruction.Draft.Notes),
             cancellationToken);
     }
 
@@ -353,8 +352,7 @@ public sealed class AllocateIntake(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RequireStaffActor(request.Actor);
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        RequireCaseworkActor(request.Actor);
         var command = new IntakeAllocationCommand(
             request.ReceiptId,
             request.ExpectedVersion,
@@ -378,8 +376,7 @@ public sealed class AllocateIntake(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RequireStaffActor(request.Actor);
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        RequireCaseworkActor(request.Actor);
         ValidateReasonAndOperation(request.Reason, request.OperationKey);
         var normalizedOperationKey = request.OperationKey.Trim();
         var normalizedReason = request.Reason.Trim();
@@ -624,10 +621,17 @@ public sealed class AllocateIntake(
         }
     }
 
-    private static void RequireStaffActor(ActionActor actor)
+    /// <summary>
+    /// A staff create or retry is casework: a member of staff holding a
+    /// casework role, or the Automation Actor, which holds casework without
+    /// staff roles (ADR-0064).
+    /// </summary>
+    private static void RequireCaseworkActor(ActionActor actor)
     {
-        if (actor.Kind != ActorKind.Staff
-            || !actor.Roles.Any(role => role is StaffRole.Administrator
+        ArgumentNullException.ThrowIfNull(actor);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (actor.Kind == ActorKind.Staff
+            && !actor.Roles.Any(role => role is StaffRole.Administrator
                 or StaffRole.Engineer
                 or StaffRole.User))
         {

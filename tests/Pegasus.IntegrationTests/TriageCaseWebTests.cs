@@ -35,8 +35,7 @@ public sealed partial class TriageCaseWebTests
         "Vehicle",
         "Workflow",
         "Closure",
-        "Documents/Export",
-        "Eva/Send"
+        "Documents/Export"
     ];
 
     [Theory]
@@ -298,6 +297,32 @@ public sealed partial class TriageCaseWebTests
         Assert.NotEmpty(detail.Documents);
         Assert.Equal(TriageState.Open, detail.Record.State);
         Assert.Equal(summary.Version, detail.Record.Version);
+    }
+
+    /// <summary>
+    /// t.QDOS26079: the claimant the request names is on the Triage ribbon,
+    /// and the letter's "Our client was stationary…" prose is not read as one.
+    /// </summary>
+    [Fact]
+    public async Task TheTriageRibbonNamesTheClaimantTheRequestCarries()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var email = IntakeTestEvidence.CreateEmail(
+            "triage-claimant.eml",
+            "Good morning\r\n\r\nPlease see the attached images to determine if the vehicle is "
+            + "repairable or a total loss. We have noted the vehicle as roadworthy.\r\n\r\n"
+            + "Our Client:         Mrs Amber Garratt\r\n"
+            + "Our client was stationary, queuing in their car in the left lane of Hengist Way (A299).",
+            subject: "Engineer Triage - Our Claim Reference : 46246/1 - Vehicle Registration : VO75DFJ");
+        await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var summary = Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
+            .ListAsync(null, CancellationToken.None));
+
+        var ribbon = TriageRibbon(await GetHtmlAsync(client, $"/Cases/{summary.CaseId:D}"));
+
+        Assert.Contains("data-triage-claimant>Mrs Amber Garratt</span>", ribbon, StringComparison.Ordinal);
     }
 
     [Fact]

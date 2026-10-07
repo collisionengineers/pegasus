@@ -281,7 +281,7 @@ public partial class IndexModel(
         {
             var job = (await aiJobQueries.ListOpenAsync(cancellationToken))
                 .FirstOrDefault(candidate => candidate.JobId == jobId);
-            if (job is null || !WorkCentreAiJobRow.CompletesByHand(job))
+            if (job is null || !AiJobPolicy.CompletesByHand(job))
             {
                 throw new InvalidOperationException("The job cannot be completed by hand.");
             }
@@ -775,13 +775,5 @@ public sealed record WorkCentreAssignment(
 /// <summary>One AI jobs row: the job, its draft (route and action) when Draft ready, and who started it.</summary>
 public sealed record WorkCentreAiJobRow(AiJobRecord Job, AiDraft? Draft, string StartedBy)
 {
-    public bool CanComplete => Draft is not null && CompletesByHand(Job);
-
-    /// <summary>
-    /// FRD-27: a Draft ready Query response or queue pass is closed by hand; an
-    /// Estimate and an Unidentified resolution close through their record's own act.
-    /// </summary>
-    public static bool CompletesByHand(AiJobRecord job) =>
-        job.State == AiJobState.DraftReady
-        && job.Kind is AiJobKind.QueryResponse or AiJobKind.UnidentifiedQueuePass;
+    public bool CanComplete => Draft is not null && AiJobPolicy.CompletesByHand(Job);
 }

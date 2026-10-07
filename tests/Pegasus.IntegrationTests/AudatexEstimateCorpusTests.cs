@@ -70,9 +70,11 @@ public sealed class AudatexEstimateCorpusTests(ITestOutputHelper output)
         Assert.NotEmpty(parsed.Lines);
         var totals = Assert.IsType<EstimateSourceTotals>(parsed.SourceTotals);
 
-        decimal WorkUnits(string section) => parsed.Lines
+        // Lines carry hours to six places, so a 12 WU basis may leave the
+        // sum of rounded lines a few millionths from the rounded total.
+        decimal Hours(string section, Func<EstimateLineInput, decimal?> hours) => Math.Round(parsed.Lines
             .Where(line => line.SourceRowIdentity!.StartsWith(section + ":", StringComparison.Ordinal))
-            .Sum(line => line.WorkUnits ?? 0m);
+            .Sum(line => hours(line) ?? 0m), 4);
         decimal Money(string section) => parsed.Lines
             .Where(line => line.SourceRowIdentity!.StartsWith(section + ":", StringComparison.Ordinal))
             .Sum(line => line.Price ?? 0m);
@@ -83,11 +85,15 @@ public sealed class AudatexEstimateCorpusTests(ITestOutputHelper output)
         // lines must add up to it exactly; a section with no lines prints none.
         if (Has("labour"))
         {
-            Assert.Equal<decimal?>(totals.PanelWorkUnits, WorkUnits("labour"));
+            Assert.Equal(Math.Round(totals.PanelWorkUnits!.Value, 4), Hours("labour", line => line.WorkUnits));
         }
         if (Has("paint"))
         {
-            Assert.Equal<decimal?>(totals.PaintWorkUnits, WorkUnits("paint"));
+            Assert.Equal(Math.Round(totals.PaintWorkUnits!.Value, 4), Hours("paint", line => line.PaintWorkUnits));
+        }
+        if (totals.Materials is { } materials && materials != 0m)
+        {
+            Assert.Equal(materials, Assert.Single(parsed.Lines, line => line.Materials is not null).Materials);
         }
         if (Has("parts"))
         {

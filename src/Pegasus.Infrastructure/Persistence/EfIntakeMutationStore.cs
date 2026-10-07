@@ -1274,19 +1274,9 @@ internal sealed class EfIntakeMutationStore(
         IntakeReceiptEntity receipt,
         InstructionDraft draft)
     {
-        (string Name, string? Value)[] drafted =
-        [
-            ("Claimant name", draft.ClaimantName),
-            ("Claim number", draft.ClaimNumber),
-            ("Vehicle registration", draft.VehicleRegistration),
-            ("Vehicle make", draft.VehicleMake),
-            ("Vehicle model", draft.VehicleModel),
-            ("Vehicle mileage", draft.VehicleMileage?.ToString(CultureInfo.InvariantCulture)),
-            ("Accident circumstances", draft.AccidentCircumstances),
-            ("Date of incident", draft.DateOfIncident?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
-            ("Inspection address", draft.InspectionAddress),
-            ("Inspection date", draft.InspectionDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
-        ];
+        var drafted = InstructionDraftFields.All
+            .Where(field => field.StaffKeyed)
+            .Select(field => (Name: field.Label, Value: field.Value(draft)));
         var fields = EfIntakeReceiptStore.DeserializeFields(receipt.FieldsJson).ToList();
         foreach (var (name, value) in drafted)
         {

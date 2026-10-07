@@ -93,10 +93,6 @@ public sealed class MoveRetainedMailFolder(IRetainedMailFolderMoveStore store)
         CancellationToken cancellationToken = default)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        if (actor.Kind != ActorKind.Staff)
-        {
-            throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
-        }
         ArgumentNullException.ThrowIfNull(request);
         if (request.MessageId == Guid.Empty)
         {

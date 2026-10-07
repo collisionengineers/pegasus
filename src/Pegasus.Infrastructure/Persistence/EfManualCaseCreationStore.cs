@@ -14,8 +14,9 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// Creates a formal Case entered by staff without manufacturing an intake
-/// receipt, source hash, extraction result, or source document.
+/// Creates a formal Case entered by staff or the Automation Actor without
+/// manufacturing an intake receipt, source hash, extraction result, or source
+/// document.
 /// </summary>
 public sealed class EfManualCaseCreationStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
@@ -25,6 +26,12 @@ public sealed class EfManualCaseCreationStore(
     : IManualCaseCreationStore
 {
     private static readonly JsonSerializerOptions RolesJsonOptions = new(JsonSerializerDefaults.Web);
+
+    /// <summary>The history reason, naming who entered the Case.</summary>
+    private static string CreationReason(ActionActor actor) =>
+        actor.Kind == ActorKind.Automation
+            ? "Case created directly by the Automation actor."
+            : "Case created directly by staff.";
 
     public async Task<ManualCaseCreationOutcome> CreateAsync(
         CreateManualCaseRequest request,
@@ -140,12 +147,7 @@ public sealed class EfManualCaseCreationStore(
             Version = 0
         };
         context.CaseWorkflows.Add(workflow);
-        if (initialState == CaseInitialState.Review)
-        {
-            AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
-                context, workflow, workflow.Version, now);
-        }
-        else
+        if (initialState != CaseInitialState.Review)
         {
             context.CaseDueWork.Add(new()
             {
@@ -210,7 +212,7 @@ public sealed class EfManualCaseCreationStore(
             workflow,
             request.Actor,
             request.OperationKey,
-            "Case created directly by staff.",
+            CreationReason(request.Actor),
             "manual_case_created",
             fingerprint,
             0,
@@ -246,7 +248,7 @@ public sealed class EfManualCaseCreationStore(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        const string reason = "Case created directly by staff.";
+        var reason = CreationReason(request.Actor);
         var registration = request.Data.VehicleRegistration
             ?? throw new InvalidOperationException("A manual case needs Vehicle registration.");
         var triage = TriageCaseRows.Add(

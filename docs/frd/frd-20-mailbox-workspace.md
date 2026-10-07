@@ -39,7 +39,7 @@ received first. Folder, mailbox, queue and search views are explicit
 refinements of that view. Sent mail and read-only Deleted Items search are
 separate folder scopes. Sent Items lists every Sent item the Sent-evidence
 poll ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md)) has read
-from an approved mailbox, newest sent first, whether Pegasus, EVA or Outlook
+from an approved mailbox, newest sent first, whether Pegasus or Outlook
 sent it; a row opens the message record the same way a received one does.
 
 There is no historical backfill. The workspace shows retained mail from each
@@ -148,13 +148,14 @@ happen while classification is still unresolved, when the link evidence on
 its own is enough.
 
 After a classification is saved, the recommended Outlook folder move is a
-separate, explicit confirmation. Staff may confirm only the folder the
-classification policy names. Wanting a different folder means correcting the
+separate, explicit confirmation. Staff, or the Automation Actor through
+`pegasus_mail_action` ([ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)),
+may confirm only the folder the classification policy names. Wanting a different folder means correcting the
 classification, not picking a folder. If a later reclassification names a
 different folder, Pegasus offers another separate confirmation; it never
 moves the item automatically. If a move fails, the saved classification
-stays, the failure is visible, and only a staff-initiated retry may repeat
-the move. After a successful move, the message leaves the Inbox view and is
+stays, the failure is visible, and only a retry by staff or the Automation
+Actor may repeat the move. After a successful move, the message leaves the Inbox view and is
 still found through its destination folder or search. It is never
 duplicated.
 
@@ -184,7 +185,8 @@ stays in this mailbox workspace.
 
 A row or the message record offers **Dismiss**. It moves the message into
 the `Dismissed` logical folder and out of every other scope. **Restore**
-from the Dismissed scope brings it back. Both are always allowed. An open
+from the Dismissed scope brings it back. Both are always allowed, to staff
+and to the Automation Actor (`pegasus_mail_action`). An open
 Unidentified item stays open, and the message keeps its evidence,
 associations and history. Dismiss is Pegasus data only: the Outlook item
 does not move and no Graph call is made
@@ -215,7 +217,7 @@ workspace only shows them.
 - A search over an unsearchable attachment says so; it does not hide the
   attachment.
 - A folder move that fails leaves the classification intact and waits for a
-  staff retry.
+  retry by staff or the Automation Actor.
 - A refreshed message that left the scope stays readable with a way back.
 - A thread identity seen in another mailbox is never followed.
 - A count or list whose query has not run shows nothing, never `0`.

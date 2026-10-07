@@ -157,7 +157,7 @@ Owner: `src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs`
 Owners: `src/Pegasus.Core/Intake/InstructionFieldExtraction.cs` (the
 Principal-neutral `InstructionFieldEngine`) and
 `src/Pegasus.Core/Intake/DirectPrincipals/Qdos/QdosInstructionExtractionPolicy.cs`
-(the QDOS grammar, `Version 11`). The engine carries no QDOS knowledge; every
+(the QDOS grammar, `Version 12`). The engine carries no QDOS knowledge; every
 QDOS-specific label, guard, and synthesis rule is supplied by the policy.
 
 Mechanics (engine):

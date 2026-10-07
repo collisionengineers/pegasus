@@ -3,7 +3,7 @@ id: ADR-0021
 status: superseded
 date: 2026-08-03
 supersedes: []
-superseded_by: [ADR-0031]
+superseded_by: [ADR-0031, ADR-0064]
 related_capabilities: []
 related_frd: [frd-10, frd-27]
 tags: [mcp, automation, ai]
@@ -16,7 +16,10 @@ tags: [mcp, automation, ai]
 Superseded by [ADR-0031](0031-automation-actor-contract-without-eva-export-tools.md).
 The DevelopmentOffline-only composition gate for
 `Features:AutomationMcp` (decision 1's final consequence) is amended by
-[ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md);
+[ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md),
+and decision 2's structural absence of a finding tool and of a
+report-approval tool is replaced by
+[ADR-0064](0064-automation-actor-staff-casework-parity.md);
 every other clause of this record stands.
 
 ## Current applicability

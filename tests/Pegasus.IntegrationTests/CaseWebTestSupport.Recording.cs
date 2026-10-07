@@ -12,7 +12,6 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
@@ -465,11 +464,9 @@ internal static partial class CaseWebTestSupport
 
     internal sealed partial class RecordingCaseDetailsStore :
         IAssignCaseEngineer,
-        ISetCaseSignOffEngineer,
         ICreateLinkedReplacement
     {
         public List<AssignCaseEngineerRequest> EngineerAssignments { get; } = [];
-        public List<SetCaseSignOffEngineerRequest> SignOffSelections { get; } = [];
         public List<CreateLinkedReplacementRequest> LinkedReplacements { get; } = [];
 
         Task<CaseWorkflowRecord> IAssignCaseEngineer.ExecuteAsync(
@@ -483,19 +480,6 @@ internal static partial class CaseWebTestSupport
             {
                 AssignedEngineerId = request.EngineerId,
                 State = CaseLifecycleState.ReportPreparation
-            });
-        }
-
-        Task<CaseWorkflowRecord> ISetCaseSignOffEngineer.ExecuteAsync(
-            SetCaseSignOffEngineerRequest request,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            SignOffSelections.Add(request);
-            ConsumeLease();
-            return Task.FromResult(CreateWorkflow() with
-            {
-                SignOffEngineerId = request.SignOffEngineerId
             });
         }
 

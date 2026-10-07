@@ -32,10 +32,11 @@ public sealed class PrincipalVocabularyMigrationTests
         Assert.Equal(1, await ColumnCountAsync(database, "CaseMatchIndex", "WorkProviderCode"));
         Assert.Equal(1, await ColumnCountAsync(database, "IntakeMailRouteDecisions", "WorkProviderCode"));
 
-        await context.Database.MigrateAsync();
+        // Pinned to the rename itself: a later migration reshapes the
+        // submission table this one renamed.
+        await context.Database.MigrateAsync(VocabularyMigration);
 
-        Assert.Contains(VocabularyMigration, await context.Database.GetAppliedMigrationsAsync());
-        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        Assert.Equal(VocabularyMigration, (await context.Database.GetAppliedMigrationsAsync()).Last());
         foreach (var table in OldTables)
         {
             Assert.Equal(0, await TableCountAsync(database, table));
@@ -217,13 +218,16 @@ public sealed class PrincipalVocabularyMigrationTests
         await using var context = await database.CreateContextAsync();
         await context.Database.MigrateAsync();
 
-        foreach (var permission in new[] { "SELECT", "INSERT", "UPDATE" })
+        // 20261007180000_SimplifyPrincipalSubmissions revoked UPDATE: nothing
+        // updates a submission row any more.
+        Assert.Equal(0, await GrantCountAsync(database, WebRole, "PrincipalSubmissions", "UPDATE"));
+        Assert.Equal(0, await GrantCountAsync(database, WorkerRole, "PrincipalSubmissions", "UPDATE"));
+        foreach (var permission in new[] { "SELECT", "INSERT" })
         {
             Assert.Equal(1, await GrantCountAsync(database, WebRole, "PrincipalSubmissions", permission));
         }
         Assert.Equal(0, await GrantCountAsync(database, WebRole, "PrincipalSubmissions", "DELETE"));
         Assert.Equal(1, await GrantCountAsync(database, WorkerRole, "PrincipalSubmissions", "SELECT"));
-        Assert.Equal(1, await GrantCountAsync(database, WorkerRole, "PrincipalSubmissions", "UPDATE"));
         Assert.Equal(0, await GrantCountAsync(database, WorkerRole, "PrincipalSubmissions", "INSERT"));
         Assert.Equal(0, await GrantCountAsync(database, WorkerRole, "PrincipalSubmissions", "DELETE"));
 

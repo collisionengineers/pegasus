@@ -182,7 +182,7 @@ public sealed class EfCaseWorkspaceStore(
                 assessmentFields.ToDictionary(
                     item => item.FieldPath, item => (string?)item.Value, StringComparer.Ordinal));
         }
-        var (fieldsToWrite, merged) = AssessmentWriteSet.Build(requestedFields, assessmentFields, request.Actor.Kind);
+        var (fieldsToWrite, merged) = AssessmentWriteSet.Build(requestedFields, assessmentFields);
         var (beforeFields, afterFields) = AssessmentWriteSet.Apply(
             context,
             workId,
@@ -327,8 +327,6 @@ public sealed class EfCaseWorkspaceStore(
                 if (enteringReview)
                 {
                     workflow.StateEnteredAtUtc = now;
-                    AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
-                        context, workflow, checked(workflow.Version + 1), now);
                 }
             }
             else

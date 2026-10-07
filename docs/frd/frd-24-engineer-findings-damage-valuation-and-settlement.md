@@ -17,7 +17,8 @@
   The preview shows what the Save will use.
 - Settlement saves with the Case's single workspace Save. Equity is derived,
   never typed in.
-- AI and Market Research only propose. An authorised person decides.
+- Staff and the Automation Actor record findings. AI market research only
+  proposes: it never becomes the Engineer's Value by itself.
 
 ## Purpose
 
@@ -42,8 +43,13 @@ and AI job states by
 The Collision Engineers Engineer report is definitive for the Case.
 Roadworthiness (`Roadworthy` or `Unroadworthy`) and Assessment
 (`Repairable` or `Total loss`) are separate professional findings. Neither is
-derived from the other, and Triage findings never fill or change either one.
-Every enabled human staff role may record or correct these findings under the
+derived from the other. A linked Triage's finding fills either one only where
+the Case holds nothing, once
+([FRD-03](frd-03-triage.md#triage-findings-on-the-linked-case)); a value staff
+entered is never replaced.
+Every enabled human staff role, and the Automation Actor
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#assessment-writes);
+operator, 7 October 2026), may record or correct these findings under the
 existing state, lease and version rules. On an Inspection + Audit Case with
 an Audit, the Audit's findings, damage, valuation and settlement are
 recorded on the Audit's values; the Inspection's stay as its report was
@@ -63,9 +69,9 @@ on a source or an estimate version are evidence only. No finding, figure,
 outcome, deduction or settlement meaning is derived from them. They are shown
 as recorded.
 
-**No money effects.** Triage findings and their corrections have no effect
-on a linked instruction Case or on any report, Audit reference, fee or
-invoice. Invoicing is deferred
+**No money effects.** Beyond that one fill, Triage findings and their
+corrections have no effect on a linked instruction Case, and none on any
+report, Audit reference, fee or invoice. Invoicing is deferred
 separately: a finding correction must not create, alter, credit or void an
 invoice. Any later financial consequence needs the separately accepted,
 versioned finance contract.
@@ -74,8 +80,10 @@ versioned finance contract.
 propose candidate facts, confidence, damage observations, repair operations,
 costs, flags, valuation comparables, roadworthiness, total-loss or salvage
 evidence only where an allocated capability and accepted evaluation allow
-it. `Pegasus.Core` and an authorised person own accepted facts, economics,
-findings, outcome, legal use and approval. A skill, prompt, model, workspace,
+it. `Pegasus.Core` and an authorised staff member or, within
+[FRD-10](frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary),
+the Automation Actor own accepted facts, economics, findings, outcome, legal
+use and approval. A skill, prompt, model, workspace,
 external schema or imported reference never becomes OEM instruction, repair
 policy, valuation authority, legal advice, Engineer approval or product
 policy just by existing.
@@ -358,7 +366,7 @@ circular readiness gate is acceptable.
 - Equity is absent when its accepted inputs are incomplete, never a made-up
   zero.
 - The Engineer's Value and its retail and trade values are professional
-  findings: only staff record them, never automation.
+  findings: staff or the Automation Actor record them.
 - A valuation source with no connected provider shows the card's notice from
   the start, offers no Get valuation, and still lets the figures be typed by
   hand; the Case Save records them. A connected source that cannot answer
@@ -404,4 +412,5 @@ Glass's evidence is a separate tier
   [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md),
   [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md).
 - Technical constraints:
-  [ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md).
+  [ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md),
+  [ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md).

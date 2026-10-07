@@ -62,7 +62,7 @@ public sealed class CaseTasksWebTests
     /// at once, so the Inspection section no longer carries a whole-record
     /// form of its own — its control is associated with the one record form,
     /// which is the only entry for `inspectionAddress`, and that one form
-    /// still carries every editable value SaveCase writes.
+    /// still carries every editable value the Case save writes.
     /// </summary>
     [Fact]
     public async Task InspectionAddressEditorContributesTheOnlyAddressEntryToTheRecordForm()
@@ -143,8 +143,8 @@ public sealed class CaseTasksWebTests
 
     /// <summary>
     /// The Overview editor writes the same editable values, so it must carry the
-    /// claimant's own contact number and address too: SaveCase writes a null for
-    /// anything the form omits, which cleared them on every save.
+    /// claimant's own contact number and address too: the Case save replaces the
+    /// submitted section whole, so anything the form omits would be cleared.
     /// </summary>
     [Fact]
     public async Task OverviewEditorAlsoPostsTheClaimantContactNumberAndAddress()

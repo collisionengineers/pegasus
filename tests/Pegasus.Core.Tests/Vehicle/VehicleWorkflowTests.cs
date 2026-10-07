@@ -201,7 +201,7 @@ public sealed class VehicleWorkflowTests
         Assert.Empty(custody.ProcessedIds);
         Assert.Equal([workId], vehicle.ProcessedIds);
 
-        reader.Work = new(workId, "submit_case_to_eva");
+        reader.Work = new(workId, "unknown_work_kind");
         await Assert.ThrowsAsync<UnknownExternalWorkKindException>(() =>
             dispatcher.ExecuteAsync(workId, CancellationToken.None));
         Assert.Empty(custody.ProcessedIds);

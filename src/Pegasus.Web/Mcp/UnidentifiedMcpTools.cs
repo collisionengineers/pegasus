@@ -57,6 +57,8 @@ internal sealed class UnidentifiedMcpTools(
     IUnidentifiedStore store,
     IListUnidentifiedQueueByCursor listQueue,
     IResolveUnidentified resolve,
+    ICloseUnidentified close,
+    IReopenUnidentified reopen,
     IGetIntake getIntake,
     IGetIntakeSourceMetadata getSourceMetadata,
     IDownloadIntakeSource downloadSource,
@@ -249,15 +251,15 @@ internal sealed class UnidentifiedMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Resolves one Unidentified item using the same versioned Core command as Web. Requires a mcp:-prefixed operation key, reason, target and expected version.")]
+    [Description("Resolves one open Unidentified item using the same versioned Core commands as Web: a destination (InstructionCase, ImageIntake, Triage or ExternalReference) or Close with reason, the item's one refusal, which names no destination and keeps the U-reference reachable under Closed. Requires a mcp:-prefixed operation key, reason and expected version. pegasus_unidentified_reopen withdraws either.")]
     public async Task<UnidentifiedToolItem> ResolveAsync(
         [Description("Exact canonical U-reference, for example U17.")] string reference,
         [Description("The item version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("Why, for the item's history.")] string reason,
-        [Description("Where the item goes: InstructionCase, ImageIntake or Triage (targetId is that record's id), ExternalReference (free-form targetId), or Closed (close with reason; targetId names what was decided).")] UnidentifiedResolutionTargetKind targetKind,
-        [Description("The destination identifier for that kind.")] string targetId,
-        [Description("Optional display reference for the destination.")] string? targetReference,
+        [Description("Why, for the item's history, at most 500 characters. For Closed it is the closure reason.")] string reason,
+        [Description("Where the item goes: InstructionCase, ImageIntake or Triage (targetId is that record's id), ExternalReference (free-form targetId), or Closed (close with reason; no targetId).")] UnidentifiedResolutionTargetKind targetKind,
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description("The destination identifier for that kind; required for every kind except Closed, which takes none.")] string? targetId = null,
+        [Description("Optional display reference for the destination; not taken by Closed.")] string? targetReference = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
@@ -272,6 +274,19 @@ internal sealed class UnidentifiedMcpTools(
                 var normalizedReference = RequireReference(reference);
                 var item = await store.GetByReferenceAsync(normalizedReference, cancellationToken)
                     ?? throw new McpException("The Unidentified reference was not found.");
+                if (targetKind == UnidentifiedResolutionTargetKind.Closed)
+                {
+                    if (targetId is not null || targetReference is not null)
+                    {
+                        throw new McpException("Closed names no destination; omit targetId and targetReference.");
+                    }
+
+                    var closed = await close.ExecuteAsync(
+                        new(item.Id, expectedVersion, context.Actor, key, reason, DateTimeOffset.UtcNow),
+                        cancellationToken);
+                    return Map(closed.Item);
+                }
+
                 var result = await resolve.ExecuteAsync(
                     new(
                         item.Id,
@@ -280,9 +295,45 @@ internal sealed class UnidentifiedMcpTools(
                         key,
                         reason,
                         targetKind,
-                        targetId,
+                        targetId ?? throw new McpException("targetId is required for a destination."),
                         targetReference,
                         DateTimeOffset.UtcNow),
+                    cancellationToken);
+                return Map(result.Item);
+            }),
+            cancellationToken);
+    }
+
+    [McpServerTool(
+        Name = "pegasus_unidentified_reopen",
+        Title = "Reopen Unidentified work",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Reopens one resolved or closed Unidentified item with a reason, as the item's Reopen does: the resolution is withdrawn, stays in the item's history, and the item returns to the open list. Requires a mcp:-prefixed operation key and the expected version.")]
+    public async Task<UnidentifiedToolItem> ReopenAsync(
+        [Description("Exact canonical U-reference, for example U17.")] string reference,
+        [Description("The item version the caller observed; a stale value fails closed.")] long expectedVersion,
+        [Description("Why the item is reopened, for its history, at most 500 characters.")] string reason,
+        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
+        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
+        return await auditor.RecordAsync(
+            context,
+            "pegasus_unidentified_reopen",
+            reference?.Trim() ?? "invalid",
+            key,
+            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            {
+                var normalizedReference = RequireReference(reference);
+                var item = await store.GetByReferenceAsync(normalizedReference, cancellationToken)
+                    ?? throw new McpException("The Unidentified reference was not found.");
+                var result = await reopen.ExecuteAsync(
+                    new(item.Id, expectedVersion, context.Actor, key, reason, DateTimeOffset.UtcNow),
                     cancellationToken);
                 return Map(result.Item);
             }),

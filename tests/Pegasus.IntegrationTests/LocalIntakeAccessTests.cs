@@ -114,12 +114,6 @@ public sealed class LocalIntakeAccessTests
     [InlineData("Box:HoldingFolderId")]
     [InlineData("Box:ConfigJson")]
     [InlineData("Box:ClientSecret")]
-    [InlineData("Eva:BaseUri")]
-    [InlineData("Eva:ClientId")]
-    [InlineData("Eva:ClientSecret")]
-    [InlineData("Eva:RequestFrom")]
-    [InlineData("Eva:InspectionType")]
-    [InlineData("Eva:InstructionEmail")]
     [InlineData("Glass:MarketValueAssessorBaseUri")]
     [InlineData("Glass:EstimatorBaseUri")]
     [InlineData("Glass:CallbackBaseUri")]
@@ -152,12 +146,6 @@ public sealed class LocalIntakeAccessTests
             ["Box:HoldingFolderId"] = "test-holding-folder",
             ["Box:ConfigJson"] = "{}",
             ["Box:ClientSecret"] = "client-secret",
-            ["Eva:BaseUri"] = "https://sentry.evasoftware.co.uk/api/",
-            ["Eva:ClientId"] = "eva-client",
-            ["Eva:ClientSecret"] = "eva-secret",
-            ["Eva:RequestFrom"] = "COLLENGAPI",
-            ["Eva:InspectionType"] = "Vehicle Damage Inspection",
-            ["Eva:InstructionEmail"] = "digital@collisionengineers.co.uk",
             ["Glass:MarketValueAssessorBaseUri"] = "https://mva.test/",
             ["Glass:EstimatorBaseUri"] = "https://ere.test/",
             ["Glass:CallbackBaseUri"] = "https://pegasus.test/",

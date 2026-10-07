@@ -572,6 +572,38 @@ public sealed class QdosInstructionExtractionPolicyTests
         Assert.False(claimant.HasConflict);
     }
 
+    /// <summary>
+    /// t.QDOS26079: a forwarded letter is one quoted-history fragment, so the
+    /// circumstances' "Our client was stationary…" line and the synthesized
+    /// "Claimant address:" row sat beside the name row at the same rank and
+    /// left the claimant unresolved.
+    /// </summary>
+    [Fact]
+    public void AQuotedLetterKeepsItsClaimantFreeOfProseAndTheAddressRow()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.EmailBody,
+                "quoted history",
+                "Our Client:         Mrs Amber Garratt\n"
+                + "CLIENT DETAILS\n"
+                + "Mrs Amber Garratt\n"
+                + "8 Honeysuckle Road\n"
+                + "Ramsgate\n"
+                + "CT11 8AB\n"
+                + "\n"
+                + "Please could you check the damage for consistency with the following accident circumstances?\n"
+                + "Our client was stationary, queuing in their car in the left lane of Hengist Way (A299).\n"
+                + "Your insured failed to keep a safe following distance and collided with our client's vehicle.")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var claimant = Field(result, "Claimant name");
+        Assert.Equal("Mrs Amber Garratt", claimant.SuggestedValue);
+        Assert.False(claimant.HasConflict);
+        Assert.All(claimant.Candidates, candidate => Assert.Equal("Mrs Amber Garratt", candidate.Value));
+    }
+
     [Fact]
     public void SubjectFactsFillFieldsTheBodyLacks()
     {

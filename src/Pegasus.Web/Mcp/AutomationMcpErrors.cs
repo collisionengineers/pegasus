@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using ModelContextProtocol;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -91,6 +93,20 @@ internal static class AutomationMcpErrors
         }
 
         return normalized;
+    }
+
+    /// <summary>
+    /// A command whose Core contract keys replays by a GUID (a confirmed
+    /// Outlook folder move) takes one derived from the caller's key, the actor
+    /// and the purpose, so replaying the same 'mcp:' key replays the command and
+    /// no two actors or purposes share an identity.
+    /// </summary>
+    public static Guid DeriveOperationGuid(string purpose, ActionActor actor, string operationKey)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return new(SHA256.HashData(
+                Encoding.UTF8.GetBytes($"mcp/{purpose}/{actor.Kind}/{actor.SubjectId}/{operationKey}"))
+            .AsSpan(0, 16));
     }
 
     public static Guid RequireId(Guid value, string name) =>

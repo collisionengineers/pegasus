@@ -71,8 +71,7 @@ internal static class AssessmentWriteSet
 {
     public static (Dictionary<string, string?> ToWrite, Dictionary<string, string> Merged) Build(
         IReadOnlyDictionary<string, string?> requested,
-        IEnumerable<CaseAssessmentFieldEntity> persisted,
-        ActorKind actorKind)
+        IEnumerable<CaseAssessmentFieldEntity> persisted)
     {
         ArgumentNullException.ThrowIfNull(requested);
         ArgumentNullException.ThrowIfNull(persisted);
@@ -81,7 +80,7 @@ internal static class AssessmentWriteSet
             item => item.Value,
             StringComparer.Ordinal);
         var toWrite = new Dictionary<string, string?>(requested, StringComparer.Ordinal);
-        AssessmentPolicy.CompleteCoupledWrites(toWrite, merged, actorKind);
+        AssessmentPolicy.CompleteCoupledWrites(toWrite, merged);
         foreach (var (path, value) in toWrite)
         {
             if (value is null)

@@ -30,10 +30,10 @@ public sealed class EfCaseAcceptanceStore(
         ArgumentNullException.ThrowIfNull(request.Actor);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.PrincipalCode);
-        if (request.Actor.Kind is not (ActorKind.Staff or ActorKind.SystemWorker))
+        if (request.Actor.Kind is not (ActorKind.Staff or ActorKind.Automation or ActorKind.SystemWorker))
         {
             throw new ArgumentException(
-                "Case acceptance requires a staff or system-worker actor.",
+                "Case acceptance requires a staff, Automation or system-worker actor.",
                 nameof(request));
         }
         ArgumentNullException.ThrowIfNull(request.Completeness);
@@ -294,11 +294,6 @@ public sealed class EfCaseAcceptanceStore(
             Version = 0
         };
         context.CaseWorkflows.Add(workflowEntity);
-        if (initialState == CaseInitialState.Review)
-        {
-            AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
-                context, workflowEntity, workflowEntity.Version, acceptedAtUtc);
-        }
         await CaseGuidance.ApplyCreationAsync(context, workflowEntity, null, acceptedAtUtc, request.OperationKey, cancellationToken);
         if (initialState == CaseInitialState.NotReady)
         {
@@ -471,7 +466,7 @@ public sealed class EfCaseAcceptanceStore(
         if (request.CaseType != CaseType.Audit
             || !string.Equals(
                 receipt.SourceChannel,
-                EfPrincipalSubmissionStore.PrincipalApiSourceChannel,
+                EfIntakeReceiptStore.ToCode(IntakeSourceChannel.PrincipalApi),
                 StringComparison.Ordinal)
             || !Guid.TryParseExact(receipt.ExternalReceiptToken, "N", out var submissionId))
         {

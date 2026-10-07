@@ -3,6 +3,7 @@ using System.Reflection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Assessment;
@@ -518,11 +519,11 @@ public sealed class AssessmentPolicyTests
     }
 
     [Fact]
-    public void TheReportsThreeValuesAreFindingsAnyStaffMemberRecordsOrClears()
+    public void TheReportsThreeValuesAreFieldsAnyCaseworkActorRecordsOrClears()
     {
         // Retail, Trade and Engineer's value are ordinary fields of Valuation
-        // (operator, 26 September 2026): staff type or clear them like any
-        // finding, and automation records none of them.
+        // (operator, 26 September 2026): staff and the Automation actor type
+        // or clear them like any other (operator, 7 October 2026).
         foreach (var path in new[]
         {
             AssessmentVocabulary.ValueRetail,
@@ -530,7 +531,7 @@ public sealed class AssessmentPolicyTests
             AssessmentVocabulary.ValueEngineer
         })
         {
-            foreach (var actor in new[] { Engineer, PlainStaff })
+            foreach (var actor in new[] { Engineer, PlainStaff, Automation })
             {
                 Assert.Equal(
                     "4500.00",
@@ -538,8 +539,6 @@ public sealed class AssessmentPolicyTests
                 Assert.Null(
                     AssessmentPolicy.ValidateAndNormalize(Request(new() { [path] = null }, actor)).Fields[path]);
             }
-            Assert.Throws<InvalidOperationException>(() =>
-                AssessmentPolicy.ValidateAndNormalize(Request(new() { [path] = "4500.00" }, Automation)));
         }
     }
 
@@ -656,37 +655,66 @@ public sealed class AssessmentPolicyTests
         Assert.True(AssessmentPolicy.MaximumFieldsPerSave >= AssessmentVocabulary.Definitions.Count);
     }
 
+    /// <summary>
+    /// A fill lands where nobody recorded a value or another fill did; a
+    /// value staff or the Automation actor recorded on purpose is never
+    /// overwritten (operator, 7 October 2026).
+    /// </summary>
     [Theory]
-    [InlineData(null, true)]
-    [InlineData(ActorKind.Automation, true)]
-    [InlineData(ActorKind.Staff, false)]
-    public void AFillLandsOnlyWhereStaffHaveNotRecordedAValue(ActorKind? recordedByKind, bool lands) =>
-        Assert.Equal(lands, AssessmentPolicy.FillLands(recordedByKind));
+    [InlineData(null, null, true)]
+    [InlineData(ActorKind.Automation, OriginalReportPrefillPolicy.RecorderId, true)]
+    [InlineData(ActorKind.Automation, VehicleLookupFillPolicy.RecorderId, true)]
+    [InlineData(ActorKind.Automation, GlassVinFillPolicy.RecorderId, true)]
+    [InlineData(ActorKind.Automation, PrincipalDefaultFeePolicy.RecorderId, true)]
+    [InlineData(ActorKind.Automation, "mcp-grant-7f3a", false)]
+    [InlineData(ActorKind.Automation, null, false)]
+    [InlineData(ActorKind.Staff, "staff", false)]
+    [InlineData(ActorKind.Staff, VehicleLookupFillPolicy.RecorderId, false)]
+    public void AFillLandsOnlyWhereNobodyRecordedAValueOnPurpose(
+        ActorKind? recordedByKind, string? recordedBy, bool lands) =>
+        Assert.Equal(lands, AssessmentPolicy.FillLands(recordedByKind, recordedBy));
 
     [Fact]
-    public void AutomationCannotRecordAFindingField()
+    public void AutomationRecordsAFindingField()
     {
-        // A professional finding is recorded only by staff: the Automation
-        // actor never records one, so no AI value can be a finding.
-        var refused = Assert.Throws<InvalidOperationException>(() => AssessmentPolicy.ValidateAndNormalize(
-            Request(new() { ["assessment.legal_status"] = "roadworthy" })));
-        Assert.Contains("professional finding", refused.Message, StringComparison.Ordinal);
-
+        // The Automation actor does anything a staff member can (operator,
+        // 7 October 2026), professional findings included.
         var normalized = AssessmentPolicy.ValidateAndNormalize(
-            Request(new() { ["vehicle.condition"] = "good" }));
+            Request(new()
+            {
+                [AssessmentVocabulary.LegalStatus] = "roadworthy",
+                [AssessmentVocabulary.Outcome] = "repairable",
+                ["vehicle.condition"] = "good"
+            }));
+        Assert.Equal("roadworthy", normalized.Fields[AssessmentVocabulary.LegalStatus]);
+        Assert.Equal("repairable", normalized.Fields[AssessmentVocabulary.Outcome]);
         Assert.Equal("good", normalized.Fields["vehicle.condition"]);
     }
 
+    /// <summary>
+    /// The paths that were professional findings until 7 October 2026: every
+    /// staff role and the Automation actor record each of them.
+    /// </summary>
     [Theory]
     [InlineData(StaffRole.Administrator)]
     [InlineData(StaffRole.Engineer)]
     [InlineData(StaffRole.User)]
-    public void EveryStaffRoleMayRecordEveryWritableFindingField(StaffRole role)
+    [InlineData(null)]
+    public void EveryCaseworkActorMayRecordEveryFormerFindingField(StaffRole? role)
     {
-        var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
-        foreach (var definition in AssessmentVocabulary.Definitions.Values.Where(
-            definition => definition.IsFinding
-                && !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)))
+        var actor = role is { } staffRole ? ActionActor.Staff(Guid.NewGuid(), [staffRole]) : Automation;
+        string[] formerFindings =
+        [
+            AssessmentVocabulary.ValueRetail,
+            AssessmentVocabulary.ValueTrade,
+            AssessmentVocabulary.ValueEngineer,
+            AssessmentVocabulary.Outcome,
+            AssessmentVocabulary.LegalStatus,
+            AssessmentVocabulary.UnroadworthyReason,
+            AssessmentVocabulary.SalvageCategory,
+            AssessmentVocabulary.SalvageValue,
+        ];
+        foreach (var definition in formerFindings.Select(path => AssessmentVocabulary.Definitions[path]))
         {
             var value = FindingValue(definition);
             var normalized = AssessmentPolicy.ValidateAndNormalize(
@@ -747,7 +775,7 @@ public sealed class AssessmentPolicyTests
             [AssessmentVocabulary.SettlementContractSum] = "4500.00"
         };
         AssessmentPolicy.CompleteCoupledWrites(writes,
-            new Dictionary<string, string>(StringComparer.Ordinal), ActorKind.Staff);
+            new Dictionary<string, string>(StringComparer.Ordinal));
 
         Assert.Equal("contract_repair", writes[AssessmentVocabulary.Outcome]);
     }
@@ -767,7 +795,7 @@ public sealed class AssessmentPolicyTests
             [AssessmentVocabulary.Outcome] = "repairable",
             [AssessmentVocabulary.SettlementContractSum] = "4500.00"
         };
-        AssessmentPolicy.CompleteCoupledWrites(writes, current, ActorKind.Staff);
+        AssessmentPolicy.CompleteCoupledWrites(writes, current);
 
         Assert.Null(writes[AssessmentVocabulary.SettlementContractSum]);
         Assert.Null(writes[AssessmentVocabulary.SalvageValue]);
@@ -775,15 +803,18 @@ public sealed class AssessmentPolicyTests
     }
 
     [Fact]
-    public void AutomationDoesNotEstablishContractRepair()
+    public void AnAgreedSumEstablishesContractRepairWhoeverRecordsIt()
     {
+        // The coupling is the field's own rule, not the actor's: an agreed sum
+        // the Automation actor records makes the outcome contract repair as a
+        // staff save does (operator, 7 October 2026).
         var writes = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             [AssessmentVocabulary.SettlementContractSum] = "4500.00"
         };
         AssessmentPolicy.CompleteCoupledWrites(writes,
-            new Dictionary<string, string>(StringComparer.Ordinal), ActorKind.Automation);
-        Assert.False(writes.ContainsKey(AssessmentVocabulary.Outcome));
+            new Dictionary<string, string>(StringComparer.Ordinal));
+        Assert.Equal("contract_repair", writes[AssessmentVocabulary.Outcome]);
     }
 
     [Fact]
@@ -796,8 +827,6 @@ public sealed class AssessmentPolicyTests
         AssessmentPolicy.NormalizeRepairSpecificationLines([Line("repair") with { WorkUnits = 1.25m }]);
         Assert.Throws<ArgumentException>(() =>
             AssessmentPolicy.NormalizeRepairSpecificationLines([Line("repair") with { WorkUnits = 1.2345678m }]));
-        Assert.Throws<ArgumentException>(() =>
-            AssessmentPolicy.NormalizeRepairSpecificationLines([Line("new_part") with { Unpriced = true, Price = 10m }]));
 
         var normalized = AssessmentPolicy.NormalizeRepairSpecificationLines(
             [
@@ -805,6 +834,49 @@ public sealed class AssessmentPolicyTests
                 Line("new_part") with { Price = 120.50m, EvidenceLabel = "official" }
             ]);
         Assert.Equal(2, normalized.Count);
+    }
+
+    [Fact]
+    public void APricedToBeConfirmedLineIsPriced()
+    {
+        // The price wins, as pricing a To be confirmed line on the Case does.
+        var priced = Assert.Single(AssessmentPolicy.NormalizeRepairSpecificationLines(
+            [Line("new_part") with { Unpriced = true, Price = 10m }]));
+        Assert.False(priced.Unpriced);
+        Assert.Equal(10m, priced.Price);
+
+        var unpriced = Assert.Single(AssessmentPolicy.NormalizeRepairSpecificationLines(
+            [Line("new_part") with { Unpriced = true }]));
+        Assert.True(unpriced.Unpriced);
+    }
+
+    [Fact]
+    public void AnUnrecognizedEvidenceLabelIsRefusedNamingTheLabels()
+    {
+        var refused = Assert.Throws<ArgumentException>(() =>
+            AssessmentPolicy.NormalizeRepairSpecificationLines(
+                [Line("new_part") with { Price = 10m, EvidenceLabel = "Glass's guide" }]));
+
+        Assert.Contains("unrecognized evidence label 'Glass's guide'", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("use one of: official, reference, case, judgement.", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("justification", refused.Message, StringComparison.Ordinal);
+        Assert.Equal(
+            EstimateLineCodes.EvidenceLabels.Order(StringComparer.Ordinal),
+            EstimateLineCodes.EvidenceLabelMeanings.Keys.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void AnUnrecognizedCodeIsRefusedNamingTheAcceptedCodes()
+    {
+        var definition = AssessmentVocabulary.Definitions[AssessmentVocabulary.LegalStatus];
+        var refused = Assert.Throws<ArgumentException>(() =>
+            AssessmentPolicy.ValidateAndNormalize(
+                Request(new() { [AssessmentVocabulary.LegalStatus] = "unrecognized_code" })));
+
+        Assert.Contains(
+            "is not one of its accepted codes: " + string.Join(", ", definition.Codes!) + ".",
+            refused.Message,
+            StringComparison.Ordinal);
     }
 
     [Fact]

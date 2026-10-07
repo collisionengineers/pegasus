@@ -88,7 +88,7 @@ foreach ($expectedName in $expectedWorkerSettings) {
     }
 }
 if (-not $ActivationOnly -and -not $censusIsExact) {
-    throw 'The live Worker disabled-setting census differs from the exact six-function release contract.'
+    throw 'The live Worker disabled-setting census differs from the exact five-function release contract.'
 }
 
 $expectedDisabledValue = if ($ExpectedWorkerActivation -eq 'approved-live-worker') {

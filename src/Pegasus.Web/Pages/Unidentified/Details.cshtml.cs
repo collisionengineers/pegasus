@@ -45,14 +45,6 @@ public sealed partial class DetailsModel(
     public const string CloseDialog = "close";
     public const string ReopenDialog = "reopen";
 
-    /// <summary>
-    /// What one Unidentified-resolution job is asked to do. FRD-27 gives this
-    /// kind "the U reference only" as its input, so the direction is fixed
-    /// rather than typed: it is the job's payload, never operator copy.
-    /// </summary>
-    private const string SendToAiInstruction =
-        "Propose a destination for this Unidentified item and give the reason.";
-
     public UnidentifiedItemContext Context { get; private set; } = null!;
 
     /// <summary>The item's image's recorded crop and tags (pre-Case crop and tag, v26).</summary>
@@ -351,7 +343,7 @@ public sealed partial class DetailsModel(
                             AiJobKind.UnidentifiedResolution,
                             context.Item.Id,
                             SubjectReference: null,
-                            SendToAiInstruction,
+                            AiJobPolicy.UnidentifiedResolutionInstruction,
                             TargetPercentOfEngineerValue: null,
                             actor,
                             operationKey),

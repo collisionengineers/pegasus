@@ -170,7 +170,7 @@ public sealed record CaseFile(DocumentOccurrence Occurrence, DocumentVersion Ver
 /// <remarks>
 /// The rule — join an occurrence to the version it names, then require current,
 /// not logically removed, custody confirmed — was written out separately in the
-/// evidence gallery, the EVA hand-off, the report projection and a custody guard
+/// evidence gallery, the case export, the report projection and a custody guard
 /// before this existed, and the Evidence tab was about to make a fifth copy. It
 /// is the operator's own rule: "if they show here, they should be on box."
 ///

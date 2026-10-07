@@ -4,8 +4,9 @@
 
 ## Short version
 
-- AI never decides anything. Its output is a proposal until a staff member
-  accepts or rejects it.
+- An AI job's result is a draft or proposal until a staff member uses or
+  rejects it. What the Automation Actor records directly is the Case's value,
+  as a staff member's is.
 - `Send to AI` queues a named AI job for one Case or Unidentified item. The
   job names the record and gives a short instruction, never Case content. An
   external client claims it and writes back through the same Core commands as
@@ -13,6 +14,8 @@
 - The AI Job List is the only Send to AI route: one durable ledger of named
   AI jobs. External clients claim jobs; Pegasus never runs one and never
   applies a result itself.
+- The Automation Actor creates a job of any kind, cancels and confirms, as
+  staff do, so external agents on automated runs hand work to each other.
 - A targeted report send is idempotent and records exact send evidence.
 - An Administrator holds the Send to AI on/off switch in Administration.
 
@@ -48,18 +51,18 @@ operation-key replay and version guards as a staff save
 attributed and recorded like any human action. What the automation records is the Case's value, attributed to it
 and shown with its AI source tag; it writes only fields staff can record on
 the Case, so staff can change or clear each value on its section
-([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)),
-and it never writes a professional finding. Recording a professional finding
-is for every enabled human staff role. There is no per-field review
-(operator, 25 September 2026).
-Report approval and sending stay human acts. No model, skill, prompt or
-external source ever issues an accepted Case, engineering, financial, legal
-or report outcome.
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)).
+It records professional findings as staff do (operator, 7 October 2026). There
+is no per-field review (operator, 25 September 2026).
+Report approval and sending are by staff or the Automation actor (operator,
+7 October 2026;
+[FRD-10](frd-10-mcp-automation-and-actor-boundary.md#sending)).
+No model, skill, prompt or external source ever issues an accepted legal or
+report outcome.
 
 Durable Send to AI work has stable job and disposition identities. Stale work
 cannot overwrite a newer Case or evidence version. Duplicate, expired or
 cancelled jobs are inert, recorded outcomes that never change accepted data.
-No AI caller confirms, approves or sends on its own.
 
 ### AI Job List
 
@@ -75,14 +78,18 @@ the normal action for that record. Visuals follow
 **Kinds.** A closed Core list. An unknown kind is refused at creation. The
 five kinds are Estimate, Unidentified resolution, Query response,
 Unidentified-queue pass and Market Research (`MarketResearch` in the code
-and in the table below).
+and in the table below). Each kind is started either from the staff surface
+in the table or by the Automation Actor's `pegasus_ai_job_create`, which
+names the same subject and passes the same checks (operator, 7 October 2026;
+[ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)): a job
+is how an external agent on an automated run picks up work.
 
 | Kind | Started from | Input | Result | Staff confirmation |
 | --- | --- | --- | --- | --- |
-| Estimate | Estimate section `Send to AI` (With Engineer or later) | Direction text and an optional target percentage of the recorded Engineer's Value, 0 to 80 %, no default; the amount is shown as derived from that value and is guidance only, never an accepted figure. Refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, citing the job; state `Draft` | An enabled human staff member uses the draft (**Use repair spec**), which makes it the Current repair spec |
+| Estimate | Estimate section `Send to AI` (With Engineer or later) | Direction text and an optional target percentage of the recorded Engineer's Value, 0 to 80 %, no default; the amount is shown as derived from that value and is guidance only, never an accepted figure. Refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, which may cite the job; state `Draft` | An enabled human staff member uses the draft (**Use repair spec**), which makes it the Current repair spec |
 | Unidentified resolution | The Unidentified record's `Send Unidentified to AI` for that item's U reference | The U reference only | A proposed destination (existing Case, new Case from an accepted instruction, Image-initiated Case, or close) and a reason | Staff confirm through the existing Unidentified resolve action; the proposal never resolves the item itself |
 | Query response | A retained post-report query linked to a Case | The message reference only | Draft reply text | Offered to the composer or Case notes; never sent automatically |
-| Unidentified-queue pass | An external scheduler through the Actor `create` tool; Pegasus runs no timer | The queue scope | One Unidentified-resolution proposal per item examined | As Unidentified resolution, per item |
+| Unidentified-queue pass | The Automation Actor's `create` tool only, for example from an external scheduler; Pegasus runs no timer | The queue scope | One Unidentified-resolution proposal per item examined | As Unidentified resolution, per item |
 | MarketResearch | **AI market research** in the Case record's Valuation section, while editing, for the chosen Valuation month. The section shows a "Researching · {month}" card while the job is Queued or Taken; a re-run replaces the card. The result is filed without the Case edit lease or version, so it returns while the Engineer is still editing | The Case and its valuation context. External Claude Cowork uses the Pegasus connector plus research tools outside this repository | Research files attached to the Case through the connector, with attributable evidence and optional source-labelled valuation entries | The Automation Actor marks the job Completed after attachment. No staff completion gate and no automatic adoption as the Engineer's Value |
 
 **States.** Reviewed proposals go `Queued` → `Taken` → `Draft ready` →
@@ -98,20 +105,23 @@ files are retained. All kinds can also end in `Failed`, `Cancelled` or
 - `Draft ready`: the client has written and named its result; the job waits
   for staff.
 - `Completed`: staff recorded the consumption act for a reviewed proposal,
-  or completed a Query response or Unidentified-queue pass. For
+  or staff or the Automation Actor completed a Query response or
+  Unidentified-queue pass by hand. For
   MarketResearch, the Automation Actor completes the taken job after the
   connector attaches its files; no staff act and no acceptance of a value is
   implied.
 - `Failed`: the client reported failure with a reason; not re-queued
   automatically.
-- `Cancelled`: staff cancelled with a reason. A taken job is cancelled at
-  once and the client's next progress call is refused.
+- `Cancelled`: staff or the Automation Actor cancelled with a reason. A
+  taken job is cancelled at once, whichever client holds it, and the
+  holder's next progress call is refused.
 - `Expired`: never taken before its own expiry.
 
 Every transition carries an operation key and an expected version. A stale
 or duplicate transition is an inert, recorded outcome. Client transitions
 are attributed to the Automation Actor and the client name; staff
-transitions to the staff username. The Administrator kill switch refuses
+transitions to the staff username. A cancel or confirm made by the Automation
+Actor is attributed to it in the same way. The Administrator kill switch refuses
 claims and progress; queued jobs wait and taken jobs expire back to `Queued`.
 
 **Work Centre AI jobs.** The Work Centre's AI jobs tab is the live queue
@@ -135,7 +145,9 @@ While the Administrator switch is off, the action is refused with "AI work is
 not accepting new jobs."
 
 Staff cannot cancel a job from these surfaces. An Administrator stops a
-non-terminal job on Administration AI jobs.
+non-terminal job on Administration AI jobs; the Automation Actor cancels one
+with `pegasus_ai_job_transition`
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#ai-job-and-estimate-tools)).
 
 **Administration.** Automation & AI shows the active and failed job counts
 and the Stop/Start automation control. That control is the

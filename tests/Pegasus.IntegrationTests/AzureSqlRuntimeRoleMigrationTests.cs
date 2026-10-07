@@ -12,19 +12,43 @@ using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.IntegrationTests.Support;
+using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
 
 [Trait("Category", "SqlServer")]
 public sealed class AzureSqlRuntimeRoleMigrationTests
 {
+    /// <summary>
+    /// The Worker links a Triage that already holds a finding and fills the
+    /// linked Case's empty findings from it (operator, 7 October 2026), under
+    /// its own runtime role: the link and the fill each advance the Case once.
+    /// </summary>
     [Fact]
-    public async Task WorkerRuntimeAutomaticallyLinksTriageAndReplaysWithoutFindingsPermission()
+    public async Task WorkerRuntimeAutomaticallyLinksTriageFillsTheCaseAndReplays()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-worker-recovery.eml");
         var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
+        await using (var findingScope = factory.Services.CreateAsyncScope())
+        {
+            var services = findingScope.ServiceProvider;
+            var staff = ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+            var triageId = (await services.GetRequiredService<ITriageQueries>().ListAsync(null, CancellationToken.None))
+                .Single().CaseId;
+            var editLease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+                new(EditScopeKind.Triage, triageId, 0, staff, "worker-fill-finding-edit"),
+                CancellationToken.None);
+            await services.GetRequiredService<IRecordTriageFinding>().ExecuteAsync(
+                new RecordTriageFindingRequest(
+                    triageId, 0, staff, "worker-fill-finding", "Seen in the images",
+                    RoadworthinessFinding.Roadworthy, AssessmentFinding.Repairable, null)
+                {
+                    EditLeaseToken = editLease.Token
+                },
+                CancellationToken.None);
+        }
         var caseId = await QdosTriageIntegrationTests.SeedMatchingFormalCaseAsync(factory.Services, receiptId);
         await factory.Database.ExecuteAsync($"""
             CREATE USER [pegasus_test_triage_pairing_worker] WITHOUT LOGIN;
@@ -54,8 +78,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
         var triage = await context.Triage.AsNoTracking().SingleAsync(item => item.OriginReceiptId == receiptId);
         Assert.Equal(caseId, triage.LinkedInstructionCaseId);
-        Assert.Equal("open", triage.State);
-        Assert.Equal(1, triage.Version);
+        Assert.Equal("finding_recorded", triage.State);
+        Assert.Equal(2, triage.Version);
         var triageCase = await context.Cases.AsNoTracking().SingleAsync(item => item.Id == triage.CaseId);
         Assert.StartsWith("t.", triageCase.Reference, StringComparison.Ordinal);
         var history = await context.TriageHistory.AsNoTracking().SingleAsync(item =>
@@ -66,7 +90,24 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             item.CaseId == caseId && item.EventType == history.EventType));
         // The instructed Case and the Triage Case, which is a Case too.
         Assert.Equal(2, await context.Cases.CountAsync());
-        Assert.Equal(1, (await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).Version);
+        Assert.Equal(2, (await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).Version);
+        var filled = await context.CaseAssessmentFields.AsNoTracking()
+            .Where(item => item.WorkId == caseId)
+            .OrderBy(item => item.FieldPath)
+            .ToListAsync();
+        Assert.Equal(
+            [
+                (AssessmentVocabulary.LegalStatus, "roadworthy"),
+                (AssessmentVocabulary.Outcome, "repairable")
+            ],
+            filled.Select(item => (item.FieldPath, item.Value)).ToArray());
+        Assert.All(filled, item =>
+        {
+            Assert.Equal(nameof(ActorKind.Automation), item.RecordedByKind);
+            Assert.Equal(TriageFindingFill.RecorderId, item.RecordedBy);
+        });
+        Assert.Equal(1, await context.CaseWorkflowEvents.CountAsync(item =>
+            item.CaseId == caseId && item.EventType == "triage_finding_filled"));
     }
 
     private const string PreRuntimeRoleMigration = "20260729175000_CaseEvidenceAndReplacement";
@@ -276,13 +317,11 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
 
     private const string FoundationTableSpec = """
         AppliedValuationSnapshots
-        AutomaticEvaReviewSubmissions
         CaseReportGenerations
         ContactPrincipalLinks
         ContactRoles
         DocumentContentCacheEntries
         EditScopes
-        EvaSubmissions
         GeneratedCaseArtifacts
         GlassRepairEstimateSessions
         IntakeOcrOperations
@@ -296,13 +335,11 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
 
     private const string FoundationWebGrantSpec = """
         AppliedValuationSnapshots:SELECT,INSERT
-        AutomaticEvaReviewSubmissions:SELECT,INSERT
         CaseReportGenerations:SELECT,INSERT,UPDATE
         ContactPrincipalLinks:SELECT,INSERT,DELETE
         ContactRoles:SELECT,INSERT,DELETE
         DocumentContentCacheEntries:SELECT,INSERT,UPDATE
         EditScopes:SELECT,INSERT,UPDATE,DELETE
-        EvaSubmissions:SELECT,INSERT
         GeneratedCaseArtifacts:SELECT,INSERT,UPDATE
         GlassRepairEstimateSessions:SELECT,INSERT,UPDATE,DELETE
         IntakeOcrOperations:SELECT,INSERT
@@ -315,8 +352,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         """;
 
     private const string FoundationWorkerGrantSpec = """
-        AutomaticEvaReviewSubmissions:SELECT,INSERT,UPDATE
-        EvaSubmissions:SELECT,INSERT
         CaseReportGenerations:SELECT,UPDATE
         DocumentContentCacheEntries:SELECT,INSERT,UPDATE,DELETE
         GeneratedCaseArtifacts:SELECT,UPDATE
@@ -435,7 +470,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                     permission.permission_name COLLATE DATABASE_DEFAULT
                 """));
         // The third-party vehicle flag is gone: image tags carry the
-        // classification, and the EVA exclusion reads the Third party tag.
+        // classification, and the case export exclusion reads the Third party tag.
         Assert.Equal(
             0,
             await database.ScalarAsync<int>(
@@ -462,7 +497,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     /// <summary>
     /// The image-tag tables and the exact permissions each runtime caller
     /// needs: Web reads the vocabulary, adds to it and moves tags on and off;
-    /// the Worker only reads, because the EVA export asks which images wear
+    /// the Worker only reads, because the case export asks which images wear
     /// Third party. Neither may update either table, and only Web may delete a
     /// tag from an image.
     /// </summary>
@@ -757,8 +792,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         foreach (var role in new[] { WebRole, WorkerRole })
         {
             var expectedDeniedTables = role == WorkerRole
-                ? tables.Where(table => table is not ("DocumentContentCacheEntries" or "EditScopes" or "AutomaticEvaReviewSubmissions" or "EvaSubmissions")).ToArray()
-                : tables.Where(table => table is not ("ContactRoles" or "ContactPrincipalLinks" or "EditScopes" or "AutomaticEvaReviewSubmissions" or "EvaSubmissions" or "GlassRepairEstimateSessions" or "UserExternalCredentials")).ToArray();
+                ? tables.Where(table => table is not ("DocumentContentCacheEntries" or "EditScopes")).ToArray()
+                : tables.Where(table => table is not ("ContactRoles" or "ContactPrincipalLinks" or "EditScopes" or "GlassRepairEstimateSessions" or "UserExternalCredentials")).ToArray();
             Assert.Equal(expectedDeniedTables, (await ReadDeniedDeleteTablesAsync(database, role))
                 .Where(tables.Contains)
                 .ToArray());
@@ -1103,6 +1138,26 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         Assert.Contains("CaseManualChases", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
     }
 
+    // 20261007183000_GrantWorkerTriageFindings: the automatic Triage link runs
+    // as the Worker and now reads the Triage's current finding to fill the
+    // linked Case's empty findings.
+    [Fact]
+    public async Task LatestMigrationGrantsWorkerTheTriageFindingRead()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
+        Assert.Equal(
+            ["TriageFindings:SELECT"],
+            granted
+                .Where(value => value.StartsWith("TriageFindings:", StringComparison.Ordinal))
+                .ToArray());
+        Assert.Contains("TriageFindings", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
+    }
+
     // 20260929091000_GrantWebRetainedMailDismissal: Inbox Dismiss and Restore
     // write the dismissal cells of the retained message row as the Web role,
     // which held SELECT only. The grant is table-level; the exact list below
@@ -1364,12 +1419,9 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             VALUES (N'Contact', '{contactOrganizationId:D}', N'Staff', N'permission-fixture', REPLICATE('a', 64), 0, 1, SYSDATETIMEOFFSET());
             UPDATE dbo.EditScopes SET Generation = 2 WHERE RecordId = '{contactOrganizationId:D}';
             DELETE FROM dbo.EditScopes WHERE RecordId = '{contactOrganizationId:D}';
-            INSERT INTO dbo.AutomaticEvaReviewSubmissions (Id, CaseId, WorkflowVersion, OperationKey, State, CreatedAtUtc, DueAtUtc)
-            SELECT TOP (0) NEWID(), Id, 1, N'permission-fixture', N'Pending', SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET() FROM dbo.Cases;
             REVERT;
 
             EXECUTE AS USER = N'pegasus_test_worker_runtime';
-            UPDATE dbo.AutomaticEvaReviewSubmissions SET State = N'Completed' WHERE Id = '00000000-0000-0000-0000-000000000000';
             DELETE FROM [dbo].[DocumentContentCacheEntries]
             WHERE [Id] = '00000000-0000-0000-0000-000000000000';
             REVERT;

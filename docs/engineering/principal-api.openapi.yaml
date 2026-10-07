@@ -2,7 +2,7 @@
 #
 # This file describes the implemented contract; it does not define it.
 # Behaviour was read from src/Pegasus.Web/PrincipalApi and
-# src/Pegasus.Core/PrincipalApi on 2026-09-29. Contract intent is owned by
+# src/Pegasus.Core/PrincipalApi on 2026-10-07. Contract intent is owned by
 # docs/frd/frd-09-principal-and-intermediary-routes.md.
 #
 # Any OpenAPI 3.1 viewer (Swagger UI, Redoc) renders it.
@@ -80,18 +80,21 @@ info:
     | the request body is byte-for-byte the same | `200`, the same receipt with `replayed: true` |
     | the request body differs | `409`, nothing new is retained |
 
-    Bodies are compared as the exact bytes received, through a SHA-256 of the
-    raw request. Re-serialising the same JSON with different whitespace or key
-    order is a different body. Resend the stored bytes when retrying.
+    Bodies are compared as the exact bytes received. Re-serialising the same
+    JSON with different whitespace or key order is a different body. Resend
+    the stored bytes when retrying.
 
-    A `503` means the submission could not be retained. Retry with the same key.
+    A `503` means the submission could not be retained. Retry with the same
+    key. Until a body has been retained, a retry is compared on what it
+    declares rather than on its bytes, so a retry after a `503` may resend
+    its files.
 
     ## Case types
 
     | `caseType` | Case type | Notes |
     | --- | --- | --- |
     | `inspection` | Inspection | The ordinary instruction. |
-    | `audit` | Audit | Requires `originalReportVerdict`. The original report may be attached once with `role: originalreport`, or arrive later. |
+    | `audit` | Audit | Requires `originalReportVerdict`. The original report may be sent as `originalReport`, or arrive later. |
     | `auditreport` | Inspection and Audit | Collision Engineers inspects, then audits its own report. Carries no verdict and no original report. |
     | `triage` | Triage | Opens a Triage record instead of a Case. The result's `caseReference` is the Triage's `t.` reference. |
 
@@ -134,7 +137,7 @@ info:
 
     ## Requests and responses
 
-    * Requests must be `application/json` (a `charset` parameter is fine).
+    * Requests must be JSON (`application/json`; a `charset` parameter is fine).
       Property names are matched case-insensitively. Members the contract does
       not name are ignored, not refused. Comments and trailing commas are not
       allowed.
@@ -150,7 +153,7 @@ info:
 
     ```json
     { "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
-      "title": "The value of 'claimNumber' is at most 100 characters.",
+      "title": "The value cannot exceed 100 characters. (Parameter 'claimNumber')",
       "status": 400,
       "field": "claimNumber" }
     ```
@@ -158,8 +161,8 @@ info:
     Branch on the HTTP status and, when present, `field`. `title` is written for
     people and its wording may change. `field` names the offending path in the
     request (`vehicle.mileage`, `files[1].contentBase64`). It is present for
-    length, format and consistency failures and can be absent for a value that
-    is not in a fixed vocabulary, such as an unknown `caseType`.
+    every field failure, and absent when the refusal is about the request
+    rather than one field, such as a missing `Idempotency-Key`.
 
     `404` (API off), `413` (raised by the web server) and `429` may carry no
     body. Treat the status code as the answer.
@@ -209,8 +212,9 @@ paths:
         it with `GET /api/principal/v1/submissions/{id}`.
 
         Checks run in this order, and the first to fail answers:
-        rate limit, credential, body size, content type, paused credential,
-        request body, then the instruction and files.
+        rate limit, credential, content type, paused credential,
+        `Idempotency-Key`, body size, request body, then the instruction and
+        files.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -232,7 +236,6 @@ paths:
               fullInspection:
                 summary: Inspection with every field and two files
                 value:
-                  principal: QDOS
                   caseType: inspection
                   claimNumber: CLM-2026-000123
                   claimant:
@@ -265,15 +268,9 @@ paths:
                   vatStatus: Not VAT registered
                   notes: Claimant available after 5pm.
                   files:
-                    - ordinal: 0
-                      fileName: instruction.pdf
-                      mediaType: application/pdf
-                      role: instruction
+                    - fileName: instruction.pdf
                       contentBase64: <base64-encoded PDF bytes>
-                    - ordinal: 1
-                      fileName: front-left.jpg
-                      mediaType: image/jpeg
-                      role: image
+                    - fileName: front-left.jpg
                       contentBase64: <base64-encoded JPEG bytes>
               audit:
                 summary: Audit with the original report attached
@@ -285,11 +282,9 @@ paths:
                     name: Jane Example
                   vehicle:
                     registration: AB12CDE
-                  files:
-                    - fileName: original-report.pdf
-                      mediaType: application/pdf
-                      role: originalreport
-                      contentBase64: <base64-encoded PDF bytes>
+                  originalReport:
+                    fileName: original-report.pdf
+                    contentBase64: <base64-encoded PDF bytes>
               triage:
                 summary: Triage request
                 value:
@@ -323,11 +318,6 @@ paths:
                     receivedAtUtc: '2026-09-29T10:15:30.1234567+00:00'
                     principalReference: CLM-2026-000123
                     replayed: false
-                    files:
-                      - ordinal: 0
-                        fileName: instruction.pdf
-                        sha256: 9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08
-                        duplicate: false
         '200':
           description: |
             A replay: the same `Idempotency-Key` with a byte-identical body.
@@ -345,7 +335,6 @@ paths:
                     receivedAtUtc: '2026-09-29T10:15:30.1234567+00:00'
                     principalReference: CLM-2026-000123
                     replayed: true
-                    files: []
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -494,16 +483,6 @@ components:
         ignored. Text is trimmed, and an empty or blank value counts as absent.
       required: [caseType]
       properties:
-        principal:
-          type: string
-          maxLength: 20
-          description: |
-            Optional. Your Principal code. The credential, not this field,
-            decides which Principal the submission belongs to. If supplied it is
-            compared, after trimming and upper-casing, with the credential's
-            Principal, and a mismatch is refused with `403`. It exists to catch
-            a submission sent to the wrong account.
-          examples: [QDOS]
         claimNumber:
           type: string
           maxLength: 100
@@ -523,8 +502,7 @@ components:
           description: |
             The outcome of the original report being audited. **Required for
             `audit`** and refused for every other `caseType`. Matched
-            case-insensitively. It records the assessment on the Case and
-            decides the Audit reference prefix.
+            case-insensitively. It records the assessment on the Case.
         claimant:
           $ref: '#/components/schemas/Claimant'
         fileHandler:
@@ -549,11 +527,17 @@ components:
           maxItems: 20
           description: |
             Zero or more files, sent inline. An instruction with no files is
-            accepted for every case type, `audit` included. Limits: 20 files,
-            10 MiB each and 30 MiB together (both decoded), and 42 MiB for the
-            whole request. At most one file may have `role: originalreport`.
+            accepted for every case type, `audit` included. Limits, counting
+            `originalReport`: 20 files, 10 MiB each and 30 MiB together (both
+            decoded), and 42 MiB for the whole request.
           items:
             $ref: '#/components/schemas/SubmissionFile'
+        originalReport:
+          allOf:
+            - $ref: '#/components/schemas/SubmissionFile'
+          description: |
+            Optional. The original report an `audit` audits. It may instead
+            arrive later.
 
     Claimant:
       type: object
@@ -571,7 +555,7 @@ components:
         address:
           type: string
           maxLength: 1000
-          description: Postal address. Line breaks are kept.
+          description: Postal address. Line breaks are kept; blank lines and runs of spaces collapse.
 
     FileHandler:
       type: object
@@ -636,7 +620,7 @@ components:
         circumstances:
           type: string
           maxLength: 2000
-          description: How the accident happened. Line breaks are kept.
+          description: How the accident happened. Line breaks are kept; blank lines and runs of spaces collapse.
 
     Inspection:
       type: object
@@ -650,62 +634,38 @@ components:
         location:
           type: string
           maxLength: 1000
-          description: Inspection address. Line breaks are kept.
+          description: Inspection address. Line breaks and runs of whitespace collapse to single spaces.
 
     SubmissionFile:
       type: object
       description: |
         One file sent inline. Pegasus retains it as an attachment of the
-        submission. A file that cannot be read is refused with `400` and the
+        submission and types it by its extension, as it does a file sent any
+        other way. A file that cannot be read is refused with `400` and the
         whole submission is not retained.
-      required: [fileName, mediaType, contentBase64]
+      required: [fileName, contentBase64]
       properties:
-        ordinal:
-          type: integer
-          minimum: 0
-          description: |
-            Optional position of the file, from 0. When omitted it is the file's
-            position in the array. Once ordered, the ordinals must run 0, 1, 2…
-            with no gaps or repeats, otherwise the submission is refused with
-            `400`.
         fileName:
           type: string
           minLength: 1
           maxLength: 260
           description: |
             A leaf name with no directory part, for example `report.pdf`. Its
-            extension must match `mediaType`.
-        mediaType:
-          type: string
-          minLength: 1
-          maxLength: 200
-          description: |
-            The media type. The extension, media type and the file's own leading
-            bytes must all agree; a mismatch is refused with `400`. Compared
-            case-insensitively.
+            extension, compared case-insensitively, decides the file type:
 
-            | Extension | `mediaType` | Leading bytes checked |
+            | Extension | Read as | Checked |
             | --- | --- | --- |
-            | `.pdf` | `application/pdf` | `%PDF-` |
-            | `.docx` | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | ZIP header |
-            | `.doc` | `application/msword` | OLE2 header |
-            | `.msg` | `application/vnd.ms-outlook` | OLE2 header |
+            | `.pdf` | `application/pdf` | opened by the intake reader |
+            | `.docx` | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | opened by the intake reader |
+            | `.doc` | `application/msword` | opened by the intake reader |
+            | `.msg` | `application/vnd.ms-outlook` | opened by the intake reader |
+            | `.eml` | `message/rfc822` | opened by the intake reader |
             | `.jpg`, `.jpeg` | `image/jpeg` | JPEG header |
             | `.png` | `image/png` | PNG header |
-            | `.eml` | `message/rfc822` | none |
-            | `.mp4` | `video/mp4` | `ftyp` box |
-            | `.mov` | `video/quicktime` | `ftyp` box |
+            | `.mp4` | `video/mp4` | MP4 header |
+            | `.mov` | `video/quicktime` | QuickTime header |
 
-            Any other combination is refused, and so is a file Pegasus's intake
-            reader cannot read.
-        role:
-          type: string
-          enum: [instruction, originalreport, image, correspondence, other]
-          description: |
-            Optional. What the file is. Matched case-insensitively. Without a
-            role nothing is inferred and the file is kept as an ordinary
-            attachment. At most one file may be `originalreport`; it is the
-            report an `audit` is auditing.
+            Any other extension is refused.
         contentBase64:
           type: string
           contentEncoding: base64
@@ -721,7 +681,7 @@ components:
       description: |
         Returned the moment the submission is durably received, before any
         processing.
-      required: [submissionId, receivedAtUtc, principalReference, replayed, files]
+      required: [submissionId, receivedAtUtc, principalReference, replayed]
       properties:
         submissionId:
           type: string
@@ -741,33 +701,6 @@ components:
           description: |
             `false` for a new submission. `true` when the same
             `Idempotency-Key` and body were sent before.
-        files:
-          type: array
-          description: The accepted files, in ordinal order. Empty when none were sent.
-          items:
-            $ref: '#/components/schemas/ReceiptFile'
-
-    ReceiptFile:
-      type: object
-      required: [ordinal, fileName, sha256, duplicate]
-      properties:
-        ordinal:
-          type: integer
-          minimum: 0
-          description: The file's ordinal.
-        fileName:
-          type: string
-          description: The file name as submitted.
-        sha256:
-          type: string
-          pattern: '^[0-9A-F]{64}$'
-          description: SHA-256 of the decoded file bytes, as 64 upper-case hex digits.
-        duplicate:
-          type: boolean
-          description: |
-            `true` when the file's bytes are identical to an earlier file in
-            the same submission. The first copy is `false`.
-
     SubmissionResult:
       type: object
       description: |
@@ -857,7 +790,7 @@ components:
           type: string
           description: |
             The path in the request that is at fault, when one is known, for
-            example `claimant.name`, `files[0].mediaType` or `body` when the
+            example `claimant.name`, `files[0].fileName` or `body` when the
             JSON itself is unreadable.
       additionalProperties: true
 
@@ -885,13 +818,12 @@ components:
         | A string is longer than its limit, or `vehicle.registration` holds other than letters, digits and spaces | the field, for example `claimNumber` |
         | `vehicle.mileage` is negative | `vehicle.mileage` |
         | `originalReportVerdict` missing on an `audit`, or supplied on any other type | `originalReportVerdict` |
-        | `caseType` missing or not one of the four values | absent |
-        | `originalReportVerdict` not `repairable` or `total-loss` | absent |
+        | `caseType` missing or not one of the four values | `caseType` |
+        | `originalReportVerdict` not `repairable` or `total-loss` | `originalReportVerdict` |
         | `Idempotency-Key` missing, blank or over 200 characters | absent |
-        | A file has no `fileName`, `mediaType` or `contentBase64`, the base64 is invalid, or `role` is unknown | `files[n].fileName`, `.mediaType`, `.contentBase64`, `.role` |
-        | More than one file has `role: originalreport` | `files` |
-        | A file's extension, media type and content disagree, is unsupported or unreadable | `files[n]` |
-        | Ordinals are not contiguous from 0, a file name has a directory part or is over 260 characters, or a media type is over 200 characters | absent |
+        | A file name is missing, has a directory part, is over 260 characters or has an extension not in the list | `files[n].fileName`, `originalReport.fileName` |
+        | A file's content is missing or not valid base64 | `files[n].contentBase64`, `originalReport.contentBase64` |
+        | A file's content does not match its extension, or cannot be read | `files[n]`, `originalReport` |
       content:
         application/problem+json:
           schema:
@@ -901,15 +833,16 @@ components:
               summary: A field is over its limit
               value:
                 type: https://tools.ietf.org/html/rfc9110#section-15.5.1
-                title: The value of 'claimNumber' is at most 100 characters.
+                title: The value cannot exceed 100 characters. (Parameter 'claimNumber')
                 status: 400
                 field: claimNumber
             unknownCaseType:
               summary: Unknown case type
               value:
                 type: https://tools.ietf.org/html/rfc9110#section-15.5.1
-                title: 'The case type must be one of: inspection, audit, auditreport, triage. (Parameter ''value'')'
+                title: 'The case type must be one of: inspection, audit, auditreport, triage.'
                 status: 400
+                field: caseType
             auditWithoutVerdict:
               summary: Audit without a verdict
               value:
@@ -918,10 +851,10 @@ components:
                 status: 400
                 field: originalReportVerdict
             unreadableFile:
-              summary: File does not match its declaration
+              summary: File does not match its extension
               value:
                 type: https://tools.ietf.org/html/rfc9110#section-15.5.1
-                title: The file type, media type and content do not agree or are unsupported.
+                title: The file content does not match its file type.
                 status: 400
                 field: files[0]
     Unauthorized:
@@ -943,55 +876,32 @@ components:
             status: 401
     Forbidden:
       description: |
-        Authenticated, but refused. Both causes are recorded as security events.
-
-        * The credential is **paused**. Submissions are refused, before the body
-          is read, until it is resumed. Reads still work.
-        * The body's `principal` names a Principal other than the one the
-          credential authenticated.
+        Authenticated, but the credential is **paused**. Submissions are
+        refused, before the body is read, until it is resumed. Reads still
+        work. Recorded as a security event.
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-          examples:
-            paused:
-              summary: Credential paused
-              value:
-                type: https://tools.ietf.org/html/rfc9110#section-15.5.4
-                title: The principal credential is paused; submissions are refused until it is resumed.
-                status: 403
-            principalMismatch:
-              summary: Body names another Principal
-              value:
-                type: https://tools.ietf.org/html/rfc9110#section-15.5.4
-                title: The submission names a principal other than the authenticated one.
-                status: 403
+          example:
+            type: https://tools.ietf.org/html/rfc9110#section-15.5.4
+            title: The principal credential is paused; submissions are refused until it is resumed.
+            status: 403
     ApiOff:
       description: |
         The Principal API is not enabled on this host. The response has no body.
     Conflict:
       description: |
-        Nothing new was retained.
-
-        * The `Idempotency-Key` was already used with a different body.
-        * The submission collided with a concurrent request. Retry.
+        The `Idempotency-Key` was already used with a different body. Nothing
+        new was retained.
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-          examples:
-            keyReused:
-              summary: Key reused with a different body
-              value:
-                type: https://tools.ietf.org/html/rfc9110#section-15.5.10
-                title: The idempotency key was already used with a different submission.
-                status: 409
-            concurrent:
-              summary: Concurrent request
-              value:
-                type: https://tools.ietf.org/html/rfc9110#section-15.5.10
-                title: The submission conflicted with a concurrent request; retry.
-                status: 409
+          example:
+            type: https://tools.ietf.org/html/rfc9110#section-15.5.10
+            title: The idempotency key was already used with a different submission.
+            status: 409
     PayloadTooLarge:
       description: |
         A limit was exceeded: the request body over 42 MiB, more than 20 files,
@@ -1006,7 +916,7 @@ components:
             title: The submission exceeds the envelope limit.
             status: 413
     UnsupportedMediaType:
-      description: The request `Content-Type` is not `application/json`.
+      description: The request `Content-Type` is not JSON.
       content:
         application/problem+json:
           schema:
