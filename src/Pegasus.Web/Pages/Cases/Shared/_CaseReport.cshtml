@@ -57,16 +57,23 @@
     // someone holds the lease; inside it the report's form saves the Case
     // first (data-case-save-first).
     var canClaimGeneration = offersHead && (leaseForReport || Model.CurrentEditLease is null);
-    var canGenerate = canClaimGeneration
-        && (reportRetryArtifact is not null
-            || !reportAlreadyConfirmed && draftCondition is null);
-    var reportOperationKey = reportRetryArtifact?.OperationKey ?? Model.GenerateReportOperationKey;
     var feeNoteArtifact = generation?.Artifacts
         .FirstOrDefault(artifact => artifact.Kind == CaseReportArtifactKind.FeeNote);
     var canGenerateCompanion = canClaimGeneration
         && generation is { State: CaseReportGenerationState.Confirmed };
-    var canGenerateFeeNote = canGenerateCompanion
+    // Generate report makes the report and then its separate fee note
+    // (operator, 7 October 2026), so it is offered again for a confirmed
+    // report whose fee note is not: the report's own key replays the report
+    // and the fee note is made.
+    var feeNoteOutstanding = canGenerateCompanion
+        && reportAlreadyConfirmed
         && feeNoteArtifact?.Status != CaseReportArtifactStatus.Confirmed;
+    var canGenerate = canClaimGeneration
+        && (reportRetryArtifact is not null
+            || feeNoteOutstanding
+            || !reportAlreadyConfirmed && draftCondition is null);
+    var reportOperationKey = (feeNoteOutstanding ? reportArtifact : reportRetryArtifact)?.OperationKey
+        ?? Model.GenerateReportOperationKey;
     var feeNoteOperationKey = feeNoteArtifact?.OperationKey ?? Model.GenerateFeeNoteOperationKey;
     // What the preview card opens: the stored report, and a separate fee
     // note once it is confirmed (the Fee tab's own rule).
@@ -137,6 +144,7 @@
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateReport"
                       asp-route-id="@caseId" asp-route-section="report" id="case-generate-report-form" data-generate-report>
                     <input type="hidden" name="operationKey" value="@reportOperationKey" />
+                    <input type="hidden" name="feeNoteOperationKey" value="@feeNoteOperationKey" />
                     @if (leaseForReport)
                     {
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
@@ -157,7 +165,7 @@
                     <span>@Words.NotReady</span>
                 </span>
             }
-            @if (offersHead && (canPreview || leaseForReport || canGenerateRepairSpec || canGenerateImagePack || canGenerateFeeNote))
+            @if (offersHead && (canPreview || leaseForReport || canGenerateRepairSpec || canGenerateImagePack))
             {
                 <details class="menu" data-menu data-report-menu>
                     <summary class="btn btn--small"><span>@Words.More</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
@@ -226,24 +234,6 @@
                                 <button type="submit" data-busy-label="@OperatorLabels.Busy.Generating" class="btn" data-generate-image-pack>
                                     <svg class="icon" aria-hidden="true"><use href="#icon-images" /></svg>
                                     <span>@ReportLabels.GenerateImages</span>
-                                </button>
-                            </form>
-                        }
-                        @if (canGenerateFeeNote)
-                        {
-                            <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateFeeNote"
-                                  asp-route-id="@caseId" asp-route-section="report">
-                                <input type="hidden" name="operationKey" value="@feeNoteOperationKey" />
-                                @if (leaseForReport)
-                                {
-                                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                                }
-                                <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
-                                <input type="hidden" name="targetGenerationId" value="@generation!.Id" />
-                                <input type="hidden" name="view" value="@Model.ViewRoute" />
-                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Generating" class="btn">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
-                                    <span>@ReportLabels.GenerateFeeNote</span>
                                 </button>
                             </form>
                         }

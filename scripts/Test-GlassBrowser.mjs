@@ -46,7 +46,8 @@ function fixture() {
             + '<div data-sticky-block><nav data-section-nav><a href="#section-estimate" data-section-link="estimate">Estimate</a></nav></div>'
             + '<div data-case-notices>' + (notice || '') + '</div><div data-case-ribbon-facts></div>'
             + '<div data-case-ribbon-actions><span data-lease-line hidden data-lease-saving-text="Saving" data-lease-saved-text="Saved"></span></div>'
-            + '<main id="case-main"><section class="record-section" id="section-estimate" data-section="estimate">'
+            + '<main id="case-main"><section class="record-section panel" id="section-estimate" data-section="estimate" data-estimate-section>'
+            + '<button type="button" data-estimate-expand data-label-expand="Expand" data-label-close="Close full screen"><svg><use href="#icon-external-link"/></svg></button>'
             + '<form id="case-edit-form" method="post" action="/case?handler=Save"><input name="id" type="hidden" value="case">'
             + '<input name="expectedVersion" type="hidden" value="' + state.caseVersion + '" data-carry-forward>'
             + '<input name="editLeaseToken" type="hidden" value="lease" data-carry-forward><input name="operationKey" type="hidden" value="save-' + state.caseVersion + '" data-carry-forward>'
@@ -249,6 +250,15 @@ try {
     await reset(); await evaluate("state.status='Completed'; state.caseVersion=2; window.pegasusGlassReturn('/case');"); await delay(100);
     result = await evaluate('result()'); assert.equal(result.version, '2'); assert.equal(result.status, null);
     record('Callback with nothing to save refreshes workspace in place', result);
+
+    // Full screen is the operator's: the Case drawn again on the return keeps the Repair Spec full screen.
+    const expansion = "(function (s, b) { return { section: s.classList.contains('is-expanded'), body: document.body.classList.contains('has-expanded'), pressed: b.getAttribute('aria-pressed'), label: b.getAttribute('aria-label') }; })(document.getElementById('section-estimate'), document.querySelector('[data-estimate-expand]'))";
+    await reset(); await evaluate("window.oldSection=document.getElementById('section-estimate'); document.querySelector('[data-estimate-expand]').click(); state.status='Completed'; state.caseVersion=2; window.pegasusGlassReturn('/case');"); await delay(100);
+    assert.equal(await evaluate("document.getElementById('section-estimate') !== window.oldSection"), true, 'The return drew the section again');
+    assert.deepEqual(await evaluate(expansion), { section: true, body: true, pressed: 'true', label: 'Close full screen' });
+    await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));"); await delay(50);
+    assert.deepEqual(await evaluate(expansion), { section: false, body: false, pressed: 'false', label: 'Expand' });
+    record('Callback keeps the Repair Spec full screen, and Escape still closes it', await evaluate(expansion));
 
     await reset(); await evaluate("mode='defer'; state.status='Unknown'; window.returnInFlight=window.pegasusGlassReturn('/case'); deferred[0](); true;"); await delay(50);
     await evaluate("mode=''; edit('AB12 CDE'); leave();"); await delay(100);

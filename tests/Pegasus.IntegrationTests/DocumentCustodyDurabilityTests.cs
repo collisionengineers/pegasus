@@ -865,11 +865,12 @@ public sealed class DocumentCustodyDurabilityTests
 
     /// <summary>
     /// The tag decides how an image in the report prints (operator, 26
-    /// September 2026): tagging one image Overview and one Close-up clears
-    /// both image blockers with no Case save, and stales the current report.
+    /// September 2026): tagging one image Overview clears the image blocker
+    /// with no Case save, the Close-up being optional (operator, 7 October
+    /// 2026), and tagging stales the current report.
     /// </summary>
     [Fact]
-    public async Task TaggingOneOverviewAndOneCloseUpClearsBothImageBlockersWithoutACaseSave()
+    public async Task TaggingOneOverviewAndOneCloseUpClearsTheImageBlockerWithoutACaseSave()
     {
         var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
         try
@@ -885,7 +886,9 @@ public sealed class DocumentCustodyDurabilityTests
             var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
             var queries = scope.ServiceProvider.GetRequiredService<ICaseAssetPreparationQueries>();
             var tagger = scope.ServiceProvider.GetRequiredService<ITagCaseImage>();
-            Assert.Equal(2, ImageBlockers(await queries.ListForCaseAsync(caseId, CancellationToken.None)).Count);
+            Assert.Equal(
+                [CaseReportReadiness.OverviewImageRequirement],
+                ImageBlockers(await queries.ListForCaseAsync(caseId, CancellationToken.None)));
 
             var version = 0L;
             foreach (var (occurrenceId, tagId) in new[]
@@ -1084,7 +1087,7 @@ public sealed class DocumentCustodyDurabilityTests
         }
     }
 
-    /// <summary>The Close-up and Overview blockers report readiness names over these preparations.</summary>
+    /// <summary>The Overview blocker report readiness names over these preparations.</summary>
     internal static IReadOnlyList<string> ImageBlockers(IReadOnlyList<CaseAssetPreparation> preparations) =>
     [
         .. CaseReportReadiness.Evaluate(new CaseReportReadinessInput(
@@ -1102,8 +1105,7 @@ public sealed class DocumentCustodyDurabilityTests
                 new Dictionary<Guid, DocumentVersion>()))
             .Reasons
             .Select(reason => reason.Requirement)
-            .Where(requirement => requirement is CaseReportReadiness.CloseUpImageRequirement
-                or CaseReportReadiness.OverviewImageRequirement)
+            .Where(requirement => requirement is CaseReportReadiness.OverviewImageRequirement)
     ];
 
     private static async Task<DocumentOccurrenceEntity> OccurrenceAsync(LocalDbTestDatabase database, Guid occurrenceId)
@@ -1288,7 +1290,7 @@ public sealed class DocumentCustodyDurabilityTests
                 .GetRequiredService<IReadImageTagVocabulary>()
                 .ListAsync(CancellationToken.None);
             Assert.Equal(
-                [.. new[] { ImageTagVocabulary.OverviewName, ImageTagVocabulary.CloseUpName, ImageTagVocabulary.ThirdPartyName, ImageTagVocabulary.ReflectionName, ImageTagVocabulary.MarketResearchName }.OrderBy(name => name, StringComparer.Ordinal)],
+                [.. new[] { ImageTagVocabulary.OverviewName, ImageTagVocabulary.CloseUpName, ImageTagVocabulary.ThirdPartyName, ImageTagVocabulary.ReflectionName }.OrderBy(name => name, StringComparer.Ordinal)],
                 vocabulary.Where(tag => tag.IsBuiltIn).Select(tag => tag.Name).OrderBy(name => name, StringComparer.Ordinal));
             Assert.Contains(vocabulary, tag => tag.Id == created.Tag.Id);
         }

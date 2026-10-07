@@ -92,19 +92,27 @@ public sealed class ReportPhotoPreparationTests
         }
     }
 
+    /// <summary>
+    /// A slot keeps the whole image (operator, 7 October 2026): it is sized
+    /// to fit inside the slot, 1000 by 597 pixels, at its own shape, and
+    /// never enlarged.
+    /// </summary>
     [Fact]
-    public void ASlotTrimsTheImageAboutItsCentreAndNeverEnlargesIt()
+    public void ASlotKeepsTheWholeImageAndNeverEnlargesIt()
     {
         var large = Quadrants(1600, 1200, SKEncodedImageFormat.Png);
+        var portrait = Quadrants(1200, 1600, SKEncodedImageFormat.Png);
         var small = Quadrants(160, 120, SKEncodedImageFormat.Png);
 
-        using var trimmed = Print(large, CaseAssetRotation.None, CaseAssetCrop.Full, ReportChrome.GridSlotHeight);
+        using var fitted = Print(large, CaseAssetRotation.None, CaseAssetCrop.Full, ReportChrome.GridSlotHeight);
+        using var upright = Print(portrait, CaseAssetRotation.None, CaseAssetCrop.Full, ReportChrome.GridSlotHeight);
         using var kept = Print(small, CaseAssetRotation.None, CaseAssetCrop.Full, ReportChrome.GridSlotHeight);
 
-        Assert.Equal((1000, 597), (trimmed.Width, trimmed.Height));
-        // The middle 955 of the 1200 rows are kept, so the quadrants still meet mid-picture.
-        AssertQuadrants(trimmed, "R", "G", "B", "Y");
-        Assert.Equal((160, 96), (kept.Width, kept.Height));
+        Assert.Equal((796, 597), (fitted.Width, fitted.Height));
+        AssertQuadrants(fitted, "R", "G", "B", "Y");
+        Assert.Equal((448, 597), (upright.Width, upright.Height));
+        AssertQuadrants(upright, "R", "G", "B", "Y");
+        Assert.Equal((160, 120), (kept.Width, kept.Height));
     }
 
     [Fact]
@@ -207,7 +215,7 @@ public sealed class ReportPhotoPreparationTests
 
     /// <summary>
     /// A PNG far past the whole-decode threshold is generated in memory and
-    /// prints at the slot's 1000 pixels, the same as a whole decode of it.
+    /// prints at the slot's 597 pixels high, the same as a whole decode of it.
     /// Nothing refuses it for its size.
     /// </summary>
     [Fact]
@@ -221,7 +229,7 @@ public sealed class ReportPhotoPreparationTests
         using var whole = Print(
             source, CaseAssetRotation.Clockwise90, crop, ReportChrome.GridSlotHeight, scanlineFrom: long.MaxValue);
 
-        Assert.Equal((1000, 597), (scanned.Width, scanned.Height));
+        Assert.Equal((478, 597), (scanned.Width, scanned.Height));
         AssertSameShape(whole, scanned);
         AssertSimilar(whole, scanned, mean: 4);
         // Turned a quarter turn: blue, red over yellow, green.
@@ -489,22 +497,13 @@ public sealed class ReportPhotoPreparationTests
         var shape = slot is { } slotHeight ? ReportChrome.SlotWidth / slotHeight : (float?)null;
         var keptWidth = cropWidth;
         var keptHeight = cropHeight;
-        if (shape is { } widthOverHeight)
-        {
-            if (cropWidth / cropHeight > widthOverHeight)
-            {
-                keptWidth = cropHeight * widthOverHeight;
-            }
-            else
-            {
-                keptHeight = cropWidth / widthOverHeight;
-            }
-        }
-        var left = (float)crop.Left * rotatedWidth + (cropWidth - keptWidth) / 2f;
-        var top = (float)crop.Top * rotatedHeight + (cropHeight - keptHeight) / 2f;
-        var scale = shape is null
+        var left = (float)crop.Left * rotatedWidth;
+        var top = (float)crop.Top * rotatedHeight;
+        var scale = shape is not { } widthOverHeight
             ? Math.Min(1f, ReportPhotoPreparation.FullPagePixels / Math.Max(1f, Math.Max(keptWidth, keptHeight)))
-            : Math.Min(1f, ReportPhotoPreparation.SlotPixels / Math.Max(1f, keptWidth));
+            : Math.Min(1f, Math.Min(
+                ReportPhotoPreparation.SlotPixels / Math.Max(1f, keptWidth),
+                ReportPhotoPreparation.SlotPixels / widthOverHeight / Math.Max(1f, keptHeight)));
         var outputWidth = Math.Max(1, (int)Math.Round(keptWidth * scale));
         var outputHeight = Math.Max(1, (int)Math.Round(keptHeight * scale));
         var output = new SKBitmap(new SKImageInfo(outputWidth, outputHeight, SKColorType.Rgba8888, SKAlphaType.Opaque));

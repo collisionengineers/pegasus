@@ -127,6 +127,30 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
         return originalSender;
     }
 
+    /// <summary>
+    /// The sender a reply to a Collision Engineers staff forward answers: the
+    /// proven original sender, when the transport sender is on the staff domain
+    /// and the forward was unwrapped to an external original. Otherwise null,
+    /// and the reply answers the message's own Reply-To or From, so a forward
+    /// inside the Principal's own organisation is answered to its direct sender.
+    /// </summary>
+    public static string? StaffForwardOriginalSender(
+        string? transportSenderAddress,
+        string? effectiveSenderAddress)
+    {
+        if (string.IsNullOrWhiteSpace(transportSenderAddress)
+            || string.IsNullOrWhiteSpace(effectiveSenderAddress)
+            || !TryGetMailboxDomain(transportSenderAddress.Trim(), out var transportDomain)
+            || !string.Equals(transportDomain, StaffTransportDomain, StringComparison.OrdinalIgnoreCase)
+            || !TryGetMailboxDomain(effectiveSenderAddress.Trim(), out var originalDomain)
+            || string.Equals(originalDomain, StaffTransportDomain, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return effectiveSenderAddress.Trim();
+    }
+
     public MailRouteEvaluationResult Evaluate(
         IntakeSourceReadResult readResult,
         InstructionPolicySelection? instruction = null)

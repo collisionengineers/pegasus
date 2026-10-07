@@ -669,12 +669,12 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
     private sealed class UnreachableTriageQueries : Pegasus.Core.Triage.ITriageQueries
     {
         public Task<IReadOnlyList<Pegasus.Core.Triage.TriageSummary>> ListAsync(
-            Pegasus.Core.Triage.TriageState? state,
+            IReadOnlyCollection<Pegasus.Core.Triage.TriageState>? state,
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
         public Task<int> CountAsync(
-            Pegasus.Core.Triage.TriageState? state,
+            IReadOnlyCollection<Pegasus.Core.Triage.TriageState>? state,
             CancellationToken cancellationToken) => throw UnexpectedCall();
 
         public Task<Pegasus.Core.Triage.TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>

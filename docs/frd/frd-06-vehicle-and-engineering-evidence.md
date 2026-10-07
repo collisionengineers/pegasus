@@ -192,9 +192,10 @@ be edited
 
 **Report images are prepared without changing the source.** The retained
 bytes and their hashes never change. Every crop or ordering act writes
-normalised output beside the source. A report needs two distinct images in
-the report, one tagged `Close-up`, printed first, and one tagged `Overview`,
-printed second (operator, 26 September 2026). Where more than one carries a
+normalised output beside the source. A report needs one image in the
+report, tagged `Overview`, which prints first; one tagged `Close-up` is
+optional and prints second (operator, 7 October 2026). The tags fix those
+two places: ordering moves only the other images. Where more than one carries a
 tag, the first in the order the operator set prints as it and the rest as
 supporting images, which follow in that order. Images nobody has ordered
 follow the order they arrived, then their file names. Only an image that can

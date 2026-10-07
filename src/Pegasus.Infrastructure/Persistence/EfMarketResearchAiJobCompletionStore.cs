@@ -35,7 +35,7 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             command.FileName,
             command.MediaType,
             command.Content,
-            DocumentSemanticRole.Other,
+            DocumentSemanticRole.MarketResearch,
             DocumentSource.Automation,
             $"ai-market-research:{command.JobId:D}",
             command.Actor,
@@ -129,19 +129,6 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
                 valuation,
                 before,
                 now);
-
-            // The findings file is evidence in Files wearing the built-in Market
-            // research tag (Work Centre D9); nothing reviews it and nothing reads it
-            // as a value.
-            context.Set<DocumentOccurrenceTagEntity>().Add(new()
-            {
-                OccurrenceId = pending.Result.Occurrence.Id,
-                TagId = ImageTagVocabulary.MarketResearchId,
-                AppliedByKind = command.Actor.Kind.ToString(),
-                AppliedBySubjectId = command.Actor.SubjectId,
-                AppliedAtUtc = now,
-                OperationKey = command.OperationKey.Trim()
-            });
 
             job.State = nameof(AiJobState.DraftReady);
             job.DraftReadyAtUtc = now;

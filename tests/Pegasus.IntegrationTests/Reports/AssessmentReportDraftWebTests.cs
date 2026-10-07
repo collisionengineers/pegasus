@@ -258,7 +258,6 @@ public sealed partial class AssessmentReportDraftWebTests
             // anywhere.
             [CaseReportReadiness.SignatoryRequirement] = null,
             [CaseReportReadiness.CurrentEstimateRequirement] = "estimate",
-            [CaseReportReadiness.CloseUpImageRequirement] = "files",
             [CaseReportReadiness.OverviewImageRequirement] = "files",
         };
         // The jump opens the tab inside the section that clears the blocker
@@ -267,7 +266,6 @@ public sealed partial class AssessmentReportDraftWebTests
         var expectedTabs = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["Agreed fee"] = "fee",
-            [CaseReportReadiness.CloseUpImageRequirement] = "images",
             [CaseReportReadiness.OverviewImageRequirement] = "images",
         };
         Assert.Equal(

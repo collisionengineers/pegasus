@@ -205,7 +205,11 @@ its own count, in this order: Not ready, Review, With Engineer, Query, Triage,
 Awaiting instruction, Held, Unidentified. Every queue button looks the same.
 
 `?tab=` selects the queue. Not ready contains only formal instructed Cases.
-Triage lists Triage Cases, which never appear in the Case queues.
+Triage lists the Triage Cases still being worked: Open, Awaiting information
+and Finding recorded, the same states the Triages metric counts, and its
+count is theirs. A Completed or Cancelled Triage Case leaves the queue and is
+found through Search by its `t.` Case/PO or registration (operator, issue
+1044, 7 October 2026). Triage Cases never appear in the Case queues.
 A vehicle-images record still awaiting an instruction is listed under
 Awaiting instruction, never in a Case queue
 ([FRD-19](frd-19-image-led-intake-and-pairing.md#image-initiated-case-projection)).
@@ -315,11 +319,15 @@ last in red (operator, 5 October 2026).
 | Open | Record finding | Assign, Send chaser, Open file, Link case, Cancel Triage |
 | Awaiting information | Record finding | Assign, Send chaser, Open file, Link case, Cancel Triage |
 | Finding recorded | Complete Triage | Assign, Record finding (a correction), Send chaser, Open file, Link case, Cancel Triage |
-| Completed | Reply with finding, when a reply can be sent | Record correction, Open file, Reopen |
+| Completed | Reply with finding, until it is sent | Record correction, Open file, Reopen |
 | Cancelled | Reopen | Open file |
 
 Send chaser and Reply with finding appear only when a reply can be sent and
-no send is in flight. Open file appears only when the request did not come
+no send is in flight. Once the outcome reply is sent, by anyone, Reply with
+finding is gone from the ribbon, the completion notice and the
+Correspondence tab; only Reopen and a fresh completion offer it again
+(operator, issue 1047, 7 October 2026). A failed or cancelled send leaves it
+offered. Open file appears only when the request did not come
 by e-mail. Assign appears while staff can be chosen. Link case becomes
 Unlink case once a Case is linked. There is no Open message: the request
 e-mail is the first row of the Correspondence tab.
@@ -372,9 +380,14 @@ Unassign (when assigned), Cancel and Assign. Neither asks a reason.
 **Composer.** Send chaser and Reply with finding open the Inbox composer's
 frame over the page: From (the approved mailbox), To, Cc, Subject, Message
 and the request's own files as attachments. It is offered only when the
-Triage came by e-mail and its approved mailbox may send. Before Completed it
-sends the chaser FRD-03 offers. Once Completed it is **Reply with finding**:
-the same To, the subject "Re: {original subject}" and a body rendered from
+Triage came by e-mail and its approved mailbox may send. To answers the
+request's Reply-To, or its From without one; a request a member of Collision
+Engineers forwarded answers its original sender instead, and drops the
+forward's own "FW:" from the subject
+([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
+Before Completed it sends the chaser FRD-03 offers. Once Completed it is
+**Reply with finding**: the same To, the subject "Re: {original subject}" and
+a body rendered from
 the Triage outcome template
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)), which staff
 edit before Send. The server decides which it is. A refused send opens the

@@ -12,7 +12,7 @@ namespace Pegasus.Infrastructure.Reports;
 /// printing a placeholder: the image page 1 leads with, the images of the
 /// image pages in the Engineer's order, the signature and the logo. EXIF
 /// orientation, the Engineer's rotation and crop are already applied and
-/// each image is already trimmed to the shape of its slot.
+/// each image is already sized to fit whole inside its slot.
 /// </summary>
 internal sealed record PreparedReportImages(
     byte[]? Lead,
@@ -127,7 +127,7 @@ internal static class AssessmentReportLayout
             .Element(slots => ImageSlots(
                 slots,
                 LeadSlotHeight,
-                images.Lead is null ? null : slot => Fill(slot, images.Lead),
+                images.Lead is null ? null : slot => Fit(slot, images.Lead),
                 slot => slot.AlignCenter().Svg(plan).FitHeight()));
 
         // Page 2: the narrative, in the Engineer's order (v28 P30). The
