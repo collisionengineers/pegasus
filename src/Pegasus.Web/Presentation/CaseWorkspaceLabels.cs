@@ -177,8 +177,7 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.ReportDiscloseGuideSource] = "Disclose guide source",
             [AssessmentVocabulary.ReportValuationCommentary] = "Valuation commentary",
             [AssessmentVocabulary.ReportValuationCommentaryText] = "Valuation commentary text",
-            [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "Include unrelated damage",
-            [AssessmentVocabulary.ReportDateOverride] = "Override report date"
+            [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "Include unrelated damage"
         };
 
         public static IReadOnlyDictionary<string, string> Damage { get; } = new Dictionary<string, string>

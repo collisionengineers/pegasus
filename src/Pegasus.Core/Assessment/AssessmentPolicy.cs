@@ -396,18 +396,6 @@ public static class AssessmentPolicy
         RequireField(
             AssessmentVocabulary.AgreedFee, "Agreed fee", "Report",
             "Record it on the Fee tab of the Report section.");
-        if (string.Equals(
-                fields.GetValueOrDefault(AssessmentVocabulary.ReportDateOverride),
-                "true",
-                StringComparison.Ordinal)
-            && !fields.ContainsKey(AssessmentVocabulary.ReportDate))
-        {
-            items.Add(new(
-                "Report date", "Assessment record",
-                "The report date is overridden but no date is recorded.",
-                "Record the report date on the Report section, or turn off Override report date so generation sets it.",
-                Field: AssessmentVocabulary.ReportDate));
-        }
 
         // No odometer readiness item: the report's mileage-source code is
         // derived from the mileage's own provenance, so a case with no mileage
