@@ -735,9 +735,10 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// Get valuation for one guide source: the connected provider's figures for
-    /// the chosen month, for the card to show in its boxes. Nothing is written
-    /// here and the edit session carries on as it was; the Case save records the
-    /// card. The card's script asks for JSON — the figures, "unavailable" while
+    /// the chosen month, for the card to show in its boxes. The figures are not
+    /// written here; the Case save records the card. A VIN the source names
+    /// fills the Case's empty VIN as system work, and the edit session carries
+    /// on as it was. The card's script asks for JSON — the figures, "unavailable" while
     /// the source has no connected provider, "vehicle_age" when the source does
     /// not value a vehicle of this age, or a refusal and its message — so
     /// the page is never redrawn and nothing unsaved is put at risk. Any other
@@ -777,7 +778,7 @@ public sealed partial class DetailsModel
             return json ? RefusedJson(StatusCodes.Status403Forbidden) : (IActionResult)Forbid();
         }
 
-        // Nothing is written here, so the lease stands as it was in every outcome.
+        // Only system work is written here, so the lease stands as it was in every outcome.
         PreserveLeaseState(id, editLeaseToken);
         try
         {

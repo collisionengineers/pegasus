@@ -549,6 +549,52 @@ internal sealed partial class GlassMvaClient(
     private async Task<Dictionary<string, string>[]> VehicleControlsAsync(
         string vehicleId, bool estimateStarted, CancellationToken cancellationToken)
     {
+        var value = await DetailsValueAsync(vehicleId, cancellationToken);
+        // Only named controls establish identity. Scripts, comments and unrelated
+        // text in the page can contain the right numbers for the wrong vehicle.
+        return Matched(() =>
+        {
+            var controls = InertHtml().Replace(value, string.Empty);
+            var inputs = Inputs(controls);
+            var profiles = SelectControl().Matches(controls).Cast<Match>()
+                .Where(match => Attributes(match.Groups[1].Value).GetValueOrDefault("name") == "ere_profile")
+                .ToArray();
+            if (ProfileRefusal(profiles, estimateStarted) is { } refusal)
+            {
+                throw new GlassMvaStageException(GlassFailure.DetailsProfile, detail: $"profile={refusal}");
+            }
+
+            return inputs;
+        }, GlassFailure.DetailsIdentity);
+    }
+
+    /// <summary>
+    /// The VIN Glass's holds for a stocked vehicle: what its details page
+    /// states in the <c>vin</c> control. Glass's looks the VIN up from the
+    /// registration when the vehicle is created, so a vehicle created from a
+    /// plate carries one; null when the control is absent, blank or
+    /// contradictory. A read: nothing at Glass's changes.
+    /// </summary>
+    public async Task<string?> VehicleVinAsync(string vehicleId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(vehicleId) || !vehicleId.All(char.IsAsciiDigit))
+        {
+            throw new ArgumentException("A Glass's stock vehicle id is required.", nameof(vehicleId));
+        }
+
+        var value = await DetailsValueAsync(vehicleId, cancellationToken);
+        var vin = Matched(
+            () => Field(Inputs(InertHtml().Replace(value, string.Empty)), "vin"),
+            GlassFailure.DetailsIdentity);
+        return string.IsNullOrWhiteSpace(vin) ? null : vin;
+    }
+
+    /// <summary>
+    /// The vehicle's details page, whose named controls state what Glass's
+    /// holds for it, read after its detail fragments as the portal reads them.
+    /// </summary>
+    private async Task<string> DetailsValueAsync(string vehicleId, CancellationToken cancellationToken)
+    {
         await TextAsync(
             new HttpRequestMessage(
                 HttpMethod.Get,
@@ -564,31 +610,18 @@ internal sealed partial class GlassMvaClient(
             ajax: true,
             GlassFailure.DetailsRequest,
             cancellationToken);
-
-        var value = await TextAsync(
+        return await TextAsync(
             new HttpRequestMessage(
                 HttpMethod.Get, options.MarketValueAssessor($"index/vehicle-details-value/id/{vehicleId}")),
             ajax: true,
             GlassFailure.DetailsRequest,
             cancellationToken);
-        // Only named controls establish identity. Scripts, comments and unrelated
-        // text in the page can contain the right numbers for the wrong vehicle.
-        return Matched(() =>
-        {
-            var controls = InertHtml().Replace(value, string.Empty);
-            var inputs = InputControl().Matches(controls).Cast<Match>()
-                .Select(match => Attributes(match.Groups[1].Value)).ToArray();
-            var profiles = SelectControl().Matches(controls).Cast<Match>()
-                .Where(match => Attributes(match.Groups[1].Value).GetValueOrDefault("name") == "ere_profile")
-                .ToArray();
-            if (ProfileRefusal(profiles, estimateStarted) is { } refusal)
-            {
-                throw new GlassMvaStageException(GlassFailure.DetailsProfile, detail: $"profile={refusal}");
-            }
-
-            return inputs;
-        }, GlassFailure.DetailsIdentity);
     }
+
+    /// <summary>Every input control on a page already stripped of its inert text, by attribute.</summary>
+    private static Dictionary<string, string>[] Inputs(string controls) =>
+        InputControl().Matches(controls).Cast<Match>()
+            .Select(match => Attributes(match.Groups[1].Value)).ToArray();
 
     /// <summary>
     /// Why the repair-profile control is not what the vehicle's phase

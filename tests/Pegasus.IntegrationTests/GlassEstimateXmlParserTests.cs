@@ -536,6 +536,20 @@ public sealed class GlassEstimateXmlParserTests
         Assert.Equal("1", identity.MileageUnitCode);
         Assert.Equal("123456789", identity.TypeNumber);
         Assert.Null(identity.Vin);
+        Assert.Null(Parse(GlassExport.BuildXml()).Vin);
+    }
+
+    /// <summary>
+    /// The export's VIN is carried on the parse, so the import fills the
+    /// Case's empty VIN with it (operator, 7 October 2026).
+    /// </summary>
+    [Fact]
+    public void TheExportVinIsCarriedOnTheParse()
+    {
+        var export = Read(GlassExport.BuildXml(vin: "TESTVEH0A1B2C3D45"));
+
+        Assert.Equal("TESTVEH0A1B2C3D45", export.Identity.Vin);
+        Assert.Equal("TESTVEH0A1B2C3D45", export.Estimate.Vin);
     }
 
     [Fact]
@@ -899,7 +913,8 @@ public sealed class GlassEstimateXmlParserTests
             string grossTotal = "1269.60",
             string rateBlocks = "",
             string otherRates = "",
-            string resultAdjustments = "") =>
+            string resultAdjustments = "",
+            string? vin = null) =>
             $"""
             <?xml version="1.0" encoding="UTF-8"?>
             <Estimation>
@@ -918,6 +933,7 @@ public sealed class GlassEstimateXmlParserTests
                   <MilUnit>1</MilUnit>
                   <Mileage>{mileage}</Mileage>
                   <RegPlt>{registration}</RegPlt>
+                  {(vin is null ? string.Empty : "<VIN>" + vin + "</VIN>")}
                 </Identification>
               </Vehicle>
               <Valuation Function="Calculation load and recalculate, user can modify">
