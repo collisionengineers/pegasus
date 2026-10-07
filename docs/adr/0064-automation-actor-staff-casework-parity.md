@@ -5,7 +5,7 @@ date: 2026-10-07
 supersedes: [ADR-0021, ADR-0031]
 superseded_by: []
 related_capabilities: [MCP-01, MCP-02, MCP-06]
-related_frd: [frd-10, frd-14, frd-24, frd-25, frd-27]
+related_frd: [frd-06, frd-10, frd-11, frd-14, frd-21, frd-24, frd-25, frd-27]
 tags: [mcp, automation, ai, assessment, estimate]
 ---
 
@@ -26,8 +26,8 @@ This record replaces, in part:
   findings. Its EVA Export decision, kill switch and attribution stand.
 - [ADR-0021](0021-automation-actor-direct-write-assessment-contract.md),
   decision 2: the structural absence of a finding tool and, from the second
-  delivery, of a report-approval tool. The absence of any tool that sends
-  outward stands until a later delivery below.
+  delivery, of a report-approval tool; from the fourth, of any tool that
+  sends outward.
 - The job-cited AI-draft estimate model in
   [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md#ai-job-and-estimate-tools):
   `pegasus_estimate_save` no longer needs an AI job. The
@@ -92,6 +92,20 @@ fact the call did not name.
    retries failed custody. Each calls the staff command. Report approval is by
    staff or the Automation actor; it is not a send. A recorded approval,
    archive or evidence link reads back as the Automation actor.
+9. **Sending.** The operator approved outward sending (7 October 2026) under
+   its own scope, `automation.send`, so a grant can hold casework without
+   sending. `pegasus_report_send` sends a generated report to the Principal
+   through the staff report send, and `pegasus_mail_send` sends new mail, a
+   reply, reply all or forward of a retained message, and the Triage reply
+   through the staff mail send, from the same approved mailboxes. Report
+   delivery and the staff mail send admit the Automation actor where they
+   required a signed-in member of staff; the system worker and a Principal
+   still never send. A send records its sender's kind, so the operation, its
+   history, the Case's Notes line, a chase it records and a post-report query
+   it completes read back as the Automation actor. Its current-sender check is
+   the client registration's kill switch, read at each step a staff send
+   re-reads the staff account. EVA submission is not part of this delivery:
+   it is being removed elsewhere.
 
 ## Consequences
 
@@ -104,19 +118,33 @@ fact the call did not name.
   adds `pegasus_case_action`, `pegasus_directory_search`,
   `pegasus_report_list`, `pegasus_report_action` and
   `pegasus_document_action`, making 47; the queue and job delivery adds
-  eight more, making 55.
-- This is the first of four deliveries. The second, the Case lifecycle,
-  report and document tools, is delivered. Outward sending under a new
-  `automation.send` scope is the last; until it lands, sending stays with
-  staff.
+  eight more, making 55; the report preparation delivery adds four, making
+  59; sending adds `pegasus_report_send` and `pegasus_mail_send`, making 61.
+- This is the first of four deliveries, all now delivered: the Case
+  lifecycle, report and document tools; the queue and job tools; and outward
+  sending under `automation.send`.
+- `StaffMailSendOperations` gains an `ActorKind` column (Staff or
+  Automation; every earlier send is Staff), so no send by the Automation
+  Actor reads back as a member of staff. An engineer's report count counts
+  staff sends only.
 - Queue and job tools: delivered (operator, 7 October 2026;
   [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md#queue-and-intake-tools)).
   The Actor creates any AI job kind, cancels and confirms jobs, assigns,
   unassigns and notes a Triage, closes and reopens Unidentified items,
   creates a Case directly, accepts a received item and retries its
   allocation, moves and dismisses mail, and dismisses Work Centre records.
-  Settling an inspection address stays with staff: its record names the
-  member of staff who settled it.
+- Inspection address, report wording and image preparation: delivered
+  (operator, 7 October 2026). `pegasus_intake_action`
+  `resolve_inspection_address` settles a received item's inspection address
+  as **Create case** does. A settled address records its settler's actor
+  kind and identity rather than a staff identifier, so one the Actor settled
+  reads as the Actor's; migration `20261007181000_InspectionAddressSettlerKind`
+  rewrote each earlier settlement as a member of staff's.
+  `pegasus_report_wording_get` and `pegasus_report_wording_save` read and
+  change the report's wording blocks, and `pegasus_image_preparation_get`
+  and `pegasus_image_prepare` read and change each image's crop, rotation,
+  order and page of its own, both through the Case save
+  ([FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md#report-wording-and-images)).
 
 ## Links
 
@@ -125,3 +153,4 @@ fact the call did not name.
 - [FRD-24](../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md)
 - [FRD-25](../frd/frd-25-repair-estimates-imports-and-glasss-sessions.md)
 - [FRD-27](../frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md)
+- [FRD-21](../frd/frd-21-outbound-correspondence-and-sent-evidence.md)

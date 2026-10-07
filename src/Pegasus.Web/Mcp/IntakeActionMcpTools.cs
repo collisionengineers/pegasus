@@ -19,6 +19,17 @@ internal sealed record IntakeToolAllocation(
     Guid? CaseId,
     string? CaseReference);
 
+/// <summary>
+/// One file the received item holds. A Triage reply attaches these by
+/// <see cref="AssetId"/> (<c>pegasus_mail_send</c> triage_reply).
+/// </summary>
+internal sealed record IntakeToolFile(
+    Guid AssetId,
+    string FileName,
+    string MediaType,
+    long ContentLength,
+    string CustodyState);
+
 internal sealed record IntakeToolDetail(
     Guid ReceiptId,
     long Version,
@@ -35,18 +46,25 @@ internal sealed record IntakeToolDetail(
     IntakeToolAllocation? Allocation,
     string InspectionAddressState,
     string? InspectionAddressSuggestion,
+    string? InspectionAddressSuggestionFingerprint,
     string? InspectionAddressResolvedValue,
+    string? InspectionAddressResolvedByKind,
+    string? InspectionAddressResolvedBy,
+    IReadOnlyList<IntakeToolFile> Files,
     string CorrelationId);
 
 internal sealed record IntakeActionToolResult(
     Guid ReceiptId,
     string Action,
-    string AllocationStatus,
+    string? AllocationStatus,
     Guid? CaseId,
     string? CaseReference,
     string? AuditReference,
     string? SafeReason,
     bool IsReplay,
+    long? ReceiptVersion,
+    string? InspectionAddressState,
+    string? InspectionAddressResolvedValue,
     string OperationKey,
     string CorrelationId);
 
@@ -60,17 +78,18 @@ internal sealed record CaseCreateToolResult(
 internal enum IntakeAction
 {
     Accept,
-    Allocate
+    Allocate,
+    ResolveInspectionAddress
 }
 
 /// <summary>
 /// The staff intake acts for the Automation Actor (ADR-0064, FRD-02): read one
 /// received item, turn it into a Case (Create case from a received item),
-/// retry a failed allocation, and create a Case directly. Each calls the same
-/// Core commands as the staff Create case page and the Action Logs retry,
-/// under <c>automation.intake</c>, with the resolved Automation identity.
-/// Settling an inspection address stays a staff act: its record names a
-/// member of staff, so an item that still needs one is refused here.
+/// retry a failed allocation, settle the inspection address, and create a
+/// Case directly. Each calls the same Core commands as the staff Create case
+/// page and the Action Logs retry, under <c>automation.intake</c>, with the
+/// resolved Automation identity. A settled address names the Automation
+/// actor as its settler (ADR-0064), never a member of staff.
 /// </summary>
 [McpServerToolType]
 internal sealed class IntakeActionMcpTools(
@@ -98,7 +117,7 @@ internal sealed class IntakeActionMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Gets one received item as the Create case page reviews it: its version, processing decision, the Case it already belongs to, the classified case type, the instruction draft and which identity-critical fields it still lacks, the allocation attempt (with attemptId and whether it can be retried), and the inspection address state, suggestion and settled value.")]
+    [Description("Gets one received item as the Create case page reviews it: its version, processing decision, the Case it already belongs to, the classified case type, the instruction draft and which identity-critical fields it still lacks, the allocation attempt (with attemptId and whether it can be retried), the inspection address: its state (Unresolved, Suggested, Accepted, Corrected or Supplied), the address extraction suggested with the fingerprint pegasus_intake_action resolve_inspection_address takes, and the settled value with the actor kind and subject that settled it; and the item's files (assetId, name, type, size and custody state; a Triage reply attaches Confirmed files by assetId).")]
     public async Task<IntakeToolDetail> GetAsync(
         [Description(ReceiptIdDescription)] Guid receiptId,
         CancellationToken cancellationToken = default)
@@ -142,7 +161,18 @@ internal sealed class IntakeActionMcpTools(
                         : null,
                     resolution.State.ToString(),
                     resolution.Evaluation.Suggestion?.Value,
+                    resolution.Evaluation.Suggestion?.Fingerprint,
                     resolution.ResolvedValue,
+                    resolution.ResolvedByKind?.ToString(),
+                    resolution.ResolvedBy,
+                    IntakeFileIdentity.Ordered(receipt)
+                        .Select(asset => new IntakeToolFile(
+                            asset.Id,
+                            asset.FileName,
+                            asset.MediaType,
+                            asset.ContentLength,
+                            asset.CustodyState.ToString()))
+                        .ToArray(),
                     context.TraceIdentifier);
             }),
             cancellationToken);
@@ -150,16 +180,16 @@ internal sealed class IntakeActionMcpTools(
 
     [McpServerTool(
         Name = "pegasus_intake_action",
-        Title = "Accept or allocate a received item",
+        Title = "Act on a received item",
         ReadOnly = false,
         Destructive = false,
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("One staff intake act on a received item, through the same Core commands as staff. accept turns the item into a Case, as Create case on a received item does: the reviewed draft is recorded (the draft fields named here replace the item's; an omitted field keeps its value and an empty string clears it), then the Case is allocated for principalCode (default: the draft's suggested Principal) and caseType (default: the classified type; Audit only for an item classified as an Audit). It is refused while an identity-critical field is missing, or while the inspection address still needs a staff decision (a Principal that inspects by images needs none). allocate retries a failed allocation with a reason, naming the attempt it retries. Both need the item version from pegasus_intake_get; the result names the allocation status and, once allocated, the Case.")]
+    [Description("One staff intake act on a received item, through the same Core commands as staff. accept turns the item into a Case, as Create case on a received item does: the reviewed draft is recorded (the draft fields named here replace the item's; an omitted field keeps its value and an empty string clears it), then the Case is allocated for principalCode (default: the draft's suggested Principal) and caseType (default: the classified type; Audit only for an item classified as an Audit). It is refused while an identity-critical field is missing, or while the inspection address is not settled (a Principal that inspects by images needs none). resolve_inspection_address settles the address as the Create case page does: omit inspectionAddress to accept the suggested address, or give it to correct the suggestion (both need addressSuggestionFingerprint from pegasus_intake_get); where nothing was suggested, give inspectionAddress to supply it, with no fingerprint. Image Based Assessment is never typed. The settlement is recorded as the Automation actor's and advances the item version by one. allocate retries a failed allocation with a reason, naming the attempt it retries. Each needs the item version from pegasus_intake_get; the result names the allocation status and, once allocated, the Case, or the settled address and the item's new version.")]
     public async Task<IntakeActionToolResult> ActAsync(
         [Description(ReceiptIdDescription)] Guid receiptId,
-        [Description("accept or allocate.")] string action,
+        [Description("accept, resolve_inspection_address or allocate.")] string action,
         [Description("The item version from pegasus_intake_get; a stale value fails closed.")] long expectedReceiptVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key resumes the same act rather than starting another.")] string operationKey,
         [Description("accept only: the Principal code the Case is allocated for, at most 20 characters; omit to use the draft's suggested Principal.")] string? principalCode = null,
@@ -175,6 +205,8 @@ internal sealed class IntakeActionMcpTools(
         [Description("accept only: inspection date, yyyy-MM-dd; it is also the Case's accepted inspection deadline.")] string? inspectionDate = null,
         [Description("allocate only: the allocation attemptId from pegasus_intake_get that failed and is being retried.")] Guid? expectedAttemptId = null,
         [Description("allocate only: why the allocation is retried, 1 to 500 characters.")] string? reason = null,
+        [Description("resolve_inspection_address only: the address that corrects the suggestion, or is supplied where nothing was suggested, at most 1000 characters; omit to accept the suggestion.")] string? inspectionAddress = null,
+        [Description("resolve_inspection_address only: inspectionAddressSuggestionFingerprint from pegasus_intake_get, naming the suggestion accepted or corrected; omit when nothing was suggested.")] string? addressSuggestionFingerprint = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
@@ -190,16 +222,56 @@ internal sealed class IntakeActionMcpTools(
                 {
                     "accept" => IntakeAction.Accept,
                     "allocate" => IntakeAction.Allocate,
-                    _ => throw new McpException("action must be accept or allocate.")
+                    "resolve_inspection_address" => IntakeAction.ResolveInspectionAddress,
+                    _ => throw new McpException("action must be accept, resolve_inspection_address or allocate.")
                 };
+                var draftFields = new object?[]
+                {
+                    principalCode, caseType, claimantName, claimNumber, vehicleRegistration, vehicleMake,
+                    vehicleModel, vehicleMileage, accidentCircumstances, incidentDate, inspectionDate
+                };
+                if (parsed != IntakeAction.ResolveInspectionAddress
+                    && (inspectionAddress is not null || addressSuggestionFingerprint is not null))
+                {
+                    throw new McpException(
+                        "inspectionAddress and addressSuggestionFingerprint belong to resolve_inspection_address.");
+                }
+                if (parsed == IntakeAction.ResolveInspectionAddress)
+                {
+                    if (draftFields.Any(value => value is not null) || expectedAttemptId is not null || reason is not null)
+                    {
+                        throw new McpException(
+                            "resolve_inspection_address takes only inspectionAddress and addressSuggestionFingerprint.");
+                    }
+
+                    var settled = await ResolveAddressAsync(
+                        context.Actor,
+                        receiptId,
+                        expectedReceiptVersion,
+                        key,
+                        inspectionAddress,
+                        addressSuggestionFingerprint,
+                        cancellationToken);
+                    return new IntakeActionToolResult(
+                        receiptId,
+                        "resolve_inspection_address",
+                        AllocationStatus: null,
+                        CaseId: null,
+                        CaseReference: null,
+                        AuditReference: null,
+                        SafeReason: null,
+                        IsReplay: false,
+                        settled.ReceiptVersion,
+                        settled.State.ToString(),
+                        settled.ResolvedValue,
+                        key,
+                        AutomationMcpAuditor.CorrelationId(context, key));
+                }
+
                 IntakeAllocationResult result;
                 if (parsed == IntakeAction.Allocate)
                 {
-                    if (new object?[]
-                        {
-                            principalCode, caseType, claimantName, claimNumber, vehicleRegistration, vehicleMake,
-                            vehicleModel, vehicleMileage, accidentCircumstances, incidentDate, inspectionDate
-                        }.Any(value => value is not null))
+                    if (draftFields.Any(value => value is not null))
                     {
                         throw new McpException("allocate retries the recorded command; it takes no Principal, case type or draft field.");
                     }
@@ -254,6 +326,9 @@ internal sealed class IntakeActionMcpTools(
                     result.State.AuditReference,
                     result.State.SafeReason,
                     result.IsReplay,
+                    ReceiptVersion: null,
+                    InspectionAddressState: null,
+                    InspectionAddressResolvedValue: null,
                     key,
                     AutomationMcpAuditor.CorrelationId(context, key));
             })),
@@ -407,7 +482,7 @@ internal sealed class IntakeActionMcpTools(
         if (!InspectionAddressResolutionPolicy.SatisfiesCaseCreation(resolution.State, principalIsImageBased))
         {
             throw new McpException(
-                "The inspection address still needs a staff decision on the Create case page before this item can become a case.");
+                "The inspection address is not settled; settle it with resolve_inspection_address before this item can become a case.");
         }
 
         var draft = current with
@@ -423,7 +498,7 @@ internal sealed class IntakeActionMcpTools(
             DateOfIncident = changes.IncidentDateText is null ? current.DateOfIncident : changes.IncidentDate,
             InspectionDate = changes.InspectionDateText is null ? current.InspectionDate : changes.InspectionDate,
             // The address the page puts in the draft: the Principal's own
-            // image-based mode, or the address a member of staff settled.
+            // image-based mode, or the address that was settled.
             InspectionAddress = principalIsImageBased
                 ? resolution.ResolvedValue
                     ?? resolution.Evaluation.Suggestion?.Value
@@ -468,6 +543,66 @@ internal sealed class IntakeActionMcpTools(
             cancellationToken);
     }
 
+    /// <summary>
+    /// The inspection address step of Create case, decided as the staff page
+    /// decides it: with nothing suggested the address is supplied; a
+    /// suggestion is accepted when no address is given and corrected when one
+    /// is. The fingerprint proves which suggestion the caller read. A replay
+    /// of the same key returns what it already recorded.
+    /// </summary>
+    private async Task<InspectionAddressResolutionSnapshot> ResolveAddressAsync(
+        ActionActor actor,
+        Guid receiptId,
+        long expectedReceiptVersion,
+        string key,
+        string? inspectionAddress,
+        string? fingerprint,
+        CancellationToken cancellationToken)
+    {
+        var receipt = await RequireReceiptAsync(receiptId, actor, cancellationToken);
+        if ((receipt.AcceptedCaseId ?? receipt.CurrentCaseId) is not null)
+        {
+            throw new McpException("This item already has a case.");
+        }
+
+        var resolution = await ResolutionAsync(receipt, cancellationToken);
+        var address = string.IsNullOrWhiteSpace(inspectionAddress) ? null : inspectionAddress.Trim();
+        var suggested = resolution.Evaluation.Suggestion is not null;
+        if (!suggested)
+        {
+            if (address is null)
+            {
+                throw new McpException(
+                    "Nothing was suggested for this item's inspection address; give inspectionAddress to supply it.");
+            }
+            if (fingerprint is not null)
+            {
+                throw new McpException("Nothing was suggested, so there is no addressSuggestionFingerprint to give.");
+            }
+        }
+        else if (string.IsNullOrWhiteSpace(fingerprint))
+        {
+            throw new McpException(
+                "Accepting or correcting the suggested address needs addressSuggestionFingerprint from pegasus_intake_get.");
+        }
+
+        return await addressResolutions.ResolveAsync(
+            new(
+                receipt.Id,
+                expectedReceiptVersion,
+                suggested ? fingerprint!.Trim() : null,
+                !suggested
+                    ? InspectionAddressStaffDecision.SupplyAddress
+                    : address is null
+                        ? InspectionAddressStaffDecision.AcceptSuggestion
+                        : InspectionAddressStaffDecision.CorrectSuggestion,
+                address,
+                actor,
+                AutomationMcpErrors.DeriveOperationGuid("inspection-address", actor, key),
+                key),
+            cancellationToken);
+    }
+
     private async Task<IntakeReceipt> RequireReceiptAsync(
         Guid receiptId,
         ActionActor actor,
@@ -488,6 +623,7 @@ internal sealed class IntakeActionMcpTools(
             Ext18InspectionAddressPolicy.Evaluate(receipt),
             null,
             null,
+            null,
             null);
 
     /// <summary>
@@ -502,7 +638,8 @@ internal sealed class IntakeActionMcpTools(
             return await action();
         }
         catch (Exception exception) when (exception is IntakeVersionConflictException
-            or IntakeAllocationConcurrencyException)
+            or IntakeAllocationConcurrencyException
+            or InspectionAddressResolutionConcurrencyException)
         {
             throw new McpException("The received item changed since it was read; reload it with pegasus_intake_get and retry.");
         }

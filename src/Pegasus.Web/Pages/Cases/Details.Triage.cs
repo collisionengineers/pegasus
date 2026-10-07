@@ -653,12 +653,9 @@ public sealed partial class DetailsModel
             return await ReloadTriageCaseAsync(id, actionActor, ports, draft, cancellationToken);
         }
 
-        var mailboxes = await ports.ApprovedMailboxes.ListAsync(cancellationToken);
-        var mailbox = mailboxes.SingleOrDefault(item =>
-            item.Id == detail.Summary.MailboxId
-            && item.State == ApprovedMailboxState.Approved
-            && item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
-            && item.Generation > 0);
+        var mailbox = TriageReplySender(
+            await ports.ApprovedMailboxes.ListAsync(cancellationToken),
+            detail.Summary.MailboxId);
         if (mailbox is null)
         {
             ModelState.AddModelError(
@@ -907,12 +904,9 @@ public sealed partial class DetailsModel
                 view.ReplyOperationBlocked = IsActiveTriageMailOperation(view.ReplyOperation);
                 view.ReplyOperationKey = NewRetainedTriageOperationKey(retainedMail.Summary.Id);
 
-                var mailboxes = await ports.ApprovedMailboxes.ListAsync(cancellationToken);
-                view.ReplyMailbox = mailboxes.SingleOrDefault(item =>
-                    item.Id == retainedMail.Summary.MailboxId
-                    && item.State == ApprovedMailboxState.Approved
-                    && item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
-                    && item.Generation > 0);
+                view.ReplyMailbox = TriageReplySender(
+                    await ports.ApprovedMailboxes.ListAsync(cancellationToken),
+                    retainedMail.Summary.MailboxId);
 
                 var replyRecipients = TriageReplyRecipients(retainedMail);
                 view.ReplyTo = string.Join("; ", replyRecipients.Select(r => r.Address));
@@ -1164,6 +1158,20 @@ public sealed partial class DetailsModel
             && Guid.TryParseExact(value[prefix.Length..], "N", out _);
     }
 
+    /// <summary>
+    /// The approved mailbox a Triage reply leaves from: the one holding the
+    /// origin message, Approved, with staff send and a generation. Staff and
+    /// the Automation Actor's <c>pegasus_mail_send</c> triage_reply read it alike.
+    /// </summary>
+    internal static ApprovedMailbox? TriageReplySender(
+        IReadOnlyList<ApprovedMailbox> mailboxes,
+        Guid mailboxId) =>
+        mailboxes.SingleOrDefault(item =>
+            item.Id == mailboxId
+            && item.State == ApprovedMailboxState.Approved
+            && item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
+            && item.Generation > 0);
+
     private static bool IsActiveTriageMailOperation(StaffMailOperation? operation) =>
         operation is not null
             && operation.State is not StaffMailState.Sent
@@ -1175,7 +1183,7 @@ public sealed partial class DetailsModel
     /// Collision Engineers staff forward is answered to its proven original
     /// sender instead of the forwarding desk (FRD-21 Reply targets).
     /// </summary>
-    private static StaffMailRecipient[] TriageReplyRecipients(RetainedMailDetail detail) =>
+    internal static StaffMailRecipient[] TriageReplyRecipients(RetainedMailDetail detail) =>
         StaffForwardOriginalSender(detail.Summary) is { } originalSender
             ? ParseTriageRecipients(originalSender)
             : ParseTriageRecipients(detail.ReplyToAddresses);

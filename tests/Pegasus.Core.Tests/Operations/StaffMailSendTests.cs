@@ -7,25 +7,118 @@ namespace Pegasus.Core.Tests.Operations;
 
 public sealed class StaffMailSendTests
 {
+    /// <summary>
+    /// The Automation Actor sends as staff do (ADR-0064 phase 4): the same
+    /// engine, the same attachment bytes, the same Submitted outcome. Its
+    /// current-sender check is its client registration's kill switch, read
+    /// at every step a staff send re-reads the staff account.
+    /// </summary>
     [Fact]
-    public async Task AutomationCannotInitiateStaffMail()
+    public async Task AutomationSendsLikeStaffWhileItsRegistrationIsEnabled()
     {
-        var send = new StaffMailSend(null!, null!, null!, null!, TimeProvider.System, new ExecutionLock());
-        var command = Command(ActionActor.Automation("automation"));
+        var actor = ActionActor.Automation("pegasus-automation");
+        var bytes = new byte[] { 5, 6, 7 };
+        var attachment = new StaffMailAttachment(
+            Guid.NewGuid(), Guid.NewGuid(),
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)),
+            bytes.Length, "report.pdf", "application/pdf");
+        var command = Command(actor) with { Attachments = [attachment] };
+        var store = new Store();
+        var transport = new Transport();
+        var ingress = new Ingress(enabled: true);
+        var send = new StaffMailSend(
+            store,
+            new Mailboxes(command.ApprovedMailboxId, command.ExpectedMailboxGeneration),
+            new Reader(bytes, attachment),
+            transport,
+            TimeProvider.System,
+            new ExecutionLock(),
+            ingress);
 
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            send.SendAsync(command, CancellationToken.None));
+        var result = await send.SendAsync(command, CancellationToken.None);
+
+        Assert.Equal(StaffMailState.Submitted, result.State);
+        Assert.Equal(1, transport.SendCount);
+        Assert.Equal(bytes, Assert.Single(transport.Attached));
+        Assert.Equal(4, ingress.Checks);
+        Assert.Equal(0, store.CurrentStaffChecks);
     }
 
     [Fact]
-    public async Task AutomationCannotReadAStaffMailOperationForAnOriginal()
+    public async Task DisabledAutomationCannotPrepareOrCallProvider()
     {
+        var command = Command(ActionActor.Automation("pegasus-automation"));
+        var store = new Store();
+        var transport = new Transport();
         var send = new StaffMailSend(
-            null!, null!, null!, null!, TimeProvider.System, new ExecutionLock());
+            store,
+            new Mailboxes(command.ApprovedMailboxId, command.ExpectedMailboxGeneration),
+            null!,
+            transport,
+            TimeProvider.System,
+            new ExecutionLock(),
+            new Ingress(enabled: false));
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            send.SendAsync(command, CancellationToken.None));
+
+        Assert.Null(store.Operation);
+        Assert.Equal(0, transport.CreateCount);
+        Assert.Equal(0, transport.SendCount);
+    }
+
+    /// <summary>A host that composes no Automation ingress reads the Automation Actor as disabled.</summary>
+    [Fact]
+    public async Task AutomationIsRefusedWhereNoIngressIsComposed()
+    {
+        var command = Command(ActionActor.Automation("pegasus-automation"));
+        var store = new Store();
+        var send = new StaffMailSend(
+            store, null!, null!, new Transport(), TimeProvider.System, new ExecutionLock());
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            send.SendAsync(command, CancellationToken.None));
+
+        Assert.Null(store.Operation);
+    }
+
+    [Fact]
+    public async Task AutomationReadsTheLatestOperationForAnOriginal()
+    {
+        var actor = ActionActor.Automation("pegasus-automation");
+        var store = new Store();
+        var expected = await store.PrepareAsync(
+            Command(actor), new string('A', 64), DateTimeOffset.UtcNow, CancellationToken.None);
+        var ingress = new Ingress(enabled: true);
+        var send = new StaffMailSend(
+            store, null!, null!, null!, TimeProvider.System, new ExecutionLock(), ingress);
+
+        var result = await send.GetLatestForOriginalAsync(actor, Guid.NewGuid(), CancellationToken.None);
+
+        Assert.Equal(expected, result);
+        Assert.Equal(1, ingress.Checks);
+        Assert.Equal(0, store.CurrentStaffChecks);
+    }
+
+    [Theory]
+    [InlineData("system-worker")]
+    [InlineData("principal")]
+    public async Task OnlyStaffAndTheAutomationActorSendStaffMail(string sender)
+    {
+        var actor = sender == "principal"
+            ? ActionActor.Principal(Guid.NewGuid())
+            : ActionActor.SystemWorker("sent-evidence-poll");
+        var store = new Store();
+        var send = new StaffMailSend(
+            store, null!, null!, new Transport(), TimeProvider.System, new ExecutionLock(),
+            new Ingress(enabled: true));
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            send.GetLatestForOriginalAsync(
-                ActionActor.Automation("automation"), Guid.NewGuid(), CancellationToken.None));
+            send.SendAsync(Command(actor), CancellationToken.None));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            send.GetLatestForOriginalAsync(actor, Guid.NewGuid(), CancellationToken.None));
+
+        Assert.Null(store.Operation);
     }
 
     [Fact]
@@ -307,6 +400,12 @@ public sealed class StaffMailSendTests
         Assert.Equal(bytes, Assert.Single(transport.Attached));
         Assert.Equal([deliveryAttachment.FileName], transport.AttachedNames);
 
+        // The report and the mail name the same sender, kind included.
+        await Assert.ThrowsAsync<ArgumentException>(() => new StaffReportSend(
+            readiness, send).SendAsync(
+                new(mail, report with { Actor = ActionActor.Automation(actor.SubjectId) }),
+                CancellationToken.None));
+
         var changedCustody = deliveryAttachment with { VersionId = Guid.NewGuid() };
         await Assert.ThrowsAsync<ArgumentException>(() => new StaffReportSend(
             readiness, send).SendAsync(new(mail with { Attachments = [changedCustody] }, report),
@@ -454,6 +553,17 @@ public sealed class StaffMailSendTests
                 new MemoryStream(bytes, writable: false),
                 request.DocumentId, request.VersionId, request.IntakeAssetId,
                 request.ExpectedSha256, bytes.Length, "instruction.eml", "message/rfc822"));
+        }
+    }
+
+    private sealed class Ingress(bool enabled) : IAutomationIngressStatusQueries
+    {
+        public int Checks { get; private set; }
+
+        public Task<bool> IsEnabledAsync(CancellationToken cancellationToken)
+        {
+            Checks++;
+            return Task.FromResult(enabled);
         }
     }
 

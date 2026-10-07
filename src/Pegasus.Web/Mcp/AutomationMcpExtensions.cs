@@ -169,13 +169,15 @@ public static class AutomationMcpExtensions
             .WithTools<DocumentMcpTools>()
             .WithTools<DocumentActionMcpTools>()
             .WithTools<ReportMcpTools>()
+            .WithTools<ReportPreparationMcpTools>()
             .WithTools<AssessmentMcpTools>()
             .WithTools<MailMcpTools>()
             .WithTools<UnidentifiedMcpTools>()
             .WithTools<TriageMcpTools>()
             .WithTools<AiJobMcpTools>()
             .WithTools<IntakeActionMcpTools>()
-            .WithTools<WorkCentreMcpTools>();
+            .WithTools<WorkCentreMcpTools>()
+            .WithTools<SendMcpTools>();
         return services;
     }
 

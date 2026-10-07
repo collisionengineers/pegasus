@@ -18,8 +18,11 @@ internal static class V1FoundationModelConfiguration
         {
             var states = string.Join(", ", Enum.GetNames<Pegasus.Core.Operations.StaffMailState>().Select(x => $"'{x}'"));
             var stages = string.Join(", ", Enum.GetNames<Pegasus.Core.Operations.StaffMailAttemptStage>().Select(x => $"'{x}'"));
-            e.ToTable("StaffMailSendOperations", t => { t.HasCheckConstraint("CK_StaffMailSendOperations_State", $"[State] IN ({states})"); t.HasCheckConstraint("CK_StaffMailSendOperations_AttemptStage", $"[AttemptStage] IS NULL OR [AttemptStage] IN ({stages})"); }); e.HasKey(x => x.Id);
+            // Staff mail is sent by a member of staff or the Automation Actor
+            // (ADR-0064); no other actor kind sends it.
+            e.ToTable("StaffMailSendOperations", t => { t.HasCheckConstraint("CK_StaffMailSendOperations_State", $"[State] IN ({states})"); t.HasCheckConstraint("CK_StaffMailSendOperations_AttemptStage", $"[AttemptStage] IS NULL OR [AttemptStage] IN ({stages})"); t.HasCheckConstraint("CK_StaffMailSendOperations_ActorKind", "[ActorKind] IN ('Staff', 'Automation')"); }); e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.ActorSubjectId, x.MailboxId, x.OperationKey }).IsUnique();
+            e.Property(x => x.ActorKind).HasConversion<string>().HasMaxLength(40);
             e.Property(x => x.ActorSubjectId).HasMaxLength(200); e.Property(x => x.OperationKey).HasMaxLength(100);
             e.Property(x => x.PayloadHash).HasMaxLength(64).IsFixedLength(); e.Property(x => x.CorrelationMarker).HasMaxLength(100);
             e.Property(x => x.ObservedSentImmutableMessageId).HasMaxLength(500);

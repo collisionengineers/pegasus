@@ -88,6 +88,14 @@ public interface IStaffMailSendStore
         string actorSubjectId, Guid operationId, CancellationToken cancellationToken);
     Task<StaffMailExecution?> GetExecutionForObservationAsync(
         ActionActor systemActor, Guid operationId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The staff account behind a send is still enabled and still holds a
+    /// casework role, read from the database. The Automation Actor's
+    /// equivalent is its client registration's kill switch, which
+    /// <see cref="StaffMailSend"/> reads through
+    /// <see cref="IAutomationIngressStatusQueries"/>.
+    /// </summary>
     Task RequireCurrentStaffAsync(string actorSubjectId, CancellationToken cancellationToken);
     Task<StaffMailOperation> TransitionAsync(
         string actorSubjectId, Guid operationId, long expectedVersion,
@@ -112,6 +120,7 @@ public sealed class StaffReportSend(
     {
         ArgumentNullException.ThrowIfNull(command);
         if (command.Mail.Purpose != StaffMailPurpose.CaseReport
+            || command.Report.Actor.Kind != command.Mail.Actor.Kind
             || command.Report.Actor.SubjectId != command.Mail.Actor.SubjectId
             || command.Report.GenerationId != command.Mail.ContextId
             || command.Report.ExpectedGenerationVersion != command.Mail.ExpectedContextVersion
@@ -142,13 +151,23 @@ public sealed class StaffReportSend(
     }
 }
 
+/// <summary>
+/// The one staff mail send: a member of staff or the Automation Actor
+/// (ADR-0064, 7 October 2026) sends from the approved mailbox under one
+/// operation key. The sender must still be current at every step that
+/// reaches the provider: a staff account still enabled with a casework role,
+/// or the Automation client registration still enabled (its Administrator
+/// kill switch). A host that composes no Automation ingress reads the
+/// Automation Actor as disabled.
+/// </summary>
 public sealed class StaffMailSend(
     IStaffMailSendStore store,
     IApprovedStaffSendMailboxQueries mailboxes,
     IReadLogicalDocumentVersion contentReader,
     IStaffMailTransport transport,
     TimeProvider timeProvider,
-    IStaffMailExecutionLock executionLock) : IStaffMailSend
+    IStaffMailExecutionLock executionLock,
+    IAutomationIngressStatusQueries? automationIngress = null) : IStaffMailSend
 {
     public async Task<StaffMailOperation> SendAsync(
         StaffMailSendCommand command, CancellationToken cancellationToken)
@@ -167,7 +186,7 @@ public sealed class StaffMailSend(
         CancellationToken cancellationToken)
     {
         Validate(command);
-        await store.RequireCurrentStaffAsync(command.Actor.SubjectId, cancellationToken);
+        await RequireCurrentSenderAsync(command.Actor, cancellationToken);
         var hash = PayloadHash(command);
         var operation = await store.PrepareAsync(command, hash, timeProvider.GetUtcNow(), cancellationToken);
         await using var heldExecutionLock = await executionLock.AcquireAsync(
@@ -195,7 +214,7 @@ public sealed class StaffMailSend(
             await transport.ValidateEncodedSizeAsync(mailbox, operation, command,
                 contents.Select(value => new StaffMailAttachmentContent(
                     value.Attachment, value.Content.Content)).ToArray(), cancellationToken);
-            await store.RequireCurrentStaffAsync(command.Actor.SubjectId, cancellationToken);
+            await RequireCurrentSenderAsync(command.Actor, cancellationToken);
             _ = await RequireMailboxAsync(command, cancellationToken);
             var mayCreateDraft = operation.State == StaffMailState.Prepared;
             if (mayCreateDraft)
@@ -219,15 +238,15 @@ public sealed class StaffMailSend(
                 null, null, null, cancellationToken);
             foreach (var (attachment, content) in contents)
             {
-                await store.RequireCurrentStaffAsync(command.Actor.SubjectId, cancellationToken);
+                await RequireCurrentSenderAsync(command.Actor, cancellationToken);
                 _ = await RequireMailboxAsync(command, cancellationToken);
                 await transport.AttachAsync(
                     mailbox, operation.Id, draft.ImmutableDraftId, attachment, content.Content, cancellationToken);
             }
-            RequireStaff(command.Actor);
+            RequireSender(command.Actor);
             _ = await RequireMailboxAsync(command, cancellationToken);
             await beforeSubmit(cancellationToken);
-            await store.RequireCurrentStaffAsync(command.Actor.SubjectId, cancellationToken);
+            await RequireCurrentSenderAsync(command.Actor, cancellationToken);
             operation = await store.TransitionAsync(
                 command.Actor.SubjectId, operation.Id, operation.Version,
                 StaffMailState.Sending, StaffMailAttemptStage.Send, draft.ImmutableDraftId,
@@ -279,20 +298,20 @@ public sealed class StaffMailSend(
     public Task<StaffMailOperation?> GetAsync(
         ActionActor actor, Guid operationId, CancellationToken cancellationToken)
     {
-        RequireStaff(actor);
+        RequireSender(actor);
         return store.GetAsync(actor.SubjectId, operationId, cancellationToken);
     }
 
     public async Task<StaffMailOperation?> GetLatestForOriginalAsync(
         ActionActor actor, Guid retainedMessageId, CancellationToken cancellationToken)
     {
-        RequireStaff(actor);
+        RequireSender(actor);
         if (retainedMessageId == Guid.Empty)
         {
             throw new ArgumentException(
                 "A retained message identifier is required.", nameof(retainedMessageId));
         }
-        await store.RequireCurrentStaffAsync(actor.SubjectId, cancellationToken);
+        await RequireCurrentSenderAsync(actor, cancellationToken);
         return await store.GetLatestForOriginalAsync(
             actor.SubjectId, retainedMessageId, cancellationToken);
     }
@@ -301,7 +320,7 @@ public sealed class StaffMailSend(
         ActionActor actor, Guid operationId, long expectedVersion,
         CancellationToken cancellationToken)
     {
-        RequireStaff(actor);
+        RequireSender(actor);
         var operation = await store.GetAsync(actor.SubjectId, operationId, cancellationToken)
             ?? throw new KeyNotFoundException("The staff mail operation was not found.");
         if (operation.State is StaffMailState.Sending or StaffMailState.Submitted or StaffMailState.Sent)
@@ -415,7 +434,7 @@ public sealed class StaffMailSend(
     private static void Validate(StaffMailSendCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
-        RequireStaff(command.Actor);
+        RequireSender(command.Actor);
         if (command.ApprovedMailboxId == Guid.Empty || command.ExpectedMailboxGeneration <= 0
             || command.ContextId == Guid.Empty || command.ExpectedContextVersion <= 0
             || string.IsNullOrWhiteSpace(command.OperationKey) || command.OperationKey.Length > 100
@@ -441,11 +460,36 @@ public sealed class StaffMailSend(
         }
     }
 
-    private static void RequireStaff(ActionActor actor)
+    /// <summary>
+    /// Staff mail is sent by a casework actor: a member of staff or the
+    /// Automation Actor (ADR-0064). The system worker and a Principal never
+    /// send it.
+    /// </summary>
+    private static void RequireSender(ActionActor actor)
     {
+        ArgumentNullException.ThrowIfNull(actor);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        if (actor.Kind != ActorKind.Staff)
+        if (actor.Kind is not (ActorKind.Staff or ActorKind.Automation))
             throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
+    }
+
+    /// <summary>
+    /// The sender is still current: a staff account still enabled with a
+    /// casework role, or the Automation client registration still enabled.
+    /// Either refusal is an <see cref="UnauthorizedAccessException"/>, so a
+    /// send already under way records <c>staff_send_authorization_lost</c>.
+    /// </summary>
+    private async Task RequireCurrentSenderAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
+        if (actor.Kind == ActorKind.Automation)
+        {
+            if (automationIngress is null || !await automationIngress.IsEnabledAsync(cancellationToken))
+            {
+                throw new UnauthorizedAccessException("The Automation client registration is disabled.");
+            }
+            return;
+        }
+        await store.RequireCurrentStaffAsync(actor.SubjectId, cancellationToken);
     }
 
     private static string PayloadHash(StaffMailSendCommand command)

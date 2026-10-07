@@ -67,7 +67,8 @@ public sealed record InspectionAddressResolutionSnapshot(
     InspectionAddressResolutionState State,
     InspectionAddressEvaluation Evaluation,
     string? ResolvedValue,
-    Guid? ResolvedByStaffId,
+    ActorKind? ResolvedByKind,
+    string? ResolvedBy,
     DateTimeOffset? ResolvedAtUtc);
 
 /// <param name="SuggestionFingerprint">
@@ -107,11 +108,11 @@ public sealed record InspectionAddressResolutionRequest(
 public static class InspectionAddressResolutionPolicy
 {
     /// <summary>
-    /// Whether a person has settled the inspection address, by any of the
-    /// three routes: accepting what was extracted, correcting it, or supplying
-    /// it where nothing was extracted.
+    /// Whether a member of staff or the Automation actor has settled the
+    /// inspection address, by any of the three routes: accepting what was
+    /// extracted, correcting it, or supplying it where nothing was extracted.
     /// </summary>
-    public static bool IsStaffResolved(InspectionAddressResolutionState state) => state switch
+    public static bool IsSettled(InspectionAddressResolutionState state) => state switch
     {
         InspectionAddressResolutionState.Accepted
             or InspectionAddressResolutionState.Corrected
@@ -133,7 +134,40 @@ public static class InspectionAddressResolutionPolicy
     public static bool SatisfiesCaseCreation(
         InspectionAddressResolutionState state,
         bool principalIsImageBased) =>
-        principalIsImageBased || IsStaffResolved(state);
+        principalIsImageBased || IsSettled(state);
+
+    /// <summary>
+    /// Who may settle an inspection address: a member of staff, or the
+    /// Automation actor, which does the casework staff do (ADR-0064, operator,
+    /// 7 October 2026). The settler is kept as its actor kind and subject, so
+    /// an address the Automation actor settled never reads as a staff one.
+    /// </summary>
+    public static (ActorKind Kind, string Subject) RequireSettler(ActionActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return actor.Kind switch
+        {
+            ActorKind.Staff when Guid.TryParse(actor.SubjectId, out var staffId) && staffId != Guid.Empty =>
+                (ActorKind.Staff, staffId.ToString("D")),
+            ActorKind.Automation when !string.IsNullOrWhiteSpace(actor.SubjectId) =>
+                (ActorKind.Automation, actor.SubjectId),
+            _ => throw new ArgumentException(
+                "Inspection-address resolution requires a staff or Automation actor.",
+                nameof(actor))
+        };
+    }
+
+    /// <summary>
+    /// The word a settled address's provenance names its settler by:
+    /// "staff-corrected", "Automation-supplied" and so on.
+    /// </summary>
+    public static string SettlerWord(ActorKind kind) => kind switch
+    {
+        ActorKind.Staff => "staff",
+        ActorKind.Automation => "Automation",
+        _ => throw new InvalidOperationException(
+            $"Actor kind '{kind}' cannot settle an inspection address.")
+    };
 }
 
 public interface IInspectionAddressResolutionStore

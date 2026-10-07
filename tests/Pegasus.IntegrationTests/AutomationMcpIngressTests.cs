@@ -41,6 +41,10 @@ public sealed class AutomationMcpIngressTests
         "pegasus_document_action",
         "pegasus_report_list",
         "pegasus_report_action",
+        "pegasus_report_wording_get",
+        "pegasus_report_wording_save",
+        "pegasus_image_preparation_get",
+        "pegasus_image_prepare",
         "pegasus_estimate_list",
         "pegasus_estimate_get",
         "pegasus_estimate_save",
@@ -72,7 +76,9 @@ public sealed class AutomationMcpIngressTests
         "pegasus_ai_job_list",
         "pegasus_ai_job_create",
         "pegasus_ai_job_transition",
-        "pegasus_ai_job_complete_market_research"
+        "pegasus_ai_job_complete_market_research",
+        "pegasus_report_send",
+        "pegasus_mail_send"
     ];
 
     [Fact]

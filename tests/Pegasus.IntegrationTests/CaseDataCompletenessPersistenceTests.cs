@@ -424,7 +424,8 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.NotNull(retainedAddress);
         Assert.Equal(InspectionAddressResolutionState.Corrected, retainedAddress.State);
         Assert.Equal("2 Corrected Street, London", retainedAddress.ResolvedValue);
-        Assert.Equal(Guid.Parse(harness.StaffActor.SubjectId), retainedAddress.ResolvedByStaffId);
+        Assert.Equal(ActorKind.Staff, retainedAddress.ResolvedByKind);
+        Assert.Equal(harness.StaffActor.SubjectId, retainedAddress.ResolvedBy);
         Assert.NotNull(retainedAddress.ResolvedAtUtc);
         var extractedAddress = Assert.Single(retainedAddress.Evaluation.Suggestion!.Provenance);
         Assert.Equal("qdos_instruction", extractedAddress.PolicyKey);

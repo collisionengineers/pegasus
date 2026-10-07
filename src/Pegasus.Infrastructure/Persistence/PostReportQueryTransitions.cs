@@ -50,6 +50,7 @@ internal static class PostReportQueryTransitions
         string SentImmutableMessageId,
         DateTimeOffset ProviderSentAtUtc,
         DateTimeOffset ObservedAtUtc,
+        ActorKind ActorKind,
         string ActorSubjectId,
         string PayloadHash);
 
@@ -191,7 +192,7 @@ internal static class PostReportQueryTransitions
             EventType = QueryRepliedEvent,
             OperationKey = operationKey,
             RequestHash = observedReply.PayloadHash,
-            ActorKind = nameof(ActorKind.Staff),
+            ActorKind = observedReply.ActorKind.ToString(),
             ActorSubjectId = observedReply.ActorSubjectId,
             ActorRolesJson = "[]",
             Reason = reason,
@@ -206,7 +207,7 @@ internal static class PostReportQueryTransitions
             AggregateType = "case",
             AggregateId = workflow.CaseId.ToString("D"),
             EventKind = QueryRepliedEvent,
-            ActorKind = nameof(ActorKind.Staff),
+            ActorKind = observedReply.ActorKind.ToString(),
             ActorSubjectId = observedReply.ActorSubjectId,
             ActorRolesJson = "[]",
             OccurredAtUtc = observedReply.ObservedAtUtc,
@@ -279,6 +280,7 @@ internal static class PostReportQueryTransitions
                 item.ObservedSentImmutableMessageId!,
                 item.ProviderSentAtUtc!.Value,
                 item.ObservedSentAtUtc!.Value,
+                item.ActorKind,
                 item.ActorSubjectId,
                 item.PayloadHash))
             .SingleOrDefaultAsync(cancellationToken);

@@ -704,6 +704,83 @@ public sealed class StaffMailSendPersistenceTests
         Assert.Null(sentRow.Classification);
     }
 
+    /// <summary>
+    /// The Automation Actor sends as staff do (ADR-0064 phase 4): its send
+    /// records the Automation Actor as sender on the operation row, on every
+    /// history row of the send (with no staff roles) and on the Case's Notes
+    /// line once the Sent item is observed. Nothing reads it back as staff.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomationSendRecordsTheAutomationActorOnItsOperationHistoryAndNote()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var mailboxId = Guid.NewGuid();
+        var retainedMessageId = Guid.NewGuid();
+        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
+        var fixture = await SeedPostReportQueryAsync(
+            database, mailboxId, retainedMessageId, isQueryReceipt: false, isAssociated: false);
+        var automation = ActionActor.Automation("pegasus-automation");
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+        var command = ReplyCommand(automation, mailboxId, retainedMessageId, "mcp:automation-reply") with
+        {
+            ContextId = fixture.CaseId,
+            ExpectedContextVersion = fixture.WorkflowVersion,
+            Subject = "Automation follow-up"
+        };
+        var operation = await MoveToSubmittedAsync(
+            store, command, new DateTimeOffset(2026, 10, 7, 9, 0, 0, TimeSpan.Zero));
+        var sentAtUtc = new DateTimeOffset(2026, 10, 7, 9, 1, 0, TimeSpan.Zero);
+        await store.TransitionObservedSentAsync(
+            ActionActor.SystemWorker("sent-evidence-poll"), operation.Id, operation.Version,
+            "automation-sent-item", sentAtUtc, sentAtUtc.AddMinutes(1), CancellationToken.None);
+
+        await using var verify = database.CreateAsyncScope();
+        var factory = verify.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var db = await factory.CreateDbContextAsync();
+        var row = await db.Set<StaffMailSendOperationEntity>().SingleAsync(item => item.Id == operation.Id);
+        Assert.Equal(ActorKind.Automation, row.ActorKind);
+        Assert.Equal("pegasus-automation", row.ActorSubjectId);
+        Assert.Equal(nameof(ActorKind.Automation), await database.ScalarAsync<string>(
+            $"SELECT ActorKind FROM StaffMailSendOperations WHERE Id = '{operation.Id:D}'"));
+
+        var senderHistory = await db.ActionHistory
+            .Where(item => item.AggregateType == "StaffMailSend"
+                && item.AggregateId == operation.Id.ToString("D")
+                && item.EventKind != "staff-mail-sent-observed")
+            .ToListAsync();
+        Assert.Equal(
+            ["staff-mail-draftcreating", "staff-mail-draftready", "staff-mail-prepared", "staff-mail-sending", "staff-mail-submitted"],
+            senderHistory.Select(item => item.EventKind).Order(StringComparer.Ordinal).ToArray());
+        Assert.All(senderHistory, item =>
+        {
+            Assert.Equal(nameof(ActorKind.Automation), item.ActorKind);
+            Assert.Equal("pegasus-automation", item.ActorSubjectId);
+            Assert.Equal("[]", item.ActorRolesJson);
+        });
+
+        var noted = Assert.Single(await db.CaseWorkflowEvents
+            .Where(item => item.CaseId == fixture.CaseId && item.EventType == "correspondence_sent")
+            .ToListAsync());
+        Assert.Equal(nameof(ActorKind.Automation), noted.ActorKind);
+        Assert.Equal("pegasus-automation", noted.ActorSubjectId);
+        Assert.Equal("Automation follow-up", noted.Reason);
+    }
+
+    /// <summary>Every send recorded before the Automation Actor could send was a staff send.</summary>
+    [Fact]
+    public async Task AStaffSendRecordsTheStaffActorKind()
+    {
+        await using var database = await CreateDatabaseAsync();
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+        var operation = await store.PrepareAsync(
+            Command(), new string('A', 64), DateTimeOffset.UtcNow, CancellationToken.None);
+
+        Assert.Equal(nameof(ActorKind.Staff), await database.ScalarAsync<string>(
+            $"SELECT ActorKind FROM StaffMailSendOperations WHERE Id = '{operation.Id:D}'"));
+    }
+
     [Fact]
     public async Task ReceivedPostReportQueryAssociationMovesCompletedCaseToQuery()
     {

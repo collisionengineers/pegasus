@@ -452,7 +452,9 @@ public sealed class CaseWorkflowMigrationTests
                 "20261007140000_MarketResearchDocumentRole",
                 "20261007160000_RemoveReportDateOverride",
                 "20261007180000_SimplifyPrincipalSubmissions",
-                "20261007180000_GrantWorkerTriageFindings"
+                "20261007180000_GrantWorkerTriageFindings",
+                "20261007181000_InspectionAddressSettlerKind",
+                "20261007182000_StaffMailSendActorKind"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

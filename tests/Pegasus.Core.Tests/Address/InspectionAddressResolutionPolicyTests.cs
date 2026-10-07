@@ -1,4 +1,5 @@
 using Pegasus.Core.Address;
+using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Tests.Address;
 
@@ -19,7 +20,7 @@ public sealed class InspectionAddressResolutionPolicyTests
     public void AnUnsettledAddressDoesNotSatisfyCaseCreation(
         InspectionAddressResolutionState state)
     {
-        Assert.False(InspectionAddressResolutionPolicy.IsStaffResolved(state));
+        Assert.False(InspectionAddressResolutionPolicy.IsSettled(state));
         Assert.False(
             InspectionAddressResolutionPolicy.SatisfiesCaseCreation(
                 state,
@@ -37,7 +38,7 @@ public sealed class InspectionAddressResolutionPolicyTests
         // what the address is. Supplying it where nothing was extracted is not
         // inference — the prohibition is on Pegasus deriving an address, not on
         // a member of staff stating one.
-        Assert.True(InspectionAddressResolutionPolicy.IsStaffResolved(state));
+        Assert.True(InspectionAddressResolutionPolicy.IsSettled(state));
         Assert.True(
             InspectionAddressResolutionPolicy.SatisfiesCaseCreation(
                 state,
@@ -61,11 +62,47 @@ public sealed class InspectionAddressResolutionPolicyTests
     public void EveryStateIsClassifiedDeliberately() =>
         Assert.All(
             Enum.GetValues<InspectionAddressResolutionState>(),
-            state => _ = InspectionAddressResolutionPolicy.IsStaffResolved(state));
+            state => _ = InspectionAddressResolutionPolicy.IsSettled(state));
 
     [Fact]
     public void AnUndeclaredStateFailsClosed() =>
         Assert.Throws<InvalidOperationException>(
-            () => InspectionAddressResolutionPolicy.IsStaffResolved(
+            () => InspectionAddressResolutionPolicy.IsSettled(
                 (InspectionAddressResolutionState)99));
+
+    [Fact]
+    public void AMemberOfStaffSettlesAnAddressAsStaff()
+    {
+        var staffId = Guid.NewGuid();
+        var settler = InspectionAddressResolutionPolicy.RequireSettler(
+            ActionActor.Staff(staffId, [StaffRole.Engineer]));
+        Assert.Equal(ActorKind.Staff, settler.Kind);
+        Assert.Equal(staffId.ToString("D"), settler.Subject);
+        Assert.Equal("staff", InspectionAddressResolutionPolicy.SettlerWord(settler.Kind));
+    }
+
+    [Fact]
+    public void TheAutomationActorSettlesAnAddressAsItselfAndNeverAsStaff()
+    {
+        // ADR-0064: the Automation actor does the casework staff do, settling
+        // an inspection address included, and its settlement is its own.
+        var settler = InspectionAddressResolutionPolicy.RequireSettler(
+            ActionActor.Automation("claude-desktop"));
+        Assert.Equal(ActorKind.Automation, settler.Kind);
+        Assert.Equal("claude-desktop", settler.Subject);
+        Assert.Equal("Automation", InspectionAddressResolutionPolicy.SettlerWord(settler.Kind));
+    }
+
+    [Fact]
+    public void NoOtherActorSettlesAnAddress()
+    {
+        Assert.Throws<ArgumentException>(() => InspectionAddressResolutionPolicy.RequireSettler(
+            ActionActor.SystemWorker("pegasus-worker")));
+        Assert.Throws<ArgumentException>(() => InspectionAddressResolutionPolicy.RequireSettler(
+            ActionActor.Principal(Guid.NewGuid())));
+        Assert.Throws<InvalidOperationException>(
+            () => InspectionAddressResolutionPolicy.SettlerWord(ActorKind.SystemWorker));
+        Assert.Throws<InvalidOperationException>(
+            () => InspectionAddressResolutionPolicy.SettlerWord(ActorKind.Principal));
+    }
 }

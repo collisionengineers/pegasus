@@ -6,8 +6,13 @@ using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Operations;
 
+/// <summary>
+/// One file a send may attach. <see cref="SourceId"/> is what it is read
+/// from: the Case document version, or the intake asset of a Triage reply.
+/// </summary>
 public sealed record StaffMailAttachmentOption(
-    string Selection, string FileName, string MediaType, long ContentLength);
+    string Selection, string FileName, string MediaType, long ContentLength,
+    Guid SourceId = default);
 
 public sealed class StaffMailAttachmentSelectionException(string message)
     : InvalidOperationException(message);
@@ -138,7 +143,7 @@ public sealed class StaffMailAttachmentResolver(ICaseDocumentQueries caseDocumen
 
     private static StaffMailAttachmentOption ToOption(StaffMailAttachment attachment) =>
         new(SelectionOf(attachment), attachment.FileName, attachment.MediaType,
-            attachment.ContentLength);
+            attachment.ContentLength, attachment.IntakeAssetId ?? attachment.VersionId ?? Guid.Empty);
 
     private static bool IsSendable(StaffMailAttachment attachment) =>
         attachment.ContentLength > 0
