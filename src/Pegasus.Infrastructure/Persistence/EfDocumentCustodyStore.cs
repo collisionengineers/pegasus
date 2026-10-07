@@ -623,9 +623,10 @@ internal sealed class EfDocumentCustodyStore(
             workflow.Case.StandaloneAuditAssessment is { } verdict ? AuditAssessmentCode.Parse(verdict) : null,
             now,
             cancellationToken);
-        // A staff Mark is made under the lease and ends it; a recognition is
-        // system work and leaves whoever is editing their lease.
-        if (actor.Kind == ActorKind.Staff)
+        // A Mark by staff or the Automation Actor is made under the lease and
+        // ends it; a recognition is system work and leaves whoever is editing
+        // their lease.
+        if (actor.Kind != ActorKind.SystemWorker)
         {
             CaseMutationGuard.Complete(workflow);
         }

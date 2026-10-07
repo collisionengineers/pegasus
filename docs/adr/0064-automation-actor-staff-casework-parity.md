@@ -25,9 +25,9 @@ This record replaces, in part:
   applicability) and its consequence that automation cannot confirm
   findings. Its EVA Export decision, kill switch and attribution stand.
 - [ADR-0021](0021-automation-actor-direct-write-assessment-contract.md),
-  decision 2: the structural absence of a finding tool. The absence of a
-  report-approval tool and of any tool that sends outward stands until the
-  later deliveries below.
+  decision 2: the structural absence of a finding tool and, from the second
+  delivery, of a report-approval tool. The absence of any tool that sends
+  outward stands until a later delivery below.
 - The job-cited AI-draft estimate model in
   [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md#ai-job-and-estimate-tools):
   `pegasus_estimate_save` no longer needs an AI job. The
@@ -82,6 +82,16 @@ fact the call did not name.
    Automation lease; it lapses within five minutes. An Automation lease that
    lapsed with nobody claiming since carries on with its token, as a staff
    lease does.
+8. **Lifecycle, reports and documents.** The operator approved the Case
+   lifecycle and the reports and documents tiers, report approval included
+   (7 October 2026). `pegasus_case_action` takes the Case's Actions-menu
+   lifecycle acts; `pegasus_report_action` generates the report and its
+   companion documents, records report approval and links or unlinks
+   report-Sent evidence; `pegasus_document_action` tags images, puts them in
+   or out of the report, marks the original report, removes documents and
+   retries failed custody. Each calls the staff command. Report approval is by
+   staff or the Automation actor; it is not a send. A recorded approval,
+   archive or evidence link reads back as the Automation actor.
 
 ## Consequences
 
@@ -90,11 +100,14 @@ fact the call did not name.
 - A new automation estimate needs a staff **Use repair spec** before a
   report uses it. An automation edit of the Current estimate marks a
   generated report stale, as a staff edit does.
-- The inventory grows from 36 to 42 tools.
-- This is the first of four deliveries. Later ones add Case lifecycle
-  tools, report and document tools, queue and job tools, and outward sending
-  under a new `automation.send` scope. Until each lands, those acts stay with
-  staff.
+- The first delivery grows the inventory from 36 to 42 tools; the second
+  adds `pegasus_case_action`, `pegasus_directory_search`,
+  `pegasus_report_list`, `pegasus_report_action` and
+  `pegasus_document_action`, making 47.
+- This is the first of four deliveries. The second, the Case lifecycle,
+  report and document tools, is delivered. Later ones add queue and job
+  tools, and outward sending under a new `automation.send` scope. Until each
+  lands, those acts stay with staff.
 
 ## Links
 

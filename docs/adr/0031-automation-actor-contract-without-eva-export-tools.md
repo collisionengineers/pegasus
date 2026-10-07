@@ -17,7 +17,8 @@ Accepted. Supersedes ADR-0021; ADR-0026 and ADR-0027 still refine production
 enablement and external connector authentication.
 [ADR-0064](0064-automation-actor-staff-casework-parity.md) replaces the rule
 that automation never records a professional finding and the consequence
-that it cannot confirm findings (operator, 7 October 2026). The EVA Export
+that it cannot confirm findings or approve reports (operator, 7 October
+2026). The EVA Export
 decision stands.
 
 ## Current applicability
