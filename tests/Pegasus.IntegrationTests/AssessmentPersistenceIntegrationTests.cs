@@ -1342,6 +1342,42 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     /// <summary>
+    /// An imported Glass's document's VIN fills the work's empty VIN as system
+    /// work after the import, recorded as Glass's (operator, 7 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task AnImportFillsTheWorksEmptyVinAfterTheImport()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("import-vin-case")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var xml = System.Text.Encoding.UTF8.GetBytes(
+            GlassEstimateXmlParserTests.GlassExport.BuildXml(vin: "TESTVEH0A1B2C3D45"));
+        var parsed = new Pegasus.Infrastructure.Glass.GlassEstimateXmlParser().Parse(xml);
+        var hash = Convert.ToHexStringLower(SHA256.HashData(xml));
+        var lease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "import-vin-lease");
+
+        await harness.RepairSpecifications.SaveImportedEstimateAsync(
+            new(caseId, 0, engineer, "import-vin-save", ImportRawEstimate.ImportReason,
+                lease.Token, null, new("Glass's 1", null, null, 20m), parsed.Lines,
+                new(RepairSpecificationSourceRoute.Glasses, "estimate-import:vin", parsed.SourceVersion, hash))
+            {
+                Vin = parsed.Vin,
+            },
+            CancellationToken.None);
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var vin = await context.CaseAssessmentFields.AsNoTracking()
+            .SingleAsync(row => row.WorkId == caseId && row.FieldPath == AssessmentVocabulary.VehicleVin);
+        Assert.Equal("TESTVEH0A1B2C3D45", vin.Value);
+        Assert.Equal(ActorKind.Automation.ToString(), vin.RecordedByKind);
+        Assert.Equal(GlassVinFillPolicy.RecorderId, vin.RecordedBy);
+        Assert.Equal(2, (await context.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId)).Version);
+        Assert.Equal(GlassVinFillWriter.EventType, (await context.CaseWorkflowEvents.AsNoTracking()
+            .SingleAsync(row => row.CaseId == caseId && row.AfterVersion == 2)).EventType);
+    }
+
+    /// <summary>
     /// The Case Save of a new typed spec replaces the Current one in the same
     /// transaction. The filtered unique index allows one Current row per work,
     /// so the previous Current is cleared before the new row lands.

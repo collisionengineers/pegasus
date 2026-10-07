@@ -35,6 +35,9 @@ internal static class GlassProviderFixture
     public const string EreSession = "me3d4aa4kg79prs0do2emalhc5";
     public const string ProfileId = "4063";
 
+    /// <summary>A synthetic VIN in ISO 3779's shape, never a captured one.</summary>
+    public const string Vin = "TESTVEH0A1B2C3D45";
+
     /// <summary>
     /// The portal's answer for a plate its VRM supplier does not know, as
     /// captured on 2 October 2026: no stock, no lookup result and a type
@@ -54,11 +57,11 @@ internal static class GlassProviderFixture
     public const string PlaceholderRefused =
         "{\"title\":\"error\",\"message\":{\"Month manufacturer\":{\"stringLengthTooShort\":\"'1' is less than 2 characters long\"}}}";
 
-    /// <summary>The placeholder's detail form: no registration, no mileage, the unqualified type number.</summary>
+    /// <summary>The placeholder's detail form: no registration, no mileage, no VIN, the unqualified type number.</summary>
     public static string PlaceholderDetail(
         string registration = "", long mileage = 0, string vehicleId = PlaceholderVehicleId,
         string natCode = PlaceholderNatCode, string profile = ProfileId, bool locked = false) =>
-        VehicleDetail(registration, mileage, vehicleId, natCode, profile, locked);
+        VehicleDetail(registration, mileage, vehicleId, natCode, profile, locked, vin: string.Empty);
 
     /// <summary>The operator's Save &amp; Exit, as the provider composes it.</summary>
     public const string SavedQuery =
@@ -76,16 +79,19 @@ internal static class GlassProviderFixture
         + Uri.EscapeDataString(
             caller ?? $"https://mva.test/ere/ere-callback/ere_id/{EreId}/ere_session/{EreSession}");
 
-    // Named fields and repeated id match the captured MVA detail form. Once an
+    // Named fields and repeated id match the captured MVA detail form, whose
+    // vin control carries the VIN Glass's looked up from the plate. Once an
     // estimate exists the portal renders the repair-profile control locked with
     // the profile that started it selected (glasses12.har entries 1826 and
     // 1840), which is what locked serves.
     public static string VehicleDetail(string registration = Registration, long mileage = MileageMiles,
-        string vehicleId = VehicleId, string natCode = NatCode, string profile = ProfileId, bool locked = false) => $"""
+        string vehicleId = VehicleId, string natCode = NatCode, string profile = ProfileId, bool locked = false,
+        string vin = Vin) => $"""
         <form><input name="id" value="{vehicleId}" type="hidden" />
         <input name="natcode" value="{natCode}" type="hidden" />
         <input name="registration_number" value="{registration}" />
-        <input name="mileage" value="{mileage}" /></form>
+        <input name="mileage" value="{mileage}" />
+        <input type="text" name="vin" id="vin" value="{vin}" maxlength="17" /></form>
         <form><input name="id" value="{vehicleId}" type="hidden" />
         {ProfileSelect(profile, locked)}</form>
         """;

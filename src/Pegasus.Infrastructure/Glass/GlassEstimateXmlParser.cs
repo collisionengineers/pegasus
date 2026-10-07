@@ -301,9 +301,12 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
 
         var totals = ReadTotals(calculation);
         NoteAdjustments(lines, calculation, totals?.Net);
+        var identity = ReadIdentity(root);
         return new GlassEstimateExport(
-            new ParsedEstimate(SourceVersion(root, calculation), lines, ProviderName, RepairSpecificationSourceRoute.Glasses, totals),
-            ReadIdentity(root),
+            new ParsedEstimate(
+                SourceVersion(root, calculation), lines, ProviderName, RepairSpecificationSourceRoute.Glasses, totals,
+                identity.Vin),
+            identity,
             ReadAttachment(root));
     }
 

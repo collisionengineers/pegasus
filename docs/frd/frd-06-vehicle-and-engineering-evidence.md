@@ -274,6 +274,16 @@ the facts only the lookup holds.
 - The Model comes from the DVSA MOT history vehicle record. DVLA supplies no
   model. Experian stays a disabled seam.
 
+**Glass's VIN.** DVLA and DVSA supply no VIN; Glass's names one. It appears
+on the vehicle a Get valuation saves to the Glass's stock list, which Glass's
+looks up from the registration, and in every Glass's estimate export and
+calculation sheet that is imported. Each fills the VIN only where the Case
+holds none, whoever would have recorded one, and never replaces a VIN already
+on the Case (operator, 7 October 2026). The fill is system work recorded as
+`glass-vin`. It keeps a member of staff's edit session, and a Save prepared
+before the fill keeps the filled VIN. A value that is not a 17-character VIN
+fills nothing. A filled VIN stales a generated report, which prints it.
+
 **Automatic lookup at creation.** The same combined lookup also runs when a
 Case is created, whether by hand or by an intake acceptance that allocates a
 Case. It queues the same external work item the manual action uses, inside

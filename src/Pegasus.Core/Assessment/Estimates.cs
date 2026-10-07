@@ -1078,6 +1078,12 @@ public sealed record SaveEstimateRequest(
     /// return that names it; null leaves what is recorded as it stands.
     /// </summary>
     public GlassEstimateLink? GlassEstimate { get; init; }
+
+    /// <summary>
+    /// The VIN an imported document names, filling the work's VIN where it
+    /// holds none (<see cref="GlassVinFillPolicy"/>); null fills nothing.
+    /// </summary>
+    public string? Vin { get; init; }
 }
 
 public sealed record DuplicateEstimateRequest(

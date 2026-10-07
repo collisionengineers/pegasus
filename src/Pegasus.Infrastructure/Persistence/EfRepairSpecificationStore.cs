@@ -472,6 +472,13 @@ public sealed class EfRepairSpecificationStore(
         AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
             request.EventType ?? edit.EventType, requestHash,
             new { entity.Id, entity.Version, entity.Name, Lines = request.Lines.Count, Previous = edit.ReplacedCurrent }, now);
+        if (importedDocument)
+        {
+            // The document's VIN fills the work's empty VIN (operator,
+            // 7 October 2026), as system work after the import.
+            await GlassVinFillWriter.ApplyAsync(
+                context, workflow, workId, request.Vin, $"{request.OperationKey}:vin", now, cancellationToken);
+        }
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(entity);

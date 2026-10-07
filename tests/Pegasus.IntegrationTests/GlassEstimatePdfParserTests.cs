@@ -55,6 +55,18 @@ public sealed class GlassEstimatePdfParserTests
         Assert.Equal(557.98m, parsed.SourceTotals!.Net);
     }
 
+    /// <summary>
+    /// The sheet's VIN line is carried on the parse as printed, so the import
+    /// fills the Case's empty VIN with it (operator, 7 October 2026); a blank
+    /// line carries none.
+    /// </summary>
+    [Fact]
+    public void TheSheetVinIsCarriedOnTheParse()
+    {
+        Assert.Equal("TESTVIN1234567890", GlassEstimatePdfParser.Parse(RoundingDocument("66.62")).Vin);
+        Assert.True(string.IsNullOrEmpty(GlassEstimatePdfParser.Parse(WorkUnitDocument("10 WU")).Vin));
+    }
+
     [Fact]
     public void AOnePennyRowLabourDisagreementStillRefusesTheWholeGlassTable()
     {

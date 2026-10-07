@@ -85,13 +85,17 @@ public sealed record EstimateSourceTotals(
 /// ambiguity in the document rejects the whole parse rather than landing
 /// a value against the wrong line. <see cref="ProviderName"/> names the
 /// system the document came from and titles the Draft it lands as.
+/// <see cref="Vin"/> is the vehicle's VIN as the document states it, when
+/// its format names one; it fills the Case's empty VIN
+/// (<see cref="GlassVinFillPolicy"/>).
 /// </summary>
 public sealed record ParsedEstimate(
     string SourceVersion,
     IReadOnlyList<EstimateLineInput> Lines,
     string ProviderName,
     RepairSpecificationSourceRoute Route,
-    EstimateSourceTotals? SourceTotals = null);
+    EstimateSourceTotals? SourceTotals = null,
+    string? Vin = null);
 
 /// <summary>
 /// The whole import is refused with an operator-readable reason. Wrong
@@ -313,6 +317,7 @@ public sealed class ImportRawEstimate(
                     Work = request.Work,
                     KeepsLease = request.KeepsLease,
                     GlassEstimate = request.GlassEstimate,
+                    Vin = parsed.Vin,
                 }),
                 cancellationToken);
             return new(updated.SpecificationId);
@@ -348,6 +353,7 @@ public sealed class ImportRawEstimate(
                 Work = request.Work,
                 KeepsLease = request.KeepsLease,
                 GlassEstimate = request.GlassEstimate,
+                Vin = parsed.Vin,
             }),
             cancellationToken);
         return new(saved.SpecificationId);
