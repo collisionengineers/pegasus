@@ -48,18 +48,21 @@ public sealed class AudatexEstimatePdfParserTests
         Assert.Equal("rnr", labourOne.Type);
         Assert.Equal("12 34 567", labourOne.GuideCode);
         Assert.Equal("R + R FRONT BUMPER", labourOne.Description);
-        Assert.Equal(9.0m, labourOne.WorkUnits);
+        Assert.Equal(0.9m, labourOne.WorkUnits);
         Assert.Null(labourOne.Price);
 
         // The continuation row under this line carries text, never money.
         var labourTwo = result.Lines[1];
         Assert.Equal("repair", labourTwo.Type);
         Assert.Equal("REPAIR WING (TRIM REMOVED)", labourTwo.Description);
-        Assert.Equal(12.0m, labourTwo.WorkUnits);
+        Assert.Equal(1.2m, labourTwo.WorkUnits);
 
+        // Paint time is paint hours, never panel hours.
         var paint = result.Lines[2];
         Assert.Equal("paint_new", paint.Type);
-        Assert.Equal(16.2m, paint.WorkUnits);
+        Assert.Null(paint.WorkUnits);
+        Assert.Equal(1.62m, paint.PaintWorkUnits);
+        Assert.Null(paint.Materials);
 
         var pricedPart = result.Lines[3];
         Assert.Equal("new_part", pricedPart.Type);
@@ -98,8 +101,8 @@ public sealed class AudatexEstimatePdfParserTests
         // discounts and VAT categories, and a figure that disagrees with that
         // calculation is retained beside it rather than adopted.
         var totals = Assert.IsType<EstimateSourceTotals>(result.SourceTotals);
-        Assert.Equal(21.0m, totals.PanelWorkUnits);
-        Assert.Equal(16.2m, totals.PaintWorkUnits);
+        Assert.Equal(2.1m, totals.PanelWorkUnits);
+        Assert.Equal(1.62m, totals.PaintWorkUnits);
         Assert.Equal(620.20m, totals.Parts);
         Assert.Equal(110.00m, totals.Specialist);
         Assert.Null(totals.Net);
@@ -109,6 +112,43 @@ public sealed class AudatexEstimatePdfParserTests
         Assert.Equal(
             ["labour:1", "labour:2", "paint:1", "parts:1", "parts:2", "extras:1"],
             result.Lines.Select(line => line.SourceRowIdentity));
+    }
+
+    [Fact]
+    public void EachSectionsOwnTimeBasisConvertsItsWorkUnitsToHours()
+    {
+        // A BMW report prints 12 WU to the hour for labour and 10 for paint.
+        var result = Parse(AudatexEstimateFixture.Build(labourUnitsPerHour: 12));
+
+        Assert.Equal<decimal?>([0.75m, 1m], result.Lines.Take(2).Select(line => line.WorkUnits));
+        Assert.Equal(1.62m, result.Lines[2].PaintWorkUnits);
+        Assert.Equal(1.75m, result.SourceTotals!.PanelWorkUnits);
+        Assert.Equal(1.62m, result.SourceTotals.PaintWorkUnits);
+    }
+
+    [Theory]
+    [InlineData("labour", null, 10)]
+    [InlineData("paint", 10, null)]
+    public void RejectsASectionWithoutItsTimeBasis(string section, int? labourUnitsPerHour, int? paintUnitsPerHour)
+    {
+        var bytes = AudatexEstimateFixture.Build(
+            labourUnitsPerHour: labourUnitsPerHour, paintUnitsPerHour: paintUnitsPerHour);
+
+        var rejection = Assert.Throws<EstimateParseRejectedException>(() => Parse(bytes));
+        Assert.Equal(
+            $"The estimate's {section} time basis could not be read, so nothing was imported.",
+            rejection.Message);
+    }
+
+    [Fact]
+    public void ThePaintAndMaterialTotalSitsOnTheFirstPaintLine()
+    {
+        var result = Parse(AudatexEstimateFixture.Build(paintMaterials: "£240.55"));
+
+        Assert.Equal(6, result.Lines.Count);
+        Assert.Equal(240.55m, result.Lines[2].Materials);
+        Assert.Single(result.Lines, line => line.Materials is not null);
+        Assert.Equal(240.55m, result.SourceTotals!.Materials);
     }
 
     [Fact]
@@ -175,6 +215,7 @@ public sealed class AudatexEstimatePdfParserTests
 
         Header(first);
         Text(first, 20, 660, "LABOUR");
+        Text(first, 291, 660, "Time Basis 10 WU = 1 HR.");
         Text(first, 20, 648, "Number");
         Text(first, 159, 648, "Description");
         Text(first, 485, 648, "Work");
@@ -197,8 +238,8 @@ public sealed class AudatexEstimatePdfParserTests
         var result = Parse(builder.Build());
 
         Assert.Equal("TEST02 V1/1", result.SourceVersion);
-        Assert.Equal<decimal?>([9.0m, 12.0m], result.Lines.Select(line => line.WorkUnits));
-        Assert.Equal(21.0m, result.SourceTotals!.PanelWorkUnits);
+        Assert.Equal<decimal?>([0.9m, 1.2m], result.Lines.Select(line => line.WorkUnits));
+        Assert.Equal(2.1m, result.SourceTotals!.PanelWorkUnits);
     }
 
     [Fact]
