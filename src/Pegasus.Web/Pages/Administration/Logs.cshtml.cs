@@ -465,6 +465,10 @@ public sealed class LogsModel(
             or "pegasus_report_list"
             or "pegasus_report_action"
             or "pegasus_document_action"
+            or "pegasus_report_wording_get"
+            or "pegasus_report_wording_save"
+            or "pegasus_image_preparation_get"
+            or "pegasus_image_prepare"
             // A dismissed record is a Case, an Unidentified item or an AI job;
             // only a Case resolves to a reference here.
             or "pegasus_work_centre_dismiss";
