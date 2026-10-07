@@ -861,7 +861,7 @@ public sealed class CaseViewsWebTests
                 caseId, 0, reference, "operation-1", CaseReportActor.None, InspectionSentAtUtc,
                 Guid.NewGuid(), new string('a', 64), "image/png", input.CurrentEstimate!.SpecificationId, input.CurrentEstimate.Version,
                 report.Costs, report.EngineerValue, Guid.NewGuid(),
-                report.Content, report.Guides, report.ReportDate, false,
+                report.Content, report.Guides, report.ReportDate,
                 report.AgreedFee, report.FeeDescriptionLines, [], [],
                 AssessmentReportContract.TemplateVersion, "fake", report)
             {
