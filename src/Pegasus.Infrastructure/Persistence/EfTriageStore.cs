@@ -1033,6 +1033,12 @@ public sealed class EfTriageStore(
                 && item.Purpose == StaffMailPurpose.TriageOutcomeReply
                 && item.State == StaffMailState.Sent)
             .MaxAsync(item => (long?)item.ContextVersion, cancellationToken);
+        var claimantName = entity.OriginReceiptId is { } originReceiptId
+            ? await context.InstructionDrafts.AsNoTracking()
+                .Where(item => item.IntakeReceiptId == originReceiptId)
+                .Select(item => item.ClaimantName)
+                .FirstOrDefaultAsync(cancellationToken)
+            : null;
         return new TriageDetail(
             Map(entity),
             entity.CreatedAtUtc,
@@ -1042,6 +1048,7 @@ public sealed class EfTriageStore(
             Array.Empty<TriageResponseEvidenceCandidate>(),
             entity.Case.Principal.Code)
         {
+            ClaimantName = claimantName,
             Documents = documents,
             Correspondence = correspondence,
             SentOutcomeReplyVersion = sentOutcomeReplyVersion,
