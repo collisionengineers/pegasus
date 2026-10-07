@@ -434,6 +434,21 @@ public sealed class CaseReportGenerationPersistenceTests
     }
 
     [Fact]
+    public async Task AReportWithoutARecordedDateIsDatedTodayAndWritesNothingBack()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        var result = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+
+        var generation = Assert.IsType<CaseReportGenerationRecord>(result.Generation);
+        Assert.Equal(Pegasus.Core.LondonCalendar.DateAt(Harness.StartUtc), generation.Snapshot.ReportDate);
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        Assert.False(await context.CaseAssessmentFields.AnyAsync(field =>
+            field.WorkId == generation.WorkId && field.FieldPath == AssessmentVocabulary.ReportDate));
+    }
+
+    [Fact]
     public async Task FreezeCommitsBeforeRenderingAndConfirmationIsASecondTransaction()
     {
         await using var harness = await Harness.CreateAsync();

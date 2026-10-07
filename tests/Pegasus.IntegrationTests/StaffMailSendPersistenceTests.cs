@@ -69,7 +69,7 @@ public sealed class StaffMailSendPersistenceTests
             Guid.Empty, new string('0', 64), "image/png",
             estimate.SpecificationId, estimate.Version, report.Costs, report.EngineerValue,
             Guid.Empty, report.Content, report.Guides, report.ReportDate,
-            report.ReportDateOverridden, report.AgreedFee, report.FeeDescriptionLines,
+            report.AgreedFee, report.FeeDescriptionLines,
             [], [], report.PayloadVersion, "renderer/test", report with { Photos = [] })
         {
             CurrentEstimate = estimate

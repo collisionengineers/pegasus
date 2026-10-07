@@ -37,7 +37,7 @@ namespace Pegasus.Core.Reports;
 /// <para>
 /// <see cref="ReportDate"/> is null as loaded. A report date is set only when
 /// a generation freezes it, or when a preview is explicitly rendered at a
-/// stated date; a persisted override wins over both.
+/// stated date; a Report date recorded on the Case wins over both.
 /// </para>
 /// </remarks>
 public sealed record AssessmentReportProjectionInput(
@@ -140,9 +140,8 @@ public static class AssessmentReportProjection
         }
 
         var content = CaseReportReadiness.ContentOf(assessment);
-        var (reportDate, reportDateOverridden) = CaseReportReadiness.ResolveReportDate(
+        var reportDate = CaseReportReadiness.ResolveReportDate(
             ParseDate(Field(fields, AssessmentVocabulary.ReportDate)),
-            ParseFlag(Field(fields, AssessmentVocabulary.ReportDateOverride)) == true,
             input.ReportDate ?? throw new InvalidDataException(
                 "A report date is set only when a generation or a labelled preview is rendered."));
 
@@ -205,7 +204,6 @@ public static class AssessmentReportProjection
             Content: content,
             Guides: input.Guides ?? ReportGuideSources.None,
             ValuationCommentary: input.ValuationCommentary,
-            ReportDateOverridden: reportDateOverridden,
             // v28 P30: the Engineer's changes to the report's wording are
             // frozen with the rest of the snapshot, so a generation prints
             // their words as they stood and a later edit changes nothing
@@ -371,13 +369,6 @@ public static class AssessmentReportProjection
             ? parsed
             : null;
 
-    private static bool? ParseFlag(string? value) => value switch
-    {
-        "true" => true,
-        "false" => false,
-        _ => null,
-    };
-
     private static string[] SplitLines(string? value) =>
         value is null
             ? []
@@ -437,7 +428,7 @@ public sealed class GenerateCaseAssessmentReportDraft(
     /// Renders a labelled preview of the working snapshot for exactly the
     /// requested kind. Nothing is persisted: no generation, no artifact, no
     /// custody object and no Sent claim. The preview's report date is today's
-    /// unless the Case records an override — a generation is what freezes one.
+    /// unless the Case records a Report date — a generation is what freezes one.
     /// </summary>
     public async Task<GenerateCaseAssessmentReportDraftResult> ExecuteAsync(
         Guid caseId,

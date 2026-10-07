@@ -184,9 +184,8 @@ public sealed class EfCaseReportGenerationStore(
             return new(CaseReportFreezeOutcome.NotReady, null, null, readiness.Reasons);
         }
 
-        var (reportDate, overridden) = CaseReportReadiness.ResolveReportDate(
+        var reportDate = CaseReportReadiness.ResolveReportDate(
             readiness.RecordedReportDate,
-            readiness.ReportDateOverridden,
             LondonCalendar.DateAt(now));
         var projected = AssessmentReportProjection.Project(
             reportInputs.Projection with { ReportDate = reportDate });
@@ -195,10 +194,7 @@ public sealed class EfCaseReportGenerationStore(
             return new(CaseReportFreezeOutcome.NotReady, null, null, projected.Reasons);
         }
 
-        var snapshot = BuildSnapshot(request, reportInputs, readiness, projected.Snapshot, reportDate, overridden, now, operationKey);
-        // v28 P40: a report generated without an overridden date is dated
-        // today, and the record says so rather than leaving the cell empty.
-        await StampReportDateAsync(context, workId, request, reportDate, now, cancellationToken).ConfigureAwait(false);
+        var snapshot = BuildSnapshot(request, reportInputs, readiness, projected.Snapshot, reportDate, now, operationKey);
         var profiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken).ConfigureAwait(false);
         if (!SignatoryMatches(snapshot, CaseSignOffEngineerResolver.Resolve(
                 workflow.SignOffEngineerId, workflow.AssignedEngineerId, profiles)))
@@ -291,7 +287,6 @@ public sealed class EfCaseReportGenerationStore(
                 snapshot.TemplateVersion,
                 snapshot.RendererVersion,
                 snapshot.ReportDate,
-                snapshot.ReportDateOverridden,
             })));
 
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -394,7 +389,6 @@ public sealed class EfCaseReportGenerationStore(
                 snapshot.TemplateVersion,
                 snapshot.RendererVersion,
                 snapshot.ReportDate,
-                snapshot.ReportDateOverridden,
             })));
 
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -907,40 +901,6 @@ public sealed class EfCaseReportGenerationStore(
         }
     }
 
-    /// <summary>
-    /// Writes the report date a generation used into the Case's own record
-    /// when none was held (v28 P40). A date already recorded — typed or
-    /// stamped by an earlier generation — is left exactly as it stands.
-    /// </summary>
-    private static async Task StampReportDateAsync(
-        PegasusDbContext context,
-        Guid workId,
-        FreezeCaseReportGenerationRequest request,
-        DateOnly reportDate,
-        DateTimeOffset now,
-        CancellationToken cancellationToken)
-    {
-        var existing = await context.CaseAssessmentFields
-            .SingleOrDefaultAsync(
-                field => field.WorkId == workId
-                    && field.FieldPath == AssessmentVocabulary.ReportDate,
-                cancellationToken)
-            .ConfigureAwait(false);
-        if (existing is not null && !string.IsNullOrWhiteSpace(existing.Value))
-        {
-            return;
-        }
-        AssessmentFieldWriter.Write(
-            context,
-            workId,
-            existing,
-            AssessmentVocabulary.ReportDate,
-            reportDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
-            request.Actor.Kind,
-            request.Actor.SubjectId,
-            now);
-    }
-
     private static bool SignatoryMatches(
         CaseReportGenerationSnapshot snapshot, SignOffEngineerProfile? profile) =>
         profile is not null
@@ -1087,7 +1047,6 @@ public sealed class EfCaseReportGenerationStore(
         CaseReportReadinessResult readiness,
         AssessmentReportSnapshot report,
         DateOnly reportDate,
-        bool overridden,
         DateTimeOffset now,
         string operationKey)
     {
@@ -1116,7 +1075,6 @@ public sealed class EfCaseReportGenerationStore(
             readiness.Content,
             inputs.Projection.Guides ?? ReportGuideSources.None,
             reportDate,
-            overridden,
             report.AgreedFee,
             report.FeeDescriptionLines,
             inputs.Projection.Sources

@@ -444,7 +444,7 @@ public sealed class CaseReportDeliveryPersistenceTests
                 caseId, 1, "DVR-31001", "send-report-1", CaseReportActor.None, StartUtc,
                 Guid.Empty, new string('0', 64), "image/png", input.CurrentEstimate!.SpecificationId, input.CurrentEstimate.Version,
                 report.Costs, report.EngineerValue, Guid.Empty, report.Content, report.Guides,
-                report.ReportDate, report.ReportDateOverridden, report.AgreedFee,
+                report.ReportDate, report.AgreedFee,
                 report.FeeDescriptionLines, [], [], report.PayloadVersion, "renderer/v1", report with { Photos = [] })
             {
                 CurrentEstimate = input.CurrentEstimate

@@ -198,7 +198,6 @@ public sealed record CaseReportGenerationSnapshot(
     CaseReportContentSwitches Content,
     ReportGuideSources Guides,
     DateOnly ReportDate,
-    bool ReportDateOverridden,
     decimal AgreedFee,
     IReadOnlyList<string> FeeDescriptionLines,
     IReadOnlyList<CaseReportSnapshotSource> Sources,
@@ -626,8 +625,7 @@ public sealed record CaseReportReadinessResult(
     SignOffEngineerProfile? Signatory,
     IReadOnlyList<PreparedReportImage> Images,
     CaseReportContentSwitches Content,
-    DateOnly? RecordedReportDate,
-    bool ReportDateOverridden)
+    DateOnly? RecordedReportDate)
 {
     public bool IsReady => Reasons.Count == 0;
 }
@@ -784,7 +782,6 @@ public static class CaseReportReadiness
                 "Open the Files section to see the image as it is stored now."));
 
         var content = ContentOf(assessment);
-        var overridden = Flag(assessment, AssessmentVocabulary.ReportDateOverride);
         var recordedDate = Date(assessment, AssessmentVocabulary.ReportDate);
         Require(
             !content.IncludeValuationCommentary
@@ -803,7 +800,7 @@ public static class CaseReportReadiness
                 "Record the unrelated damage on the Damage section, or turn off Unrelated damage under On the report on the Valuation section.",
                 Field: AssessmentVocabulary.DamageUnrelated));
 
-        return new(reasons, signatory, images, content, recordedDate, overridden);
+        return new(reasons, signatory, images, content, recordedDate);
     }
 
     /// <summary>
@@ -832,15 +829,13 @@ public static class CaseReportReadiness
     }
 
     /// <summary>
-    /// The report date a generation freezes: the recorded override when the
-    /// operator set one, otherwise the date generation itself is happening on.
-    /// A report date is never defaulted before generation.
+    /// The report date a generation freezes: the Report date recorded on the
+    /// Case when there is one, otherwise the date generation itself is
+    /// happening on (operator, 7 October 2026). Generation never writes its
+    /// date back into the Case.
     /// </summary>
-    public static (DateOnly Date, bool Overridden) ResolveReportDate(
-        DateOnly? recorded, bool overridden, DateOnly generatedOn) => overridden
-            ? (recorded ?? throw new InvalidDataException(
-                "The report date is overridden but no date is recorded."), true)
-            : (generatedOn, false);
+    public static DateOnly ResolveReportDate(DateOnly? recorded, DateOnly generatedOn) =>
+        recorded ?? generatedOn;
 
     private static bool IsComplete(SignOffEngineerProfile profile) =>
         !string.IsNullOrWhiteSpace(profile.PrintedName)

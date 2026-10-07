@@ -481,7 +481,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task WorkspaceSavedReportAndSettlementFieldsReachTheActualPreview(bool overrideDate)
+    public async Task WorkspaceSavedReportAndSettlementFieldsReachTheActualPreview(bool recordDate)
     {
         await using var harness = await CaseDataCompletenessPersistenceTests.CaseDataHarness.CreateAsync();
         var engineer = ActionActor.Staff(Guid.Parse(harness.StaffActor.SubjectId), [StaffRole.Engineer]);
@@ -564,9 +564,8 @@ public sealed partial class AssessmentReportDraftWebTests
                 [AssessmentVocabulary.FeeDescriptionLines] = "Assessment report",
                 [AssessmentVocabulary.ReportDiscloseGuideSource] = "true",
                 [AssessmentVocabulary.ReportValuationCommentary] = "false",
-                [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "false",
-                [AssessmentVocabulary.ReportDateOverride] = overrideDate ? "true" : "false"
-            }, Guid.Parse(engineer.SubjectId), new DateOnly(2026, 8, 19))
+                [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "false"
+            }, Guid.Parse(engineer.SubjectId), recordDate ? new DateOnly(2026, 8, 19) : (DateOnly?)null)
         }, CancellationToken.None);
         var assessmentStore = new EfCaseAssessmentStore(harness.Factory, harness.TimeProvider,
             new EfRepairSpecificationStore(harness.Factory, harness.TimeProvider));
@@ -610,9 +609,8 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal(["Assessment report"], snapshot.FeeDescriptionLines);
         Assert.Equal(new CaseReportContentSwitches(true, false, false), snapshot.Content);
         Assert.Equal("Ed Mawdsley", snapshot.Signatory.PrintedName);
-        Assert.Equal(overrideDate ? new DateOnly(2026, 8, 19) : new DateOnly(2026, 9, 7), snapshot.ReportDate);
-        Assert.Equal(overrideDate, snapshot.ReportDateOverridden);
-        Assert.Equal("2026-08-19", persisted.Field(AssessmentVocabulary.ReportDate)?.Value);
+        Assert.Equal(recordDate ? new DateOnly(2026, 8, 19) : new DateOnly(2026, 9, 7), snapshot.ReportDate);
+        Assert.Equal(recordDate ? "2026-08-19" : null, persisted.Field(AssessmentVocabulary.ReportDate)?.Value);
         Assert.Equal(new DateOnly(2026, 8, 3), snapshot.Assessed);
         // The claimant and Your Ref are the Case's own facts, read with the assessment.
         Assert.Equal(saved.Data.Claimant.Name.Current?.Value, snapshot.ClaimantName);
