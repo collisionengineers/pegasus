@@ -7,6 +7,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
+using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -385,9 +386,77 @@ internal sealed class EfStaffMailSendStore(
             observedAtUtc, entity.OperationKey, null, null, Map(entity)));
         await FreezeSentReportSpecificationAsync(db, entity, systemActor, observedAtUtc, cancellationToken);
         await CompletePostReportQueryAsync(db, entity, systemActor, observedAtUtc, cancellationToken);
+        await RecordCorrespondenceSentAsync(db, entity, cancellationToken);
+        await RecordSentChaserAsync(db, entity, providerSentAtUtc, observedAtUtc, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// The Case's Notes line for a general correspondence send, written once
+    /// the Sent item is observed (FRD-16 Notes, FRD-21): the staff sender, the
+    /// provider's sent time and the subject. The body is never history. A
+    /// report send already records its evidence link; a Triage send keeps
+    /// Triage history. The event carries the Case's current version without
+    /// bumping it, as an operator note does.
+    /// </summary>
+    private static async Task RecordCorrespondenceSentAsync(
+        PegasusDbContext db,
+        StaffMailSendOperationEntity mail,
+        CancellationToken cancellationToken)
+    {
+        if (mail.Purpose != StaffMailPurpose.GeneralCorrespondence
+            || mail.ProviderSentAtUtc is not { } sentAtUtc)
+        {
+            return;
+        }
+        var workflow = await db.CaseWorkflows.SingleOrDefaultAsync(
+            item => item.CaseId == mail.ContextId, cancellationToken);
+        if (workflow is null)
+        {
+            return;
+        }
+        var operationKey = $"correspondence-sent:{mail.Id:N}";
+        if (await db.CaseWorkflowEvents.AnyAsync(
+                item => item.CaseId == workflow.CaseId && item.OperationKey == operationKey,
+                cancellationToken))
+        {
+            return;
+        }
+        var roles = await db.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == "StaffMailSend"
+                && item.AggregateId == mail.Id.ToString("D")
+                && item.EventKind == "staff-mail-prepared")
+            .Select(item => item.ActorRolesJson)
+            .FirstOrDefaultAsync(cancellationToken);
+        db.CaseWorkflowEvents.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = workflow.CaseId,
+            Workflow = workflow,
+            EventType = CorrespondenceSentEventType,
+            OperationKey = operationKey,
+            RequestHash = mail.PayloadHash,
+            ActorKind = ActorKind.Staff.ToString(),
+            ActorSubjectId = mail.ActorSubjectId,
+            ActorRolesJson = roles ?? "[]",
+            Reason = mail.Subject,
+            OccurredAtUtc = sentAtUtc,
+            BeforeVersion = workflow.Version,
+            AfterVersion = workflow.Version,
+            ResultJson = JsonSerializer.Serialize(new CorrespondenceSentValue(
+                mail.Id, mail.ObservedSentImmutableMessageId, sentAtUtc, mail.ObservedSentAtUtc))
+        });
+    }
+
+    /// <summary>The Notes event a general correspondence send leaves once its Sent item is observed.</summary>
+    internal const string CorrespondenceSentEventType = "correspondence_sent";
+
+    private sealed record CorrespondenceSentValue(
+        Guid OperationId,
+        string? SentImmutableMessageId,
+        DateTimeOffset ProviderSentAtUtc,
+        DateTimeOffset? ObservedAtUtc);
 
     private static async Task FreezeSentReportSpecificationAsync(
         PegasusDbContext db,
@@ -465,12 +534,8 @@ internal sealed class EfStaffMailSendStore(
         }
 
         var queryReceiptIds = await db.IntakeReceipts.AsNoTracking()
-            .Where(item => item.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox)
-                && item.ExternalReceiptToken == retained.ExternalReceiptToken
-                && item.MailClassificationDecision != null
-                && item.MailClassificationDecision.Outcome == "classified"
-                && item.MailClassificationDecision.Direction == "received"
-                && item.MailClassificationDecision.Family == "post-report-emails")
+            .Where(PostReportQueryTransitions.IsPostReportReceipt)
+            .Where(item => item.ExternalReceiptToken == retained.ExternalReceiptToken)
             .Select(item => item.Id)
             .ToArrayAsync(cancellationToken);
         if (queryReceiptIds.Length != 1)
@@ -554,6 +619,103 @@ internal sealed class EfStaffMailSendStore(
         });
     }
 
+    /// <summary>
+    /// Records a Case chaser that reached Sent as the Case's chase: the due
+    /// work's most recent attempt and next chase move exactly as a recorded
+    /// manual chase would, attributed to the staff member who sent it. Runs
+    /// inside the Sent observation, so every case it does not apply to returns
+    /// rather than throws; a throw here would stall the mailbox's Sent poll.
+    /// </summary>
+    private static async Task RecordSentChaserAsync(
+        PegasusDbContext db,
+        StaffMailSendOperationEntity mail,
+        DateTimeOffset providerSentAtUtc,
+        DateTimeOffset observedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        if (mail.Purpose != StaffMailPurpose.CaseChaser)
+        {
+            return;
+        }
+
+        // Lock before reading: a Serializable read taken first deadlocks
+        // against a Case mutation that already holds the workflow row.
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(db, mail.ContextId, cancellationToken);
+        var operationKey = $"chaser-sent:{mail.Id:N}";
+        if (await db.CaseManualChases.AnyAsync(
+                item => item.CaseId == mail.ContextId && item.OperationKey == operationKey,
+                cancellationToken))
+        {
+            return;
+        }
+
+        var workflow = await db.CaseWorkflows.SingleOrDefaultAsync(
+            item => item.CaseId == mail.ContextId, cancellationToken);
+        var due = await db.CaseDueWork
+            .Include(item => item.Workflow)
+            .ThenInclude(item => item.Case)
+            .SingleOrDefaultAsync(item => item.CaseId == mail.ContextId, cancellationToken);
+        if (workflow is null
+            || due is null
+            || workflow.ArchivedAtUtc is not null
+            || workflow.State != nameof(CaseLifecycleState.NotReady)
+            || due.State != nameof(CaseDueWorkState.Scheduled))
+        {
+            return;
+        }
+
+        var recipients = JsonSerializer.Deserialize<Recipients>(mail.RecipientsJson);
+        var target = ChaseTarget(recipients?.To?.Select(value => value.Address).ToArray() ?? []);
+        // The Worker observes the send, so the chase carries the roles the
+        // prepared send recorded; the Worker does not read the staff role tables.
+        var preparedRoles = await db.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == "StaffMailSend"
+                && item.AggregateId == mail.Id.ToString("D")
+                && item.EventKind == "staff-mail-prepared")
+            .Select(item => item.ActorRolesJson)
+            .FirstOrDefaultAsync(cancellationToken);
+        var roles = (preparedRoles is null ? [] : JsonSerializer.Deserialize<string[]>(preparedRoles) ?? [])
+            .Select(name => Enum.TryParse<StaffRole>(name, ignoreCase: false, out var role) ? (StaffRole?)role : null)
+            .OfType<StaffRole>()
+            .ToHashSet();
+        var interval = (await EfWorkflowConfigurationStore.ReadAsync(db, cancellationToken)).ChaseIntervalDays;
+        EfCaseWorkflowStore.ApplyChase(
+            db,
+            workflow,
+            due,
+            channel: "E-mail",
+            target,
+            attemptedAtUtc: providerSentAtUtc,
+            outcome: "Sent",
+            note: null,
+            operationKey,
+            requestHash: mail.PayloadHash,
+            ActorKind.Staff,
+            mail.ActorSubjectId,
+            roles,
+            eventType: "chaser_sent",
+            occurredAtUtc: observedAtUtc,
+            chaseIntervalDays: interval);
+    }
+
+    /// <summary>
+    /// The addresses a chaser went to, within the chase record's 500
+    /// characters: all of them, else the first and how many more, else the
+    /// first cut to fit.
+    /// </summary>
+    private static string ChaseTarget(string[] addresses)
+    {
+        const int maximumLength = 500;
+        var joined = string.Join("; ", addresses);
+        if (joined.Length <= maximumLength)
+        {
+            return joined;
+        }
+
+        var summary = $"{addresses[0]} +{addresses.Length - 1} more";
+        return summary.Length <= maximumLength ? summary : summary[..maximumLength];
+    }
+
     private sealed record QueryReplyWorkflowValue(
         string State,
         string? ClosureOutcome,
@@ -601,17 +763,14 @@ internal sealed class EfStaffMailSendStore(
         Guid? caseId = null;
         if (entity.Purpose == StaffMailPurpose.CaseReport)
         {
-            // A report is sent only while its work is the Case's current
-            // work: the Inspection's report no longer drives the Case once the
-            // Audit exists. A send already under way when the Audit was created
-            // is still observed against its Case, so it can finish as Sent;
-            // evidence sent before the Audit is never linked to it.
-            var currentWorkIds = CaseWorkScope.CurrentWorkIds(db);
+            // A report of either work is sent against its Case: the
+            // Inspection's report stays sendable on its own work once the
+            // Audit exists (operator, 1 October 2026). Which work the send
+            // proves is read from the generation when the evidence is linked.
             caseId = await db.Set<CaseReportGenerationEntity>().AsNoTracking()
                 .Where(value => value.Id == entity.ContextId
                     && (!requireFrozenGenerationVersion
-                        || (value.Version == entity.ContextVersion
-                            && currentWorkIds.Contains(value.WorkId))))
+                        || value.Version == entity.ContextVersion))
                 .Select(value => (Guid?)value.CaseId)
                 .SingleOrDefaultAsync(cancellationToken);
             if (caseId is not null)

@@ -52,14 +52,15 @@ without that report. The assessment outcome is recorded on the Case, not in
 its identity. When no original report is filed and none was kept at intake,
 **Original report missing** stays outstanding until a filed document is
 recorded as the original report: by Pegasus when it recognises the report
-among files added later, or by staff marking one
+among the Case's files, a scanned report once its text has been read, or by
+staff marking one
 ([FRD-01](docs/frd/frd-01-case-identity-and-lifecycle.md)).
 The Audit of an Inspection + Audit Case is part of that Case, not an Audit
 Case (below).
 _Avoid_: Triage, sorting
 
 **Inspection + Audit**:
-One Case holding an Inspection and, once its Inspection report is sent, its Audit. Collision Engineers completes its standard Inspection on the Case (for example `QDOS26001`). Create audit then adds the Audit to the same Case: a separate copy of the Case's values that only the Audit edits, with its own report under the Audit reference `a.` plus the same Case/PO (`a.QDOS26001`), its own fee note and an `a.` Box subfolder. The Case keeps one state, one Files and one Notes; no second Case and no second number is created ([FRD-01](docs/frd/frd-01-case-identity-and-lifecycle.md)).
+One Case holding an Inspection and its Audit. Collision Engineers completes its standard Inspection on the Case (for example `QDOS26001`). Create audit, available while the Case is in work whether or not the Inspection report has been sent, adds the Audit to the same Case: a separate copy of the Case's values that only the Audit edits, with its own report under the Audit reference `a.` plus the same Case/PO (`a.QDOS26001`), its own fee note and an `a.` Box subfolder. The Case keeps one state, one Files and one Notes; no second Case and no second number is created ([FRD-01](docs/frd/frd-01-case-identity-and-lifecycle.md)).
 _Avoid_: Combined report, two-spec Inspection, linked Audit Case
 
 **Triage**:
@@ -67,7 +68,7 @@ A Case type for an assessment request that is not a definitive instruction.
 Its Case/PO is `t.` plus the next number from the Principal's shared sequence
 (for example `t.QDOS26003`), allocated only once its Principal and
 registration are established. It follows its own Triage states; completion
-records a decided outcome, and Reply with outcome is optional editable email.
+records a decided outcome, and Reply with finding is optional editable email.
 A later definitive instruction is a separate Case with its own number, which
 the Triage may link to ([FRD-03](docs/frd/frd-03-triage.md)).
 _Avoid_: pre-Case Triage record, T-reference
@@ -95,8 +96,10 @@ One named repair specification on a Case: its lines, labour rate, VAT and
 totals. A spec a staff member types in, imports or brings back from Glass's
 is the Current one at once; **Use repair spec** switches to another live spec.
 The Current spec feeds the report and stays editable while the Case is
-writable. "Estimate" names a repairer's or provider's source document.
-_Avoid_: accepted estimate, Use estimate
+writable. A spec brought back from Glass's belongs to that Glass's estimate:
+**Glass's** on it reopens the same estimate, and its saved return updates the
+same spec. "Estimate" names a repairer's or provider's source document.
+_Avoid_: accepted estimate, Use estimate, Resume (as a button)
 
 **AI Proposal**:
 An immutable model-generated candidate repair specification, never a report document, retained separately from the Case until an authorised human staff member explicitly accepts or applies it.

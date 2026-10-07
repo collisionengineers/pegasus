@@ -249,12 +249,12 @@ public sealed class AnalyzeRetainedInstruction(
             return Conflict("The intake receipt does not exist.");
         }
 
-        if (request.OcrEvidence is not null && !IntakeOcrOperations.IsEligibleIncomingInstruction(receipt))
+        if (request.OcrEvidence is not null && !IntakeOcrOperations.IsEligibleSource(receipt))
         {
             return new(
                 RetainedInstructionAnalysisOutcome.SourceUnavailable,
                 null,
-                "OCR is available only for incoming mailbox or manual-upload instructions.",
+                "OCR is not run for automation sources.",
                 [],
                 false);
         }
@@ -363,7 +363,16 @@ public sealed class AnalyzeRetainedInstruction(
                         false);
                 }
 
-                readResult = MergeOcrReadResult(ordinaryReadResult, completedOcr, completedSourceLabels);
+                readResult = ordinaryReadResult;
+                foreach (var completedSourceLabel in completedSourceLabels)
+                {
+                    readResult = IntakeOcrText.Merge(
+                        readResult,
+                        completedSourceLabel,
+                        completedOcr.SourceSha256,
+                        completedOcr.QualifiedPages,
+                        completedOcr.Result);
+                }
             }
             else
             {
@@ -398,12 +407,12 @@ public sealed class AnalyzeRetainedInstruction(
             && readResult.RequiresOcr
             && readResult.ScannedPdfPages.Count > 0)
         {
-            if (!IntakeOcrOperations.IsEligibleIncomingInstruction(receipt))
+            if (!IntakeOcrOperations.IsEligibleSource(receipt))
             {
                 return new(
                     RetainedInstructionAnalysisOutcome.SourceUnavailable,
                     null,
-                    "OCR is available only for incoming mailbox or manual-upload instructions.",
+                    "OCR is not run for automation sources.",
                     [],
                     false);
             }
@@ -689,13 +698,13 @@ public sealed class AnalyzeRetainedInstruction(
     private static bool IsOcrLocator(IntakeSourceLocator? locator, CompletedOcrEvidence? evidence) =>
         locator is not null
         && evidence is not null
-        && string.Equals(locator.DocumentRole, "ocr", StringComparison.Ordinal)
+        && string.Equals(locator.DocumentRole, IntakeOcrText.DocumentRole, StringComparison.Ordinal)
         && string.Equals(locator.Sha256, evidence.SourceSha256, StringComparison.OrdinalIgnoreCase)
         && locator.Page is { } page
         && evidence.QualifiedPages.Contains(page);
 
     private static string OcrReaderKey(CompletedOcrEvidence evidence) =>
-        $"{evidence.Result.Provider}/{evidence.Result.ModelId}";
+        IntakeOcrText.ReaderKey(evidence.Result);
 
     private static IEnumerable<RetainedInstructionCandidate> BuildVehicleLookupCandidates(
         VehicleRegistrationCandidateLookupResult lookup,
@@ -884,61 +893,14 @@ public sealed class AnalyzeRetainedInstruction(
             && qualified.All(page => page > 0)
             && qualified.Distinct().Count() == qualified.Count
             && result.PageResults.Select(page => page.Number).Order().SequenceEqual(qualified.Order())
-            && result.PageResults.All(page => !string.IsNullOrWhiteSpace(page.Text));
+            // A blank scanned page is a page with nothing on it, not a failure;
+            // the reading needs text on at least one.
+            && result.PageResults.Any(page => !string.IsNullOrWhiteSpace(page.Text));
     }
 
     private static bool IsSha256(string? value) =>
         value is { Length: 64 }
         && value.All(character => char.IsAsciiHexDigit(character));
-
-    internal static IntakeSourceReadResult CreateOcrReadResult(CompletedOcrEvidence evidence)
-    {
-        var responseSha = evidence.Result.ResponseSha256!;
-        var content = evidence.Result.PageResults
-            .OrderBy(page => page.Number)
-            .Select(page => new IntakeContentFragment(
-                IntakeEvidenceSource.DocumentContent,
-                $"OCR page {page.Number}; response {responseSha}",
-                page.Text,
-                new(
-                    IntakeLocatorKind.Page,
-                    Page: page.Number,
-                    Region: JsonSerializer.Serialize(
-                        new OcrPageProvenance(page.Lines, page.Tables, responseSha),
-                        LocatorJsonOptions),
-                    Sha256: evidence.SourceSha256,
-                    DocumentRole: "ocr")))
-            .ToArray();
-        return new(
-            IntakeSourceReadStatus.Readable,
-            content,
-            [],
-            [],
-            false,
-            ReaderKey: $"{evidence.Result.Provider}/{evidence.Result.ModelId}",
-            ReaderVersion: evidence.Result.ApiVersion);
-    }
-
-    internal static IntakeSourceReadResult MergeOcrReadResult(
-        IntakeSourceReadResult ordinary,
-        CompletedOcrEvidence evidence,
-        IReadOnlySet<string> ocrSourceLabels)
-    {
-        var qualified = evidence.QualifiedPages.ToHashSet();
-        var readableContent = ordinary.Content
-            .Where(fragment =>
-                !ocrSourceLabels.Any(sourceLabel => fragment.SourceLabel.StartsWith(sourceLabel + ",", StringComparison.Ordinal))
-                || fragment.Locator?.Page is not { } page
-                || !qualified.Contains(page))
-            .ToArray();
-        var ocr = CreateOcrReadResult(evidence);
-        return ordinary with
-        {
-            Content = [.. readableContent, .. ocr.Content],
-            RequiresOcr = false,
-            OcrCandidates = []
-        };
-    }
 
     private async Task<bool> BeginQualifiedOcrAsync(
         IntakeReceipt receipt,
@@ -985,11 +947,6 @@ public sealed class AnalyzeRetainedInstruction(
         "A scanned instruction source is not retained for OCR.",
         [],
         false);
-
-    private sealed record OcrPageProvenance(
-        IReadOnlyList<IntakeOcrLine> Lines,
-        IReadOnlyList<IntakeOcrTable> Tables,
-        string ResponseSha256);
 
     /// <summary>
     /// The receipt's own retained source asset by default; an explicit id picks

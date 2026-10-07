@@ -52,7 +52,7 @@ public sealed record RecentCasesPage(
 
 public interface IRecentCaseQueries
 {
-    /// <summary>Cases created and automation changes made at or after <paramref name="sinceUtc"/>, newest first.</summary>
+    /// <summary>Cases created and automation changes made at or after <paramref name="sinceUtc"/>, newest first, less those dismissed (<see cref="WorkCentreDismissalPolicy"/>).</summary>
     Task<RecentCasesPage> ListAsync(
         DateTimeOffset sinceUtc,
         int page,

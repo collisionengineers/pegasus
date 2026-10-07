@@ -60,7 +60,8 @@ function Get-MigrationPermissionMatrix {
         '20260824123336_DropEvaHandoffTables.cs',
         '20260917161519_RemovePublicUploadLinks.cs',
         '20260924180000_CaseWorksAndTriageCases.cs',
-        '20260929090000_RetireUnusedTables.cs'
+        '20260929090000_RetireUnusedTables.cs',
+        '20261006150000_DropCaseReportDeliveryIntents.cs'
     ) | ForEach-Object {
         $terminalSource = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $migrationPath) $_)
         [regex]::Matches($terminalSource, 'DropTable\(\s*name:\s*"(?<table>[A-Za-z0-9]+)"') |
@@ -436,7 +437,7 @@ function Get-MigrationPermissionMatrix {
     }
     $expected.Add('pegasus_worker_runtime_role|G|UPDATE|AutomaticEvaReviewSubmissions')
     # 20260906054658_V1PlatformFoundation: v1 schema owners and holding custody.
-    $v1Tables = @('UserExternalCredentials','StaffMailSendOperations','ValuationPresets','LabourRateCards','AppliedValuationSnapshots','GlassRepairEstimateSessions','CaseReportGenerations','GeneratedCaseArtifacts','CaseReportDeliveryIntents','RetainedInstructionAnalyses','IntakeSourceCandidates','IntakeOcrOperations','DocumentContentCacheEntries')
+    $v1Tables = @('UserExternalCredentials','StaffMailSendOperations','ValuationPresets','LabourRateCards','AppliedValuationSnapshots','GlassRepairEstimateSessions','CaseReportGenerations','GeneratedCaseArtifacts','RetainedInstructionAnalyses','IntakeSourceCandidates','IntakeOcrOperations','DocumentContentCacheEntries')
     foreach ($table in $v1Tables) {
         $expected.Add("pegasus_web_runtime_role|D|DELETE|$table")
         if ($table -ne 'DocumentContentCacheEntries') {
@@ -600,6 +601,17 @@ function Get-MigrationPermissionMatrix {
     # data snapshot row. Neither role deletes one.
     $expected.Add('pegasus_web_runtime_role|G|UPDATE|CaseDataSnapshots')
     $expected.Add('pegasus_worker_runtime_role|G|UPDATE|CaseDataSnapshots')
+    # 20261002105641_WorkCentreDismissals: Web records each Work Centre dismissal
+    # and moves a later one on; there is no undo, so neither role deletes one.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|WorkCentreDismissals")
+    }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|WorkCentreDismissals')
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|WorkCentreDismissals')
+    # 20261005120000_GrantWorkerCaseManualChases: the Worker records a Case
+    # chaser's chase when the Sent poll observes the send. It never deletes one.
+    $expected.Add('pegasus_worker_runtime_role|G|SELECT|CaseManualChases')
+    $expected.Add('pegasus_worker_runtime_role|G|INSERT|CaseManualChases')
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier
     # migrations this matrix reads still name them, and SQL Server keeps a
     # table's permission rows across a rename, so the rows read here are the

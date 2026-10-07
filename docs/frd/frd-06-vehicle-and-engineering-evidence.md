@@ -185,14 +185,17 @@ Proposal. Its result does not affect Case/PO allocation, Case state, Review,
 Engineer eligibility, due work, chasing or staff discretion. Source images
 stay retained, and report-image selection still excludes images showing a
 person's reflection. The advice never selects, excludes, orders or decides
-report images. Choosing report images is an Engineer decision in the
-report-generation section, not a toggle on the evidence screen.
+report images. Whether the report uses an image is chosen on its image
+tile in Files, by any staff member editing the Case, in any state that can
+be edited
+([FRD-16](frd-16-case-record-workspace.md#files)).
 
 **Report images are prepared without changing the source.** The retained
 bytes and their hashes never change. Every crop or ordering act writes
-normalised output beside the source. A report needs two distinct images in
-the report, one tagged `Close-up`, printed first, and one tagged `Overview`,
-printed second (operator, 26 September 2026). Where more than one carries a
+normalised output beside the source. A report needs one image in the
+report, tagged `Overview`, which prints first; one tagged `Close-up` is
+optional and prints second (operator, 7 October 2026). The tags fix those
+two places: ordering moves only the other images. Where more than one carries a
 tag, the first in the order the operator set prints as it and the rest as
 supporting images, which follow in that order. Images nobody has ordered
 follow the order they arrived, then their file names. Only an image that can
@@ -270,6 +273,16 @@ the facts only the lookup holds.
 - There are no per-field suggestion chips and no suggestion table.
 - The Model comes from the DVSA MOT history vehicle record. DVLA supplies no
   model. Experian stays a disabled seam.
+
+**Glass's VIN.** DVLA and DVSA supply no VIN; Glass's names one. It appears
+on the vehicle a Get valuation saves to the Glass's stock list, which Glass's
+looks up from the registration, and in every Glass's estimate export and
+calculation sheet that is imported. Each fills the VIN only where the Case
+holds none, whoever would have recorded one, and never replaces a VIN already
+on the Case (operator, 7 October 2026). The fill is system work recorded as
+`glass-vin`. It keeps a member of staff's edit session, and a Save prepared
+before the fill keeps the filled VIN. A value that is not a 17-character VIN
+fills nothing. A filled VIN stales a generated report, which prints it.
 
 **Automatic lookup at creation.** The same combined lookup also runs when a
 Case is created, whether by hand or by an intake acceptance that allocates a

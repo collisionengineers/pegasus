@@ -91,3 +91,20 @@ does for `Features:LocalIntake`.
 The lifecycle passes these settings to the hosts from the ignored local
 settings file described in the [runbook](../runbook.md#local-live-integration-run);
 no tracked file carries them.
+
+## Glass's valuation
+
+`Glass:ValuationAccount:Username` and `Glass:ValuationAccount:Password` are
+the Glass's valuation account Get valuation signs in with
+([ADR-0060](../adr/0060-glass-valuation-account-and-valuation-report.md)).
+Both are Production required settings, held in Key Vault as
+`glass-valuation-username` and `glass-valuation-password` and delivered to Web
+as `Glass__ValuationAccount__Username` and `Glass__ValuationAccount__Password`
+through versioned secret URI references, each read through its own
+secret-scoped grant; the Worker receives neither. The account is read on each
+valuation, never at startup, so an unresolved reference makes the Glass's card
+answer unavailable rather than stopping the host. The valuation uses the
+repair estimate's `Glass:MarketValueAssessorBaseUri` and
+`Glass:RequestTimeoutSeconds`. Rotating the password is a new secret version
+and a configuration read-back, not a release. `DevelopmentOffline` composes no
+Glass's valuation, so its Glass's card says the source is unavailable.

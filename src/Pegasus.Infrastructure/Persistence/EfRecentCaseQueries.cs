@@ -12,7 +12,9 @@ namespace Pegasus.Infrastructure.Persistence;
 /// whatever created it, and every change the Automation actor made to an
 /// existing Case in the same window, newest first and paged. Arrival is the
 /// accepted receipt's channel; a Case with no receipt was created by hand
-/// unless its first workflow event names the Automation actor.
+/// unless its first workflow event names the Automation actor. A row its Case
+/// was dismissed at or after (<see cref="WorkCentreDismissalPolicy"/>) is not
+/// listed or counted.
 /// </summary>
 internal sealed class EfRecentCaseQueries(
     IDbContextFactory<PegasusDbContext> contextFactory) : IRecentCaseQueries
@@ -43,16 +45,21 @@ internal sealed class EfRecentCaseQueries(
 
         // New cases are definitive instructions; a Triage Case is counted by
         // its own Work Centre metric.
+        var dismissals = context.Set<WorkCentreDismissalEntity>();
         var createdCases = context.Set<CaseEntity>().AsNoTracking()
             .Where(caseEntity => caseEntity.CreatedAtUtc >= sinceUtc
-                && caseEntity.Type != CaseTypeCodes.Triage);
+                && caseEntity.Type != CaseTypeCodes.Triage
+                && !dismissals.Any(dismissal => dismissal.RecordId == caseEntity.Id
+                    && dismissal.DismissedAtUtc >= caseEntity.CreatedAtUtc));
         // A creation event is already its Case's New case row, and guidance
         // applied at version 0 is part of creating the Case.
         var changes = context.CaseWorkflowEvents.AsNoTracking()
             .Where(IsNotCreationEvent)
             .Where(change => change.OccurredAtUtc >= sinceUtc
                 && change.ActorKind == AutomationActorKind
-                && !(change.EventType == "case_guidance_applied" && change.BeforeVersion == 0));
+                && !(change.EventType == "case_guidance_applied" && change.BeforeVersion == 0)
+                && !dismissals.Any(dismissal => dismissal.RecordId == change.CaseId
+                    && dismissal.DismissedAtUtc >= change.OccurredAtUtc));
         // Every Case has its Principal and every event its Case, so the joins
         // below neither add nor drop rows and each source is counted alone.
         var createdCount = await createdCases.CountAsync(cancellationToken);

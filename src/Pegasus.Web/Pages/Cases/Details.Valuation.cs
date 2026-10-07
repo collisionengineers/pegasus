@@ -34,12 +34,6 @@ public sealed partial class DetailsModel
     /// <summary>The Market research job still in progress, so the card reads as pending.</summary>
     public AiJobRecord? PendingMarketResearch { get; private set; }
 
-    /// <summary>
-    /// The operator-facing name of whoever applied the latest Engineer's Value.
-    /// The record keeps a subject identifier, which is never printed.
-    /// </summary>
-    public string? AppliedByDisplayName { get; private set; }
-
     /// <summary>The month the Get valuation buttons run for: the pending job's, else the current month.</summary>
     public string ValuationMonth
     {
@@ -78,17 +72,73 @@ public sealed partial class DetailsModel
     /// <summary>The Case's latest applied Engineer's Value, if any.</summary>
     public AppliedValuation? LatestAppliedValuation => AppliedValuations.Count > 0 ? AppliedValuations[0] : null;
 
+    /// <summary>
+    /// The recorded calculation the section shows and the calculator opens
+    /// on: the latest one, while the Engineer's Value still holds its figure
+    /// (operator, 6 October 2026). A different figure typed over it is the
+    /// Engineer's own, so the earlier calculation is no longer shown beside
+    /// it; it stays in the Case's history. Core's own test of the box decides.
+    /// </summary>
+    public AppliedValuation? RecordedValuation =>
+        LatestAppliedValuation is { } applied
+            && ValuationCalculationPolicy.IsEngineerValueBox(
+                applied.AcceptedEngineerValue,
+                Assessment?.Field(AssessmentVocabulary.ValueEngineer)?.Value)
+            ? applied
+            : null;
+
+    /// <summary>
+    /// The source the Engineer's Value came from, as the one word its label
+    /// carries: the recorded calculation's basis, while the box holds that
+    /// calculation's figure. A typed or empty box carries none.
+    /// </summary>
+    public CaseValuation? RecordedBasis =>
+        RecordedValuation is { } recorded && EngineerValue == recorded.AcceptedEngineerValue
+            ? Valuations.FirstOrDefault(valuation => valuation.ValuationId == recorded.GuideValuationId)
+            : null;
+
     /// <summary>The guide cards the calculator can start from: every recorded source but the Engineer's own figure.</summary>
     public IReadOnlyList<CaseValuation> GuideValuations =>
         [.. Valuations.Where(valuation => valuation.Details.Source != ValuationSource.EngineersValue)];
 
     /// <summary>
-    /// The guide card the calculator starts from: the latest adoption's basis,
-    /// else the first recorded guide. The calculation starts from retail, so a
+    /// The recorded source's word on the Engineer's Value label: its name, or
+    /// the AI tag's own word for AI market research.
+    /// </summary>
+    public string? RecordedBasisWord => RecordedBasis is not { } basis
+        ? null
+        : RecordedBasisIsResearch ? "AI" : CaseWorkspaceLabels.Valuation.SourceLabel(basis.Details.Source);
+
+    /// <summary>Whether the recorded source is AI market research, which carries the AI tag's tone.</summary>
+    public bool RecordedBasisIsResearch => RecordedBasis?.Details.Source == ValuationSource.AiMarketResearch;
+
+    /// <summary>The section head's figure: the Engineer's Value the Case holds, or a dash.</summary>
+    public string ValuationHead =>
+        CaseWorkspaceLabels.Valuation.EngineersValueHead + " "
+        + (EngineerValue is { } value ? ValuationCalculationPolicy.FormatMoney(value) : "—");
+
+    /// <summary>
+    /// What the section shows of the Case as saved, for the script to redraw
+    /// after a commit answered in place: the head's figure, and the recorded
+    /// calculation's figure and source word while the Engineer's Value holds it.
+    /// </summary>
+    public string ValuationSaved => JsonSerializer.Serialize(new
+    {
+        head = ValuationHead,
+        value = RecordedBasis is null
+            ? null
+            : RecordedValuation!.AcceptedEngineerValue.ToString("0.00", CultureInfo.InvariantCulture),
+        word = RecordedBasisWord,
+        research = RecordedBasisIsResearch,
+    });
+
+    /// <summary>
+    /// The guide card the calculator starts from: the recorded calculation's
+    /// basis, else the first recorded guide. The calculation starts from retail, so a
     /// card recorded without a retail value is never a basis.
     /// </summary>
     public CaseValuation? DefaultBasis =>
-        (LatestAppliedValuation is { } applied
+        (RecordedValuation is { } applied
             ? Valuations.FirstOrDefault(valuation => valuation.ValuationId == applied.GuideValuationId)
             : null)
         ?? GuideValuations.FirstOrDefault(CanBeBasis);
@@ -140,7 +190,7 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// One value-increase row of the calculator while editing: an active
-    /// preset (ticked where the latest adoption applied it, with the amount it
+    /// preset (ticked where the recorded calculation applied it, with the amount it
     /// applied, else the preset's suggestion), or a custom row carrying an
     /// applied increase that is not an active preset, or blank.
     /// </summary>
@@ -161,7 +211,7 @@ public sealed partial class DetailsModel
 
     private List<ValuationIncreaseRow> IncreaseRows()
     {
-        var applied = LatestAppliedValuation?.Calculation.Additions ?? [];
+        var applied = RecordedValuation?.Calculation.Additions ?? [];
         var active = ValuationPresets.Where(preset => preset.Active && preset.RemovedAtUtc is null).ToArray();
         var rows = new List<ValuationIncreaseRow>(active.Length + 2);
         foreach (var preset in active)
@@ -186,13 +236,13 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The calculation the calculator opens on while editing: the default
-    /// basis card, with the latest adoption's controls. The Case Save compares
+    /// basis card, with the recorded calculation's controls. The Case Save compares
     /// what it posts with this, so an untouched calculator adopts nothing.
     /// </summary>
     private ValuationCalculationSelection OpeningValuationSelection => new(
         DefaultBasis?.ValuationId ?? Guid.Empty,
-        !ClaimantVatRegistered && LatestAppliedValuation is { Calculation.CommercialVatApplied: true },
-        LatestAppliedValuation?.Calculation.PriorTotalLossPercentage,
+        !ClaimantVatRegistered && RecordedValuation is { Calculation.CommercialVatApplied: true },
+        RecordedValuation?.Calculation.PriorTotalLossPercentage,
         [.. ValuationIncreaseRows
             .Where(row => row.Selected)
             .Select(row => new ValuationAdditionSelection(
@@ -200,7 +250,7 @@ public sealed partial class DetailsModel
                 row.PresetVersion,
                 row.PresetId == Guid.Empty ? row.Label : null,
                 row.Amount ?? 0m))],
-        LatestAppliedValuation?.Calculation.ConditionDeduction ?? 0m);
+        RecordedValuation?.Calculation.ConditionDeduction ?? 0m);
 
     /// <summary>What the calculator opened on, as the page posts it back beside the calculator.</summary>
     public string OpeningValuationCanonical => ValuationSelectionForm.Canonical(
@@ -219,16 +269,10 @@ public sealed partial class DetailsModel
         .ThenByDescending(valuation => valuation.RecordedAtUtc)
         .FirstOrDefault();
 
-    /// <summary>
-    /// The calculator's preview and history, read with the section's cards.
-    /// The presets are read in both modes: read and edit list the same value
-    /// increases, ticked where the latest adoption applied them.
-    /// </summary>
     /// <summary>The valuation section's reads, applied to the page together.</summary>
     private sealed record ValuationSectionReads(
         IReadOnlyList<CaseValuation> Valuations,
         IReadOnlyList<AppliedValuation> AppliedValuations,
-        string? AppliedByDisplayName,
         IReadOnlyList<ValuationPreset>? Presets);
 
     /// <summary>
@@ -248,31 +292,18 @@ public sealed partial class DetailsModel
             await aiJobs.ListForSubjectAsync(caseId, cancellationToken));
     }
 
-    /// <param name="openingOnly">
-    /// Only what the calculation the calculator opens on reads: the recorded
-    /// cards, the adoptions and the presets. A commit answered in place needs
-    /// no more, so it does not ask for the name of whoever applied the value.
-    /// </param>
     private async Task<ValuationSectionReads> ReadValuationSectionAsync(
         Guid caseId,
         ActionActor actor,
         CaseWorkSelector work,
-        CancellationToken cancellationToken,
-        bool openingOnly = false)
+        CancellationToken cancellationToken)
     {
         var valuations = await listCaseValuations.ExecuteAsync(caseId, work, cancellationToken);
         var applied = await listAppliedValuations.ExecuteAsync(caseId, work, cancellationToken);
-        string? appliedBy = null;
-        if (applied.Count > 0 && !openingOnly)
-        {
-            appliedBy = Guid.TryParse(applied[0].AcceptedBy, out var staffId)
-                ? (await staffAccountQueries.GetAsync(staffId, cancellationToken))?.UserName ?? ActorDisplayNames.UnknownStaff
-                : ActorDisplayNames.UnknownStaff;
-        }
         var presets = StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework)
             ? await listValuationPresets.ExecuteAsync(actor, cancellationToken)
             : null;
-        return new(valuations, applied, appliedBy, presets);
+        return new(valuations, applied, presets);
     }
 
     private void ApplyValuationSection(ValuationSectionReads reads)
@@ -280,10 +311,6 @@ public sealed partial class DetailsModel
         Valuations = reads.Valuations;
         AppliedValuations = reads.AppliedValuations;
         appliedValuationsLoaded = true;
-        if (reads.AppliedByDisplayName is not null)
-        {
-            AppliedByDisplayName = reads.AppliedByDisplayName;
-        }
         if (reads.Presets is not null)
         {
             ValuationPresets = reads.Presets;
@@ -485,8 +512,8 @@ public sealed partial class DetailsModel
     }
 
     /// <summary>
-    /// The calculation lines for the posted selection, computed by Core and
-    /// returned as the lines partial. Script calls it on every change; it
+    /// The calculation for the posted selection, computed by Core and
+    /// returned as the preview partial. Script calls it on every change; it
     /// writes nothing. The Engineer sees what the Save will use: the basis
     /// retail as typed (<paramref name="basisRetail"/>) and the claimant's VAT
     /// position as the form holds it, both resolved by the one Core owner. A
@@ -514,7 +541,7 @@ public sealed partial class DetailsModel
         selection ??= new();
         if (selection.GuideValuationId == Guid.Empty && selection.GuideSource is null)
         {
-            return Partial("Cases/Shared/_CaseValuationLines", (ValuationCalculation?)null);
+            return Partial("Cases/Shared/_CaseValuationPreview", (ValuationCalculation?)null);
         }
 
         try
@@ -542,9 +569,10 @@ public sealed partial class DetailsModel
                 {
                     GuideRetailValue = retail,
                     ClaimantVatRegistered = claimantVat,
+                    Work = WorkSelector,
                 },
                 cancellationToken);
-            return Partial("Cases/Shared/_CaseValuationLines", preview.Calculation);
+            return Partial("Cases/Shared/_CaseValuationPreview", preview.Calculation);
         }
         catch (ValuationPresetException)
         {
@@ -564,14 +592,14 @@ public sealed partial class DetailsModel
         }
     }
 
-    /// <summary>The lines partial carrying the reason the calculation could not be worked out.</summary>
+    /// <summary>The preview partial carrying the reason the calculation could not be worked out.</summary>
     private PartialViewResult RefusedPreview(string message)
     {
         // Partial(name, null) hands the view an empty ViewData, so the reason
         // travels on a typed copy of this page's own.
         var viewData = new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary<ValuationCalculation?>(ViewData, null);
         viewData["ValuationRefusal"] = message;
-        return new PartialViewResult { ViewName = "Cases/Shared/_CaseValuationLines", ViewData = viewData };
+        return new PartialViewResult { ViewName = "Cases/Shared/_CaseValuationPreview", ViewData = viewData };
     }
 
     /// <summary>
@@ -707,10 +735,12 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// Get valuation for one guide source: the connected provider's figures for
-    /// the chosen month, for the card to show in its boxes. Nothing is written
-    /// here and the edit session carries on as it was; the Case save records the
-    /// card. The card's script asks for JSON — the figures, "unavailable" while
-    /// the source has no connected provider, or a refusal and its message — so
+    /// the chosen month, for the card to show in its boxes. The figures are not
+    /// written here; the Case save records the card. A VIN the source names
+    /// fills the Case's empty VIN as system work, and the edit session carries
+    /// on as it was. The card's script asks for JSON — the figures, "unavailable" while
+    /// the source has no connected provider, "vehicle_age" when the source does
+    /// not value a vehicle of this age, or a refusal and its message — so
     /// the page is never redrawn and nothing unsaved is put at risk. Any other
     /// caller is answered on the Valuation section.
     /// </summary>
@@ -748,14 +778,14 @@ public sealed partial class DetailsModel
             return json ? RefusedJson(StatusCodes.Status403Forbidden) : (IActionResult)Forbid();
         }
 
-        // Nothing is written here, so the lease stands as it was in every outcome.
+        // Only system work is written here, so the lease stands as it was in every outcome.
         PreserveLeaseState(id, editLeaseToken);
         try
         {
             var today = Pegasus.Core.LondonCalendar.DateAt(DateTimeOffset.UtcNow);
             var month = ParseGuideMonth(guideMonth) ?? new DateOnly(today.Year, today.Month, 1);
             var quote = await fetchGuideValuation.ExecuteAsync(
-                new(id, expectedVersion, actor, operationKey, editLeaseToken!, source, month),
+                new(id, expectedVersion, actor, operationKey, editLeaseToken!, source, month) { Work = WorkSelector },
                 cancellationToken);
             if (json)
             {
@@ -779,6 +809,14 @@ public sealed partial class DetailsModel
                 return new JsonResult(new { status = "unavailable" });
             }
             TempData["CaseError"] = CaseWorkspaceLabels.Valuation.Unavailable(source);
+        }
+        catch (GuideValuationVehicleAgeException)
+        {
+            if (json)
+            {
+                return new JsonResult(new { status = "vehicle_age", message = CaseWorkspaceLabels.Valuation.VehicleAgeNotValued });
+            }
+            TempData["CaseError"] = CaseWorkspaceLabels.Valuation.VehicleAgeNotValued;
         }
         catch (Exception exception) when (exception is ArgumentException
             or InvalidOperationException

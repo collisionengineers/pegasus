@@ -132,9 +132,7 @@ internal static class TemplateSampleJobs
             // The samples print the Glass's sentence in their statement of truth.
             Content: new CaseReportContentSwitches(
                 DiscloseGuideSource: true, IncludeValuationCommentary: false, IncludeUnrelatedDamage: false),
-            Guides: new ReportGuideSources([ValuationSource.Glasses]),
-            // The samples end with their fee note.
-            IncludeFeeNote: true);
+            Guides: new ReportGuideSources([ValuationSource.Glasses]));
         return new(sample.Name, Path.Combine(referenceFolder, sample.ReferencePdf), snapshot, money);
     }
 

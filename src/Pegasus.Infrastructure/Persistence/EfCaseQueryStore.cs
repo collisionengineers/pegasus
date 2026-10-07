@@ -6,6 +6,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
@@ -211,10 +212,10 @@ public sealed class EfCaseQueryStore(
         {
             rows = rows.Where(item => item.Principal == principal);
         }
-        if (filters.State is { } state)
+        if (filters.States is { Count: > 0 } states)
         {
-            var stateName = state.ToString();
-            rows = rows.Where(item => item.State == stateName);
+            var stateNames = states.Select(state => state.ToString()).ToArray();
+            rows = rows.Where(item => stateNames.Contains(item.State));
         }
         if (filters.EngineerId is { } engineerId)
         {
@@ -373,7 +374,13 @@ public sealed class EfCaseQueryStore(
             frame,
             documents,
             availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(),
-            recordNotes);
+            recordNotes,
+            // The Next action's cancellation row reads the linked mail's current
+            // classification on every render (FRD-13 "Cancellation messages"),
+            // and only while the Case can show one.
+            CaseCancellationNotice.Applies(frame.Workflow)
+                ? await ReadLinkedCancellationMessageIdAsync(context, caseId, cancellationToken)
+                : null);
     }
 
     /// <summary>
@@ -598,15 +605,83 @@ public sealed class EfCaseQueryStore(
     /// The Case's correspondence (FRD-20 § Case correspondence view): every
     /// retained email whose receipt is currently linked to the Case, whatever
     /// its classification - the email the Case was created from, polled mail
-    /// associated later, and uploaded .eml files - newest first. Only the two
-    /// channels an email arrives through are read, since a receipt token is
-    /// unique only within its channel.
+    /// associated later, and uploaded .eml files - and every Sent item of a
+    /// send Pegasus made for the Case, newest first. Only the two channels an
+    /// email arrives through are read, since a receipt token is unique only
+    /// within its channel. A Triage Case passes the receipt it was opened
+    /// from, which stands as its request e-mail without an intake association
+    /// of its own.
     /// </summary>
-    private static async Task<IReadOnlyList<CaseCorrespondenceEmail>> ReadCorrespondenceEmailsAsync(
+    internal static async Task<IReadOnlyList<CaseCorrespondenceEmail>> ReadCorrespondenceEmailsAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken,
+        Guid? originReceiptId = null)
+    {
+        var received = await ReadReceivedCorrespondenceAsync(context, caseId, originReceiptId, cancellationToken);
+        var sent = await ReadSentCorrespondenceAsync(context, caseId, cancellationToken);
+        return received.Concat(sent)
+            .OrderByDescending(item => item.ReceivedAtUtc)
+            .ThenBy(item => item.RetainedMessageId)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// The Sent items the Sent-evidence poll retained for sends whose
+    /// observed Sent item they are, where the send named this Case: a general
+    /// correspondence or Triage send by its context, a report send by its
+    /// generation's Case (FRD-21 "links it to the Case named at send time").
+    /// </summary>
+    private static async Task<IReadOnlyList<CaseCorrespondenceEmail>> ReadSentCorrespondenceAsync(
         PegasusDbContext context,
         Guid caseId,
         CancellationToken cancellationToken)
     {
+        var sentScope = EfRetainedMailboxMessageStore.ToCode(MailFolderScope.Sent);
+        var operations = context.Set<StaffMailSendOperationEntity>().AsNoTracking();
+        var generations = context.Set<CaseReportGenerationEntity>().AsNoTracking();
+        var rows = await context.RetainedMailboxMessages.AsNoTracking()
+            .Where(message => message.FolderScope == sentScope
+                && operations.Any(operation =>
+                    operation.State == StaffMailState.Sent
+                    && operation.ObservedSentImmutableMessageId == message.ImmutableMessageId
+                    && operation.MailboxId == message.MailboxId
+                    && (operation.Purpose == StaffMailPurpose.CaseReport
+                        ? generations.Any(generation =>
+                            generation.Id == operation.ContextId && generation.CaseId == caseId)
+                        : operation.ContextId == caseId)))
+            .Select(item => new
+            {
+                item.Id,
+                item.ReceivedAtUtc,
+                item.MailboxAddress,
+                item.SenderDisplayName,
+                item.SenderAddress,
+                item.Subject,
+                item.SourceSha256
+            })
+            .ToArrayAsync(cancellationToken);
+        return rows
+            .Select(item => new CaseCorrespondenceEmail(
+                item.Id,
+                item.ReceivedAtUtc,
+                item.MailboxAddress,
+                item.SenderDisplayName,
+                item.SenderAddress ?? item.MailboxAddress,
+                item.Subject,
+                Classification: null,
+                item.SourceSha256,
+                MailDirection.Sent))
+            .ToArray();
+    }
+
+    private static async Task<IReadOnlyList<CaseCorrespondenceEmail>> ReadReceivedCorrespondenceAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        Guid? originReceiptId,
+        CancellationToken cancellationToken)
+    {
+        var originReceiptIds = originReceiptId is { } origin ? new[] { origin } : [];
         var associatedReceiptIds = context.IntakeManualAssociations.AsNoTracking()
             .Where(item => item.CaseId == caseId)
             .Select(item => item.IntakeReceiptId)
@@ -614,7 +689,7 @@ public sealed class EfCaseQueryStore(
                 .Where(item => item.CaseId == caseId)
                 .Select(item => item.IntakeReceiptId));
         var associatedReceipts = await context.IntakeReceipts.AsNoTracking()
-            .Where(item => associatedReceiptIds.Contains(item.Id)
+            .Where(item => (associatedReceiptIds.Contains(item.Id) || originReceiptIds.Contains(item.Id))
                 && (item.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox)
                     || item.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload)))
             .Select(item => new
@@ -628,7 +703,8 @@ public sealed class EfCaseQueryStore(
         var associations = await CurrentIntakeAssociations.ReadAsync(
             context, associatedReceipts.Select(item => item.Id).ToArray(), cancellationToken);
         var linkedReceipts = associatedReceipts
-            .Where(item => associations.Current.TryGetValue(item.Id, out var association) && association.CaseId == caseId)
+            .Where(item => originReceiptIds.Contains(item.Id)
+                || (associations.Current.TryGetValue(item.Id, out var association) && association.CaseId == caseId))
             .ToArray();
         var tokens = linkedReceipts.Select(item => item.ExternalReceiptToken).Distinct(StringComparer.Ordinal).ToArray();
         var messages = tokens.Length == 0
@@ -659,6 +735,49 @@ public sealed class EfCaseQueryStore(
             .OrderByDescending(item => item.ReceivedAtUtc)
             .ThenBy(item => item.RetainedMessageId)
             .ToArray();
+    }
+
+    /// <summary>
+    /// The newest retained email currently linked to the Case whose current
+    /// classification is a received in-progress cancellation, in one command.
+    /// It keeps the rules the correspondence read applies in memory: an email
+    /// channel; an active manual association to this Case, or no manual
+    /// association and an accepted link to it (<see
+    /// cref="CurrentIntakeAssociations"/>); and the category the persisted
+    /// decision maps to, which ignores the decision's outcome and is Other
+    /// whenever an Other name is recorded.
+    /// </summary>
+    private static Task<Guid?> ReadLinkedCancellationMessageIdAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        var mailbox = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox);
+        var manualUpload = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload);
+        var received = EfIntakeReceiptStore.ToCode(MailDirection.Received);
+        var inProgressCases = MailTaxonomy.CategoryName(ReceivedMailFamily.InProgressCases);
+        return context.IntakeReceipts.AsNoTracking()
+            .Where(item => (item.SourceChannel == mailbox || item.SourceChannel == manualUpload)
+                && ((item.ManualAssociation != null
+                        && item.ManualAssociation.IsActive
+                        && item.ManualAssociation.CaseId == caseId)
+                    || (item.ManualAssociation == null
+                        && context.CaseIntakeLinks.Any(link =>
+                            link.IntakeReceiptId == item.Id && link.CaseId == caseId)))
+                && item.MailClassificationDecision != null
+                && item.MailClassificationDecision.OtherName == null
+                && item.MailClassificationDecision.Direction == received
+                && item.MailClassificationDecision.Family == inProgressCases
+                && item.MailClassificationDecision.Subtype == MailCategory.CancellationSubtype)
+            .Join(
+                context.RetainedMailboxMessages.AsNoTracking(),
+                receipt => receipt.ExternalReceiptToken,
+                message => message.ExternalReceiptToken,
+                (receipt, message) => message)
+            .OrderByDescending(message => message.ReceivedAtUtc)
+            .ThenBy(message => message.Id)
+            .Select(message => (Guid?)message.Id)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     /// <summary>
@@ -1000,7 +1119,8 @@ public sealed class EfCaseQueryStore(
         item.CreatedBy,
         item.IsCurrent,
         item.IsLogicallyRemoved,
-        item.RemovalReason);
+        item.RemovalReason,
+        item.IsRecognisedEstimate);
 
     /// <summary>
     /// The keyset-paged sibling of <see cref="ListHistoryAsync"/>:

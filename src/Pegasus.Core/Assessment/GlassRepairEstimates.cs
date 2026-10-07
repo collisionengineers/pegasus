@@ -12,6 +12,13 @@ public static class GlassRepairEstimateSessionPolicy
     public static bool SameRegistration(string? left, string? right) =>
         string.Equals(Compact(left), Compact(right), StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>Whether printed text names the registration, ignoring case and any spacing in either.</summary>
+    public static bool NamesRegistration(string? text, string? registration)
+    {
+        var plate = Compact(registration);
+        return plate.Length > 0 && Compact(text).Contains(plate, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string Compact(string? value) =>
         new((value ?? string.Empty).Where(character => !char.IsWhiteSpace(character)).ToArray());
 
@@ -24,6 +31,22 @@ public static class GlassRepairEstimateSessionPolicy
                 "The Case registration or mileage has changed since this Glass's session started. "
                 + "The session still holds the account. Restore the original vehicle details to resume, "
                 + "or close the external session and confirm its closure before launching again.");
+        }
+    }
+
+    /// <summary>
+    /// A repair spec's Glass's estimate stands on the vehicle it was started
+    /// for. The Case must still record that registration and mileage for the
+    /// estimate to be reopened; nothing is held at Glass's while it does not.
+    /// </summary>
+    public static void RequireUnchangedEstimateVehicle(
+        string originalRegistration, long originalMileage, string registration, long mileage)
+    {
+        if (!SameRegistration(originalRegistration, registration) || originalMileage != mileage)
+        {
+            throw new GlassRepairEstimateRefusalException(
+                "The Case registration or mileage has changed since this Glass's estimate was started. "
+                + "Restore the original vehicle details to reopen it.");
         }
     }
 
@@ -49,14 +72,43 @@ public static class GlassRepairEstimateSessionPolicy
     public const string ExportUnreadableFailureCode = "glass.export.unreadable";
 
     /// <summary>
+    /// The failure codes of an export that could not be fetched after the relay
+    /// succeeded: Glass's request for the export grid, a grid that offers more
+    /// than one export or one off Glass's own origin, and the download itself.
+    /// </summary>
+    public const string ExportRequestFailureCode = "glass.export.request";
+
+    public const string ExportAmbiguousFailureCode = "glass.export.ambiguous";
+
+    public const string ExportOffOriginFailureCode = "glass.export.off_origin";
+
+    public const string DownloadRequestFailureCode = "glass.download.request";
+
+    public const string DownloadOversizeFailureCode = "glass.download.oversize";
+
+    private static readonly HashSet<string> RefetchableFailureCodes = new(StringComparer.Ordinal)
+    {
+        ExportUnreadableFailureCode,
+        ExportRequestFailureCode,
+        ExportAmbiguousFailureCode,
+        ExportOffOriginFailureCode,
+        DownloadRequestFailureCode,
+        DownloadOversizeFailureCode,
+    };
+
+    /// <summary>
     /// Whether the owner may fetch the export again for the same estimate. A
-    /// session that failed because the reader refused the document has nothing
-    /// wrong at Glass's, so the estimate can be read again once the reader
-    /// accepts it. No vehicle is made and no estimate is started.
+    /// session that failed after the relay succeeded, because the reader
+    /// refused the document or the export could not be fetched, has nothing
+    /// wrong at Glass's: the estimate is saved there and can be read again. An
+    /// identity or empty refusal is not offered, because the export it kept is
+    /// not this session's vehicle. No vehicle is made and no estimate is
+    /// started.
     /// </summary>
     public static bool CanRefetchExport(GlassRepairEstimateSessionState state, string? failureCode) =>
         state == GlassRepairEstimateSessionState.Failed
-        && string.Equals(failureCode, ExportUnreadableFailureCode, StringComparison.Ordinal);
+        && failureCode is not null
+        && RefetchableFailureCodes.Contains(failureCode);
 
     /// <summary>
     /// Which sessions the owning staff member may close: every one that still
@@ -92,7 +144,10 @@ public enum GlassRepairEstimateSessionConflict
     ActiveAccount,
     Version,
     Callback,
-    OperationKey
+    OperationKey,
+
+    /// <summary>A colleague's session on the same estimate is landing its return.</summary>
+    Importing
 }
 
 /// <summary>A Glass's session write refused because it would break an invariant.</summary>
@@ -108,6 +163,19 @@ public sealed class GlassRepairEstimateSessionConflictException(
 public sealed class GlassRepairEstimateRefusalException(string message)
     : InvalidOperationException(message);
 
+/// <summary>
+/// The Glass's estimate a repair spec belongs to (operator, 6 October 2026).
+/// The portal keeps one estimate on each stock vehicle and reopens it from the
+/// vehicle, so the vehicle is the identity: the estimate id is the one that
+/// vehicle last answered, and the type number, placeholder flag, registration
+/// and mileage are what the vehicle was proved against when the estimate was
+/// started. Glass's on that spec reopens this estimate, and its saved return
+/// updates that spec.
+/// </summary>
+public sealed record GlassEstimateLink(
+    string VehicleId, string EstimateId, string NatCode, bool Placeholder,
+    string Registration, long MileageMiles);
+
 public sealed record GlassRepairEstimateSession(
     Guid Id, Guid CaseId, Guid PegasusUserId, long CredentialGeneration,
     string NormalizedExternalAccountKey, GlassRepairEstimateSessionState State,
@@ -121,7 +189,14 @@ public sealed record GlassRepairEstimateSession(
 /// </summary>
 public sealed record GlassRepairEstimateLaunchRequest(
     ActionActor Actor, Guid CaseId, long ExpectedCaseVersion, string LeaseToken,
-    string OperationKey, Guid SessionId);
+    string OperationKey, Guid SessionId)
+{
+    /// <summary>
+    /// The repair spec on the screen. One that belongs to a Glass's estimate
+    /// reopens it; any other, or none, starts a new estimate.
+    /// </summary>
+    public Guid? SpecificationId { get; init; }
+}
 public sealed record GlassRepairEstimateResumeRequest(
     ActionActor Actor, Guid SessionId, long ExpectedVersion,
     long ExpectedCaseVersion, string LeaseToken);
@@ -232,4 +307,14 @@ public interface IGlassRepairEstimateSessionStore
     /// <summary>The session that holds the external account now, or null when none does.</summary>
     Task<GlassRepairEstimateSession?> FindLiveForAccountAsync(
         string normalizedExternalAccountKey, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Ends every other staff member's live session on a stock vehicle of
+    /// this Case and frees their accounts, so the staff member who now holds
+    /// the Case edit can reopen its estimate (operator, 6 October 2026). One
+    /// that is landing its return is left to settle: the call is refused with
+    /// <see cref="GlassRepairEstimateSessionConflict.Importing"/> instead.
+    /// </summary>
+    Task SupersedeAsync(
+        Guid caseId, string providerVehicleId, ActionActor actor, CancellationToken cancellationToken);
 }

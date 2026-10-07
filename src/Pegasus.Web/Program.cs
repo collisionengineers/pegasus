@@ -200,6 +200,9 @@ if (productionProfile)
         "Glass:EstimatorBaseUri",
         "Glass:CallbackBaseUri",
         "Glass:RepairProfileId",
+        // Glass's valuation account (ADR-0060), read on each Get valuation.
+        "Glass:ValuationAccount:Username",
+        "Glass:ValuationAccount:Password",
         "GitHub:ProblemReports:Token",
         "GitHub:ProblemReports:Repository"
     })
@@ -293,8 +296,14 @@ else
     {
         // Live Box custody keeps the production storage shape over the run's
         // Azurite account: the same container the Worker provisions and reads.
+        // Pinned to the newest service version the repository's Azurite pin
+        // (3.36.0) speaks; the SDK's default is ahead of it, and Azurite
+        // refuses the request rather than downgrading.
         builder.Services.AddSingleton(
-            new BlobContainerClient(queueConnectionString, "transient-intake"));
+            new BlobContainerClient(
+                queueConnectionString,
+                "transient-intake",
+                new BlobClientOptions(BlobClientOptions.ServiceVersion.V2025_11_05)));
     }
 }
 builder.Services.AddSingleton<ICursorProtector, DataProtectionCursorProtector>();
@@ -722,6 +731,10 @@ if (productionProfile)
 {
     builder.Services.AddEvaApiSubmission(
         _ => EvaApiOptions.Create(key => builder.Configuration[key]));
+    // Glass's valuation (ADR-0060): Production only, like EVA, and its
+    // Key Vault-held account is read on each valuation for the same reason.
+    builder.Services.AddGlassGuideValuation(
+        _ => Pegasus.Infrastructure.Glass.GlassValuationAccount.Create(key => builder.Configuration[key]));
 }
 
 builder.Services.AddPegasusReportRendering();
@@ -742,7 +755,13 @@ else
 builder.Services.AddSingleton<Pegasus.Web.Background.ProviderWorkQueue>();
 builder.Services.AddHostedService<Pegasus.Web.Background.ProviderWorkService>();
 builder.Services.AddScoped<Pegasus.Web.Pages.Integrations.Glass.GlassSessionWork>();
+// A guide valuation's report is fetched over the provider session this host
+// holds, so it is filed on the same queue after the figures have answered.
+builder.Services.AddScoped<
+    Pegasus.Core.Assessment.IScheduleGuideValuationReport,
+    Pegasus.Web.Background.GuideValuationReportScheduler>();
 builder.Services.AddScoped<IStaffMailAttachmentResolver, StaffMailAttachmentResolver>();
+builder.Services.AddScoped<Pegasus.Web.Intake.StaffIntakeActions>();
 if (developmentOfflineProfile)
 {
     builder.Services.AddScoped<Pegasus.Core.Operations.IStaffMailSend, UnavailableStaffMailSend>();
@@ -1024,13 +1043,14 @@ if (!app.Environment.IsDevelopment())
         // frame-ancestors is 'self', not 'none': the evidence viewer previews a
         // PDF in a same-origin iframe. frame-src admits only that existing
         // source and the in-page Blob URLs used by saved report and estimate
-        // previews. The clickjacking protection this header exists for is
-        // unchanged, because frame-ancestors still refuses every other origin.
-        // Development does not set the header at all, so this policy is tested
-        // through the Production profile.
+        // previews. img-src admits the Blob URLs the Upload page draws its
+        // chosen images from before they are sent. The clickjacking protection
+        // this header exists for is unchanged, because frame-ancestors still
+        // refuses every other origin. Development does not set the header at
+        // all, so this policy is tested through the Production profile.
         context.Response.Headers.ContentSecurityPolicy =
             "default-src 'self'; object-src 'none'; base-uri 'self'; " +
-            "frame-src 'self' blob:; frame-ancestors 'self'";
+            "img-src 'self' blob:; frame-src 'self' blob:; frame-ancestors 'self'";
         context.Response.Headers.XContentTypeOptions = "nosniff";
         await next(context);
     });

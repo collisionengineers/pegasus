@@ -46,24 +46,32 @@ An Inspection + Audit Case whose Audit has been created has two views of one rec
 24 September 2026; FRD-16):
 
 - The **Views** card is the first card in the aside and renders only once the Case has its Audit.
-  Its rows are "Inspection · {Case/PO}" with a "Sent" chip and "Audit · a.{Case/PO}" with the Case
+  Its rows are "Inspection · {Case/PO}" with a "Sent" chip only when the Inspection report was sent
+  (none when the Audit was created first) and "Audit · a.{Case/PO}" with the Case
   state chip; the current view is plain, the other a link (`?view=inspection|audit`,
   server-rendered). The Audit view is the default. Without an Audit there is no card and `view`
   is ignored; a standalone Audit and a Triage Case have one view.
 - Do not add a view switch to the ribbon or the section row, and do not put the Audit reference on
   the ribbon. The Scroll/Tabs switch is unchanged.
-- **The Inspection view is read-only.** No Edit anywhere in it. Each editable section head shows
-  the approved `.gated` label "Read-only · Audit created" instead; Files and Notes carry no
-  label. Actions that need no Case lease (Add evidence, previews, downloads) stay; every
-  lease-requiring edit exists only in the Audit view. A lease holder at `?view=inspection` keeps
-  the ribbon's editing controls, but every section still renders read-only.
-- Carry `view` only where the Inspection view is reachable (Refresh, section links, previews,
-  lazy section loads). The Next action always goes to the Audit, and writes return to the default
-  view.
-- Report in the Audit view shows the Inspection's sent report as one `.pv` line with an
-  "Inspection view" link above the Audit card; in the Inspection view the card shows the sent
-  Inspection report with no generation or delivery. Files shows the audit folder chip after the
-  Case folder chip, mirroring its states and tones.
+- **The Inspection view edits the Inspection's own values** (operator, 2 October 2026): the
+  same section-head Edit, the one Case lease and the one Save form as the Audit view, in the
+  same geometry. Do not reintroduce a read-only label or a per-view lease. A save there changes
+  nothing of the Case's state, due date, completeness or matching.
+- Carry `view` on everything the Inspection view renders that comes back to the Case: section
+  links, Refresh, previews, lazy section loads, the Next action's links, and every POST form
+  (hidden `view`), whose handler writes the view's work (`WorkOf(view)`) and returns to that view.
+- The Next action is the viewed work's (operator, 2 October 2026): the Inspection view states
+  the Inspection report's own step and lists its blockers, nothing once that report is sent;
+  the Audit view states the Audit's. Once the report is sent on an Inspection + Audit Case with
+  no Audit, the step is Create audit with the Actions menu's own control (`data-dialog-open` or
+  the `.menu-gated` span with its reason).
+- Report in the Audit view shows the Audit report alone (operator, 2 October 2026); the Views
+  card is the route to the Inspection report. In the Inspection view the card is the Inspection
+  report with its Generate and Send report controls, before and after it is sent
+  (operator, 1 and 2 October 2026), and the Actions menu's Mark report sent takes its evidence;
+  every form carries `view=inspection` and acts on the Inspection's own work, never on the
+  Case's state. Files shows the audit folder chip after the Case folder chip, mirroring its
+  states and tones.
 - The words "View" and "Changed from Inspection" belonged to rejected options and are not used.
 
 ## Section order and ownership
@@ -90,7 +98,7 @@ Important ownership decisions:
 - Inspection owns inspection/storage-location details and storage money inputs.
 - Vehicle owns one accepted mileage field with provenance rows, not multiple competing mileage boxes.
 - Damage owns the Plan damage clicker and engineering damage facts.
-- Valuation owns the Retail, Trade and Engineer's value boxes, guide-source cards, the valuation calculation and the On the report content switches.
+- Valuation owns the guide-source rows, the valuation calculation, the Retail, Trade and Engineer's value boxes and the On the report content switches.
 - Repair Spec owns specification tabs, header/lines, Import, Send to AI and Compare.
 - Decisions owns settlement decisions and settlement-only figures.
 - Report owns generation/preview/finality controls, report wording, report date, commentary and the Fee pane. Its head keeps the one **Not ready** label; the blocker list is the aside's Next action (below).
@@ -141,15 +149,21 @@ contract. The menu is offered in and out of an edit session (operator, 29 Septem
 item taken outside one runs under a lease claimed for it, and nothing that needs a lease is
 offered while a colleague holds it. Typical entries include:
 
-- Hand to Engineer;
+- Assign Engineer;
 - Send to EVA;
 - Mark report sent;
 - Mark completed;
 - Return to Review / Return to Engineer;
 - Archive;
+- Send chaser, on any open Case where staff mail is composed in (operator, 5 October 2026): a
+  link to the composer (`/Inbox/Compose?caseReference=…&purpose=chaser`), no dialog, no lease,
+  no reason; the composer pre-fills To, Subject and Message and staff edit them there;
 - Place on Hold / Release Hold;
 - Correct principal;
-- Create audit.
+- Create audit, the one item always listed (on an Inspection + Audit Case, in every state): when
+  Core refuses it, or a colleague holds the lease, it renders disabled inside a `.menu-gated`
+  span whose `title` states the reason on hover (operator, 1 October 2026). Do not extend this
+  treatment to other items without the same explicit instruction.
 
 Close case remains destructive, separated and styled in red.
 
@@ -157,51 +171,71 @@ Do not surface the same lifecycle action again inside arbitrary section bodies.
 
 ## Valuation
 
-Valuation opens with one row of three boxes: Retail value, Trade value and Engineer's Value
-(operator, 26 September 2026). They are fields of the Case form, greyed while reading. Choosing a
-card as the basis fills them in place by script, and the operator may overtype any of them.
-Without script they are typed.
+The sources are rows and the chosen one opens (design D, operator, 6 October 2026). In order:
+
+1. the source rows under one line of column heads (Retail, Trade, Guide month);
+2. under the chosen source's row, one block: the calculation, then one row of three boxes, Retail
+   value, Trade value and Engineer's Value. With no source chosen the block closes the list;
+3. On the report.
+
+The three boxes are fields of the Case form, greyed while reading. Choosing a source as the basis
+fills them in place by script and moves the block under its row; the operator may overtype any of
+them. Without script they are typed.
 
 One route per guide source.
 
-Glass's, Brego, Super CAP, CAP and Cazana each own one card, the same in read and edit, containing:
+Glass's, Brego, Super CAP, CAP and Cazana each own one row, the same in read and edit, containing:
 
-- guide month;
 - retail value;
 - trade value;
+- guide month;
 - Get valuation (while editing, only when the source has a connected provider);
 - Use this value (while editing).
 
-A card has no mileage box (operator, 24 September 2026): the Case's own accepted mileage is used by the
-lookup and recorded with a calculated Engineer's Value when the Case has one.
+Each box keeps its own label for a screen reader and shows it at 760px and below, where the column
+heads go. A row has no mileage box (operator, 24 September 2026): the Case's own accepted mileage
+is used by the lookup and recorded with a calculated Engineer's Value when the Case has one.
 
 The boxes are greyed while reading and inputs of the Case form while editing. Get valuation fills
-the same card in place, without redrawing the page, or shows the card's notice when the source has
+the same row in place, without redrawing the page, or shows the row's notice when the source has
 no working provider. A source with no connected provider shows that notice from the start and has
 no Get valuation button (an unavailable action is omitted, not disabled). The Case's save is the
-writer (23 September 2026, saved as you go since 29 September 2026): it records every changed card
-with whatever was entered — any box may be left blank — and an untouched or blank card records
-nothing. A card opens holding only what is recorded, in both modes.
+writer (23 September 2026, saved as you go since 29 September 2026): it records every changed row
+with whatever was entered — any box may be left blank — and an untouched or blank row records
+nothing. A row opens holding only what is recorded, in both modes.
+
+AI market research has its own standing row: its latest figures, the Valuation month and its own
+Get valuation, present before any research has run and not offered in the Inspection view. While a
+job runs the row reads Researching for its month; a recorded research row states the month, mileage
+and date it was asked with. Do not put a research row or button above the sources.
 
 The calculator has no Apply (operator, 23 September 2026): its result fills the Engineer's Value
 box, and a save records a calculation that changed since the last save, or one the Engineer chose
 with **Use this value** (28 September 2026), against its basis card. Any other save records no
-calculation. **Use this value** is one button on the card, not a second writer: it
-chooses the card, fills the three boxes and switches on a field of the Case form. The preview lines
-use the retail as typed and the claimant's VAT as the form holds it, are dimmed while pending, and
-show a failure or Core's own reason, never "None yet" unless no card is chosen. Where a surface
-points the operator to the value, it says **Set in Valuation**.
+calculation. **Use this value** is one button on the row, not a second writer: it
+chooses the source, fills the three boxes and switches on a field of the Case form. The preview
+uses the retail as typed and the claimant's VAT as the form holds it; its amounts for commercial
+VAT and previous total loss stand in those cells' label lines, are dimmed while pending, and a
+failure or Core's own reason is shown, never "None yet" unless no source is chosen while editing.
+Where a surface points the operator to the value, it says **Set in Valuation**.
+
+The Engineer's Value stands in one place, its box (operator, 6 October 2026). While it holds a
+recorded calculation's figure its label carries that calculation's source as one `src-tag` word,
+the calculator opens on that calculation, and that source's row opens while reading. A different
+figure saved over it is the Engineer's own: no word, the calculator opens blank, and the earlier
+calculation stays in the Case's history only. The section head's figure and the word follow each
+save without a reload.
 
 Do not reintroduce:
 
-- a Save on the card;
+- a Save on a source;
 - an Apply button on the calculator;
+- a "Proposed Engineer's Value" total or lines box;
+- an "Applied Engineer's Value" block, or "None yet" beside a figure;
 - Add valuation;
 - a second generic valuation dialog;
 - a second source-button row;
 - a separate writer path for fetched vs typed values.
-
-AI market research remains its own distinct action/card.
 
 ## Repair Spec
 
@@ -279,7 +313,7 @@ Any Case UI change should be checked against:
 - read and edit modes when the feature is editable;
 - colleague-editing / blocked state when the change touches edit authority;
 - Scroll/Tabs if the change affects section presentation;
-- both views, and the Inspection view's read-only label, when the Case has an Audit.
+- both views, each editing its own work, when the Case has an Audit.
 
 A feature addition does not authorize moving existing fields/actions to make room. Fit the feature
 inside its owning section unless the task explicitly requests a layout redesign.

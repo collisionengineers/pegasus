@@ -21,6 +21,14 @@ namespace Pegasus.Web.Pages.Mail;
 /// Reads one retained message and invokes the existing Core commands for its
 /// classification, Case association, folder move, and post-report AI job.
 /// </remarks>
+/// <summary>The next action a message's classification offers (FRD-20).</summary>
+public enum MessageOffer
+{
+    CreateCase,
+    OpenTriage,
+    RegisterImages
+}
+
 public sealed class MessageModel(
     GetRetainedMail getRetainedMail,
     ICreateAiJob createAiJob,
@@ -43,7 +51,10 @@ public sealed class MessageModel(
     IReverseIntakeLink reverseIntakeLink,
     IDismissRetainedMail dismissRetainedMail,
     IRestoreRetainedMail restoreRetainedMail,
-    IGetRetainedMailAttachmentOutcomes attachmentOutcomes) : StaffPageModel
+    IGetRetainedMailAttachmentOutcomes attachmentOutcomes,
+    IGetIntakeOfferedActions offeredActions,
+    Pegasus.Web.Intake.StaffIntakeActions intakeActions,
+    ILogger<MessageModel> logger) : StaffPageModel
 {
     /// <summary>
     /// One attachment's outcome in operator words (message planning, 13 September):
@@ -74,8 +85,8 @@ public sealed class MessageModel(
 
     public const string UnlinkAssociationAction = "Unlink";
 
-    public static IReadOnlyList<MailClassificationSelection.SelectionOption> ClassificationOptions =>
-        MailClassificationSelection.Options;
+    public IReadOnlyList<MailClassificationSelection.SelectionOption> ClassificationOptions =>
+        MailClassificationSelection.OptionsFor(RetainedMailDirection.Of(Detail.Folder));
 
     /// <summary>
     /// The list scope this message was opened from, carried through untouched so
@@ -131,6 +142,9 @@ public sealed class MessageModel(
     public string? CorrectionReason { get; set; }
 
     [BindProperty]
+    public string? WorkType { get; set; }
+
+    [BindProperty]
     public int ExpectedRecommendationPolicyVersion { get; set; }
 
     [BindProperty]
@@ -148,11 +162,17 @@ public sealed class MessageModel(
     [BindProperty(SupportsGet = true, Name = "mailOperationId")]
     public Guid? CorrespondenceOperationId { get; set; }
 
-    [BindProperty(SupportsGet = true, Name = "correspondenceCaseQuery")]
-    public string? CorrespondenceCaseQuery { get; set; }
-
+    /// <summary>
+    /// The one Case / PO field of the Reply/Forward composer: it searches as
+    /// staff type and takes a typed reference as it is. Choosing a Case from
+    /// its list fixes that Case and its version.
+    /// </summary>
     [BindProperty(SupportsGet = true, Name = "correspondenceCaseReference")]
     public string? CorrespondenceCaseReference { get; set; }
+
+    /// <summary>The reference whose version <see cref="ExpectedCorrespondenceCaseVersion"/> fixed; null when none was chosen.</summary>
+    [BindProperty]
+    public string? FixedCorrespondenceCaseReference { get; set; }
 
     [BindProperty]
     public string? SelectedCorrespondenceCaseReference { get; set; }
@@ -175,8 +195,11 @@ public sealed class MessageModel(
     [BindProperty]
     public List<string> SelectedAttachments { get; set; } = [];
 
+    // Nullable on purpose: a non-nullable bound string is implicitly required,
+    // and every post from this page that is not the compose form (a correction,
+    // a folder move) omits it. Send validates it itself below.
     [BindProperty]
-    public string CorrespondenceOperationKey { get; set; } = NewOperationKey();
+    public string? CorrespondenceOperationKey { get; set; } = NewOperationKey();
 
     [TempData]
     public string? ClassificationNotice { get; set; }
@@ -205,6 +228,27 @@ public sealed class MessageModel(
         IsQueryResponseSource && QueryResponseCondition is null;
 
     public IntakeReceipt? AssociationReceipt { get; private set; }
+
+    /// <summary>What the message's receipt offers right now; none once a Case holds it.</summary>
+    public IntakeOfferedActions Offers { get; private set; } = IntakeOfferedActions.None;
+
+    /// <summary>
+    /// The one next action the current classification calls for (operator,
+    /// 1 October 2026): staff press it; nothing runs on its own. Absent when
+    /// the classification names none, the receipt no longer qualifies, or a
+    /// Case already holds the message.
+    /// </summary>
+    public MessageOffer? Offer =>
+        AssociationReceipt is { CurrentCaseId: null }
+        && Detail.Classification?.Current is { Outcome: MailClassificationOutcome.Classified, Category: { } category }
+            ? category switch
+            {
+                { IsNewInstruction: true } when Offers.CanCreateCase => MessageOffer.CreateCase,
+                { IsTriageRequest: true } when Offers.CanOpenTriage => MessageOffer.OpenTriage,
+                { IsImagesReceived: true } when Offers.CanRegisterImages => MessageOffer.RegisterImages,
+                _ => null
+            }
+            : null;
 
     public CaseHeader? CurrentCase { get; private set; }
 
@@ -275,8 +319,6 @@ public sealed class MessageModel(
     public CaseHeader? CorrespondenceCase { get; private set; }
 
     public IReadOnlyList<StaffMailAttachmentOption> AvailableAttachments { get; private set; } = [];
-
-    public IReadOnlyList<CaseSearchItem> CorrespondenceCaseResults { get; private set; } = [];
 
     public bool StaffMailAvailable => staffMailSend is not UnavailableStaffMailSend;
 
@@ -560,24 +602,24 @@ public sealed class MessageModel(
     public Task<IActionResult> OnPostForwardAsync(Guid id, CancellationToken cancellationToken) =>
         SendCorrespondenceAsync(id, StaffMailComposeMode.Forward, cancellationToken);
 
-    public async Task<IActionResult> OnPostSearchCorrespondenceCaseAsync(
+    /// <summary>
+    /// The Case / PO field's option list for Reply/Forward, fetched as staff
+    /// type. Choosing an option posts <c>SelectCorrespondenceCase</c>.
+    /// </summary>
+    public async Task<IActionResult> OnGetCorrespondenceCaseOptionsAsync(
         Guid id,
+        string? q,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
-        if (!StaffMailAvailable || !TryParseListContext(out _)) return NotFound();
-        if (!TryNormalizeCorrespondenceCaseQuery(out var query) || string.IsNullOrWhiteSpace(query))
-        {
-            if (string.IsNullOrWhiteSpace(query))
-            {
-                ModelState.AddModelError(
-                    nameof(CorrespondenceCaseQuery), "Enter a Case search term.");
-            }
-            return await ReloadAsync(actor, id, cancellationToken);
-        }
-        CorrespondenceCaseQuery = query;
-        CorrespondenceCaseResults = await SearchCasesAsync(actor, query, cancellationToken);
-        return await ReloadAsync(actor, id, cancellationToken);
+        if (!StaffMailAvailable) return NotFound();
+        return Partial(
+            "/Pages/Shared/_CaseOptions.cshtml",
+            new Pegasus.Web.Presentation.CaseOptions(
+                await SearchCasesAsync(actor, q, cancellationToken),
+                Url.Page("/Mail/Message", "SelectCorrespondenceCase", new { id })!,
+                nameof(SelectedCorrespondenceCaseReference),
+                "message-case-option"));
     }
 
     public async Task<IActionResult> OnPostSelectCorrespondenceCaseAsync(
@@ -594,62 +636,24 @@ public sealed class MessageModel(
             return result;
         }
         ModelState.Remove(nameof(CorrespondenceCaseReference));
+        ModelState.Remove(nameof(FixedCorrespondenceCaseReference));
         ModelState.Remove(nameof(ExpectedCorrespondenceCaseVersion));
+        FixedCorrespondenceCaseReference = CorrespondenceCase.Summary.Reference;
         ExpectedCorrespondenceCaseVersion = CorrespondenceCase.Workflow.Version;
         return result;
     }
 
-    public async Task<IActionResult> OnPostReconcileCorrespondenceAsync(
-        Guid id,
-        Guid mailOperationId,
-        long expectedOperationVersion,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-            return Forbid();
-        if (!StaffMailAvailable)
-            return NotFound();
-        if (mailOperationId == Guid.Empty || expectedOperationVersion < 0)
-        {
-            CorrespondenceNotice = "The send status request was incomplete. Reload the correspondence and try again.";
-            return RedirectToMessage(id);
-        }
-        try
-        {
-            if (await staffMailSend.GetAsync(actor, mailOperationId, cancellationToken) is null)
-            {
-                CorrespondenceNotice = "That send status is no longer available. Reload the correspondence and try again.";
-                return RedirectToMessage(id);
-            }
-            await staffMailSend.ReconcileAsync(actor, mailOperationId, expectedOperationVersion, cancellationToken);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (ArgumentException)
-        {
-            CorrespondenceNotice = "The send status request was invalid. Reload the correspondence and try again.";
-            return RedirectToMessage(id);
-        }
-        catch (InvalidOperationException)
-        {
-            CorrespondenceNotice = "The send status could not be reconciled. Reload the correspondence and try again.";
-            return RedirectToMessage(id);
-        }
-        return RedirectToPage(new
-        {
-            id,
-            mailbox = MailboxFilter,
-            folder = FolderRouteValue,
-            pageNumber = PageRouteValue,
-            search = SearchTerm,
-            queue = QueueFilter,
-            sort = OldestFirst ? "oldest" : null,
-            compose = CorrespondenceMode,
-            mailOperationId
-        });
-    }
+    /// <summary>
+    /// Whether the Case the composer resolved is the one a selection fixed,
+    /// so its fixed version applies. A reference typed in full was never
+    /// fixed and sends against the Case as it is now.
+    /// </summary>
+    private bool IsFixedCorrespondenceCase(CaseHeader details) =>
+        !string.IsNullOrWhiteSpace(FixedCorrespondenceCaseReference)
+        && string.Equals(
+            details.Summary.Reference,
+            FixedCorrespondenceCaseReference.Trim(),
+            StringComparison.OrdinalIgnoreCase);
 
     public async Task<IActionResult> OnPostCreateQueryResponseAsync(
         Guid id,
@@ -981,6 +985,12 @@ public sealed class MessageModel(
         {
             ModelState.AddModelError(nameof(ClassificationKey), "Choose a valid classification and complete any Other details.");
         }
+        CaseType? workType = null;
+        if (category is { IsNewInstruction: true }
+            && !MailClassificationSelection.TryParseWorkType(WorkType, out workType))
+        {
+            ModelState.AddModelError(nameof(WorkType), "Choose a valid case type.");
+        }
         if (string.IsNullOrWhiteSpace(CorrectionReason))
         {
             ModelState.AddModelError(nameof(CorrectionReason), "Explain why this classification is being corrected.");
@@ -994,7 +1004,7 @@ public sealed class MessageModel(
         {
             var result = await correctClassification.ExecuteAsync(
                 actor,
-                new(id, ExpectedClassificationVersion, category!, CorrectionReason!),
+                new(id, ExpectedClassificationVersion, category!, CorrectionReason!, workType),
                 cancellationToken);
             if (result is null)
             {
@@ -1027,6 +1037,78 @@ public sealed class MessageModel(
             queue = QueueFilter,
             sort = OldestFirst ? "oldest" : null
         });
+    }
+
+    public Task<IActionResult> OnPostOpenTriageAsync(
+        Guid id,
+        string? vehicleRegistration,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        RunOfferedActionAsync(
+            id,
+            async (actor, receipt) =>
+            {
+                await intakeActions.OpenTriageAsync(actor, receipt, vehicleRegistration, operationKey, cancellationToken);
+                return "The Triage was opened.";
+            },
+            cancellationToken);
+
+    public Task<IActionResult> OnPostRegisterImagesAsync(
+        Guid id,
+        string? vehicleRegistration,
+        string reason,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        RunOfferedActionAsync(
+            id,
+            async (actor, receipt) =>
+            {
+                var record = await intakeActions.RegisterImagesAsync(
+                    actor, receipt, vehicleRegistration, reason, operationKey, cancellationToken);
+                return $"Registered as vehicle images {record.ImageIntakeReference}.";
+            },
+            cancellationToken);
+
+    // The offered next action runs against the message's own receipt. A
+    // refusal reloads the record with the reason, as a correction does.
+    private async Task<IActionResult> RunOfferedActionAsync(
+        Guid id,
+        Func<ActionActor, IntakeReceipt, Task<string>> run,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!TryParseListContext(out _))
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var receipt = await GetExactAssociationAsync(actor, id, cancellationToken);
+            if (receipt is null)
+            {
+                return NotFound();
+            }
+            ClassificationNotice = await run(actor, receipt);
+            return RedirectToMessage(id);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException
+            || IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                exception is ArgumentException argument
+                    ? argument.Message
+                    : "The action was not applied because the item changed or the action is not permitted. Reload and try again.");
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
     }
 
     public async Task<IActionResult> OnPostMoveToRecommendedFolderAsync(
@@ -1179,8 +1261,9 @@ public sealed class MessageModel(
                 nameof(CorrespondenceCaseReference),
                 "Choose one Case by its Case / PO reference.");
         }
-        else if (ExpectedCorrespondenceCaseVersion < 0
-            || CorrespondenceCase.Workflow.Version != ExpectedCorrespondenceCaseVersion)
+        else if (IsFixedCorrespondenceCase(CorrespondenceCase)
+            && (ExpectedCorrespondenceCaseVersion < 0
+                || CorrespondenceCase.Workflow.Version != ExpectedCorrespondenceCaseVersion))
         {
             ModelState.AddModelError(
                 string.Empty,
@@ -1252,11 +1335,13 @@ public sealed class MessageModel(
                     CorrespondenceSubject!.Trim(),
                     CorrespondenceBody!.Trim(),
                     attachments,
-                    CorrespondenceOperationKey.Trim()),
+                    CorrespondenceOperationKey!.Trim()),
                 cancellationToken);
             CorrespondenceOperation = operation;
             if (operation.State == StaffMailState.Sent)
                 CorrespondenceNotice = "Correspondence sent.";
+            else if (operation.State == StaffMailState.Failed)
+                StaffMailSendLog.Refused(logger, operation.Id, CorrespondenceMailbox!.Id, operation.FailureCode);
         }
         catch (StaffAuthorizationException)
         {
@@ -1357,11 +1442,12 @@ public sealed class MessageModel(
             && !Detail.Summary.IsTriageCase)
         {
             CorrespondenceCaseReference = Detail.Summary.CaseReference;
-        }
-        if (TryNormalizeCorrespondenceCaseQuery(out var query) && query is not null)
-        {
-            CorrespondenceCaseResults = await SearchCasesAsync(
-                actor, query, cancellationToken);
+            // The message's own Case is not a reference staff typed, so a
+            // send against it holds to the version the page showed.
+            if (!initializeForm)
+            {
+                FixedCorrespondenceCaseReference = Detail.Summary.CaseReference;
+            }
         }
         CorrespondenceCase = await ResolveCaseAsync(
             actor, CorrespondenceCaseReference, cancellationToken);
@@ -1370,6 +1456,7 @@ public sealed class MessageModel(
             CorrespondenceCaseReference = CorrespondenceCase.Summary.Reference;
             if (initializeForm)
             {
+                FixedCorrespondenceCaseReference = CorrespondenceCase.Summary.Reference;
                 ExpectedCorrespondenceCaseVersion = CorrespondenceCase.Workflow.Version;
             }
             AvailableAttachments = await attachmentResolver.ListCaseAsync(
@@ -1431,17 +1518,10 @@ public sealed class MessageModel(
             new(actor, new CaseSearchFilters(Query: value), PageSize: 10), cancellationToken)).Items;
     }
 
-    private bool TryNormalizeCorrespondenceCaseQuery(out string? query)
-    {
-        if (TryNormalizeCaseQueryValue(CorrespondenceCaseQuery, out query)) return true;
-        ModelState.AddModelError(nameof(CorrespondenceCaseQuery), "Case searches must be 300 characters or fewer.");
-        return false;
-    }
-
     private static bool TryNormalizeCaseQueryValue(string? value, out string? normalized)
     {
         normalized = value?.Trim();
-        return string.IsNullOrWhiteSpace(normalized) || normalized.Length <= 300;
+        return !string.IsNullOrWhiteSpace(normalized) && normalized.Length <= 300;
     }
 
     private static bool TryNormalizeCaseReference(string? value, out string? normalized)
@@ -1595,11 +1675,7 @@ public sealed class MessageModel(
         && detail.Classification?.Current is
         {
             Outcome: MailClassificationOutcome.Classified,
-            Category:
-            {
-                Direction: MailDirection.Received,
-                ReceivedFamily: ReceivedMailFamily.PostReportEmails
-            }
+            Category.IsPostReport: true
         };
 
     private async Task LoadAssociationSafelyAsync(
@@ -1635,6 +1711,9 @@ public sealed class MessageModel(
         {
             return;
         }
+        Offers = AssociationReceipt.CurrentCaseId is null
+            ? await offeredActions.ExecuteAsync(actor, AssociationReceipt, cancellationToken)
+            : IntakeOfferedActions.None;
 
         if (AssociationReceipt.CurrentCaseId is { } currentCaseId)
         {

@@ -62,15 +62,12 @@ public sealed record BoxCustodyOptions(
         {
             throw new InvalidOperationException("Box:ClientSecret is required through a Key Vault reference.");
         }
-        // During provisioning App Service can hand the app the literal
-        // @Microsoft.KeyVault(...) placeholder instead of the secret. Name that
-        // state directly so it is never mistaken for a malformed secret.
-        if (IsUnresolvedKeyVaultReference(configJson))
+        if (KeyVaultReference.IsUnresolved(configJson))
         {
             throw new InvalidOperationException(
                 "Box:ConfigJson is an unresolved Key Vault reference; the platform has not resolved the secret.");
         }
-        if (IsUnresolvedKeyVaultReference(clientSecret))
+        if (KeyVaultReference.IsUnresolved(clientSecret))
         {
             throw new InvalidOperationException(
                 "Box:ClientSecret is an unresolved Key Vault reference; the platform has not resolved the secret.");
@@ -99,10 +96,6 @@ public sealed record BoxCustodyOptions(
             throw new InvalidOperationException("Box:ConfigJson is not a valid Box JWT configuration.", exception);
         }
     }
-
-    private static bool IsUnresolvedKeyVaultReference(string? value) =>
-        value is not null
-        && value.TrimStart().StartsWith("@Microsoft.KeyVault(", StringComparison.OrdinalIgnoreCase);
 
     private static string RequireJsonString(JsonElement element, string propertyName)
     {

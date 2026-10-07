@@ -47,22 +47,86 @@ public sealed class CaseWorkspaceScriptContractTests
     }
 
     /// <summary>
-    /// The edit heartbeat stops on a 404, a Case that no longer exists (a stale tab
-    /// after a wipe), as it does on a refused or expired lease. It still beats in a
-    /// hidden tab, because the edit lease relies on those beats to stay alive.
+    /// Editing never expires while the page is open (operator, 6 October 2026). The
+    /// heartbeat's answer is the Case's version, and one system work moved starts a
+    /// catch up; a 409 (a colleague holds the Case now) draws the Case as it stands;
+    /// a 403 or a 404 (a Case that no longer exists, a stale tab after a wipe) stops
+    /// the beat. Nothing offers to renew editing. It still beats in a hidden tab,
+    /// because the edit lease relies on those beats to stay alive.
     /// </summary>
     [Fact]
-    public void TheHeartbeatStopsOnA404AsItDoesOnAnExpiredLeaseAndStillBeatsInAHiddenTab()
+    public void TheHeartbeatCatchesUpWithTheCaseAndNeverOffersToRenew()
     {
         var script = File.ReadAllText(Path.Combine(
             FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
 
         var beat = FunctionBody(script, "function beat() {");
         Assert.Contains(
-            "response.status === 409 || response.status === 403 || response.status === 404",
+            "Number(answer.version) > Number(record.getAttribute('data-case-version'))",
             beat,
             StringComparison.Ordinal);
+        Assert.Contains("response.status === 409", beat, StringComparison.Ordinal);
+        Assert.Contains("response.status === 403 || response.status === 404", beat, StringComparison.Ordinal);
+        Assert.Equal(2, beat.Split("requestCatchUp();", StringSplitOptions.None).Length - 1);
         Assert.DoesNotContain("document.hidden", beat, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-case-renew", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("is-expiring", script, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Catching up never takes what the operator typed: a section holding a value not
+    /// yet sent stays as they have it, and a landed commit makes what it sent each
+    /// control's default, so only a later change counts as unsent.
+    /// </summary>
+    [Fact]
+    public void CatchingUpKeepsEverySectionHoldingAValueNotYetSent()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        Assert.Contains(
+            "if (!current || !main.contains(current) || holdsUnsent(current)) { return; }",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains("markSent(command.sent);", script, StringComparison.Ordinal);
+        Assert.Contains("command.sent = sendingState(form);", script, StringComparison.Ordinal);
+        Assert.Contains("if (catchUpWanted) { catchUp(); return; }", script, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Choosing a repair spec keeps the page where it is (operator, 1 October 2026).
+    /// A spec tab, New repair spec and Compare's From and To redraw only the Repair
+    /// Spec section and the dialogs drawn after it, never navigating to the page top
+    /// and jumping back, and the address keeps the chosen spec for a reload.
+    /// </summary>
+    [Fact]
+    public void ChoosingARepairSpecRedrawsOnlyTheRepairSpecPart()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        Assert.Contains(
+            "if (link.matches('[data-estimate-tab], [data-estimate-new]')) {",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "showEstimate(link.href)",
+            script,
+            StringComparison.Ordinal);
+        var compare = script.IndexOf("if (form.hasAttribute('data-estimate-compare-form')) {", StringComparison.Ordinal);
+        Assert.True(compare >= 0, "Compare's form does not redraw the Repair Spec part.");
+        Assert.Contains(
+            "return showEstimate(action)",
+            script.Substring(compare, 200),
+            StringComparison.Ordinal);
+
+        var start = script.IndexOf("function showEstimate(href) {", StringComparison.Ordinal);
+        Assert.True(start >= 0, "function showEstimate(href) is missing from case-workspace.js.");
+        var show = script[start..script.IndexOf("\n    }", start, StringComparison.Ordinal)];
+        Assert.Contains("var section = sectionFor('estimate');", show, StringComparison.Ordinal);
+        Assert.Contains("section.replaceWith.apply(section, incoming);", show, StringComparison.Ordinal);
+        Assert.Contains("window.history.replaceState(null, '', href);", show, StringComparison.Ordinal);
+        Assert.DoesNotContain("swap(", show, StringComparison.Ordinal);
     }
 
     private static string FunctionBody(string script, string signature)

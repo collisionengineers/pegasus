@@ -439,7 +439,18 @@ public sealed class CaseWorkflowMigrationTests
                 "20260929093000_MarketResearchAttachedEvent",
                 "20260929120000_PrincipalVocabulary",
                 "20260929150000_GrantCaseDataSnapshotUpdate",
-                "20260930090000_PrincipalSalvageMatrix"
+                "20260930090000_PrincipalSalvageMatrix",
+                "20261001090000_DocumentVersionEstimateRecognition",
+                "20261001100000_MergeChasingSubtypes",
+                "20261001110000_StaffNotificationCancellationCause",
+                "20261002105641_WorkCentreDismissals",
+                "20261005090000_CorrespondenceSentEvent",
+                "20261005120000_GrantWorkerCaseManualChases",
+                "20261005150000_PrincipalDefaultFee",
+                "20261006150000_DropCaseReportDeliveryIntents",
+                "20261006160000_RepairSpecificationGlassEstimate",
+                "20261007140000_MarketResearchDocumentRole",
+                "20261007160000_RemoveReportDateOverride"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

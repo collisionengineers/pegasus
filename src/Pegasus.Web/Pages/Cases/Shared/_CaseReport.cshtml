@@ -1,10 +1,11 @@
 ﻿@*
     Report (v26 § Report). Head: one primary (Generate report, gated by the
-    readiness the projection states, with Include fee note beside it) and
-    one More menu (the previews, and Generate for each companion document).
+    readiness the projection states; the report always ends with its fee
+    note) and one More menu (the previews, and Generate for each companion
+    document).
     Body: the preview card (when the report was generated, where its file
     stands, and Open report and Open fee note once each is stored), the
-    reviewed recipients and delivery, and the report fields. The readiness
+    delivery form with its one Send report, and the report fields. The readiness
     list and the stale notice are the aside's Next action's (issue 899).
     Mark report sent is the ribbon's Actions item and
     Unlink report evidence is Overview's Lifecycle actions; neither is
@@ -25,18 +26,21 @@
     var workflow = details.Workflow;
     var caseId = workflow.CaseId;
     var editing = Model.SectionIsEditable("report");
-    // One report per work (v29 P4): the Inspection view shows the
-    // Inspection's sent report and nothing to generate or deliver; the Audit
-    // view is the current work's, with the sent Inspection report beside it.
-    var inspectionView = Model.IsInspectionView;
-    var auditView = !inspectionView && Model.Works is { HasAudit: true };
-    var generation = inspectionView ? Model.InspectionReportGeneration : Model.CurrentReportGeneration;
-    var preparation = inspectionView ? null : Model.CurrentDeliveryPreparation;
+    // One report per work (v29 P4): each view's card is its own work's report,
+    // generated and sent under the same rules, the Inspection's
+    // before and after it is sent (operator, 1 and 2 October 2026). The Audit
+    // view shows the Audit report alone (operator, 2 October 2026).
+    var auditView = !Model.IsInspectionView && Model.Works is { HasAudit: true };
+    var generation = Model.CurrentReportGeneration;
     var suggestedRecipients = Model.DeliveryRecipientSuggestions is { } suggestions
         ? CaseReportDeliveryPolicy.SuggestedReview(suggestions)
         : new ReportRecipientReview([], []);
     var labels = CaseWorkspaceLabels.Editors.Report;
-    var offersHead = !Model.AssessmentIsReadOnly && Model.ReportDraftPreparation is not null;
+    var draftPreparation = Model.ReportDraftPreparation;
+    var draftCondition = Model.ReportDraftCondition;
+    var offersHead = !Model.AssessmentIsReadOnly && draftPreparation is not null;
+    // The lease a Report command runs under: the section's edit.
+    var leaseForReport = editing;
     var reportArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
         artifact.Kind == CaseReportArtifactKind.AssessmentReport);
     // Where the report's file stands, as Core reads it from the row.
@@ -52,29 +56,37 @@
     // claims the lease for the one generation, so they are not offered while
     // someone holds the lease; inside it the report's form saves the Case
     // first (data-case-save-first).
-    var canClaimGeneration = offersHead && (editing || Model.CurrentEditLease is null);
-    var canGenerate = canClaimGeneration
-        && (reportRetryArtifact is not null
-            || !reportAlreadyConfirmed && Model.ReportDraftCondition is null);
-    var reportOperationKey = reportRetryArtifact?.OperationKey ?? Model.GenerateReportOperationKey;
+    var canClaimGeneration = offersHead && (leaseForReport || Model.CurrentEditLease is null);
     var feeNoteArtifact = generation?.Artifacts
         .FirstOrDefault(artifact => artifact.Kind == CaseReportArtifactKind.FeeNote);
     var canGenerateCompanion = canClaimGeneration
         && generation is { State: CaseReportGenerationState.Confirmed };
-    var canGenerateFeeNote = canGenerateCompanion
-        && !generation!.Snapshot.Report.IncludeFeeNote
+    // Generate report makes the report and then its separate fee note
+    // (operator, 7 October 2026), so it is offered again for a confirmed
+    // report whose fee note is not: the report's own key replays the report
+    // and the fee note is made.
+    var feeNoteOutstanding = canGenerateCompanion
+        && reportAlreadyConfirmed
         && feeNoteArtifact?.Status != CaseReportArtifactStatus.Confirmed;
+    var canGenerate = canClaimGeneration
+        && (reportRetryArtifact is not null
+            || feeNoteOutstanding
+            || !reportAlreadyConfirmed && draftCondition is null);
+    var reportOperationKey = (feeNoteOutstanding ? reportArtifact : reportRetryArtifact)?.OperationKey
+        ?? Model.GenerateReportOperationKey;
     var feeNoteOperationKey = feeNoteArtifact?.OperationKey ?? Model.GenerateFeeNoteOperationKey;
     // What the preview card opens: the stored report, and a separate fee
     // note once it is confirmed (the Fee tab's own rule).
     var cardReport = reportArtifact is { Filing: CaseReportArtifactFiling.Stored } ? reportArtifact : null;
     var cardFeeNote = feeNoteArtifact is { Status: CaseReportArtifactStatus.Confirmed } ? feeNoteArtifact : null;
-    var canPreview = offersHead && Model.ReportDraftCondition is null;
+    // The working draft is the current work's projection; the Inspection view
+    // has its generated file to open instead.
+    var canPreview = offersHead && !Model.IsInspectionView && draftCondition is null;
     var generatedAt = generation is null
         ? null
         : Pegasus.Core.LondonCalendar.TimeAt(generation.GeneratedAtUtc).ToString("d MMMM yyyy HH:mm", CultureInfo.InvariantCulture);
     var draftFileName = Model.ReportTitle + Words.DraftSuffix;
-    var previewHref = Url.Page("/Cases/Details", "PreviewReportDraft", new { id = caseId, includeFeeNote = false })!;
+    var previewHref = Url.Page("/Cases/Details", "PreviewReportDraft", new { id = caseId })!;
     // P50 moved the image surface to Files, so what the report uses is
     // counted from the preparations that grid reads. The Preview images
     // offer still depends on there being at least one.
@@ -82,9 +94,10 @@
 
     // A delivery may attach a subset of the generation's documents (v28 P22),
     // so what it needs is a confirmed report, not every artifact confirmed.
-    var canPrepareDelivery = editing
+    // The form is offered again after a send, so the same report can be sent
+    // again (operator, 6 October 2026).
+    var canSendReport = leaseForReport
         && generation is not null
-        && preparation is null
         && generation.State == CaseReportGenerationState.Confirmed
         && reportArtifact?.Status == CaseReportArtifactStatus.Confirmed;
     var repairSpecArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
@@ -112,9 +125,12 @@
     var specificationId = Model.CurrentSpecification?.SpecificationId;
     var imagePackHref = Url.Page("/Cases/Details", "PreviewImagePack", new { id = caseId })!;
     var reportDate = Model.AssessmentEditorValue(AssessmentVocabulary.ReportDate);
-    var reportDateText = DateOnly.TryParseExact(Model.Assessment?.Field(AssessmentVocabulary.ReportDate)?.Value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var reportDateValue)
-        ? reportDateValue.ToString("d MMM yyyy", CultureInfo.InvariantCulture)
-        : null;
+    // A recorded Report date is the date the report prints; without one, the
+    // current report carries the day it was generated (operator, 7 October 2026).
+    var reportDateShown = DateOnly.TryParseExact(Model.Assessment?.Field(AssessmentVocabulary.ReportDate)?.Value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var reportDateValue)
+        ? reportDateValue
+        : generation?.Snapshot.ReportDate;
+    var reportDateText = reportDateShown?.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
     var feeNote = Model.FeeNote;
     var culture = CultureInfo.GetCultureInfo("en-GB");
     string FeeMoney(decimal value) => "£" + value.ToString("N2", culture);
@@ -131,31 +147,20 @@
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateReport"
                       asp-route-id="@caseId" asp-route-section="report" id="case-generate-report-form" data-generate-report>
                     <input type="hidden" name="operationKey" value="@reportOperationKey" />
-                    @if (editing)
+                    <input type="hidden" name="feeNoteOperationKey" value="@feeNoteOperationKey" />
+                    @if (leaseForReport)
                     {
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                     }
                     <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
-                    @if (reportRetryArtifact is not null)
-                    {
-                        <input type="hidden" name="includeFeeNote" value="@(generation!.Snapshot.Report.IncludeFeeNote ? "true" : "false")" />
-                    }
-                    else
-                    {
-                        @* R34B: the packaging choice sits beside the button it
-                           changes, and freezes with the snapshot (issue 912). *@
-                        <label class="choice" for="report-include-fee-note">
-                            <input type="checkbox" id="report-include-fee-note" name="includeFeeNote" value="true" data-include-fee-note />
-                            <span>@ReportLabels.IncludeFeeNote</span>
-                        </label>
-                    }
-                    <button type="submit" class="btn btn--small btn--primary">
+                    <input type="hidden" name="view" value="@Model.ViewRoute" />
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Generating" data-busy-done="@OperatorLabels.Busy.Done.Generated" class="btn btn--small btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                         <span>@ReportLabels.GenerateReport</span>
                     </button>
                 </form>
             }
-            else if (offersHead && Model.ReportDraftCondition is not null)
+            else if (offersHead && draftCondition is not null)
             {
                 <span class="gated" data-report-gate>
                     <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
@@ -163,7 +168,7 @@
                     <span>@Words.NotReady</span>
                 </span>
             }
-            @if (offersHead && (canPreview || editing || canGenerateRepairSpec || canGenerateImagePack || canGenerateFeeNote))
+            @if (offersHead && (canPreview || leaseForReport || canGenerateRepairSpec || canGenerateImagePack))
             {
                 <details class="menu" data-menu data-report-menu>
                     <summary class="btn btn--small"><span>@Words.More</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
@@ -174,7 +179,7 @@
                                Download draft (script); the link itself opens the PDF
                                without script. *@
                             <a class="btn" href="@previewHref" target="_blank" rel="noopener"
-                           data-report-preview data-document-preview data-file-name="@draftFileName" data-no-inplace>
+                           data-report-preview data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-file-name="@draftFileName" data-no-inplace>
                                 <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
                                 <span>@Words.PreviewDraft</span>
                             </a>
@@ -185,7 +190,7 @@
                                document the specification section opens. *@
                             <a class="btn" asp-page="/Cases/Details" asp-page-handler="EstimateDocument"
                                asp-route-id="@caseId" asp-route-estimateId="@currentSpecification"
-                               target="_blank" rel="noopener" data-document-preview data-no-inplace
+                               target="_blank" rel="noopener" data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-no-inplace
                                data-report-preview-spec>
                                 <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                                 <span>@ReportLabels.PreviewRepairSpec</span>
@@ -194,7 +199,7 @@
                         @if (canPreview && inReport > 0)
                         {
                             <a class="btn" href="@imagePackHref" target="_blank" rel="noopener"
-                               data-document-preview data-no-inplace data-report-preview-images>
+                               data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-no-inplace data-report-preview-images>
                                 <svg class="icon" aria-hidden="true"><use href="#icon-images" /></svg>
                                 <span>@ReportLabels.PreviewImages</span>
                             </a>
@@ -204,13 +209,14 @@
                             <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateRepairSpec"
                                   asp-route-id="@caseId" asp-route-section="report">
                                 <input type="hidden" name="operationKey" value="@repairSpecOperationKey" />
-                                @if (editing)
+                                @if (leaseForReport)
                                 {
                                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                                 }
                                 <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                                 <input type="hidden" name="targetGenerationId" value="@generation!.Id" />
-                                <button type="submit" class="btn" data-generate-repair-spec>
+                                <input type="hidden" name="view" value="@Model.ViewRoute" />
+                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Generating" data-busy-done="@OperatorLabels.Busy.Done.Generated" class="btn" data-generate-repair-spec>
                                     <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                                     <span>@ReportLabels.GenerateRepairSpec</span>
                                 </button>
@@ -221,32 +227,16 @@
                             <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateImagePack"
                                   asp-route-id="@caseId" asp-route-section="report">
                                 <input type="hidden" name="operationKey" value="@imagePackOperationKey" />
-                                @if (editing)
+                                @if (leaseForReport)
                                 {
                                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                                 }
                                 <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                                 <input type="hidden" name="targetGenerationId" value="@generation!.Id" />
-                                <button type="submit" class="btn" data-generate-image-pack>
+                                <input type="hidden" name="view" value="@Model.ViewRoute" />
+                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Generating" class="btn" data-generate-image-pack>
                                     <svg class="icon" aria-hidden="true"><use href="#icon-images" /></svg>
                                     <span>@ReportLabels.GenerateImages</span>
-                                </button>
-                            </form>
-                        }
-                        @if (canGenerateFeeNote)
-                        {
-                            <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateFeeNote"
-                                  asp-route-id="@caseId" asp-route-section="report">
-                                <input type="hidden" name="operationKey" value="@feeNoteOperationKey" />
-                                @if (editing)
-                                {
-                                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                                }
-                                <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
-                                <input type="hidden" name="targetGenerationId" value="@generation!.Id" />
-                                <button type="submit" class="btn">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
-                                    <span>@ReportLabels.GenerateFeeNote</span>
                                 </button>
                             </form>
                         }
@@ -265,51 +255,29 @@
             <button type="button" class="report-tab" role="tab" aria-selected="false" aria-controls="report-pane-fee" data-report-tab="fee">@Words.FeeTab</button>
         </div>
         <div id="report-pane-report" class="stack" role="tabpanel" aria-label="@Words.ReportTab" data-report-pane="report">
-        @if (auditView)
-        {
-            @* The Inspection's sent report: one line, and the way to its view. *@
-            <div class="pv" data-inspection-report>
-                <div class="pv-thumb" aria-hidden="true"></div>
-                <div class="pv-meta">
-                    <div class="pt">@(Model.InspectionReportTitle ?? Model.ReportTitle)</div>
-                    <div class="ps"><span>@Model.InspectionSentLine</span></div>
-                </div>
-                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@caseId"
-                   asp-route-section="report" asp-route-view="@DetailsModel.InspectionViewKey"
-                   asp-fragment="section-report">@CaseWorkspaceLabels.Frame.InspectionViewLink</a>
-            </div>
-        }
-
         @* The preview card: what the report is and where its generation stands. *@
         <div class="pv" data-report-preview-card>
             <div class="pv-thumb" aria-hidden="true"></div>
             <div class="pv-meta">
                 <div class="pt" data-report-title>@Model.ReportTitle</div>
                 <div class="ps" data-report-status>
-                    @if (inspectionView)
+                    @if (auditView)
                     {
-                        <span>@Model.InspectionSentLine</span>
+                        <span class="mono" data-report-reference>@Model.AuditReportReference · </span>
+                    }
+                    @if (generation is null)
+                    {
+                        <span>@Words.NoGeneration</span>
                     }
                     else
                     {
-                        @if (auditView)
+                        @* When it was generated and where its file stands.
+                           A report that was never drawn has no date to give. *@
+                        @if (reportFiling != CaseReportArtifactFiling.NotProduced)
                         {
-                            <span class="mono" data-report-reference>@Model.AuditReportReference · </span>
+                            <span>@Words.Generated <b>@generatedAt</b> · </span>
                         }
-                        @if (generation is null)
-                        {
-                            <span>@Words.NoGeneration</span>
-                        }
-                        else
-                        {
-                            @* When it was generated and where its file stands.
-                               A report that was never drawn has no date to give. *@
-                            @if (reportFiling != CaseReportArtifactFiling.NotProduced)
-                            {
-                                <span>@Words.Generated <b>@generatedAt</b> · </span>
-                            }
-                            <span class="status status--plain @FilingTone(reportFiling)" data-report-filing>@ReportLabels.Filing(reportFiling)</span>
-                        }
+                        <span class="status status--plain @FilingTone(reportFiling)" data-report-filing>@ReportLabels.Filing(reportFiling)</span>
                     }
                 </div>
             </div>
@@ -330,12 +298,10 @@
                             new { id = caseId, generationId = generation.Id, artifactId = storedReport.Id, view = Model.ViewRoute })!;
                         <a class="btn btn--small" href="@storedReportHref"
                            target="_blank" rel="noopener" data-report-artifact="@storedReport.Kind"
-                           data-document-preview data-file-name="@storedReport.FileName" data-no-inplace
+                           data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-file-name="@storedReport.FileName" data-no-inplace
                            data-open-on-arrival="@(Model.OpenReportArtifactId == storedReport.Id ? "true" : "false")">
                             <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
-                            <span>@(generation.Snapshot.Report.IncludeFeeNote
-                                ? ReportLabels.OpenReportWithFeeNote
-                                : ReportLabels.OpenReport)</span>
+                            <span>@ReportLabels.OpenReport</span>
                         </a>
                     }
                     @if (cardFeeNote is { } separateFeeNote)
@@ -346,7 +312,7 @@
                            asp-route-id="@caseId" asp-route-generationId="@generation.Id"
                            asp-route-artifactId="@separateFeeNote.Id" asp-route-view="@Model.ViewRoute"
                            target="_blank" rel="noopener" data-report-fee-card
-                           data-document-preview data-file-name="@separateFeeNote.FileName" data-no-inplace>
+                           data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-file-name="@separateFeeNote.FileName" data-no-inplace>
                             <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
                             <span>@ReportLabels.OpenFeeNote</span>
                         </a>
@@ -357,15 +323,16 @@
 
         @if (generation is not null)
         {
-            @if (canPrepareDelivery)
+            @if (canSendReport)
             {
-                <form method="post" asp-page="/Cases/Details" asp-page-handler="PrepareReportDelivery"
-                      asp-route-id="@caseId" asp-route-section="report" class="recip-form" data-prepare-delivery>
-                    <input type="hidden" name="operationKey" value="@Model.PrepareDeliveryOperationKey" />
+                <form method="post" asp-page="/Cases/Details" asp-page-handler="SendReport"
+                      asp-route-id="@caseId" asp-route-section="report" class="recip-form" data-send-report>
+                    <input type="hidden" name="operationKey" value="@Model.SendReportOperationKey" />
                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                     <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                     <input type="hidden" name="generationId" value="@generation.Id" />
                     <input type="hidden" name="expectedGenerationVersion" value="@generation.Version" />
+                    <input type="hidden" name="view" value="@Model.ViewRoute" />
                     <span class="lg">@Words.ReviewedRecipients</span>
                     @* P21: the addresses this Case already knows, offered by the
                        browser's own picker on every recipient field. *@
@@ -419,9 +386,9 @@
                         </div>
                     }
                     @* P23: what the attached report will be called, read from
-                       the same policy the preparation freezes. The message is
+                       the same policy the send names it with. The message is
                        the Case report delivery template rendered for this Case;
-                       staff edit it here, and Prepare delivery freezes what is
+                       staff edit it here, and Send report sends what is
                        submitted. *@
                     <span class="lbl">@ReportLabels.FileName</span>
                     <div class="fv mono" data-report-file-name>@Model.ReportDeliveryFileName</div>
@@ -429,34 +396,9 @@
                     <textarea id="report-message" name="coveringMessage" rows="9" required
                               maxlength="@Pegasus.Core.Operations.EmailTemplates.MaximumBodyLength"
                               data-report-message>@Model.ReportDeliveryMessage</textarea>
-                    <button type="submit" class="btn btn--small btn--primary">
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Sending" class="btn btn--small btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
-                        <span>@ReportLabels.PrepareDelivery</span>
-                    </button>
-                </form>
-            }
-            @if (preparation is not null && !Model.AssessmentIsReadOnly)
-            {
-                <dl class="detail-list" data-report-delivery>
-                    <div><dt>@ReportLabels.DeliveryPrepared</dt><dd>@string.Join(", ", preparation.Addressing.To.Select(recipient => recipient.Address))</dd></div>
-                    <div><dt>@ReportLabels.Attach</dt><dd data-report-prepared-attachments>@string.Join(", ", preparation.Preparation.Artifacts.Select(artifact => artifact.FileName))</dd></div>
-                    @if (!string.IsNullOrWhiteSpace(preparation.Preparation.ReportFileName))
-                    {
-                        <div><dt>@ReportLabels.FileName</dt><dd class="mono" data-report-prepared-file-name>@(preparation.Preparation.ReportFileName).pdf</dd></div>
-                        <div><dt>@ReportLabels.Message</dt><dd data-report-prepared-message>@preparation.Preparation.CoveringMessage</dd></div>
-                    }
-                    @if (preparation.Addressing.Cc.Count > 0)
-                    {
-                        <div><dt>Cc</dt><dd>@string.Join(", ", preparation.Addressing.Cc.Select(recipient => recipient.Address))</dd></div>
-                    }
-                </dl>
-                <form method="post" asp-page="/Cases/Details" asp-page-handler="SendPreparedReport"
-                      asp-route-id="@caseId" asp-route-section="report" class="button-row" data-send-prepared>
-                    <input type="hidden" name="preparationId" value="@preparation.Preparation.Id" />
-                    <input type="hidden" name="expectedPreparationVersion" value="@preparation.Preparation.Version" />
-                    <button type="submit" class="btn btn--small btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
-                        <span>@ReportLabels.SendPreparedReport</span>
+                        <span>@ReportLabels.SendReport</span>
                     </button>
                 </form>
             }
@@ -478,8 +420,7 @@
                     <input id="f-report-date" class="fi" type="date" name="reportDate" form="case-edit-form" value="@reportDate" />
                 }
             </div>
-            @{ await Field(AssessmentVocabulary.ReportDateOverride, labels[AssessmentVocabulary.ReportDateOverride]);
-                await Field(AssessmentVocabulary.EngineersComments, labels[AssessmentVocabulary.EngineersComments], multi: true, extraClass: "span3");
+            @{ await Field(AssessmentVocabulary.EngineersComments, labels[AssessmentVocabulary.EngineersComments], multi: true, extraClass: "span3");
             }
             @* The valuation commentary itself, beside the switch that prints it:
                the Engineer's words, frozen into the report when the switch is on. *@

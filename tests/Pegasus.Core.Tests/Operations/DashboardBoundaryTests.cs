@@ -134,6 +134,11 @@ public sealed class DashboardBoundaryTests
                 NeedsAttentionKind.Triage
             },
             snapshot.NeedsAttention.Select(item => item.Kind).ToArray());
+        var owners = snapshot.NeedsAttention.ToDictionary(item => item.Kind, item => item.Owner);
+        Assert.Equal("No owner", owners[NeedsAttentionKind.CaseChase]);
+        Assert.Equal("Unassigned", owners[NeedsAttentionKind.HeldDecision]);
+        Assert.Equal("No owner", owners[NeedsAttentionKind.Unidentified]);
+        Assert.Equal("Unassigned", owners[NeedsAttentionKind.Triage]);
     }
 
     /// <summary>
@@ -163,6 +168,7 @@ public sealed class DashboardBoundaryTests
         Assert.Equal(registeredAt, item.Received);
         Assert.Equal(NeedsAttentionPriority.Overdue, item.Priority);
         Assert.Null(item.OwnerStaffId);
+        Assert.Equal("Unassigned", item.Owner);
         Assert.Equal($"/Cases/{caseId:D}", item.Route);
     }
 
@@ -203,9 +209,12 @@ public sealed class DashboardBoundaryTests
             item.Kind == NeedsAttentionKind.ReviewCase
             && item.Id == reviewId
             && item.Title == "KP68 ABC"
-            && item.Detail == "QDOS");
+            && item.Detail == "QDOS"
+            && item.Owner == "Unassigned");
         Assert.Contains(snapshot.NeedsAttention, item =>
-            item.Kind == NeedsAttentionKind.UnassignedEngineer && item.Id == unassignedId);
+            item.Kind == NeedsAttentionKind.UnassignedEngineer
+            && item.Id == unassignedId
+            && item.Owner == "Unassigned");
         Assert.DoesNotContain(snapshot.NeedsAttention, item =>
             item.Kind == NeedsAttentionKind.ReviewCase && item.Id == unassignedId);
         Assert.Equal(
@@ -332,6 +341,7 @@ public sealed class DashboardBoundaryTests
             new StubUnidentifiedQueue(),
             new UnknownStaffAccounts(),
             new FixedWorkflowConfiguration(new("case-workflow", 1)),
+            new InMemoryWorkCentreDismissals(),
             new FixedTimeProvider(NowUtc),
             jobs,
             workflows).ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]));
@@ -410,6 +420,7 @@ public sealed class DashboardBoundaryTests
             new StubUnidentifiedQueue { Rows = [NewUnidentified(Guid.NewGuid(), "U1000")] },
             new UnknownStaffAccounts(),
             new FixedWorkflowConfiguration(new("case-workflow", 1)),
+            new InMemoryWorkCentreDismissals(),
             new FixedTimeProvider(NowUtc)).ExecuteAsync(new NeedsAttentionQuery(actor, NeedsAttentionScope.Mine));
 
         var view = await snapshotFor(actor);
@@ -420,6 +431,30 @@ public sealed class DashboardBoundaryTests
         Assert.Equal("H-MINE", view.NeedsAttention[1].Reference);
         Assert.Equal(NeedsAttentionScope.Mine, view.Scope);
         Assert.Equal(2, view.Attention.TotalCount);
+    }
+
+    [Fact]
+    public async Task AnAssignedReviewRowNamesItsEngineer()
+    {
+        var engineerId = Guid.NewGuid();
+        var review = ReviewCase(Guid.NewGuid(), "C/2026/OWNED", enteredAtUtc: NowUtc.AddDays(-1)) with
+        {
+            EngineerId = engineerId
+        };
+        var snapshot = await new GetOperationsSnapshot(
+            new StubListTriage(),
+            new StubDueWorkQueries(),
+            new RecordingDashboardQueries(),
+            new StubSearchCases { Items = [review] },
+            new StubUnidentifiedQueue(),
+            new NamedStaffAccounts(engineerId, "Alex"),
+            new FixedWorkflowConfiguration(new("case-workflow", 1)),
+            new InMemoryWorkCentreDismissals(),
+            new FixedTimeProvider(NowUtc)).ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]));
+
+        var row = Assert.Single(snapshot.NeedsAttention);
+        Assert.Equal(NeedsAttentionKind.ReviewCase, row.Kind);
+        Assert.Equal("Alex", row.Owner);
     }
 
     [Fact]
@@ -434,6 +469,7 @@ public sealed class DashboardBoundaryTests
             new StubUnidentifiedQueue { Rows = [NewUnidentified(Guid.NewGuid(), "U3001"), NewUnidentified(Guid.NewGuid(), "U3002")] },
             new UnknownStaffAccounts(),
             new FixedWorkflowConfiguration(new("case-workflow", 1)),
+            new InMemoryWorkCentreDismissals(),
             new FixedTimeProvider(NowUtc)).ExecuteAsync(
                 new NeedsAttentionQuery(administrator, NeedsAttentionScope.Office, 1, [NeedsAttentionKind.Triage]));
 
@@ -461,6 +497,7 @@ public sealed class DashboardBoundaryTests
             new StubUnidentifiedQueue { Rows = [NewUnidentified(Guid.NewGuid(), "U3001"), NewUnidentified(Guid.NewGuid(), "U3002")] },
             new UnknownStaffAccounts(),
             new FixedWorkflowConfiguration(new("case-workflow", 1)),
+            new InMemoryWorkCentreDismissals(),
             new FixedTimeProvider(NowUtc)).ExecuteAsync(
                 new NeedsAttentionQuery(administrator, Search: " u3002 "));
 
@@ -523,6 +560,100 @@ public sealed class DashboardBoundaryTests
         Assert.Equal(rows.Length, snapshot.Metrics.Unidentified);
     }
 
+    /// <summary>
+    /// Dismiss (FRD-15) hides every row of the record that began at or before
+    /// it, from the rows, the chips and the counts alike.
+    /// </summary>
+    [Fact]
+    public async Task ADismissedRecordLeavesTheRowsTheChipsAndTheCounts()
+    {
+        var dismissedId = Guid.NewGuid();
+        var keptId = Guid.NewGuid();
+        var dismissals = new InMemoryWorkCentreDismissals();
+        await dismissals.DismissAsync(
+            dismissedId, NowUtc.AddMinutes(-10), ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), CancellationToken.None);
+        var searchCases = new StubSearchCases
+        {
+            Items =
+            [
+                ReviewCase(dismissedId, "C/2026/GONE", enteredAtUtc: NowUtc.AddDays(-2)),
+                ReviewCase(keptId, "C/2026/KEPT", enteredAtUtc: NowUtc.AddDays(-2))
+            ]
+        };
+        var dueWork = new StubDueWorkQueries { Due = [NewDueWork(dismissedId, "C/2026/GONE", NowUtc.AddHours(-1))] };
+
+        var snapshot = await ExecuteAsync(
+            new RecordingDashboardQueries(), NowUtc, searchCases: searchCases, dueWork: dueWork, dismissals: dismissals);
+        var attentionRows = await ExecuteAttentionRowsAsync(
+            new RecordingDashboardQueries(), NowUtc, searchCases: searchCases, dueWork: dueWork, dismissals: dismissals);
+
+        Assert.Equal([keptId], snapshot.NeedsAttention.Select(item => item.Id).ToArray());
+        Assert.Equal(1, snapshot.Attention.TotalCount);
+        Assert.Equal(0, snapshot.Attention.KindCounts[NeedsAttentionKind.CaseChase]);
+        Assert.Equal(1, snapshot.Attention.KindCounts[NeedsAttentionKind.ReviewCase]);
+        Assert.Equal([keptId], attentionRows.Select(item => item.Id).ToArray());
+        // The metric strip counts the Cases, not the rows.
+        Assert.Equal(snapshot.CaseStages.Review, snapshot.Metrics.Review);
+    }
+
+    /// <summary>
+    /// A row whose occurrence began after the dismissal (the next chase falls
+    /// due, the Case re-enters Review) shows again; a changed target moves only
+    /// the due date, so it never brings a dismissed row back.
+    /// </summary>
+    [Fact]
+    public async Task ARowThatBeginsAfterTheDismissalShowsAgainAndATargetChangeDoesNot()
+    {
+        var chasedId = Guid.NewGuid();
+        var reenteredId = Guid.NewGuid();
+        var stillDismissedId = Guid.NewGuid();
+        var dismissedAt = NowUtc.AddHours(-3);
+        var dismissals = new InMemoryWorkCentreDismissals();
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        foreach (var id in new[] { chasedId, reenteredId, stillDismissedId })
+        {
+            await dismissals.DismissAsync(id, dismissedAt, staff, CancellationToken.None);
+        }
+
+        var snapshot = await ExecuteAsync(
+            new RecordingDashboardQueries(),
+            NowUtc,
+            searchCases: new StubSearchCases
+            {
+                Items =
+                [
+                    ReviewCase(reenteredId, "C/2026/BACK", enteredAtUtc: NowUtc.AddHours(-1)),
+                    ReviewCase(stillDismissedId, "C/2026/GONE", enteredAtUtc: NowUtc.AddDays(-2))
+                ]
+            },
+            dueWork: new StubDueWorkQueries { Due = [NewDueWork(chasedId, "C/2026/CHASE", NowUtc.AddHours(-1))] },
+            workflowConfiguration: new("case-workflow", 2) { ReviewTargetDays = 5 },
+            dismissals: dismissals);
+
+        Assert.Equal(
+            new HashSet<Guid> { chasedId, reenteredId },
+            snapshot.NeedsAttention.Select(item => item.Id).ToHashSet());
+    }
+
+    [Fact]
+    public async Task NothingNeedingAttentionReadsNoDismissals()
+    {
+        var dismissals = new InMemoryWorkCentreDismissals();
+
+        var snapshot = await ExecuteAsync(new RecordingDashboardQueries(), NowUtc, dismissals: dismissals);
+
+        Assert.Empty(snapshot.NeedsAttention);
+        Assert.Equal(0, dismissals.Reads);
+    }
+
+    private static CaseSearchItem ReviewCase(Guid caseId, string reference, DateTimeOffset enteredAtUtc) =>
+        NewHeldCase(caseId, reference) with
+        {
+            State = CaseLifecycleState.Review,
+            EngineerId = Guid.NewGuid(),
+            StateEnteredAtUtc = enteredAtUtc
+        };
+
     [Fact]
     public async Task APageBeyondTheEndLandsOnTheLastPageFromTheSameReads()
     {
@@ -560,6 +691,7 @@ public sealed class DashboardBoundaryTests
             new StubUnidentifiedQueue(),
             new UnknownStaffAccounts(),
             configuration,
+            new InMemoryWorkCentreDismissals(),
             new FixedTimeProvider(NowUtc),
             jobs);
 
@@ -652,10 +784,11 @@ public sealed class DashboardBoundaryTests
         StubListTriage? triage = null,
         StubDueWorkQueries? dueWork = null,
         StubRequestOperationStore? requestStore = null,
-        CaseWorkflowConfiguration? workflowConfiguration = null)
+        CaseWorkflowConfiguration? workflowConfiguration = null,
+        InMemoryWorkCentreDismissals? dismissals = null)
     {
         var snapshot = BuildSnapshot(
-            recorder, nowUtc, searchCases, unidentified, triage, dueWork, requestStore, workflowConfiguration);
+            recorder, nowUtc, searchCases, unidentified, triage, dueWork, requestStore, workflowConfiguration, dismissals);
         return await snapshot.ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]));
     }
 
@@ -673,10 +806,11 @@ public sealed class DashboardBoundaryTests
         StubListTriage? triage = null,
         StubDueWorkQueries? dueWork = null,
         StubRequestOperationStore? requestStore = null,
-        CaseWorkflowConfiguration? workflowConfiguration = null)
+        CaseWorkflowConfiguration? workflowConfiguration = null,
+        InMemoryWorkCentreDismissals? dismissals = null)
     {
         IGetAttentionRows attentionRows = BuildSnapshot(
-            recorder, nowUtc, searchCases, unidentified, triage, dueWork, requestStore, workflowConfiguration);
+            recorder, nowUtc, searchCases, unidentified, triage, dueWork, requestStore, workflowConfiguration, dismissals);
         return await attentionRows.ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]));
     }
 
@@ -688,7 +822,8 @@ public sealed class DashboardBoundaryTests
         StubListTriage? triage,
         StubDueWorkQueries? dueWork,
         StubRequestOperationStore? requestStore,
-        CaseWorkflowConfiguration? workflowConfiguration)
+        CaseWorkflowConfiguration? workflowConfiguration,
+        InMemoryWorkCentreDismissals? dismissals = null)
     {
         var timeProvider = new FixedTimeProvider(nowUtc);
         return new GetOperationsSnapshot(
@@ -697,8 +832,9 @@ public sealed class DashboardBoundaryTests
             recorder,
             searchCases ?? new StubSearchCases(),
             unidentified ?? new StubUnidentifiedQueue(),
-            new NoStaffAccounts(),
+            new UnknownStaffAccounts(),
             new FixedWorkflowConfiguration(workflowConfiguration ?? new("case-workflow", 1)),
+            dismissals ?? new InMemoryWorkCentreDismissals(),
             timeProvider);
     }
 
@@ -818,7 +954,7 @@ public sealed class DashboardBoundaryTests
         {
             PageReads++;
             var matches = Items
-                .Where(item => query.State is null || item.State == query.State)
+                .Where(item => query.States is null || query.States.Contains(item.State))
                 .ToArray();
             var page = matches
                 .Skip((query.Page - 1) * query.PageSize)
@@ -829,18 +965,26 @@ public sealed class DashboardBoundaryTests
 
         public Task<int> CountAsync(
             ActionActor actor,
-            TriageState? state,
+            IReadOnlyCollection<TriageState>? states,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(Items.Count(item => state is null || item.State == state));
+            Task.FromResult(Items.Count(item => states is null || states.Contains(item.State)));
 
         public Task<IReadOnlyList<TriageSummary>> ListAllAsync(
             ActionActor actor,
-            TriageState? state,
+            IReadOnlyCollection<TriageState>? states,
             CancellationToken cancellationToken = default)
         {
-            ListAllStates.Add(state);
+            if (states is null)
+            {
+                ListAllStates.Add(null);
+            }
+            else
+            {
+                ListAllStates.AddRange(states.Select(state => (TriageState?)state));
+            }
+
             return Task.FromResult<IReadOnlyList<TriageSummary>>(
-                Items.Where(item => state is null || item.State == state).ToArray());
+                Items.Where(item => states is null || states.Contains(item.State)).ToArray());
         }
     }
 
@@ -930,14 +1074,14 @@ public sealed class DashboardBoundaryTests
     private sealed class StubSearchCases : ISearchCases
     {
         public IReadOnlyList<CaseSearchItem> Items { get; init; } = [];
-        public List<CaseLifecycleState?> RequestedStates { get; } = [];
+        public List<CaseLifecycleState> RequestedStates { get; } = [];
 
         public Task<SearchCasesResult> ExecuteAsync(
             SearchCasesQuery query,
             CancellationToken cancellationToken)
         {
-            RequestedStates.Add(query.Filters.State);
-            var matching = Items.Where(item => query.Filters.State is null || item.State == query.Filters.State)
+            RequestedStates.AddRange(query.Filters.States ?? []);
+            var matching = Items.Where(item => query.Filters.States is not { Count: > 0 } states || states.Contains(item.State))
                 .ToArray();
             return Task.FromResult(new SearchCasesResult(
                 matching.Skip((query.Page - 1) * query.PageSize)
@@ -1024,7 +1168,8 @@ public sealed class DashboardBoundaryTests
             throw new NotSupportedException("Not used by these tests.");
     }
 
-    private sealed class NoStaffAccounts : IStaffAccountQueries
+    /// <summary>Resolves the one named staff member it holds.</summary>
+    private sealed class NamedStaffAccounts(Guid staffId, string userName) : IStaffAccountQueries
     {
         public Task<StaffAccountQuerySlice> ListAsync(
             int offset,
@@ -1038,7 +1183,10 @@ public sealed class DashboardBoundaryTests
         public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
             IReadOnlyCollection<Guid> staffIds,
             CancellationToken cancellationToken) =>
-            throw new NotSupportedException("Not used by these tests.");
+            Task.FromResult<IReadOnlyList<StaffAccountSummary>>(
+                staffIds.Contains(staffId)
+                    ? [new StaffAccountSummary(staffId, userName, IsEnabled: true, MustChangePassword: false, StaffRole.Engineer)]
+                    : []);
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>

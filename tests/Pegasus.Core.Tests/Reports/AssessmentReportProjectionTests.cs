@@ -678,18 +678,12 @@ public sealed class AssessmentReportProjectionTests
     }
 
     [Fact]
-    public void AnOverriddenReportDateWithoutADateIsNotReady()
+    public void AnEmptyReportDatePrintsTheStatedGenerationDate()
     {
-        var input = ReadyInput();
-        var fields = input.Assessment.Fields
-            .Append(Field(AssessmentVocabulary.ReportDateOverride, "true"))
-            .ToArray();
+        var result = AssessmentReportProjection.Project(ReadyInput());
 
-        var result = AssessmentReportProjection.Project(
-            input with { Assessment = input.Assessment with { Fields = fields } });
-
-        var reason = AssertNotReady(result, "Report date");
-        Assert.Equal(AssessmentVocabulary.ReportDate, reason.Field);
+        Assert.True(result.IsReady);
+        Assert.Equal(new DateOnly(2026, 8, 19), result.Snapshot!.ReportDate);
     }
 
     [Fact]
@@ -700,11 +694,10 @@ public sealed class AssessmentReportProjectionTests
     }
 
     [Fact]
-    public void ARecordedOverrideWinsOverTheGenerationDate()
+    public void ARecordedReportDateWinsOverTheGenerationDate()
     {
         var input = ReadyInput();
         var fields = input.Assessment.Fields
-            .Append(Field(AssessmentVocabulary.ReportDateOverride, "true"))
             .Append(Field(AssessmentVocabulary.ReportDate, "2026-07-04"))
             .ToArray();
 
@@ -712,7 +705,6 @@ public sealed class AssessmentReportProjectionTests
             input with { Assessment = input.Assessment with { Fields = fields } });
 
         Assert.Equal(new DateOnly(2026, 7, 4), result.Snapshot!.ReportDate);
-        Assert.True(result.Snapshot.ReportDateOverridden);
     }
 
     [Fact]
@@ -726,8 +718,7 @@ public sealed class AssessmentReportProjectionTests
         {
             var input = ReadyInput();
             var fields = input.Assessment.Fields
-                .Append(Field(AssessmentVocabulary.ReportDateOverride, "true"))
-                .Append(Field(AssessmentVocabulary.ReportDate, "2027-01-02"))
+                    .Append(Field(AssessmentVocabulary.ReportDate, "2027-01-02"))
                 .ToArray();
 
             var snapshot = AssessmentReportProjection.Project(

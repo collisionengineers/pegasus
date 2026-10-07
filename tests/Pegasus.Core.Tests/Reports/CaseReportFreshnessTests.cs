@@ -143,7 +143,6 @@ public sealed class CaseReportFreshnessTests
     [InlineData(AssessmentVocabulary.ReportDiscloseGuideSource)]
     [InlineData(AssessmentVocabulary.ReportValuationCommentary)]
     [InlineData(AssessmentVocabulary.ReportIncludeUnrelatedDamage)]
-    [InlineData(AssessmentVocabulary.ReportDateOverride)]
     public void SavingAnAbsentReportSwitchAsFalseDoesNotStale(string path)
     {
         var before = new Dictionary<string, string?>(StringComparer.Ordinal);
@@ -162,13 +161,28 @@ public sealed class CaseReportFreshnessTests
     [InlineData(AssessmentVocabulary.ReportDiscloseGuideSource)]
     [InlineData(AssessmentVocabulary.ReportValuationCommentary)]
     [InlineData(AssessmentVocabulary.ReportIncludeUnrelatedDamage)]
-    [InlineData(AssessmentVocabulary.ReportDateOverride)]
     public void EnablingAReportSwitchStalesWithTheReportContentReason(string path)
     {
         var before = new Dictionary<string, string?>(StringComparer.Ordinal);
         var after = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             [path] = "true",
+        };
+
+        var decision = CaseReportFreshness.ClassifyAssessment(before, after);
+
+        Assert.True(decision.IsStale);
+        Assert.Equal(CaseReportStaleReasons.ReportContentChanged, decision.ReasonCode);
+    }
+
+    [Fact]
+    public void RecordingAReportDateStalesWithTheReportContentReason()
+    {
+        // A recorded Report date is the date the report prints.
+        var before = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var after = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [AssessmentVocabulary.ReportDate] = "2026-10-01",
         };
 
         var decision = CaseReportFreshness.ClassifyAssessment(before, after);

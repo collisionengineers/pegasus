@@ -469,9 +469,7 @@ public sealed record AssessmentReportSnapshot(
     CaseReportContentSwitches Content,
     ReportGuideSources Guides,
     string? ValuationCommentary = null,
-    bool ReportDateOverridden = false,
     string PayloadVersion = AssessmentReportContract.TemplateVersion,
-    bool IncludeFeeNote = false,
     string? SupplementaryStatement = null,
     IReadOnlyList<CaseReportWording>? Wording = null)
 {
@@ -511,15 +509,15 @@ public sealed record AssessmentReportSnapshot(
     public bool IsImageBased => AssessmentMethod == "image_based";
 
     /// <summary>
-    /// The images in printed order: Close-up first, Overview second, then
-    /// Supporting by its persisted order.
+    /// The images in printed order: Overview first, Close-up second, then
+    /// Supporting by its persisted order (operator, 7 October 2026).
     /// </summary>
     [JsonIgnore]
     public IReadOnlyList<ReportImageEvidence> OrderedPhotos => Photos
         .OrderBy(photo => photo.Role switch
         {
-            CaseAssetReportRole.CloseUp => 0,
-            CaseAssetReportRole.Overview => 1,
+            CaseAssetReportRole.Overview => 0,
+            CaseAssetReportRole.CloseUp => 1,
             _ => 2,
         })
         .ThenBy(photo => photo.Order ?? int.MaxValue)
@@ -668,10 +666,10 @@ public sealed record RenderedReportArtifact(
 /// <summary>
 /// Renders exactly the requested artifact kind. A caller that wants the
 /// assessment report and a separate fee-note document asks twice from the
-/// same frozen snapshot; nothing is rendered and discarded. When the frozen
-/// snapshot's <see cref="AssessmentReportSnapshot.IncludeFeeNote"/> is set,
-/// the <see cref="CaseReportArtifactKind.AssessmentReport"/> render carries
-/// the fee note as its final pages instead, and no second document exists.
+/// same frozen snapshot; nothing is rendered and discarded. The
+/// <see cref="CaseReportArtifactKind.AssessmentReport"/> render always ends
+/// with the fee note's pages; the separate fee-note document is those pages
+/// alone.
 /// </summary>
 public interface IAssessmentReportRenderer
 {

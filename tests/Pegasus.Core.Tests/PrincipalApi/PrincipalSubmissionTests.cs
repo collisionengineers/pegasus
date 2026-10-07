@@ -997,10 +997,10 @@ public sealed class PrincipalSubmissionTests
     {
         public Dictionary<Guid, TriageSummary> ByOriginReceipt { get; } = [];
 
-        public Task<IReadOnlyList<TriageSummary>> ListAsync(TriageState? state, CancellationToken cancellationToken) =>
+        public Task<IReadOnlyList<TriageSummary>> ListAsync(IReadOnlyCollection<TriageState>? state, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken) =>
+        public Task<int> CountAsync(IReadOnlyCollection<TriageState>? state, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>

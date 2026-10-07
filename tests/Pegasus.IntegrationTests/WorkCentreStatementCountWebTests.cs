@@ -6,7 +6,7 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// What one Work Centre load costs in SQL commands, against the real stores and
 /// an empty estate (Roadmap Lane D, part D4). The Work Centre reads its three
-/// sections together, so the count is every command they and the shell send,
+/// sections and the Activity figures together, so the count is every command they and the shell send,
 /// including the write that marks the New cases feed seen. It is pinned at its
 /// exact count, so any change is seen, and a mismatch lists every command sent.
 /// </summary>
@@ -48,5 +48,5 @@ public sealed class WorkCentreStatementCountWebTests
             $"A full Work Centre load sent {counter.Count} SQL commands; it is pinned at {WorkCentreCommands}." + Environment.NewLine + counter.Describe());
     }
 
-    private const int WorkCentreCommands = 25;
+    private const int WorkCentreCommands = 30;
 }

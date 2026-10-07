@@ -240,4 +240,24 @@ public sealed class StaffForwardBodyCleanerTests
         Assert.Equal(string.Empty, StaffForwardBodyCleaner.Clean(string.Empty, isStaffForward: true));
         Assert.Equal(string.Empty, StaffForwardBodyCleaner.Clean("   \r\n  ", isStaffForward: false));
     }
+
+    [Theory]
+    [InlineData("a", "FW: Engineer Triage AB12CDE", "Engineer Triage AB12CDE")]
+    [InlineData("b", "Fw: Engineer Triage", "Engineer Triage")]
+    [InlineData("c", "Fwd: FW:  Engineer Triage", "Engineer Triage")]
+    [InlineData("d", "FW: RE: Engineer Triage", "RE: Engineer Triage")]
+    [InlineData("e", "RE: FW: Engineer Triage", "RE: FW: Engineer Triage")]
+    [InlineData("f", "Forward planning", "Forward planning")]
+    [InlineData("g", "FW:", "")]
+    public void AStaffForwardsSubjectLosesItsLeadingForwardPrefixes(string row, string subject, string expected)
+    {
+        Assert.NotEmpty(row);
+        Assert.Equal(expected, StaffForwardBodyCleaner.WithoutForwardPrefixes(subject));
+    }
+
+    [Fact]
+    public void AMissingSubjectIsEmpty()
+    {
+        Assert.Equal(string.Empty, StaffForwardBodyCleaner.WithoutForwardPrefixes(null));
+    }
 }

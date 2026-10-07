@@ -35,6 +35,9 @@ public sealed class VehicleLookupGapFillTests
 
     private static readonly DateOnly FixtureTaxDueDate = new(2027, 3, 1);
 
+    /// <summary>A synthetic VIN Glass's names for the vehicle, never a captured one.</summary>
+    private const string GlassVin = "TESTVEH0A1B2C3D45";
+
     private static readonly DateOnly FixtureMotExpiry = new(2026, 9, 24);
 
     /// <summary>
@@ -140,7 +143,7 @@ public sealed class VehicleLookupGapFillTests
         await using var scope = database.CreateAsyncScope();
         var projection = Assert.IsType<CaseAssessmentProjection>(
             await scope.ServiceProvider.GetRequiredService<ICaseAssessmentStore>()
-                .GetAsync(caseId, CancellationToken.None));
+                .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None));
         Assert.DoesNotContain(
             AssessmentPolicy.EvaluateReadiness(projection),
             item => item.Field is { } field && AssessmentVocabulary.LookupDerivedPaths.Contains(field));
@@ -373,6 +376,165 @@ public sealed class VehicleLookupGapFillTests
             recordedAtUtc: FixedUtcNow.AddMinutes(1));
 
         Assert.Equal(FixtureDerivedFacts.Length, (await DerivedFactRowsAsync(database, caseId)).Count);
+    }
+
+    /// <summary>
+    /// A lookup that lands while staff edit fills the Vehicle type under their lease (operator,
+    /// 6 October 2026). Their Save posts every control from the version the page read: the
+    /// Vehicle type it still shows as before the fill is not their answer, so the fill stands; a
+    /// different type would overwrite what the lookup wrote unseen, so that Save is refused.
+    /// </summary>
+    [Theory]
+    [InlineData("pre-fill", "", true)]
+    [InlineData("other", "van", false)]
+    public async Task ASaveBehindALookupFillKeepsTheFillOrIsRefused(
+        string row,
+        string postedVehicleType,
+        bool lands)
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using var scope = database.CreateAsyncScope();
+        var lease = await scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
+            new(caseId, 0, Staff, $"fill-behind-save-lease-{row}"),
+            CancellationToken.None);
+
+        await RecordLookupAsync(database, caseId);
+        Assert.Equal(1L, await database.ScalarAsync<long>(
+            $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+        Assert.Equal("car", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+
+        var save = scope.ServiceProvider.GetRequiredService<ICaseWorkspaceStore>().SaveAsync(
+            new SaveCaseWorkspaceRequest(
+                caseId,
+                0,
+                Staff,
+                $"fill-behind-save-{row}",
+                "Saved the page read before the lookup",
+                lease.Token)
+            {
+                Vehicle = new(
+                    FixtureRegistration,
+                    "RENAULT",
+                    "CAPTUR",
+                    null,
+                    new Dictionary<string, string?>(StringComparer.Ordinal)
+                    {
+                        [AssessmentVocabulary.VehicleType] = postedVehicleType
+                    })
+            },
+            CancellationToken.None);
+
+        if (lands)
+        {
+            var saved = await save;
+            Assert.Equal(2, saved.Version);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<CaseVersionConflictException>(() => save);
+            Assert.Equal(1L, await database.ScalarAsync<long>(
+                $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+        }
+
+        Assert.Equal("car", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+        Assert.Equal(ActorKind.Automation.ToString(), await database.ScalarAsync<string>(
+            $"SELECT RecordedByKind FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+    }
+
+    /// <summary>
+    /// Get valuation's VIN lands while staff edit, under their lease (operator, 7 October 2026).
+    /// Their Save posts the empty VIN the page still shows: that is not their answer, so the fill
+    /// stands; a different VIN would overwrite what Glass's wrote unseen, so that Save is refused.
+    /// </summary>
+    [Theory]
+    [InlineData("pre-fill", "", true)]
+    [InlineData("other", "TESTPRE0A1B2C3D45", false)]
+    public async Task ASaveBehindAGlassVinFillKeepsTheFillOrIsRefused(
+        string row,
+        string postedVin,
+        bool lands)
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using var scope = database.CreateAsyncScope();
+        var lease = await scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
+            new(caseId, 0, Staff, $"vin-behind-save-lease-{row}"),
+            CancellationToken.None);
+
+        await scope.ServiceProvider.GetRequiredService<IFillGlassVin>().FillAsync(
+            Staff, caseId, CaseWorkSelector.Current, GlassVin, CancellationToken.None);
+        Assert.Equal(1L, await database.ScalarAsync<long>(
+            $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+        Assert.Equal(GlassVinFillWriter.EventType, await database.ScalarAsync<string>(
+            $"SELECT EventType FROM CaseWorkflowEvents WHERE CaseId = '{caseId:D}' AND AfterVersion = 1"));
+
+        var save = scope.ServiceProvider.GetRequiredService<ICaseWorkspaceStore>().SaveAsync(
+            new SaveCaseWorkspaceRequest(
+                caseId,
+                0,
+                Staff,
+                $"vin-behind-save-{row}",
+                "Saved the page read before the VIN",
+                lease.Token)
+            {
+                Vehicle = new(
+                    FixtureRegistration,
+                    null,
+                    null,
+                    null,
+                    new Dictionary<string, string?>(StringComparer.Ordinal)
+                    {
+                        [AssessmentVocabulary.VehicleVin] = postedVin
+                    })
+            },
+            CancellationToken.None);
+
+        if (lands)
+        {
+            var saved = await save;
+            Assert.Equal(2, saved.Version);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<CaseVersionConflictException>(() => save);
+            Assert.Equal(1L, await database.ScalarAsync<long>(
+                $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+        }
+
+        Assert.Equal(GlassVin, await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleVin}'"));
+        Assert.Equal(GlassVinFillPolicy.RecorderId, await database.ScalarAsync<string>(
+            $"SELECT RecordedBy FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleVin}'"));
+    }
+
+    /// <summary>
+    /// Glass's VIN fills only an empty VIN: one already on the Case stands, whoever recorded it,
+    /// and the Case does not move (operator, 7 October 2026).
+    /// </summary>
+    [Theory]
+    [InlineData("staff", nameof(ActorKind.Staff))]
+    [InlineData("automation", nameof(ActorKind.Automation))]
+    public async Task AGlassVinNeverReplacesAVinTheCaseHolds(string row, string recordedByKind)
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using (var context = await database.CreateContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO CaseAssessmentFields (WorkId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc) VALUES ({caseId}, {AssessmentVocabulary.VehicleVin}, {"TESTPRE0A1B2C3D45"}, {recordedByKind}, {row}, {FixedUtcNow})");
+        }
+        await using var scope = database.CreateAsyncScope();
+
+        await scope.ServiceProvider.GetRequiredService<IFillGlassVin>().FillAsync(
+            Staff, caseId, CaseWorkSelector.Current, GlassVin, CancellationToken.None);
+
+        Assert.Equal("TESTPRE0A1B2C3D45", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleVin}'"));
+        Assert.Equal(0L, await database.ScalarAsync<long>(
+            $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
     }
 
     [Fact]

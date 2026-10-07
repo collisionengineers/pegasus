@@ -1794,6 +1794,60 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// The Worker's estimate sweep reads a filed PDF once, as the system
+    /// worker, and records whether the import would read it: an Audatex
+    /// estimate is one, an instruction letter is not. A version with an
+    /// answer, a removed one and one still being stored are never listed.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TheEstimateSweepRecordsEachFiledVersionOnce(bool isEstimate)
+    {
+        var content = isEstimate ? AudatexEstimateFixture.Build() : "%PDF-1.4 instruction letter"u8.ToArray();
+        var estate = await Estate.CreateDocumentAsync(content, "application/pdf");
+        await using (estate)
+        {
+            await using var scope = estate.Database.CreateAsyncScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            var source = new ImmediateSource(content);
+            var sweep = new Pegasus.Core.Assessment.RecogniseFiledEstimates(
+                new EfEstimateRecognitionCandidates(factory, estate.Clock),
+                source,
+                [new Pegasus.Infrastructure.Assessment.PdfEstimateDocumentParser()]);
+
+            Assert.Equal(
+                new Pegasus.Core.Assessment.RecogniseFiledEstimatesResult(
+                    1, isEstimate ? 1 : 0, isEstimate ? 0 : 1, 0, null),
+                await sweep.ExecuteAsync(5, CancellationToken.None));
+            Assert.Equal(ActorKind.SystemWorker, Assert.Single(source.Actors).Kind);
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                Assert.Equal(isEstimate, (await db.Set<DocumentVersionEntity>().SingleAsync()).IsRecognisedEstimate);
+            }
+            Assert.Equal(0, (await sweep.ExecuteAsync(5, CancellationToken.None)).Candidates);
+
+            foreach (var unlisted in new Action<DocumentVersionEntity>[]
+            {
+                version => version.IsLogicallyRemoved = true,
+                version => version.CustodyStatus = DocumentCustodyStatus.Pending,
+            })
+            {
+                await using (var db = await estate.Database.CreateContextAsync())
+                {
+                    var version = await db.Set<DocumentVersionEntity>().SingleAsync();
+                    version.IsRecognisedEstimate = null;
+                    version.IsLogicallyRemoved = false;
+                    version.CustodyStatus = DocumentCustodyStatus.Confirmed;
+                    unlisted(version);
+                    await db.SaveChangesAsync();
+                }
+                Assert.Equal(0, (await sweep.ExecuteAsync(5, CancellationToken.None)).Candidates);
+            }
+        }
+    }
+
     private static BoxCustodyOptions BoxOptions() => BoxCustodyOptions.Create(
         "https://api.box.com/2.0/", "https://upload.box.com/api/2.0/", "405543781910",
         """{"boxAppSettings":{"clientID":"x","appAuth":{"publicKeyID":"x","privateKey":"x","passphrase":"x"}},"enterpriseID":"x"}""",

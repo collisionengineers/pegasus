@@ -24,7 +24,34 @@ public sealed record ImportRawEstimateRequest(
     string Sha256,
     string OperationKey,
     string Name)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, ImportRawEstimate.ImportReason, EditLeaseToken);
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, ImportRawEstimate.ImportReason, EditLeaseToken)
+{
+    /// <summary>The work the estimate is imported into (operator, 2 October 2026).</summary>
+    public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+
+    /// <summary>
+    /// The staff member's edit session continues past this import. A Glass's
+    /// return lands its estimate under the session they hold and never ends it
+    /// (operator, 6 October 2026); the file import they press keeps ending the
+    /// session it was made under, as every other staff write does.
+    /// </summary>
+    public bool KeepsLease { get; init; }
+
+    /// <summary>
+    /// The Glass's estimate this document was exported from. A new spec
+    /// records it; with <see cref="EstimateId"/> it is what allows the import
+    /// to update a spec instead of creating one.
+    /// </summary>
+    public GlassEstimateLink? GlassEstimate { get; init; }
+
+    /// <summary>
+    /// The live spec that belongs to <see cref="GlassEstimate"/>, updated in
+    /// place: the same Glass's estimate saved again is the same repair spec
+    /// (operator, 6 October 2026). A spec discarded since no longer takes the
+    /// return, which lands as a new one.
+    /// </summary>
+    public Guid? EstimateId { get; init; }
+}
 
 public interface IImportRawEstimate
 {
@@ -58,13 +85,17 @@ public sealed record EstimateSourceTotals(
 /// ambiguity in the document rejects the whole parse rather than landing
 /// a value against the wrong line. <see cref="ProviderName"/> names the
 /// system the document came from and titles the Draft it lands as.
+/// <see cref="Vin"/> is the vehicle's VIN as the document states it, when
+/// its format names one; it fills the Case's empty VIN
+/// (<see cref="GlassVinFillPolicy"/>).
 /// </summary>
 public sealed record ParsedEstimate(
     string SourceVersion,
     IReadOnlyList<EstimateLineInput> Lines,
     string ProviderName,
     RepairSpecificationSourceRoute Route,
-    EstimateSourceTotals? SourceTotals = null);
+    EstimateSourceTotals? SourceTotals = null,
+    string? Vin = null);
 
 /// <summary>
 /// The whole import is refused with an operator-readable reason. Wrong
@@ -97,6 +128,85 @@ public interface IEstimateDocumentParser
 }
 
 /// <summary>
+/// What an estimate document is: exactly one registered format names the
+/// file by its name and type, and that format reads its bytes as a completed
+/// document estimate. A PDF's provider is known only from its content, so
+/// the name alone never makes a file an estimate. The import and the Worker's
+/// recognition of filed files both ask this one rule.
+/// </summary>
+public static class EstimateFormats
+{
+    /// <summary>
+    /// The one format that names the file, or null when none or more than
+    /// one does; without one the bytes are never worth reading.
+    /// </summary>
+    public static IEstimateDocumentParser? NamedBy(
+        IEnumerable<IEstimateDocumentParser> parsers, string fileName, string mediaType)
+    {
+        var matches = parsers.Where(candidate => candidate.CanParse(fileName, mediaType)).Take(2).ToArray();
+        return matches.Length == 1 ? matches[0] : null;
+    }
+
+    /// <summary>
+    /// Parses the file as an estimate, or throws
+    /// <see cref="EstimateParseRejectedException"/> naming why it is not one.
+    /// </summary>
+    public static ParsedEstimate Parse(
+        IEnumerable<IEstimateDocumentParser> parsers,
+        string fileName,
+        string mediaType,
+        ReadOnlyMemory<byte> content)
+    {
+        var matches = parsers.Where(candidate => candidate.CanParse(fileName, mediaType)).ToArray();
+        if (matches.Length != 1)
+        {
+            throw new EstimateParseRejectedException(matches.Length == 0
+                ? "No estimate format recognizes the document."
+                : "More than one estimate format recognizes the document.");
+        }
+        var parsed = matches[0].Parse(content);
+        if (!RepairSpecificationPolicy.IsDocumentRoute(parsed.Route))
+        {
+            throw new EstimateParseRejectedException("The estimate format has not completed unambiguously.");
+        }
+        return parsed;
+    }
+
+    /// <summary>
+    /// Reads a retained version's bytes within
+    /// <see cref="ImportRawEstimate.MaximumDocumentBytes"/> and proves they
+    /// are the length and hash its record states.
+    /// </summary>
+    public static async Task<ReadOnlyMemory<byte>> ReadVerifiedAsync(
+        LogicalDocumentContent document,
+        long expectedLength,
+        string sha256,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        using var buffer = new MemoryStream();
+        var chunk = new byte[81920];
+        int read;
+        while ((read = await document.Content.ReadAsync(chunk, cancellationToken)) > 0)
+        {
+            if (buffer.Length + read > ImportRawEstimate.MaximumDocumentBytes)
+            {
+                throw new EstimateParseRejectedException(
+                    $"The document is larger than {ImportRawEstimate.MaximumDocumentBytes} bytes, so nothing was imported.");
+            }
+            buffer.Write(chunk, 0, read);
+        }
+        ReadOnlyMemory<byte> content = buffer.ToArray();
+        if (content.Length != expectedLength
+            || !string.Equals(Convert.ToHexStringLower(SHA256.HashData(content.Span)), sha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new EstimateParseRejectedException("The retained document does not match its recorded length and hash.");
+        }
+        return content;
+    }
+}
+
+/// <summary>
 /// The one canonical estimate import (plan B04). Every route — a dropped
 /// PDF, the JSON document, a completed Glass's session — retains its
 /// document first and then calls this with the retained version's identity,
@@ -113,7 +223,9 @@ public interface IEstimateDocumentParser
 /// Case's Current repair spec at once, an Automation import stays a Draft
 /// (<see cref="RepairSpecificationPolicy.BecomesCurrentWhenCreated"/>). The
 /// same Case with the same source hash replays to the live estimate that
-/// import already created.
+/// import already created. A Glass's return for a spec that already belongs
+/// to its estimate replaces that spec's lines and source and keeps its
+/// header.
 /// </summary>
 public sealed class ImportRawEstimate(
     IEnumerable<IEstimateDocumentParser> parsers,
@@ -152,10 +264,19 @@ public sealed class ImportRawEstimate(
         {
             throw new EstimateParseRejectedException("The Case does not hold the exact source the import names.");
         }
-        var existing = await estimates.ExecuteAsync(request.CaseId, CaseWorkSelector.Current, cancellationToken);
-        if (existing.FirstOrDefault(estimate =>
-                estimate.State != RepairSpecificationState.Discarded
-                && string.Equals(estimate.Source.Sha256, sha256, StringComparison.Ordinal)) is { } replayed)
+        var existing = await estimates.ExecuteAsync(request.CaseId, request.Work, cancellationToken);
+        var target = request is { EstimateId: { } targetId, GlassEstimate: not null }
+            ? existing.FirstOrDefault(estimate =>
+                estimate.SpecificationId == targetId && estimate.State != RepairSpecificationState.Discarded)
+            : null;
+        // A spec being updated answers only for its own source: the same
+        // export replays to it, and another spec holding that hash is not it.
+        if ((target is null
+                ? existing.FirstOrDefault(estimate =>
+                    estimate.State != RepairSpecificationState.Discarded
+                    && string.Equals(estimate.Source.Sha256, sha256, StringComparison.Ordinal))
+                : string.Equals(target.Source.Sha256, sha256, StringComparison.Ordinal) ? target : null)
+            is { } replayed)
         {
             return await store.BindSourceHashReplayAsync(
                 request.CaseId,
@@ -169,26 +290,38 @@ public sealed class ImportRawEstimate(
         await using var document = await documents.OpenAsync(
             new(request.Actor, retained.DocumentId, retained.VersionId, IntakeAssetId: null,
                 request.CaseId, IntakeReceiptId: null, sha256, retained.ContentLength), cancellationToken);
-        var content = await ReadAsync(document, cancellationToken);
-        if (content.Length != retained.ContentLength
-            || !string.Equals(Convert.ToHexStringLower(SHA256.HashData(content.Span)), sha256, StringComparison.Ordinal))
-        {
-            throw new EstimateParseRejectedException("The retained document does not match its recorded length and hash.");
-        }
-        var matches = parsers.Where(candidate => candidate.CanParse(retained.FileName, retained.MediaType)).ToArray();
-        if (matches.Length != 1)
-        {
-            throw new EstimateParseRejectedException(matches.Length == 0
-                ? "No estimate format recognizes the document."
-                : "More than one estimate format recognizes the document.");
-        }
-        var parser = matches[0];
-        var parsed = parser.Parse(content);
-        if (!RepairSpecificationPolicy.IsDocumentRoute(parsed.Route))
-        {
-            throw new EstimateParseRejectedException("The estimate format has not completed unambiguously.");
-        }
+        var content = await EstimateFormats.ReadVerifiedAsync(
+            document, retained.ContentLength, sha256, cancellationToken);
+        var parsed = EstimateFormats.Parse(parsers, retained.FileName, retained.MediaType, content);
         var artifactIdentity = $"estimate-import:{retained.OccurrenceId:D}";
+        if (target is not null)
+        {
+            // The spec keeps its name, labour-rate card, VAT, discounts and
+            // supplementary statement; the export replaces its lines and
+            // source.
+            var updated = await store.SaveImportedEstimateAsync(
+                EstimatePolicy.ValidateImportedSave(
+                new(request.CaseId,
+                    request.ExpectedVersion,
+                    request.Actor,
+                    request.OperationKey,
+                    request.Reason,
+                    request.EditLeaseToken,
+                    target.SpecificationId,
+                    target.Details,
+                    [.. parsed.Lines.Select((line, index) => WithProvenance(
+                        line, index + 1, artifactIdentity, request.DocumentVersionId, sha256))],
+                    new(parsed.Route, artifactIdentity, parsed.SourceVersion, sha256))
+                {
+                    Supplementary = target.Supplementary,
+                    Work = request.Work,
+                    KeepsLease = request.KeepsLease,
+                    GlassEstimate = request.GlassEstimate,
+                    Vin = parsed.Vin,
+                }),
+                cancellationToken);
+            return new(updated.SpecificationId);
+        }
         var card = LabourRateCardAdministration.ForNewSpecification(
             await rateCards.ListAsync(cancellationToken));
         var saved = await store.SaveImportedEstimateAsync(
@@ -217,27 +350,13 @@ public sealed class ImportRawEstimate(
             {
                 SelectedRateCardId = card?.Id,
                 SelectedRateCardVersion = card?.Version,
+                Work = request.Work,
+                KeepsLease = request.KeepsLease,
+                GlassEstimate = request.GlassEstimate,
+                Vin = parsed.Vin,
             }),
             cancellationToken);
         return new(saved.SpecificationId);
-    }
-
-    private static async Task<ReadOnlyMemory<byte>> ReadAsync(
-        LogicalDocumentContent document, CancellationToken cancellationToken)
-    {
-        using var buffer = new MemoryStream();
-        var chunk = new byte[81920];
-        int read;
-        while ((read = await document.Content.ReadAsync(chunk, cancellationToken)) > 0)
-        {
-            if (buffer.Length + read > MaximumDocumentBytes)
-            {
-                throw new EstimateParseRejectedException(
-                    $"The document is larger than {MaximumDocumentBytes} bytes, so nothing was imported.");
-            }
-            buffer.Write(chunk, 0, read);
-        }
-        return buffer.ToArray();
     }
 
     /// <summary>

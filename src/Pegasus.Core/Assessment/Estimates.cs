@@ -884,12 +884,17 @@ public static class EstimatePolicy
         }
     }
 
-    /// <summary>A document import is not an AI-draft save; it creates one new source-backed estimate.</summary>
+    /// <summary>
+    /// A document import is not an AI-draft save; it creates one new
+    /// source-backed estimate. The one import that names an existing estimate
+    /// is a Glass's return for the spec that belongs to its estimate.
+    /// </summary>
     public static SaveEstimateRequest ValidateImportedSave(SaveEstimateRequest request)
     {
         CaseLifecycleRules.ValidateMutation(request);
         RequireImportActor(request.Actor);
-        if (request.EstimateId is not null || request.AiJobId is not null || request.ExistingLineIds is not null
+        if ((request.EstimateId is not null && request.GlassEstimate is null)
+            || request.AiJobId is not null || request.ExistingLineIds is not null
             || !RepairSpecificationPolicy.IsDocumentRoute(request.Source.Route))
         {
             throw new InvalidOperationException("A retained document import creates a new source-backed estimate only.");
@@ -1056,6 +1061,29 @@ public sealed record SaveEstimateRequest(
 
     /// <summary>What this specification says about the one it supplements (v28 P20); null clears it.</summary>
     public RepairSpecificationSupplementary? Supplementary { get; init; }
+
+    /// <summary>The work whose specification this writes (operator, 2 October 2026).</summary>
+    public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+
+    /// <summary>
+    /// The write advances the Case but leaves the lease it was made under in
+    /// place: a Glass's return landing its estimate under the staff member's
+    /// own session (operator, 6 October 2026). Every other staff write ends
+    /// its lease, and the page claims it again.
+    /// </summary>
+    public bool KeepsLease { get; init; }
+
+    /// <summary>
+    /// The Glass's estimate the specification belongs to, recorded with the
+    /// return that names it; null leaves what is recorded as it stands.
+    /// </summary>
+    public GlassEstimateLink? GlassEstimate { get; init; }
+
+    /// <summary>
+    /// The VIN an imported document names, filling the work's VIN where it
+    /// holds none (<see cref="GlassVinFillPolicy"/>); null fills nothing.
+    /// </summary>
+    public string? Vin { get; init; }
 }
 
 public sealed record DuplicateEstimateRequest(
@@ -1066,7 +1094,10 @@ public sealed record DuplicateEstimateRequest(
     string Reason,
     string EditLeaseToken,
     Guid EstimateId)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken)
+{
+    public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+}
 
 /// <summary>The reason is the discard reason and is recorded on the estimate.</summary>
 public sealed record DiscardEstimateRequest(
@@ -1077,7 +1108,10 @@ public sealed record DiscardEstimateRequest(
     string Reason,
     string EditLeaseToken,
     Guid EstimateId)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken)
+{
+    public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+}
 
 public sealed record SetCurrentEstimateRequest(
     Guid CaseId,
@@ -1087,7 +1121,10 @@ public sealed record SetCurrentEstimateRequest(
     string Reason,
     string EditLeaseToken,
     Guid EstimateId)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken)
+{
+    public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+}
 
 public interface ISaveEstimate
 {

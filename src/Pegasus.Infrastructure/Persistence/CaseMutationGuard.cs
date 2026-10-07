@@ -23,8 +23,8 @@ internal static class CaseMutationGuard
         DateTimeOffset nowUtc)
     {
         RequireOpen(workflow, actor);
-        RequireVersion(workflow, expectedCaseVersion);
         RequireLease(workflow, actor, editLeaseToken, nowUtc);
+        RequireVersionUnderLease(workflow, expectedCaseVersion);
     }
 
     /// <summary>
@@ -58,6 +58,17 @@ internal static class CaseMutationGuard
     {
         ArgumentNullException.ThrowIfNull(workflow);
         CaseEditAuthority.RequireVersion(workflow.CaseId, workflow.Version, expectedVersion);
+    }
+
+    /// <summary>
+    /// The version rule for a write whose lease the same command proves: system work that moved
+    /// the version since the page read it does not refuse the holder
+    /// (<see cref="CaseEditAuthority.RequireVersionUnderLease"/>).
+    /// </summary>
+    public static void RequireVersionUnderLease(CaseWorkflowEntity workflow, long expectedVersion)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        CaseEditAuthority.RequireVersionUnderLease(workflow.CaseId, workflow.Version, expectedVersion);
     }
 
     public static void RequireLease(
@@ -114,11 +125,24 @@ internal static class CaseMutationGuard
         workflow.EditLeaseExpiresAtUtc = null;
     }
 
+    /// <summary>
+    /// A staff write under the lease: the version advances and the lease it was made under ends,
+    /// so the holder's next write presents the lease claimed again after it.
+    /// </summary>
     public static void Complete(CaseWorkflowEntity workflow)
+    {
+        Advance(workflow);
+        ClearLease(workflow);
+    }
+
+    /// <summary>
+    /// System work: the version advances and whoever is editing keeps their lease. A system write
+    /// never ends a member of staff's edit session (operator, 6 October 2026).
+    /// </summary>
+    public static void Advance(CaseWorkflowEntity workflow)
     {
         ArgumentNullException.ThrowIfNull(workflow);
         workflow.Version = checked(workflow.Version + 1);
-        ClearLease(workflow);
     }
 
     /// <summary>

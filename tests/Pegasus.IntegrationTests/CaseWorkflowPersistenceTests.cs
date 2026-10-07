@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -537,7 +538,7 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     [Fact]
-    public async Task AutoLinkUsesCanonicalVersionAndHistoryClearsLeaseAndReplays()
+    public async Task AutoLinkUsesCanonicalVersionAndHistoryKeepsTheLeaseAndReplays()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
@@ -593,7 +594,8 @@ public sealed class CaseWorkflowPersistenceTests
             details.Workflow.ReportSentEvidence?.LinkedBy.SubjectId);
         Assert.Null(first.NotLinkedReasonCode);
         Assert.Null(replay.NotLinkedReasonCode);
-        Assert.False(await harness.HasLeaseReplayMaterialAsync(harness.CaseId));
+        // System work never ends a member of staff's edit session.
+        Assert.True(await harness.HasLeaseReplayMaterialAsync(harness.CaseId));
         Assert.Equal(1L, await harness.WorkflowEventCountAsync(request.OperationKey));
         Assert.Equal(
             1L,
@@ -866,7 +868,9 @@ public sealed class CaseWorkflowPersistenceTests
             1L,
             await harness.WorkflowEventCountAsync(staffOperationKey)
                 + await harness.WorkflowEventCountAsync(autoOperationKey));
-        Assert.False(await harness.HasLeaseReplayMaterialAsync(harness.CaseId));
+        // The staff link ends its lease; the Worker's link leaves it, and the
+        // refused staff link then writes nothing.
+        Assert.Equal(workerLinked, await harness.HasLeaseReplayMaterialAsync(harness.CaseId));
     }
 
     [Theory]
@@ -1942,9 +1946,9 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     /// <summary>
-    /// A beat is refused for a non-holder and after a takeover, but the holder's own beat with its
-    /// own token revives a lease that lapsed unbeaten: nobody else could have taken it without
-    /// rewriting the retained hash. An expired holder must claim again.
+    /// A beat is refused for a non-holder and after another claim, but the staff holder's own beat
+    /// with its own token picks up a lease that lapsed unbeaten (operator, 6 October 2026): nobody
+    /// else could have taken it without rewriting the retained hash.
     /// </summary>
     [Fact]
     public async Task HeartbeatIsRefusedForANonHolderAfterExpiryAndAfterAnotherClaim()
@@ -1960,9 +1964,11 @@ public sealed class CaseWorkflowPersistenceTests
             harness.Store.HeartbeatAsync(new(harness.CaseId, other, lease.Token), default));
 
         harness.TimeProvider.Advance(TimeSpan.FromMinutes(5));
-        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
-            harness.Store.HeartbeatAsync(new(harness.CaseId, holder, lease.Token), default));
+        var revived = await harness.Store.HeartbeatAsync(new(harness.CaseId, holder, lease.Token), default);
+        Assert.Equal(lease.Token, revived.Token);
+        Assert.Equal(harness.TimeProvider.GetUtcNow().AddMinutes(5), revived.ExpiresAtUtc);
 
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(5));
         var taken = await harness.Store.ClaimAsync(
             new(harness.CaseId, 0, other, "claim-after-lapse"),
             default);
@@ -2238,8 +2244,15 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Equal(1, held.Version);
     }
 
+    /// <summary>
+    /// A competing live lease refuses a claim. A page behind the Case does not: a claim
+    /// from a page rendered before the Case moved on (a.QDOS26070, 6 October 2026: the
+    /// Worker's vehicle lookup and custody confirmation moved a new Case twice while its
+    /// page was open) is issued at the Case's current version, and only a version from
+    /// the future is refused, as every write under the lease refuses it.
+    /// </summary>
     [Fact]
-    public async Task StaleVersionAndCompetingLeaseAreRejected()
+    public async Task CompetingLeaseAndFutureVersionAreRejectedButAPageBehindTheCaseClaims()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var firstActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
@@ -2261,7 +2274,15 @@ public sealed class CaseWorkflowPersistenceTests
                 lease.Token),
             default);
         await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
-            harness.Store.ClaimAsync(new(harness.SecondCaseId, 0, secondActor, "claim-stale"), default));
+            harness.Store.ClaimAsync(new(harness.SecondCaseId, 2, secondActor, "claim-future"), default));
+
+        var behind = await harness.Store.ClaimAsync(
+            new(harness.SecondCaseId, 0, secondActor, "claim-behind"), default);
+
+        Assert.Equal(1, behind.Version);
+        Assert.Equal(secondActor.SubjectId, behind.Holder);
+        var row = await harness.ReadLeaseRowAsync(harness.SecondCaseId);
+        Assert.Equal(secondActor.SubjectId, row.Holder);
     }
 
     [Fact]
@@ -2312,6 +2333,7 @@ public sealed class CaseWorkflowPersistenceTests
                 .SingleAsync(item => item.Code == "QDOS");
             principal.Organization.GuidanceTemplate = "Contact the repairer before finalising.";
             principal.Organization.GuidanceTemplateVersion = 1;
+            principal.DefaultFee = 195.00m;
             context.CaseSequences.Add(new CaseSequenceEntity
             {
                 SequenceLineageId = principal.SequenceLineageId,
@@ -2372,6 +2394,14 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Equal(
             allocated.Identity.Reference,
             await harness.ReadCaseReferenceAsync(allocated.Identity.CaseId));
+        // The replacement starts with its corrected Principal's default fee.
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var fee = await context.CaseAssessmentFields.AsNoTracking().SingleAsync(item =>
+                item.WorkId == allocated.Identity.CaseId && item.FieldPath == AssessmentVocabulary.AgreedFee);
+            Assert.Equal("195.00", fee.Value);
+            Assert.Equal(PrincipalDefaultFeePolicy.RecorderId, fee.RecordedBy);
+        }
         // A standalone Audit's a. prefix is on its own Case/PO; it never
         // carries an Audit report reference.
         Assert.Null(await harness.ReadAuditReferenceAsync(allocated.Identity.CaseId));

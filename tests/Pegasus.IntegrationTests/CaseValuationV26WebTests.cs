@@ -4,10 +4,13 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Infrastructure;
+using Pegasus.Infrastructure.Glass;
 using Pegasus.Web.Presentation;
 
 using static Pegasus.IntegrationTests.CaseWebTestSupport;
@@ -15,15 +18,18 @@ using static Pegasus.IntegrationTests.CaseWebTestSupport;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The v26 Valuation section on the one Case workspace: Glass's, Brego, Super
-/// CAP, CAP and Cazana are each one card in both modes, whose boxes belong to
-/// the Case form so the ribbon Save records a changed card (23 September
-/// 2026) and whose Get valuation fills them in place from the connected
-/// provider; the Valuation month and AI market research start the existing
-/// job for the month, a pending job shows as a Researching card, and the Save
-/// posts a changed calculation to the Core policy shape. The Retail, Trade and
-/// Engineer's value boxes open the section (operator, 26 September 2026).
-/// Use this value is the visible decision to use a card's figure, a source
+/// The Valuation section on the one Case workspace (v33 design D, operator,
+/// 6 October 2026): Glass's, Brego, Super CAP, CAP and Cazana are each one row
+/// in both modes, whose boxes belong to the Case form so the Case's save
+/// records a changed row (23 September 2026) and whose Get valuation fills
+/// them in place from the connected provider; AI market research has its own
+/// standing row whose Valuation month and Get valuation start the existing
+/// job, a pending job reads as Researching there, and the Save posts a
+/// changed calculation to the Core policy shape. The chosen source opens:
+/// the calculation and the Retail, Trade and Engineer's Value boxes stand
+/// under its row, the Engineer's Value is the one place the figure stands,
+/// and its label carries the recorded calculation's source as one word.
+/// Use this value is the visible decision to use a row's figure, a source
 /// with no connected provider says so before anything is pressed, and the
 /// preview answers with the figures the Save will use or with its own reason
 /// (operator, 28 September 2026).
@@ -58,7 +64,8 @@ public sealed class CaseValuationV26WebTests
 
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
 
-        Assert.Contains("data-valuation-tools", html, StringComparison.Ordinal);
+        // AI market research asks from its own row; no row stands above the sources.
+        Assert.DoesNotContain("data-valuation-tools", html, StringComparison.Ordinal);
         var currentMonth = Pegasus.Core.LondonCalendar.DateAt(DateTimeOffset.UtcNow)
             .ToString("yyyy-MM", CultureInfo.InvariantCulture);
         var month = InputTag(html, "guideMonth", "data-valuation-month");
@@ -116,6 +123,9 @@ public sealed class CaseValuationV26WebTests
             "<form[^>]*id=\"case-market-research-form\"[^>]*>",
             RegexOptions.CultureInvariant);
         Assert.True(researchForm.Success, "The Valuation section must render the AI market research form.");
+        Assert.True(
+            html.IndexOf("data-valuation-entry=\"cazana\"", StringComparison.Ordinal) < researchForm.Index,
+            "AI market research stands as a row after the guide sources.");
         Assert.Contains("handler=StartMarketResearch", researchForm.Value, StringComparison.Ordinal);
         Assert.Contains("data-valuation-research-form", researchForm.Value, StringComparison.Ordinal);
         Assert.Contains(CaseWorkspaceLabels.Valuation.GetValuation, html, StringComparison.Ordinal);
@@ -635,10 +645,19 @@ public sealed class CaseValuationV26WebTests
             var box = InputTag(html, CaseWorkspaceLabels.Editors.FormName(path), $"data-valuation-value=\"{hook}\"");
             Assert.Contains("form=\"case-edit-form\"", box, StringComparison.Ordinal);
         }
+        var chosenRow = html.IndexOf("data-valuation-entry=\"glasses\"", StringComparison.Ordinal);
+        var openBlock = html.IndexOf("data-valuation-open", StringComparison.Ordinal);
+        var calculator = html.IndexOf("data-valuation-calc", StringComparison.Ordinal);
+        var boxes = html.IndexOf("data-valuation-values", StringComparison.Ordinal);
+        var nextRow = html.IndexOf("data-valuation-entry=\"brego\"", StringComparison.Ordinal);
         Assert.True(
-            html.IndexOf("data-valuation-values", StringComparison.Ordinal)
-                < html.IndexOf("data-valuation-cards", StringComparison.Ordinal),
-            "The three boxes open the Valuation section.");
+            chosenRow < openBlock && openBlock < calculator && calculator < boxes && boxes < nextRow,
+            "The chosen source opens: its calculation, then the three boxes, stand under its row.");
+        Assert.Single(Regex.Matches(html, "data-valuation-open", RegexOptions.CultureInvariant));
+        // One figure: no second total and no applied block.
+        Assert.DoesNotContain("Proposed Engineer", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Applied Engineer", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-valuation-history", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Choose a basis card", html, StringComparison.Ordinal);
 
         using var response = await workspace.Client.PostAsync(
@@ -649,10 +668,12 @@ public sealed class CaseValuationV26WebTests
                 ("selection.CommercialVat", "true")));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains(
-            "data-valuation-proposal=\"15000.00\"",
-            await response.Content.ReadAsStringAsync(),
-            StringComparison.Ordinal);
+        var preview = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        Assert.Contains("data-valuation-proposal=\"15000.00\"", preview, StringComparison.Ordinal);
+        // Each adjustment's amount goes to its own cell; there are no lines.
+        Assert.Contains("data-valuation-vat-amount=\"+ £2,500.00\"", preview, StringComparison.Ordinal);
+        Assert.Contains("data-valuation-ptl-amount=\"\"", preview, StringComparison.Ordinal);
+        Assert.DoesNotContain("Guide retail", preview, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -704,14 +725,17 @@ public sealed class CaseValuationV26WebTests
     }
 
     /// <summary>
-    /// The calculator opens on the selection the latest adoption applied, in
-    /// both modes: read mode ticks the applied increase among every preset,
-    /// and editing starts from the same selection rather than from blank.
+    /// The calculator opens on the recorded calculation while the Engineer's
+    /// Value holds its figure, in both modes: read mode ticks the applied
+    /// increase among every preset, and editing starts from the same
+    /// selection rather than from blank. The Engineer's Value label carries
+    /// the recorded source as its one word, the section head reads the saved
+    /// figure, and each adjustment's amount stands in its own cell.
     /// </summary>
     [Fact]
     public async Task TheCalculatorOpensOnTheAppliedSelection()
     {
-        var store = new RecordingCaseDetailsStore();
+        var store = new RecordingCaseDetailsStore { EngineerValue = "13425.00" };
         var valuation = new RecordingValuationSection(store.CaseId);
         var glasses = valuation.AddGuide(ValuationSource.Glasses, 12_500m, 10_250m);
         var towBar = valuation.AddPreset("Tow bar", 150m);
@@ -721,6 +745,21 @@ public sealed class CaseValuationV26WebTests
         var read = await ReadValuationAsync(store, valuation);
         Assert.Contains("Roof bars", read, StringComparison.Ordinal);
         Assert.Single(Regex.Matches(read, "data-valuation-applied-addition=\"true\"", RegexOptions.CultureInvariant));
+        var decoded = WebUtility.HtmlDecode(read);
+        Assert.Matches("<span class=\"src-tag\" data-valuation-recorded-word>Glass's</span>", decoded);
+        Assert.Matches("data-valuation-head>Engineer's Value £13,425.00<", decoded);
+        Assert.Matches("data-valuation-amount=\"vat\">\\+ £2,500.00<", decoded);
+        Assert.Matches("data-valuation-amount=\"ptl\">− £1,500.00<", decoded);
+        Assert.DoesNotContain("Proposed Engineer", decoded, StringComparison.Ordinal);
+        Assert.DoesNotContain("Applied Engineer", decoded, StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Valuation.NoneYet, decoded, StringComparison.Ordinal);
+        // Reading, the recorded source is the one that opens.
+        Assert.True(
+            decoded.IndexOf("data-valuation-entry=\"glasses\"", StringComparison.Ordinal)
+                < decoded.IndexOf("data-valuation-open", StringComparison.Ordinal)
+            && decoded.IndexOf("data-valuation-open", StringComparison.Ordinal)
+                < decoded.IndexOf("data-valuation-entry=\"brego\"", StringComparison.Ordinal),
+            "The recorded source opens while reading.");
 
         using var workspace = await EnterEngineerEditModeAsync(store, valuation.Register);
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
@@ -736,8 +775,93 @@ public sealed class CaseValuationV26WebTests
     }
 
     /// <summary>
-    /// A card still showing its source's latest recorded figures is not
-    /// recorded again by the Case save; only a changed card is carried.
+    /// A figure typed over a recorded calculation is the Engineer's own
+    /// (operator, 6 October 2026): the recorded source's word is not shown
+    /// beside it, no source opens while reading, and the calculator opens
+    /// blank rather than on the earlier calculation. A Case with no
+    /// calculation recorded says nothing of one; it never reads "None yet"
+    /// beside a figure.
+    /// </summary>
+    [Fact]
+    public async Task ATypedFigureOverARecordedCalculationShowsNoRecord()
+    {
+        var store = new RecordingCaseDetailsStore { EngineerValue = "9999.00" };
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var glasses = valuation.AddGuide(ValuationSource.Glasses, 12_500m, 10_250m);
+        var towBar = valuation.AddPreset("Tow bar", 150m);
+        valuation.SetApplied(glasses, towBar, 175m);
+
+        var read = WebUtility.HtmlDecode(await ReadValuationAsync(store, valuation));
+        Assert.DoesNotContain("data-valuation-recorded-word", read, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-valuation-applied-addition=\"true\"", read, StringComparison.Ordinal);
+        Assert.DoesNotContain("class=\"valuation-source entry sel\"", read, StringComparison.Ordinal);
+        Assert.DoesNotContain("from Glass's retail", read, StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Valuation.NoneYet, read, StringComparison.Ordinal);
+        Assert.Matches("data-valuation-head>Engineer's Value £9,999.00<", read);
+        // With no source open, the calculation closes the list.
+        Assert.True(
+            read.IndexOf("data-valuation-entry=\"cazana\"", StringComparison.Ordinal)
+                < read.IndexOf("data-valuation-open", StringComparison.Ordinal),
+            "With no source chosen the calculation stands after the sources.");
+
+        using var workspace = await EnterEngineerEditModeAsync(store, valuation.Register);
+        var html = WebUtility.HtmlDecode(
+            await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation"));
+        Assert.Matches("<option value=\"\" selected=\"selected\">None</option>", html);
+        Assert.DoesNotContain("<div class=\"add on\"", html, StringComparison.Ordinal);
+        // The word's place is there for the script, and hidden.
+        Assert.Matches("data-valuation-recorded-word hidden=\"hidden\"></span>", html);
+    }
+
+    /// <summary>
+    /// A commit answered in place carries the Case as saved for the section
+    /// to redraw without a reload (operator, 6 October 2026): the head's
+    /// figure, and the recorded calculation's figure and source word while
+    /// the Engineer's Value holds it. The carrier is disabled, so it posts
+    /// nothing with the next save.
+    /// </summary>
+    [Fact]
+    public async Task ACommitAnsweredInPlaceCarriesTheSavedHeadAndTheRecordedSource()
+    {
+        var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true, EngineerValue = "13425.00" };
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var glasses = valuation.AddGuide(ValuationSource.Glasses, 12_500m, 10_250m);
+        var towBar = valuation.AddPreset("Tow bar", 150m);
+        valuation.SetApplied(glasses, towBar, 175m);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ISaveCaseWorkspace>(services, store);
+        });
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/Cases/{store.CaseId:D}?handler=Save")
+        {
+            Content = workspace.MutationForm(DetailsModelOperationKey, "Saved as it was made")
+        };
+        request.Headers.Add("X-Requested-With", "fetch");
+        using var response = await workspace.Client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var answer = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("id=\"section-valuation\"", answer, StringComparison.Ordinal);
+        var carrier = Regex.Match(
+            answer,
+            "<input[^>]*name=\"valuationSaved\"[^>]*>",
+            RegexOptions.CultureInvariant);
+        Assert.True(carrier.Success, "The commit answer must carry the Valuation section's saved state.");
+        Assert.Contains("form=\"case-edit-form\"", carrier.Value, StringComparison.Ordinal);
+        Assert.Contains(" disabled", carrier.Value, StringComparison.Ordinal);
+        Assert.Contains("data-carry-forward", carrier.Value, StringComparison.Ordinal);
+        using var saved = JsonDocument.Parse(WebUtility.HtmlDecode(InputValue(answer, "valuationSaved")));
+        Assert.Equal("Engineer's Value £13,425.00", saved.RootElement.GetProperty("head").GetString());
+        Assert.Equal("13425.00", saved.RootElement.GetProperty("value").GetString());
+        Assert.Equal("Glass's", saved.RootElement.GetProperty("word").GetString());
+        Assert.False(saved.RootElement.GetProperty("research").GetBoolean());
+    }
+
+    /// <summary>
+    /// A row still showing its source's latest recorded figures is not
+    /// recorded again by the Case save; only a changed row is carried.
     /// </summary>
     [Fact]
     public async Task AnUntouchedGuideCardIsNotRecordedAgain()
@@ -887,6 +1011,163 @@ public sealed class CaseValuationV26WebTests
         Assert.DoesNotContain("value=\"13250.00\"", EntryCard(html, "brego"), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Glass's connected (ADR-0060): the card is offered Get valuation, which
+    /// answers Retail Transacted and Glass's Trade for the posted month, and
+    /// the valuation's report — the stocked vehicle's "Values Only" print over
+    /// the same signed-in session — is filed after the figures have answered.
+    /// The press itself records nothing on the Case.
+    /// </summary>
+    [Fact]
+    public async Task GlassesGetValuationAnswersTheFiguresAndFilesItsReportAfterwards()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var mva = ScriptedGlassFor42000Miles();
+        var filing = new RecordingReportFiling();
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ICaseDataQueries>(services, store);
+            ConnectGlass(services, mva);
+            services.AddScoped<IFileGuideValuationReport>(_ => filing);
+        });
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+        Assert.Contains("data-valuation-get", EntryCard(html, "glasses"), StringComparison.Ordinal);
+        Assert.DoesNotContain("data-valuation-get", EntryCard(html, "brego"), StringComparison.Ordinal);
+
+        using var response = await PostGetValuationAsync(workspace, ValuationSource.Glasses, "2026-08", asJson: true);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var answer = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("ok", answer.RootElement.GetProperty("status").GetString());
+        Assert.Equal("17717.00", answer.RootElement.GetProperty("retail").GetString());
+        Assert.Equal("15600.00", answer.RootElement.GetProperty("trade").GetString());
+        Assert.Equal("2026-08", answer.RootElement.GetProperty("guideMonth").GetString());
+        // The report is fetched after the answer; the fake's request list is
+        // read only once filing has finished with it.
+        var (filed, pdf) = await filing.Filed.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        Assert.Contains(mva.Requests, request =>
+            request.Path == "/index/create-new-vehicle/value/0/valuate/1/mileage/42000/valdate/202608/condition/false");
+        Assert.Equal(store.CaseId, filed.CaseId);
+        Assert.Equal(ValuationSource.Glasses, filed.Source);
+        Assert.Equal("AB12CDE", filed.Registration);
+        Assert.Equal(new DateOnly(2026, 8, 1), filed.GuideMonth);
+        Assert.Equal("glass-stock:" + GlassProviderFixture.VehicleId, filed.Report.Identity);
+        Assert.Equal(GlassProviderFixture.ReportPdf, pdf);
+        Assert.Empty(store.Saves);
+    }
+
+    /// <summary>
+    /// A valuation Glass's cannot make answers the card's approved notice and
+    /// stocks nothing, so no report is filed.
+    /// </summary>
+    [Fact]
+    public async Task AGlassesValuationThatIsNotPossibleAnswersUnavailableAndFilesNothing()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var mva = ScriptedGlassFor42000Miles();
+        mva.Set("GET /three-phase-vehicle/get-values", new(HttpStatusCode.OK, GlassProviderFixture.ValuationNotPossible));
+        var filing = new RecordingReportFiling();
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ICaseDataQueries>(services, store);
+            ConnectGlass(services, mva);
+            services.AddScoped<IFileGuideValuationReport>(_ => filing);
+        });
+
+        using var response = await PostGetValuationAsync(workspace, ValuationSource.Glasses, "2026-08", asJson: true);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var answer = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("unavailable", answer.RootElement.GetProperty("status").GetString());
+        Assert.Equal(0, mva.Count("GET /index/create-new-vehicle"));
+        Assert.False(filing.Filed.Task.IsCompleted);
+        Assert.Empty(store.Saves);
+    }
+
+    /// <summary>
+    /// A vehicle older than Glass's values answers the card's own approved
+    /// sentence (operator, 2 October 2026), not "unavailable", and files nothing.
+    /// </summary>
+    [Fact]
+    public async Task AGlassesVehicleTooOldToValueAnswersItsOwnSentenceAndFilesNothing()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var mva = ScriptedGlassFor42000Miles();
+        mva.Set("GET /three-phase-vehicle/get-values", new(HttpStatusCode.OK, GlassProviderFixture.ValuationVehicleAge));
+        var filing = new RecordingReportFiling();
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ICaseDataQueries>(services, store);
+            ConnectGlass(services, mva);
+            services.AddScoped<IFileGuideValuationReport>(_ => filing);
+        });
+
+        using var response = await PostGetValuationAsync(workspace, ValuationSource.Glasses, "2026-08", asJson: true);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var answer = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("vehicle_age", answer.RootElement.GetProperty("status").GetString());
+        Assert.Equal(
+            "Glass's cannot value this vehicle because of its age: Glass's values cars and motorcycles up to 20 years old and light commercial vehicles up to 15.",
+            answer.RootElement.GetProperty("message").GetString());
+        Assert.Equal(0, mva.Count("GET /index/create-new-vehicle"));
+        Assert.False(filing.Filed.Task.IsCompleted);
+        Assert.Empty(store.Saves);
+    }
+
+    /// <summary>The scripted Glass's, answering the Case's own 42,000 miles.</summary>
+    private static ScriptedGlass ScriptedGlassFor42000Miles()
+    {
+        var mva = new ScriptedGlass();
+        GlassProviderFixture.Script(mva);
+        mva.Set(
+            "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/42000",
+            new(HttpStatusCode.OK, "{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":1,\"natcode\":\""
+                + GlassProviderFixture.NatCode + "\"}"));
+        return mva;
+    }
+
+    /// <summary>Glass's as Production composes it, over the scripted provider.</summary>
+    private static void ConnectGlass(IServiceCollection services, ScriptedGlass mva)
+    {
+        services.AddSingleton(new GlassRepairEstimateOptions(
+            GlassProviderFixture.MvaBase,
+            GlassProviderFixture.EstimatorBase,
+            GlassProviderFixture.CallbackBase,
+            GlassProviderFixture.ProfileId,
+            SessionLifetime: TimeSpan.FromHours(8),
+            ExportPollInterval: TimeSpan.FromMilliseconds(5),
+            ExportTimeout: TimeSpan.FromMilliseconds(50),
+            MaximumExportBytes: 16 * 1024 * 1024));
+        services.Configure<HttpClientFactoryOptions>(
+            GlassRepairEstimateOptions.HttpClientName,
+            options => options.HttpMessageHandlerBuilderActions.Add(handler => handler.PrimaryHandler = mva));
+        services.AddGlassGuideValuation(_ => GlassValuationAccount.Create(key =>
+            key.EndsWith("Username", StringComparison.Ordinal) ? "valuation-test" : "synthetic-password"));
+    }
+
+    /// <summary>Records the filing the press handed on, and reads its report as filing would.</summary>
+    private sealed class RecordingReportFiling : IFileGuideValuationReport
+    {
+        public TaskCompletionSource<(FileGuideValuationReportRequest Request, byte[] Pdf)> Filed { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<Pegasus.Core.Custody.CaseArtifactCustodyResult> ExecuteAsync(
+            FileGuideValuationReportRequest request, CancellationToken cancellationToken)
+        {
+            Filed.TrySetResult((request, await request.Report.FetchPdfAsync(cancellationToken)));
+            return new(Pegasus.Core.Custody.CaseArtifactCustodyDisposition.Confirmed,
+                null, null, null, null, null, null, null, null, null, null);
+        }
+    }
+
     private static async Task<HttpResponseMessage> PostGetValuationAsync(
         LeasedWorkspace workspace,
         ValuationSource source,
@@ -942,15 +1223,16 @@ public sealed class CaseValuationV26WebTests
     }
 
     /// <summary>
-    /// One source's card: from its opening tag to the next card or the end of
-    /// the cards. The card holds nested cells, so it is sliced, not matched.
+    /// One source's row: from its opening tag to the next row, or to the
+    /// calculation when the row is the one that opens. The row holds nested
+    /// cells, so it is sliced, not matched.
     /// </summary>
     private static string EntryCard(string html, string source)
     {
         var hook = html.IndexOf($"data-valuation-entry=\"{source}\"", StringComparison.Ordinal);
         Assert.True(hook >= 0, $"The Valuation section must render the card for '{source}'.");
         var start = html.LastIndexOf("<div", hook, StringComparison.Ordinal);
-        var next = html.IndexOf("class=\"valuation-card", hook, StringComparison.Ordinal);
+        var next = html.IndexOf("class=\"valuation-source ", hook, StringComparison.Ordinal);
         var calc = html.IndexOf("data-valuation-calc", hook, StringComparison.Ordinal);
         var end = new[] { next, calc }.Where(index => index > hook).DefaultIfEmpty(html.Length).Min();
         return html[start..end];

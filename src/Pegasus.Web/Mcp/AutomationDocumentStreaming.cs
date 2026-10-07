@@ -1,23 +1,16 @@
-using System.Text.Json;
-using Microsoft.AspNetCore.DataProtection;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Web.Mcp;
 
+/// <summary>
+/// The original bytes behind a download tool's <c>contentUrl</c>: the same
+/// bearer token, the owning scope checked again, Case or receipt membership
+/// re-resolved, and the exact SHA-256 as the ETag. There are no public signed
+/// links; a client without the token gets the ordinary challenge.
+/// </summary>
 internal static class AutomationDocumentStreaming
 {
-    private const string ExportTicketPurpose = "Pegasus.Automation.DocumentExports.v1";
-    internal const int MaximumExportSelections = 32;
-
-    internal sealed record ExportTicket(
-        Guid CaseId,
-        IReadOnlyList<DocumentExportSelection> Selections,
-        long ExpectedCaseVersion,
-        string EditLeaseToken,
-        string OperationKey,
-        string GrantId,
-        DateTimeOffset ExpiresAtUtc);
-
     public static async Task<IResult> GetAsync(
         Guid occurrenceId,
         Guid versionId,
@@ -52,67 +45,31 @@ internal static class AutomationDocumentStreaming
             enableRangeProcessing: true);
     }
 
-    public static async Task<IResult> GetExportAsync(
-        string ticket,
+    public static async Task<IResult> GetIntakeSourceAsync(
+        Guid receiptId,
         AutomationActorResolver resolver,
-        IExportCaseDocuments exportDocuments,
-        IDataProtectionProvider dataProtectionProvider,
-        TimeProvider timeProvider,
+        IGetIntakeSourceMetadata metadataReader,
+        IDownloadIntakeSource downloadSource,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
-        ExportTicket request;
-        try
-        {
-            request = UnprotectExport(dataProtectionProvider, ticket);
-        }
-        catch (UnauthorizedAccessException)
+        var actor = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
+        var metadata = await metadataReader.ExecuteAsync(new(receiptId, actor.Actor), cancellationToken);
+        if (metadata is null) return Results.NotFound();
+
+        var download = await downloadSource.ExecuteAsync(new(receiptId, actor.Actor), cancellationToken);
+        if (download is null
+            || download.ContentLength != metadata.ContentLength
+            || !string.Equals(download.Sha256, metadata.Sha256, StringComparison.OrdinalIgnoreCase))
         {
             return Results.NotFound();
         }
-        if (!string.Equals(request.GrantId, context.GrantId, StringComparison.Ordinal)
-            || request.Selections is not { Count: > 0 and <= MaximumExportSelections }
-            || request.ExpiresAtUtc <= timeProvider.GetUtcNow())
-        {
-            return Results.NotFound();
-        }
-        var export = await exportDocuments.ExecuteAsync(
-            new(
-                request.CaseId,
-                request.Selections,
-                context.Actor,
-                request.OperationKey,
-                20 * 1024 * 1024,
-                request.ExpectedCaseVersion,
-                request.EditLeaseToken),
-            cancellationToken);
-        return Results.Stream(
-            export.Content,
-            "application/zip",
-            export.FileName,
-            enableRangeProcessing: false);
-    }
 
-    internal static string ProtectExport(
-        IDataProtectionProvider provider,
-        ExportTicket ticket) =>
-        provider.CreateProtector(ExportTicketPurpose)
-            .Protect(JsonSerializer.Serialize(ticket));
-
-    private static ExportTicket UnprotectExport(
-        IDataProtectionProvider provider,
-        string ticket)
-    {
-        try
-        {
-            return JsonSerializer.Deserialize<ExportTicket>(
-                provider.CreateProtector(ExportTicketPurpose).Unprotect(ticket))
-                ?? throw new InvalidDataException("The export ticket is invalid.");
-        }
-        catch (Exception exception) when (exception is System.Security.Cryptography.CryptographicException
-            or JsonException or FormatException or InvalidDataException)
-        {
-            throw new UnauthorizedAccessException("The export ticket is invalid or stale.", exception);
-        }
+        httpContext.Response.Headers.ETag = $"\"{metadata.Sha256}\"";
+        return Results.File(
+            download.Content.ToArray(),
+            metadata.MediaType,
+            metadata.FileName,
+            enableRangeProcessing: true);
     }
 }

@@ -8,8 +8,8 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
-/// The Case workspace's workflow actions: hold and release, return to Review, Engineer
-/// handoff, and the linked replacement for a
+/// The Case workspace's workflow actions: hold and release, return to Review, Assign
+/// Engineer, and the linked replacement for a
 /// case created in error. Every action redirects back to the workspace. The
 /// Actions-menu items run under the session's lease or, outside a session,
 /// one claimed for the action (operator, 29 September 2026).
@@ -22,7 +22,6 @@ public sealed class WorkflowModel(
     IReleaseCase releaseCase,
     ITransitionCase transitionCase,
     IAssignCaseEngineer assignEngineer,
-    IAssignCaseToMe assignToMe,
     ISetCaseSignOffEngineer setSignOffEngineer,
     ICreateLinkedReplacement createLinkedReplacement,
     ILogger<WorkflowModel> logger) : CaseMutationPageModel(logger)
@@ -122,7 +121,7 @@ public sealed class WorkflowModel(
                     expectedVersion,
                     actor,
                     operationKey,
-                    Pegasus.Web.Presentation.CaseWorkspaceLabels.HandToEngineer,
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.AssignEngineer,
                     lease,
                     engineerId,
                     Readiness(
@@ -130,27 +129,7 @@ public sealed class WorkflowModel(
                         imagesComplete,
                         evidenceReference)),
                 cancellationToken),
-            "The case was handed to the Engineer.");
-
-    /// <summary>
-    /// "Assign to me" (P8): the ordinary assignment with the actor as the
-    /// Engineer, from the assignment dialog. Core decides eligibility.
-    /// </summary>
-    public Task<IActionResult> OnPostAssignToMeAsync(
-        Guid id,
-        long expectedVersion,
-        string operationKey,
-        string? editLeaseToken,
-        CancellationToken cancellationToken) =>
-        ExecuteCaseCommandUnderLeaseAsync(
-            id,
-            expectedVersion,
-            editLeaseToken,
-            "assign_to_me",
-            (actor, lease) => assignToMe.ExecuteAsync(
-                new(id, expectedVersion, actor, operationKey, lease),
-                cancellationToken),
-            "The case was assigned to you.");
+            Pegasus.Web.Presentation.OperatorLabels.WorkCentre.Assigned);
 
     public Task<IActionResult> OnPostSetSignOffEngineerAsync(
         Guid id,

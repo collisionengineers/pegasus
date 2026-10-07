@@ -5,7 +5,6 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
@@ -73,8 +72,8 @@ public sealed partial class DetailsModel
     /// <summary>
     /// Loads only what <c>_CaseCommitResult</c> draws: the frame, with the
     /// access answer its workflow gives, and the workspace; the lease; the
-    /// report's readiness and current generation, which the aside's Next action
-    /// reads; the assigned Engineer, the EVA handoff and the lease holder,
+    /// viewed work's report readiness and current generation, which the aside's
+    /// Next action reads; the assigned Engineer, the EVA handoff and the lease holder,
     /// which the ribbon and the dialogs read; the AI drafts; the calculation
     /// the valuation calculator now opens on; and, when the commit recorded
     /// staged crops or rotations, Files.
@@ -96,10 +95,6 @@ public sealed partial class DetailsModel
 
         ApplyAssessmentAccess(actor, Case.Workflow);
         await RestoreLeaseStateAsync(id, actor, Case.ActiveEditLease, resumeLease, cancellationToken);
-        if (LeaseToken is not null)
-        {
-            RenewLeaseOperationKey = GetOrCreateOperationKey(RenewLeaseOperationKeyName);
-        }
         Assessment = workspace?.Assessment;
         CurrentSpecification = workspace?.CurrentSpecification;
 
@@ -123,10 +118,10 @@ public sealed partial class DetailsModel
         using (DocumentReadTelemetry.Start("web.case.engineer-sections"))
         {
             var readiness = AssessmentCanOpen
-                ? reads.Start(token => reportSnapshotSource.GetAsync(id, actor, CaseWorkSelector.Current, reuse, token))
+                ? reads.Start(token => reportSnapshotSource.GetAsync(id, actor, work, reuse, token))
                 : null;
             var generation = reads.Start(token =>
-                reportGenerations.GetCurrentAsync(actor, id, CaseWorkSelector.Current, token));
+                reportGenerations.GetCurrentAsync(actor, id, work, token));
             var caseAiJobs = reads.Start(token => aiJobs.ListForSubjectAsync(id, token));
             var configuration = reads.Start(token => workflowConfiguration.GetCurrentAsync(token));
             var holder = activeLease is { } lease && !viewerHoldsLease
@@ -139,7 +134,7 @@ public sealed partial class DetailsModel
             // The calculator's opening calculation is the one the script carries
             // forward, so it is read wherever the calculator is editable.
             var valuation = SectionIsEditable("valuation")
-                ? reads.Start(token => ReadValuationSectionAsync(id, actor, work, token, openingOnly: true))
+                ? reads.Start(token => ReadValuationSectionAsync(id, actor, work, token))
                 : null;
             var files = recordsPreparation
                 ? reads.Start(token => getCaseFilesSection.ExecuteAsync(sectionQuery, token))
@@ -180,8 +175,8 @@ public sealed partial class DetailsModel
             }
         }
 
-        // The extras start from the Engineers the readiness read listed, and the
-        // delivery preparation from the generation, so each waits for its input.
+        // The extras start from the Engineers the readiness read listed, so they
+        // wait for that read.
         using (DocumentReadTelemetry.Start("web.case.extras"))
         {
             var extrasInputs = new WorkspaceExtrasInputs(
@@ -190,18 +185,13 @@ public sealed partial class DetailsModel
                 EligibleSignOffEngineers,
                 LeaseToken);
             var extras = reads.Start(token => ReadWorkspaceExtrasAsync(extrasInputs, token));
-            var delivery = CurrentReportGeneration is not null
-                ? reads.Start(token => deliveryPreparations.GetCurrentAsync(actor, id, token))
-                : null;
             await reads.WhenAllAsync();
 
             var workspaceExtras = await extras;
             EngineerDisplayName = workspaceExtras.EngineerDisplayName;
             SignOffEngineerDisplayName = workspaceExtras.SignOffEngineerDisplayName;
             EvaHandoff = workspaceExtras.EvaHandoff;
-            CurrentDeliveryPreparation = delivery is null ? null : await delivery;
             AvailableClosureOutcomes = DescribeClosureOutcomes(Case.Workflow, actor);
-            CanAssignToMe = CaseLifecycleRules.CanAssignToSelf(Case.Workflow);
         }
 
         return true;

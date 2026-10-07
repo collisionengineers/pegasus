@@ -5,19 +5,25 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Core.Vehicle;
 
 namespace Pegasus.Core.Cases;
 
+/// <param name="States">
+/// The lifecycle states a Case may be in; null or empty matches every state.
+/// More than one lets a caller find an operator stage that spans Core states,
+/// such as With Engineer (operator decision D3), in one paged search.
+/// </param>
 public sealed record CaseSearchFilters(
     string? CaseReference = null,
     string? Registration = null,
     string? Claimant = null,
     string? ClaimNumber = null,
     string? Principal = null,
-    CaseLifecycleState? State = null,
+    IReadOnlyList<CaseLifecycleState>? States = null,
     Guid? EngineerId = null,
     DateOnly? ReceivedDate = null,
     DateOnly? FromDate = null,
@@ -167,7 +173,8 @@ public sealed record CaseCorrespondenceEmail(
     string? SenderAddress,
     string? Subject,
     MailCategory? Classification,
-    string? SourceSha256 = null);
+    string? SourceSha256 = null,
+    MailDirection Direction = MailDirection.Received);
 
 /// <summary>
 /// The record-level notes shown read-only on a Case's Overview beside the Case's own:
@@ -180,7 +187,10 @@ public sealed record CaseRecordNotes(string? PrincipalNotes, string? ClaimSource
     public static readonly CaseRecordNotes None = new(null, null);
 }
 
-public sealed record GetCaseQuery(Guid CaseId, ActionActor Actor);
+public sealed record GetCaseQuery(
+    Guid CaseId,
+    ActionActor Actor,
+    CaseWorkSelector Work = CaseWorkSelector.Current);
 
 /// <summary>
 /// A bounded read of a case: its identity, workflow and lease, with the
@@ -228,19 +238,42 @@ public sealed record CasePageFrame(
     IReadOnlyList<CaseDocument> Documents,
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
     CaseRecordNotes RecordNotes,
-    CaseDataProjection Data)
+    CaseDataProjection Data,
+    Guid? CancellationMessageId = null)
 {
     public CaseSearchItem Summary => Frame.Summary;
     public CaseWorkflowRecord Workflow => Frame.Workflow;
     public CaseEditLeaseSnapshot? ActiveEditLease => Frame.ActiveEditLease;
 }
 
-/// <summary>The persistence half of <see cref="CasePageFrame"/>.</summary>
+/// <summary>
+/// The persistence half of <see cref="CasePageFrame"/>. <see
+/// cref="LinkedCancellationMessageId"/> is the newest retained message currently
+/// linked to the Case whose current classification is a received cancellation;
+/// the store reads it only while <see cref="CaseCancellationNotice.Applies"/>.
+/// </summary>
 public sealed record CasePageFrameData(
     CaseSectionFrame Frame,
     IReadOnlyList<CaseDocument> Documents,
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
-    CaseRecordNotes RecordNotes);
+    CaseRecordNotes RecordNotes,
+    Guid? LinkedCancellationMessageId = null);
+
+/// <summary>
+/// The cancellation an open Case shows in its Next action (FRD-13 "Cancellation
+/// messages"): the newest linked received message whose current classification
+/// is a cancellation, while the Case is neither closed nor archived. The
+/// classification is read live, so a correction shows or clears it at once.
+/// </summary>
+public static class CaseCancellationNotice
+{
+    /// <summary>Whether the Case can show a cancellation: it is neither closed nor archived.</summary>
+    public static bool Applies(CaseWorkflowRecord workflow)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        return workflow.Archive is null && !CaseLifecycleRules.IsClosed(workflow.State);
+    }
+}
 
 public sealed record CaseVehicleSection(
     CaseSectionFrame Frame,
@@ -454,7 +487,7 @@ public sealed class GetCaseEditBasis(
             return null;
         }
 
-        var data = await caseDataQueries.GetAsync(query.CaseId, CaseWorkSelector.Current, cancellationToken)
+        var data = await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         if (data.Identity.CaseId != frame.Workflow.CaseId)
         {
@@ -530,7 +563,8 @@ public sealed class GetCasePageFrame(
             frame.Documents,
             frame.AvailableReportSentEvidence,
             frame.RecordNotes,
-            data);
+            data,
+            CaseCancellationNotice.Applies(frame.Frame.Workflow) ? frame.LinkedCancellationMessageId : null);
     }
 }
 
@@ -802,7 +836,7 @@ internal static class CaseSearchQueryValidation
         {
             throw new ArgumentException("The Engineer filter is invalid.", nameof(filters));
         }
-        if (filters.State is { } state && !Enum.IsDefined(state))
+        if (filters.States is { } states && states.Any(state => !Enum.IsDefined(state)))
         {
             throw new ArgumentException("The lifecycle-state filter is invalid.", nameof(filters));
         }
@@ -824,6 +858,7 @@ internal static class CaseSearchQueryValidation
             Claimant = Normalize(filters.Claimant, 300, nameof(CaseSearchFilters.Claimant)),
             ClaimNumber = Normalize(filters.ClaimNumber, 100, nameof(CaseSearchFilters.ClaimNumber)),
             Principal = Normalize(filters.Principal, 20, nameof(CaseSearchFilters.Principal))?.ToUpperInvariant(),
+            States = filters.States is { Count: > 0 } requested ? requested.Distinct().Order().ToArray() : null,
             Origin = Normalize(filters.Origin, 100, nameof(CaseSearchFilters.Origin)),
             Query = Normalize(filters.Query, 300, nameof(CaseSearchFilters.Query))
         };
@@ -974,7 +1009,7 @@ public sealed class SearchCasesByCursor(ICaseQueryStore store, ICursorProtector 
             filters.Claimant,
             filters.ClaimNumber,
             filters.Principal,
-            filters.State?.ToString(),
+            filters.States is { } states ? string.Join(",", states) : null,
             filters.EngineerId?.ToString(),
             InvariantDate(filters.ReceivedDate),
             InvariantDate(filters.FromDate),

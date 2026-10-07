@@ -73,8 +73,11 @@ replacement icon is used.
 
 Every drawn control maps to a named handler. A disabled control is allowed
 only for a named integration seam whose row in
-[capabilities](../capabilities.md) records it as a disabled seam. An inert
-control is never rendered. Labels, values and controls carry no explanatory
+[capabilities](../capabilities.md) records it as a disabled seam, and for
+the Case ribbon's Create audit item, which is always listed on an Inspection
++ Audit Case and, when Core refuses it, is disabled with the refusal as its
+hover text ([FRD-16](frd-16-case-record-workspace.md#actions-menu);
+operator, 1 October 2026). An inert control is never rendered. Labels, values and controls carry no explanatory
 copy ([design § No explanatory copy](../design/README.md#no-explanatory-copy-and-page-economy)).
 
 ### Shell and routes
@@ -131,7 +134,8 @@ notification is raised for exactly these causes:
   whoever started the job. Market research never raises one;
 - a Case is assigned to an Engineer: to that Engineer;
 - a Case an Engineer is assigned to is edited by someone else, receives an
-  e-mail, or receives a query: to that Engineer.
+  e-mail, receives a query, or, while it is open, receives a cancellation or
+  has a linked message corrected to one: to that Engineer.
 
 Nobody is notified of their own act. There is no e-mail notification. The
 dialog lists notifications newest first with the Case reference,
@@ -174,7 +178,7 @@ raise failed; an Administrator retries it from
 | `/` | Work Centre ([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)) | Dashboard |
 | `/Inbox`, `/Inbox/{id}` | Retained mail list and message ([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)) | — |
 | `/Upload` | Staff upload ([FRD-18](frd-18-manual-upload.md#staff-upload-page)) | — |
-| `/Cases` | Queues: workflow (Triage included), pre-Case work and exceptions ([FRD-15](frd-15-work-centre-queues-and-search.md#cases-queues-and-filters)) | Queues; the Triage list |
+| `/Cases` | Queues as one continuous rail: Case queues, Triage, Awaiting instruction, Held and Unidentified ([FRD-15](frd-15-work-centre-queues-and-search.md#cases-queues-and-filters)) | Queues; the Triage list |
 | `/Cases/{id}` | Case record with section navigation; `?section=` jumps; once the Case has an Audit, `?view=inspection` or `?view=audit` chooses the view, the Audit view by default ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). A Triage Case renders as the Triage Case page ([FRD-15](frd-15-work-centre-queues-and-search.md#the-triage-case-page)) | Case workspace side-nav sections; the Assessment page; the Triage record page |
 | `/ReleaseNotes` | Published release notes, newest first; **Got it** posts here | — |
 | `/ProblemReports` | **Send** on Report a problem posts here; it has no page of its own | — |
@@ -258,6 +262,18 @@ attempted, allocated or configured work as completed, delivered, deployed or
 accepted. Workflow transitions are owned by
 [FRD-13](frd-13-case-lifecycle-and-workflow.md). The UI offers a transition
 only where its Core use case permits it for the current state and account.
+
+Every button or link that asks the server to do something shows that it is
+working from the press until the result arrives. It says what it is doing
+("Saving…", "Sending…", "Generating…") beside the turning loader glyph, the
+same spin as Refresh. After five seconds the words say "Still saving…". The
+form's other buttons stand aside, and a second press is refused. This covers
+actions answered in place, slow document previews and file downloads. A
+download stays busy until the file arrives, and a refusal shows its reason.
+Busy is not disabled: the pressed button keeps its colours. An action
+answered in place that succeeds shows a brief tick and its done word
+("Saved", "Downloaded") on the button that was pressed; a failure shows
+none, and a page that reloads shows its usual notice instead.
 
 ## Edge cases and fail-closed behaviour
 

@@ -228,6 +228,62 @@ public sealed class EmailTemplatesTests
         Assert.Equal("Report QDOS26001 for Principal Ltd", rendered);
     }
 
+    /// <summary>
+    /// The Case chaser names the vehicle, the material and the parties, never
+    /// the internal Case/PO reference (operator, 5 October 2026).
+    /// </summary>
+    [Fact]
+    public void TheCaseChaserTemplateHasNoCaseReference()
+    {
+        const EmailTemplatePurpose chaser = EmailTemplatePurpose.CaseChaser;
+
+        Assert.Equal(
+            new[]
+            {
+                EmailTemplates.Registration, EmailTemplates.OutstandingMaterial,
+                EmailTemplates.PrincipalName, EmailTemplates.Claimant
+            },
+            EmailTemplates.Placeholders(chaser));
+        Assert.DoesNotContain(EmailTemplates.CaseReference, EmailTemplates.Placeholders(chaser));
+        var refused = Assert.Throws<UnknownEmailTemplatePlaceholderException>(
+            () => EmailTemplates.Validate(chaser, "Our reference: {case reference}"));
+        Assert.Equal("case reference", refused.Placeholder);
+    }
+
+    [Fact]
+    public void TheCaseChaserBodyAsksForTheOutstandingMaterialAndSignsOff()
+    {
+        var rendered = EmailTemplates.Render(
+            EmailTemplates.DefaultBody(EmailTemplatePurpose.CaseChaser),
+            ChaserValues(registration: "PK12TMZ", outstandingMaterial: "Images"));
+
+        Assert.Equal(
+            "Please provide the outstanding material for PK12TMZ: Images.\n"
+            + "\n"
+            + "Kind regards\n"
+            + "Collision Engineers",
+            rendered);
+    }
+
+    [Fact]
+    public void TheCaseChaserBodyWithNoFactsKeepsOnlyTheSignOff()
+    {
+        var rendered = EmailTemplates.Render(
+            EmailTemplates.DefaultBody(EmailTemplatePurpose.CaseChaser),
+            ChaserValues(registration: null, outstandingMaterial: null));
+
+        Assert.Equal("\nKind regards\nCollision Engineers", rendered);
+    }
+
+    private static Dictionary<string, string?> ChaserValues(string? registration, string? outstandingMaterial) =>
+        new(StringComparer.Ordinal)
+        {
+            [EmailTemplates.Registration] = registration,
+            [EmailTemplates.OutstandingMaterial] = outstandingMaterial,
+            [EmailTemplates.PrincipalName] = "Principal Ltd",
+            [EmailTemplates.Claimant] = "Jane Driver"
+        };
+
     private static Dictionary<string, string?> ReportValues(string? supersededReportDate) => new(StringComparer.Ordinal)
     {
         [EmailTemplates.CaseReference] = "QDOS26001",

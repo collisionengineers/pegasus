@@ -143,8 +143,8 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The name the report would be attached under
-    /// (v28 P23), read from the same policy the preparation
-    /// freezes, so the form states what pressing Prepare delivery will send.
+    /// (v28 P23), read from the same policy the send
+    /// names it with, so the form states what pressing Send report will send.
     /// </summary>
     public string ReportDeliveryFileName => CaseReportDeliveryNaming.ReportName(
         // The generation's own reference: a. + the Case/PO for an Audit report.
@@ -155,18 +155,16 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The Case report delivery template rendered for this Case, for staff to
-    /// review and edit before Prepare delivery (FRD-11): what the form's
+    /// review and edit before Send report (FRD-11): what the form's
     /// message box is pre-filled with. Empty while the form is not offered.
-    /// Preparation freezes what staff submit, not this text.
+    /// What staff submit is sent, not this text.
     /// </summary>
     public string ReportDeliveryMessage { get; private set; } = string.Empty;
 
     private async Task<string> RenderReportDeliveryMessageAsync(
         ActionActor actor, CancellationToken cancellationToken)
     {
-        if (IsInspectionView
-            || CurrentReportGeneration is not { State: CaseReportGenerationState.Confirmed }
-            || CurrentDeliveryPreparation is not null
+        if (CurrentReportGeneration is not { State: CaseReportGenerationState.Confirmed } generation
             || !SectionIsEditable("report")
             || !StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework))
         {
@@ -174,7 +172,7 @@ public sealed partial class DetailsModel
         }
 
         var facts = new CaseReportDeliveryFacts(
-            CurrentReportGeneration.Snapshot.CaseReference,
+            generation.Snapshot.CaseReference,
             Case?.Summary.Registration,
             RecordedOutcome is { } outcome ? CodeWords(outcome) : null,
             DeliveryRecipientSuggestions?.PrincipalName,
@@ -222,18 +220,6 @@ public sealed partial class DetailsModel
             return TitleOf(kind, Case?.Summary.Registration);
         }
     }
-
-    /// <summary>
-    /// The Inspection's sent report's title (v29 P4), read from its frozen
-    /// generation by the same rule as <see cref="ReportTitle"/>.
-    /// </summary>
-    public string? InspectionReportTitle => InspectionReportGeneration?.Snapshot.Report is { } report
-        ? TitleOf(
-            report.Outcome == AssessmentReportOutcome.TotalLoss
-                ? "Total Loss"
-                : OperatorLabels.Humanise(report.Outcome.ToString()),
-            report.Vehicle.Registration)
-        : null;
 
     private static string TitleOf(string kind, string? registration) =>
         string.IsNullOrWhiteSpace(registration) ? $"{kind} Report" : $"{kind} Report — {registration}";

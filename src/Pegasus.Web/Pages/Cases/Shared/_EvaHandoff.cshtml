@@ -21,6 +21,7 @@
         <input type="hidden" name="expectedVersion" value="@Model.ExpectedVersion" />
         <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
         <input type="hidden" name="editLeaseToken" value="@Model.EditLeaseToken" />
+        <input type="hidden" name="view" value="@Model.View" />
         <div class="field">
             <label class="req" for="eva-sign-off-engineer">@OperatorLabels.CaseWorkspace.SignOffEngineer</label>
             <select id="eva-sign-off-engineer" name="signOffEngineerId" required>
@@ -35,7 +36,7 @@
             <input id="eva-sign-off-reason" name="reason" required maxlength="500" />
         </div>
         <div class="button-row">
-            <button type="submit" class="btn btn--dark">@OperatorLabels.CaseWorkspace.SetSignOffEngineer</button>
+            <button type="submit" data-busy-label="@OperatorLabels.Busy.Saving" class="btn btn--dark">@OperatorLabels.CaseWorkspace.SetSignOffEngineer</button>
         </div>
     </form>
 }
@@ -54,10 +55,16 @@ else
     }
     @if (Model.ReportGenerationPolicy == PrincipalReportGenerationPolicy.EvaZip)
     {
+        @* The answer is a file, so site.js fetches it (data-busy-download):
+           the button stays busy until the archive arrives, and a refusal
+           shows its reason. The Case page's in-place post would discard
+           the file, so the form opts out of it. *@
         <form method="post" asp-page="/Cases/Documents/Export" asp-route-caseId="@Model.CaseId"
-              asp-page-handler="Bundle">
+              asp-page-handler="Bundle" data-no-inplace data-busy-download
+              data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed">
             <input type="hidden" name="operationKey" value="@Model.ExportOperationKey" />
-            <button type="submit" class="btn">
+            <input type="hidden" name="view" value="@Model.View" />
+            <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Exporting" data-busy-done="@OperatorLabels.Busy.Done.Exported">
                 <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
                 <span>Export EVA ZIP</span>
             </button>
@@ -69,9 +76,10 @@ else
         <form method="post" asp-page="/Cases/Eva/Send" asp-route-caseId="@Model.CaseId"
               asp-page-handler="Submit">
             <input type="hidden" name="operationKey" value="@Model.SubmitOperationKey" />
+            <input type="hidden" name="view" value="@Model.View" />
             @if (Model.ApiEnabled)
             {
-                <button type="submit" class="btn btn--primary">
+                <button type="submit" data-busy-label="@OperatorLabels.Busy.Sending" class="btn btn--primary">
                     <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                     <span>@OperatorLabels.CaseWorkspace.SendViaApi</span>
                 </button>

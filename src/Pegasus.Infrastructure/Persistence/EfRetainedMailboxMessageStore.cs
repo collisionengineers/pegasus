@@ -1,3 +1,5 @@
+using System.Data;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -5,6 +7,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.Lifecycle;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -115,12 +118,15 @@ internal sealed class EfRetainedMailboxMessageStore(
         ArgumentException.ThrowIfNullOrWhiteSpace(immutableMessageId);
         ArgumentException.ThrowIfNullOrWhiteSpace(canonicalInternetMessageIdentity);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        // The canonical id is unique in the mailbox, so this reads at most one row.
-        // The item id is compared here, exactly, as the wake compares it: the column
-        // takes the database's collation, which can ignore case, and Graph ids do not.
+        // The canonical id is unique in the mailbox's Inbox, so this reads at most
+        // one row. The item id is compared here, exactly, as the wake compares it:
+        // the column takes the database's collation, which can ignore case, and
+        // Graph ids do not.
+        var inbox = ToCode(MailFolderScope.Inbox);
         var retainedImmutableMessageId = await context.RetainedMailboxMessages
             .AsNoTracking()
             .Where(item => item.MailboxId == mailboxId
+                && item.FolderScope == inbox
                 && item.CanonicalInternetMessageIdentity == canonicalInternetMessageIdentity)
             .Select(item => item.ImmutableMessageId)
             .SingleOrDefaultAsync(cancellationToken);
@@ -445,7 +451,11 @@ internal sealed class EfRetainedMailboxMessageStore(
             entity.ImmutableMessageId,
             entity.InternetMessageIdentity,
             entity.ConversationIdentity,
-            await ClassificationDossierAsync(context, receipt?.Decision, cancellationToken));
+            await ClassificationDossierAsync(
+                context,
+                receipt?.Decision,
+                RetainedMailDirection.Of(ParseFolderScope(entity.FolderScope)),
+                cancellationToken));
     }
 
     /// <summary>
@@ -608,25 +618,29 @@ internal sealed class EfRetainedMailboxMessageStore(
         return await LoadClassificationAsync(context, messageId, cancellationToken);
     }
 
-    public async Task<MailClassificationDossier> AppendCorrectionAsync(
+    public async Task<MailClassificationCorrectionResult> AppendCorrectionAsync(
         Guid messageId,
         int expectedVersion,
         MailClassificationResult before,
         MailClassificationResult after,
-        string actor,
+        ActionActor actor,
         string reason,
         DateTimeOffset correctedAtUtc,
         CancellationToken cancellationToken)
     {
+        var packedActor = MailClassificationActor.Format(actor);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable, cancellationToken);
         var retained = await context.RetainedMailboxMessages
             .SingleOrDefaultAsync(item => item.Id == messageId, cancellationToken)
             ?? throw new InvalidOperationException("The retained message no longer exists.");
-        var decision = await context.IntakeReceipts
+        var receipt = await context.IntakeReceipts
+            .Include(item => item.MailClassificationDecision)
             .Where(item => item.SourceChannel == "mailbox"
                 && item.ExternalReceiptToken == retained.ExternalReceiptToken)
-            .Select(item => item.MailClassificationDecision)
-            .SingleOrDefaultAsync(cancellationToken)
+            .SingleOrDefaultAsync(cancellationToken);
+        var decision = receipt?.MailClassificationDecision
             ?? throw new InvalidOperationException("The retained message has no classification decision.");
         if (decision.Version != expectedVersion
             || !string.Equals(
@@ -637,10 +651,35 @@ internal sealed class EfRetainedMailboxMessageStore(
             throw new MailClassificationConcurrencyException();
         }
 
+        // The Case this message is currently linked to, by staff or by its
+        // accepted origin. A Triage Case has no Completed or Query state.
+        var associations = await CurrentIntakeAssociations.ReadAsync(context, [receipt.Id], cancellationToken);
+        var linkedCase = associations.Current.TryGetValue(receipt.Id, out var association) && !association.IsTriage
+            ? association
+            : null;
+        CaseWorkflowEntity? workflow = null;
+        if (linkedCase is not null)
+        {
+            await EfIntakeMutationStore.AcquireCaseQueryLockAsync(
+                context, transaction, linkedCase.CaseId, receipt.Id, cancellationToken);
+            workflow = await context.CaseWorkflows
+                .SingleOrDefaultAsync(item => item.CaseId == linkedCase.CaseId, cancellationToken);
+        }
+        var wasPostReport = PostReportQueryTransitions.IsPostReport(receipt);
+
         Apply(after, decision);
         decision.Version++;
-        decision.DecidedByActor = actor;
+        decision.DecidedByActor = packedActor;
         decision.DecidedAtUtc = correctedAtUtc;
+        // FRD-03: the accepted Triage match is the classification's evidence,
+        // so a correction to or from Triage request writes or removes it and
+        // the receipt moves on a version, as any change to it does.
+        if (MailTriageMatch.Reconcile(EfIntakeReceiptStore.DeserializeEvidence(receipt.EvidenceJson), after) is { } evidence)
+        {
+            receipt.EvidenceJson = EfIntakeReceiptStore.SerializeEvidence(evidence);
+            receipt.Version++;
+        }
+        var afterJson = SerializeSnapshot(after);
         context.IntakeMailClassificationHistory.Add(new()
         {
             Id = Guid.NewGuid(),
@@ -648,21 +687,72 @@ internal sealed class EfRetainedMailboxMessageStore(
             ClassificationDecision = decision,
             Version = decision.Version,
             BeforeJson = SerializeSnapshot(before),
-            AfterJson = SerializeSnapshot(after),
-            Actor = actor,
+            AfterJson = afterJson,
+            Actor = packedActor,
             Reason = reason,
             CorrectedAtUtc = correctedAtUtc
         });
+
+        // FRD-13 "Completed and Query": a message corrected to Post-report joins
+        // the Case as a query would; one corrected away leaves it as an unlink
+        // would. The same rule and the same lock as the link paths.
+        var queryEntry = PostReportQueryEntry.None;
+        var queryWithdrawn = false;
+        if (workflow is not null)
+        {
+            var isPostReport = PostReportQueryTransitions.IsPostReport(receipt);
+            var beforeCaseVersion = workflow.Version;
+            var operationKey = $"mail-correction:{receipt.Id:N}:v{decision.Version}";
+            var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(afterJson)));
+            if (isPostReport && !wasPostReport)
+            {
+                var beforeStateJson = PostReportQueryTransitions.SnapshotState(workflow);
+                var entry = await PostReportQueryTransitions.EnterAsync(
+                    context, receipt, workflow, correctedAtUtc, cancellationToken);
+                queryEntry = entry.Kind;
+                if (entry.Kind != PostReportQueryEntry.None)
+                {
+                    CaseMutationGuard.Advance(workflow);
+                    if (entry.Kind == PostReportQueryEntry.EnterQuery)
+                    {
+                        PostReportQueryTransitions.AddQueryHistory(
+                            context, workflow, beforeCaseVersion, PostReportQueryTransitions.QueryReceivedEvent,
+                            actor, operationKey, requestHash, reason, correctedAtUtc, beforeStateJson);
+                    }
+                    else
+                    {
+                        PostReportQueryTransitions.AddObservedReplyHistory(
+                            context, workflow, beforeCaseVersion, entry.ObservedReply!, entry.BeforeReplyJson!);
+                    }
+                }
+            }
+            else if (wasPostReport && !isPostReport)
+            {
+                var beforeStateJson = await PostReportQueryTransitions.WithdrawAsync(
+                    context, receipt, workflow, correctedAtUtc, cancellationToken);
+                if (beforeStateJson is not null)
+                {
+                    queryWithdrawn = true;
+                    CaseMutationGuard.Advance(workflow);
+                    PostReportQueryTransitions.AddQueryHistory(
+                        context, workflow, beforeCaseVersion, PostReportQueryTransitions.QueryWithdrawnEvent,
+                        actor, operationKey, requestHash, reason, correctedAtUtc, beforeStateJson);
+                }
+            }
+        }
+
         try
         {
             await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
             throw new MailClassificationConcurrencyException();
         }
 
-        return (await LoadClassificationAsync(context, messageId, cancellationToken))!;
+        var dossier = (await LoadClassificationAsync(context, messageId, cancellationToken))!;
+        return new(dossier, linkedCase?.CaseId, queryEntry, queryWithdrawn);
     }
 
     private static async Task<MailClassificationDossier?> LoadClassificationAsync(
@@ -670,20 +760,25 @@ internal sealed class EfRetainedMailboxMessageStore(
         Guid messageId,
         CancellationToken cancellationToken)
     {
-        var externalReceiptToken = await context.RetainedMailboxMessages
+        var message = await context.RetainedMailboxMessages
             .AsNoTracking()
             .Where(item => item.Id == messageId)
-            .Select(item => item.ExternalReceiptToken)
+            .Select(item => new { item.ExternalReceiptToken, item.FolderScope })
             .SingleOrDefaultAsync(cancellationToken);
-        return externalReceiptToken is null
+        return message is null
             ? null
-            : await LoadClassificationByTokenAsync(context, externalReceiptToken, cancellationToken);
+            : await LoadClassificationByTokenAsync(
+                context,
+                message.ExternalReceiptToken,
+                RetainedMailDirection.Of(ParseFolderScope(message.FolderScope)),
+                cancellationToken);
     }
 
     /// <summary>The classification dossier of the message whose receipt token is known.</summary>
     private static async Task<MailClassificationDossier?> LoadClassificationByTokenAsync(
         PegasusDbContext context,
         string externalReceiptToken,
+        MailDirection direction,
         CancellationToken cancellationToken)
     {
         var decision = await context.IntakeReceipts
@@ -692,7 +787,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                 && item.ExternalReceiptToken == externalReceiptToken)
             .Select(item => item.MailClassificationDecision)
             .SingleOrDefaultAsync(cancellationToken);
-        return await ClassificationDossierAsync(context, decision, cancellationToken);
+        return await ClassificationDossierAsync(context, decision, direction, cancellationToken);
     }
 
     /// <summary>
@@ -702,6 +797,7 @@ internal sealed class EfRetainedMailboxMessageStore(
     private static async Task<MailClassificationDossier?> ClassificationDossierAsync(
         PegasusDbContext context,
         IntakeMailClassificationDecisionEntity? decision,
+        MailDirection direction,
         CancellationToken cancellationToken)
     {
         if (decision is null)
@@ -727,7 +823,10 @@ internal sealed class EfRetainedMailboxMessageStore(
             EfIntakeReceiptStore.MapMailClassificationDecision(decision),
             decision.DecidedByActor,
             decision.DecidedAtUtc,
-            history);
+            history)
+        {
+            MessageDirection = direction
+        };
     }
 
     private static void Apply(
@@ -858,13 +957,17 @@ internal sealed class EfRetainedMailboxMessageStore(
         RetainedMailboxMessage message,
         CancellationToken cancellationToken)
     {
+        // The Message-ID is unique per folder: the Sent copy of a message the
+        // mailbox also received is its own item, not the Inbox row.
         var canonicalIdentity = CanonicalInternetMessageIdentity(message);
+        var folder = ToCode(message.Folder);
         return await context.RetainedMailboxMessages
             .AsNoTracking()
             .SingleOrDefaultAsync(
                 item => item.MailboxId == message.MailboxId
                     && (item.ImmutableMessageId == message.ImmutableMessageId
                         || (canonicalIdentity != null
+                            && item.FolderScope == folder
                             && item.CanonicalInternetMessageIdentity == canonicalIdentity)),
                 cancellationToken);
     }
@@ -904,19 +1007,40 @@ internal sealed class EfRetainedMailboxMessageStore(
         MailWorkspaceScope scope,
         CancellationToken cancellationToken)
     {
-        if (scope.Folder != MailFolderScope.Inbox)
+        if (scope.Folder is not (MailFolderScope.Inbox or MailFolderScope.Sent))
         {
             return false;
+        }
+
+        var retained = context.RetainedMailboxMessages.AsNoTracking()
+            .Where(item => item.FolderScope == ToCode(scope.Folder));
+        if (scope.MailboxId is { } mailboxId)
+        {
+            retained = retained.Where(item => item.MailboxId == mailboxId);
+        }
+        if (scope.Folder == MailFolderScope.Sent)
+        {
+            // The Sent poll keys its state by the provider's mailbox identity;
+            // the approved mailbox row joins the two.
+            var completedSentPolls = context.ApprovedSentPollStates
+                .AsNoTracking()
+                .Where(item => item.LastCompletedAtUtc != null);
+            if (scope.MailboxId is { } sentMailboxId)
+            {
+                completedSentPolls = completedSentPolls.Where(item =>
+                    context.ApprovedMailboxes.Any(mailbox =>
+                        mailbox.Id == sentMailboxId && mailbox.Address == item.MailboxAddress));
+            }
+            return await completedSentPolls.AnyAsync(cancellationToken)
+                && !await retained.AnyAsync(cancellationToken);
         }
 
         var completedPolls = context.ApprovedInboxPollStates
             .AsNoTracking()
             .Where(item => item.LastCompletedAtUtc != null);
-        var retained = context.RetainedMailboxMessages.AsNoTracking();
-        if (scope.MailboxId is { } mailboxId)
+        if (scope.MailboxId is { } inboxMailboxId)
         {
-            completedPolls = completedPolls.Where(item => item.ApprovedMailboxId == mailboxId);
-            retained = retained.Where(item => item.MailboxId == mailboxId);
+            completedPolls = completedPolls.Where(item => item.ApprovedMailboxId == inboxMailboxId);
         }
 
         return await completedPolls.AnyAsync(cancellationToken)
@@ -1154,7 +1278,17 @@ internal sealed class EfRetainedMailboxMessageStore(
         {
             matches = matches.Where(item => !item.IsRead);
         }
-        if (searchTerm is not null)
+        if (searchTerm is not null && scope.Folder == MailFolderScope.Sent)
+        {
+            // A Sent item has no intake receipt to search, so its own retained
+            // subject, sender and text are what the search reads.
+            matches = matches.Where(item =>
+                item.Attachments.Any(attachment => attachment.FileName.Contains(searchTerm))
+                || (item.Subject != null && item.Subject.Contains(searchTerm))
+                || (item.SenderAddress != null && item.SenderAddress.Contains(searchTerm))
+                || (item.BodyPlainText != null && item.BodyPlainText.Contains(searchTerm)));
+        }
+        else if (searchTerm is not null)
         {
             matches = matches.Where(item =>
                 item.Attachments.Any(attachment => attachment.FileName.Contains(searchTerm))

@@ -166,6 +166,36 @@ public sealed class UploadConfirmationWebTests
     }
 
     /// <summary>
+    /// A photograph added from a Case is itself the uploaded source, and it is
+    /// filed as one of the Case's images: it is drawn on the Images tab, not as
+    /// a Documents row (operator, 2 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task APhotographAddedFromACaseIsFiledAsOneOfItsImages()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "DECLARED-PHOTO-01");
+
+        var upload = await IntakeWebDriver.UploadAsync(
+            client,
+            "vehicle-front.jpg",
+            "image/jpeg",
+            [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01],
+            declaredCaseId: caseId);
+        Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var receiptId = IntakeWebDriver.ReceiptId(processed);
+
+        var filed = Assert.Single(await FiledDocumentsAsync(factory, receiptId, caseId));
+        Assert.Equal(Pegasus.Core.Documents.DocumentSemanticRole.Image, filed.SemanticRole);
+        var files = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}?section=files");
+        Assert.Contains($"data-image-tile=\"{filed.Id}\"", files, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain($"data-document-row=\"{filed.Id}\"", files, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// The picker's words (operator, 26 September 2026): no subtitle under
     /// Upload and no sentence under the declared Case, whose card alone says
     /// where the files go; the limits read in megabytes through the one size

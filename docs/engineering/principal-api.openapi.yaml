@@ -1,0 +1,1037 @@
+# Pegasus Principal API (API-01), OpenAPI 3.1.
+#
+# This file describes the implemented contract; it does not define it.
+# Behaviour was read from src/Pegasus.Web/PrincipalApi and
+# src/Pegasus.Core/PrincipalApi on 2026-09-29. Contract intent is owned by
+# docs/frd/frd-09-principal-and-intermediary-routes.md.
+#
+# Any OpenAPI 3.1 viewer (Swagger UI, Redoc) renders it.
+openapi: 3.1.0
+
+info:
+  title: Pegasus Principal API
+  version: v1
+  summary: Submit an instruction to Pegasus and read back what became of it.
+  description: |
+    A server-to-server HTTP API for an instructing party (a **Principal**) to
+    submit one instruction, with its files, and to read the outcome of its own
+    submissions. It is **create-only**: it never reads, links to or changes an
+    existing Case, and it offers no Case search.
+
+    ## How it works
+
+    1. **Submit.** `POST /api/principal/v1/submissions` with a JSON instruction
+       and any files inline as base64. Pegasus answers `201` as soon as the
+       submission is durably received. That answer says nothing about
+       processing.
+    2. **Processing.** Pegasus processes the submission asynchronously, through
+       the same intake path as an emailed instruction.
+    3. **Read the result.** `GET /api/principal/v1/submissions/{id}` returns the
+       processing `status`, the intake `decision` and, once one exists, the
+       `caseReference` of the Case/PO that was created.
+
+    ```bash
+    curl -X POST "$PEGASUS_ORIGIN/api/principal/v1/submissions" \
+      -H "Authorization: Bearer $PEGASUS_KEY" \
+      -H "Idempotency-Key: order-2026-000123" \
+      -H "Content-Type: application/json" \
+      -d '{
+            "caseType": "inspection",
+            "claimNumber": "CLM-2026-000123",
+            "claimant": { "name": "Jane Example" },
+            "vehicle": { "registration": "AB12 CDE" }
+          }'
+    ```
+
+    ## Availability
+
+    The API exists only on a host where the `Features:PrincipalApi` setting is
+    on. Where it is off, every path under `/api/principal/v1` answers `404`
+    with no body, exactly as if the API did not exist.
+
+    ## Authentication
+
+    Send `Authorization: Bearer pgs_<key id>_<secret>`.
+
+    * Collision Engineers issues one credential per Principal. The secret is
+      shown once, at issue or reset, and Pegasus keeps only a one-way hash of
+      it. Resetting a credential stops the previous secret working at once.
+    * The secret is 64 characters: `pgs_`, a 16-character key id, `_`, then 43
+      random characters (base64url).
+    * The credential decides which Principal a submission belongs to, and a
+      Principal can read only its own submissions.
+    * A staff cookie is never accepted here, and a Principal secret is never
+      accepted anywhere else.
+
+    | Credential state | Submit (`POST`) | Read (`GET`) |
+    | --- | --- | --- |
+    | Active | Allowed | Allowed |
+    | Paused | `403`, refused before the body is read | Allowed |
+    | Revoked, unknown, or Principal inactive | `401` | `401` |
+
+    ## Idempotency
+
+    Every `POST` needs an `Idempotency-Key` header: at most 200 characters,
+    trimmed, and unique **per Principal**.
+
+    | Same key, and… | Answer |
+    | --- | --- |
+    | no earlier submission used it | `201`, a new submission |
+    | the request body is byte-for-byte the same | `200`, the same receipt with `replayed: true` |
+    | the request body differs | `409`, nothing new is retained |
+
+    Bodies are compared as the exact bytes received, through a SHA-256 of the
+    raw request. Re-serialising the same JSON with different whitespace or key
+    order is a different body. Resend the stored bytes when retrying.
+
+    A `503` means the submission could not be retained. Retry with the same key.
+
+    ## Case types
+
+    | `caseType` | Case type | Notes |
+    | --- | --- | --- |
+    | `inspection` | Inspection | The ordinary instruction. |
+    | `audit` | Audit | Requires `originalReportVerdict`. The original report may be attached once with `role: originalreport`, or arrive later. |
+    | `auditreport` | Inspection and Audit | Collision Engineers inspects, then audits its own report. Carries no verdict and no original report. |
+    | `triage` | Triage | Opens a Triage record instead of a Case. The result's `caseReference` is the Triage's `t.` reference. |
+
+    Values are matched case-insensitively; the lower-case form is canonical.
+
+    ## What a submission must contain
+
+    Only `caseType` is required by the request format. Whether Pegasus can
+    allocate a reference depends on what you declare:
+
+    | Declared | Effect |
+    | --- | --- |
+    | `claimNumber`, `claimant.name` and `vehicle.registration` | These identify the claim. If any is missing the submission is still accepted (`201`), but processing ends with `decision: NeedsSorting` and no reference, and staff sort it by hand. |
+    | `vehicle.registration` (for `triage`) | A Triage is opened from the registration. Without it the material is kept for staff rather than opening a Triage. |
+    | Every other field | Ordinary detail. Anything missing leaves the Case **Not ready** until it is supplied. |
+
+    Pegasus does not read values back out of your files. Every value you state
+    is recorded on the Case as declared by the Principal over this API.
+
+    ## Existing work is never changed
+
+    Pegasus checks the declared claim number, vehicle registration, claimant and
+    incident date against the Principal's existing Cases. If they match one Case
+    or several, the submission is still received (`201`), but processing ends in
+    `status: Failed` with `failureCode: principal_existing_case_match`. No Case
+    or PO is allocated and the existing Case is untouched.
+
+    ## Limits
+
+    | Limit | Value | Refusal |
+    | --- | --- | --- |
+    | Request body, base64 included | 42 MiB (44,040,192 bytes) | `413` |
+    | Files per submission | 20 | `413` |
+    | One file, decoded | 10 MiB (10,485,760 bytes) | `413` |
+    | All files together, decoded | 30 MiB (31,457,280 bytes) | `413` |
+    | Idempotency key | 200 characters | `400` |
+    | Requests | 60 per minute, per calling IP address, across both endpoints | `429` |
+
+    Field lengths are given on each field below.
+
+    ## Requests and responses
+
+    * Requests must be `application/json` (a `charset` parameter is fine).
+      Property names are matched case-insensitively. Members the contract does
+      not name are ignored, not refused. Comments and trailing commas are not
+      allowed.
+    * Dates are `YYYY-MM-DD`.
+    * Responses use camelCase names. Enumerations are strings. A field with no
+      value is present as `null`, never omitted.
+    * Times are UTC, in ISO 8601.
+
+    ## Errors
+
+    Refusals from the API itself are RFC 9457 problem documents
+    (`application/problem+json`):
+
+    ```json
+    { "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+      "title": "The value of 'claimNumber' is at most 100 characters.",
+      "status": 400,
+      "field": "claimNumber" }
+    ```
+
+    Branch on the HTTP status and, when present, `field`. `title` is written for
+    people and its wording may change. `field` names the offending path in the
+    request (`vehicle.mileage`, `files[1].contentBase64`). It is present for
+    length, format and consistency failures and can be absent for a value that
+    is not in a fixed vocabulary, such as an unknown `caseType`.
+
+    `404` (API off), `413` (raised by the web server) and `429` may carry no
+    body. Treat the status code as the answer.
+
+    ## Reading a result
+
+    | `status` | Meaning |
+    | --- | --- |
+    | `Received` | Durably received and waiting to be picked up. |
+    | `Processing` | Being processed. A transient fault that has a retry scheduled stays `Processing`, and `failureCode` may name it. |
+    | `Complete` | Processing finished. Read `decision`. |
+    | `Failed` | Processing ended without a Case. `failureCode` says why. |
+
+    | `decision` | Meaning |
+    | --- | --- |
+    | `CaseCreated` | The instruction was definitive and a Case/PO is allocated. `caseReference` carries it. A `CaseCreated` decision with no `caseReference` and an `allocationFailure` means allocation was attempted and failed. |
+    | `NeedsSorting` | Kept for staff to sort by hand, for example because the claim is not identified. |
+    | `Unsupported`, `OcrRequired`, `TechnicalFailure`, `ImageIntakeRegistered` | Other intake outcomes, part of the shared intake vocabulary. |
+
+    `decision`, `allocationFailure` and `failureCode` are `null` until intake has
+    something to report. `failureCode` is an open vocabulary: tolerate values you
+    do not recognise.
+
+    `caseReference` is the Pegasus Case/PO reference (for example `QDOS26024`).
+    Audit references carry an `a.` prefix and Triage references a `t.` prefix.
+
+servers:
+  - url: https://pegasus-prod-web-252ow37gij.azurewebsites.net
+    description: Production (Azure App Service)
+
+tags:
+  - name: Submissions
+    description: Submit an instruction and read the outcome of your own submissions.
+
+security:
+  - PrincipalCredential: []
+
+paths:
+  /api/principal/v1/submissions:
+    post:
+      tags: [Submissions]
+      operationId: createSubmission
+      summary: Submit an instruction
+      description: |
+        Declares one instruction, with any files inline, and returns a receipt
+        the moment it is durably received. Processing follows separately: read
+        it with `GET /api/principal/v1/submissions/{id}`.
+
+        Checks run in this order, and the first to fail answers:
+        rate limit, credential, body size, content type, paused credential,
+        request body, then the instruction and files.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmissionRequest'
+            examples:
+              minimalInspection:
+                summary: Inspection, identity fields only
+                value:
+                  caseType: inspection
+                  claimNumber: CLM-2026-000123
+                  claimant:
+                    name: Jane Example
+                  vehicle:
+                    registration: AB12CDE
+              fullInspection:
+                summary: Inspection with every field and two files
+                value:
+                  principal: QDOS
+                  caseType: inspection
+                  claimNumber: CLM-2026-000123
+                  claimant:
+                    name: Jane Example
+                    contactNumber: '07700 900123'
+                    address: |-
+                      1 Example Street
+                      Exampleton
+                      EX1 1AA
+                  fileHandler:
+                    name: Sam Handler
+                    emailAddress: sam.handler@example.com
+                    phoneNumber: '020 7946 0000'
+                  vehicle:
+                    registration: AB12CDE
+                    make: Ford
+                    model: Focus
+                    mileage: 48210
+                    mileageUnit: miles
+                  incident:
+                    dateOfIncident: '2026-09-14'
+                    circumstances: Rear-ended while stationary at a junction.
+                  inspection:
+                    dateRequested: '2026-10-02'
+                    location: |-
+                      Example Garage
+                      2 Example Road
+                      Exampleton
+                      EX2 2BB
+                  vatStatus: Not VAT registered
+                  notes: Claimant available after 5pm.
+                  files:
+                    - ordinal: 0
+                      fileName: instruction.pdf
+                      mediaType: application/pdf
+                      role: instruction
+                      contentBase64: <base64-encoded PDF bytes>
+                    - ordinal: 1
+                      fileName: front-left.jpg
+                      mediaType: image/jpeg
+                      role: image
+                      contentBase64: <base64-encoded JPEG bytes>
+              audit:
+                summary: Audit with the original report attached
+                value:
+                  caseType: audit
+                  originalReportVerdict: total-loss
+                  claimNumber: CLM-2026-000124
+                  claimant:
+                    name: Jane Example
+                  vehicle:
+                    registration: AB12CDE
+                  files:
+                    - fileName: original-report.pdf
+                      mediaType: application/pdf
+                      role: originalreport
+                      contentBase64: <base64-encoded PDF bytes>
+              triage:
+                summary: Triage request
+                value:
+                  caseType: triage
+                  claimNumber: CLM-2026-000125
+                  claimant:
+                    name: Jane Example
+                  vehicle:
+                    registration: AB12CDE
+      responses:
+        '201':
+          description: |
+            Durably received as a new submission. Processing has not started
+            from the caller's point of view.
+          headers:
+            Location:
+              description: Path of the new submission's result.
+              schema:
+                type: string
+                examples:
+                  - /api/principal/v1/submissions/6f1c2b1e-8f2a-4d0b-9a55-3c8f1d2e4a77
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionReceipt'
+              examples:
+                created:
+                  summary: New submission
+                  value:
+                    submissionId: 6f1c2b1e-8f2a-4d0b-9a55-3c8f1d2e4a77
+                    receivedAtUtc: '2026-09-29T10:15:30.1234567+00:00'
+                    principalReference: CLM-2026-000123
+                    replayed: false
+                    files:
+                      - ordinal: 0
+                        fileName: instruction.pdf
+                        sha256: 9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08
+                        duplicate: false
+        '200':
+          description: |
+            A replay: the same `Idempotency-Key` with a byte-identical body.
+            The original receipt is returned with `replayed: true`, and nothing
+            new is retained.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionReceipt'
+              examples:
+                replayed:
+                  summary: Replay of an earlier submission
+                  value:
+                    submissionId: 6f1c2b1e-8f2a-4d0b-9a55-3c8f1d2e4a77
+                    receivedAtUtc: '2026-09-29T10:15:30.1234567+00:00'
+                    principalReference: CLM-2026-000123
+                    replayed: true
+                    files: []
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ApiOff'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/RetentionFailed'
+
+  /api/principal/v1/submissions/{id}:
+    get:
+      tags: [Submissions]
+      operationId: getSubmission
+      summary: Read a submission's result
+      description: |
+        Returns the receipt details and the current processing outcome of one
+        of your own submissions. It is one read of Pegasus's own record and can
+        be called repeatedly. A paused credential may still read.
+
+        A submission that does not exist and one that belongs to another
+        Principal are indistinguishable: both are `404`.
+      parameters:
+        - $ref: '#/components/parameters/SubmissionId'
+      responses:
+        '200':
+          description: The submission and its current outcome.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionResult'
+              examples:
+                received:
+                  summary: Received, not yet processed
+                  value:
+                    submissionId: 6f1c2b1e-8f2a-4d0b-9a55-3c8f1d2e4a77
+                    receivedAtUtc: '2026-09-29T10:15:30.1234567+00:00'
+                    principalReference: CLM-2026-000123
+                    status: Received
+                    decision: null
+                    allocationFailure: null
+                    failureCode: null
+                    caseReference: null
+                caseCreated:
+                  summary: Complete, Case allocated
+                  value:
+                    submissionId: 6f1c2b1e-8f2a-4d0b-9a55-3c8f1d2e4a77
+                    receivedAtUtc: '2026-09-29T10:15:30.1234567+00:00'
+                    principalReference: CLM-2026-000123
+                    status: Complete
+                    decision: CaseCreated
+                    allocationFailure: null
+                    failureCode: null
+                    caseReference: QDOS26024
+                needsSorting:
+                  summary: Complete, kept for staff (claim not identified)
+                  value:
+                    submissionId: 8d3a5c0e-1b7f-4e62-8c19-0a4b6e9d2f31
+                    receivedAtUtc: '2026-09-29T11:02:11.0000000+00:00'
+                    principalReference: null
+                    status: Complete
+                    decision: NeedsSorting
+                    allocationFailure: null
+                    failureCode: null
+                    caseReference: null
+                existingCase:
+                  summary: Failed, matches an existing Case
+                  value:
+                    submissionId: 2b9e7d44-5c30-4a18-b6f2-7d1e8a0c3f95
+                    receivedAtUtc: '2026-09-29T12:40:02.5000000+00:00'
+                    principalReference: CLM-2026-000123
+                    status: Failed
+                    decision: null
+                    allocationFailure: null
+                    failureCode: principal_existing_case_match
+                    caseReference: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: |
+            No such submission for this Principal, or the API is not enabled on
+            this host. The two can be told apart by the body: a missing
+            submission has a problem document, a disabled API has none.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: https://tools.ietf.org/html/rfc9110#section-15.5.5
+                title: The submission was not found.
+                status: 404
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+components:
+  securitySchemes:
+    PrincipalCredential:
+      type: http
+      scheme: bearer
+      bearerFormat: pgs_<key id>_<secret>
+      description: |
+        The Principal credential issued by Collision Engineers, in the form
+        `pgs_<16-character key id>_<43-character secret>`. It authenticates
+        the calling Principal and nothing else.
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Names this submission so a retry cannot create a second one. Trimmed,
+        at most 200 characters, and unique per Principal. Reusing a key with a
+        byte-identical body is a replay (`200`); with a different body it is
+        refused (`409`). A missing or over-long key is `400`.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 200
+      example: order-2026-000123
+    SubmissionId:
+      name: id
+      in: path
+      required: true
+      description: The `submissionId` from the receipt.
+      schema:
+        type: string
+        format: uuid
+      example: 6f1c2b1e-8f2a-4d0b-9a55-3c8f1d2e4a77
+
+  schemas:
+    SubmissionRequest:
+      type: object
+      description: |
+        The instruction a Principal declares. Every value is stated by the
+        Principal; none is read out of a file. Members not listed here are
+        ignored. Text is trimmed, and an empty or blank value counts as absent.
+      required: [caseType]
+      properties:
+        principal:
+          type: string
+          maxLength: 20
+          description: |
+            Optional. Your Principal code. The credential, not this field,
+            decides which Principal the submission belongs to. If supplied it is
+            compared, after trimming and upper-casing, with the credential's
+            Principal, and a mismatch is refused with `403`. It exists to catch
+            a submission sent to the wrong account.
+          examples: [QDOS]
+        claimNumber:
+          type: string
+          maxLength: 100
+          description: |
+            The Principal's claim number. Identifies the claim. Echoed back as
+            `principalReference`.
+          examples: [CLM-2026-000123]
+        caseType:
+          type: string
+          enum: [inspection, audit, auditreport, triage]
+          description: |
+            What is being instructed. Matched case-insensitively. Required. See
+            the case types table in the overview.
+        originalReportVerdict:
+          type: string
+          enum: [repairable, total-loss]
+          description: |
+            The outcome of the original report being audited. **Required for
+            `audit`** and refused for every other `caseType`. Matched
+            case-insensitively. It records the assessment on the Case and
+            decides the Audit reference prefix.
+        claimant:
+          $ref: '#/components/schemas/Claimant'
+        fileHandler:
+          $ref: '#/components/schemas/FileHandler'
+        vehicle:
+          $ref: '#/components/schemas/Vehicle'
+        incident:
+          $ref: '#/components/schemas/Incident'
+        inspection:
+          $ref: '#/components/schemas/Inspection'
+        vatStatus:
+          type: string
+          maxLength: 100
+          description: Free-text VAT status.
+          examples: [Not VAT registered]
+        notes:
+          type: string
+          maxLength: 2000
+          description: A free-text note from the Principal. Line breaks are kept.
+        files:
+          type: array
+          maxItems: 20
+          description: |
+            Zero or more files, sent inline. An instruction with no files is
+            accepted for every case type, `audit` included. Limits: 20 files,
+            10 MiB each and 30 MiB together (both decoded), and 42 MiB for the
+            whole request. At most one file may have `role: originalreport`.
+          items:
+            $ref: '#/components/schemas/SubmissionFile'
+
+    Claimant:
+      type: object
+      description: The claimant. `name` identifies the claim.
+      properties:
+        name:
+          type: string
+          maxLength: 300
+          description: Full name. Runs of whitespace are collapsed to one space.
+          examples: [Jane Example]
+        contactNumber:
+          type: string
+          maxLength: 100
+          description: Telephone number.
+        address:
+          type: string
+          maxLength: 1000
+          description: Postal address. Line breaks are kept.
+
+    FileHandler:
+      type: object
+      description: The instructing party's contact for the file.
+      properties:
+        name:
+          type: string
+          maxLength: 300
+          description: Contact name. Runs of whitespace are collapsed.
+        emailAddress:
+          type: string
+          maxLength: 320
+          description: Contact email address.
+        phoneNumber:
+          type: string
+          maxLength: 100
+          description: Contact telephone number.
+
+    Vehicle:
+      type: object
+      description: The vehicle. `registration` identifies the claim.
+      properties:
+        registration:
+          type: string
+          maxLength: 20
+          description: |
+            Registration mark. Letters, digits and spaces only. Spaces are
+            removed and letters are upper-cased, so `ab12 cde` is stored as
+            `AB12CDE`. The 20-character limit applies before spaces are removed.
+          examples: [AB12CDE]
+        make:
+          type: string
+          maxLength: 100
+          description: Make. Runs of whitespace are collapsed.
+          examples: [Ford]
+        model:
+          type: string
+          maxLength: 100
+          description: Model. Runs of whitespace are collapsed.
+          examples: [Focus]
+        mileage:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Odometer reading. Not negative.
+          examples: [48210]
+        mileageUnit:
+          type: string
+          maxLength: 40
+          description: Unit of `mileage`, as free text.
+          examples: [miles]
+
+    Incident:
+      type: object
+      description: The incident the claim arises from.
+      properties:
+        dateOfIncident:
+          type: string
+          format: date
+          description: Date of the incident, `YYYY-MM-DD`.
+          examples: ['2026-09-14']
+        circumstances:
+          type: string
+          maxLength: 2000
+          description: How the accident happened. Line breaks are kept.
+
+    Inspection:
+      type: object
+      description: Where and when the inspection is wanted.
+      properties:
+        dateRequested:
+          type: string
+          format: date
+          description: Requested inspection date, `YYYY-MM-DD`.
+          examples: ['2026-10-02']
+        location:
+          type: string
+          maxLength: 1000
+          description: Inspection address. Line breaks are kept.
+
+    SubmissionFile:
+      type: object
+      description: |
+        One file sent inline. Pegasus retains it as an attachment of the
+        submission. A file that cannot be read is refused with `400` and the
+        whole submission is not retained.
+      required: [fileName, mediaType, contentBase64]
+      properties:
+        ordinal:
+          type: integer
+          minimum: 0
+          description: |
+            Optional position of the file, from 0. When omitted it is the file's
+            position in the array. Once ordered, the ordinals must run 0, 1, 2…
+            with no gaps or repeats, otherwise the submission is refused with
+            `400`.
+        fileName:
+          type: string
+          minLength: 1
+          maxLength: 260
+          description: |
+            A leaf name with no directory part, for example `report.pdf`. Its
+            extension must match `mediaType`.
+        mediaType:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: |
+            The media type. The extension, media type and the file's own leading
+            bytes must all agree; a mismatch is refused with `400`. Compared
+            case-insensitively.
+
+            | Extension | `mediaType` | Leading bytes checked |
+            | --- | --- | --- |
+            | `.pdf` | `application/pdf` | `%PDF-` |
+            | `.docx` | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | ZIP header |
+            | `.doc` | `application/msword` | OLE2 header |
+            | `.msg` | `application/vnd.ms-outlook` | OLE2 header |
+            | `.jpg`, `.jpeg` | `image/jpeg` | JPEG header |
+            | `.png` | `image/png` | PNG header |
+            | `.eml` | `message/rfc822` | none |
+            | `.mp4` | `video/mp4` | `ftyp` box |
+            | `.mov` | `video/quicktime` | `ftyp` box |
+
+            Any other combination is refused, and so is a file Pegasus's intake
+            reader cannot read.
+        role:
+          type: string
+          enum: [instruction, originalreport, image, correspondence, other]
+          description: |
+            Optional. What the file is. Matched case-insensitively. Without a
+            role nothing is inferred and the file is kept as an ordinary
+            attachment. At most one file may be `originalreport`; it is the
+            report an `audit` is auditing.
+        contentBase64:
+          type: string
+          contentEncoding: base64
+          minLength: 1
+          maxLength: 13981016
+          description: |
+            The file's bytes, base64-encoded (standard alphabet, RFC 4648 §4,
+            with padding). Must not be empty. At most 10 MiB (10,485,760 bytes)
+            once decoded.
+
+    SubmissionReceipt:
+      type: object
+      description: |
+        Returned the moment the submission is durably received, before any
+        processing.
+      required: [submissionId, receivedAtUtc, principalReference, replayed, files]
+      properties:
+        submissionId:
+          type: string
+          format: uuid
+          description: Identifies the submission. Use it to read the result.
+        receivedAtUtc:
+          type: string
+          format: date-time
+          description: |
+            When Pegasus received the submission. This is the Case's Received
+            date, which is its instruction date.
+        principalReference:
+          type: [string, 'null']
+          description: The submitted `claimNumber` (trimmed), or `null` if none was given.
+        replayed:
+          type: boolean
+          description: |
+            `false` for a new submission. `true` when the same
+            `Idempotency-Key` and body were sent before.
+        files:
+          type: array
+          description: The accepted files, in ordinal order. Empty when none were sent.
+          items:
+            $ref: '#/components/schemas/ReceiptFile'
+
+    ReceiptFile:
+      type: object
+      required: [ordinal, fileName, sha256, duplicate]
+      properties:
+        ordinal:
+          type: integer
+          minimum: 0
+          description: The file's ordinal.
+        fileName:
+          type: string
+          description: The file name as submitted.
+        sha256:
+          type: string
+          pattern: '^[0-9A-F]{64}$'
+          description: SHA-256 of the decoded file bytes, as 64 upper-case hex digits.
+        duplicate:
+          type: boolean
+          description: |
+            `true` when the file's bytes are identical to an earlier file in
+            the same submission. The first copy is `false`.
+
+    SubmissionResult:
+      type: object
+      description: |
+        A submission and its current outcome. All fields are always present;
+        those without a value are `null`.
+      required:
+        - submissionId
+        - receivedAtUtc
+        - principalReference
+        - status
+        - decision
+        - allocationFailure
+        - failureCode
+        - caseReference
+      properties:
+        submissionId:
+          type: string
+          format: uuid
+        receivedAtUtc:
+          type: string
+          format: date-time
+        principalReference:
+          type: [string, 'null']
+          description: The submitted `claimNumber`, or `null` if none was given.
+        status:
+          type: string
+          enum: [Received, Processing, Complete, Failed]
+          description: |
+            Where processing stands. `Complete` and `Failed` are final. See
+            "Reading a result" in the overview.
+        decision:
+          type: [string, 'null']
+          enum: [CaseCreated, NeedsSorting, Unsupported, OcrRequired, TechnicalFailure, ImageIntakeRegistered, null]
+          description: |
+            What intake decided once it had processed the submission, or `null`
+            before that. See "Reading a result" in the overview.
+        allocationFailure:
+          type: [string, 'null']
+          enum: [PrincipalUnavailable, ConcurrencyConflict, CaseTypeUnavailable, Unexpected, null]
+          description: |
+            Why allocating the Case/PO failed, when an allocation was attempted
+            and failed. Otherwise `null`.
+        failureCode:
+          type: [string, 'null']
+          description: |
+            A stable code for why processing failed or is being retried, or
+            `null`. An open vocabulary, so tolerate unknown values. Known
+            values:
+
+            | Code | Meaning |
+            | --- | --- |
+            | `principal_existing_case_match` | The declared facts match existing Case work, which this API never changes. Final. |
+            | `principal_submission_unreadable` | The retained submission could not be read back. |
+            | `invalid_intake_data` | The retained input was invalid. Final. |
+            | `staged_artifact_integrity_failure` | The retained bytes failed their integrity check. Final. |
+            | `source_identity_conflict` | The submission's identity conflicted with an existing one. Final. |
+            | `artifact_retention_failure` | A transient storage fault. Retried. |
+            | `intake_processing_failure` | A transient processing fault. Retried. |
+            | `ocr_required` | The intake reader needs OCR to read the material. |
+          examples: [principal_existing_case_match]
+        caseReference:
+          type: [string, 'null']
+          description: |
+            The Case/PO reference once processing allocated one, otherwise
+            `null`. For `triage`, the Triage's `t.` reference. Audit references
+            carry an `a.` prefix.
+          examples: [QDOS26024]
+
+    Problem:
+      type: object
+      description: |
+        An RFC 9457 problem document, served as `application/problem+json`.
+        Other members may be present.
+      required: [title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          description: A URI naming the kind of problem. Defaults to the RFC 9110 section for the status.
+        title:
+          type: string
+          description: A message for people. Its wording may change; do not parse it.
+        status:
+          type: integer
+          description: The HTTP status code.
+        field:
+          type: string
+          description: |
+            The path in the request that is at fault, when one is known, for
+            example `claimant.name`, `files[0].mediaType` or `body` when the
+            JSON itself is unreadable.
+      additionalProperties: true
+
+  headers:
+    RetryAfter:
+      description: Seconds to wait before retrying.
+      schema:
+        type: integer
+        examples: [60]
+    WwwAuthenticate:
+      description: The authentication challenge.
+      schema:
+        type: string
+        examples: ['Bearer realm="pegasus-principal-api"']
+
+  responses:
+    BadRequest:
+      description: |
+        The request could not be accepted, and nothing was retained. The
+        `title` says why and `field` names the path when one is known.
+
+        | Cause | `field` |
+        | --- | --- |
+        | The body is not JSON, is empty, or a date or number is malformed | `body` |
+        | A string is longer than its limit, or `vehicle.registration` holds other than letters, digits and spaces | the field, for example `claimNumber` |
+        | `vehicle.mileage` is negative | `vehicle.mileage` |
+        | `originalReportVerdict` missing on an `audit`, or supplied on any other type | `originalReportVerdict` |
+        | `caseType` missing or not one of the four values | absent |
+        | `originalReportVerdict` not `repairable` or `total-loss` | absent |
+        | `Idempotency-Key` missing, blank or over 200 characters | absent |
+        | A file has no `fileName`, `mediaType` or `contentBase64`, the base64 is invalid, or `role` is unknown | `files[n].fileName`, `.mediaType`, `.contentBase64`, `.role` |
+        | More than one file has `role: originalreport` | `files` |
+        | A file's extension, media type and content disagree, is unsupported or unreadable | `files[n]` |
+        | Ordinals are not contiguous from 0, a file name has a directory part or is over 260 characters, or a media type is over 200 characters | absent |
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            fieldTooLong:
+              summary: A field is over its limit
+              value:
+                type: https://tools.ietf.org/html/rfc9110#section-15.5.1
+                title: The value of 'claimNumber' is at most 100 characters.
+                status: 400
+                field: claimNumber
+            unknownCaseType:
+              summary: Unknown case type
+              value:
+                type: https://tools.ietf.org/html/rfc9110#section-15.5.1
+                title: 'The case type must be one of: inspection, audit, auditreport, triage. (Parameter ''value'')'
+                status: 400
+            auditWithoutVerdict:
+              summary: Audit without a verdict
+              value:
+                type: https://tools.ietf.org/html/rfc9110#section-15.5.1
+                title: An Audit instruction must state the original report verdict.
+                status: 400
+                field: originalReportVerdict
+            unreadableFile:
+              summary: File does not match its declaration
+              value:
+                type: https://tools.ietf.org/html/rfc9110#section-15.5.1
+                title: The file type, media type and content do not agree or are unsupported.
+                status: 400
+                field: files[0]
+    Unauthorized:
+      description: |
+        The credential is missing, malformed, unknown, has the wrong secret, is
+        revoked, or its Principal is inactive. Each refusal is recorded as a
+        security event that names the key id when one was well-formed, and never
+        the secret.
+      headers:
+        WWW-Authenticate:
+          $ref: '#/components/headers/WwwAuthenticate'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://tools.ietf.org/html/rfc9110#section-15.5.2
+            title: The principal credential is missing or not valid.
+            status: 401
+    Forbidden:
+      description: |
+        Authenticated, but refused. Both causes are recorded as security events.
+
+        * The credential is **paused**. Submissions are refused, before the body
+          is read, until it is resumed. Reads still work.
+        * The body's `principal` names a Principal other than the one the
+          credential authenticated.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            paused:
+              summary: Credential paused
+              value:
+                type: https://tools.ietf.org/html/rfc9110#section-15.5.4
+                title: The principal credential is paused; submissions are refused until it is resumed.
+                status: 403
+            principalMismatch:
+              summary: Body names another Principal
+              value:
+                type: https://tools.ietf.org/html/rfc9110#section-15.5.4
+                title: The submission names a principal other than the authenticated one.
+                status: 403
+    ApiOff:
+      description: |
+        The Principal API is not enabled on this host. The response has no body.
+    Conflict:
+      description: |
+        Nothing new was retained.
+
+        * The `Idempotency-Key` was already used with a different body.
+        * The submission collided with a concurrent request. Retry.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            keyReused:
+              summary: Key reused with a different body
+              value:
+                type: https://tools.ietf.org/html/rfc9110#section-15.5.10
+                title: The idempotency key was already used with a different submission.
+                status: 409
+            concurrent:
+              summary: Concurrent request
+              value:
+                type: https://tools.ietf.org/html/rfc9110#section-15.5.10
+                title: The submission conflicted with a concurrent request; retry.
+                status: 409
+    PayloadTooLarge:
+      description: |
+        A limit was exceeded: the request body over 42 MiB, more than 20 files,
+        a file over 10 MiB decoded, or the files together over 30 MiB decoded.
+        The body may be empty when the web server raises it.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://tools.ietf.org/html/rfc9110#section-15.5.14
+            title: The submission exceeds the envelope limit.
+            status: 413
+    UnsupportedMediaType:
+      description: The request `Content-Type` is not `application/json`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://tools.ietf.org/html/rfc9110#section-15.5.16
+            title: The submission must be application/json.
+            status: 415
+    TooManyRequests:
+      description: |
+        More than 60 requests in a minute from this calling address, counted
+        across both endpoints. The window is fixed and nothing is queued. The
+        response has no body.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+    RetentionFailed:
+      description: |
+        The submission could not be retained. Nothing is lost by retrying: send
+        the same request with the same `Idempotency-Key`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://tools.ietf.org/html/rfc9110#section-15.6.4
+            title: The submission could not be retained; retry with the same idempotency key.
+            status: 503

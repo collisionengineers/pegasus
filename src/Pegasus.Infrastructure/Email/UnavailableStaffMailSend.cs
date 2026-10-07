@@ -37,17 +37,6 @@ public sealed class UnavailableStaffMailSend : IStaffMailSend
         return Task.FromResult<StaffMailOperation?>(null);
     }
 
-    public Task<StaffMailOperation> ReconcileAsync(
-        ActionActor actor,
-        Guid operationId,
-        long expectedVersion,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(actor);
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromException<StaffMailOperation>(Unavailable());
-    }
-
     public Task<StaffMailOperation> CancelAsync(
         ActionActor actor,
         Guid operationId,

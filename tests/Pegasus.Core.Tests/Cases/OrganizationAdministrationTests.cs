@@ -267,6 +267,73 @@ public sealed class OrganizationAdministrationTests
     }
 
     [Fact]
+    public void ASuccessorInheritsItsPredecessorsDefaultFee()
+    {
+        var predecessor = Principal(version: 3) with { DefaultFee = 210.00m };
+
+        var replacement = OrganizationAdministrationPolicy.PlanPrincipalReplacement(
+            predecessor,
+            3,
+            Guid.NewGuid(),
+            "NEXT",
+            codeAlreadyExists: false);
+
+        Assert.Equal(210.00m, replacement.Successor.DefaultFee);
+    }
+
+    /// <summary>
+    /// The default fee is saved with the report settings and moves the
+    /// version only when it changes.
+    /// </summary>
+    [Fact]
+    public void TheDefaultFeeChangesWithTheReportSettings()
+    {
+        var current = Principal(version: 3) with { ReportRecipients = PrincipalReportRecipientSettings.None };
+
+        var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+            current,
+            expectedVersion: 3,
+            reportGenerationPolicy: current.ReportGenerationPolicy,
+            reportRecipients: PrincipalReportRecipientSettings.None,
+            defaultFee: 200.00m);
+
+        Assert.Equal(200.00m, updated.DefaultFee);
+        Assert.Equal(4, updated.Version);
+        Assert.Equal(4, OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+            updated,
+            expectedVersion: 4,
+            reportGenerationPolicy: updated.ReportGenerationPolicy,
+            reportRecipients: PrincipalReportRecipientSettings.None,
+            defaultFee: 200m).Version);
+    }
+
+    /// <summary>
+    /// The default fee is required: more than £0, in whole pence, the
+    /// agreed fee's own rule.
+    /// </summary>
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("180.005")]
+    public void ADefaultFeeTheAgreedFeeWouldRefuseIsRefused(string fee)
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var request = new UpdatePrincipalReportSettingsRequest(
+            Guid.NewGuid(), 1, actor, "fee-op", null, PrincipalReportGenerationPolicy.Pegasus,
+            PrincipalReportRecipientSettings.None,
+            decimal.Parse(fee, System.Globalization.CultureInfo.InvariantCulture), 1);
+
+        Assert.ThrowsAny<ArgumentException>(() => OrganizationAdministrationPolicy.Normalize(request));
+        Assert.ThrowsAny<ArgumentException>(() =>
+            OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+                Principal(version: 3),
+                expectedVersion: 3,
+                reportGenerationPolicy: PrincipalReportGenerationPolicy.Pegasus,
+                reportRecipients: PrincipalReportRecipientSettings.None,
+                defaultFee: request.DefaultFee));
+    }
+
+    [Fact]
     public void TheSalvageMatrixChangesInPlaceAndMovesTheVersionOnlyWhenChanged()
     {
         var current = Principal(version: 3);
@@ -356,7 +423,8 @@ public sealed class OrganizationAdministrationTests
             current,
             expectedVersion: 3,
             reportGenerationPolicy: PrincipalReportGenerationPolicy.EvaManualApi,
-            reportRecipients: PrincipalReportRecipientSettings.None);
+            reportRecipients: PrincipalReportRecipientSettings.None,
+            defaultFee: PrincipalDefaultFeePolicy.Standard);
 
         Assert.Equal(PrincipalReportGenerationPolicy.EvaManualApi, updated.ReportGenerationPolicy);
         Assert.Equal(4, updated.Version);
@@ -379,7 +447,8 @@ public sealed class OrganizationAdministrationTests
             current,
             expectedVersion: 3,
             reportGenerationPolicy: PrincipalReportGenerationPolicy.EvaManualApi,
-            reportRecipients: PrincipalReportRecipientSettings.None);
+            reportRecipients: PrincipalReportRecipientSettings.None,
+            defaultFee: PrincipalDefaultFeePolicy.Standard);
 
         Assert.Equal(3, updated.Version);
     }
@@ -394,6 +463,7 @@ public sealed class OrganizationAdministrationTests
             expectedVersion: 3,
             reportGenerationPolicy: current.ReportGenerationPolicy,
             reportRecipients: PrincipalReportRecipientSettings.None,
+            defaultFee: PrincipalDefaultFeePolicy.Standard,
             notesOnEveryCase: "Always copy the fleet manager.");
 
         Assert.Equal("Always copy the fleet manager.", updated.NotesOnEveryCase);
@@ -404,6 +474,7 @@ public sealed class OrganizationAdministrationTests
             expectedVersion: 4,
             reportGenerationPolicy: updated.ReportGenerationPolicy,
             reportRecipients: PrincipalReportRecipientSettings.None,
+            defaultFee: PrincipalDefaultFeePolicy.Standard,
             notesOnEveryCase: "Always copy the fleet manager.");
         Assert.Equal(4, unchanged.Version);
     }
@@ -414,7 +485,7 @@ public sealed class OrganizationAdministrationTests
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var request = new UpdatePrincipalReportSettingsRequest(
             Guid.NewGuid(), 1, actor, "notes-op", null, PrincipalReportGenerationPolicy.Pegasus,
-            PrincipalReportRecipientSettings.None, 1, "  Always copy the fleet manager.  ");
+            PrincipalReportRecipientSettings.None, PrincipalDefaultFeePolicy.Standard, 1, "  Always copy the fleet manager.  ");
 
         Assert.Equal("Always copy the fleet manager.", OrganizationAdministrationPolicy.Normalize(request).NotesOnEveryCase);
         Assert.Null(OrganizationAdministrationPolicy.Normalize(request with { NotesOnEveryCase = "   " }).NotesOnEveryCase);
@@ -430,7 +501,8 @@ public sealed class OrganizationAdministrationTests
                 Principal(version: 4),
                 expectedVersion: 3,
                 reportGenerationPolicy: PrincipalReportGenerationPolicy.EvaManualApi,
-                reportRecipients: PrincipalReportRecipientSettings.None));
+                reportRecipients: PrincipalReportRecipientSettings.None,
+                defaultFee: PrincipalDefaultFeePolicy.Standard));
 
         Assert.Equal(OrganizationAdministrationError.StaleVersion, error.Error);
     }
@@ -447,7 +519,8 @@ public sealed class OrganizationAdministrationTests
                 Principal(version: 3) with { IsActive = false },
                 expectedVersion: 3,
                 reportGenerationPolicy: PrincipalReportGenerationPolicy.EvaManualApi,
-                reportRecipients: PrincipalReportRecipientSettings.None));
+                reportRecipients: PrincipalReportRecipientSettings.None,
+                defaultFee: PrincipalDefaultFeePolicy.Standard));
 
         Assert.Equal(OrganizationAdministrationError.PrincipalInactive, error.Error);
     }
@@ -486,7 +559,8 @@ public sealed class OrganizationAdministrationTests
                 request.ExpectedVersion + 1,
                 CaseInspectionMode.PhysicalAddress,
                 request.ReportGenerationPolicy,
-                request.ReportRecipients));
+                request.ReportRecipients,
+                DefaultFee: request.DefaultFee));
         }
 
         public List<UpdatePrincipalSalvageMatrixRequest> SalvageMatrixUpdates { get; } = [];

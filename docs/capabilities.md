@@ -50,12 +50,12 @@ exclusion.
 | MAIL-14 | Detect an exact Outlook Sent item as report-sent evidence | [Outbound correspondence evidence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence) |
 | MAIL-15 | Manually link, unlink, or relink an exact Sent item with a reason | [Outbound correspondence evidence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence) |
 | MAIL-16 | Automatically match the exact report Sent item to its case | [Outbound correspondence evidence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence) |
-| MAIL-18 | Generate copyable chaser messages for staff to send manually | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
+| MAIL-18 | Chaser messages for staff to send: the Case chaser template and Send chaser, and the copyable due-chaser text | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | TRI-01 | Distinct inbox Triage label; Triage as a Case type with a `t.` Case/PO and its own workflow | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-02 | Vehicle-registration gate and Triage-specific missing-registration behavior | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-03 | Open, Awaiting information, Finding recorded, Completed, and Cancelled states | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-04 | Roadworthiness and Assessment findings, each optional, corrected by superseding | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
-| TRI-05 | Outcome-based completion and optional Reply with outcome correspondence | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
+| TRI-05 | Outcome-based completion and optional Reply with finding correspondence | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-06 | Reopen and superseding-finding behavior with permanent history | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-07 | Optional later case link, unlink, and relink | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-08 | Dedicated Triage queue and the Triage Case page at `/Cases/{id}` | [The Triage Case page](frd/frd-15-work-centre-queues-and-search.md#the-triage-case-page) |
@@ -90,7 +90,7 @@ exclusion.
 | CASE-34 | Inspect at fast-update choices and Case storage location | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
 | UI-02 | Case queues for Not ready, Review, and Held | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
 | UI-03 | E-mail activity for Unidentified, including closed and could-not-be-read items | [Pre-Case records](frd/frd-15-work-centre-queues-and-search.md#pre-case-records) |
-| UI-04 | New cases today, Sent to Engineer, and Reports sent day/week activity | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
+| UI-04 | Activity: New cases today, Sent to Engineer and Reports sent today and this week, Completed this week, E-mails received today | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | UI-05 | Click-through filtered work queues | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | UI-06 | Last-good time, distinct current/stale/partial/unavailable/failed states, auditable reconciliation, and manual refresh | [Dashboard freshness and reconciliation](frd/frd-15-work-centre-queues-and-search.md#dashboard-freshness-and-reconciliation) |
 | UI-07 | Search and filter across Cases and pre-Case records | [Search](frd/frd-15-work-centre-queues-and-search.md#search) |
@@ -148,17 +148,17 @@ exclusion.
 | INT-07 | Automatic ingestion from `info@collisionengineers.co.uk` | [Mailbox allowlist, activation and wipe](frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#mailbox-allowlist-activation-and-wipe) |
 | INT-14 | Automated legacy DOC extraction | [Supported source boundary](frd/frd-05-documents-extraction-and-custody.md#supported-source-boundary) |
 | INT-15 | Automated MSG extraction | [Supported source boundary](frd/frd-05-documents-extraction-and-custody.md#supported-source-boundary) |
-| INT-16 | Qualified OCR for incoming scanned instructions | [Qualified OCR](frd/frd-05-documents-extraction-and-custody.md#qualified-ocr) |
+| INT-16 | OCR of every incoming scanned document page, read as a report and, when needed, as an instruction | [Qualified OCR](frd/frd-05-documents-extraction-and-custody.md#qualified-ocr) |
 | INT-28 | Automatic matching of image-led and instruction-led records | [Pairing and merge](frd/frd-19-image-led-intake-and-pairing.md#pairing-and-merge); [Grouped image-intake routing](frd/frd-19-image-led-intake-and-pairing.md#grouped-image-intake-routing) |
 | MAIL-01 | Identify every inbound mailbox item and its mailbox/thread/message identity | [Inbound mailbox identity](frd/frd-08-email-mailbox-and-background-processing.md#inbound-mailbox-identity) |
 | MAIL-02 | Map classifications to queues, Other, Unidentified or Triage | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
 | MAIL-03 | One shared classification policy across all supported mailboxes | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
-| MAIL-04 | Explainable classification evidence, policy version, and correction history | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
+| MAIL-04 | Explainable classification evidence, policy version, correction history, and the case type and Triage match a correction carries | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
 | MAIL-05 | Recommend the designated Outlook folder for a classified message | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
 | MAIL-06 | Staff confirmation of a recommended folder move in Pegasus | [Classification, linking and folder-move actions](frd/frd-20-mailbox-workspace.md#classification-linking-and-folder-move-actions) |
 | MAIL-07 | Move the confirmed message to the designated Outlook folder | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
 | MAIL-09 | Automatic association of related email and attachments with a case | [Automatic Case association of retained mail](frd/frd-08-email-mailbox-and-background-processing.md#automatic-case-association-of-retained-mail) |
-| MAIL-10 | Manual email/case association, unlink, relink, and correction | [Classification, linking and folder-move actions](frd/frd-20-mailbox-workspace.md#classification-linking-and-folder-move-actions) |
+| MAIL-10 | Manual email/case association, unlink, relink, correction, and the next action a corrected classification offers | [Classification, linking and folder-move actions](frd/frd-20-mailbox-workspace.md#classification-linking-and-folder-move-actions) |
 | MAIL-11 | Browse, search and view mailbox messages and threads | [Quick preview and message detail](frd/frd-20-mailbox-workspace.md#quick-preview-and-message-detail) |
 | MAIL-13 | Outlook category by allowlisted identifier; no read-state, flag or delete | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
 | CASE-23 | Post-report query and dispute work on the existing Case | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
@@ -182,7 +182,7 @@ exclusion.
 | MAIL-17 | Idempotent report and fee-note send with Box filing | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
 | CASE-22 | Replace EVA inspection and report-preparation work inside Pegasus | [Professional engineering findings and correction](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#professional-engineering-findings-and-correction) |
 | EXT-04 | Principal-selected report route: Pegasus, EVA ZIP or EVA API | [EVA handoff routes](frd/frd-07-eva-and-external-engineering-handoff.md#eva-handoff-routes) |
-| EXT-05 | Replace EVA Engineer assignment | [Hand to Engineer](frd/frd-13-case-lifecycle-and-workflow.md#hand-to-engineer) |
+| EXT-05 | Replace EVA Engineer assignment | [Assign Engineer](frd/frd-13-case-lifecycle-and-workflow.md#assign-engineer) |
 | EXT-06 | Replace EVA estimating without moving repair-specification authority out of Pegasus Core | [Canonical repair specifications](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications) |
 | EXT-07 | Dated valuation source evidence with explicit human staff selection | [Valuation sources](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources) |
 | EXT-08 | Deterministic report generation from accepted Core data | [Initial renderer activation](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation) |

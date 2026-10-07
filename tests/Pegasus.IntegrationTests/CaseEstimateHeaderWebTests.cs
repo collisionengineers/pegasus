@@ -47,7 +47,7 @@ public sealed class CaseEstimateHeaderWebTests
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
             Assert.Equal(
                 "default-src 'self'; object-src 'none'; base-uri 'self'; " +
-                "frame-src 'self' blob:; frame-ancestors 'self'",
+                "img-src 'self' blob:; frame-src 'self' blob:; frame-ancestors 'self'",
                 Assert.Single(response.Headers.GetValues("Content-Security-Policy")));
         }
     }

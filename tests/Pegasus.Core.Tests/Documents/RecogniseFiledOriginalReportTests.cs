@@ -131,6 +131,21 @@ public sealed class RecogniseFiledOriginalReportTests
             () => harness.Sut.ExecuteAsync(CaseId, harness.Receipt));
     }
 
+    [Fact]
+    public async Task AnUnfiledCandidateOnACaseThatAwaitsItsReportIsAwaitingFiling()
+    {
+        var report = Pdf("report.pdf");
+        var harness = new Harness(Receipt(report));
+        harness.Store.AnythingFiled = false;
+        harness.Reader.Recognise(report);
+
+        Assert.Equal(
+            OriginalReportRecognitionResult.AwaitingFiling,
+            await harness.Sut.ExecuteAsync(CaseId, harness.Receipt));
+        Assert.Empty(harness.Reader.Read);
+        Assert.Empty(harness.Store.Recorded);
+    }
+
     private static IntakeAssetRecord Email() => new(
         Guid.NewGuid(), "source", "message.eml", "message/rfc822",
         IntakeAssetKind.Source, IntakeAssetDisposition.Source,
@@ -195,23 +210,32 @@ public sealed class RecogniseFiledOriginalReportTests
         public List<(RecordRecognisedOriginalReport Command, OriginalReportReading Reading)> Recorded { get; } = [];
         public Exception? Failure { get; set; }
 
-        public Task<IReadOnlyList<FiledOriginalReportCandidate>> FindAwaitingCandidatesAsync(
-            Guid caseId, Guid receiptId, IReadOnlyCollection<Guid> intakeAssetIds,
+        /// <summary>Whether the asked-for files are on the Case yet; false models custody still in flight.</summary>
+        public bool AnythingFiled { get; set; } = true;
+
+        public Task<FiledOriginalReportCandidates> FindAwaitingCandidatesAsync(
+            Guid caseId, Guid receiptId, IReadOnlyCollection<FiledOriginalReportLookup> assets,
             CancellationToken cancellationToken = default)
         {
-            AskedFor = intakeAssetIds.ToArray();
+            AskedFor = assets.Select(asset => asset.IntakeAssetId).ToArray();
             if (!awaiting)
             {
-                return Task.FromResult<IReadOnlyList<FiledOriginalReportCandidate>>([]);
+                return Task.FromResult(new FiledOriginalReportCandidates(false, []));
             }
 
-            foreach (var assetId in intakeAssetIds)
+            if (!AnythingFiled)
             {
-                Filed[assetId] = new(assetId, Guid.NewGuid(), Guid.NewGuid());
+                return Task.FromResult(new FiledOriginalReportCandidates(true, []));
             }
 
-            return Task.FromResult<IReadOnlyList<FiledOriginalReportCandidate>>(
-                intakeAssetIds.Select(assetId => Filed[assetId]).ToArray());
+            foreach (var asset in assets)
+            {
+                Filed[asset.IntakeAssetId] = new(asset.IntakeAssetId, Guid.NewGuid(), Guid.NewGuid());
+            }
+
+            return Task.FromResult(new FiledOriginalReportCandidates(
+                true,
+                assets.Select(asset => Filed[asset.IntakeAssetId]).ToArray()));
         }
 
         public Task<OriginalReportRecorded?> RecordRecognisedAsync(

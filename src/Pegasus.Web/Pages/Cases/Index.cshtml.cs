@@ -18,18 +18,19 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
-/// Cases (v26): the workflow rail with queried counts, the open
+/// Cases (v26): the rail of queues with queried counts, the open
 /// scope as a table (decision L) and a fixed-width quick detail of the selected
 /// row.
 /// </summary>
 /// <remarks>
-/// The rail groups are Workflow (Not ready, Review, With Engineer, Complete, Query),
-/// Pre-Case work (Triage, Awaiting instruction) and Exceptions (Held,
-/// Unidentified). The Unidentified scope lists open items, with closed items
+/// The rail is one continuous list with no groups (issue 1046): Not ready,
+/// Review, With Engineer, Query, Triage, Awaiting instruction, Held and
+/// Unidentified. Completed Cases have no queue; Search's State filter finds
+/// them. The Unidentified scope lists open items, with closed items
 /// behind its Show filter (received file D5); nothing here lists a Blocked
 /// receipt or links to a received item (received file D1, D2).
 ///
-/// The group is <c>?tab=</c>; the earlier <c>?queue=</c> is accepted as
+/// The queue is <c>?tab=</c>; the earlier <c>?queue=</c> is accepted as
 /// an alias and hyphenated spellings normalise to the same keys. A request
 /// carrying a search-only parameter belongs to <c>/Search</c> and is
 /// redirected there permanently with its values intact.
@@ -42,7 +43,6 @@ public sealed class IndexModel(
     IGetCaseEditBasis getCaseEditBasis,
     ICaseReportSnapshotSource reportSnapshotSource,
     ICaseReportGenerationStore reportGenerations,
-    ICaseReportDeliveryPreparationStore deliveryPreparations,
     IDashboardQueries dashboardQueries,
     IUnidentifiedStore unidentifiedStore,
     IImageIntakeQueries imageIntakeQueries,
@@ -70,8 +70,6 @@ public sealed class IndexModel(
         reportSnapshotSource ?? throw new ArgumentNullException(nameof(reportSnapshotSource));
     private readonly ICaseReportGenerationStore _reportGenerations =
         reportGenerations ?? throw new ArgumentNullException(nameof(reportGenerations));
-    private readonly ICaseReportDeliveryPreparationStore _deliveryPreparations =
-        deliveryPreparations ?? throw new ArgumentNullException(nameof(deliveryPreparations));
     private readonly IDashboardQueries _dashboardQueries =
         dashboardQueries ?? throw new ArgumentNullException(nameof(dashboardQueries));
     private readonly IUnidentifiedStore _unidentifiedStore =
@@ -85,29 +83,24 @@ public sealed class IndexModel(
     private readonly TimeProvider _timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
-    /// <summary>One rail entry: its key, label, group and icon.</summary>
-    public sealed record Tab(string Key, string Label, string Group, string Icon, bool IsException = false);
-
-    public const string WorkflowGroup = "Workflow";
-    public const string PreCaseGroup = "Pre-Case work";
-    public const string ExceptionsGroup = "Exceptions";
+    /// <summary>One rail entry: its key, label and icon.</summary>
+    public sealed record Tab(string Key, string Label, string Icon);
 
     /// <summary>
-    /// The rail, in rail order; the group labels are the section labels.
-    /// Every label comes from <see cref="OperatorLabels.CaseStage"/> (D3) or
-    /// is the record kind's own settled name.
+    /// The rail, in rail order. Every label comes from
+    /// <see cref="OperatorLabels.CaseStage"/> (D3) or is the record kind's own
+    /// settled name.
     /// </summary>
     public static readonly IReadOnlyList<Tab> Tabs =
     [
-        new("not_ready", OperatorLabels.CaseStage(CaseLifecycleState.NotReady), WorkflowGroup, "icon-clock"),
-        new("review", OperatorLabels.CaseStage(CaseLifecycleState.Review), WorkflowGroup, "icon-check-circle"),
-        new("with_engineer", OperatorLabels.CaseStage(CaseLifecycleState.ReportPreparation), WorkflowGroup, "icon-user"),
-        new("complete", OperatorLabels.CaseStage(CaseLifecycleState.PostReportComplete), WorkflowGroup, "icon-check"),
-        new("query", OperatorLabels.CaseStage(CaseLifecycleState.Query), WorkflowGroup, "icon-reply"),
-        new("triage", "Triage", WorkflowGroup, "icon-file-text"),
-        new("awaiting", "Awaiting instruction", PreCaseGroup, "icon-image"),
-        new("held", OperatorLabels.CaseStage(CaseLifecycleState.Held), ExceptionsGroup, "icon-pause", IsException: true),
-        new("unidentified", "Unidentified", ExceptionsGroup, "icon-alert-triangle", IsException: true)
+        new("not_ready", OperatorLabels.CaseStage(CaseLifecycleState.NotReady), "icon-clock"),
+        new("review", OperatorLabels.CaseStage(CaseLifecycleState.Review), "icon-check-circle"),
+        new("with_engineer", OperatorLabels.CaseStage(CaseLifecycleState.ReportPreparation), "icon-user"),
+        new("query", OperatorLabels.CaseStage(CaseLifecycleState.Query), "icon-reply"),
+        new("triage", "Triage", "icon-file-text"),
+        new("awaiting", "Awaiting instruction", "icon-image"),
+        new("held", OperatorLabels.CaseStage(CaseLifecycleState.Held), "icon-pause"),
+        new("unidentified", "Unidentified", "icon-alert-triangle")
     ];
 
     /// <summary>
@@ -149,7 +142,7 @@ public sealed class IndexModel(
     public string? PrincipalFilter { get; set; }
 
     /// <summary>
-    /// The Not ready group's Missing filter: <c>instructions</c>, <c>images</c>
+    /// The Not ready queue's Missing filter: <c>instructions</c>, <c>images</c>
     /// or <c>both</c>, read from each case's recorded completeness facts. The
     /// options are exclusive — "Instructions" means the instruction is the
     /// only thing missing — because "Both missing" exists for the remainder.
@@ -174,7 +167,7 @@ public sealed class IndexModel(
 
     /// <summary>Whether the scope lists Case rows, so the Principal filter applies.</summary>
     public static bool ListsCases(string queue) =>
-        queue is "not_ready" or "review" or "with_engineer" or "complete" or "query" or "held";
+        queue is "not_ready" or "review" or "with_engineer" or "query" or "held";
 
     public CaseStageCounts StageCounts { get; private set; } = new(0, 0, 0, 0);
 
@@ -188,7 +181,6 @@ public sealed class IndexModel(
         "not_ready" => StageCounts.NotReady,
         "review" => StageCounts.Review,
         "with_engineer" => StageCounts.WithEngineer,
-        "complete" => StageCounts.Complete,
         "query" => StageCounts.Query,
         "triage" => TriageCount,
         "awaiting" => StageCounts.AwaitingInstruction,
@@ -387,8 +379,8 @@ public sealed class IndexModel(
         var stageCountsTask = _dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
         var triageTask = _listTriage.CountAsync(
             actor,
-            state: null,
-            cancellationToken: cancellationToken);
+            TriageLifecycleRules.ActiveStates,
+            cancellationToken);
         var openUnidentifiedCountTask = _unidentifiedStore.CountOpenAsync(cancellationToken);
         await Task.WhenAll(stageCountsTask, triageTask, openUnidentifiedCountTask);
         StageCounts = stageCountsTask.Result;
@@ -488,26 +480,25 @@ public sealed class IndexModel(
 
     private async Task<IReadOnlyList<QueueRow>> LoadCasesAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        // With Engineer is two Core states read as one group (D3): both
-        // pages are read and merged, so the group can carry up to two pages.
-        CaseLifecycleState[] states = Queue switch
+        // With Engineer is two Core states read as one stage (D3), searched
+        // together so the stage pages as one list.
+        var stage = Queue switch
         {
-            "review" => [CaseLifecycleState.Review],
-            "with_engineer" => [CaseLifecycleState.ReportPreparation, CaseLifecycleState.PostReport],
-            "complete" => [CaseLifecycleState.PostReportComplete],
-            "query" => [CaseLifecycleState.Query],
-            _ => [CaseLifecycleState.Held]
+            "review" => CaseLifecycleState.Review,
+            "with_engineer" => CaseLifecycleState.ReportPreparation,
+            "query" => CaseLifecycleState.Query,
+            _ => CaseLifecycleState.Held
         };
-        var results = await Task.WhenAll(states.Select(state => _searchCases.ExecuteAsync(
+        var result = await _searchCases.ExecuteAsync(
             new(
                 actor,
-                new(State: state, Principal: PrincipalFilter),
+                new(States: OperatorLabels.CaseStageStates(stage), Principal: PrincipalFilter),
                 CurrentPage,
                 PageSize),
-            cancellationToken)));
+            cancellationToken);
         HasPreviousPage = CurrentPage > 1;
-        HasNextPage = results.Any(result => result.HasNextPage);
-        var items = results.SelectMany(result => result.Items).ToArray();
+        HasNextPage = result.HasNextPage;
+        var items = result.Items.ToArray();
         Principals = PrincipalOptions(items);
         var engineers = await EngineerNamesAsync(items, cancellationToken);
         return items.Select(item => CaseRow(item, engineers)).ToArray();
@@ -521,7 +512,7 @@ public sealed class IndexModel(
         var result = await _searchCases.ExecuteAsync(
             new(
                 actor,
-                new(State: CaseLifecycleState.NotReady, Principal: PrincipalFilter),
+                new(States: [CaseLifecycleState.NotReady], Principal: PrincipalFilter),
                 Page: 1,
                 PageSize: MergedPageSize),
             cancellationToken);
@@ -558,7 +549,7 @@ public sealed class IndexModel(
 
     private async Task<IReadOnlyList<QueueRow>> LoadTriageAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        var page = await _listTriage.ExecuteAsync(new(actor, State: null, CurrentPage, PageSize), cancellationToken);
+        var page = await _listTriage.ExecuteAsync(new(actor, TriageLifecycleRules.ActiveStates, CurrentPage, PageSize), cancellationToken);
         HasPreviousPage = page.Page > 1;
         HasNextPage = page.Page < page.TotalPages;
         var assignees = await ActorDisplayNames.ResolveStaffNamesAsync(
@@ -618,31 +609,28 @@ public sealed class IndexModel(
         // Current work is the Case's Next action, the one the Case page's
         // aside states (issue 896), read from the same facts: the first
         // missing requirement, and once the report is the Case's concern its
-        // readiness while the assessment can open, the current report and its
-        // delivery preparation.
+        // readiness while the assessment can open, and the current report.
         var caseId = basis.Workflow.CaseId;
         IReadOnlyList<AssessmentReadinessItem> reportBlockers = [];
         CaseReportGenerationRecord? currentReport = null;
-        CaseReportDeliveryPreparationRecord? deliveryPreparation = null;
         if (CaseNextAction.ReadsTheReport(basis.Workflow))
         {
             if (AssessmentAccessPolicy.For(actor, basis.Workflow).CanOpen
                 && await _reportSnapshotSource.GetAsync(caseId, actor, CaseWorkSelector.Current, reuse: null, cancellationToken) is { } reportInputs)
             {
-                reportBlockers = CaseReportReadiness.Evaluate(reportInputs.Readiness).Reasons;
+                reportBlockers = CaseWorkspaceLabels.Report.InPageOrder(
+                    CaseReportReadiness.Evaluate(reportInputs.Readiness).Reasons);
             }
             currentReport = await _reportGenerations.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, cancellationToken);
-            deliveryPreparation = currentReport is null
-                ? null
-                : await _deliveryPreparations.GetCurrentAsync(actor, caseId, cancellationToken);
         }
         var next = CaseNextAction.Of(
             basis.Workflow,
+            basis.Summary.CaseType,
+            basis.Frame.Works,
             missingRequirements is [var firstMissing, ..] ? OperatorLabels.RequirementIncomplete(firstMissing) : null,
             reportBlockers,
             _ => null,
-            currentReport,
-            deliveryPreparation);
+            currentReport);
 
         var work = new List<(string Label, string Value)>(3) { ("Current work", next.Label) };
 
@@ -756,11 +744,7 @@ public sealed class IndexModel(
             $"/Cases/{item.CaseId:D}",
             [],
             Chip: chip,
-            ChipTone: null) with
-        {
-            // An Audit Case (a.) reads its type beside its reference.
-            Notice = item.CaseType == CaseType.Audit ? OperatorLabels.CaseTypeName(CaseType.Audit) : null
-        };
+            ChipTone: null);
     }
 
     private QueueRow ImageRow(ImageIntakeSummary item, int chaseIntervalDays)

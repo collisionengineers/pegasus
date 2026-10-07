@@ -380,24 +380,12 @@ internal sealed class EfIntakeMutationStore(
         };
 
         receipt.Version++;
-        var queryReceived = IsPostReportQueryReceipt(receipt)
-            && caseWorkflow.State == nameof(CaseLifecycleState.PostReportComplete);
-        ObservedQueryReply? observedReply = null;
-        if (queryReceived)
+        var entry = await PostReportQueryTransitions.EnterAsync(
+            context, receipt, caseWorkflow, occurredAtUtc, cancellationToken);
+        if (entry.Kind != PostReportQueryEntry.None)
         {
-            observedReply = await FindObservedQueryReplyAsync(
-                context, receipt, caseWorkflow.CaseId, cancellationToken);
-            var beforeQueryReplyJson = observedReply is null
-                ? null
-                : SnapshotQueryReply(caseWorkflow, observedReply);
-            caseWorkflow.State = observedReply is null
-                ? nameof(CaseLifecycleState.Query)
-                : nameof(CaseLifecycleState.PostReportComplete);
-            caseWorkflow.ClosureOutcome = observedReply is null
-                ? null
-                : nameof(CaseClosureOutcome.PostReportComplete);
-            CaseMutationGuard.Complete(caseWorkflow);
-            if (observedReply is null)
+            CaseMutationGuard.Advance(caseWorkflow);
+            if (entry.Kind == PostReportQueryEntry.EnterQuery)
             {
                 AddCaseAssociationHistory(
                     context, caseWorkflow, beforeCaseVersion, requestHash, request.Actor.Trim(),
@@ -405,8 +393,8 @@ internal sealed class EfIntakeMutationStore(
             }
             else
             {
-                AddObservedQueryReplyHistory(
-                    context, caseWorkflow, beforeCaseVersion, observedReply, beforeQueryReplyJson!);
+                PostReportQueryTransitions.AddObservedReplyHistory(
+                    context, caseWorkflow, beforeCaseVersion, entry.ObservedReply!, entry.BeforeReplyJson!);
             }
         }
         context.IntakeMutationHistory.Add(new IntakeMutationHistoryEntity
@@ -427,9 +415,9 @@ internal sealed class EfIntakeMutationStore(
             ExpectedIntakeVersion = beforeVersion,
             BeforeIntakeVersion = beforeVersion,
             AfterIntakeVersion = receipt.Version,
-            ExpectedCaseVersion = queryReceived ? beforeCaseVersion : null,
-            BeforeCaseVersion = queryReceived ? beforeCaseVersion : null,
-            AfterCaseVersion = queryReceived ? caseWorkflow.Version : null,
+            ExpectedCaseVersion = entry.Kind != PostReportQueryEntry.None ? beforeCaseVersion : null,
+            BeforeCaseVersion = entry.Kind != PostReportQueryEntry.None ? beforeCaseVersion : null,
+            AfterCaseVersion = entry.Kind != PostReportQueryEntry.None ? caseWorkflow.Version : null,
             BeforeJson = beforeJson,
             AfterJson = Snapshot(receipt)
         });
@@ -1082,34 +1070,36 @@ internal sealed class EfIntakeMutationStore(
         var beforeJson = Snapshot(receipt);
         await mutate(context, receipt, @case, cancellationToken);
         receipt.Version++;
-        ObservedQueryReply? observedReply = null;
-        string? beforeQueryReplyJson = null;
+        var entry = PostReportQueryTransitions.Entry.None;
+        string? withdrawnBeforeJson = null;
         if (caseWorkflow is not null)
         {
-            if (eventType == "intake_case_linked"
-                && IsPostReportQueryReceipt(receipt)
-                && caseWorkflow.State == nameof(CaseLifecycleState.PostReportComplete))
+            if (eventType == "intake_case_linked")
             {
-                observedReply = await FindObservedQueryReplyAsync(
-                    context, receipt, caseWorkflow.CaseId, cancellationToken);
-                beforeQueryReplyJson = observedReply is null
-                    ? null
-                    : SnapshotQueryReply(caseWorkflow, observedReply);
-                caseWorkflow.State = observedReply is null
-                    ? nameof(CaseLifecycleState.Query)
-                    : nameof(CaseLifecycleState.PostReportComplete);
-                caseWorkflow.ClosureOutcome = observedReply is null
-                    ? null
-                    : nameof(CaseClosureOutcome.PostReportComplete);
+                entry = await PostReportQueryTransitions.EnterAsync(
+                    context, receipt, caseWorkflow, occurredAtUtc, cancellationToken);
+            }
+            else if (eventType == "intake_case_link_reversed")
+            {
+                withdrawnBeforeJson = await PostReportQueryTransitions.WithdrawAsync(
+                    context, receipt, caseWorkflow, occurredAtUtc, cancellationToken);
             }
         }
         caseAuthority?.CompleteStaffMutation(context);
         if (caseWorkflow is not null && beforeCaseVersion is not null)
         {
-            if (observedReply is not null)
+            if (entry.ObservedReply is not null)
             {
-                AddObservedQueryReplyHistory(
-                    context, caseWorkflow, beforeCaseVersion.Value, observedReply, beforeQueryReplyJson!);
+                PostReportQueryTransitions.AddObservedReplyHistory(
+                    context, caseWorkflow, beforeCaseVersion.Value, entry.ObservedReply, entry.BeforeReplyJson!);
+            }
+            else if (withdrawnBeforeJson is not null)
+            {
+                // The unlink that withdraws the query records the withdrawal; the
+                // intake history row still records the unlink itself.
+                PostReportQueryTransitions.AddQueryHistory(
+                    context, caseWorkflow, beforeCaseVersion.Value, PostReportQueryTransitions.QueryWithdrawnEvent,
+                    actor, operationKey, requestHash, reason, occurredAtUtc, withdrawnBeforeJson);
             }
             else
             {
@@ -1183,7 +1173,7 @@ internal sealed class EfIntakeMutationStore(
             .Include(item => item.ManualAssociation)
             .SingleOrDefaultAsync(item => item.Id == receiptId, cancellationToken);
 
-    private static async Task AcquireCaseQueryLockAsync(
+    internal static async Task AcquireCaseQueryLockAsync(
         PegasusDbContext context,
         IDbContextTransaction transaction,
         Guid caseId,
@@ -1412,61 +1402,6 @@ internal sealed class EfIntakeMutationStore(
     private static string RolesJson(ActionActor actor) =>
         JsonSerializer.Serialize(actor.Roles.OrderBy(role => role));
 
-    private static bool IsPostReportQueryReceipt(IntakeReceiptEntity receipt) =>
-        receipt.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox)
-        && receipt.MailClassificationDecision is
-        {
-            Outcome: "classified",
-            Direction: "received",
-            Family: "post-report-emails"
-        };
-
-    private sealed record ObservedQueryReply(
-        Guid MailOperationId,
-        Guid RetainedMessageId,
-        string SentImmutableMessageId,
-        DateTimeOffset ProviderSentAtUtc,
-        DateTimeOffset ObservedAtUtc,
-        string ActorSubjectId,
-        string PayloadHash);
-
-    private static async Task<ObservedQueryReply?> FindObservedQueryReplyAsync(
-        PegasusDbContext context,
-        IntakeReceiptEntity receipt,
-        Guid caseId,
-        CancellationToken cancellationToken)
-    {
-        var retainedMessageIds = await context.RetainedMailboxMessages.AsNoTracking()
-            .Where(item => item.ExternalReceiptToken == receipt.ExternalReceiptToken)
-            .Select(item => item.Id)
-            .ToArrayAsync(cancellationToken);
-        if (retainedMessageIds.Length == 0)
-        {
-            return null;
-        }
-
-        return await context.Set<StaffMailSendOperationEntity>().AsNoTracking()
-            .Where(item => item.ContextId == caseId
-                && item.Purpose == StaffMailPurpose.GeneralCorrespondence
-                && (item.ComposeMode == StaffMailComposeMode.Reply || item.ComposeMode == StaffMailComposeMode.ReplyAll)
-                && item.OriginalRetainedMessageId != null
-                && retainedMessageIds.Contains(item.OriginalRetainedMessageId.Value)
-                && item.State == StaffMailState.Sent
-                && item.AttemptStage == StaffMailAttemptStage.ObserveSent
-                && item.ObservedSentImmutableMessageId != null
-                && item.ProviderSentAtUtc != null
-                && item.ObservedSentAtUtc != null)
-            .Select(item => new ObservedQueryReply(
-                item.Id,
-                item.OriginalRetainedMessageId!.Value,
-                item.ObservedSentImmutableMessageId!,
-                item.ProviderSentAtUtc!.Value,
-                item.ObservedSentAtUtc!.Value,
-                item.ActorSubjectId,
-                item.PayloadHash))
-            .SingleOrDefaultAsync(cancellationToken);
-    }
-
     private static void AddCaseAssociationHistory(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
@@ -1515,69 +1450,6 @@ internal sealed class EfIntakeMutationStore(
         });
     }
 
-    private static void AddObservedQueryReplyHistory(
-        PegasusDbContext context,
-        CaseWorkflowEntity workflow,
-        long beforeVersion,
-        ObservedQueryReply observedReply,
-        string beforeJson)
-    {
-        const string reason = "Confirmed reply to retained post-report query.";
-        var operationKey = $"query-reply:{observedReply.MailOperationId:N}";
-        var resultJson = SnapshotQueryReply(workflow, observedReply);
-        context.CaseWorkflowEvents.Add(new()
-        {
-            Id = Guid.NewGuid(),
-            CaseId = workflow.CaseId,
-            Workflow = workflow,
-            EventType = "case_query_replied",
-            OperationKey = operationKey,
-            RequestHash = observedReply.PayloadHash,
-            ActorKind = nameof(ActorKind.Staff),
-            ActorSubjectId = observedReply.ActorSubjectId,
-            ActorRolesJson = "[]",
-            Reason = reason,
-            OccurredAtUtc = observedReply.ObservedAtUtc,
-            BeforeVersion = beforeVersion,
-            AfterVersion = workflow.Version,
-            ResultJson = resultJson
-        });
-        context.ActionHistory.Add(new()
-        {
-            Id = Guid.NewGuid(),
-            AggregateType = "case",
-            AggregateId = workflow.CaseId.ToString("D"),
-            EventKind = "case_query_replied",
-            ActorKind = nameof(ActorKind.Staff),
-            ActorSubjectId = observedReply.ActorSubjectId,
-            ActorRolesJson = "[]",
-            OccurredAtUtc = observedReply.ObservedAtUtc,
-            Outcome = "Succeeded",
-            CorrelationId = operationKey,
-            Reason = reason,
-            BeforeJson = beforeJson,
-            AfterJson = resultJson,
-            PolicyVersion = "case-lifecycle-v1"
-        });
-    }
-
-    private static string SnapshotQueryReply(
-        CaseWorkflowEntity workflow,
-        ObservedQueryReply observedReply) =>
-        JsonSerializer.Serialize(new
-        {
-            workflow.State,
-            workflow.ClosureOutcome,
-            workflow.Version,
-            RetainedReply = new
-            {
-                observedReply.RetainedMessageId,
-                observedReply.SentImmutableMessageId,
-                observedReply.ProviderSentAtUtc,
-                observedReply.ObservedAtUtc,
-                observedReply.ActorSubjectId
-            }
-        });
     private static string RequestHash(string eventType, AutomaticCaseAssociationRequest request)
         => Hash(JsonSerializer.Serialize(new
         {

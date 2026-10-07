@@ -167,6 +167,77 @@ public sealed class IntakeOcrRetryPersistenceTests
         Assert.False((await log.GetAsync(administrator, receiptId, CancellationToken.None))!.Actions.CanRetryOcr);
     }
 
+    /// <summary>
+    /// The OCR text is retained the moment the provider's reading is
+    /// accepted; the work that follows it (the report reading, the Audit's
+    /// recognition) may fail and leave the row RetryScheduled. A reader of
+    /// those bytes asking during that retry must still find the text, or the
+    /// retry itself concludes the scan is not read yet and the Audit is never
+    /// filled.
+    /// </summary>
+    [Fact]
+    public async Task ARetainedOcrReadingIsFoundByItsBytesHashWhileTheOperationIsRetryingLaterWork()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            "scan.png",
+            "image/png",
+            Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
+            Guid.NewGuid().ToString("N"));
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var receipt = Assert.IsType<IntakeReceipt>(
+            await services.GetRequiredService<IIntakeReceiptQueries>().GetAsync(receiptId, CancellationToken.None));
+        var asset = Assert.IsType<IntakeAssetRecord>(IntakeFileIdentity.SourceAsset(receipt));
+        var operationId = Guid.NewGuid();
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            context.Set<IntakeOcrOperationEntity>().Add(new()
+            {
+                Id = operationId,
+                IntakeAssetId = asset.Id,
+                SourceSha256 = asset.ContentHash.ToUpperInvariant(),
+                QualifiedPagesJson = $$"""{"version":4,"intakeReceiptId":"{{receiptId:D}}","pages":[1],"attemptCount":2,"submitAttemptedAtUtc":null,"submittedAtUtc":"2031-05-06T10:32:00+00:00","sourceContentLength":{{asset.ContentLength}}}""",
+                OperationKey = $"intake-ocr:{operationId:N}",
+                State = nameof(IntakeOcrState.RetryScheduled),
+                LastError = "ocr_analysis_failure: The retained OCR result could not be analysed: SqlException",
+                RetryAtUtc = DateTimeOffset.UtcNow.AddMinutes(3),
+                ResponseSha256 = new string('e', 64),
+                ResultJson = """{"version":1,"provider":"azure-document-intelligence","modelId":"prebuilt-layout","apiVersion":"2024-11-30","pages":[{"number":1,"text":"Engineer Repairable Report","lines":[],"tables":[]}]}""",
+                Version = 5,
+                ConcurrencyToken = Guid.NewGuid()
+            });
+            context.Set<ExternalWorkItemEntity>().Add(new()
+            {
+                Id = operationId,
+                Kind = ExternalWorkKinds.IntakeOcr,
+                OperationKey = $"intake-ocr:{operationId:N}",
+                State = ExternalWorkStatePersistence.Pending,
+                AttemptCount = 2,
+                DueAtUtc = DateTimeOffset.UtcNow.AddMinutes(3)
+            });
+            await context.SaveChangesAsync();
+        }
+
+        var store = new EfIntakeOcrOperationStore(contextFactory);
+        // Found by either spelling of the hash: intake records capitals, custody lower case.
+        foreach (var hash in new[] { asset.ContentHash.ToUpperInvariant(), asset.ContentHash.ToLowerInvariant() })
+        {
+            var found = Assert.IsType<IntakeOcrOperation>(await store.FindCompletedBySourceAsync(hash, CancellationToken.None));
+            Assert.Equal(operationId, found.Id);
+            Assert.Equal(IntakeOcrState.RetryScheduled, found.State);
+            var page = Assert.Single(Assert.IsType<IntakeOcrResult>(found.Result).PageResults);
+            Assert.Equal("Engineer Repairable Report", page.Text);
+        }
+
+        Assert.Null(await store.FindCompletedBySourceAsync(new string('f', 64), CancellationToken.None));
+    }
+
     private static IntakeAllocationAttemptEntity AllocationAttempt(
         Guid receiptId,
         long attemptNumber,

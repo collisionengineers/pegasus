@@ -67,6 +67,19 @@ public sealed partial class ImageModel(
         {
             return Forbid();
         }
+        catch (IntakeCustodyUnavailableException)
+        {
+            return new ContentResult
+            {
+                StatusCode = StatusCodes.Status409Conflict,
+                ContentType = "text/plain; charset=utf-8",
+                Content = "The retained file is not available until durable storage is confirmed. Refresh this record and try again."
+            };
+        }
+        catch (FileNotFoundException)
+        {
+            return NotFound();
+        }
         catch (IntakeArtifactIntegrityException exception)
         {
             LogIntakeImageIntegrityFailure(logger, id, exception);

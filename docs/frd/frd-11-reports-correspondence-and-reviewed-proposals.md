@@ -103,7 +103,7 @@ Contract Repair. A paragraph the Engineer adds is titled New paragraph until
 the Engineer names it (operator, 27 September 2026).
 
 The report prints no Damage table and no Tyres table. The marked damage
-diagram prints on page 1, beside the Close-up image (operator, 27 September
+diagram prints on page 1, beside the Overview image (operator, 7 October
 2026). It is the Case page's plan, turned on its side with the front pointing
 left. When no damage names a plan area it prints with no marks.
 
@@ -188,10 +188,13 @@ The Audit report's reference is its Our Ref, its file name (for example
 `A_QDOS26001_assessment.pdf`) and its email subject, and its re-sends are
 counted among Audit sends only. It has its own fee note and fee, counted
 separately. Report image choices are shared, because they belong to the
-Case's files. Once the Audit exists, the Inspection report can be opened and
-downloaded but never generated again or sent again; a delivery prepared for
-it before Create audit is refused at send. The Audit report never overwrites
-or reissues the Inspection report.
+Case's files. Once the Audit exists, the Inspection report is generated,
+sent and marked sent from the Inspection view, on the Inspection's
+own work and without changing the Case's state, which is the Audit's
+(operator, 1 October 2026), and a sent Inspection report may be generated
+and sent again when needed, counted among Inspection sends (operator,
+2 October 2026). The Audit report never
+overwrites or reissues the Inspection report.
 
 Audit outcome or reference evidence that is missing, conflicting, ambiguous,
 stale or from another Case fails before rendering. Audit adds no second
@@ -244,7 +247,7 @@ approve before issue.
 **What a generation freezes.** The Case version, signatory account and
 signature digest, Current estimate identity, version and breakdown, the
 Engineer's Value with its retail and trade values, the applied valuation
-identity when one exists, content switches, report date or override, the
+identity when one exists, content switches, report date, the
 Engineer's changes to the report's wording — headings, wording, order and
 what is off the report — fee, source documents with their Box identities,
 and how each image in the report prints, its order, rotation and crop.
@@ -269,9 +272,16 @@ artifact the generation holds attaches and a partly confirmed generation
 yields nothing; with a choice, exactly the chosen documents must be present
 and confirmed, so a companion still being filed never silently drops out of a
 delivery that asked for it and never blocks one that did not. The report is
-always attached. The preparation pins each chosen attachment by document,
-version, hash and length, and the send re-checks that every pinned attachment
-is still a confirmed artifact, byte for byte.
+always attached. The send names each chosen attachment by document,
+version, hash and length, and re-checks just before the mail is submitted that
+every one is still a confirmed artifact, byte for byte.
+
+**One step (operator, 6 October 2026).** A report is sent in one step. The
+Report section's delivery form holds the recipients, the documents to attach,
+the report's name and the covering message, and its one **Send report** sends
+them. There is no separate preparation and no second confirmation. The
+staff-send operation is the record of what was sent. The form stays offered
+after a send, whatever its outcome, so the same report can be sent again.
 
 **What a delivery is called (v28 P23).** The attached report is named for the
 people who read it — the Case's reference, the vehicle's registration and the
@@ -282,31 +292,32 @@ the Case report delivery template
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)) rendered for
 this Case: a first report has no "supersedes" line; a later one says plainly
 that it supersedes the report dated the day the superseded generation carried.
-Before Prepare delivery, staff read the message in an editable box and may
-change it. Prepare delivery freezes the text they submit, which cannot be blank
-or longer than 5000 characters. The report's name and that message are frozen
-with the preparation, so what was reviewed is what is sent. Send uses only the
-frozen message, and custody keeps its own name for the same bytes. A send is a
-staff send that actually left the approved mailbox; a prepared-but-unsent
-delivery is not one. The subject stays the Case or Audit reference.
+Before Send report, staff read the message in an editable box and may
+change it. The text they submit is what is sent; it cannot be blank
+or longer than 5000 characters. Custody keeps its own name for the same bytes.
+A send is a staff send that actually left the approved mailbox. The subject
+stays the Case or Audit reference. A send the mailbox provider refuses is
+shown as a failed send.
 
-**Report and fee note.** They are separately addressable files in custody.
-The operator generating the report chooses whether the fee note is a separate
-document or the report's final pages, with the Include fee note choice beside
-Generate report (issue 912). The snapshot records that choice, so a
-combined report is one file under the report's name and reproduces the same
-way. A later request for a separate fee note names the current confirmed,
-non-stale generation and adds the fee note from that generation's frozen
-date and fee facts. It does not re-freeze the report. The request is refused
-when there is no current generation, the generation is stale, or the report
-already contains its fee note. Fee facts, readiness and accepted fee terms
-are the same either way.
+**Report and fee note.** Every report ends with its fee note: one file under
+the report's name, the fee note's pages last (operator, 6 October 2026). The
+separate fee note is its own file in custody. Generate report makes both: the
+report, then, once the report is confirmed, the separate fee note from the same
+generation (operator, 7 October 2026). A report still being filed to Box makes
+its separate fee note on the next Generate report, which replays the confirmed
+report rather than freezing it again. A Principal that wants the fee note
+separately is sent both: the report with its fee note, and the separate fee
+note attached beside it. A request for the separate fee note names the current
+confirmed, non-stale generation and adds the fee note from that generation's
+frozen date and fee facts. It does not re-freeze the report. The request is
+refused when there is no current generation or the generation is stale. Fee
+facts, readiness and accepted fee terms are the same in both files.
 
 **Staleness.** One Core rule over normalised effective values marks a
 generation stale only when an accepted report fact changes. Notes, no-op
 saves and recipient edits do not. A ready generation records
 `case_report_generation_ready` in history. Stale generations cannot be
-prepared or sent.
+sent.
 
 **Views and downloads.** A preview creates no file and no Sent evidence.
 Viewing one records `case_report_draft_previewed`, distinct from generation
@@ -317,9 +328,11 @@ bytes, so it records the same event, and Case history shows it as Report
 downloaded. That includes the report opening by itself after Generate report.
 
 **Version checks.** Snapshot assembly reads the Case version first and
-refuses a changed version before freezing. Generation and preparation
+refuses a changed version before freezing. Generation
 commands carry the version shown in the browser and refuse a stale one
-rather than re-reading. An operation key replays only the same file kind,
+rather than re-reading. A send is made under the Case's edit lease and names
+its generation and that generation's version; system work that moved the Case
+after the page was read does not refuse it. An operation key replays only the same file kind,
 packaging choice and target generation; reusing it for a different command
 is a conflict. The signatory tuple is rechecked in the freeze transaction.
 Confirming or removing source evidence, or changing the signatory's
@@ -328,12 +341,13 @@ generations in the same transaction. Report outputs are not report inputs
 and do not invalidate their own generation. Other retained files stay source
 evidence whatever their transport label.
 
-**Recipients.** A delivery preparation needs current addressing. Principal
+**Recipients.** A delivery needs current addressing. Principal
 recipient settings can include the original instruction sender and any
 number of extra addresses. The original sender comes from the originating
 instruction, never the latest reply; an unresolved sender adds no invented
-address. Claim Source is never copied implicitly. Recipients are frozen in
-the preparation, but the preparing human staff member may edit To and Cc before that freeze.
+address. Claim Source is never copied implicitly. The settings only suggest:
+the human staff member sending the report may edit To and Cc, and what they
+submit is what the delivery is addressed to.
 Every delivery still needs a staff-controlled send. Default report dates and
 displayed times use Europe/London.
 
@@ -346,10 +360,13 @@ handler claims the Case's edit lease for the one generation and releases it;
 a colleague's live lease refuses it. In edit mode Generate saves the Case
 first. It uses the accepted saved facts and the snapshot above, and retains
 versioned report and fee-note files, their custody outcome and history. A
-generated file is not approval, sending or receipt. Generate for a companion
-document of the confirmed generation — the separate fee note, the Repair Spec
-and the images — is offered the same way, in or out of edit mode, with the
-same one-off lease (operator, 28 September 2026, issue 912).
+generated file is not approval, sending or receipt. Generate report makes the
+separate fee note under the same lease once the report is confirmed, and is
+offered again for a confirmed report whose separate fee note is not (operator,
+7 October 2026). Generate for the other companion documents of the confirmed
+generation — the Repair Spec and the images — is offered the same way, in or
+out of edit mode, with the same one-off lease (operator, 28 September 2026,
+issue 912).
 
 **After Generate report** (operator, 27 September 2026). A report that was
 generated and stored opens in the Case page's document viewer by itself,
@@ -387,15 +404,17 @@ report, the fee note, the Repair Spec or the images.
 | Storing failed, or any other fault | "The report could not be generated." |
 
 A fee-note preview shows the recorded fee and description without saving
-anything. Native Hand to Engineer opens engineering work without an EVA
+anything. Native Assign Engineer opens engineering work without an EVA
 export; EVA is optional and never gates report readiness.
 
 The report prints its images six to a page, two across and three down, in
-the order the Engineer set (operator, 27 September 2026). The Close-up prints
+the order the Engineer set (operator, 27 September 2026). The Overview prints
 on page 1 only, beside the marked damage diagram, and Full page has no effect
-on it. The Overview leads the image pages. An image flagged Full page prints
-on a page of its own (v28 P41). An image fills its frame: it is trimmed to
-the frame's shape after the Engineer's own crop and rotation. Every image
+on it. The Close-up leads the image pages (operator, 7 October 2026). An
+image flagged Full page prints on a page of its own (v28 P41). An image
+prints whole in its frame after the Engineer's own crop and rotation: fitted
+inside it at its own shape and centred, so nothing of it is trimmed
+(operator, 7 October 2026). Every image
 the Engineer includes prints, whatever their number or source file size,
 each as a print-resolution copy; the retained source is unchanged (operator,
 24 September 2026). The renderer opens one source image at a time, when it
@@ -406,10 +425,11 @@ size. A render that outlives its caller is told to stop and keeps its place in
 the renderer's admission until it has, so abandoned renders cannot add to the
 queue (issue 850).
 
-A report generated without an overridden report date is dated the day it was
-generated, and that date is written into the Case's own record so the screen
-and the document agree (v28 P40). A date already recorded is never
-overwritten.
+A report is dated with the Report date recorded on the Case, or, when none is
+recorded, the day it is generated (operator, 7 October 2026). Generation never
+writes its date back into the Case: with no Report date recorded, the Report
+section shows the date the current report carries, so the screen and the
+document agree (v28 P40).
 
 The Repair Spec section offers **Print Repair Spec**, an unretained Estimate
 document in the report's page style for any saved estimate version from
@@ -466,8 +486,16 @@ Each fact is recorded in one section of the Case record
 | The Engineer's Value with its retail and trade values ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)) | Valuation |
 | A Current repair spec with lines, a labour rate and a repairer VAT status the report can word ([Estimate VAT on the rendered report](#estimate-vat-on-the-rendered-report)) | Repair Spec |
 | Outcome and roadworthiness; the unroadworthy reason; on a total loss the salvage category and salvage value; on a contract repair the agreed contract sum | Decisions |
-| Agreed fee; the report date when overridden; valuation commentary when its switch is on | Report |
-| An image in the report tagged Close-up and one tagged Overview, matching their confirmed sources | Files |
+| Agreed fee; valuation commentary when its switch is on | Report |
+| An image in the report tagged Overview, and every image in the report matching its confirmed source | Files |
+
+A new Case starts with its Principal's default fee as its agreed fee
+([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),
+so the agreed fee is a blocker only once staff clear it. The fee is written
+once, when the Case is created, by intake acceptance, manual creation or a
+wrong-Principal replacement (from the corrected Principal), and an Audit
+copies it with the rest of the Case's values. A later change to the
+Principal's default fee leaves existing Cases alone.
 
 The Sign-off Engineer blocker has three cases (operator, 26 September
 2026). Where accounts are offered and the Case has none chosen, it says
@@ -486,7 +514,7 @@ September 2026): there is no per-field review, so no blocker names a value
 because a lookup, an extraction or the Automation actor recorded it. Where a
 value came from is its source tag
 ([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds)),
-and Hand to Engineer is the only review
+and Assign Engineer is the only review
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)).
 VAT comes only from the
 Current repair spec
@@ -598,7 +626,7 @@ The Case's own states are in
 
 - Any missing, unknown or conflicting outcome data stops rendering.
 - A stale version in the browser is refused, never replaced.
-- A stale generation cannot be prepared or sent.
+- A stale generation cannot be sent.
 - A fee-note request against a report that already contains one is refused.
 - A missing printed fact, such as a total loss with no salvage category, is
   a named readiness item: preview and Generate refuse before any generation

@@ -13,9 +13,10 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// Create audit (Stage 2 slice 6): an Inspection + Audit Case whose report is
-/// sent gains its Audit work under the same Case — one Cases row, one Case/PO —
-/// with a full copy of the Inspection's data, and goes back to its Engineer.
+/// Create audit (Stage 2 slice 6): an Inspection + Audit Case in work gains
+/// its Audit work under the same Case — one Cases row, one Case/PO — with a
+/// full copy of the Inspection's data, and goes back to its Engineer, whether
+/// or not its Inspection report was sent (operator, 1 October 2026).
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class CreateAuditPersistenceTests
@@ -126,11 +127,12 @@ public sealed class CreateAuditPersistenceTests
     }
 
     [Theory]
-    [InlineData(CaseLifecycleState.Held)]
-    [InlineData(CaseLifecycleState.ReportPreparation)]
-    [InlineData(CaseLifecycleState.NotReady)]
-    [InlineData(CaseLifecycleState.PrincipalCancelled)]
-    public async Task CreateAuditIsRefusedUntilTheReportIsSentAndLeavesTheCaseUntouched(CaseLifecycleState state)
+    [InlineData(CaseLifecycleState.Held, AuditRefusal.Held)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled, AuditRefusal.Closed)]
+    [InlineData(CaseLifecycleState.CollisionEngineersRejected, AuditRefusal.Closed)]
+    public async Task CreateAuditIsRefusedOnAHeldOrClosedCaseAndLeavesTheCaseUntouched(
+        CaseLifecycleState state,
+        AuditRefusal refusal)
     {
         await using var harness = await Harness.CreateAsync();
         await harness.ExecuteSqlAsync(
@@ -140,23 +142,71 @@ public sealed class CreateAuditPersistenceTests
         var refused = await Assert.ThrowsAsync<AuditCreationException>(
             () => harness.CreateAudit.ExecuteAsync(request, default));
 
-        Assert.Equal(AuditRefusal.ReportNotSent, refused.Refusal);
+        Assert.Equal(refusal, refused.Refusal);
         await harness.AssertNoAuditAsync();
     }
 
+    /// <summary>
+    /// Create audit no longer waits for the Inspection report (operator,
+    /// 1 October 2026): before it is approved or sent, the Audit is created
+    /// all the same and the primary work records no approval and no Sent
+    /// evidence, never a borrowed one.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.NotReady)]
+    [InlineData(CaseLifecycleState.Review)]
+    [InlineData(CaseLifecycleState.ReportPreparation)]
+    public async Task CreateAuditBeforeTheInspectionReportLeavesThePrimaryWorkWithoutReportEvidence(
+        CaseLifecycleState state)
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.ExecuteSqlAsync(
+            $"UPDATE CaseWorkflows SET State = '{state}', ReportApprovalId = NULL, ReportSentEvidenceId = NULL "
+            + $"WHERE CaseId = '{harness.CaseId:D}'");
+        var request = await harness.RequestAsync($"create-audit-unsent-{state}");
+
+        var result = await harness.CreateAudit.ExecuteAsync(request, default);
+
+        Assert.False(result.IsReplay);
+        Assert.Equal(AuditReference, result.AuditReference);
+        await using var context = await harness.ContextAsync();
+        var works = await context.CaseWorks.AsNoTracking()
+            .Where(item => item.CaseId == harness.CaseId)
+            .ToListAsync();
+        var primary = Assert.Single(works, item => item.Kind == CaseWorkKinds.Primary);
+        var audit = Assert.Single(works, item => item.Kind == CaseWorkKinds.Audit);
+        Assert.Null(primary.ReportApprovalId);
+        Assert.Null(primary.ReportSentEvidenceId);
+        Assert.Null(audit.ReportApprovalId);
+        Assert.Null(audit.ReportSentEvidenceId);
+        var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == harness.CaseId);
+        Assert.Equal(nameof(CaseLifecycleState.ReportPreparation), workflow.State);
+        Assert.Equal(harness.EngineerId, workflow.AssignedEngineerId);
+        Assert.Null(workflow.ReportApprovalId);
+        Assert.Null(workflow.ReportSentEvidenceId);
+        var caseEntity = await context.Cases.AsNoTracking().SingleAsync(item => item.Id == harness.CaseId);
+        Assert.Equal(AuditReference, caseEntity.AuditReference);
+        var history = await context.CaseWorkflowEvents.AsNoTracking()
+            .SingleAsync(item => item.CaseId == harness.CaseId && item.OperationKey == request.OperationKey);
+        Assert.Equal("audit_created", history.EventType);
+    }
+
     [Fact]
-    public async Task APostReportCaseWithoutSentEvidenceIsRefused()
+    public async Task APostReportCaseWithoutSentEvidenceStillCreatesItsAudit()
     {
         await using var harness = await Harness.CreateAsync();
         await harness.ExecuteSqlAsync(
             $"UPDATE CaseWorkflows SET ReportSentEvidenceId = NULL WHERE CaseId = '{harness.CaseId:D}'");
         var request = await harness.RequestAsync("create-audit-unsent");
 
-        var refused = await Assert.ThrowsAsync<AuditCreationException>(
-            () => harness.CreateAudit.ExecuteAsync(request, default));
+        var result = await harness.CreateAudit.ExecuteAsync(request, default);
 
-        Assert.Equal(AuditRefusal.ReportNotSent, refused.Refusal);
-        await harness.AssertNoAuditAsync();
+        Assert.Equal(AuditReference, result.AuditReference);
+        await using var context = await harness.ContextAsync();
+        var primary = await context.CaseWorks.AsNoTracking()
+            .SingleAsync(item => item.CaseId == harness.CaseId && item.Kind == CaseWorkKinds.Primary);
+        Assert.Equal(harness.ApprovalId, primary.ReportApprovalId);
+        Assert.Null(primary.ReportSentEvidenceId);
     }
 
     /// <summary>The store guards its own transaction, whatever Core decided before it.</summary>
@@ -177,7 +227,7 @@ public sealed class CreateAuditPersistenceTests
                 harness.EngineerId),
             default));
 
-        Assert.Equal(AuditRefusal.ReportNotSent, refused.Refusal);
+        Assert.Equal(AuditRefusal.Held, refused.Refusal);
         await harness.AssertNoAuditAsync();
     }
 
@@ -213,6 +263,42 @@ public sealed class CreateAuditPersistenceTests
         await using var context = await harness.ContextAsync();
         var primary = await context.CaseWorks.AsNoTracking().SingleAsync(item => item.Id == harness.CaseId);
         Assert.Equal(harness.EvidenceId, primary.ReportSentEvidenceId);
+    }
+
+    /// <summary>
+    /// The Inspection report sent after Create audit (operator, 1 October
+    /// 2026): its evidence links to the Inspection's own work, the Case's
+    /// state stays the Audit's, and the Inspection takes one evidence only.
+    /// </summary>
+    [Fact]
+    public async Task InspectionSentEvidenceAfterTheAuditLinksToTheInspectionAndLeavesTheCaseState()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.ExecuteSqlAsync(
+            $"UPDATE CaseWorkflows SET ReportSentEvidenceId = NULL WHERE CaseId = '{harness.CaseId:D}'");
+        await harness.CreateAudit.ExecuteAsync(await harness.RequestAsync("create-audit-unsent-inspection"), default);
+        var retain = harness.Services.GetRequiredService<IRetainApprovedMailboxReportSentEvidence>();
+        var now = DateTimeOffset.UtcNow;
+        var evidence = await retain.ExecuteAsync(Evidence("inspection", now.AddHours(-2), now.AddHours(-1)), default);
+
+        var link = await harness.LinkRequestAsync("link-inspection", evidence.EvidenceId);
+        var linked = await harness.Workflows.LinkReportEvidenceAsync(
+            link with { Work = CaseWorkSelector.Primary },
+            default);
+
+        Assert.Equal(CaseLifecycleState.ReportPreparation, linked.State);
+        Assert.Null(linked.ReportSentEvidence);
+        await using (var context = await harness.ContextAsync())
+        {
+            var primary = await context.CaseWorks.AsNoTracking().SingleAsync(item => item.Id == harness.CaseId);
+            Assert.Equal(evidence.EvidenceId, primary.ReportSentEvidenceId);
+        }
+
+        var second = await retain.ExecuteAsync(Evidence("inspection-again", now, now), default);
+        var again = await harness.LinkRequestAsync("link-inspection-again", second.EvidenceId);
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => harness.Workflows.LinkReportEvidenceAsync(again with { Work = CaseWorkSelector.Primary }, default));
+        Assert.Equal("The case already has current report-Sent evidence.", refused.Message);
     }
 
     /// <summary>
@@ -430,6 +516,14 @@ public sealed class CreateAuditPersistenceTests
         Assert.Single(auditSpecifications, item => item.IsCurrent);
         Assert.Equal(harness.AiJobId, current.AiJobId);
         Assert.Equal("specification-2", current.CreationOperationKey);
+        // The Audit's copy belongs to the same Glass's estimate (operator, 6 October 2026).
+        Assert.Equal("33584499", current.GlassVehicleId);
+        Assert.Equal("1954488", current.GlassEstimateId);
+        Assert.Equal("10203040", current.GlassNatCode);
+        Assert.False(current.GlassPlaceholder);
+        Assert.Equal("AB12CDE", current.GlassRegistration);
+        Assert.Equal(33000, current.GlassMileageMiles);
+        Assert.Null(earlier.GlassVehicleId);
         var sourceLine = Assert.Single(sourceSpecifications.Single(item => item.Version == 2).Lines);
         var line = Assert.Single(current.Lines);
         Assert.NotEqual(sourceLine.Id, line.Id);
@@ -904,6 +998,12 @@ public sealed class CreateAuditPersistenceTests
             var current = Specification(caseId, 2, nameof(RepairSpecificationState.Draft), now);
             current.IsCurrent = true;
             current.AiJobId = aiJobId;
+            current.GlassVehicleId = "33584499";
+            current.GlassEstimateId = "1954488";
+            current.GlassNatCode = "10203040";
+            current.GlassPlaceholder = false;
+            current.GlassRegistration = "AB12CDE";
+            current.GlassMileageMiles = 33000;
             current.Lines.Add(Line(caseId, current.Id, now));
             var discarded = Specification(caseId, 3, nameof(RepairSpecificationState.Discarded), now);
             discarded.DiscardedBy = "engineer";

@@ -170,6 +170,24 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// One state per <see cref="CaseStage(CaseLifecycleState)"/> name, in enum
+    /// order: the first state of each stage stands for it, so a state filter
+    /// lists With Engineer once.
+    /// </summary>
+    public static IReadOnlyList<CaseLifecycleState> CaseStages { get; } = Enum.GetValues<CaseLifecycleState>()
+        .DistinctBy(CaseStage)
+        .ToArray();
+
+    /// <summary>
+    /// Every state that reads as <paramref name="state"/>'s stage: both With
+    /// Engineer states for either of them, otherwise the state alone.
+    /// </summary>
+    public static IReadOnlyList<CaseLifecycleState> CaseStageStates(CaseLifecycleState state) =>
+        Enum.GetValues<CaseLifecycleState>()
+            .Where(candidate => CaseStage(candidate) == CaseStage(state))
+            .ToArray();
+
+    /// <summary>
     /// One named closure outcome, as the operator chooses it. The words are
     /// <see cref="CaseStage(CaseLifecycleState)"/>'s own terminal names without
     /// the "Closed · " prefix, which the chooser's heading already carries.
@@ -205,7 +223,6 @@ public static class OperatorLabels
         public const string Completed = "Triage completed.";
         public static string AssignedTo(string name) => $"Assigned to {name}.";
         public const string Unassigned = "Unassigned.";
-        public const string AwaitingInformation = "Now awaiting information.";
         public const string Cancelled = "Triage cancelled.";
         public const string Reopened = "Triage reopened.";
         public const string CaseLinked = "Case linked.";
@@ -228,19 +245,19 @@ public static class OperatorLabels
         public const string OpenCase = "Open the case";
         public const string Cancel = "Cancel";
 
-        public const string Determinations = "Determinations";
-        public const string SaveDeterminations = "Save determinations";
+        public const string RecordFinding = "Record finding";
+        public const string Finding = "Finding";
         public const string RecordCorrection = "Record correction";
         public const string CompleteTriage = "Complete Triage";
-        public const string AwaitInformation = "Await information";
         public const string CancelTriage = "Cancel Triage";
+        public const string OpenFile = "Open file";
+        public const string VehicleImages = "Vehicle images";
+        public const string Notes = "Notes";
         public const string Reopen = "Reopen";
 
-        public const string ReplyWithOutcome = "Reply with outcome";
-        public const string ChaserCorrespondence = "Chaser correspondence";
+        public const string ReplyWithFinding = "Reply with finding";
         public const string SendChaser = "Send chaser";
         public const string SendReply = "Send reply";
-        public const string ReconcileStatus = "Reconcile status";
         public const string NoReplyWhenCancelled = "A cancelled Triage has no reply to send.";
         public const string ReplyNeedsEmail = "A reply can only be sent for a Triage that came by e-mail.";
 
@@ -289,6 +306,7 @@ public static class OperatorLabels
         {
             EmailTemplatePurpose.TriageOutcomeReply => "Triage outcome reply",
             EmailTemplatePurpose.CaseReportDelivery => "Case report delivery",
+            EmailTemplatePurpose.CaseChaser => "Case chaser",
             _ => throw new InvalidOperationException($"Unknown e-mail template purpose '{(int)purpose}'.")
         };
     }
@@ -373,13 +391,13 @@ public static class OperatorLabels
     }
 
     /// <summary>
-    /// A received-mail subtype in operator words. The two chasing subtypes are
-    /// one category to the operator, "Update Request" (18 September 2026), and
-    /// its slug never appears on the front end.
+    /// A received-mail subtype in operator words. Chasing is one category to the
+    /// operator, "Update request" (18 September and 1 October 2026), and its
+    /// slug never appears on the front end.
     /// </summary>
     private static string SubtypeWord(string subtype) => subtype switch
     {
-        "client-chasing-for-update" or "principal-chasing-for-update" => "Update Request",
+        "chasing-for-update" => "Update request",
         _ => HumanizeSlug(subtype)
     };
 
@@ -442,6 +460,99 @@ public static class OperatorLabels
         };
     }
 
+    /// <summary>
+    /// What an action button says while its request runs (site.js
+    /// <c>pegasusBusy</c>). A button names its word in
+    /// <c>data-busy-label</c>; one without it says <see cref="Working"/>,
+    /// which the layouts render as the page default. Every word here is a
+    /// capitalised "-ing" phrase ending in an ellipsis: after five seconds the
+    /// script prefixes <see cref="Still"/> and lowercases the first letter
+    /// ("Still saving…"), which the architecture test pins.
+    /// </summary>
+    public static class Busy
+    {
+        /// <summary>The word a press that is taking a while gains in front of its busy word.</summary>
+        public const string Still = "Still";
+
+        public const string Working = "Working…";
+        public const string Adding = "Adding…";
+        public const string Applying = "Applying…";
+        public const string Archiving = "Archiving…";
+        public const string Assigning = "Assigning…";
+        public const string Authorising = "Authorising…";
+        public const string Changing = "Changing…";
+        public const string Checking = "Checking…";
+        public const string Clearing = "Clearing…";
+        public const string Closing = "Closing…";
+        public const string Completing = "Completing…";
+        public const string Confirming = "Confirming…";
+        public const string Creating = "Creating…";
+        public const string Deleting = "Deleting…";
+        public const string Disabling = "Disabling…";
+        public const string Discarding = "Discarding…";
+        public const string Dismissing = "Dismissing…";
+        public const string Downloading = "Downloading…";
+        public const string Drafting = "Drafting…";
+        public const string Duplicating = "Duplicating…";
+        public const string Enabling = "Enabling…";
+        public const string Exporting = "Exporting…";
+        public const string Finishing = "Finishing…";
+        public const string Generating = "Generating…";
+        public const string Importing = "Importing…";
+        public const string Linking = "Linking…";
+        public const string Loading = "Loading…";
+        public const string LookingUp = "Looking up…";
+        public const string Marking = "Marking…";
+        public const string Moving = "Moving…";
+        public const string Opening = "Opening…";
+        public const string Pausing = "Pausing…";
+        public const string Placing = "Placing on hold…";
+        public const string Publishing = "Publishing…";
+        public const string Recording = "Recording…";
+        public const string Refreshing = "Refreshing…";
+        public const string Refusing = "Refusing…";
+        public const string Registering = "Registering…";
+        public const string Releasing = "Releasing…";
+        public const string Removing = "Removing…";
+        public const string Reopening = "Reopening…";
+        public const string Replacing = "Replacing…";
+        public const string Resetting = "Resetting…";
+        public const string Restoring = "Restoring…";
+        public const string Resuming = "Resuming…";
+        public const string Retrying = "Retrying…";
+        public const string Returning = "Returning…";
+        public const string Revoking = "Revoking…";
+        public const string Saving = "Saving…";
+        public const string Searching = "Searching…";
+        public const string Sending = "Sending…";
+        public const string SigningIn = "Signing in…";
+        public const string SigningOut = "Signing out…";
+        public const string Starting = "Starting…";
+        public const string Stopping = "Stopping…";
+        public const string Tagging = "Tagging…";
+        public const string Unlinking = "Unlinking…";
+        public const string Uploading = "Uploading…";
+        public const string Recovering = "Recovering…";
+
+        /// <summary>What a fetched download says when the file did not arrive and the server gave no reason.</summary>
+        public const string DownloadFailed = "The file could not be downloaded. Try again.";
+
+        /// <summary>
+        /// What a button answered in place says beside its tick for a moment
+        /// after its action succeeded (<c>data-busy-done</c>). A button without
+        /// one shows the tick beside its own label. A press that reloads the
+        /// page names none: the page's notice is its result.
+        /// </summary>
+        public static class Done
+        {
+            public const string Saved = "Saved";
+            public const string Generated = "Generated";
+            public const string Downloaded = "Downloaded";
+            public const string Exported = "Exported";
+            public const string Valued = "Valuation received";
+        }
+    }
+
     /// <summary>The shell's own words (v26 shell): the rail foot and the bell.</summary>
     public static class Shell
     {
@@ -488,6 +599,7 @@ public static class OperatorLabels
             Pegasus.Core.Notifications.StaffNotificationCause.EditedByOther => "Edited by a colleague",
             Pegasus.Core.Notifications.StaffNotificationCause.EmailReceived => "E-mail received",
             Pegasus.Core.Notifications.StaffNotificationCause.QueryReceived => "Query received",
+            Pegasus.Core.Notifications.StaffNotificationCause.CancellationReceived => "Cancellation received",
             _ => Humanise(notification.Cause.ToString())
         };
     }
@@ -721,7 +833,6 @@ public static class OperatorLabels
         public const string Owner = "Owner";
         public const string Due = "Due";
         public const string Received = "Received";
-        public const string AssignToMe = "Assign to me";
         public const string AssignEngineer = "Assign Engineer";
         public const string Assign = "Assign";
         public const string Reassign = "Reassign";
@@ -739,10 +850,30 @@ public static class OperatorLabels
         public const string AiJobsUnavailable = "AI jobs are unavailable.";
         public const string NoReasonRecorded = "No reason recorded";
         public const string OpenCase = "Open Case";
-        public const string NoEngineer = "No Engineer";
-        public const string NoOwner = "No owner";
         public const string Previous = "Previous";
         public const string Next = "Next";
+
+        /// <summary>The Activity panel (v32 item I): the figures head the columns, Today and This week the rows.</summary>
+        public const string Activity = "Activity";
+        public const string Today = "Today";
+        public const string ThisWeek = "This week";
+        public const string SentToEngineer = "Sent to Engineer";
+        public const string ReportsSent = "Reports sent";
+        public const string Completed = "Completed";
+        public const string EmailsReceived = "E-mails received";
+        public const string ActivityUnavailable = "Activity is unavailable.";
+
+        /// <summary>The ledgers' column heads (v32 A).</summary>
+        public const string ActionColumn = "Action";
+        public const string CaseColumn = "Case";
+        public const string DetailColumn = "Detail";
+        public const string ArrivalColumn = "Arrival";
+        public const string JobColumn = "Job";
+        public const string StateColumn = "State";
+        public const string InstructionColumn = "Instruction";
+        public const string RecordColumn = "Record";
+        public const string StartedColumn = "Started";
+        public const string NoteColumn = "Note";
 
         public static string Updated(DateTimeOffset value) => $"Updated {OfficeClock(value)}";
 
@@ -761,7 +892,8 @@ public static class OperatorLabels
         public static string NewCasesPaging(int page, int pages) =>
             string.Create(CultureInfo.InvariantCulture, $"Page {page} of {pages} · newest first");
 
-        public static string LeaseExpires(DateTimeOffset value) => $"Lease expires {OfficeTime(value)}";
+        /// <summary>A Taken job's note (v32 item K): the time its turn ends, in the office clock.</summary>
+        public static string TakenUntil(DateTimeOffset value) => $"Taken until {OfficeClock(value)}";
 
         public static string StartedBy(string name) => $"Started by {name}";
 
@@ -889,13 +1021,15 @@ public static class OperatorLabels
             _ => AiJobs.Review
         };
 
-        public const string AssignedToYou = "The Case was assigned to you.";
         public const string Assigned = "The Case was assigned.";
-        public const string TriageAssignedToYou = "The Triage was assigned to you.";
         public const string AssignRefused = "The Case was not assigned because it changed, someone is editing it, or the action is not permitted.";
-        public const string TriageAssignRefused = "The Triage was not assigned because it changed, someone is editing it, or the action is not permitted.";
         public const string JobCompleted = "The AI job was completed.";
         public const string JobRefused = "The AI job changed before it could be completed. Refresh and try again.";
+
+        /// <summary>Every row's Dismiss (FRD-15); the New cases icon button names its Case.</summary>
+        public const string Dismiss = "Dismiss";
+
+        public static string DismissRow(string reference) => $"{Dismiss} {reference}";
     }
 
     /// <summary>
@@ -959,6 +1093,7 @@ public static class OperatorLabels
         DocumentSemanticRole.Correspondence => "Correspondence",
         DocumentSemanticRole.EngineerReport => "Engineer report",
         DocumentSemanticRole.AuditReport => "Audit report",
+        DocumentSemanticRole.MarketResearch => "Market research",
         DocumentSemanticRole.Other => "Other",
         _ => Humanise(role.ToString())
     };
@@ -1589,13 +1724,15 @@ public static class OperatorLabels
     /// <summary>
     /// The source tag of a recorded assessment value: the vehicle lookup's
     /// writes read Lookup, an Original report cell filled from the filed report
-    /// Extracted, any other Automation actor's AI, a Pegasus worker's
-    /// Automatic; a staff value carries none.
+    /// Extracted, the agreed fee a new Case took from its Principal Principal,
+    /// any other Automation actor's AI, a Pegasus worker's Automatic; a staff
+    /// value carries none.
     /// </summary>
     public static SourceTagWord? SourceTag(AssessmentFieldValue? field) => field is null ? null : field.RecordedByKind switch
     {
         ActorKind.Automation when field.RecordedBy == VehicleLookupFillPolicy.RecorderId => SourceTagWord.Lookup,
         ActorKind.Automation when field.RecordedBy == OriginalReportPrefillPolicy.RecorderId => SourceTagWord.Extracted,
+        ActorKind.Automation when field.RecordedBy == PrincipalDefaultFeePolicy.RecorderId => SourceTagWord.Principal,
         ActorKind.Automation => SourceTagWord.Ai,
         ActorKind.SystemWorker => SourceTagWord.Automatic,
         _ => null
@@ -1768,13 +1905,12 @@ public static class OperatorLabels
     /// whether it is on its way, delivered, or needs attention — the internal
     /// attempt-stage vocabulary (draft creation, attaching, sending) is
     /// writer detail, not a distinction the operator acts on differently.
-    /// "Unknown" is the one state that ever offers Reconcile rather than a
-    /// resend: a resend from an unknown outcome could double-send a message
-    /// that already reached Outlook.
+    /// Neither Submitted nor Unknown offers a resend: the Worker's Sent poll
+    /// settles them, and a resend from an unknown outcome could double-send a
+    /// message that already reached Outlook.
     /// </summary>
     public static class StaffMail
     {
-        public const string Reconcile = "Reconcile";
         public const string Reply = "Reply";
         public const string ReplyAll = "Reply all";
         public const string Forward = "Forward";
@@ -1793,6 +1929,28 @@ public static class OperatorLabels
             _ => throw new InvalidOperationException(
                 $"Unknown staff mail state '{(int)state}'.")
         };
+
+        /// <summary>
+        /// A refused send's reason in operator words (FRD-21: a send Graph
+        /// refuses shows as a failure on the composer). The failure code is
+        /// the engine's; nothing here is sent.
+        /// </summary>
+        public static string Failure(string failureCode)
+        {
+            var reason = failureCode switch
+            {
+                "graph_rejected_403" =>
+                    "The mailbox refused the message. Pegasus is not permitted to write to or send from this mailbox.",
+                "staff_send_content_invalid" =>
+                    "The message could not be prepared for sending. It may be larger than the mailbox allows.",
+                "staff_send_authorization_lost" =>
+                    "Your authorisation or the mailbox's send setting changed before the message was sent.",
+                _ when failureCode.StartsWith("graph_rejected_", StringComparison.Ordinal) =>
+                    $"The mail service refused the message (code {failureCode["graph_rejected_".Length..]}).",
+                _ => $"The message was refused ({failureCode})."
+            };
+            return reason + " Nothing was sent.";
+        }
     }
 
     /// <summary>A Principal contact's own labels (Administration → Contacts, Principal details) — one list.</summary>
@@ -1809,6 +1967,7 @@ public static class OperatorLabels
         public const string AddSalvageBand = "Add band";
         public const string RemoveSalvageBand = "Remove";
         public const string SaveSalvageMatrix = "Save salvage matrix";
+        public const string DefaultFee = "Default fee (£)";
 
         /// <summary>A salvage category as the Case names it: "Cat S".</summary>
         public static string SalvageCategory(string code) => $"Cat {code}";

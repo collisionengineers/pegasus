@@ -22,7 +22,6 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
 {
     private const string LeaseTokenKey = "CaseLeaseToken";
     protected const string LeaseCaseIdKey = "CaseLeaseCaseId";
-    protected const string RenewLeaseOperationKeyName = "CaseRenewLeaseOperationKey";
     protected const string ReleaseLeaseOperationKeyName = "CaseReleaseLeaseOperationKey";
     protected const string ProposedValuesKey = "CaseProposedValues";
     protected const string ProposedValuesCaseIdKey = "CaseProposedValuesCaseId";
@@ -266,7 +265,6 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
                     },
                     cancellationToken);
             StoreLeaseAuthority(id, lease.Token);
-            TempData.Remove(RenewLeaseOperationKeyName);
             TempData.Remove(ReleaseLeaseOperationKeyName);
             TempData[StatusTempDataKey] = "Edit mode is active.";
         }
@@ -652,7 +650,21 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     }
 
     protected RedirectToPageResult RedirectToDetails(Guid id) =>
-        RedirectToPage("/Cases/Details", new { id });
+        RedirectToPage("/Cases/Details", new { id, view = ReturnView });
+
+    /// <summary>
+    /// The view of the Case record a request returns to: the Inspection view
+    /// when the form posted from it carries its <c>view</c> field (or a GET
+    /// names it), else none, the default view (operator, 2 October 2026).
+    /// </summary>
+    protected string? ReturnView
+    {
+        get
+        {
+            var posted = Request.HasFormContentType ? Request.Form["view"].ToString() : string.Empty;
+            return DetailsModel.ViewRouteOf(string.IsNullOrEmpty(posted) ? Request.Query["view"].ToString() : posted);
+        }
+    }
 
     /// <summary>
     /// Redirects back into the Files section's Images tab: the tag, untag, and create-tag
@@ -663,7 +675,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         RedirectToPage(
             "/Cases/Details",
             pageHandler: null,
-            routeValues: new { id, section = "files" },
+            routeValues: new { id, section = "files", view = ReturnView },
             fragment: "case-files-images");
 
     /// <summary>
@@ -685,7 +697,8 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     /// <summary>
     /// Tells the server the editor is still here, so an open page is never timed out mid-edit.
     /// Every page that carries edit mode answers it the same way, and none of them redirect: the
-    /// browser only needs to know whether to keep beating.
+    /// browser needs to know whether to keep beating, and the Case version, which system work
+    /// moves under the lease, so the page can catch up with it.
     /// </summary>
     /// <remarks>
     /// It reads and writes no TempData on any path — not even to forget a lost lease. TempData
@@ -704,9 +717,10 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             return Forbid();
         }
 
+        CaseEditLease lease;
         try
         {
-            await heartbeat.ExecuteAsync(new(id, actor, editLeaseToken), cancellationToken);
+            lease = await heartbeat.ExecuteAsync(new(id, actor, editLeaseToken), cancellationToken);
         }
         catch (StaffAuthorizationException)
         {
@@ -723,7 +737,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             return FragmentNotFound();
         }
 
-        return new StatusCodeResult(StatusCodes.Status204NoContent);
+        return new JsonResult(new { version = lease.Version });
     }
 
     protected void StoreLeaseAuthority(Guid caseId, string leaseToken)
@@ -838,7 +852,6 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     {
         TempData.Remove(LeaseTokenKey);
         TempData.Remove(LeaseCaseIdKey);
-        TempData.Remove(RenewLeaseOperationKeyName);
         TempData.Remove(ReleaseLeaseOperationKeyName);
     }
 

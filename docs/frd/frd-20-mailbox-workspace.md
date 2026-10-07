@@ -37,7 +37,10 @@ and **Category**, which lists destinations and approved categories.
 The default view is the incoming Inbox across all approved mailboxes, newest
 received first. Folder, mailbox, queue and search views are explicit
 refinements of that view. Sent mail and read-only Deleted Items search are
-separate folder scopes.
+separate folder scopes. Sent Items lists every Sent item the Sent-evidence
+poll ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md)) has read
+from an approved mailbox, newest sent first, whether Pegasus, EVA or Outlook
+sent it; a row opens the message record the same way a received one does.
 
 There is no historical backfill. The workspace shows retained mail from each
 approved mailbox's genuine retention start, names that boundary, and says
@@ -128,6 +131,17 @@ Classification, Case linking and folder moves are offered only from the
 opened message record, never from a row or the quick preview. There is no
 bulk action: each decision applies to one exact message.
 
+The correction picker offers only the message's own direction, and a
+correction to New instruction asks for the case type. Once a classification
+is saved, the message record offers the one next action it calls for:
+**Create case** for a New instruction, **Open the Triage** for a Triage
+request, **Register images** for images received, each only while the
+receipt still qualifies and no Case holds it. Staff press it; nothing runs on
+its own, and a Case or Triage already opened from the message stays as it is
+when the message is corrected away (operator, 1 October 2026). A correction
+to or from a post-report classification on a linked Case follows
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#completed-and-query).
+
 Case linking starts with a deliberate Case search, then shows the target
 summary, asks for a reason and needs explicit confirmation. Linking may
 happen while classification is still unresolved, when the link evidence on
@@ -163,8 +177,8 @@ Reply all and Forward appear there where the record offers them and open the
 record's composer with that Case chosen
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 The full message record is one link away for every other action
-([FRD-16](frd-16-case-record-workspace.md#files)). Cross-mailbox browsing and
-reconciliation stay in this mailbox workspace.
+([FRD-16](frd-16-case-record-workspace.md#files)). Cross-mailbox browsing
+stays in this mailbox workspace.
 
 ### Dismiss
 

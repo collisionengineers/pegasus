@@ -21,6 +21,7 @@
         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
         <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
         <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+        <input type="hidden" name="view" value="@Model.ViewRoute" />
     }
 }
 
@@ -40,8 +41,7 @@ else
             var version = entry.Version;
             var mayRead = version.CustodyStatus == DocumentCustodyStatus.Confirmed;
             var viewable = mayRead && Pegasus.Web.Pages.Cases.DetailsModel.IsViewable(version.MediaType);
-            var isMarketResearch = occurrence.Tags.Any(tag => tag.TagId == ImageTagVocabulary.MarketResearchId)
-                || occurrence.SourceOccurrenceIdentity.StartsWith("market-research:", StringComparison.Ordinal);
+            var isMarketResearch = occurrence.SemanticRole == DocumentSemanticRole.MarketResearch;
             var isMail = occurrence.SemanticRole == DocumentSemanticRole.Correspondence
                 || occurrence.Source == DocumentSource.ExternalCorrespondence;
             <div class="doc-row" data-document-row="@occurrence.Id">
@@ -51,14 +51,7 @@ else
                     <small>@OperatorLabels.DocumentOrigin(occurrence.Source) · @OperatorLabels.OfficeTime(occurrence.RecordedAtUtc) · @OperatorLabels.FileSize(version.ContentLength)</small>
                 </div>
                 <span class="doc-row-tags">
-                    @if (isMarketResearch)
-                    {
-                        <span class="src-tag src-tag--ai" data-market-research>@ImageTagVocabulary.MarketResearchName</span>
-                    }
-                    else
-                    {
-                        <span class="src-tag">@OperatorLabels.DocumentRole(occurrence.SemanticRole)</span>
-                    }
+                    <span class="src-tag @(isMarketResearch ? "src-tag--ai" : null)">@OperatorLabels.DocumentRole(occurrence.SemanticRole)</span>
                     @if (!mayRead)
                     {
                         <span class="status @(version.CustodyStatus == DocumentCustodyStatus.Failed ? "status--red" : "status--amber") status--plain">@(version.CustodyStatus == DocumentCustodyStatus.Failed ? FilesLabels.StorageNotReady : OperatorLabels.CustodyState(version.CustodyStatus))</span>
@@ -93,7 +86,7 @@ else
                            (operator, 25 September 2026). *@
                         <form method="post" asp-page="/Cases/Details" asp-page-handler="ImportCaseFileEstimate" asp-route-id="@workflow.CaseId" data-import-case-file-estimate>
                             @{ RowMutationFields(occurrence.Id, version.Id); }
-                            <button type="submit" class="btn btn--small">@FilesLabels.ImportEstimate</button>
+                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Importing" class="btn btn--small">@FilesLabels.ImportEstimate</button>
                         </form>
                     }
                     @if (mayEdit)
@@ -102,7 +95,7 @@ else
                         {
                             <form method="post" asp-page="/Cases/Custody" asp-page-handler="MarkAsOriginalReport" asp-route-id="@workflow.CaseId">
                                 @{ RowMutationFields(occurrence.Id, version.Id); }
-                                <button type="submit" class="btn btn--small">@OperatorLabels.MarkAsOriginalReport</button>
+                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Marking" class="btn btn--small">@OperatorLabels.MarkAsOriginalReport</button>
                             </form>
                         }
                         <button type="button" class="btn btn--small btn--icon btn--danger" data-dialog-open="remove-doc-@occurrence.Id" title="@FilesLabels.Remove" aria-label="@FilesLabels.Remove @version.FileName">
@@ -130,7 +123,8 @@ else
                     ["occurrenceId"] = occurrence.Id.ToString(),
                     ["expectedVersion"] = workflow.Version.ToString(),
                     ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
-                    ["editLeaseToken"] = leaseToken
+                    ["editLeaseToken"] = leaseToken,
+                    ["view"] = Model.ViewRoute
                 }
             })" />
         }

@@ -26,14 +26,19 @@ internal static class CaseWorkScope
         return works.SingleOrDefault(work => work.Kind == CaseWorkKinds.Audit)?.Id ?? caseId;
     }
 
-    public static Task<Guid> ResolveIdAsync(
+    /// <summary>
+    /// The selected work's id. The Case's works are tracked whichever is
+    /// selected, so a row added to the primary work is fixed up as well.
+    /// </summary>
+    public static async Task<Guid> ResolveIdAsync(
         PegasusDbContext context,
         Guid caseId,
         CaseWorkSelector selector,
-        CancellationToken cancellationToken) =>
-        selector == CaseWorkSelector.Primary
-            ? Task.FromResult(caseId)
-            : CurrentIdAsync(context, caseId, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        var currentId = await CurrentIdAsync(context, caseId, cancellationToken);
+        return selector == CaseWorkSelector.Primary ? caseId : currentId;
+    }
 
     /// <summary>
     /// The selected work of one Case as a query, so a read can filter on it

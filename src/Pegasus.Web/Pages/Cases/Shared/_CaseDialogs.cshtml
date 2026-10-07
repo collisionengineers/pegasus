@@ -33,14 +33,13 @@
     var mayAct = !Model.ColleagueIsEditing;
     var mayActOnCaseData = mayAct && !Model.IsPostReportReadOnly;
     var data = details.Data;
-    var canHandToEngineer = mayActOnCaseData && isReview
-        && Model.EvaHandoff is { EngineerOptions.Count: > 0 };
+    var canAssignEngineer = Model.CanAssignEngineer;
     var canSendToEva = (Model.EvaHandoff?.ReportGenerationPolicy is PrincipalReportGenerationPolicy.EvaZip or PrincipalReportGenerationPolicy.EvaManualApi
         || Model.EvaHandoff?.CanRetryAutomaticFailure == true)
         && state is CaseLifecycleState.Review or CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
     var canConfirmReportSent = mayAct
-        && state == CaseLifecycleState.ReportPreparation
-        && details.AvailableReportSentEvidence.Count > 0;
+        && details.AvailableReportSentEvidence.Count > 0
+        && (Model.IsInspectionView || state == CaseLifecycleState.ReportPreparation);
     var closureOutcomes = Model.AvailableClosureOutcomes;
     var offersAdverseClosure = mayAct && closureOutcomes.Count > 0;
     var today = Pegasus.Core.LondonCalendar.DateAt(DateTimeOffset.UtcNow);
@@ -56,6 +55,10 @@
         if (leased)
         {
             fields["editLeaseToken"] = Model.LeaseToken;
+        }
+        if (Model.ViewRoute is { } view)
+        {
+            fields["view"] = view;
         }
         return fields;
     }
@@ -90,6 +93,7 @@
                     <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                     <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                     @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
+                    <input type="hidden" name="view" value="@Model.ViewRoute" />
                     <div class="dialog-body stack">
                         <div class="field">
                             <label class="req" for="case-hold-reason">@OperatorLabels.CaseWorkspace.ReasonForAction</label>
@@ -102,7 +106,7 @@
                     </div>
                     <div class="dialog-foot">
                         <button type="button" class="btn" data-dialog-close>Cancel</button>
-                        <button type="submit" class="btn btn--primary">@Frame.PlaceOnHold</button>
+                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Placing" class="btn btn--primary">@Frame.PlaceOnHold</button>
                     </div>
                 </form>
             </section>
@@ -158,6 +162,7 @@
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                 @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
+                <input type="hidden" name="view" value="@Model.ViewRoute" />
                 <div class="dialog-body stack">
                     <div class="notice notice--warning">
                         <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
@@ -174,7 +179,7 @@
                 </div>
                 <div class="dialog-foot">
                     <button type="button" class="btn" data-dialog-close>Cancel</button>
-                    <button type="submit" class="btn btn--danger">Create linked replacement</button>
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Creating" class="btn btn--danger">Create linked replacement</button>
                 </div>
             </form>
         </section>
@@ -210,6 +215,7 @@
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                 @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
+                <input type="hidden" name="view" value="@Model.ViewRoute" />
                 <div class="dialog-body stack">
                     <div class="field">
                         <label class="req" for="case-close-outcome">@OperatorLabels.CaseWorkspace.ClosureOutcome</label>
@@ -228,7 +234,7 @@
                 </div>
                 <div class="dialog-foot">
                     <button type="button" class="btn" data-dialog-close>Cancel</button>
-                    <button type="submit" class="btn btn--danger btn--danger-solid">@OperatorLabels.CaseWorkspace.CloseCase</button>
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Closing" class="btn btn--danger btn--danger-solid">@OperatorLabels.CaseWorkspace.CloseCase</button>
                 </div>
             </form>
         </section>
@@ -246,15 +252,12 @@
     })" />
 }
 
-@if (canHandToEngineer)
+@if (canAssignEngineer)
 {
-    @* The assignment dialog, with Assign to me (P8) for an eligible Engineer
-       when the Case has no Engineer: a second form on the same dialog, so it
-       posts without script too. *@
     <div id="case-handoff-dialog" class="dialog-backdrop" data-dialog="case-handoff-dialog" hidden>
         <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-handoff-dialog-title">
             <div class="dialog-head">
-                <h2 id="case-handoff-dialog-title" tabindex="-1">@CaseWorkspaceLabels.HandToEngineer</h2>
+                <h2 id="case-handoff-dialog-title" tabindex="-1">@CaseWorkspaceLabels.AssignEngineer</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
                     <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
                 </button>
@@ -266,6 +269,7 @@
                     <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                     <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                     @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
+                    <input type="hidden" name="view" value="@Model.ViewRoute" />
                     <input type="hidden" name="instructionsComplete" value="@(Model.EvaHandoff!.InstructionsComplete)" />
                     <input type="hidden" name="imagesComplete" value="@(Model.EvaHandoff!.ImagesComplete)" />
                     <input type="hidden" name="evidenceReference" value="case-completeness-projection" />
@@ -280,26 +284,9 @@
                         </select>
                     </div>
                 </form>
-                @if (Model.CanAssignToMe)
-                {
-                    <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId"
-                          asp-page-handler="AssignToMe" id="case-assign-to-me-form" data-assign-to-me>
-                        <input type="hidden" name="id" value="@workflow.CaseId" />
-                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                        <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                        @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
-                    </form>
-                }
             </div>
             <div class="dialog-foot">
-                @if (Model.CanAssignToMe)
-                {
-                    <button type="submit" form="case-assign-to-me-form" class="btn">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
-                        <span>@Frame.AssignToMe</span>
-                    </button>
-                }
-                <button type="submit" form="case-handoff-form" class="btn btn--primary">@CaseWorkspaceLabels.HandToEngineer</button>
+                <button type="submit" data-busy-label="@OperatorLabels.Busy.Assigning" form="case-handoff-form" class="btn btn--primary">@CaseWorkspaceLabels.AssignEngineer</button>
             </div>
         </section>
     </div>
@@ -316,7 +303,7 @@
                 </button>
             </div>
             <div class="dialog-body stack">
-                <partial name="Cases/Shared/_EvaHandoff" model="Model.EvaHandoff!" />
+                <partial name="Cases/Shared/_EvaHandoff" model="Model.EvaHandoff! with { View = Model.ViewRoute }" />
             </div>
         </section>
     </div>
@@ -344,6 +331,8 @@
                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                         <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                         @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
+                        @* In the Inspection view, the Inspection report's own evidence, on its work. *@
+                        <input type="hidden" name="view" value="@Model.ViewRoute" />
                         <div class="definition-list">
                             <dl class="definition"><dt>Mailbox</dt><dd>@evidence.MailboxIdentity</dd></dl>
                             <dl class="definition"><dt>Sent</dt><dd>@OperatorLabels.OfficeTime(evidence.SentAtUtc)</dd></dl>
@@ -353,7 +342,7 @@
                             <input id="report-sent-reason-@evidence.EvidenceId" name="reason" required maxlength="500" />
                         </div>
                         <div class="button-row">
-                            <button type="submit" class="btn btn--primary">Confirm detected evidence</button>
+                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Linking" class="btn btn--primary">Confirm detected evidence</button>
                         </div>
                     </form>
                 }
@@ -389,7 +378,7 @@
                 </div>
                 <div class="dialog-foot">
                     <button type="button" class="btn" data-dialog-close>Cancel</button>
-                    <button type="submit" class="btn btn--primary" data-dialog-initial-focus>
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Creating" class="btn btn--primary" data-dialog-initial-focus>
                         <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
                         <span>@Frame.CreateAudit</span>
                     </button>

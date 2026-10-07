@@ -96,16 +96,16 @@ public sealed class ListTriagePageTests
         var useCase = new ListTriage(queries);
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            useCase.ListAllAsync(ActionActor.Principal(Guid.NewGuid()), TriageState.Open));
+            useCase.ListAllAsync(ActionActor.Principal(Guid.NewGuid()), [TriageState.Open]));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            useCase.ListAllAsync(StaffActor(), (TriageState)999));
+            useCase.ListAllAsync(StaffActor(), [TriageState.Open, (TriageState)999]));
         Assert.Equal(0, queries.Calls);
 
-        var listed = await useCase.ListAllAsync(StaffActor(), TriageState.AwaitingInformation);
+        var listed = await useCase.ListAllAsync(StaffActor(), [TriageState.AwaitingInformation]);
 
         Assert.Equal(all, listed);
         Assert.Equal(1, queries.Calls);
-        Assert.Equal(TriageState.AwaitingInformation, queries.LastState);
+        Assert.Equal(new[] { TriageState.AwaitingInformation }, queries.LastStates);
     }
 
     private static TriageSummary Summary(string reference, DateTimeOffset createdAtUtc) => new(
@@ -146,16 +146,18 @@ public sealed class ListTriagePageTests
             return Task.FromResult(Next);
         }
 
+        public IReadOnlyCollection<TriageState>? LastStates { get; private set; }
+
         public Task<IReadOnlyList<TriageSummary>> ListAsync(
-            TriageState? state,
+            IReadOnlyCollection<TriageState>? states,
             CancellationToken cancellationToken)
         {
             Calls++;
-            LastState = state;
+            LastStates = states;
             return Task.FromResult(All);
         }
 
-        public Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken) =>
+        public Task<int> CountAsync(IReadOnlyCollection<TriageState>? states, CancellationToken cancellationToken) =>
             Task.FromResult(0);
 
         public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>

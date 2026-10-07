@@ -105,6 +105,389 @@
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindRefreshFeedback);
     window.pegasusResetRefresh = resetRefresh;
 
+    // Action feedback: the Refresh button's twin for every action. From the
+    // press until the result arrives, the pressed control says what it is
+    // doing (its data-busy-label, or the page's default from the layout), the
+    // loader glyph turns in place of its icon with the Refresh icon's own
+    // spin, and the form's other submit buttons stand aside. The words are
+    // the signal and the glyph decorates them, so reduced motion and forced
+    // colours lose nothing. A press still waiting after five seconds says
+    // "Still …" (the layout's data-busy-still word in front of its own).
+    //
+    // The pressed button is never disabled: a disabled submitter drops its
+    // name and value from the post. A busy form refuses another submit
+    // instead, which is the double-submit guard every POST form has.
+    //
+    // A full-page post ends with its navigation. A script that answers a
+    // press in place (case-workspace.js, mail-compose.js, upload.js) prevents
+    // the default, so this listener leaves it alone, and the script starts
+    // and ends the state itself through window.pegasusBusy. Such a script
+    // ends a success with { done: true }: the button holds a tick and its
+    // data-busy-done word (or its own label) for a moment. A page that
+    // reloads shows its usual notice instead, so no full-page post is done.
+    var busyContents = new WeakMap();
+    var busyForms = new WeakMap();
+    var busyHolds = new WeakMap();
+    var busyStatus = null;
+    var STILL_AFTER_MS = 5000;
+    var DONE_FOR_MS = 1400;
+    function busyWords(control) {
+        return control.getAttribute('data-busy-label')
+            || document.documentElement.getAttribute('data-busy-label') || '';
+    }
+    // "Saving…" becomes "Still saving…"; every busy word opens with its verb.
+    function stillWords(words) {
+        var still = document.documentElement.getAttribute('data-busy-still') || '';
+        return still && words ? still + ' ' + words.charAt(0).toLowerCase() + words.slice(1) : '';
+    }
+    function glyph(name, className) {
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', className);
+        svg.setAttribute('aria-hidden', 'true');
+        var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+        use.setAttribute('href', '#' + name);
+        svg.appendChild(use);
+        return svg;
+    }
+    function announceBusy(words) {
+        if (!busyStatus) {
+            busyStatus = document.createElement('span');
+            busyStatus.className = 'sr-only';
+            busyStatus.setAttribute('role', 'status');
+            busyStatus.setAttribute('aria-live', 'polite');
+            document.body.appendChild(busyStatus);
+        }
+        busyStatus.textContent = words;
+    }
+    function isSubmitControl(element) {
+        return (element instanceof HTMLButtonElement || element instanceof HTMLInputElement)
+            && element.type === 'submit';
+    }
+    function defaultSubmitter(form) {
+        return Array.prototype.find.call(form.elements, isSubmitControl) || null;
+    }
+    // Takes the control's own content away and shows a glyph and words in its
+    // place. What comes back restores it.
+    function takeOver(control, iconName, iconClass, words) {
+        var saved = { ariaLabel: control.getAttribute('aria-label'), value: null, nodes: null, label: null, timer: null, form: control.form || null };
+        if (control instanceof HTMLSelectElement) {
+            // A choice that posts keeps its options; it only stands still.
+        } else if (control instanceof HTMLInputElement) {
+            saved.value = control.value;
+            control.value = words;
+        } else {
+            var hasText = control.textContent.trim() !== '';
+            saved.nodes = document.createDocumentFragment();
+            while (control.firstChild) {
+                saved.nodes.appendChild(control.firstChild);
+            }
+            control.appendChild(glyph(iconName, iconClass));
+            if (hasText) {
+                saved.label = document.createElement('span');
+                saved.label.textContent = words;
+                control.appendChild(saved.label);
+            } else {
+                control.setAttribute('aria-label', words);
+            }
+        }
+        return saved;
+    }
+    function reword(control, saved, words) {
+        if (saved.label) {
+            saved.label.textContent = words;
+        } else if (saved.value !== null) {
+            control.value = words;
+        } else if (!(control instanceof HTMLSelectElement)) {
+            control.setAttribute('aria-label', words);
+        }
+        announceBusy(words);
+    }
+    function giveBack(control, saved) {
+        if (saved.timer !== null) {
+            window.clearTimeout(saved.timer);
+        }
+        if (saved.nodes) {
+            control.textContent = '';
+            control.appendChild(saved.nodes);
+        } else if (saved.value !== null) {
+            control.value = saved.value;
+        }
+        if (saved.ariaLabel === null) {
+            control.removeAttribute('aria-label');
+        } else {
+            control.setAttribute('aria-label', saved.ariaLabel);
+        }
+    }
+    function startControl(control, words) {
+        if (!control) {
+            return;
+        }
+        // A press during the tick is a new action: the tick gives way.
+        if (busyHolds.has(control)) {
+            finishHold(control);
+        }
+        if (busyContents.has(control)) {
+            return;
+        }
+        words = words || busyWords(control);
+        var saved = takeOver(control, 'icon-loader', 'icon busy-spin', words);
+        var still = stillWords(words);
+        if (still && !(control instanceof HTMLSelectElement)) {
+            saved.timer = window.setTimeout(function () {
+                saved.timer = null;
+                reword(control, saved, still);
+            }, STILL_AFTER_MS);
+        }
+        busyContents.set(control, saved);
+        control.setAttribute('data-busy', '');
+        control.setAttribute('aria-busy', 'true');
+        if (control instanceof HTMLAnchorElement) {
+            control.setAttribute('aria-disabled', 'true');
+        }
+        announceBusy(words);
+    }
+    function endControl(control, options) {
+        var saved = control ? busyContents.get(control) : null;
+        if (!saved) {
+            return;
+        }
+        busyContents.delete(control);
+        giveBack(control, saved);
+        control.removeAttribute('data-busy');
+        control.removeAttribute('aria-busy');
+        if (control instanceof HTMLAnchorElement) {
+            control.removeAttribute('aria-disabled');
+        }
+        if (options && options.done) {
+            showDone(control.isConnected ? control : replacementFor(control, saved.form), control);
+        }
+    }
+    // The pressed control drawn afresh: a Case action redraws the Case, so
+    // the result shows on the button that took the pressed one's place. Most
+    // Case forms have no id, so a form is also found by its action.
+    function replacementFor(control, form) {
+        if (!form) {
+            return null;
+        }
+        var next = (form.id && document.getElementById(form.id)) || null;
+        var action = form.getAttribute('action');
+        if (!next && action) {
+            next = Array.prototype.find.call(document.forms, function (candidate) {
+                return candidate.getAttribute('action') === action;
+            }) || null;
+        }
+        if (!(next instanceof HTMLFormElement) || next === form) {
+            return null;
+        }
+        var formaction = control.getAttribute('formaction');
+        return Array.prototype.find.call(next.elements, function (element) {
+            return isSubmitControl(element) && element.name === control.name && element.value === control.value
+                && element.getAttribute('formaction') === formaction;
+        }) || null;
+    }
+    // The tick: the control says its done word (data-busy-done), or keeps its
+    // own label, beside the check glyph for a moment, then is itself again.
+    function showDone(target, source) {
+        if (!target || !target.isConnected || busyContents.has(target) || busyHolds.has(target)
+            || target instanceof HTMLSelectElement) {
+            return;
+        }
+        // An icon-only control's own words are its accessible name.
+        var own = target instanceof HTMLInputElement
+            ? target.value
+            : target.textContent.trim() || target.getAttribute('aria-label') || '';
+        var words = target.getAttribute('data-busy-done') || source.getAttribute('data-busy-done') || own;
+        var saved = takeOver(target, 'icon-check', 'icon busy-done', words);
+        saved.timer = window.setTimeout(function () {
+            saved.timer = null;
+            finishHold(target);
+        }, DONE_FOR_MS);
+        busyHolds.set(target, saved);
+        target.setAttribute('data-busy-complete', '');
+        announceBusy(words);
+    }
+    function finishHold(control) {
+        var saved = control ? busyHolds.get(control) : null;
+        if (!saved) {
+            return;
+        }
+        busyHolds.delete(control);
+        giveBack(control, saved);
+        control.removeAttribute('data-busy-complete');
+    }
+    // words overrides the control's own, for a control that stands in for
+    // another: a menu's button while the item pressed inside it loads.
+    function startBusy(control, form, words) {
+        form = form || (control && control.form) || null;
+        if (form && !control) {
+            control = defaultSubmitter(form);
+        }
+        startControl(control, words);
+        if (!form) {
+            return;
+        }
+        busyForms.set(form, control);
+        form.setAttribute('data-busy-form', '');
+        // form.elements includes the buttons tied to the form by form="…",
+        // such as a dialog's footer, so they stand aside too.
+        Array.prototype.forEach.call(form.elements, function (element) {
+            if (element !== control && isSubmitControl(element) && !element.hasAttribute('aria-disabled')) {
+                element.setAttribute('aria-disabled', 'true');
+                element.setAttribute('data-busy-aside', '');
+            }
+        });
+    }
+    // options.done: the action succeeded and the page stayed put, so the
+    // control shows its tick. Without it the control is simply itself again.
+    function endBusy(target, options) {
+        if (!target) {
+            return;
+        }
+        if (target instanceof HTMLFormElement) {
+            var control = busyForms.get(target);
+            busyForms.delete(target);
+            target.removeAttribute('data-busy-form');
+            Array.prototype.forEach.call(target.elements, function (element) {
+                if (element.hasAttribute('data-busy-aside')) {
+                    element.removeAttribute('aria-disabled');
+                    element.removeAttribute('data-busy-aside');
+                }
+            });
+            endControl(control, options);
+            return;
+        }
+        if (busyHolds.has(target)) {
+            finishHold(target);
+            return;
+        }
+        endControl(target, options);
+    }
+    window.pegasusBusy = { start: startBusy, end: endBusy, isBusy: function (form) { return busyForms.has(form); } };
+    // A post made with form.submit() fires no submit event: the pressed
+    // control starts the state, and a second press while it runs is refused.
+    // True when the form was already busy.
+    function startBusyOnce(control, form) {
+        if (busyForms.has(form)) {
+            return true;
+        }
+        busyForms.set(form, null);
+        startControl(control);
+        busyForms.set(form, control);
+        form.setAttribute('data-busy-form', '');
+        return false;
+    }
+    window.pegasusBusy.startOnce = startBusyOnce;
+
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (form instanceof HTMLFormElement && busyForms.has(form)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        }
+    }, true);
+    // On window, so it runs after every page script has had its say: a
+    // submit a script prevented is either refused or answered in place.
+    window.addEventListener('submit', function (event) {
+        var form = event.target;
+        var submitter = event.submitter || null;
+        if (event.defaultPrevented || !(form instanceof HTMLFormElement)) {
+            return;
+        }
+        var method = (submitter && submitter.getAttribute('formmethod')) || form.getAttribute('method') || 'get';
+        if (method.toLowerCase() !== 'post' || form.hasAttribute('target')
+            || (submitter && submitter.hasAttribute('formtarget'))) {
+            return;
+        }
+        startBusy(submitter || defaultSubmitter(form), form);
+    });
+    // A page restored from the back/forward cache comes back as it was left,
+    // mid-post; it is idle again.
+    window.addEventListener('pageshow', function (event) {
+        if (!event.persisted) {
+            return;
+        }
+        document.querySelectorAll('[data-busy-form]').forEach(endBusy);
+        document.querySelectorAll('[data-busy]').forEach(endBusy);
+        document.querySelectorAll('[data-busy-complete]').forEach(endBusy);
+        document.querySelectorAll('[data-refresh-form]').forEach(resetRefresh);
+    });
+
+    // A download answers with a file, not a page, so no navigation ends its
+    // busy state. A [data-busy-download] link or form fetches the file
+    // instead and hands it to the browser: the state ends when the file
+    // arrives, and a refusal shows as a toast rather than a blank page. A
+    // refusal's plain-text body is its reason.
+    function fileName(response) {
+        var disposition = response.headers.get('Content-Disposition') || '';
+        var encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+        if (encoded) {
+            try { return decodeURIComponent(encoded[1]); } catch (error) { /* fall through */ }
+        }
+        var plain = /filename="?([^";]+)"?/i.exec(disposition);
+        return plain ? plain[1] : '';
+    }
+    function busyDownload(control, form, url, init) {
+        startBusy(control, form);
+        var done = false;
+        var failed = (control && control.getAttribute('data-busy-download-failed'))
+            || (form && form.getAttribute('data-busy-download-failed')) || '';
+        init.credentials = 'same-origin';
+        init.headers = { 'X-Requested-With': 'fetch' };
+        return fetch(url, init).then(function (response) {
+            var type = response.headers.get('Content-Type') || '';
+            if (!response.ok || type.indexOf('text/') === 0 && !/attachment/i.test(response.headers.get('Content-Disposition') || '')) {
+                return response.text().then(function (text) {
+                    var reason = type.indexOf('text/plain') === 0 ? text.trim() : '';
+                    throw { refusal: reason || failed };
+                });
+            }
+            return response.blob().then(function (blob) {
+                var href = URL.createObjectURL(blob);
+                var save = document.createElement('a');
+                save.href = href;
+                save.download = fileName(response);
+                document.body.appendChild(save);
+                save.click();
+                save.remove();
+                done = true;
+                window.setTimeout(function () { URL.revokeObjectURL(href); }, 60000);
+            });
+        }).catch(function (error) {
+            if (typeof window.pegasusToast === 'function') {
+                // Only the server's own reason is shown; a network failure's
+                // browser text is not operator wording.
+                window.pegasusToast(error && error.refusal || failed, 'danger');
+            }
+        }).finally(function () {
+            endBusy(form || control, { done: done });
+        });
+    }
+    document.addEventListener('click', function (event) {
+        var link = event.target.closest && event.target.closest('a[data-busy-download]');
+        if (!link || event.defaultPrevented || event.button !== 0
+            || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+            return;
+        }
+        event.preventDefault();
+        if (busyContents.has(link)) {
+            return;
+        }
+        busyDownload(link, null, link.href, { method: 'GET' });
+    });
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-busy-download') || event.defaultPrevented) {
+            return;
+        }
+        event.preventDefault();
+        var submitter = event.submitter || null;
+        var url = (submitter && submitter.getAttribute('formaction')) || form.action;
+        busyDownload(submitter || defaultSubmitter(form), form, url, {
+            method: 'POST',
+            body: new FormData(form, submitter && submitter.name ? submitter : undefined)
+        });
+    });
+
     // Copy a support reference. Without script the value is still selectable
     // text, which is why the button is rendered hidden and revealed here rather
     // than shipped as a control that might do nothing.
@@ -251,28 +634,6 @@
     bindEditScopeHeartbeats(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindEditScopeHeartbeats);
 
-    // A Triage Case page action posts once and holds the record for that one
-    // save. Marking the form busy as it submits greys its buttons (the shared
-    // form[aria-busy] rule) and refuses a second submit while the first is in
-    // flight, so a double click cannot put two posts in flight together. The
-    // page's dialogs post from outside the record, so the guard is the page's
-    // rather than the record's.
-    if (document.querySelector('[data-triage-record]')) {
-        document.addEventListener('submit', function (event) {
-            var form = event.target;
-            if (event.defaultPrevented
-                || !(form instanceof HTMLFormElement)
-                || (form.getAttribute('method') || 'get').toLowerCase() !== 'post') {
-                return;
-            }
-            if (form.getAttribute('aria-busy') === 'true') {
-                event.preventDefault();
-                return;
-            }
-            form.setAttribute('aria-busy', 'true');
-        });
-    }
-
     // Global drop safety net. Without this, a file dropped anywhere off a
     // dropzone's own listeners below — the heading, a panel border, released
     // a beat early while still moving — is unhandled, and the browser's
@@ -407,12 +768,29 @@
         // The state chip is the _StatusChip partial's span; its tone class is
         // the one the server's tone table gave it, and the JSON carries the
         // same table's answer for a hovered row.
+        // A Sent item carries no processing chip: the span is empty and the
+        // JSON's state is null, so the chip is absent rather than blank.
         var chip = function () {
             return field('state').querySelector('.status');
         };
         var toneOf = function (element) {
             var tone = /status--([a-z]+)/.exec(element.className);
             return tone ? tone[1] : 'neutral';
+        };
+        var paintChip = function (state, tone) {
+            var existing = chip();
+            if (!state) {
+                if (existing) {
+                    existing.remove();
+                }
+                return;
+            }
+            if (!existing) {
+                existing = document.createElement('span');
+                field('state').appendChild(existing);
+            }
+            existing.textContent = state;
+            existing.className = 'status status--' + (tone || 'neutral');
         };
 
         // The pane already shows the selected message; seeding the cache from
@@ -428,8 +806,8 @@
                 received: field('received').textContent,
                 receivedAtUtc: field('received').getAttribute('datetime'),
                 mailbox: field('mailbox').textContent,
-                state: chip().textContent,
-                stateTone: toneOf(chip()),
+                state: chip() ? chip().textContent : null,
+                stateTone: chip() ? toneOf(chip()) : null,
                 excerpt: field('excerpt').textContent,
                 attachments: field('attachments').textContent,
                 classification: field('classification').textContent,
@@ -485,8 +863,7 @@
             field('received').textContent = data.received;
             field('received').setAttribute('datetime', data.receivedAtUtc);
             field('mailbox').textContent = data.mailbox;
-            chip().textContent = data.state;
-            chip().className = 'status status--' + data.stateTone;
+            paintChip(data.state, data.stateTone);
             field('excerpt').textContent = data.excerpt;
             field('attachments').textContent = data.attachments;
             field('classification').textContent = data.classification;
@@ -1069,6 +1446,7 @@
                     remove.className = 'precase-tag-remove';
                     remove.setAttribute('aria-label', 'Remove tag ' + option.textContent);
                     remove.setAttribute('data-precase-tag-remove', option.value);
+                    remove.setAttribute('data-busy-label', (preCaseTools && preCaseTools.getAttribute('data-busy-tagging')) || '');
                     remove.textContent = '×';
                     chip.appendChild(remove);
                     tagList.appendChild(chip);
@@ -1156,9 +1534,11 @@
             selection.style.height = (frame.height * 100) + '%';
         }
 
-        function postPreCaseCrop(clear) {
+        // Both post with submit(), which fires no submit event, so the
+        // pressed control starts its own busy state; the page load ends it.
+        function postPreCaseCrop(clear, control) {
             var item = preCaseItem();
-            if (!item || !preCaseCropForm) {
+            if (!item || !preCaseCropForm || (window.pegasusBusy && window.pegasusBusy.startOnce(control, preCaseCropForm))) {
                 return;
             }
             var frame = preCaseCropping && preCaseCropping.frame;
@@ -1180,9 +1560,9 @@
             preCaseCropForm.submit();
         }
 
-        function postPreCaseTag(tagId, applied) {
+        function postPreCaseTag(tagId, applied, control) {
             var item = preCaseItem();
-            if (!item || !preCaseTagForm || !tagId) {
+            if (!item || !preCaseTagForm || !tagId || (window.pegasusBusy && window.pegasusBusy.startOnce(control, preCaseTagForm))) {
                 return;
             }
             preCaseTagForm.elements.intakeAssetId.value = item.getAttribute('data-precase-asset');
@@ -1199,16 +1579,16 @@
                 rotateView.addEventListener('click', removePreCaseView);
             }
             preCaseTools.querySelector('[data-precase-crop-start]').addEventListener('click', beginPreCaseCrop);
-            preCaseTools.querySelector('[data-precase-crop-apply]').addEventListener('click', function () { postPreCaseCrop(false); });
-            preCaseTools.querySelector('[data-precase-crop-clear]').addEventListener('click', function () { postPreCaseCrop(true); });
+            preCaseTools.querySelector('[data-precase-crop-apply]').addEventListener('click', function (event) { postPreCaseCrop(false, event.currentTarget); });
+            preCaseTools.querySelector('[data-precase-crop-clear]').addEventListener('click', function (event) { postPreCaseCrop(true, event.currentTarget); });
             preCaseTools.querySelector('[data-precase-crop-cancel]').addEventListener('click', endPreCaseCrop);
             preCaseTools.querySelector('[data-precase-tag-select]').addEventListener('change', function (event) {
-                postPreCaseTag(event.target.value, true);
+                postPreCaseTag(event.target.value, true, event.target);
             });
             preCaseTools.addEventListener('click', function (event) {
                 var remove = event.target.closest('[data-precase-tag-remove]');
                 if (remove) {
-                    postPreCaseTag(remove.getAttribute('data-precase-tag-remove'), false);
+                    postPreCaseTag(remove.getAttribute('data-precase-tag-remove'), false, remove);
                 }
             });
         }
@@ -1401,13 +1781,18 @@
     })();
 
     // The Other classification name and reasoning fields exist only while an
-    // Other option is selected; the select drives their visibility.
+    // Other option is selected, and the case type only while a New instruction
+    // is; the select drives their visibility.
     document.querySelectorAll('[data-other-toggle]').forEach(function (select) {
         var scope = select.closest('[data-dialog]') || document;
         function sync() {
             var isOther = select.value === 'other-received' || select.value === 'other-sent';
             scope.querySelectorAll('[data-other-field]').forEach(function (field) {
                 field.hidden = !isOther;
+            });
+            var isInstruction = select.value.indexOf('received:NewInstructionReceived') === 0;
+            scope.querySelectorAll('[data-work-type-field]').forEach(function (field) {
+                field.hidden = !isInstruction;
             });
         }
         select.addEventListener('change', sync);
@@ -2109,5 +2494,148 @@ window.pegasusPreferences = (function () {
             var reference = document.querySelector('.case-record .ribbon-value');
             set('[data-problem-case]', reference ? reference.textContent.trim() : '');
         });
+    });
+})();
+
+// --- Files tabs and the Correspondence message dialog ----------------------------
+// Shared by the Case record and the Triage Case (moved from case-workspace.js).
+(function () {
+    'use strict';
+    // ---- Files tabs --------------------------------------------------------------
+    // Both panels are rendered, so with no script the section is the lists one
+    // after the other; script turns the strip on and shows one at a time. The
+    // chosen tab rides in the URL hash (`#case-files-<tab>`), which the Custody
+    // redirects name too, so a tag/untag/create lands back on Images. A tab
+    // set may hold another (the Triage Case's Files inside its page tabs):
+    // each strip and panel belongs to its nearest wrap, and a wrap may name
+    // its own hash prefix. An inner wrap's prefix extends its outer tab's
+    // (`#triage-files-<tab>`), so a reload opens the outer tab as well.
+    function bindFileTabs(root) {
+        Array.prototype.slice.call((root || document).querySelectorAll('[data-file-tabs-wrap]')).forEach(function (wrap) {
+            if (wrap.dataset.fileTabsBound === 'true') { return; }
+            function own(selector) {
+                return Array.prototype.slice.call(wrap.querySelectorAll(selector)).filter(function (element) {
+                    return element.closest('[data-file-tabs-wrap]') === wrap;
+                });
+            }
+            var strip = own('[data-file-tabs]')[0];
+            var panels = own('[data-file-tab-panel]');
+            var buttons = strip ? Array.prototype.slice.call(strip.querySelectorAll('[data-file-tab]')) : [];
+            if (!strip || !panels.length || !buttons.length) { return; }
+            wrap.dataset.fileTabsBound = 'true';
+            var prefix = '#' + (wrap.getAttribute('data-file-tabs-hash') || 'case-files-');
+            function show(name, remember) {
+                panels.forEach(function (panel) { panel.hidden = panel.getAttribute('data-file-tab-panel') !== name; });
+                buttons.forEach(function (button) { button.setAttribute('aria-selected', button.getAttribute('data-file-tab') === name ? 'true' : 'false'); });
+                wrap.setAttribute('data-file-tabs-active', name);
+                if (remember && window.history && window.history.replaceState) {
+                    window.history.replaceState(null, '', prefix + name);
+                }
+            }
+            buttons.forEach(function (button) {
+                button.addEventListener('click', function () { show(button.getAttribute('data-file-tab'), true); });
+            });
+            strip.hidden = false;
+            wrap.classList.add('is-tabbed');
+            var hash = window.location.hash || '';
+            var fromHash = hash.indexOf(prefix) === 0 ? hash.slice(prefix.length) : '';
+            var named = buttons.map(function (button) { return button.getAttribute('data-file-tab'); })
+                .filter(function (name) { return fromHash === name || fromHash.indexOf(name + '-') === 0; })[0];
+            show(named || buttons[0].getAttribute('data-file-tab'), false);
+        });
+    }
+
+    // ---- Correspondence: a message in a dialog -----------------------------------
+    // Open message opens its row's dialog through the shell's dialog binding;
+    // the first open fetches the message from the Inbox record's Content
+    // handler, and the record's Reply, Reply all and Forward, where it offers
+    // them, join the dialog's foot. A failure says so and the next open tries
+    // again. Both listeners are on the document, so a lazily mounted or
+    // swapped Files section needs no binding of its own.
+    function messageSpinner() {
+        var spinner = document.createElement('div');
+        spinner.className = 'spinner';
+        spinner.setAttribute('aria-hidden', 'true');
+        return spinner;
+    }
+    document.addEventListener('pegasus:dialog-open', function (event) {
+        var dialog = event.target;
+        if (!(dialog instanceof Element) || !dialog.matches('[data-case-message-dialog]')) { return; }
+        var state = dialog.dataset.caseMessageState;
+        var body = dialog.querySelector('[data-case-message-body]');
+        var url = dialog.getAttribute('data-case-message-url');
+        if (state === 'loading' || state === 'loaded' || !body || !url) { return; }
+        dialog.dataset.caseMessageState = 'loading';
+        body.setAttribute('aria-busy', 'true');
+        body.replaceChildren(messageSpinner());
+        fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'text/html' } })
+            .then(function (response) {
+                if (!response.ok || response.redirected || !(response.headers.get('Content-Type') || '').includes('text/html')) {
+                    throw new Error('message: ' + response.status);
+                }
+                return response.text();
+            })
+            .then(function (html) {
+                var fragment = new DOMParser().parseFromString(html, 'text/html');
+                var content = fragment.querySelector('[data-message-content]');
+                if (!content) { throw new Error('message: no content'); }
+                body.replaceChildren(document.importNode(content, true));
+                var actions = fragment.querySelector('[data-message-actions]');
+                var foot = dialog.querySelector('[data-case-message-foot]');
+                if (actions && foot) { foot.prepend(document.importNode(actions, true)); }
+                body.removeAttribute('aria-busy');
+                dialog.dataset.caseMessageState = 'loaded';
+            })
+            .catch(function () {
+                var status = document.createElement('p');
+                status.className = 'muted';
+                status.setAttribute('role', 'status');
+                status.textContent = 'Preview unavailable';
+                body.replaceChildren(status);
+                body.removeAttribute('aria-busy');
+                delete dialog.dataset.caseMessageState;
+            });
+    });
+    // Capture, ahead of the shell's dialog opener and the edit session's
+    // unsaved-changes guard. A modified click on Open message stays a link
+    // click (a new tab or window) rather than opening the dialog. A link to
+    // the record (Open full message, Reply, Reply all, Forward) closes the
+    // dialog first, so that question is not left behind this dialog's inert
+    // backdrop.
+    document.addEventListener('click', function (event) {
+        var target = event.target instanceof Element ? event.target : null;
+        if (!target) { return; }
+        var modified = event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey;
+        if (modified && target.closest('[data-correspondence] a[data-dialog-open]')) {
+            event.stopPropagation();
+            return;
+        }
+        var link = target.closest('[data-case-message-record]');
+        if (!link || modified) { return; }
+        var dialog = link.closest('[data-case-message-dialog]');
+        if (dialog && typeof dialog.pegasusClose === 'function') { dialog.pegasusClose(); }
+    }, true);
+    bindFileTabs(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindFileTabs);
+})();
+
+// --- Triage Case: Record finding's tickboxes --------------------------------------
+// Reply with finding answers a completed Triage, so ticking it ticks Complete
+// Triage and unticking Complete Triage clears it. The handler completes before
+// it opens the composer either way.
+(function () {
+    'use strict';
+    document.addEventListener('change', function (event) {
+        var box = event.target instanceof Element ? event.target : null;
+        var form = box ? box.closest('form') : null;
+        if (!form) { return; }
+        if (box.matches('[data-triage-tick-reply]') && box.checked) {
+            var complete = form.querySelector('[data-triage-tick-complete]');
+            if (complete) { complete.checked = true; }
+        }
+        if (box.matches('[data-triage-tick-complete]') && !box.checked) {
+            var reply = form.querySelector('[data-triage-tick-reply]');
+            if (reply) { reply.checked = false; }
+        }
     });
 })();

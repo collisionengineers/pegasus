@@ -188,52 +188,6 @@ public static class AssessmentPolicy
     }
 
     /// <summary>
-    /// Cross-field pairings from the screen hints, applied to the merged
-    /// state whenever a save writes the governing value. Plain "required"
-    /// rules stay readiness items so section-by-section saves remain possible.
-    /// </summary>
-    public static void ValidateMergedState(
-        IReadOnlyDictionary<string, string?> savedFields,
-        IReadOnlyDictionary<string, string> mergedState)
-    {
-        ArgumentNullException.ThrowIfNull(savedFields);
-        ArgumentNullException.ThrowIfNull(mergedState);
-        if (savedFields.TryGetValue(AssessmentVocabulary.LegalStatus, out var legalStatus)
-            && string.Equals(legalStatus, "unroadworthy", StringComparison.Ordinal)
-            && !mergedState.ContainsKey(AssessmentVocabulary.UnroadworthyReason))
-        {
-            throw new InvalidOperationException(
-                "Recording the vehicle as unroadworthy requires the reason it is unroadworthy.");
-        }
-
-        if (savedFields.TryGetValue(AssessmentVocabulary.Outcome, out var outcome)
-            && string.Equals(outcome, "total_loss", StringComparison.Ordinal))
-        {
-            if (!mergedState.ContainsKey(AssessmentVocabulary.SalvageCategory))
-            {
-                throw new InvalidOperationException(
-                    "A total-loss outcome requires the salvage category.");
-            }
-            if (!mergedState.ContainsKey(AssessmentVocabulary.SalvageValue))
-            {
-                throw new InvalidOperationException(
-                    "A total-loss outcome requires the salvage value.");
-            }
-        }
-        if (string.Equals(
-                mergedState.GetValueOrDefault(AssessmentVocabulary.Outcome),
-                "contract_repair",
-                StringComparison.Ordinal)
-            && (!mergedState.TryGetValue(AssessmentVocabulary.SettlementContractSum, out var agreedSum)
-                || !decimal.TryParse(agreedSum, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)
-                || amount <= 0))
-        {
-            throw new InvalidOperationException(
-                "Contract repair requires a positive agreed contract sum.");
-        }
-    }
-
-    /// <summary>
     /// Complete the coupled decision writes before the merged-state guard and
     /// attributed field history run. An explicit outcome change takes priority
     /// over a stale sum still present in the form.
@@ -442,18 +396,6 @@ public static class AssessmentPolicy
         RequireField(
             AssessmentVocabulary.AgreedFee, "Agreed fee", "Report",
             "Record it on the Fee tab of the Report section.");
-        if (string.Equals(
-                fields.GetValueOrDefault(AssessmentVocabulary.ReportDateOverride),
-                "true",
-                StringComparison.Ordinal)
-            && !fields.ContainsKey(AssessmentVocabulary.ReportDate))
-        {
-            items.Add(new(
-                "Report date", "Assessment record",
-                "The report date is overridden but no date is recorded.",
-                "Record the report date on the Report section, or turn off Override report date so generation sets it.",
-                Field: AssessmentVocabulary.ReportDate));
-        }
 
         // No odometer readiness item: the report's mileage-source code is
         // derived from the mileage's own provenance, so a case with no mileage

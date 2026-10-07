@@ -32,16 +32,17 @@
     var registration = string.IsNullOrWhiteSpace(summary.Registration)
         ? "No registration"
         : summary.Registration!;
-    var canHandToEngineer = mayActOnCaseData && isReview
-        && Model.EvaHandoff is { EngineerOptions.Count: > 0 };
+    var canAssignEngineer = Model.CanAssignEngineer;
     var canSendToEva = (Model.EvaHandoff?.ReportGenerationPolicy is PrincipalReportGenerationPolicy.EvaZip or PrincipalReportGenerationPolicy.EvaManualApi
         || Model.EvaHandoff?.CanRetryAutomaticFailure == true)
         && state is CaseLifecycleState.Review or CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
     // The confirmation is a lease-carrying Core action; without detected
     // evidence there is nothing to confirm (D10: a send is never asserted here).
+    // The Inspection view marks the Inspection report sent on its own work,
+    // whatever the Case's state (operator, 1 and 2 October 2026).
     var canConfirmReportSent = mayAct
-        && state == CaseLifecycleState.ReportPreparation
-        && details.AvailableReportSentEvidence.Count > 0;
+        && details.AvailableReportSentEvidence.Count > 0
+        && (Model.IsInspectionView || state == CaseLifecycleState.ReportPreparation);
     var canMarkCompleted = mayAct && state == CaseLifecycleState.PostReport;
     var canReturnToReview = mayActOnCaseData
         && state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
@@ -49,14 +50,17 @@
     var canArchive = mayAct && isClosed && workflow.Archive is null;
     var canUnlinkEvidence = mayActOnCaseData && workflow.ReportSentEvidence is not null
         && state is not CaseLifecycleState.Held && !isClosed;
+    // Send chaser is offered on any open Case (operator, 5 October 2026). It
+    // navigates to the composer, so it needs no lease.
+    var canSendChaser = Model.StaffMailAvailable && !isClosed && workflow.Archive is null;
     // Review point 12: the adverse dispositions Core will accept for this
     // state, decided in the page model from Core's own closure rules.
     var closureOutcomes = Model.AvailableClosureOutcomes;
     var offersAdverseClosure = mayAct && closureOutcomes.Count > 0;
     var offersHoldGroup = mayActOnCaseData && !isClosed;
-    var offersCreateAudit = Model.CanCreateAudit;
+    var offersCreateAudit = Model.OffersCreateAudit;
     // The menu shows whenever it has an item to offer.
-    var offersActionsMenu = canUnlinkEvidence || canSendToEva || canHandToEngineer || canConfirmReportSent || canMarkCompleted
+    var offersActionsMenu = canUnlinkEvidence || canSendChaser || canSendToEva || canAssignEngineer || canConfirmReportSent || canMarkCompleted
         || canReturnToReview || canReturnToEngineer || canArchive || offersHoldGroup
         || offersCreateAudit || offersAdverseClosure;
     var outcome = Model.AssessmentEditorValue(Pegasus.Core.Assessment.AssessmentVocabulary.Outcome)
@@ -133,10 +137,10 @@
         }
         @if (editing)
         {
-            @* The status word of the session: what the last commit did,
-               or that editing has expired (save as you go, operator,
-               29 September 2026). *@
-            <span class="lease-line" data-lease-line data-lease-expired-text="@Frame.EditingExpired"
+            @* The status word of the session: what the last commit did
+               (save as you go, operator, 29 September 2026). Editing never
+               expires while the page is open (operator, 6 October 2026). *@
+            <span class="lease-line" data-lease-line
                   data-lease-saving-text="@Frame.Saving" data-lease-saved-text="@Frame.Saved" hidden></span>
             @* Done ends editing and frees the Case; every change is
                already recorded, so there is nothing to discard. *@
@@ -145,18 +149,7 @@
                 <input type="hidden" name="operationKey" value="@Model.ReleaseLeaseOperationKey" />
                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                 <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
-            </form>
-            @* Script hides this and beats instead; without script it is
-               how editing is kept. *@
-            <form method="post" asp-page-handler="RenewLease" data-case-renew>
-                <input type="hidden" name="id" value="@summary.CaseId" />
-                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                <input type="hidden" name="operationKey" value="@Model.RenewLeaseOperationKey" />
-                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                <button type="submit" class="btn btn--small">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg>
-                    <span>@Frame.RenewEditing</span>
-                </button>
+                <input type="hidden" name="view" value="@Model.ViewRoute" />
             </form>
             <form method="post" asp-page-handler="HeartbeatLease" data-case-heartbeat
                   data-heartbeat-seconds="@((int)CaseEditAuthority.HeartbeatInterval.TotalSeconds)" hidden>
@@ -171,30 +164,30 @@
                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
             </form>
             <span class="status status--navy status--plain case-edit-badge">@Frame.Editing</span>
-            @if (editingCaseData && details.Data is not null && !Model.IsInspectionView)
+            @if (editingCaseData && details.Data is not null)
             {
                 @* The Case form's default submit. With script it is the
                    commit Ctrl S and Enter reach, and the script hides it;
                    without script it is the save. It stands first so
                    Enter in a cell never lands on a Repair Spec line button. *@
-                <button type="submit" form="case-edit-form" class="btn btn--small" data-case-save-now>
+                <button type="submit" data-busy-label="@OperatorLabels.Busy.Saving" data-busy-done="@OperatorLabels.Busy.Done.Saved" form="case-edit-form" class="btn btn--small" data-case-save-now>
                     <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
                     <span>@Frame.SaveNow</span>
                 </button>
             }
-            <button type="submit" form="case-finish-editing-form" class="btn" data-case-done>
+            <button type="submit" data-busy-label="@OperatorLabels.Busy.Finishing" form="case-finish-editing-form" class="btn" data-case-done>
                 <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
                 <span>@Frame.Done</span>
             </button>
         }
-        else if (!Model.IsInspectionView && (!Model.IsPostReportReadOnly || Model.ColleagueIsEditing)
+        else if ((!Model.IsPostReportReadOnly || Model.ColleagueIsEditing)
             && (details.ActiveEditLease is null || details.ActiveEditLease.HolderKind == Pegasus.Core.Identity.ActorKind.Staff))
         {
             @* A colleague's staff lease can be taken over by an authorised
                editor; the operation rotates its token and records the prior
                holder. The viewer's own lease is resumed, never taken over.
-               The Inspection view offers no Edit (v29 P3), and neither does
-               a Completed or Query Case: its sections read, and Return to
+               Both views offer Edit (operator, 2 October 2026); a Completed
+               or Query Case does not: its sections read, and Return to
                Engineer is an Actions-menu item that needs no session. A
                colleague's lease there is still offered Take over
                (operator, 29 September 2026), since the Actions menu is
@@ -208,7 +201,8 @@
                     <input type="hidden" name="takeOver" value="true" />
                 }
                 <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
-                <button type="submit" class="btn btn--dark" data-case-edit>
+                <input type="hidden" name="view" value="@Model.ViewRoute" />
+                <button type="submit" data-busy-label="@OperatorLabels.Busy.Opening" class="btn btn--dark" data-case-edit>
                     <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
                     <span>@(Model.ColleagueIsEditing ? Frame.TakeOver : Frame.EditCase)</span>
                 </button>
@@ -219,11 +213,11 @@
             <details class="menu" data-menu data-case-actions>
                 <summary class="btn"><span>@Frame.Actions</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
                 <div class="menu-body">
-                    @if (canHandToEngineer)
+                    @if (canAssignEngineer)
                     {
                         <button type="button" class="btn" data-dialog-open="case-handoff-dialog">
                             <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                            <span>@CaseWorkspaceLabels.HandToEngineer</span>
+                            <span>@CaseWorkspaceLabels.AssignEngineer</span>
                         </button>
                     }
                     @if (canSendToEva)
@@ -278,9 +272,16 @@
                             <span>@Frame.UnlinkReportEvidence</span>
                         </button>
                     }
+                    @if (canSendChaser)
+                    {
+                        <a class="btn" asp-page="/Mail/Compose" asp-route-caseReference="@summary.Reference" asp-route-purpose="@Pegasus.Web.Pages.Mail.ComposeModel.ChaserPurpose" data-send-chaser>
+                            <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                            <span>@Frame.SendChaser</span>
+                        </a>
+                    }
                     @if (offersHoldGroup || offersCreateAudit)
                     {
-                        @if (canHandToEngineer || canSendToEva || canConfirmReportSent || canMarkCompleted || canReturnToReview || canReturnToEngineer || canArchive)
+                        @if (canAssignEngineer || canSendToEva || canConfirmReportSent || canMarkCompleted || canReturnToReview || canReturnToEngineer || canArchive || canSendChaser)
                         {
                             <div class="menu-sep"></div>
                         }
@@ -307,10 +308,26 @@
                         }
                         @if (offersCreateAudit)
                         {
-                            <button type="button" class="btn" data-dialog-open="case-create-audit-dialog" data-create-audit>
-                                <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
-                                <span>@Frame.CreateAudit</span>
-                            </button>
+                            @if (Model.CreateAuditCondition is { } createAuditCondition)
+                            {
+                                @* Listed on every Inspection + Audit Case; greyed out with
+                                   its blocker on hover (operator, 1 October 2026). The
+                                   wrapper carries the title: a disabled button takes no
+                                   pointer events. *@
+                                <span class="menu-gated" title="@createAuditCondition" data-create-audit-condition="@createAuditCondition">
+                                    <button type="button" class="btn" disabled aria-disabled="true" data-create-audit>
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                                        <span>@Frame.CreateAudit</span>
+                                    </button>
+                                </span>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn" data-dialog-open="case-create-audit-dialog" data-create-audit>
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                                    <span>@Frame.CreateAudit</span>
+                                </button>
+                            }
                         }
                     }
                     @if (offersAdverseClosure)

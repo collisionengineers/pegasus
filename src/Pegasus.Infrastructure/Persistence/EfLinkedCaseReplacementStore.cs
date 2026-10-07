@@ -60,7 +60,7 @@ public sealed class EfLinkedCaseReplacementStore(
             .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
         ArchivedCaseGuard.RequireMutable(original);
-        RequireVersion(original, request.ExpectedVersion);
+        RequireVersionUnderLease(original, request.ExpectedVersion);
         RequireLease(original, request.Actor, request.EditLeaseToken, timeProvider.GetUtcNow());
         if (IsTerminal(original.State))
         {
@@ -130,6 +130,7 @@ public sealed class EfLinkedCaseReplacementStore(
             Version = 0
         };
         context.Cases.Add(replacementCase);
+        PrincipalDefaultFeeWriter.Apply(context, replacementCaseId, replacementPrincipal, now);
         var replacementCaseData = CloneCaseDataSnapshot(originalCaseData, replacementCase);
         context.CaseDataSnapshots.Add(replacementCaseData);
         ConfirmReplacementPrincipal(replacementCaseData, request, now);
@@ -434,8 +435,8 @@ public sealed class EfLinkedCaseReplacementStore(
             AfterVersion = afterVersion
         });
 
-    private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion) =>
-        CaseMutationGuard.RequireVersion(workflow, expectedVersion);
+    private static void RequireVersionUnderLease(CaseWorkflowEntity workflow, long expectedVersion) =>
+        CaseMutationGuard.RequireVersionUnderLease(workflow, expectedVersion);
 
     private static void RequireLease(
         CaseWorkflowEntity workflow,

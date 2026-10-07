@@ -111,7 +111,7 @@ public sealed class EfCaseReportGenerationStore(
         if (request.Kind == CaseReportArtifactKind.AssessmentReport)
         {
             inputs = await snapshotSource
-                .GetAsync(request.CaseId, request.Actor, CaseWorkSelector.Current, reuse: null, cancellationToken)
+                .GetAsync(request.CaseId, request.Actor, request.Work, reuse: null, cancellationToken)
                 .ConfigureAwait(false);
             if (inputs is null)
             {
@@ -148,9 +148,11 @@ public sealed class EfCaseReportGenerationStore(
         var reportInputs = inputs
             ?? throw new ArgumentOutOfRangeException(nameof(request), request.Kind, "Unsupported report artifact kind.");
         CaseMutationGuard.RequireVersion(workflow, reportInputs.CaseVersion);
-        // A report is made from the current work. Create audit bumps the
-        // version, so inputs read for another work are refused as stale.
-        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken)
+        // A report is made from the work the request names: the current work,
+        // or the Inspection work of a Case that has its Audit (operator,
+        // 1 October 2026). Create audit bumps the version, so inputs read for
+        // a work that is no longer the one addressed are refused as stale.
+        var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken)
             .ConfigureAwait(false);
         if (workId != reportInputs.WorkId)
         {
@@ -182,28 +184,17 @@ public sealed class EfCaseReportGenerationStore(
             return new(CaseReportFreezeOutcome.NotReady, null, null, readiness.Reasons);
         }
 
-        var (reportDate, overridden) = CaseReportReadiness.ResolveReportDate(
+        var reportDate = CaseReportReadiness.ResolveReportDate(
             readiness.RecordedReportDate,
-            readiness.ReportDateOverridden,
             LondonCalendar.DateAt(now));
-        // The packaging choice belongs to the report itself: a separate fee
-        // note never embeds one, whatever the caller asked for.
         var projected = AssessmentReportProjection.Project(
-            reportInputs.Projection with
-            {
-                ReportDate = reportDate,
-                IncludeFeeNote = request.IncludeFeeNote
-                    && request.Kind == CaseReportArtifactKind.AssessmentReport,
-            });
+            reportInputs.Projection with { ReportDate = reportDate });
         if (projected.Snapshot is null)
         {
             return new(CaseReportFreezeOutcome.NotReady, null, null, projected.Reasons);
         }
 
-        var snapshot = BuildSnapshot(request, reportInputs, readiness, projected.Snapshot, reportDate, overridden, now, operationKey);
-        // v28 P40: a report generated without an overridden date is dated
-        // today, and the record says so rather than leaving the cell empty.
-        await StampReportDateAsync(context, workId, request, reportDate, now, cancellationToken).ConfigureAwait(false);
+        var snapshot = BuildSnapshot(request, reportInputs, readiness, projected.Snapshot, reportDate, now, operationKey);
         var profiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken).ConfigureAwait(false);
         if (!SignatoryMatches(snapshot, CaseSignOffEngineerResolver.Resolve(
                 workflow.SignOffEngineerId, workflow.AssignedEngineerId, profiles)))
@@ -296,7 +287,6 @@ public sealed class EfCaseReportGenerationStore(
                 snapshot.TemplateVersion,
                 snapshot.RendererVersion,
                 snapshot.ReportDate,
-                snapshot.ReportDateOverridden,
             })));
 
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -316,7 +306,10 @@ public sealed class EfCaseReportGenerationStore(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken)
+        // A companion document belongs to the generation it targets, which
+        // must be of the work the request names (the current work, or the
+        // Inspection's once the Audit exists) and still that work's current one.
+        var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken)
             .ConfigureAwait(false);
         var generation = await context.Set<CaseReportGenerationEntity>()
             .SingleOrDefaultAsync(
@@ -333,11 +326,6 @@ public sealed class EfCaseReportGenerationStore(
         }
 
         var snapshot = DeserializeSnapshot(generation);
-        if (request.Kind == CaseReportArtifactKind.FeeNote && snapshot.Report.IncludeFeeNote)
-        {
-            throw new InvalidOperationException("The generated artifact is unavailable.");
-        }
-
         var report = await context.Set<GeneratedCaseArtifactEntity>()
             .SingleOrDefaultAsync(
                 item => item.GenerationId == generation.Id
@@ -401,7 +389,6 @@ public sealed class EfCaseReportGenerationStore(
                 snapshot.TemplateVersion,
                 snapshot.RendererVersion,
                 snapshot.ReportDate,
-                snapshot.ReportDateOverridden,
             })));
 
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -421,15 +408,11 @@ public sealed class EfCaseReportGenerationStore(
             .AsNoTracking()
             .SingleAsync(item => item.Id == replay.GenerationId, cancellationToken)
             .ConfigureAwait(false);
-        var snapshot = DeserializeSnapshot(generation);
-        var expectedIncludeFeeNote = request.Kind == CaseReportArtifactKind.AssessmentReport
-            && request.IncludeFeeNote;
         var targetMatches = request.Kind == CaseReportArtifactKind.AssessmentReport
             ? request.TargetGenerationId is null
             : request.TargetGenerationId == generation.Id;
         if (generation.CaseId != request.CaseId
             || !string.Equals(replay.Kind, request.Kind.ToString(), StringComparison.Ordinal)
-            || snapshot.Report.IncludeFeeNote != expectedIncludeFeeNote
             || !targetMatches)
         {
             throw new CaseOperationConflictException(request.CaseId, replay.OperationKey);
@@ -651,6 +634,43 @@ public sealed class EfCaseReportGenerationStore(
         return await LoadRecordAsync(context, caseId, generationId, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<CaseReportGenerationRecord> GetForDeliveryAsync(
+        SendCaseReportRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        CaseReportDeliveryPolicy.RequireStaff(request.Actor);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var generation = await LoadRecordAsync(context, request.CaseId, request.GenerationId, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new InvalidOperationException(
+                $"Case report generation '{request.GenerationId}' is unavailable on case '{request.CaseId}'.");
+        var workflow = await context.CaseWorkflows
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
+
+        // A work's current report is delivered: the current work's, or the
+        // Inspection's once the Audit exists, which stays deliverable on its
+        // own work (operator, 1 October 2026). The generation must be of the
+        // work the request names.
+        var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken)
+            .ConfigureAwait(false);
+        if (generation.WorkId != workId)
+        {
+            throw new InvalidOperationException("The case report generation is unavailable.");
+        }
+        CaseReportDeliveryPolicy.RequireDeliverable(
+            generation.Id,
+            generation.State,
+            generation.SupersededById is null,
+            generation.Version,
+            request.ExpectedGenerationVersion);
+        CaseMutationGuard.Require(
+            workflow, request.Actor, request.ExpectedCaseVersion, request.LeaseToken, timeProvider.GetUtcNow());
+        return generation;
+    }
+
     public async Task<CaseReportGenerationRecord?> GetCurrentAsync(
         ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken)
     {
@@ -770,9 +790,9 @@ public sealed class EfCaseReportGenerationStore(
     /// <summary>
     /// The same-context stale core the sibling B stores call inside their
     /// own transactions, so a material change and the staleness it causes
-    /// commit atomically. Only the Case's current generation moves: a
-    /// superseded generation keeps its bytes, its state and its history
-    /// exactly as issued. This never saves — the caller's transaction does.
+    /// commit atomically. A change that edits no work of its own moves the
+    /// current work's report. This never saves — the caller's transaction
+    /// does.
     /// </summary>
     internal static async Task<int> MarkStaleAsync(
         PegasusDbContext context,
@@ -781,10 +801,26 @@ public sealed class EfCaseReportGenerationStore(
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
-        // Only the current work's report moves: once an Audit exists the
-        // Inspection's issued report stays exactly as it was sent.
         var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken)
             .ConfigureAwait(false);
+        return await MarkWorkStaleAsync(context, caseId, workId, reasonCode, nowUtc, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Marks the current generation of <paramref name="workId"/> stale: an
+    /// edit stales the report of the work it edited, never the other work's
+    /// (operator, 2 October 2026). A superseded generation keeps its bytes,
+    /// its state and its history exactly as issued. This never saves.
+    /// </summary>
+    internal static async Task<int> MarkWorkStaleAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        Guid workId,
+        string reasonCode,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
         var current = await context.Set<CaseReportGenerationEntity>()
             .Where(item => item.WorkId == workId
                 && item.SupersededById == null
@@ -859,44 +895,10 @@ public sealed class EfCaseReportGenerationStore(
                 row.SignOffEngineerId, row.AssignedEngineerId, profiles);
             if (!SignatoryMatches(DeserializeSnapshot(row.Generation), signatory))
             {
-                await MarkStaleAsync(context, row.Generation.CaseId,
+                await MarkWorkStaleAsync(context, row.Generation.CaseId, row.Generation.WorkId,
                     CaseReportStaleReasons.SignatoryChanged, nowUtc, cancellationToken);
             }
         }
-    }
-
-    /// <summary>
-    /// Writes the report date a generation used into the Case's own record
-    /// when none was held (v28 P40). A date already recorded — typed or
-    /// stamped by an earlier generation — is left exactly as it stands.
-    /// </summary>
-    private static async Task StampReportDateAsync(
-        PegasusDbContext context,
-        Guid workId,
-        FreezeCaseReportGenerationRequest request,
-        DateOnly reportDate,
-        DateTimeOffset now,
-        CancellationToken cancellationToken)
-    {
-        var existing = await context.CaseAssessmentFields
-            .SingleOrDefaultAsync(
-                field => field.WorkId == workId
-                    && field.FieldPath == AssessmentVocabulary.ReportDate,
-                cancellationToken)
-            .ConfigureAwait(false);
-        if (existing is not null && !string.IsNullOrWhiteSpace(existing.Value))
-        {
-            return;
-        }
-        AssessmentFieldWriter.Write(
-            context,
-            workId,
-            existing,
-            AssessmentVocabulary.ReportDate,
-            reportDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
-            request.Actor.Kind,
-            request.Actor.SubjectId,
-            now);
     }
 
     private static bool SignatoryMatches(
@@ -1045,7 +1047,6 @@ public sealed class EfCaseReportGenerationStore(
         CaseReportReadinessResult readiness,
         AssessmentReportSnapshot report,
         DateOnly reportDate,
-        bool overridden,
         DateTimeOffset now,
         string operationKey)
     {
@@ -1074,7 +1075,6 @@ public sealed class EfCaseReportGenerationStore(
             readiness.Content,
             inputs.Projection.Guides ?? ReportGuideSources.None,
             reportDate,
-            overridden,
             report.AgreedFee,
             report.FeeDescriptionLines,
             inputs.Projection.Sources

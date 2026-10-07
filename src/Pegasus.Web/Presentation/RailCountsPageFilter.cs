@@ -24,7 +24,7 @@ namespace Pegasus.Web.Presentation;
 /// contract sum, not_ready + review + with_engineer + query + held + triage +
 /// unidentified, read from the same queries the Cases page itself runs:
 /// <see cref="IDashboardQueries.GetCaseStageCountsAsync"/> (one grouped
-/// aggregate), <see cref="IListTriage"/> (the open-Triage total; the rows are
+/// aggregate), <see cref="IListTriage"/> (the active-Triage total; the rows are
 /// not projected beyond page one) and
 /// <see cref="IUnidentifiedStore.ListQueueAsync"/>. Inbox has no established figure
 /// to reuse without inventing one, so it is absent — the layout renders nothing
@@ -187,8 +187,8 @@ public sealed partial class RailCountsPageFilter(
             : Task.FromResult(known.Stages);
         var triageTask = listTriage.CountAsync(
             actor,
-            state: null,
-            cancellationToken: cancellationToken);
+            TriageLifecycleRules.ActiveStates,
+            cancellationToken);
         var unidentifiedTask = known is null
             ? unidentifiedStore.CountOpenAsync(cancellationToken)
             : Task.FromResult(known.UnidentifiedCount);

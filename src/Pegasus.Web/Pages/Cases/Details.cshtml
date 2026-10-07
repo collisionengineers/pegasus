@@ -19,7 +19,6 @@
     @if (Model.TriageCase is not null)
     {
         <link rel="stylesheet" href="~/css/triage.css" asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/pre-case-images.css" asp-append-version="true" />
     }
     else
     {
@@ -100,7 +99,7 @@
                     ViewData["RefreshFields"] = new Dictionary<string, string?>
                     {
                         ["section"] = Model.Section,
-                        ["view"] = Model.IsInspectionView ? DetailsModel.InspectionViewKey : null
+                        ["view"] = Model.ViewRoute
                     };
                 }
                 <partial name="Shared/_RefreshButton" />

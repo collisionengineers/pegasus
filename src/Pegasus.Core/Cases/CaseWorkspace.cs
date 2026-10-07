@@ -89,6 +89,25 @@ public static class CaseOdometer
             ? originalValue * KilometresPerMile
             : originalValue / KilometresPerMile;
     }
+
+    /// <summary>
+    /// A recorded reading in whole miles, as a provider that values by mileage
+    /// is asked for it. A reading recorded with no unit is in miles — that is
+    /// what the estate's odometer field means — but a unit that is stated and
+    /// unreadable is ambiguous, so no conversion is offered for it.
+    /// </summary>
+    public static bool TryWholeMiles(long reading, string? statedUnit, out long miles)
+    {
+        var unit = CaseOdometerUnit.Miles;
+        if (!string.IsNullOrEmpty(statedUnit) && !TryParseUnit(statedUnit, out unit))
+        {
+            miles = default;
+            return false;
+        }
+
+        miles = (long)Math.Round(Display(reading, unit, CaseOdometerUnit.Miles), MidpointRounding.AwayFromZero);
+        return true;
+    }
 }
 
 /// <summary>
@@ -283,6 +302,7 @@ public sealed record CaseWorkspaceEstimate(
             SelectedRateCardId = SelectedRateCardId,
             SelectedRateCardVersion = SelectedRateCardVersion,
             Supplementary = Supplementary,
+            Work = owner.Work,
         };
     }
 }
@@ -324,6 +344,11 @@ public sealed record CaseWorkspaceCompleteness(
 /// The save needs no reason (planning decision A, 13 September): its history
 /// line records what changed. A typed <paramref name="Reason"/> is kept beside
 /// that account when one is given.
+///
+/// <see cref="Work"/> names the work the save writes: the current work, or
+/// the Inspection (primary) work from the Inspection view once the Audit
+/// exists (operator, 2 October 2026). An edit of the primary work while the
+/// Audit exists moves nothing that is the Case's: its state is the Audit's.
 /// </summary>
 public sealed record SaveCaseWorkspaceRequest(
     Guid CaseId,
@@ -334,6 +359,8 @@ public sealed record SaveCaseWorkspaceRequest(
     string EditLeaseToken)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason ?? string.Empty, EditLeaseToken)
 {
+    public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+
     public CaseWorkspaceOverview? Overview { get; init; }
 
     public CaseWorkspaceInspection? Inspection { get; init; }
@@ -702,6 +729,46 @@ public static class CaseWorkspacePolicy
             validated.Add(normalized);
         }
         return validated;
+    }
+
+    /// <summary>
+    /// Reconciles a Save with the assessment values system work filled since the page read the
+    /// Case (operator, 6 October 2026): the Save posts every control, so a value the page still
+    /// shows as it was before the fill is not the operator's answer, and the fill stands. A posted
+    /// value equal to the fill changes nothing. Any other posted value would overwrite what the
+    /// system wrote unseen, so the Save is refused and the page catches up first.
+    /// <paramref name="filledFrom"/> maps each filled path to its value before the first fill
+    /// since the page's version; <paramref name="current"/> is the work's current values.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string?> KeepSystemFills(
+        Guid caseId,
+        long expectedVersion,
+        long caseVersion,
+        IReadOnlyDictionary<string, string?> requested,
+        IReadOnlyDictionary<string, string?> filledFrom,
+        IReadOnlyDictionary<string, string?> current)
+    {
+        ArgumentNullException.ThrowIfNull(requested);
+        ArgumentNullException.ThrowIfNull(filledFrom);
+        ArgumentNullException.ThrowIfNull(current);
+        var kept = new Dictionary<string, string?>(requested, StringComparer.Ordinal);
+        foreach (var (path, before) in filledFrom)
+        {
+            if (!requested.TryGetValue(path, out var posted)
+                || string.Equals(posted, current.GetValueOrDefault(path), StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (!string.Equals(posted, before, StringComparison.Ordinal))
+            {
+                throw new CaseVersionConflictException(caseId, expectedVersion, caseVersion);
+            }
+
+            kept.Remove(path);
+        }
+
+        return kept;
     }
 
     /// <summary>

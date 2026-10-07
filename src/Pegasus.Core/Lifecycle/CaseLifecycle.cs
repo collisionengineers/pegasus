@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Notifications;
 using Pegasus.Core.Workflow;
@@ -281,7 +282,10 @@ public sealed class RecordCaseReportApproval(ICaseWorkflowStore store) : IRecord
     {
         CaseLifecycleRules.ValidateReportApproval(request);
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if (current.State != CaseLifecycleState.ReportPreparation
+        // The Inspection report of a Case that has its Audit is approved on
+        // its own work, whatever the Case's state (operator, 1 October 2026).
+        if (request.Work == CaseWorkSelector.Current
+            && current.State != CaseLifecycleState.ReportPreparation
             && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
         {
             throw new InvalidOperationException("A report can be approved only while report preparation is active.");
@@ -304,7 +308,10 @@ public sealed class LinkReportEvidence(ICaseWorkflowStore store) : ILinkReportEv
             _store,
             request.CaseId,
             cancellationToken);
-        if (current.State != CaseLifecycleState.ReportPreparation
+        // The Inspection report's evidence, once the Case has its Audit, is
+        // linked on its own work in any state (operator, 1 October 2026).
+        if (request.Work == CaseWorkSelector.Current
+            && current.State != CaseLifecycleState.ReportPreparation
             && !await _store.HasOperationAsync(
                 request.CaseId,
                 request.OperationKey,
@@ -369,7 +376,10 @@ public sealed class AutoLinkReportEvidence(IAutoLinkReportEvidenceStore store)
                 || result.Link is not { } link
                 || link.CaseId != request.CaseId
                 || link.EvidenceId != request.EvidenceId
-                || link.State != CaseLifecycleState.PostReport
+                // The current work's evidence moves the Case to Post report; the
+                // Inspection's, once the Audit exists, leaves the state alone.
+                || (link.OfCurrentWork && link.State != CaseLifecycleState.PostReport)
+                || !Enum.IsDefined(link.State)
                 || link.Version < 0)
             {
                 throw new InvalidDataException(
@@ -530,6 +540,38 @@ public sealed class ReturnCaseToEngineer(
     }
 }
 
+/// <summary>
+/// What a post-report message joining a Case does to it (FRD-13 "Completed and
+/// Query"): nothing, Query, or Completed again because its reply was already
+/// observed. The stores apply the outcome inside the transaction that links or
+/// corrects the message.
+/// </summary>
+public enum PostReportQueryEntry
+{
+    None,
+    EnterQuery,
+    CompleteWithObservedReply
+}
+
+/// <summary>
+/// The one owner of when a post-report message moves a Case between Completed
+/// and Query. Linking or correcting a message to Post-report on a Completed Case
+/// enters Query; unlinking or correcting away the last such message before any
+/// reply was observed returns the Case to Completed.
+/// </summary>
+public static class PostReportQueryRules
+{
+    public static PostReportQueryEntry OnPostReportLinked(CaseLifecycleState state, bool replyObserved) =>
+        state != CaseLifecycleState.PostReportComplete
+            ? PostReportQueryEntry.None
+            : replyObserved
+                ? PostReportQueryEntry.CompleteWithObservedReply
+                : PostReportQueryEntry.EnterQuery;
+
+    public static bool ShouldWithdraw(CaseLifecycleState state, bool replyObserved, bool otherPostReportLinked) =>
+        state == CaseLifecycleState.Query && !replyObserved && !otherPostReportLinked;
+}
+
 public static class CaseLifecycleRules
 {
     public static async Task<CaseWorkflowRecord> GetRequiredAsync(
@@ -627,56 +669,6 @@ public static class CaseLifecycleRules
                 nameof(reviewOn),
                 "The review date must be today or later.");
         }
-    }
-
-    /// <summary>
-    /// Whether the Case is in a state where a staff member may be assigned at all:
-    /// today that is Review only, the one place <see cref="AssignCaseEngineer"/>
-    /// accepts an assignment.
-    /// </summary>
-    public static bool AllowsEngineerAssignment(CaseLifecycleState state) =>
-        state == CaseLifecycleState.Review;
-
-    /// <summary>
-    /// "Assign to me" is offered on a Case with no assigned staff member, in a state where
-    /// assignment is allowed. A Case that already has a staff member is reassigned
-    /// through the ordinary dialog, never taken.
-    /// </summary>
-    public static bool CanAssignToSelf(CaseWorkflowRecord current) =>
-        current.AssignedEngineerId is null
-        && current.Archive is null
-        && !IsTerminal(current.State)
-        && AllowsEngineerAssignment(current.State);
-
-    public static void RequireSelfAssignmentAllowed(CaseWorkflowRecord current)
-    {
-        ArgumentNullException.ThrowIfNull(current);
-        if (current.AssignedEngineerId is not null)
-        {
-            throw new InvalidOperationException("The case already has an assigned staff member.");
-        }
-
-        if (!CanAssignToSelf(current))
-        {
-            throw new InvalidOperationException("A staff member can be assigned only while the case is in Review.");
-        }
-    }
-
-    /// <summary>
-    /// The staff identity an actor assigns to themself. The account must be
-    /// enabled when the assignment is checked.
-    /// </summary>
-    public static Guid RequireSelfAssigningStaff(ActionActor actor)
-    {
-        ArgumentNullException.ThrowIfNull(actor);
-        if (actor.Kind != ActorKind.Staff
-            || !Guid.TryParse(actor.SubjectId, out var staffId)
-            || staffId == Guid.Empty)
-        {
-            throw new InvalidOperationException("Only authenticated staff can assign a case to themself.");
-        }
-
-        return staffId;
     }
 
     public static void ValidateAssignment(

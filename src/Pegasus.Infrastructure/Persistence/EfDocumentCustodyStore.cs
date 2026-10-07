@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
@@ -23,7 +22,6 @@ internal sealed class EfDocumentCustodyStore(
     IDownloadCaseDocument,
     IGetCaseDocumentMetadata,
     IReadCaseDocumentPreview,
-    IExportCaseDocuments,
     ILogicallyRemoveDocument,
     IMarkAsOriginalReportStore,
     IRecogniseOriginalReportStore,
@@ -304,148 +302,6 @@ internal sealed class EfDocumentCustodyStore(
         }
     }
 
-    async Task<DocumentExport> IExportCaseDocuments.ExecuteAsync(
-        ExportCaseDocumentsCommand command,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        ValidateActor(command.Actor);
-        var operationKey = ValidateOperationKey(command.OperationKey);
-        ArgumentNullException.ThrowIfNull(command.Selections);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(command.MaximumArchiveBytes);
-        if (command.Selections.Count == 0 || command.Selections.Count != command.Selections.Distinct().Count())
-        {
-            throw new ArgumentException("At least one unique document selection is required.", nameof(command));
-        }
-
-        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-        var caseIdentity = await context.Set<CaseEntity>()
-            .Where(value => value.Id == command.CaseId)
-            .Select(value => new { value.Reference, value.CustodyRootRemoteId, value.AuditCustodyRemoteId })
-            .SingleOrDefaultAsync(cancellationToken)
-            ?? throw new InvalidOperationException("The case is unavailable.");
-        var caseRootRemoteId = caseIdentity.CustodyRootRemoteId;
-
-        // A case exports only in Review (operator decision 2026-08-04). This
-        // is a precondition, not a greyed button: export had no stage
-        // condition at all, so the rule existed nowhere until now and any
-        // caller could take the bundle at any stage.
-        var stage = await context.CaseWorkflows
-            .AsNoTracking()
-            .Where(value => value.CaseId == command.CaseId)
-            .Select(value => value.State)
-            .SingleOrDefaultAsync(cancellationToken);
-        if (stage != nameof(CaseLifecycleState.Review))
-        {
-            throw new CaseNotInReviewException(command.CaseId);
-        }
-
-        var history = await FindDocumentHistoryAsync(context, operationKey, cancellationToken);
-
-        var requested = command.Selections
-            .OrderBy(value => value.OccurrenceId)
-            .ThenBy(value => value.VersionId)
-            .ToArray();
-        var items = new List<ExportItem>(requested.Length);
-        var selectedContentLength = 0L;
-        foreach (var selection in requested)
-        {
-            var item = await (
-                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
-                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
-                    on occurrence.DocumentId equals version.DocumentId
-                where occurrence.CaseId == command.CaseId
-                    && occurrence.Id == selection.OccurrenceId
-                    && version.Id == selection.VersionId
-                    && version.CustodyStatus == DocumentCustodyStatus.Confirmed
-                    && !version.IsLogicallyRemoved
-                select new ExportItem(
-                    occurrence,
-                    version,
-                    context.Set<CaseDocumentEntity>()
-                        .Where(document => document.Id == occurrence.DocumentId)
-                        .Select(document => document.CustodyFolder)
-                        .First()))
-                .SingleOrDefaultAsync(cancellationToken)
-                ?? throw new InvalidOperationException("A selected document version is unavailable.");
-            if (item.Version.ContentLength < 0)
-            {
-                throw new InvalidDataException("A selected document has an invalid custody length.");
-            }
-            if (item.Version.ContentLength > command.MaximumArchiveBytes - selectedContentLength)
-            {
-                throw new InvalidOperationException(
-                    "The selected documents exceed the maximum archive byte limit.");
-            }
-
-            selectedContentLength += item.Version.ContentLength;
-            items.Add(item);
-        }
-
-        var afterJson = DocumentActionHistory.Serialize(new DocumentExportHistoryValue(
-            command.CaseId,
-            items.Select(item => new DocumentExportHistoryItem(
-                    item.Occurrence.Id,
-                    item.Version.Id,
-                    item.Version.Sha256))
-                .ToArray()));
-        if (history is not null)
-        {
-            DocumentActionHistory.RequireExactReplay(
-                history,
-                "case_document",
-                command.CaseId.ToString("D"),
-                "documents_exported",
-                command.Actor,
-                reason: null,
-                afterJson: afterJson);
-        }
-
-        var export = await BuildExportAsync(
-            command.CaseId,
-            caseIdentity.Reference,
-            caseRootRemoteId,
-            caseIdentity.AuditCustodyRemoteId,
-            items,
-            command.MaximumArchiveBytes,
-            cancellationToken);
-        try
-        {
-            if (history is null)
-            {
-                var workflow = await RequireWorkflowAsync(
-                    context,
-                    command.CaseId,
-                    cancellationToken);
-                CaseMutationGuard.Require(
-                    workflow,
-                    command.Actor,
-                    command.ExpectedCaseVersion,
-                    command.EditLeaseToken,
-                    timeProvider.GetUtcNow());
-                context.ActionHistory.Add(DocumentActionHistory.Succeeded(
-                    "case_document",
-                    command.CaseId.ToString("D"),
-                    "documents_exported",
-                    command.Actor,
-                    timeProvider.GetUtcNow(),
-                    operationKey,
-                    afterJson: afterJson));
-                CaseMutationGuard.Complete(workflow);
-                await context.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-            }
-
-            return export;
-        }
-        catch
-        {
-            await export.DisposeAsync();
-            throw;
-        }
-    }
-
     async Task ILogicallyRemoveDocument.ExecuteAsync(
         LogicallyRemoveDocumentCommand command,
         CancellationToken cancellationToken)
@@ -586,50 +442,54 @@ internal sealed class EfDocumentCustodyStore(
         return result;
     }
 
-    async Task<IReadOnlyList<FiledOriginalReportCandidate>> IRecogniseOriginalReportStore.FindAwaitingCandidatesAsync(
+    async Task<FiledOriginalReportCandidates> IRecogniseOriginalReportStore.FindAwaitingCandidatesAsync(
         Guid caseId,
         Guid receiptId,
-        IReadOnlyCollection<Guid> intakeAssetIds,
+        IReadOnlyCollection<FiledOriginalReportLookup> assets,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(intakeAssetIds);
-        if (intakeAssetIds.Count == 0)
-        {
-            return [];
-        }
-
+        ArgumentNullException.ThrowIfNull(assets);
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var workflow = await context.CaseWorkflows.AsNoTracking()
             .Include(value => value.Case)
             .SingleOrDefaultAsync(value => value.CaseId == caseId, cancellationToken);
         if (workflow is null || !await AwaitsRecognitionAsync(context, workflow, cancellationToken))
         {
-            return [];
+            return new(false, []);
         }
 
-        // The receipt's files are found by the operation key the filer gave
-        // each on this Case, so a file filed any other way is never read.
-        var assetsByKey = intakeAssetIds.Distinct().ToDictionary(
-            assetId => AutomaticCaseEvidencePromotionOperationKey.For(caseId, receiptId, assetId),
-            StringComparer.Ordinal);
-        var operationKeys = assetsByKey.Keys.ToArray();
+        if (assets.Count == 0)
+        {
+            return new(true, []);
+        }
+
+        // The receipt's files are found on the Case by the hash of their bytes,
+        // so a file filed at acceptance, by a matched follow-up or by the fold
+        // is found the same way. Mail intake records a hash in capitals and
+        // custody in lower case, so the comparison ignores case.
+        var assetsByHash = assets
+            .GroupBy(asset => asset.Sha256.Trim().ToLowerInvariant(), StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First().IntakeAssetId, StringComparer.Ordinal);
         var filed = await (
                 from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
                 join version in context.Set<DocumentVersionEntity>().AsNoTracking()
                     on occurrence.VersionId equals version.Id
                 where occurrence.CaseId == caseId
-                    && operationKeys.Contains(occurrence.OperationKey)
                     && occurrence.SemanticRole != DocumentSemanticRole.Image
                     && version.IsCurrent
                     && !version.IsLogicallyRemoved
                     && version.CustodyStatus != DocumentCustodyStatus.Failed
                 orderby occurrence.Ordinal
-                select new { OccurrenceId = occurrence.Id, occurrence.OperationKey, VersionId = version.Id })
+                select new { OccurrenceId = occurrence.Id, version.Sha256, VersionId = version.Id })
             .ToListAsync(cancellationToken);
-        return filed
-            .Select(item => new FiledOriginalReportCandidate(
-                assetsByKey[item.OperationKey], item.OccurrenceId, item.VersionId))
-            .ToArray();
+        return new(
+            true,
+            [
+                .. filed
+                    .Where(item => assetsByHash.ContainsKey(item.Sha256.Trim().ToLowerInvariant()))
+                    .Select(item => new FiledOriginalReportCandidate(
+                        assetsByHash[item.Sha256.Trim().ToLowerInvariant()], item.OccurrenceId, item.VersionId))
+            ]);
     }
 
     async Task<OriginalReportRecorded?> IRecogniseOriginalReportStore.RecordRecognisedAsync(
@@ -763,7 +623,16 @@ internal sealed class EfDocumentCustodyStore(
             workflow.Case.StandaloneAuditAssessment is { } verdict ? AuditAssessmentCode.Parse(verdict) : null,
             now,
             cancellationToken);
-        CaseMutationGuard.Complete(workflow);
+        // A staff Mark is made under the lease and ends it; a recognition is
+        // system work and leaves whoever is editing their lease.
+        if (actor.Kind == ActorKind.Staff)
+        {
+            CaseMutationGuard.Complete(workflow);
+        }
+        else
+        {
+            CaseMutationGuard.Advance(workflow);
+        }
         var result = new OriginalReportRecorded(
             workflow.CaseId,
             occurrence.Id,
@@ -1269,74 +1138,6 @@ internal sealed class EfDocumentCustodyStore(
         return occurrence;
     }
 
-    private async Task<DocumentExport> BuildExportAsync(
-        Guid caseId,
-        string caseReference,
-        string? caseRootRemoteId,
-        string? auditRootRemoteId,
-        IReadOnlyList<ExportItem> items,
-        long maximumArchiveBytes,
-        CancellationToken cancellationToken)
-    {
-        var output = new MemoryStream((int)Math.Min(maximumArchiveBytes, 64 * 1024L));
-        try
-        {
-            var boundedOutput = new MaximumLengthWriteStream(output, maximumArchiveBytes);
-            var manifest = new List<DocumentExportManifestEntry>(items.Count);
-            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                "manifest.json"
-            };
-            using (var archive = new ZipArchive(boundedOutput, ZipArchiveMode.Create, leaveOpen: true))
-            {
-                foreach (var item in items)
-                {
-                    var fileName = MakeUniqueFileName(item.Version.FileName, names);
-                    var manifestEntry = new DocumentExportManifestEntry(
-                        fileName,
-                        item.Occurrence.Id,
-                        item.Version.Id,
-                        item.Occurrence.SemanticRole,
-                        item.Version.ContentLength,
-                        item.Version.Sha256);
-                    manifest.Add(manifestEntry);
-
-                    var entry = archive.CreateEntry(fileName, CompressionLevel.NoCompression);
-                    entry.LastWriteTime = new DateTimeOffset(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
-                    await using var destination = entry.Open();
-                    await using var source = await contentStore.OpenReadVersionAsync(
-                        Address(
-                            caseId,
-                            caseReference,
-                            CaseCustodyFolders.RootOf(item.Folder, caseRootRemoteId, auditRootRemoteId),
-                            item.Occurrence,
-                            item.Version),
-                        item.Version.Sha256,
-                        item.Version.ContentLength,
-                        cancellationToken);
-                    await source.CopyToAsync(destination, cancellationToken);
-                }
-
-                var manifestArchiveEntry = archive.CreateEntry("manifest.json", CompressionLevel.NoCompression);
-                manifestArchiveEntry.LastWriteTime =
-                    new DateTimeOffset(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
-                await using var manifestStream = manifestArchiveEntry.Open();
-                await JsonSerializer.SerializeAsync(
-                    manifestStream,
-                    manifest,
-                    cancellationToken: cancellationToken);
-            }
-
-            output.Position = 0;
-            return new(output, $"case-{caseId:N}-documents.zip", manifest);
-        }
-        catch
-        {
-            await output.DisposeAsync();
-            throw;
-        }
-    }
-
     private static async Task<CaseWorkflowEntity> RequireWorkflowAsync(
         PegasusDbContext context,
         Guid caseId,
@@ -1424,25 +1225,6 @@ internal sealed class EfDocumentCustodyStore(
     private static bool IsSupportedImageMediaType(string mediaType) =>
         string.Equals(mediaType, "image/jpeg", StringComparison.OrdinalIgnoreCase)
         || string.Equals(mediaType, "image/png", StringComparison.OrdinalIgnoreCase);
-
-    private static string MakeUniqueFileName(string fileName, HashSet<string> names)
-    {
-        if (names.Add(fileName))
-        {
-            return fileName;
-        }
-
-        var extension = Path.GetExtension(fileName);
-        var stem = Path.GetFileNameWithoutExtension(fileName);
-        for (var suffix = 2; ; suffix++)
-        {
-            var candidate = $"{stem} ({suffix}){extension}";
-            if (names.Add(candidate))
-            {
-                return candidate;
-            }
-        }
-    }
 
     internal static string ComputeSha256(ReadOnlySpan<byte> content) =>
         Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
@@ -1616,121 +1398,8 @@ internal sealed class EfDocumentCustodyStore(
                 pending.Version.Sha256,
                 cancellationToken);
 
-    private sealed class MaximumLengthWriteStream(Stream inner, long maximumLength) : Stream
-    {
-        public override bool CanRead => false;
-
-        public override bool CanSeek => inner.CanSeek;
-
-        public override bool CanWrite => inner.CanWrite;
-
-        public override long Length => inner.Length;
-
-        public override long Position
-        {
-            get => inner.Position;
-            set
-            {
-                EnsureWithinLimit(value);
-                inner.Position = value;
-            }
-        }
-
-        public override void Flush() => inner.Flush();
-
-        public override Task FlushAsync(CancellationToken cancellationToken) =>
-            inner.FlushAsync(cancellationToken);
-
-        public override int Read(byte[] buffer, int offset, int count) =>
-            throw new NotSupportedException();
-
-        public override long Seek(long offset, SeekOrigin origin)
-        {
-            var previousPosition = inner.Position;
-            var position = inner.Seek(offset, origin);
-            if (position > maximumLength)
-            {
-                inner.Position = previousPosition;
-                ThrowArchiveLimitExceeded();
-            }
-
-            return position;
-        }
-
-        public override void SetLength(long value)
-        {
-            EnsureWithinLimit(value);
-            inner.SetLength(value);
-        }
-
-        public override void Write(byte[] buffer, int offset, int count)
-        {
-            EnsureWriteFits(count);
-            inner.Write(buffer, offset, count);
-        }
-
-        public override void Write(ReadOnlySpan<byte> buffer)
-        {
-            EnsureWriteFits(buffer.Length);
-            inner.Write(buffer);
-        }
-
-        public override Task WriteAsync(
-            byte[] buffer,
-            int offset,
-            int count,
-            CancellationToken cancellationToken)
-        {
-            EnsureWriteFits(count);
-            return inner.WriteAsync(buffer, offset, count, cancellationToken);
-        }
-
-        public override ValueTask WriteAsync(
-            ReadOnlyMemory<byte> buffer,
-            CancellationToken cancellationToken = default)
-        {
-            EnsureWriteFits(buffer.Length);
-            return inner.WriteAsync(buffer, cancellationToken);
-        }
-
-        public override void WriteByte(byte value)
-        {
-            EnsureWriteFits(1);
-            inner.WriteByte(value);
-        }
-
-        private void EnsureWithinLimit(long value)
-        {
-            if (value > maximumLength)
-            {
-                ThrowArchiveLimitExceeded();
-            }
-        }
-
-        private void EnsureWriteFits(int count)
-        {
-            if (count > maximumLength - inner.Position)
-            {
-                ThrowArchiveLimitExceeded();
-            }
-        }
-
-        private static void ThrowArchiveLimitExceeded() =>
-            throw new InvalidOperationException(
-                "The generated document archive exceeds the maximum archive byte limit.");
-    }
-
     private sealed record DocumentDownloadHistoryValue(
         Guid CaseId,
-        Guid OccurrenceId,
-        Guid VersionId,
-        string Sha256);
-
-    private sealed record DocumentExportHistoryValue(
-        Guid CaseId,
-        IReadOnlyList<DocumentExportHistoryItem> Documents);
-
-    private sealed record DocumentExportHistoryItem(
         Guid OccurrenceId,
         Guid VersionId,
         string Sha256);
@@ -1748,9 +1417,4 @@ internal sealed class EfDocumentCustodyStore(
         Guid TagId,
         string Name,
         string Colour);
-
-    private sealed record ExportItem(
-        DocumentOccurrenceEntity Occurrence,
-        DocumentVersionEntity Version,
-        string Folder);
 }

@@ -40,6 +40,13 @@ accepted recognition bar; the bar is owned by
 [FRD-06](frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis).
 Image material without a usable registration enters Unidentified with a
 reason ([FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference)).
+Image-only material a member of staff has classified as images received
+([FRD-08](frd-08-email-mailbox-and-background-processing.md#settled-mailbox-taxonomy-and-correction))
+may be registered by staff from the message record or the Unidentified item
+while no Case holds it; automation never widens to it.
+An upload group's Unidentified item registers the whole group as one Image
+intake under the registration staff enter, while no member has reached a
+Case or an Image intake; the item resolves to that Image intake.
 
 An Image-initiated Case is a separate, image-first lifecycle projected over
 the ImageIntake record. It never allocates a Principal, a Case/PO, or a
@@ -240,7 +247,13 @@ complete membership, and fail-closed source-identity rules apply to both.
   operation identities.
 - **Photograph selection.** One Core policy selects direct image evidence
   and embedded PDF photographs before separate asset retention. Inline and
-  signature graphics are excluded. Embedded images need at least 40,000
+  signature graphics are excluded. A full-page raster on a page with almost
+  no text is read by its colour first
+  ([ADR-0061](../adr/0061-ocr-every-scanned-document-page.md)): mostly
+  paper-white is a scanned document page and produces no embedded image at
+  all; anything else is a photograph that fills the page and is an ordinary
+  embedded image. Photos laid out with margins or several to a page are
+  selected as before. Embedded images need at least 40,000
   encoded bytes and, when dimensions are known, a longest-to-shortest side
   ratio below 3. Unknown dimensions keep the size-based selection. These are
   image heuristics, not a logo classifier. Repeated photograph content is
@@ -302,8 +315,8 @@ complete membership, and fail-closed source-identity rules apply to both.
 ### Operator surfaces
 
 **Awaiting instruction queue.** On Cases, Awaiting instruction lists the
-Image-initiated Cases still waiting for an instruction. It is Pre-Case work,
-never a workflow queue. Rows show reference, registration,
+Image-initiated Cases still waiting for an instruction, never formal Cases.
+Rows show reference, registration,
 image count, custody, received, source, and chase facts; `?tab=` selects
 the queue. Not ready holds only formal instructed Cases. Selecting a row
 shows a quick detail with the definition list, the open action, and **Add
@@ -331,9 +344,11 @@ the record takes a record-scoped edit lease
 registration and use the named states Awaiting instruction, Merged into
 Instruction-initiated Case, and Staff-closed.
 
-**Crop and tag.** Images on an image record, a Triage Case or an
-Unidentified item carry the same stored crop, rotation, and tags as Case
-images, editable there with the casework right and the image's own version.
+**Crop and tag.** Images on an image record or an Unidentified item carry
+the same stored crop, rotation, and tags as Case images, editable there with
+the casework right and the image's own version. A Triage Case's page offers
+no crop and no tag
+([FRD-15](frd-15-work-centre-queues-and-search.md#the-triage-case-page)).
 The viewer offers Crop (Apply, Clear, Cancel) and the Tag select; the tile
 shows the cropped region with a Cropped badge and its tag chips; the viewer
 draws the recorded region over the original. A pre-Case image tile is a

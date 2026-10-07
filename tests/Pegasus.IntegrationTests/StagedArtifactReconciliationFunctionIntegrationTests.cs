@@ -1,4 +1,5 @@
 using Pegasus.Core.Eva;
+using Pegasus.Core.Assessment;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Documents;
@@ -58,6 +59,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             TimeProvider.System);
         var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
         var thumbnailCandidates = new RecordingThumbnailCandidates();
+        var estimateCandidates = new RecordingEstimateCandidates();
         var pairing = new RecordingPairing();
         var triagePairing = new RecordingTriagePairing();
         var settlement = new RecordingSettlement();
@@ -77,6 +79,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             principalSubmissionReconciler,
             new PurgeStaffNotifications(new EmptyStaffNotificationStore(), TimeProvider.System),
             new PrepareDocumentThumbnails(thumbnailCandidates, new UnreachableDocumentThumbnails()),
+            new RecogniseFiledEstimates(estimateCandidates, new UnreachableDocumentReads(), []),
             logger);
 
         await function.RunAsync(null!, CancellationToken.None);
@@ -89,6 +92,8 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         // The thumbnail sweep asks for a small number each run; with none to
         // make it logs nothing.
         Assert.Equal(2, thumbnailCandidates.MaximumItems);
+        // So does estimate recognition, and with none to read it logs nothing.
+        Assert.Equal(10, estimateCandidates.MaximumItems);
         // Eight reconciliation results and the staff-notification purge. Still nine:
         // the failure lines were always logged, and only their level depends on the
         // count now. The per-attempt cause of a failed custody item is logged by the
@@ -194,6 +199,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new ReconcilePrincipalSubmissions(new EmptyPrincipalSubmissionStore(), new UnreachableActionHistoryWriter(), TimeProvider.System),
             new PurgeStaffNotifications(new EmptyStaffNotificationStore(), TimeProvider.System),
             new PrepareDocumentThumbnails(new NoDocumentThumbnailCandidates(), new UnreachableDocumentThumbnails()),
+            new RecogniseFiledEstimates(new RecordingEstimateCandidates(), new UnreachableDocumentReads(), []),
             logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<StagedArtifactReconciliationFunction>.Instance);
         return function.RunAsync(null!, CancellationToken.None);
     }
@@ -307,6 +313,33 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
 
         public void Defer(Guid versionId) =>
             throw new InvalidOperationException("Nothing is deferred without a candidate.");
+    }
+
+    private sealed class RecordingEstimateCandidates : IEstimateRecognitionCandidates
+    {
+        public int MaximumItems { get; private set; }
+
+        public Task<IReadOnlyList<EstimateRecognitionCandidate>> ListAsync(
+            int maximumItems,
+            CancellationToken cancellationToken)
+        {
+            MaximumItems = maximumItems;
+            return Task.FromResult<IReadOnlyList<EstimateRecognitionCandidate>>([]);
+        }
+
+        public Task RecordAsync(Guid versionId, bool isEstimate, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Nothing is recorded without a candidate.");
+
+        public void Defer(Guid versionId) =>
+            throw new InvalidOperationException("Nothing is deferred without a candidate.");
+    }
+
+    private sealed class UnreachableDocumentReads : IReadLogicalDocumentVersion
+    {
+        public Task<LogicalDocumentContent> OpenAsync(
+            ReadLogicalDocumentVersionRequest request,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("No document is read without a candidate.");
     }
 
     private sealed class UnreachableDocumentThumbnails : IReadCaseDocumentThumbnail
@@ -636,12 +669,12 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
     private sealed class UnreachableTriageQueries : Pegasus.Core.Triage.ITriageQueries
     {
         public Task<IReadOnlyList<Pegasus.Core.Triage.TriageSummary>> ListAsync(
-            Pegasus.Core.Triage.TriageState? state,
+            IReadOnlyCollection<Pegasus.Core.Triage.TriageState>? state,
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
         public Task<int> CountAsync(
-            Pegasus.Core.Triage.TriageState? state,
+            IReadOnlyCollection<Pegasus.Core.Triage.TriageState>? state,
             CancellationToken cancellationToken) => throw UnexpectedCall();
 
         public Task<Pegasus.Core.Triage.TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>

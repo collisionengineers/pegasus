@@ -29,7 +29,7 @@ internal static class StaffNotificationModelConfiguration
         {
             entity.ToTable("StaffNotifications", table => table.HasCheckConstraint(
                 "CK_StaffNotifications_Cause",
-                "[Cause] IN ('AiDraftReady', 'CaseAssigned', 'EditedByOther', 'EmailReceived', 'QueryReceived')"));
+                "[Cause] IN ('AiDraftReady', 'CaseAssigned', 'EditedByOther', 'EmailReceived', 'QueryReceived', 'CancellationReceived')"));
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Reference).HasMaxLength(40).IsRequired();
             entity.Property(item => item.Registration).HasMaxLength(20);

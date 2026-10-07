@@ -44,13 +44,11 @@ for each: write it into the named owner, or drop it.
 | CASE-11 | Typed claim, accident, contact and inspection data named in the Case identity FRD | FRD-01, FRD-23 |
 | CASE-17 | Overdue display beside Due by | FRD-13, FRD-15 |
 | CASE-31 | Addendum, query document, invoice input and statistics as consumers of the one accepted record | FRD-11 |
-| UI-04 | Definitions of Sent to Engineer and Reports sent, and a week window | FRD-15 |
 | UI-13 | A contrast requirement | FRD-12 |
 | UI-15 | Inspection, vehicle, media, salvage, text and administration as workbench parts | FRD-16 |
 | DOC-07 | A document export action | FRD-05 |
 | EXT-02 | The supplied, external and estimated mileage classification named in the MOT section | FRD-06, FRD-23 |
 | EXT-11 | Engineer cost and payment inputs, accounting status, staff-role-neutral visibility | FRD-11 |
-| EXT-13 | Independently licensed valuation-source adapters | FRD-24 |
 | MCP-05 | Automation Actor actions for the classified-email workspace | FRD-10 |
 | API-04 | Credential reset and resume | FRD-09 |
 | AI-07 | `AI Assessor` as a selectable Engineer option that owns no button, queue, model or transport | FRD-27, FRD-13 |

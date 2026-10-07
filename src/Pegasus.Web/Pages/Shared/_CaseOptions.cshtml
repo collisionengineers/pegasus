@@ -1,0 +1,19 @@
+@model Pegasus.Web.Presentation.CaseOptions
+@* The Find a Case option list (fetched by case-picker.js as staff type).
+   Each option is the page's own select submit button, so choosing one is
+   the same server action whether reached by mouse, keyboard or without the
+   script. The list carries no empty-state copy: nothing matching renders
+   nothing, and the picker closes. *@
+<ul class="command-results" role="listbox" data-case-picker-list>
+    @for (var index = 0; index < Model.Items.Count; index++)
+    {
+        var candidate = Model.Items[index];
+        <li role="none">
+            <button type="submit" role="option" id="@(Model.IdPrefix)-@index" class="command-result" data-busy-label="@OperatorLabels.Busy.Linking"
+                    aria-selected="false" formaction="@Model.FormAction"
+                    name="@Model.FieldName" value="@candidate.Reference">
+                @candidate.Reference · @(candidate.Registration ?? "No registration") · @(candidate.Claimant ?? "No claimant")
+            </button>
+        </li>
+    }
+</ul>

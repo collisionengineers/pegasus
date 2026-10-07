@@ -360,13 +360,12 @@ public sealed class EvaSubmissionStore(
         {
             workflow.State = resultingState.ToString();
             workflow.Version = resultingVersion;
-            workflow.EditLeaseToken = null;
-            workflow.EditLeaseTokenHash = null;
-            workflow.EditLeaseRequestHash = null;
-            workflow.EditLeaseHolder = null;
-            workflow.EditLeaseHolderKind = null;
-            workflow.EditLeaseOperationKey = null;
-            workflow.EditLeaseExpiresAtUtc = null;
+            // A manual send is the editor's own action and ends their lease;
+            // the automatic Review submission is system work and leaves it.
+            if (request.Initiator == EvaSubmissionInitiator.Manual)
+            {
+                CaseMutationGuard.ClearLease(workflow);
+            }
         }
 
         await context.SaveChangesAsync(cancellationToken);

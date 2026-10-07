@@ -1317,17 +1317,103 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("No mail has been received.", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Sent Items lists the Sent items the Sent poll retained (FRD-20), and
+    /// only those; a received message stays out of it. Deleted Items is still
+    /// not kept.
+    /// </summary>
     [Fact]
-    public async Task SentNamesWhatIsNotKeptAndDeletedListsNothingUntilItIsSearched()
+    public async Task SentListsTheRetainedSentItemsAndDeletedListsNothingUntilItIsSearched()
     {
         using var factory = new IntakeWebApplicationFactory();
         await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<EfRetainedMailboxMessageStore>().RetainAsync(
+                new(
+                    TestMailboxId.From(FirstMailboxId),
+                    FirstMailboxAddress,
+                    "sent-item-1",
+                    $"{FirstMailboxId.Length}:{FirstMailboxId}sent-item-1",
+                    NowUtc.AddMinutes(-2),
+                    1024,
+                    new string('B', 64),
+                    new(
+                        "sent-items",
+                        $"conversation-{FirstMailboxId}-sent",
+                        "<e101bc7b9d6b4c519594a4c74b4c1e91@pegasus.invalid>",
+                        FirstMailboxAddress,
+                        null,
+                        ["claimant@example.invalid"],
+                        [],
+                        [],
+                        "Following up on your claim",
+                        "Please find the update below.",
+                        [],
+                        IsRead: true),
+                    NowUtc,
+                    MailFolderScope.Sent),
+                CancellationToken.None);
+            // The Sent copy of a message the mailbox also received (here, Inbox
+            // message 0) is its own Sent row, not a contradiction of the Inbox row.
+            await scope.ServiceProvider.GetRequiredService<EfRetainedMailboxMessageStore>().RetainAsync(
+                new(
+                    TestMailboxId.From(FirstMailboxId),
+                    FirstMailboxAddress,
+                    "sent-copy-of-inbox-0",
+                    $"{FirstMailboxId.Length}:{FirstMailboxId}sent-copy-of-inbox-0",
+                    NowUtc.AddMinutes(-3),
+                    1024,
+                    new string('C', 64),
+                    new(
+                        "sent-items",
+                        $"conversation-{FirstMailboxId}",
+                        $"<{FirstMailboxId}-0@example.invalid>",
+                        FirstMailboxAddress,
+                        null,
+                        ["intake@collisionengineers.co.uk"],
+                        [],
+                        [],
+                        "Sent copy of the received message",
+                        "Please inspect the vehicle at the address supplied.",
+                        [],
+                        IsRead: true),
+                    NowUtc,
+                    MailFolderScope.Sent),
+                CancellationToken.None);
+        }
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var sent = await GetHtmlAsync(client, "/Inbox?folder=sent");
+        var inbox = await GetHtmlAsync(client, "/Inbox");
         var deleted = await GetHtmlAsync(client, "/Inbox?folder=deleted");
 
-        Assert.Contains("Sent messages are not kept in Pegasus yet.", sent, StringComparison.Ordinal);
+        Assert.Contains("Sent copy of the received message", sent, StringComparison.Ordinal);
+        Assert.Contains($"Message 0 from {FirstMailboxId}", inbox, StringComparison.Ordinal);
+        // Sent search reads the retained subject, sender and text; Sent has no
+        // categories, as Deleted Items has none.
+        var searched = await GetHtmlAsync(client, "/Inbox?folder=sent&search=Following");
+        Assert.Contains("Following up on your claim", searched, StringComparison.Ordinal);
+        Assert.DoesNotContain("Sent copy of the received message", searched, StringComparison.Ordinal);
+        Assert.Matches("<select id=\"queue-filter\" name=\"queue\" disabled=\"disabled\"", sent);
+        using var categorised = await client.GetAsync("/Inbox?folder=sent&queue=triage");
+        Assert.Equal(HttpStatusCode.NotFound, categorised.StatusCode);
+
+        Assert.Contains("Following up on your claim", sent, StringComparison.Ordinal);
+        Assert.DoesNotContain($"Message 0 from {FirstMailboxId}", sent, StringComparison.Ordinal);
+        Assert.DoesNotContain("not kept in Pegasus yet", sent, StringComparison.Ordinal);
+        // A Sent item is not received work: no processing chip on the row or
+        // the pane, and its preview JSON carries no state to repaint one.
+        Assert.DoesNotContain("Not yet processed", sent, StringComparison.Ordinal);
+        var previewUrl = Regex.Match(sent, "data-mail-preview-url=\"([^\"]+)\"").Groups[1].Value;
+        Assert.NotEmpty(previewUrl);
+        using var previewResponse = await client.GetAsync(System.Net.WebUtility.HtmlDecode(previewUrl));
+        Assert.Equal(HttpStatusCode.OK, previewResponse.StatusCode);
+        using var preview = JsonDocument.Parse(await previewResponse.Content.ReadAsStringAsync());
+        Assert.Equal(JsonValueKind.Null, preview.RootElement.GetProperty("state").ValueKind);
+        Assert.Equal(Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.AbsentValue, preview.RootElement.GetProperty("classification").GetString());
+        Assert.Equal("Sent", preview.RootElement.GetProperty("folder").GetString());
+        Assert.Contains("Deleted items messages are not kept in Pegasus yet.", deleted, StringComparison.Ordinal);
         // MAIL-010: this used to assert the sentence that told the operator to
         // search. The sentence was a field hint and is gone; what mattered was
         // always the behaviour it described, so assert that instead — Deleted
@@ -1783,7 +1869,8 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("data-attachment-outcome=", attachments, StringComparison.Ordinal);
         // Megabytes, never bytes.
         Assert.Contains("under 0.1 MB", attachments, StringComparison.Ordinal);
-        Assert.DoesNotContain("2048", attachments, StringComparison.Ordinal);
+        // The byte count standing alone, not inside a random key or identifier.
+        Assert.DoesNotMatch(@"(?<![0-9A-Za-z-])2048(?![0-9A-Za-z-])", attachments);
 
         var thread = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}{query}&section=thread");
         Assert.Contains("Message 0 from instructions", thread, StringComparison.Ordinal);
@@ -2130,6 +2217,64 @@ public sealed class MailWorkspaceWebTests
         await using var context = await contextFactory.CreateDbContextAsync();
         Assert.Equal(1, await context.IntakeMailClassificationDecisions.Select(item => item.Version).SingleAsync());
         Assert.Empty(await context.IntakeMailClassificationHistory.ToListAsync());
+    }
+
+    [Fact]
+    public async Task AReceivedMessageOffersOnlyReceivedClassificationsAndANewInstructionStoresItsCaseType()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        using var client = CreateClient(factory);
+        var route = $"/Inbox/{ids[0]:D}?handler=CorrectClassification";
+
+        var page = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
+        // An Inbox message is received mail: the picker offers no Sent family
+        // and asks for the case type a New instruction names.
+        Assert.Contains("value=\"received:NewInstructionReceived:inspection\"", page, StringComparison.Ordinal);
+        Assert.Contains("value=\"other-received\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("value=\"sent:", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("value=\"other-sent\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-work-type-field", page, StringComparison.Ordinal);
+
+        // A New instruction without a case type is refused before the command.
+        using (var missing = await client.PostAsync(route, new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = AntiforgeryToken(page),
+            ["ExpectedClassificationVersion"] = "1",
+            ["ClassificationKey"] = "received:NewInstructionReceived:inspection",
+            ["CorrectionReason"] = "Instruction read from the retained message."
+        })))
+        {
+            Assert.Equal(HttpStatusCode.OK, missing.StatusCode);
+            Assert.Contains("Choose a valid case type.", await missing.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+
+        page = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
+        using (var corrected = await client.PostAsync(route, new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = AntiforgeryToken(page),
+            ["ExpectedClassificationVersion"] = "1",
+            ["ClassificationKey"] = "received:NewInstructionReceived:inspection",
+            ["WorkType"] = nameof(CaseType.InspectionAndAudit),
+            ["CorrectionReason"] = "Instruction read from the retained message."
+        })))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, corrected.StatusCode);
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var decision = await context.IntakeMailClassificationDecisions.SingleAsync();
+        Assert.Equal(2, decision.Version);
+        Assert.Equal(CaseTypeCodes.ToCode(CaseType.InspectionAndAudit), decision.CaseType);
+
+        // The corrected classification offers its one next action, Create case,
+        // against the message's receipt; nothing ran on its own.
+        var offered = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
+        Assert.Contains("data-offered-action=\"CreateCase\"", offered, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases/Create?receiptId={decision.IntakeReceiptId:D}\"", offered, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -3043,12 +3188,12 @@ public sealed class MailWorkspaceWebTests
             Guid messageId, CancellationToken cancellationToken) =>
             Task.FromResult<MailClassificationDossier?>(null);
 
-        public Task<MailClassificationDossier> AppendCorrectionAsync(
+        public Task<MailClassificationCorrectionResult> AppendCorrectionAsync(
             Guid messageId,
             int expectedVersion,
             MailClassificationResult before,
             MailClassificationResult after,
-            string actor,
+            ActionActor actor,
             string reason,
             DateTimeOffset correctedAtUtc,
             CancellationToken cancellationToken)

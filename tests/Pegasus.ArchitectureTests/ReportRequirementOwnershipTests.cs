@@ -214,11 +214,11 @@ public sealed class ReportRequirementOwnershipTests
         Assert.Contains(
             "no staff editor", McpRefusal(AssessmentVocabulary.RateCard)!.Message, StringComparison.Ordinal);
         Assert.Null(AutomationRefusal(AssessmentVocabulary.CostRecoveryCharge));
-        // The 20 non-finding Decisions editors, 4 original report, 8 Report,
+        // The 20 non-finding Decisions editors, 4 original report, 7 Report,
         // 14 Damage and 4 Vehicle editors, the vehicle history and condition,
         // and the 5 typed Case-save paths. A new editor changes this count on
         // purpose: it widens what automation may write.
-        Assert.Equal(57, accepted.Count);
+        Assert.Equal(56, accepted.Count);
     }
 
     [Theory]
@@ -255,7 +255,6 @@ public sealed class ReportRequirementOwnershipTests
     [InlineData(null, CaseReportReadiness.CurrentEstimateRequirement, "estimate")]
     [InlineData(null, CaseReportReadiness.LabourRateRequirement, "estimate")]
     [InlineData(null, CaseReportReadiness.RepairerVatRequirement, "estimate")]
-    [InlineData(null, CaseReportReadiness.CloseUpImageRequirement, "files")]
     [InlineData(null, CaseReportReadiness.OverviewImageRequirement, "files")]
     [InlineData(null, CaseReportReadiness.ImageSourceRequirement, "files")]
     public void BlockerSectionMapsEachBlockerToTheSectionThatClearsIt(
@@ -265,6 +264,62 @@ public sealed class ReportRequirementOwnershipTests
             requirement ?? "Requirement", "Source", "Why outstanding", "How to resolve", field);
 
         Assert.Equal(section, CaseWorkspaceLabels.Report.BlockerSection(item));
+    }
+
+    /// <summary>
+    /// The aside lists the blockers in the order the Case page shows what
+    /// clears them (operator, 2 October 2026): section by section down the
+    /// page, those no section clears last, and every field a blocker names
+    /// has its place within its section.
+    /// </summary>
+    [Fact]
+    public void ReportBlockersReadDownThePage()
+    {
+        var sectionKeys = OperatorLabels.CaseWorkspace.Sections.Select(section => section.Key).ToList();
+        foreach (var input in ReportBlockerTriggers())
+        {
+            var ranks = CaseWorkspaceLabels.Report.InPageOrder(CaseReportReadiness.Evaluate(input).Reasons)
+                .Select(item => CaseWorkspaceLabels.Report.BlockerSection(item) is { } key
+                    ? sectionKeys.IndexOf(key)
+                    : int.MaxValue)
+                .ToArray();
+            Assert.Equal(ranks.Order().ToArray(), ranks);
+        }
+
+        var fields = ReportBlockerTriggers()
+            .SelectMany(input => CaseReportReadiness.Evaluate(input).Reasons)
+            .Select(item => item.Field)
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal);
+        Assert.All(fields, field => Assert.Contains(field, CaseWorkspaceLabels.Report.PageFieldOrder));
+    }
+
+    [Fact]
+    public void ReportBlockersWithinASectionFollowItsFields()
+    {
+        static AssessmentReadinessItem Named(string field) =>
+            new("Requirement " + field, "Source", "Why outstanding", "How to resolve", field);
+
+        // Each list is in Core's order; the page draws them otherwise.
+        AssertPageOrder(
+            [Named(AssessmentVocabulary.AgreedFee), Named(AssessmentVocabulary.ReportDate), Named(AssessmentVocabulary.ReportValuationCommentaryText)],
+            [Named(AssessmentVocabulary.ReportDate), Named(AssessmentVocabulary.ReportValuationCommentaryText), Named(AssessmentVocabulary.AgreedFee)]);
+        AssertPageOrder(
+            [Named(AssessmentVocabulary.ImpactSeverity), Named(AssessmentVocabulary.ImpactLocation), Named(AssessmentVocabulary.DamageUnrelated)],
+            [Named(AssessmentVocabulary.ImpactLocation), Named(AssessmentVocabulary.ImpactSeverity), Named(AssessmentVocabulary.DamageUnrelated)]);
+        AssertPageOrder(
+            [Named(AssessmentVocabulary.Outcome), Named(AssessmentVocabulary.LegalStatus), Named(AssessmentVocabulary.UnroadworthyReason), Named(AssessmentVocabulary.SalvageCategory)],
+            [Named(AssessmentVocabulary.Outcome), Named(AssessmentVocabulary.SalvageCategory), Named(AssessmentVocabulary.LegalStatus), Named(AssessmentVocabulary.UnroadworthyReason)]);
+        AssertPageOrder(
+            [Named(CaseDataFieldNames.InspectionMode), Named(CaseDataFieldNames.InspectionDate)],
+            [Named(CaseDataFieldNames.InspectionDate), Named(CaseDataFieldNames.InspectionMode)]);
+        // Sign-off Engineer names no field and sits below them on Case details.
+        AssertPageOrder(
+            [CaseReportReadiness.SignOffEngineerNotChosen, Named(CaseDataFieldNames.ClaimNumber), Named(CaseDataFieldNames.IncidentDate)],
+            [Named(CaseDataFieldNames.ClaimNumber), Named(CaseDataFieldNames.IncidentDate), CaseReportReadiness.SignOffEngineerNotChosen]);
+
+        static void AssertPageOrder(AssessmentReadinessItem[] given, AssessmentReadinessItem[] expected) =>
+            Assert.Equal(expected, CaseWorkspaceLabels.Report.InPageOrder(given));
     }
 
     /// <summary>
@@ -353,8 +408,6 @@ public sealed class ReportRequirementOwnershipTests
         });
         yield return NothingElseRecorded(With(
             complete,
-            (AssessmentVocabulary.ReportDateOverride, "true"),
-            (AssessmentVocabulary.ReportDate, null),
             (AssessmentVocabulary.ReportValuationCommentary, "true"),
             (AssessmentVocabulary.ReportValuationCommentaryText, null),
             (AssessmentVocabulary.ReportIncludeUnrelatedDamage, "true"),
