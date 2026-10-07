@@ -408,8 +408,6 @@ public sealed class ReportRequirementOwnershipTests
         });
         yield return NothingElseRecorded(With(
             complete,
-            (AssessmentVocabulary.ReportDateOverride, "true"),
-            (AssessmentVocabulary.ReportDate, null),
             (AssessmentVocabulary.ReportValuationCommentary, "true"),
             (AssessmentVocabulary.ReportValuationCommentaryText, null),
             (AssessmentVocabulary.ReportIncludeUnrelatedDamage, "true"),

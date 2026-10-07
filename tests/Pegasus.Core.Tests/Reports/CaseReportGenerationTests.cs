@@ -422,20 +422,6 @@ public sealed class CaseReportGenerationTests
         AssertBlocked(result, CaseReportReadiness.ImageSourceRequirement);
     }
 
-    [Fact]
-    public void AnOverriddenReportDateWithoutADateBlocksGeneration()
-    {
-        var input = ReadyInput();
-        var fields = input.Assessment.Fields
-            .Append(Field(AssessmentVocabulary.ReportDateOverride, "true"))
-            .ToArray();
-
-        var result = CaseReportReadiness.Evaluate(
-            input with { Assessment = input.Assessment with { Fields = fields } });
-
-        AssertBlocked(result, "Report date");
-    }
-
     /// <summary>
     /// The report prints the trade value beside the Engineer's Value, so a
     /// Case without one is not generated; it is entered on Valuation
@@ -490,7 +476,6 @@ public sealed class CaseReportGenerationTests
         AssessmentFieldValue[] fields =
         [
             .. input.Assessment.Fields.Where(field => field.Path != AssessmentVocabulary.DamageUnrelated),
-            Field(AssessmentVocabulary.ReportDateOverride, "true"),
             Field(AssessmentVocabulary.ReportValuationCommentary, "true"),
             Field(AssessmentVocabulary.ReportIncludeUnrelatedDamage, "true"),
         ];
@@ -513,7 +498,6 @@ public sealed class CaseReportGenerationTests
             AssessmentVocabulary.ReportValuationCommentaryText,
             FieldOf(CaseReportReadiness.ValuationCommentaryRequirement));
         Assert.Equal(AssessmentVocabulary.DamageUnrelated, FieldOf(CaseReportReadiness.UnrelatedDamageRequirement));
-        Assert.Equal(AssessmentVocabulary.ReportDate, FieldOf("Report date"));
         foreach (var requirement in new[]
         {
             CaseReportReadiness.SignatoryRequirement,
@@ -659,23 +643,14 @@ public sealed class CaseReportGenerationTests
     }
 
     [Fact]
-    public void AReportDateDefaultsOnlyAtGenerationAndAnOverrideIsFrozen()
+    public void AReportDateDefaultsOnlyAtGenerationAndARecordedDateWins()
     {
         var generatedOn = new DateOnly(2026, 9, 6);
 
+        Assert.Equal(generatedOn, CaseReportReadiness.ResolveReportDate(null, generatedOn));
         Assert.Equal(
-            (generatedOn, false),
-            CaseReportReadiness.ResolveReportDate(null, overridden: false, generatedOn));
-        Assert.Equal(
-            (generatedOn, false),
-            CaseReportReadiness.ResolveReportDate(
-                new DateOnly(2026, 7, 4), overridden: false, generatedOn));
-        Assert.Equal(
-            (new DateOnly(2026, 7, 4), true),
-            CaseReportReadiness.ResolveReportDate(
-                new DateOnly(2026, 7, 4), overridden: true, generatedOn));
-        Assert.Throws<InvalidDataException>(() =>
-            CaseReportReadiness.ResolveReportDate(null, overridden: true, generatedOn));
+            new DateOnly(2026, 7, 4),
+            CaseReportReadiness.ResolveReportDate(new DateOnly(2026, 7, 4), generatedOn));
     }
 
     [Fact]
