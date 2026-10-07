@@ -105,11 +105,6 @@ public sealed class DismissWorkCentreItem(
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Actor);
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
-        if (request.Actor.Kind != ActorKind.Staff)
-        {
-            throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
-        }
-
         if (request.RecordId == Guid.Empty)
         {
             throw new ArgumentException("A record identifier is required.", nameof(request));

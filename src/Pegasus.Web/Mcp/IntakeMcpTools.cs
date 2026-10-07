@@ -173,7 +173,7 @@ internal sealed class IntakeMcpTools(
             cancellationToken);
     }
 
-    private static string DecisionCode(IntakeDecision decision) => decision switch
+    internal static string DecisionCode(IntakeDecision decision) => decision switch
     {
         IntakeDecision.CaseCreated => "case_created",
         IntakeDecision.NeedsSorting => "unidentified",

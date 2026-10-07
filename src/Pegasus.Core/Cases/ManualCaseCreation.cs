@@ -45,7 +45,6 @@ public sealed class CreateManualCase(
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Data);
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
-        if (request.Actor.Kind != ActorKind.Staff) throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
         if (request.OperationKey.Trim().Length > 100) throw new ArgumentOutOfRangeException(nameof(request));
         if (!Enum.IsDefined(request.CaseType)) throw new ArgumentOutOfRangeException(nameof(request));

@@ -353,8 +353,7 @@ public sealed class AllocateIntake(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RequireStaffActor(request.Actor);
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        RequireCaseworkActor(request.Actor);
         var command = new IntakeAllocationCommand(
             request.ReceiptId,
             request.ExpectedVersion,
@@ -378,8 +377,7 @@ public sealed class AllocateIntake(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RequireStaffActor(request.Actor);
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        RequireCaseworkActor(request.Actor);
         ValidateReasonAndOperation(request.Reason, request.OperationKey);
         var normalizedOperationKey = request.OperationKey.Trim();
         var normalizedReason = request.Reason.Trim();
@@ -624,10 +622,17 @@ public sealed class AllocateIntake(
         }
     }
 
-    private static void RequireStaffActor(ActionActor actor)
+    /// <summary>
+    /// A staff create or retry is casework: a member of staff holding a
+    /// casework role, or the Automation Actor, which holds casework without
+    /// staff roles (ADR-0064).
+    /// </summary>
+    private static void RequireCaseworkActor(ActionActor actor)
     {
-        if (actor.Kind != ActorKind.Staff
-            || !actor.Roles.Any(role => role is StaffRole.Administrator
+        ArgumentNullException.ThrowIfNull(actor);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (actor.Kind == ActorKind.Staff
+            && !actor.Roles.Any(role => role is StaffRole.Administrator
                 or StaffRole.Engineer
                 or StaffRole.User))
         {

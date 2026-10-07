@@ -204,14 +204,15 @@ internal static class CaseDataSnapshotFactory
     }
 
     /// <summary>
-    /// The Principal a staff member allocated the case to, where neither an
-    /// accepted mail route nor a credential binding supplied one. A manual
+    /// The Principal a staff member or the Automation Actor (ADR-0064)
+    /// allocated the case to, where neither an accepted mail route nor a
+    /// credential binding supplied one. A manual
     /// upload is the ordinary case: the uniquely selected document profile only
     /// proposes a Principal and the operator decides, so the accepted value is
     /// theirs whether they took the proposal or overrode it to correct a
     /// document that named the wrong party. It is therefore recorded as their
     /// confirmation at acceptance, not as something a document or a credential
-    /// stated. A confirmation is a person's decision, so a non-staff caller
+    /// stated. A confirmation is a casework decision, so a system-worker caller
     /// without a route or binding records nothing here. Recording nothing left the case with no Principal at all:
     /// the EVA export sent an empty Work Provider and the case-match index
     /// projected no row, so images never associated automatically.
@@ -221,7 +222,7 @@ internal static class CaseDataSnapshotFactory
         CaseAcceptanceRequest request,
         DateTimeOffset acceptedAtUtc)
     {
-        if (request.Actor.Kind != ActorKind.Staff
+        if (request.Actor.Kind is not (ActorKind.Staff or ActorKind.Automation)
             || string.IsNullOrWhiteSpace(request.PrincipalCode))
         {
             return;

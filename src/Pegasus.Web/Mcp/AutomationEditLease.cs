@@ -82,7 +82,7 @@ internal sealed class AutomationEditLease(
     /// The lease's own operation keys, derived from the command's so a replay
     /// of the command replays its claim, within Core's key length.
     /// </summary>
-    private static string Derive(string operationKey, string suffix)
+    internal static string Derive(string operationKey, string suffix)
     {
         var room = MaximumOperationKeyLength - suffix.Length;
         return (operationKey.Length > room ? operationKey[..room] : operationKey) + suffix;

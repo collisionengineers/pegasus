@@ -95,6 +95,14 @@ fact the call did not name.
   tools, report and document tools, queue and job tools, and outward sending
   under a new `automation.send` scope. Until each lands, those acts stay with
   staff.
+- Queue and job tools: delivered (operator, 7 October 2026;
+  [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md#queue-and-intake-tools)).
+  The Actor creates any AI job kind, cancels and confirms jobs, assigns,
+  unassigns and notes a Triage, closes and reopens Unidentified items,
+  creates a Case directly, accepts a received item and retries its
+  allocation, moves and dismisses mail, and dismisses Work Centre records.
+  Settling an inspection address stays with staff: its record names the
+  member of staff who settled it. The queue and job delivery adds eight tools.
 
 ## Links
 

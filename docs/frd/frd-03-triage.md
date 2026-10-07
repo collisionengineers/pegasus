@@ -97,8 +97,9 @@ Sending a message is not required. An acknowledgement, a request for
 information, a draft, a queue action or other correspondence may be kept, but
 none of them is a finding or completion evidence.
 
-**History and notes.** `History` shows the record's events and staff notes
-in one chronological order. Notes are append-only. Each carries its author,
+**History and notes.** `History` shows the record's events and notes in one
+chronological order. Staff and the Automation Actor add notes
+(`pegasus_triage_note_add`). Notes are append-only. Each carries its author,
 time and text. A correction is a new note; notes cannot be edited or deleted
 on any screen or through any caller. A Triage Case keeps these notes; Case
 Notes do not apply to it.
@@ -160,7 +161,9 @@ finding into an instruction for a later Case.
 **Assignee.** A Triage may have an assignee. One **Assign** control
 chooses, changes or removes the assignee. It is an ordinary edit available
 to every enabled staff role, including self-assignment where the existing
-state and edit-scope rules allow it. Neither assigning nor unassigning needs
+state and edit-scope rules allow it, and to the Automation Actor
+(`pegasus_triage_assign`), which names an enabled member of staff and never
+itself. Neither assigning nor unassigning needs
 a reason; history records the assignment, actor and time. Findings,
 cancellation, reopening and Case-association decisions keep their required
 reasons.
