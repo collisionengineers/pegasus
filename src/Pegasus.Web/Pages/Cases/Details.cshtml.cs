@@ -3022,10 +3022,8 @@ public sealed partial class DetailsModel(
             return NotFound();
         }
 
-        var trimmedDirection = direction?.Trim();
-        var instruction = string.IsNullOrWhiteSpace(trimmedDirection)
-            ? $"Draft an estimate for case {header.Summary.Reference}."
-            : trimmedDirection;
+        // An empty direction takes Core's default instruction for the Case.
+        var instruction = direction?.Trim() ?? string.Empty;
         try
         {
             await createAiJob.ExecuteAsync(

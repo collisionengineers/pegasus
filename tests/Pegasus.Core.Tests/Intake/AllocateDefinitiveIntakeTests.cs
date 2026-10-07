@@ -56,23 +56,102 @@ public sealed class AllocateDefinitiveIntakeTests
         Assert.Single(accept.Requests);
     }
 
+    /// <summary>
+    /// A staff create or retry is casework (ADR-0064): a member of staff with
+    /// a casework role or the Automation Actor, which holds casework without
+    /// staff roles. A system worker and a Principal are refused before
+    /// anything is attempted.
+    /// </summary>
     [Fact]
-    public async Task AutomationActorCannotInvokeStaffRetry()
+    public async Task OnlyCaseworkActorsInvokeStaffCreateAndRetry()
     {
         var receipt = Receipt(CaseType.Inspection, "QDOS");
+        var store = new RecordingAllocationStore();
         var sut = new AllocateIntake(
             new ReceiptQueries(receipt),
-            new RecordingAllocationStore(),
+            store,
             new RecordingAcceptance(),
             TimeProvider.System);
 
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() => sut.RetryAsync(new(
+        foreach (var refused in new[]
+        {
+            ActionActor.SystemWorker("worker"),
+            ActionActor.Principal(Guid.NewGuid())
+        })
+        {
+            await Assert.ThrowsAsync<StaffAuthorizationException>(() => sut.RetryAsync(new(
+                receipt.Id,
+                receipt.Version,
+                Guid.NewGuid(),
+                refused,
+                "retry:test",
+                "Controlled retry.")));
+            await Assert.ThrowsAsync<StaffAuthorizationException>(() => sut.AttemptStaffCreateAsync(new(
+                receipt.Id,
+                receipt.Version,
+                refused,
+                "create:test",
+                CaseType.Inspection,
+                "QDOS",
+                new(InstructionComplete: true, ImagesComplete: false))));
+        }
+
+        Assert.Null(store.Current);
+    }
+
+    [Fact]
+    public async Task TheAutomationActorCreatesACaseFromAReceivedItemInItsOwnName()
+    {
+        var receipt = Receipt(CaseType.Inspection, "QDOS");
+        var accept = new RecordingAcceptance();
+        var sut = new AllocateIntake(
+            new ReceiptQueries(receipt),
+            new RecordingAllocationStore(),
+            accept,
+            TimeProvider.System);
+
+        var created = await sut.AttemptStaffCreateAsync(new(
             receipt.Id,
             receipt.Version,
-            Guid.NewGuid(),
-            ActionActor.Automation("test-automation"),
-            "retry:test",
-            "Controlled retry.")));
+            ActionActor.Automation("grant-1"),
+            "mcp:accept-1",
+            CaseType.Inspection,
+            "qdos",
+            new(InstructionComplete: true, ImagesComplete: false)));
+
+        Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, created.State.Status);
+        var request = Assert.Single(accept.Requests);
+        Assert.Equal(ActorKind.Automation, request.Actor.Kind);
+        Assert.Equal("grant-1", request.Actor.SubjectId);
+        Assert.Equal("QDOS", request.PrincipalCode);
+    }
+
+    [Fact]
+    public async Task TheAutomationActorRetriesAFailedAllocationWithTheSameCommand()
+    {
+        var receipt = Receipt(CaseType.Audit, "QDOS");
+        var evidenceId = Guid.NewGuid();
+        var accept = new RecordingAcceptance(new InvalidOperationException("transient fault"));
+        var sut = new AllocateIntake(
+            new ReceiptQueries(receipt),
+            new RecordingAllocationStore(),
+            accept,
+            TimeProvider.System,
+            new EvidenceQueries(receipt.Id, evidenceId));
+
+        var failed = await sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+        accept.Failure = null;
+        var retried = await sut.RetryAsync(new(
+            receipt.Id,
+            receipt.Version,
+            failed!.State.AttemptId,
+            ActionActor.Automation("grant-1"),
+            "mcp:retry-1",
+            "Retry after the fault cleared."));
+
+        Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, retried.State.Status);
+        Assert.Equal(ActorKind.Automation, accept.Requests[1].Actor.Kind);
+        Assert.Equal(evidenceId, accept.Requests[1].StandaloneAuditEvidenceId);
     }
 
     [Fact]
