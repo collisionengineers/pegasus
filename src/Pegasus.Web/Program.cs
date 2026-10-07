@@ -713,6 +713,8 @@ documentStorage: composesLocalArtifactRoot
             liveBoxCustody
                 ? BoxCustodyOptions.DevelopmentRootFolderId
                 : BoxCustodyOptions.ProductionRootFolderId))));
+// The staff-identity surfaces need this host's Identity and key ring.
+builder.Services.AddPegasusStaffIdentity();
 // EXT-04: the manual Send to EVA route. Production only — the offline
 // profile reaches no vendor — and the options are read lazily for the same
 // unresolved-Key-Vault-reference reason as Box's.
