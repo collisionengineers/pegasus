@@ -339,9 +339,17 @@ public sealed class ComposeModel(
 
     private async Task LoadDefaultMailboxAsync(CancellationToken cancellationToken)
     {
-        var mailboxes = await approvedMailboxes.ListAsync(cancellationToken);
-        // A correspondence sender is also the sent-evidence source. It must
-        // be completely ready for both roles before the page offers it.
+        DefaultMailbox = DefaultSender(await approvedMailboxes.ListAsync(cancellationToken));
+    }
+
+    /// <summary>
+    /// The one default approved mailbox new correspondence is sent from, or
+    /// none. A correspondence sender is also the sent-evidence source, so it
+    /// must be completely ready for both roles. The Automation Actor's new
+    /// correspondence (<c>pegasus_mail_send</c>) sends from the same mailbox.
+    /// </summary>
+    internal static ApprovedMailbox? DefaultSender(IReadOnlyList<ApprovedMailbox> mailboxes)
+    {
         var defaults = mailboxes
             .Where(item => item.State == ApprovedMailboxState.Approved
                 && item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
@@ -353,7 +361,7 @@ public sealed class ComposeModel(
                 && item.VerifiedEncodedMessageSizeLimit is > 0
                 && item.IsDefaultStaffSend)
             .ToArray();
-        DefaultMailbox = defaults.Length == 1 ? defaults[0] : null;
+        return defaults.Length == 1 ? defaults[0] : null;
     }
 
     private async Task LoadOperationAsync(ActionActor actor, CancellationToken cancellationToken)

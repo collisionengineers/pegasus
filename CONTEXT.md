@@ -116,7 +116,7 @@ A named non-human principal that performs one explicitly authorised Pegasus acti
 _Avoid_: Service account, staff impersonation, background task
 
 **Send to AI**:
-The stable staff-triggered work handoff governed by FRD-10. It may return proposals and perform the attributed casework writes staff perform through Core, professional findings included, each the Case's value shown with its AI source tag. It does not yet send outward correspondence. The AI job ledger (AiJobs, pull) is the one transport.
+The stable staff-triggered work handoff governed by FRD-10. It may return proposals and perform the attributed casework writes staff perform through Core, professional findings included, each the Case's value shown with its AI source tag. Outward correspondence and report sending are by staff or the Automation actor. The AI job ledger (AiJobs, pull) is the one transport.
 _Avoid_: Send to Claude, AI assessment, automatic report
 
 **First sent to Engineer**:

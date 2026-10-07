@@ -31,7 +31,8 @@ public sealed class AuthorizeModel : AdministrationPageModel
             [AutomationMcp.DocumentsScope] = "Add and download case documents.",
             [AutomationMcp.AssessmentScope] = "Read and update assessment values under an edit lease.",
             [AutomationMcp.MailScope] = "List and read retained mail and correct a message's classification.",
-            [AutomationMcp.JobsScope] = "List, take, progress, complete, fail and release AI jobs; create Unidentified-queue passes."
+            [AutomationMcp.JobsScope] = "List, take, progress, complete, fail and release AI jobs; create Unidentified-queue passes.",
+            [AutomationMcp.SendScope] = "Send a generated report to the Principal, and send e-mail: new, reply, forward and the Triage reply."
         };
 
     public string ClientDisplayName { get; private set; } = string.Empty;

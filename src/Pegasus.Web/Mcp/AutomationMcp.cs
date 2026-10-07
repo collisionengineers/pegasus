@@ -34,13 +34,20 @@ public static class AutomationMcp
     public const string AssessmentScope = "automation.assessment";
     public const string MailScope = "automation.mail";
     public const string JobsScope = "automation.jobs";
+
+    /// <summary>
+    /// Outward sending: a report to the Principal and staff mail (new, reply,
+    /// forward, the Triage reply). Its own scope, so a grant can hold casework
+    /// without sending (operator, 7 October 2026; ADR-0064).
+    /// </summary>
+    public const string SendScope = "automation.send";
     public const string GrantIdentityClaim = "pegasus_automation_grant";
     public const int RequestsPerClientPerMinute = 120;
     public static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromMinutes(10);
     public static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(14);
 
     public static IReadOnlyList<string> Scopes { get; } =
-        [CasesScope, IntakeScope, DocumentsScope, AssessmentScope, MailScope, JobsScope];
+        [CasesScope, IntakeScope, DocumentsScope, AssessmentScope, MailScope, JobsScope, SendScope];
 }
 
 /// <summary>

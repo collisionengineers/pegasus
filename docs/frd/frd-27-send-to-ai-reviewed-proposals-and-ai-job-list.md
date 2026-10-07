@@ -54,15 +54,15 @@ the Case, so staff can change or clear each value on its section
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)).
 It records professional findings as staff do (operator, 7 October 2026). There
 is no per-field review (operator, 25 September 2026).
-Report approval and sending stay human acts until later deliveries add them.
+Report approval and sending are by staff or the Automation actor (operator,
+7 October 2026;
+[FRD-10](frd-10-mcp-automation-and-actor-boundary.md#sending)).
 No model, skill, prompt or external source ever issues an accepted legal or
 report outcome.
 
 Durable Send to AI work has stable job and disposition identities. Stale work
 cannot overwrite a newer Case or evidence version. Duplicate, expired or
 cancelled jobs are inert, recorded outcomes that never change accepted data.
-No AI caller approves or sends a report; automation sending is not yet
-delivered.
 
 ### AI Job List
 

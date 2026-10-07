@@ -175,7 +175,8 @@ public static class AutomationMcpExtensions
             .WithTools<TriageMcpTools>()
             .WithTools<AiJobMcpTools>()
             .WithTools<IntakeActionMcpTools>()
-            .WithTools<WorkCentreMcpTools>();
+            .WithTools<WorkCentreMcpTools>()
+            .WithTools<SendMcpTools>();
         return services;
     }
 

@@ -176,7 +176,9 @@ appears in Needs attention until then
 ([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)). Staff may
 send a **chaser** from the composer: a reply to the Triage's origin message
 from its approved mailbox, offered when the Triage came by e-mail and that
-mailbox may send.
+mailbox may send. The Automation Actor sends the chaser, and the reply with
+finding, with `pegasus_mail_send` `triage_reply`
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#sending)).
 The chaser is manual, never automatic and never a completion gate. Its exact
 Sent evidence is recorded under the normal rules
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence)).
