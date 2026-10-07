@@ -728,8 +728,9 @@ public static class EstimatePolicy
 
     /// <summary>
     /// The precision an estimate line's hours are kept to. A provider states
-    /// time in its own unit — Glass's in sixtieths of an hour, Audatex to two
-    /// places — so B04 retains the figure the document printed instead of
+    /// time in its own unit — Glass's in sixtieths of an hour or work units,
+    /// Audatex in work units to its printed time basis — and the import
+    /// converts it to hours, so B04 retains the converted figure instead of
     /// rounding it to the editor's 0.1 step, and the persisted column is
     /// <c>decimal(18,6)</c>.
     /// </summary>

@@ -22,6 +22,13 @@ namespace Pegasus.Infrastructure.Assessment;
 /// import is rejected — no partial or silently dropped line can survive,
 /// because a dropped costed line breaks its section's sum.
 ///
+/// Each LABOUR and PAINT WORK heading prints its own time basis
+/// ("Time Basis 10 WU = 1 HR"; 12 for some makes' labour). Printed work
+/// units are checked against the section total as printed, then divided by
+/// that basis so every line carries hours; a section without a readable
+/// basis rejects the import. Paint time is paint hours, and the printed
+/// "Total Paint And Material Cost" lands on the first paint line.
+///
 /// Those same printed totals are returned as
 /// <see cref="ParsedEstimate.SourceTotals"/>. They are the document's own
 /// arithmetic and never overrule <see cref="EstimateTotals"/>, which costs
@@ -74,6 +81,7 @@ internal static class AudatexEstimatePdfParser
         Paint,
         Parts,
         Extras,
+        Materials,
         Ignored,
     }
 
@@ -107,6 +115,9 @@ internal static class AudatexEstimatePdfParser
 
         public decimal? PrintedTotal { get; set; }
 
+        /// <summary>The work units to the hour its heading prints; labour and paint only.</summary>
+        public int? UnitsPerHour { get; set; }
+
         public List<EstimateLineInput> Lines { get; } = [];
 
         public List<decimal> Values { get; } = [];
@@ -135,6 +146,7 @@ internal static class AudatexEstimatePdfParser
         private PendingLine? bare;
         private string? assessmentNumber;
         private string? documentVersion;
+        private decimal? paintMaterials;
         private bool sawAudatexFooter;
 
         public void Read(VisualRow row)
@@ -156,6 +168,11 @@ internal static class AudatexEstimatePdfParser
             }
             if (TrySwitchSection(row))
             {
+                return;
+            }
+            if (current == Section.Materials)
+            {
+                CaptureMaterials(row);
                 return;
             }
             if (current is Section.None or Section.Ignored || sections[current].Closed)
@@ -205,6 +222,7 @@ internal static class AudatexEstimatePdfParser
             VerifySection(Section.Paint, "paint");
             VerifySection(Section.Parts, "parts");
             VerifySection(Section.Extras, "specialist charges");
+            PlaceMaterials();
 
             var lines = sections[Section.Labour].Lines
                 .Concat(sections[Section.Paint].Lines)
@@ -224,9 +242,90 @@ internal static class AudatexEstimatePdfParser
                 RepairSpecificationSourceRoute.AudatexPdf,
                 new EstimateSourceTotals(
                     Parts: sections[Section.Parts].PrintedTotal,
-                    PanelWorkUnits: sections[Section.Labour].PrintedTotal,
-                    PaintWorkUnits: sections[Section.Paint].PrintedTotal,
+                    PanelWorkUnits: InHours(Section.Labour, sections[Section.Labour].PrintedTotal),
+                    PaintWorkUnits: InHours(Section.Paint, sections[Section.Paint].PrintedTotal),
+                    Materials: paintMaterials,
                     Specialist: sections[Section.Extras].PrintedTotal));
+        }
+
+        /// <summary>
+        /// The estimate's materials total sits on the first paint line, as
+        /// every repair spec carries materials on its lines (v28 P48); with no
+        /// paint line, one "Paint materials" line carries it.
+        /// </summary>
+        private void PlaceMaterials()
+        {
+            if (paintMaterials is not { } materials || materials == 0m)
+            {
+                return;
+            }
+
+            var paint = sections[Section.Paint].Lines;
+            if (paint.Count > 0)
+            {
+                paint[0] = paint[0] with { Materials = materials };
+                return;
+            }
+            paint.Add(new(
+                "paint_prep", null, "Paint materials",
+                WorkUnits: null, Price: null, Unpriced: false,
+                PartNumber: null, Betterment: null,
+                EvidenceLabel: "case", Justification: null,
+                Materials: materials, SourceRowIdentity: "materials:1"));
+        }
+
+        /// <summary>
+        /// The one "Total Paint And Material Cost" row of the MATERIAL COST
+        /// section; its component rows are not lines.
+        /// </summary>
+        private void CaptureMaterials(VisualRow row)
+        {
+            if (!row.JoinedText.StartsWith("Total Paint And Material Cost", StringComparison.Ordinal))
+            {
+                return;
+            }
+            if (paintMaterials is not null)
+            {
+                throw new EstimateParseRejectedException(
+                    "The estimate prints more than one paint and material total, so nothing was imported.");
+            }
+            paintMaterials = ParseAmount(row.Words[^1].Text)
+                ?? throw new EstimateParseRejectedException(
+                    "The estimate's paint and material total could not be read as an amount, so nothing was imported.");
+        }
+
+        /// <summary>
+        /// A printed count of a section's work units as hours, at the
+        /// precision an estimate line keeps.
+        /// </summary>
+        private decimal? InHours(Section section, decimal? printed) => printed is { } units
+            ? decimal.Round(units / RequireTimeBasis(section), EstimatePolicy.WorkUnitDecimals, MidpointRounding.AwayFromZero)
+            : null;
+
+        private int RequireTimeBasis(Section section) =>
+            sections[section].UnitsPerHour
+            ?? throw new EstimateParseRejectedException(
+                $"The estimate's {(section == Section.Labour ? "labour" : "paint")} time basis could not be read, so nothing was imported.");
+
+        /// <summary>
+        /// "Time Basis N WU = 1 HR" on a LABOUR or PAINT WORK heading row;
+        /// anything else is no basis, which rejects the section's lines.
+        /// </summary>
+        private static int? ReadTimeBasis(VisualRow row)
+        {
+            var words = row.Words.Select(word => word.Text).ToArray();
+            for (var index = 0; index + 6 < words.Length; index++)
+            {
+                if (words[index] == "Time" && words[index + 1] == "Basis"
+                    && words[index + 3] == "WU" && words[index + 4] == "=" && words[index + 5] == "1"
+                    && words[index + 6] is "HR" or "HR."
+                    && int.TryParse(words[index + 2], NumberStyles.None, CultureInfo.InvariantCulture, out var units)
+                    && units > 0)
+                {
+                    return units;
+                }
+            }
+            return null;
         }
 
         /// <summary>
@@ -292,8 +391,8 @@ internal static class AudatexEstimatePdfParser
                 _ when text.StartsWith("PAINT WORK", StringComparison.Ordinal) => Section.Paint,
                 _ when text.StartsWith("PARTS", StringComparison.Ordinal) => Section.Parts,
                 _ when text.StartsWith("Extras", StringComparison.Ordinal) => Section.Extras,
-                _ when text.StartsWith("MATERIAL COST", StringComparison.Ordinal)
-                    || text.StartsWith("Cost Summary", StringComparison.Ordinal)
+                _ when text.StartsWith("MATERIAL COST", StringComparison.Ordinal) => Section.Materials,
+                _ when text.StartsWith("Cost Summary", StringComparison.Ordinal)
                     || text.StartsWith("Calculation", StringComparison.Ordinal)
                     || text.StartsWith("Assessment Notes", StringComparison.Ordinal)
                     || text.StartsWith("Addresses", StringComparison.Ordinal)
@@ -310,6 +409,10 @@ internal static class AudatexEstimatePdfParser
             ResolveBare(previousState);
             FlushPending(previousState);
             current = target;
+            if (target is Section.Labour or Section.Paint && ReadTimeBasis(row) is { } unitsPerHour)
+            {
+                sections[target].UnitsPerHour = unitsPerHour;
+            }
             return true;
         }
 
@@ -555,18 +658,23 @@ internal static class AudatexEstimatePdfParser
         private EstimateLineInput ToLine(PendingLine line)
         {
             var description = line.Description;
+            if (current is Section.Labour or Section.Paint)
+            {
+                RequireTimeBasis(current);
+            }
             return current switch
             {
                 Section.Labour => new(
                     LabourType(description), line.GuideCode, description,
-                    WorkUnits: line.Value, Price: null, Unpriced: false,
+                    WorkUnits: InHours(current, line.Value), Price: null, Unpriced: false,
                     PartNumber: null, Betterment: null,
                     EvidenceLabel: "case", Justification: null),
                 Section.Paint => new(
                     PaintType(description), line.GuideCode, description,
-                    WorkUnits: line.Value, Price: null, Unpriced: false,
+                    WorkUnits: null, Price: null, Unpriced: false,
                     PartNumber: null, Betterment: null,
-                    EvidenceLabel: "case", Justification: null),
+                    EvidenceLabel: "case", Justification: null,
+                    PaintWorkUnits: InHours(current, line.Value)),
                 Section.Parts => new(
                     "new_part", line.GuideCode, description,
                     WorkUnits: null, Price: line.Value, Unpriced: line.Value is null,
