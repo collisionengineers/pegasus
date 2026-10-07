@@ -113,9 +113,10 @@ public sealed class DocumentCustodyDurabilityTests
     /// <summary>
     /// The marked document's own reading fills the Original report cells in
     /// the Mark's transaction (v28 P51, #840): a cell staff recorded keeps
-    /// its value, one the extraction recorded takes the reading, every filled
-    /// cell is recorded as the report extraction, the history keeps both
-    /// values, and a replay writes nothing more.
+    /// its value, as does one the Automation actor recorded on purpose
+    /// (operator, 7 October 2026); one the extraction recorded takes the
+    /// reading, every filled cell is recorded as the report extraction, the
+    /// history keeps both values, and a replay writes nothing more.
     /// </summary>
     [Fact]
     public async Task MarkingFillsTheOriginalReportCellsStaffHaveNotRecorded()
@@ -146,6 +147,15 @@ public sealed class DocumentCustodyDurabilityTests
                         WorkId = caseId,
                         FieldPath = AssessmentVocabulary.OriginalReportRoadworthiness,
                         Value = "unroadworthy",
+                        RecordedByKind = nameof(ActorKind.Automation),
+                        RecordedBy = OriginalReportPrefillPolicy.RecorderId,
+                        RecordedAtUtc = seededAt
+                    },
+                    new CaseAssessmentFieldEntity
+                    {
+                        WorkId = caseId,
+                        FieldPath = AssessmentVocabulary.OriginalReportOutcome,
+                        Value = "total_loss",
                         RecordedByKind = nameof(ActorKind.Automation),
                         RecordedBy = "pegasus-automation",
                         RecordedAtUtc = seededAt
@@ -194,11 +204,12 @@ public sealed class DocumentCustodyDurabilityTests
                 .ToDictionaryAsync(item => item.FieldPath);
             Assert.Equal("Northside Assessors", cells[AssessmentVocabulary.OriginalReportAssessor].Value);
             Assert.Equal(nameof(ActorKind.Staff), cells[AssessmentVocabulary.OriginalReportAssessor].RecordedByKind);
+            Assert.Equal("total_loss", cells[AssessmentVocabulary.OriginalReportOutcome].Value);
+            Assert.Equal("pegasus-automation", cells[AssessmentVocabulary.OriginalReportOutcome].RecordedBy);
             foreach (var (path, value) in new[]
             {
                 (AssessmentVocabulary.OriginalReportDate, "2026-09-01"),
-                (AssessmentVocabulary.OriginalReportRoadworthiness, "roadworthy"),
-                (AssessmentVocabulary.OriginalReportOutcome, "repairable")
+                (AssessmentVocabulary.OriginalReportRoadworthiness, "roadworthy")
             })
             {
                 Assert.Equal(value, cells[path].Value);
@@ -211,6 +222,7 @@ public sealed class DocumentCustodyDurabilityTests
             Assert.Contains("\"original_report.roadworthiness\":\"unroadworthy\"", history.BeforeJson, StringComparison.Ordinal);
             Assert.Contains("\"original_report.roadworthiness\":\"roadworthy\"", history.AfterJson, StringComparison.Ordinal);
             Assert.DoesNotContain(AssessmentVocabulary.OriginalReportAssessor, history.AfterJson, StringComparison.Ordinal);
+            Assert.DoesNotContain(AssessmentVocabulary.OriginalReportOutcome, history.AfterJson, StringComparison.Ordinal);
         }
         finally
         {

@@ -182,7 +182,7 @@ public sealed class EfCaseWorkspaceStore(
                 assessmentFields.ToDictionary(
                     item => item.FieldPath, item => (string?)item.Value, StringComparer.Ordinal));
         }
-        var (fieldsToWrite, merged) = AssessmentWriteSet.Build(requestedFields, assessmentFields, request.Actor.Kind);
+        var (fieldsToWrite, merged) = AssessmentWriteSet.Build(requestedFields, assessmentFields);
         var (beforeFields, afterFields) = AssessmentWriteSet.Apply(
             context,
             workId,

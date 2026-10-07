@@ -621,7 +621,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var caseId = (await harness.AcceptAsync("estimate-replay-case")).Identity.CaseId;
         var actor = harness.EngineerActor;
         var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
-        var save = new SaveEstimate(harness.RepairSpecifications, jobs, harness.Clock);
+        var save = new SaveEstimate(harness.RepairSpecifications, jobs);
         var lease1 = await harness.AcquireLeaseAsync(caseId, 0, actor, "replay-lease-1");
         var create = new SaveEstimateRequest(caseId, 0, actor, "replay-K1", "Recorded an estimate.",
             lease1.Token, null, new("Repairer", 40m, null, 20m),
@@ -657,7 +657,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         {
             var runtimeFactory = new PooledDbContextFactory<PegasusDbContext>(
                 new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(context.Database.GetDbConnection()).Options);
-            var resumed = new SaveEstimate(new EfRepairSpecificationStore(runtimeFactory, harness.Clock), jobs, harness.Clock);
+            var resumed = new SaveEstimate(new EfRepairSpecificationStore(runtimeFactory, harness.Clock), jobs);
             var replay = await resumed.ExecuteAsync(update, default);
             Assert.Equal(first.SpecificationId, replay.SpecificationId);
             Assert.Equal(third.Details.Name, replay.Details.Name);
@@ -692,7 +692,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var caseId = (await harness.AcceptAsync("primary-estimate-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var save = new SaveEstimate(
-            harness.RepairSpecifications, new EfAiJobStore(harness.Factory, harness.Clock), harness.Clock);
+            harness.RepairSpecifications, new EfAiJobStore(harness.Factory, harness.Clock));
         EstimateLineInput[] lines = [new("repair", null, "Repair door", 4m, null, false, null, null, "judgement", null)];
         SaveEstimateRequest Created(CaseEditLease lease, string operationKey) => new(
             caseId, lease.Version, engineer, operationKey, "Recorded the repairer's estimate.", lease.Token, null,
@@ -739,7 +739,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var caseId = outcome.Identity.CaseId;
         var engineer = harness.UserActor;
         var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
-        var save = new SaveEstimate(harness.RepairSpecifications, jobs, harness.Clock);
+        var save = new SaveEstimate(harness.RepairSpecifications, jobs);
         var duplicate = new DuplicateEstimate(harness.RepairSpecifications);
         var discard = new DiscardEstimate(harness.RepairSpecifications);
         var setCurrent = new SetCurrentEstimate(
@@ -1177,8 +1177,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var engineer = harness.EngineerActor;
         var save = new SaveEstimate(
             harness.RepairSpecifications,
-            new EfAiJobStore(harness.Factory, harness.Clock),
-            harness.Clock);
+            new EfAiJobStore(harness.Factory, harness.Clock));
 
         var rateCardAdministrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var rateCards = new EfLabourRateCardStore(harness.Factory, harness.Clock);
@@ -1443,7 +1442,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var caseId = (await harness.AcceptAsync("edit-in-use-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
-        var save = new SaveEstimate(harness.RepairSpecifications, jobs, harness.Clock);
+        var save = new SaveEstimate(harness.RepairSpecifications, jobs);
         var duplicate = new DuplicateEstimate(harness.RepairSpecifications);
 
         var createLease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "edit-in-use-lease-create");
@@ -1512,7 +1511,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         // The spec in use cannot be discarded, so a typed spec takes its place first.
         var typedLease = await harness.AcquireLeaseAsync(caseId, 1, engineer, "reimport-lease-typed");
         var typed = await new SaveEstimate(harness.RepairSpecifications,
-            new EfAiJobStore(harness.Factory, harness.Clock), harness.Clock).ExecuteAsync(
+            new EfAiJobStore(harness.Factory, harness.Clock)).ExecuteAsync(
             new(caseId, typedLease.Version, engineer, "reimport-typed", "Recorded a typed spec.",
                 typedLease.Token, null, new("Typed", 40m, 0m, 20m),
                 [new("repair", null, "Repair door", 2m, null, false, null, null, "judgement", null)],
@@ -1574,7 +1573,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         // A typed spec takes its place in use, and belongs to no estimate.
         var typedLease = await harness.AcquireLeaseAsync(caseId, 1, engineer, "glass-update-lease-typed");
         var typed = await new SaveEstimate(harness.RepairSpecifications,
-            new EfAiJobStore(harness.Factory, harness.Clock), harness.Clock).ExecuteAsync(
+            new EfAiJobStore(harness.Factory, harness.Clock)).ExecuteAsync(
             new(caseId, typedLease.Version, engineer, "glass-update-typed", "Recorded a typed spec.",
                 typedLease.Token, null, new("Typed", 40m, 0m, 20m),
                 [new("repair", null, "Repair door", 2m, null, false, null, null, "judgement", null)],
@@ -1621,7 +1620,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var caseId = outcome.Identity.CaseId;
         var engineer = harness.EngineerActor;
         var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
-        var save = new SaveEstimate(harness.RepairSpecifications, jobs, harness.Clock);
+        var save = new SaveEstimate(harness.RepairSpecifications, jobs);
         var setCurrent = new SetCurrentEstimate(
             harness.RepairSpecifications, jobs, new ConfirmAiJob(jobs), harness.Clock);
         long version = 0;

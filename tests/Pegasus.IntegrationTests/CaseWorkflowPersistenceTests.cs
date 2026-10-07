@@ -2782,7 +2782,7 @@ public sealed class CaseWorkflowPersistenceTests
                 timeProvider,
                 [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())]);
             TaskStore = new EfCaseTaskStore(factory, timeProvider);
-            DataStore = new EfCaseDataStore(factory, timeProvider);
+            DataStore = new EfCaseDataStore(factory);
         }
 
         public Guid CaseId { get; }

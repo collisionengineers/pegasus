@@ -439,11 +439,7 @@ public static class DependencyInjection
         services.AddScoped<IGetCaseFilesSection, GetCaseFilesSection>();
         services.AddScoped<IValidateCaseRenderLease, ValidateCaseRenderLease>();
         services.AddScoped<IListCaseReferences, ListCaseReferences>();
-        services.AddScoped<EfCaseDataStore>();
-        services.AddScoped<ICaseDataStore>(
-            provider => provider.GetRequiredService<EfCaseDataStore>());
-        services.AddScoped<ICaseDataQueries>(
-            provider => provider.GetRequiredService<EfCaseDataStore>());
+        services.AddScoped<ICaseDataQueries, EfCaseDataStore>();
         services.AddScoped<InspectionAddressChoicesQueries>();
         services.AddScoped<IInspectionAddressChoicesQueries>(
             provider => provider.GetRequiredService<InspectionAddressChoicesQueries>());
@@ -451,7 +447,6 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<InspectionAddressChoicesQueries>());
         services.AddScoped<ICaseNoteStore, EfCaseNoteStore>();
         services.AddScoped<IAddCaseNote, AddCaseNote>();
-        services.AddScoped<ISaveCase, SaveCase>();
         services.AddScoped<ICaseWorkspaceStore, EfCaseWorkspaceStore>();
         services.AddScoped<ISaveCaseWorkspace, SaveCaseWorkspace>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();

@@ -162,6 +162,7 @@ public static class AutomationMcpExtensions
             })
             .WithHttpTransport(transport => transport.Stateless = true)
             .WithTools<CaseMcpTools>()
+            .WithTools<CaseEditMcpTools>()
             .WithTools<EditLeaseMcpTools>()
             .WithTools<IntakeMcpTools>()
             .WithTools<DocumentMcpTools>()

@@ -182,7 +182,7 @@ public sealed class EfRepairSpecificationStore(
         var specificationId = request.SpecificationId;
         var entity = await RequiredEstimateAsync(context, workId, specificationId, cancellationToken);
         var edited = Map(entity);
-        EstimatePolicy.ValidateEditable(edited, request.Actor);
+        EstimatePolicy.ValidateEditable(edited);
         entity.LastOperationKey = request.OperationKey;
 
         var result = RepairSpecificationScaling.Scale(
@@ -249,7 +249,7 @@ public sealed class EfRepairSpecificationStore(
         var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken);
         var entity = await RequiredEstimateAsync(context, workId, request.SpecificationId, cancellationToken);
         var specification = Map(entity);
-        EstimatePolicy.ValidateEditable(specification, request.Actor);
+        EstimatePolicy.ValidateEditable(specification);
         var versionRow = await context.CaseRepairSpecificationSnapshots
             .SingleOrDefaultAsync(
                 item => item.WorkId == workId && item.Id == request.SnapshotId,
@@ -357,7 +357,7 @@ public sealed class EfRepairSpecificationStore(
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
         var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken);
         var entity = await RequiredEstimateAsync(context, workId, request.SpecificationId, cancellationToken);
-        EstimatePolicy.ValidateEditable(Map(entity), request.Actor);
+        EstimatePolicy.ValidateEditable(Map(entity));
         var before = EfRepairSpecificationSnapshotStore.Map(beforeRow);
 
         context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
@@ -530,7 +530,7 @@ public sealed class EfRepairSpecificationStore(
             entity = await RequiredEstimateAsync(context, workId, estimateId, cancellationToken);
             editingCurrent = entity.IsCurrent;
             existing = Map(entity);
-            EstimatePolicy.ValidateEditable(existing, request.Actor);
+            EstimatePolicy.ValidateEditable(existing);
             eventType = "estimate_updated";
         }
         else

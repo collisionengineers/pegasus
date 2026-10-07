@@ -65,18 +65,22 @@ public sealed class SettlementDecisionTests
     }
 
     /// <summary>
-    /// PR 792 took the Engineer account type out of the authority rules, so saving
-    /// to a firm's reason bank is a staff act. An actor who is not staff is still
-    /// refused, and a User saves the same as an Engineer.
+    /// PR 792 took the Engineer account type out of the authority rules, and
+    /// saving to a firm's reason bank is casework: a User saves the same as an
+    /// Engineer, and the Automation actor as staff do (operator, 7 October
+    /// 2026). An actor without the casework right is refused.
     /// </summary>
     [Fact]
-    public async Task OnlyStaffSaveAWordingAndTheBankNeverHoldsItTwice()
+    public async Task EveryCaseworkActorSavesAWordingAndTheBankNeverHoldsItTwice()
     {
         var store = new RecordingBank();
         var save = new SaveUnroadworthyReason(store);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => save.ExecuteAsync(
-            new("QDOS", "the wheels are missing", Automation), CancellationToken.None));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => save.ExecuteAsync(
+            new("QDOS", "the wheels are missing", ActionActor.SystemWorker("case-worker")), CancellationToken.None));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => save.ExecuteAsync(
+            new("QDOS", "the wheels are missing", ActionActor.Principal(Guid.NewGuid())), CancellationToken.None));
+        Assert.Empty(store.Rows);
 
         var saved = await save.ExecuteAsync(new("QDOS", "The wheels are missing.", User), CancellationToken.None);
         Assert.NotNull(saved);
@@ -88,6 +92,12 @@ public sealed class SettlementDecisionTests
         Assert.Null(await save.ExecuteAsync(
             new("QDOS", "There is a loss of essential fluids.", Engineer), CancellationToken.None));
         Assert.Single(store.Rows);
+
+        var automated = await save.ExecuteAsync(
+            new("QDOS", "The steering is unsafe.", Automation), CancellationToken.None);
+        Assert.NotNull(automated);
+        Assert.Equal(Automation.SubjectId, automated.CreatedBy);
+        Assert.Equal(2, store.Rows.Count);
     }
 
     [Fact]

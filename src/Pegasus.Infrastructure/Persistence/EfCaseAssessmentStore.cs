@@ -120,7 +120,7 @@ public sealed class EfCaseAssessmentStore(
         CaseDataSourceKind? mileageProvenance = mileageField is null
             ? null
             : EfCaseDataStore.ParseSourceKind(mileageField.SourceKind);
-        var (fieldsToWrite, merged) = AssessmentWriteSet.Build(request.Fields, fields, request.Actor.Kind);
+        var (fieldsToWrite, merged) = AssessmentWriteSet.Build(request.Fields, fields);
         var (beforeFields, afterFields) = AssessmentWriteSet.Apply(
             context,
             workId,
