@@ -59,7 +59,7 @@ public static class InstructionDraftCompleteness
     public static bool IsComplete(InstructionDraft draft) =>
         MissingFieldNames(draft).Count == 0;
 
-    private static IReadOnlyList<string> Missing(
+    private static string[] Missing(
         InstructionDraft draft,
         Func<InstructionDraftField, bool> asked)
     {
