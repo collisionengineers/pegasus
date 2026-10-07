@@ -30,10 +30,10 @@ public sealed class EfCaseAcceptanceStore(
         ArgumentNullException.ThrowIfNull(request.Actor);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.PrincipalCode);
-        if (request.Actor.Kind is not (ActorKind.Staff or ActorKind.SystemWorker))
+        if (request.Actor.Kind is not (ActorKind.Staff or ActorKind.Automation or ActorKind.SystemWorker))
         {
             throw new ArgumentException(
-                "Case acceptance requires a staff or system-worker actor.",
+                "Case acceptance requires a staff, Automation or system-worker actor.",
                 nameof(request));
         }
         ArgumentNullException.ThrowIfNull(request.Completeness);

@@ -61,8 +61,13 @@ owned by `Pegasus.Core`.
    `Pegasus.Core` list (FRD-27 owns the catalogue). An unknown kind is refused
    at creation, not persisted and poisoned later.
 4. **Creation has two callers.** Staff create jobs from the Web application;
-   external schedulers create jobs through the Actor's `create` tool. Pegasus
-   runs no timer for AI work (D5).
+   the Automation Actor creates a job of any kind through its `create` tool,
+   with the same subject checks, so external agents on automated runs hand
+   work to each other (operator, 7 October 2026;
+   [ADR-0064](0064-automation-actor-staff-casework-parity.md)). Staff and the
+   Automation Actor cancel and confirm jobs; only the claiming client takes,
+   progresses, completes, fails or releases one. Pegasus runs no timer for AI
+   work (D5).
 5. **Results retain evidence without silently adopting professional findings.**
    MarketResearch points to the retained Case files and completes through the
    Automation Actor under FRD-27. A reviewed-proposal job points

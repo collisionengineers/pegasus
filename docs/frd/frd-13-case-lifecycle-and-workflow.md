@@ -55,7 +55,9 @@ returned to work with a reason. No Case is ever shown as "Closed".
 Every state change and disposition is a Core transition. It records who did
 it, when, why, the state before and after, and any evidence, permanently.
 Screens, the Worker, APIs and MCP tools all call the same Core use cases;
-none of them has its own version of the rules.
+none of them has its own version of the rules. The Automation Actor takes the
+Case's Actions-menu lifecycle acts as staff do
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#case-lifecycle)).
 
 ### Readiness and Review
 
@@ -137,8 +139,9 @@ received or assigned anything.
   With Engineer under the normal edit authority. They are read-only in Held
   and Completed. Staff and the Automation Actor record the Engineer's Value
   ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#assessment-writes)).
-- **Report approval** names one immutable report file and the staff member
-  who approved it.
+- **Report approval** names one immutable report file and who approved it:
+  a staff member or the Automation actor
+  ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#reports)).
 - **Mark report sent** needs exact retained Sent evidence
   ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence)).
   A generated file, an export, a draft, a queue result or a manual statement
@@ -324,7 +327,7 @@ historical instructions inside a message are ignored. Only an incoming
 instruction creates intake work.
 
 A cancellation that has been retained and associated with a reason may
-support a staff action on a pre-report Case: place it on Hold with the
+support a staff or Automation Actor action on a pre-report Case: place it on Hold with the
 cancellation as the reason, confirm `Principal cancelled`, or release it.
 Release needs the message recategorised, unlinked or reassociated first. Every
 original and corrected classification, with actor, time, reason and evidence,
@@ -334,7 +337,8 @@ While a linked message's current classification is a cancellation and the
 Case is open, the Case page's Next action names it, **Cancellation received**,
 with **Open message**, and the Case's Engineer is told through the bell
 ([FRD-12](frd-12-operator-experience.md#the-shell)). Correcting the message
-away clears the row. The Case's state still changes only by a staff action.
+away clears the row. The Case's state still changes only by a staff or
+Automation Actor action.
 
 ## States and transitions
 
@@ -363,7 +367,8 @@ away clears the row. The Case's state still changes only by a staff action.
 - Close case with an unknown outcome is refused.
 - A second archive on an archived Case is refused.
 - A chase already calculated keeps its date when the interval changes.
-- A cancellation message never changes state without a staff action.
+- A cancellation message never changes state without a staff or Automation
+  Actor action.
 - Create audit on a Held, closed or archived Case, without an assigned
   Engineer, or a second time, is refused; the listed item is greyed out and
   states the refusal on hover.

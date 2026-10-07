@@ -2081,8 +2081,16 @@ public sealed class EfCaseWorkflowStore(
         return Actor(kind, subjectId, rolesJson);
     }
 
+    /// <summary>
+    /// The staff member or the Automation Actor who approved, archived or linked:
+    /// both perform casework (ADR-0064), so a row either recorded reads back.
+    /// </summary>
     private static ActionActor Actor(string kind, string subjectId, string rolesJson)
     {
+        if (kind == nameof(ActorKind.Automation) && !string.IsNullOrWhiteSpace(subjectId))
+        {
+            return ActionActor.Automation(subjectId);
+        }
         if (kind != nameof(ActorKind.Staff) || !Guid.TryParse(subjectId, out var staffId))
         {
             throw new InvalidOperationException("Workflow evidence contains an unsupported actor identity.");

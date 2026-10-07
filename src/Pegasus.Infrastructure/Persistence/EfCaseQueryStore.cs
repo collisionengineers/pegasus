@@ -1437,8 +1437,16 @@ public sealed class EfCaseQueryStore(
         return MapStaffActor(kind, subjectId, rolesJson);
     }
 
+    /// <summary>
+    /// A staff member or the Automation Actor: both perform casework
+    /// (ADR-0064), so an approval, archive or link either recorded reads back.
+    /// </summary>
     private static ActionActor MapStaffActor(string kind, string subjectId, string rolesJson)
     {
+        if (kind == nameof(ActorKind.Automation) && !string.IsNullOrWhiteSpace(subjectId))
+        {
+            return ActionActor.Automation(subjectId);
+        }
         if (kind != nameof(ActorKind.Staff)
             || !Guid.TryParse(subjectId, out var staffId)
             || staffId == Guid.Empty)

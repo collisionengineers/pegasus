@@ -5,6 +5,7 @@ using ModelContextProtocol.Server;
 using Pegasus.Core;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
 
@@ -77,6 +78,12 @@ internal sealed record AssessmentFieldVocabularyItem(
 
 internal sealed record CodeMeaningItem(string Code, string Meaning);
 
+internal sealed record ImageTagVocabularyItem(
+    Guid TagId,
+    string Name,
+    string Colour,
+    bool IsBuiltIn);
+
 internal sealed record VocabularyToolResult(
     IReadOnlyList<AssessmentFieldVocabularyItem> AssessmentFields,
     IReadOnlyList<CodeMeaningItem> EstimateLineTypes,
@@ -84,6 +91,22 @@ internal sealed record VocabularyToolResult(
     IReadOnlyList<string> RepairerVatStatuses,
     IReadOnlyList<string> EstimateVatCategories,
     IReadOnlyList<string> ValuationSources,
+    IReadOnlyList<ImageTagVocabularyItem> ImageTags,
+    string CorrelationId);
+
+internal sealed record DirectoryToolItem(
+    Guid OrganizationId,
+    long Version,
+    string Name,
+    string? ContactPerson,
+    string? Email,
+    string? Telephone,
+    string? Address,
+    string? Postcode);
+
+internal sealed record DirectorySearchToolResult(
+    string Role,
+    IReadOnlyList<DirectoryToolItem> Items,
     string CorrelationId);
 
 /// <summary>
@@ -102,6 +125,8 @@ internal sealed class CaseEditMcpTools(
     ISaveCaseWorkspace saveCaseWorkspace,
     IAddCaseNote addCaseNote,
     IListCaseValuations listValuations,
+    IContactDirectoryQueries contactDirectory,
+    IReadImageTagVocabulary imageTags,
     TimeProvider timeProvider,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
@@ -115,7 +140,7 @@ internal sealed class CaseEditMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Edits the Case facts staff edit on the Case page, through the same Case save: claimant, claim, contact, accident, VAT status, repairer, notes, due by, vehicle identity and mileage, inspection and the Sign-off Engineer. Omit a value to leave it as it is; send an empty string to clear a text or date value. Values not named are never changed. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command). Dates are yyyy-MM-dd; inspectionMode is 'physical_address' or 'image_based_assessment'. Assessment fields (outcome, roadworthiness, values, damage and the rest) are written with pegasus_assessment_update.")]
+    [Description("Edits the Case facts staff edit on the Case page, through the same Case save: claimant, claim, contact, accident, VAT status, repairer (typed, or linked to a directory Repairer), claim source (a directory Claim source) and its contact for this Case, notes, due by, vehicle identity and mileage, inspection and the Sign-off Engineer. Omit a value to leave it as it is; send an empty string to clear a text or date value. Values not named are never changed. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command). Dates are yyyy-MM-dd; inspectionMode is 'physical_address' or 'image_based_assessment'. Assessment fields (outcome, roadworthiness, values, damage and the rest) are written with pegasus_assessment_update.")]
     public async Task<CaseUpdateDetailsToolResult> UpdateDetailsAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
@@ -133,6 +158,8 @@ internal sealed class CaseEditMcpTools(
         [Description("VAT status text.")] string? vatStatus = null,
         [Description("Repairer name.")] string? repairerName = null,
         [Description("Repairer address.")] string? repairerAddress = null,
+        [Description("Links the Case's repairer to an active directory Repairer (pegasus_directory_search, role Repairer): its name, address and version are copied onto the Case, so a later directory edit never rewrites it. The empty identifier 00000000-0000-0000-0000-000000000000 removes the link and keeps the typed name.")] Guid? repairerDirectoryId = null,
+        [Description("Records the Case's claim source as an active directory Claim source (pegasus_directory_search, role ClaimSource), copied onto the Case with its contact. The empty identifier 00000000-0000-0000-0000-000000000000 records none.")] Guid? claimSourceId = null,
         [Description("The Case's own notes beside its Principal.")] string? principalNotes = null,
         [Description("The Case's own notes beside its Claim source.")] string? claimSourceNotes = null,
         [Description("Notes from client.")] string? clientNotes = null,
@@ -191,9 +218,33 @@ internal sealed class CaseEditMcpTools(
                                 contactEmailAddress, contactPhoneNumber, incidentDate, accidentCircumstances,
                                 vatStatus, repairerName, repairerAddress, principalNotes, claimSourceNotes,
                                 clientNotes, dueBy, claimSourceContactName, claimSourceContactTelephone,
-                                claimSourceContactEmail))
+                                claimSourceContactEmail)
+                            || repairerDirectoryId is not null
+                            || claimSourceId is not null)
                         {
-                            var claimSource = persisted?.ClaimSource is { } source
+                            // The claim source is a choice from the active Claim
+                            // source records, copied onto the Case as its
+                            // snapshot, as the Case page's save makes it: the
+                            // same record keeps the snapshot it already has.
+                            var claimSource = persisted?.ClaimSource;
+                            if (claimSourceId is { } sourceId)
+                            {
+                                if (sourceId == Guid.Empty)
+                                {
+                                    claimSource = null;
+                                }
+                                else if (sourceId != claimSource?.ClaimSourceId)
+                                {
+                                    var chosen = (await contactDirectory.ListByRoleAsync(
+                                            context.Actor, ContactRole.ClaimSource, cancellationToken))
+                                        .SingleOrDefault(item => item.OrganizationId == sourceId)
+                                        ?? throw new McpException("The selected claim source is not an active Claim source record.");
+                                    claimSource = new CaseWorkspaceClaimSource(
+                                        chosen.OrganizationId, chosen.Version, chosen.Name,
+                                        chosen.ContactPerson, chosen.Telephone, chosen.Email);
+                                }
+                            }
+                            claimSource = claimSource is { } source
                                 ? source with
                                 {
                                     OverrideContactName = claimSourceContactName ?? source.OverrideContactName,
@@ -206,6 +257,15 @@ internal sealed class CaseEditMcpTools(
                             {
                                 throw new McpException("The Case has no claim source to set a contact for.");
                             }
+                            // A linked directory organisation is copied onto the
+                            // Case: its identity, version, name and address.
+                            var linkedRepairer = repairerDirectoryId is { } directoryId && directoryId != Guid.Empty
+                                ? (await contactDirectory.ListByRoleAsync(
+                                        context.Actor, ContactRole.Repairer, cancellationToken))
+                                    .SingleOrDefault(item => item.OrganizationId == directoryId)
+                                    ?? throw new McpException("The selected repairer is not an active directory Repairer.")
+                                : null;
+                            var unlinkRepairer = repairerDirectoryId == Guid.Empty;
                             overview = new(
                                 Text(claimantName, Accepted(data.Claimant.Name)),
                                 Text(claimantContactNumber, Accepted(data.Claimant.ContactNumber)),
@@ -217,12 +277,16 @@ internal sealed class CaseEditMcpTools(
                                 Date(incidentDate, nameof(incidentDate), Accepted(data.Accident.IncidentDate)),
                                 Text(accidentCircumstances, Accepted(data.Accident.Circumstances)),
                                 Text(vatStatus, Accepted(data.Instruction.VatStatus)),
-                                Text(repairerAddress, Accepted(data.Inspection.RepairerAddress)),
+                                linkedRepairer?.Address
+                                    ?? Text(repairerAddress, Accepted(data.Inspection.RepairerAddress)),
                                 claimSource,
-                                new CaseWorkspaceRepairer(
-                                    persisted?.Repairer?.DirectoryOrganizationId,
-                                    persisted?.Repairer?.DirectoryOrganizationVersion,
-                                    Text(repairerName, Accepted(data.Inspection.RepairerName))),
+                                linkedRepairer is not null
+                                    ? new CaseWorkspaceRepairer(
+                                        linkedRepairer.OrganizationId, linkedRepairer.Version, linkedRepairer.Name)
+                                    : new CaseWorkspaceRepairer(
+                                        unlinkRepairer ? null : persisted?.Repairer?.DirectoryOrganizationId,
+                                        unlinkRepairer ? null : persisted?.Repairer?.DirectoryOrganizationVersion,
+                                        Text(repairerName, Accepted(data.Inspection.RepairerName))),
                                 Text(principalNotes, persisted?.PrincipalNotes),
                                 Text(claimSourceNotes, persisted?.ClaimSourceNotes),
                                 Text(clientNotes, persisted?.ClientNotes),
@@ -469,7 +533,7 @@ internal sealed class CaseEditMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Returns the vocabularies the write tools accept: every assessment field path with its type, accepted codes, staff label and whether pegasus_assessment_update may write it (for example Roadworthiness is assessment.legal_status and the outcome is assessment.outcome); the estimate line types and evidence labels with their meanings; repairer VAT statuses and VAT categories; and valuation sources.")]
+    [Description("Returns the vocabularies the write tools accept: every assessment field path with its type, accepted codes, staff label and whether pegasus_assessment_update may write it (for example Roadworthiness is assessment.legal_status and the outcome is assessment.outcome); the estimate line types and evidence labels with their meanings; repairer VAT statuses and VAT categories; valuation sources; and the shared image tags pegasus_document_action applies.")]
     public async Task<VocabularyToolResult> GetVocabularyAsync(CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
@@ -478,7 +542,7 @@ internal sealed class CaseEditMcpTools(
             "pegasus_vocabulary_get",
             "vocabulary",
             operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(() => Task.FromResult(new VocabularyToolResult(
+            () => AutomationMcpErrors.ExecuteAsync(async () => new VocabularyToolResult(
                 AssessmentVocabulary.Definitions.Values
                     .Select(definition =>
                     {
@@ -504,7 +568,60 @@ internal sealed class CaseEditMcpTools(
                 [nameof(EstimateVatCategories.Labour), nameof(EstimateVatCategories.Parts),
                     nameof(EstimateVatCategories.Materials), nameof(EstimateVatCategories.Specialist)],
                 Enum.GetNames<ValuationSource>(),
-                context.TraceIdentifier))),
+                (await imageTags.ListAsync(cancellationToken))
+                    .Select(tag => new ImageTagVocabularyItem(tag.Id, tag.Name, tag.Colour.ToString(), tag.IsBuiltIn))
+                    .ToArray(),
+                context.TraceIdentifier)),
+            cancellationToken);
+    }
+
+    [McpServerTool(
+        Name = "pegasus_directory_search",
+        Title = "Search contact directory",
+        ReadOnly = true,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Lists the active Contacts directory organisations holding one role, as the Case page offers them to link to a Case: Repairer (for pegasus_case_update_details repairerDirectoryId) or ClaimSource (for claimSourceId). An optional name filter keeps the organisations whose name contains it, ignoring case.")]
+    public async Task<DirectorySearchToolResult> SearchDirectoryAsync(
+        [Description("The directory role: Repairer or ClaimSource.")] string role,
+        [Description("Optional text the organisation's name must contain, ignoring case.")] string? name = null,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
+        return await auditor.RecordAsync(
+            context,
+            "pegasus_directory_search",
+            "directory",
+            operationKey: null,
+            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            {
+                var parsed = role?.Trim() switch
+                {
+                    "Repairer" => ContactRole.Repairer,
+                    "ClaimSource" => ContactRole.ClaimSource,
+                    _ => throw new McpException("The role must be Repairer or ClaimSource."),
+                };
+                var filter = name?.Trim();
+                var records = await contactDirectory.ListByRoleAsync(context.Actor, parsed, cancellationToken);
+                return new DirectorySearchToolResult(
+                    parsed.ToString(),
+                    records
+                        .Where(record => string.IsNullOrEmpty(filter)
+                            || record.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
+                        .Select(record => new DirectoryToolItem(
+                            record.OrganizationId,
+                            record.Version,
+                            record.Name,
+                            record.ContactPerson,
+                            record.Email,
+                            record.Telephone,
+                            record.Address,
+                            record.Postcode))
+                        .ToArray(),
+                    context.TraceIdentifier);
+            }),
             cancellationToken);
     }
 
