@@ -1001,9 +1001,7 @@ public static class CaseWorkspaceLabels
     public static class ReportDelivery
     {
         public const string GenerateReport = "Generate report";
-        public const string GenerateFeeNote = "Generate fee note";
         public const string ReportGenerated = "The report was generated.";
-        public const string FeeNoteGenerated = "The fee note was generated.";
         public const string ReportNotGenerated = "The report could not be generated.";
         public const string FeeNoteNotGenerated = "The fee note could not be generated.";
         public const string GenerationPending =

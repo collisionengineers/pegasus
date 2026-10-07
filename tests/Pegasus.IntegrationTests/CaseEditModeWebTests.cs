@@ -1264,6 +1264,58 @@ public sealed class CaseEditModeWebTests
     }
 
     /// <summary>
+    /// Generate report makes the separate fee note too (operator, 7 October
+    /// 2026): once the report is confirmed the handler generates the fee note
+    /// from the generation the report confirmed, under the one lease it
+    /// claimed, and releases that lease once after both.
+    /// </summary>
+    [Fact]
+    public async Task GenerateReportOutsideEditModeMakesTheFeeNoteUnderTheSameLease()
+    {
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
+        var generation = new AssessmentReportDraftWebTests.FakeCurrentGeneration(store.CaseId).Record;
+        var generator = new RecordingGenerateReport
+        {
+            Outcome = CaseReportGenerationOutcome.Generated,
+            Generation = generation,
+        };
+        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
+            ReadyReportPorts(services, store, generator));
+        var form = GenerateReportForm(await ReportSectionAsync(workspace));
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=GenerateReport&section=report",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("operationKey", InputValue(form, "operationKey")),
+                ("feeNoteOperationKey", InputValue(form, "feeNoteOperationKey")),
+                ("expectedCaseVersion", InputValue(form, "expectedCaseVersion"))));
+
+        AssertPrg(response, store.CaseId, "section=report");
+        Assert.Single(store.Claims);
+        Assert.Collection(
+            generator.Requests,
+            report =>
+            {
+                Assert.Equal(CaseReportArtifactKind.AssessmentReport, report.Kind);
+                Assert.Equal(InputValue(form, "operationKey"), report.OperationKey);
+                Assert.Equal(store.LeaseToken, report.LeaseToken);
+            },
+            feeNote =>
+            {
+                Assert.Equal(CaseReportArtifactKind.FeeNote, feeNote.Kind);
+                Assert.Equal(InputValue(form, "feeNoteOperationKey"), feeNote.OperationKey);
+                Assert.Equal(generation.Id, feeNote.TargetGenerationId);
+                Assert.Equal(store.LeaseToken, feeNote.LeaseToken);
+                Assert.Equal(store.CaseVersion, feeNote.ExpectedCaseVersion);
+            });
+        var release = Assert.Single(store.LeaseReleases);
+        Assert.Equal(store.LeaseToken, release.LeaseToken);
+        Assert.Null(store.LeaseHolder);
+    }
+
+    /// <summary>
     /// The one-off lease is released whatever the generation answers: a
     /// NotReady answer, or a refusal thrown by the generation, releases it
     /// exactly as a Pending answer does, so nothing is left holding the Case.
@@ -1562,7 +1614,6 @@ public sealed class CaseEditModeWebTests
     /// and releases the lease after.
     /// </summary>
     [Theory]
-    [InlineData("GenerateFeeNote", CaseReportArtifactKind.FeeNote)]
     [InlineData("GenerateRepairSpec", CaseReportArtifactKind.RepairSpecification)]
     [InlineData("GenerateImagePack", CaseReportArtifactKind.ImagePack)]
     public async Task CompanionGenerateOutsideEditModeClaimsTheLeaseForTheGenerationAndReleasesIt(
@@ -1623,7 +1674,6 @@ public sealed class CaseEditModeWebTests
 
         var html = await ReportSectionAsync(workspace);
 
-        Assert.DoesNotContain("handler=GenerateFeeNote", html, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=GenerateRepairSpec", html, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=GenerateImagePack", html, StringComparison.Ordinal);
     }
