@@ -8,8 +8,8 @@
   in an approved Outlook mailbox. A draft, an export or a staff note is not
   proof.
 - Staff send Reply, Reply all, Forward and Compose from an approved mailbox,
-  never from their own address. Only signed-in staff with the casework right
-  can send.
+  never from their own address. Only signed-in staff with the casework right,
+  or the Automation Actor under its `automation.send` scope, can send.
 - Every send is one durable operation. Graph saying "accepted" means
   submitted, not sent. The Sent item that Graph later writes is the evidence.
 - A report sent through EVA is detected from the Sent mailbox, not asserted.
@@ -81,8 +81,9 @@ registration or timer setting does not prove that a real caller ran.
 
 ### Outbound correspondence
 
-**One durable operation per send.** Each send is keyed by the staff actor,
-the mailbox and an operation key, with a payload hash that the server
+**One durable operation per send.** Each send is keyed by its sender (a
+member of staff or the Automation Actor, recorded as which), the mailbox and
+an operation key, with a payload hash that the server
 calculates. Reusing a key with a different payload fails. Draft creation and
 upload progress survive a restart without a second send attempt. If the
 provider's answer is ambiguous, the send stays Unknown until exact evidence
@@ -102,8 +103,10 @@ observes the item; there is no staff action that re-checks or re-sends.
 
 **Report sends are rechecked at the last moment.** Immediately before the
 provider call, Pegasus revalidates the Case's persisted report readiness, the
-exact generation, its versions and artifacts, the staff member's authority
-and the mailbox generation. No connector may trigger this send.
+exact generation, its versions and artifacts, the sender's authority and the
+mailbox generation. The only connector that may trigger it is the Automation
+Actor's `pegasus_report_send`
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#sending)).
 
 **Where the controls are.** Reply, Forward and Compose appear on the Inbox
 message and on the Case correspondence surface. They exist only when the
@@ -111,8 +114,16 @@ outbound capability is composed into the application. Otherwise those
 surfaces show no send control and no composer. The technical decision is
 [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md).
 
-**Who may send.** A signed-in staff member with the casework right. There is
-no automatic, scheduled or Automation Actor send.
+**Who may send.** A signed-in staff member with the casework right, or the
+Automation Actor through `pegasus_mail_send` and `pegasus_report_send` under
+its `automation.send` scope (operator, 7 October 2026;
+[ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)). Both use
+this one operation from the same approved mailboxes; the operation, its
+history and the Case's Notes line record which of them sent it, and an
+Automation send never reads as a member of staff. The sender must still be
+current at each step that reaches the provider: a staff account still enabled
+with a casework role, or the Automation client registration still enabled.
+There is no automatic or scheduled send.
 
 **From which mailbox.** Reply and Forward send as the approved mailbox that
 holds the retained message. Compose sends as the default approved mailbox.

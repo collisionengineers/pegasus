@@ -20,8 +20,9 @@
   Cases, received items and direct Case creation, Case details and notes,
   findings, valuation, estimates, the Case's lifecycle acts, reports and their
   approval, the Case's documents, AI jobs, mail dismiss and folder moves, and
-  Work Centre dismiss. It never puts an estimate in use, never runs a Glass's
-  session and never touches Glass's credentials. Sending is not yet delivered.
+  Work Centre dismiss. It sends reports to the Principal and e-mail under its
+  own `automation.send` scope. It never puts an estimate in use, never runs a
+  Glass's session and never touches Glass's credentials.
 - A tool counts as delivered only after a real caller has proved success,
   authorisation failure, validation failure and history.
 
@@ -49,9 +50,9 @@ use (**Use repair spec**), and it never runs a Glass's session, which signs in
 with the staff member's own Glass's account (operator, 7 October 2026;
 [ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)). The
 `Manage*` rights stay with staff Administrators. The Case lifecycle, report
-and document tools, report approval among them, and the queue and job tools
-are delivered (operator, 7 October 2026). Outward-sending tools are a later
-delivery; until they land, sending stays with staff.
+and document tools, report approval among them, the queue and job tools and
+outward sending are delivered (operator, 7 October 2026). Sending has its own
+scope, `automation.send`, so a grant can hold casework without sending.
 
 **Grants.** Each connector grant has its own durable identity. History keeps
 the grant identity, the shared client ID and the human approver separately.
@@ -193,9 +194,40 @@ the staff Custody commands.
 Estimates go through the named estimate tools, with the same actor, lease,
 version and replay checks as the Case UI
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). Unidentified reason
-codes on the wire are the Core list under `unidentified`. The tool list has
-no Send yet: outward sending is a later delivery. It never exposes Glass's
-credentials or runs a Glass's session.
+codes on the wire are the Core list under `unidentified`. No tool exposes
+Glass's credentials or runs a Glass's session.
+
+**Sending.** <a id="sending"></a> The Actor sends as staff do, under
+`automation.send` (operator, 7 October 2026;
+[ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)). EVA
+submission is not part of it.
+
+- `pegasus_report_send` is the Case page's **Send report**, through the same
+  Core command ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)):
+  the work's current confirmed generation, the reviewed To and Cc (omitted,
+  the Principal's suggested recipients), the companion documents chosen
+  (omitted, every confirmed document the generation holds, the fee note
+  included) and the covering message as written. It holds the Case's lease
+  for its one send unless a lease token is presented.
+- `pegasus_mail_send` is the staff mail send with a `mode`: `new` is the
+  Inbox composer from the default approved mailbox (`chaser` records it as
+  the Case's chaser); `reply`, `reply_all` and `forward` answer one retained
+  message from the approved mailbox that holds it, with the recipients the
+  message page gives them; `triage_reply` is the Triage Case's reply to its
+  origin e-mail, the chaser until the outcome is recorded and the outcome
+  reply once Completed ([FRD-03](frd-03-triage.md)). Every mode files the
+  mail against a Case and checks the version the caller observed.
+  Attachments are Case files by document version, or the origin item's files
+  by asset id for `triage_reply`.
+
+Both are the one staff send operation of
+[FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence):
+the same approved mailbox, operation-key replay, Submitted-is-not-Sent rule
+and Sent evidence. The operation, its history and the Case's Notes line
+record the Automation Actor as the sender, never a member of staff. The
+Actor's current-sender check is its client registration's kill switch, read
+at each step a staff send re-reads the staff account, so a send in flight
+when the client is stopped fails as `staff_send_authorization_lost`.
 
 **Network-drive scanning.** An externally scheduled client may scan an
 approved network-drive scope and submit immutable source occurrences through
@@ -256,8 +288,8 @@ replays by its operation key.
 
 - `pegasus_intake_get` reads one received item as the Create case page
   reviews it: version, decision, existing Case, classified case type, draft,
-  missing identity-critical fields, allocation attempt and inspection
-  address state.
+  missing identity-critical fields, allocation attempt, inspection address
+  state and the item's files, which a Triage reply attaches by asset id.
 - `pegasus_intake_action` with `accept` turns a received item into a Case
   as **Create case** does: the reviewed draft is recorded (named draft fields
   replace the item's), then the Case is allocated for the Principal and case
@@ -342,8 +374,9 @@ makes an estimate Current. An AI job is how an external client picks up
 work, not the authority to save, so citing one is optional.
 
 **Scopes.** `automation.jobs` is its own scope with a consent description on
-the Administrator consent page; a token without it cannot see the ledger. The
-estimate tools stay under `automation.assessment` because they write
+the Administrator consent page; a token without it cannot see the ledger.
+`automation.send` is its own scope for the same reason: a token without it
+sends nothing, whatever casework it may do. The estimate tools stay under `automation.assessment` because they write
 assessment values. `pegasus_estimate_import` names a retained PDF, XML or
 JSON file for shared extraction. Every scope has a consent
 description on the Administrator consent page. Every tool is proven under the
@@ -351,7 +384,7 @@ tranche rule above.
 
 ### Tool inventory
 
-The Actor's whole inventory, 55 tools, by scope. "One-command lease" means
+The Actor's whole inventory, 57 tools, by scope. "One-command lease" means
 the tool takes `expectedVersion` and `operationKey`, accepts an
 `editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
 its one command when none is given.
@@ -392,6 +425,8 @@ its one command when none is given.
 | `automation.mail` | `pegasus_mail_correct_classification` | Correct a classification through the staff command | version and key |
 | `automation.mail` | `pegasus_mail_action` | `move_folder` to the recommended Outlook folder; `dismiss` or `restore` in Pegasus | versions and key for a move; key for dismiss and restore |
 | `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
+| `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does | one-command lease |
+| `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `new` (or a chaser), `reply`, `reply_all`, `forward`, `triage_reply` | Case or Triage version and key |
 
 ## States and transitions
 
@@ -422,6 +457,14 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-11.
 - A report that is not ready is not generated: the answer names each
   readiness reason and nothing is recorded.
 - Recording report approval sends nothing and claims nothing was sent.
+- A send tool without `automation.send` is refused before it runs. A send is
+  Submitted, not Sent, until its Sent item is observed; an Unknown send is
+  never resent, its operation key is replayed.
+- A reply or reply all takes no recipients of its own; a new mail or forward
+  without a To recipient, or with an address that is not a plain e-mail
+  address, is refused and nothing is sent.
+- Mail is filed against an instruction Case; a Triage Case is answered only
+  with `triage_reply`, and a cancelled Triage takes no reply.
 - `pegasus_intake_action accept` is refused while the item's inspection
   address needs a staff decision; the Actor does not settle an address.
 - Confirm is refused for a job that is not a `Draft ready` QueryResponse or
@@ -448,7 +491,8 @@ acceptance are separate evidence tiers
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),
   [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
-  [FRD-14](frd-14-record-edit-leases.md).
+  [FRD-14](frd-14-record-edit-leases.md),
+  [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md).
 - Technical constraints:
   [ADR-0011](../adr/0011-restrict-mcp-to-automation-actor.md),
   [ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md),

@@ -284,7 +284,10 @@ date. Held keeps the remaining interval, and release to Not ready resumes it.
 Review, accepted material arriving, completion, or a cancellation or
 rejection stops the chase schedule.
 
-**Chasing is manual.** A staff member sends each chaser. Pegasus records what
+**Chasing is manual.** A staff member, or the Automation Actor through
+`pegasus_mail_send`
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#sending)), sends each
+chaser. Pegasus records what
 was attempted, by whom, through which channel, to which party and address,
 when, and with what evidence. A recorded chase is not proof that it was
 delivered. Each chaser keeps its recipient, channel, prepared draft or draft
@@ -297,8 +300,8 @@ the Case's recorded addresses, and staff send it
 ([FRD-16](frd-16-case-record-workspace.md#actions-menu)). When that send's
 exact Sent evidence is observed and the Case is Not ready with a chase
 scheduled, Pegasus records the chase itself — channel E-mail, the addresses
-sent to, outcome Sent, at the provider's sent time, by the staff member who
-sent it — and schedules the next chase at the interval; in any other state
+sent to, outcome Sent, at the provider's sent time, by the staff member or
+the Automation Actor who sent it — and schedules the next chase at the interval; in any other state
 the Sent item is correspondence evidence and no chase is recorded (operator,
 5 October 2026). Submitted is not Sent: nothing is recorded until the
 evidence exists.

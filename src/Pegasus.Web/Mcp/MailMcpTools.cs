@@ -148,7 +148,8 @@ internal enum MailAction
 /// per-area <c>automation.mail</c> scope. Reads mirror the workspace list and
 /// message detail; the mutations are the staff-equivalent classification
 /// correction, Dismiss and Restore (Pegasus-side only), and the confirmed move
-/// to the recommended Outlook folder (ADR-0064). Nothing here sends mail.
+/// to the recommended Outlook folder (ADR-0064). Nothing here sends mail:
+/// sending is <c>pegasus_mail_send</c>, under <c>automation.send</c>.
 /// </summary>
 [McpServerToolType]
 internal sealed class MailMcpTools(

@@ -19,6 +19,17 @@ internal sealed record IntakeToolAllocation(
     Guid? CaseId,
     string? CaseReference);
 
+/// <summary>
+/// One file the received item holds. A Triage reply attaches these by
+/// <see cref="AssetId"/> (<c>pegasus_mail_send</c> triage_reply).
+/// </summary>
+internal sealed record IntakeToolFile(
+    Guid AssetId,
+    string FileName,
+    string MediaType,
+    long ContentLength,
+    string CustodyState);
+
 internal sealed record IntakeToolDetail(
     Guid ReceiptId,
     long Version,
@@ -36,6 +47,7 @@ internal sealed record IntakeToolDetail(
     string InspectionAddressState,
     string? InspectionAddressSuggestion,
     string? InspectionAddressResolvedValue,
+    IReadOnlyList<IntakeToolFile> Files,
     string CorrelationId);
 
 internal sealed record IntakeActionToolResult(
@@ -98,7 +110,7 @@ internal sealed class IntakeActionMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Gets one received item as the Create case page reviews it: its version, processing decision, the Case it already belongs to, the classified case type, the instruction draft and which identity-critical fields it still lacks, the allocation attempt (with attemptId and whether it can be retried), and the inspection address state, suggestion and settled value.")]
+    [Description("Gets one received item as the Create case page reviews it: its version, processing decision, the Case it already belongs to, the classified case type, the instruction draft and which identity-critical fields it still lacks, the allocation attempt (with attemptId and whether it can be retried), the inspection address state, suggestion and settled value, and the item's files (assetId, name, type, size and custody state; a Triage reply attaches Confirmed files by assetId).")]
     public async Task<IntakeToolDetail> GetAsync(
         [Description(ReceiptIdDescription)] Guid receiptId,
         CancellationToken cancellationToken = default)
@@ -143,6 +155,14 @@ internal sealed class IntakeActionMcpTools(
                     resolution.State.ToString(),
                     resolution.Evaluation.Suggestion?.Value,
                     resolution.ResolvedValue,
+                    IntakeFileIdentity.Ordered(receipt)
+                        .Select(asset => new IntakeToolFile(
+                            asset.Id,
+                            asset.FileName,
+                            asset.MediaType,
+                            asset.ContentLength,
+                            asset.CustodyState.ToString()))
+                        .ToArray(),
                     context.TraceIdentifier);
             }),
             cancellationToken);
