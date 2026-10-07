@@ -1192,7 +1192,8 @@ function Wait-RunDatabaseReady {
         if (Test-PegasusDatabaseReady `
                 -Command $Tools.Database `
                 -ContainerName $context.ContainerName `
-                -Port $context.Port) {
+                -Port $context.Port `
+                -Database $(if ($Manifest.resources.database.created) { $context.DatabaseName } else { '' })) {
             return
         }
         Start-Sleep -Milliseconds 500
@@ -1670,6 +1671,20 @@ function Start-LocalRun {
             throw "Injected run-scoped bounded storage pressure ($StoragePressureMegabytes MiB)."
         }
 
+        # The Functions host runs from the Worker's built output and reads
+        # host.json there. The SDK copies the project's file with
+        # PreserveNewest, and Core Tools writes a default (base64 queue
+        # encoding, no Pegasus settings) when it finds none; once that newer
+        # default exists no rebuild replaces it, and every queue message the
+        # Web sends is poisoned. The run's input is the project's host.json.
+        $workerOutputDirectory = [System.IO.Path]::GetDirectoryName($workerAssembly)
+        $projectHostJson = Join-Path $workerDirectory 'host.json'
+        $outputHostJson = Join-Path $workerOutputDirectory 'host.json'
+        if (-not [System.IO.File]::Exists($outputHostJson) -or
+            (Get-Sha256 -Path $outputHostJson) -ne (Get-Sha256 -Path $projectHostJson)) {
+            [System.IO.File]::Copy($projectHostJson, $outputHostJson, $true)
+            Write-Host "Restored the Worker's host.json in its build output from $projectHostJson."
+        }
         $workerEnvironment = Get-WorkerEnvironment -Manifest $manifest -Settings $localSettings
         $manifest.processes.worker = Start-OwnedLauncher `
             -Manifest $manifest `

@@ -1251,19 +1251,23 @@ public sealed class GlassRepairEstimateCallbackWebTests
             var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
             var factory = baseFactory.WithWebHostBuilder(builder =>
             {
-                builder.ConfigureAppConfiguration((_, configuration) =>
-                    configuration.AddInMemoryCollection(new Dictionary<string, string?>
-                    {
-                        // The offline host composes Glass's only when asked to;
-                        // without the flag it composes the unavailable gateway.
-                        ["Features:LiveGlass"] = liveGlass ? "true" : "false",
-                        ["Glass:MarketValueAssessorBaseUri"] = GlassProviderFixture.MvaBase.AbsoluteUri,
-                        ["Glass:EstimatorBaseUri"] = GlassProviderFixture.EstimatorBase.AbsoluteUri,
-                        ["Glass:CallbackBaseUri"] = PegasusOrigin,
-                        ["Glass:RepairProfileId"] = GlassProviderFixture.ProfileId,
-                        ["Glass:ExportPollSeconds"] = "1",
-                        ["Glass:ExportTimeoutSeconds"] = "5",
-                    }));
+                // The offline host composes Glass's only when asked to, and it
+                // reads the flag and the Glass's settings at the top of Program,
+                // before the host's own configuration callbacks run; host
+                // settings are the one channel visible that early.
+                foreach (var (key, value) in new Dictionary<string, string?>
+                {
+                    ["Features:LiveGlass"] = liveGlass ? "true" : "false",
+                    ["Glass:MarketValueAssessorBaseUri"] = GlassProviderFixture.MvaBase.AbsoluteUri,
+                    ["Glass:EstimatorBaseUri"] = GlassProviderFixture.EstimatorBase.AbsoluteUri,
+                    ["Glass:CallbackBaseUri"] = PegasusOrigin,
+                    ["Glass:RepairProfileId"] = GlassProviderFixture.ProfileId,
+                    ["Glass:ExportPollSeconds"] = "1",
+                    ["Glass:ExportTimeoutSeconds"] = "5",
+                })
+                {
+                    builder.UseSetting(key, value);
+                }
                 builder.ConfigureTestServices(services =>
                 {
                     services.Configure<HttpClientFactoryOptions>(
