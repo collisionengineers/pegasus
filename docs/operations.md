@@ -1435,8 +1435,11 @@ are not D59 permission to migrate, reset, or infer a present database state.
 Box folder `405543781910` ("pegasus") is the production custody root: all case
 folders are created only under it, and the deployed configuration carries it.
 Folder `392761581105` is the only eligible controlled integration-test
-boundary, confined to an approved disposable test subtree; neither folder is
-standing write authority. The exact-target approval and invocation checks are
+boundary, confined to an approved disposable test subtree. Folder
+`425169015650` is the local-test custody root a hosted `DevelopmentOffline`
+run writes under when `Features:LiveBoxCustody` is on (approved 2026-10-07);
+its holding folder is created by the operator beneath it. None of these
+folders is standing write authority. The exact-target approval and invocation checks are
 owned by the [runbook's live-operation approval matrix](runbook.md#operational-authority).
 The activated production caller is confined to case-scoped objects under the
 configured root and has no delete, move, copy, or share operation. Failed

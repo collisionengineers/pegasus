@@ -1129,6 +1129,12 @@ public static class CaseWorkspaceLabels
             "The Glass's session was not resumed. Retry the operation.";
 
         /// <summary>
+        /// This Pegasus does not reach Glass's: a command that still arrives is
+        /// refused with this, and the Estimate section offers no control.
+        /// </summary>
+        public const string Unavailable = "Glass's is not available.";
+
+        /// <summary>
         /// A launch or a resume found the Case changed since the page
         /// rendered, or its edit lease ended.
         /// </summary>

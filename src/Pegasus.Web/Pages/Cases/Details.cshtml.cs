@@ -94,6 +94,7 @@ public sealed partial class DetailsModel(
     IEvaSubmissionQueries evaSubmissionQueries,
     IPerUserExternalCredentialReader externalCredentials,
     IGlassRepairEstimateSessionReader glassSessions,
+    GlassRepairEstimateAvailability glassAvailability,
     ICreateAudit createAudit,
     IAiJobQueries aiJobs,
     ICaseWorkflowConfiguration workflowConfiguration,
@@ -1198,6 +1199,13 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken)
     {
         if (actor.Kind != ActorKind.Staff || !Guid.TryParse(actor.SubjectId, out var staffId))
+        {
+            return new(false, null, null);
+        }
+
+        // A host that does not reach Glass's offers no control at all, whatever
+        // account the staff member holds.
+        if (!glassAvailability.Enabled)
         {
             return new(false, null, null);
         }
@@ -3557,6 +3565,10 @@ public sealed partial class DetailsModel(
         [FromServices] Pegasus.Web.Background.ProviderWorkQueue glassWork,
         CancellationToken cancellationToken)
     {
+        if (!glassAvailability.Enabled)
+        {
+            return RefuseUnavailableGlass(id, "LaunchGlass");
+        }
         var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
         if (guard is not null)
         {
@@ -3635,6 +3647,10 @@ public sealed partial class DetailsModel(
         [FromServices] Pegasus.Web.Background.ProviderWorkQueue glassWork,
         CancellationToken cancellationToken)
     {
+        if (!glassAvailability.Enabled)
+        {
+            return RefuseUnavailableGlass(id, "ResumeGlass");
+        }
         var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
         if (guard is not null)
         {
@@ -3804,6 +3820,12 @@ public sealed partial class DetailsModel(
         {
             return Forbid();
         }
+        if (!glassAvailability.Enabled)
+        {
+            LogGlassCommandRefused(logger, id, "CloseGlass", GlassLabels.Unavailable);
+            TempData["CaseError"] = GlassLabels.Unavailable;
+            return RedirectToEstimate(id);
+        }
         var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
         if (access?.CanOpen != true)
         {
@@ -3844,6 +3866,18 @@ public sealed partial class DetailsModel(
     /// asked. Logged once with the notice the guard set, so a report of the
     /// same screen can be told apart from a provider outcome.
     /// </summary>
+    /// <summary>
+    /// A Glass's command on a host that does not reach the provider. Refused
+    /// before the Estimate guard, so no lease is touched for a command that
+    /// could never run; answered in the Glass's window like every refusal.
+    /// </summary>
+    private PartialViewResult RefuseUnavailableGlass(Guid id, string handler)
+    {
+        LogGlassCommandRefused(logger, id, handler, GlassLabels.Unavailable);
+        TempData["CaseError"] = GlassLabels.Unavailable;
+        return GlassReturn(id);
+    }
+
     private IActionResult RefusedGlassGuard(Guid id, string handler, IActionResult guard)
     {
         if (guard is not RedirectToPageResult)

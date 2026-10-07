@@ -30,6 +30,43 @@ public sealed class ProductionBoxCustodyTests
         Assert.Contains("405543781910", error.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A host names the one root it may write under. The development root is
+    /// accepted only when a host asks for it, and the production root is then
+    /// refused in turn: neither root is ever a free setting.
+    /// </summary>
+    [Fact]
+    public void ConfigurationAcceptsOnlyTheRootTheHostNames()
+    {
+        var development = BoxCustodyOptions.Create(
+            "https://api.box.com/2.0/",
+            "https://upload.box.com/api/2.0/",
+            BoxCustodyOptions.DevelopmentRootFolderId,
+            BoxConfigJson,
+            "client-secret",
+            "test-holding-folder",
+            BoxCustodyOptions.DevelopmentRootFolderId);
+        var productionRootUnderDevelopmentHost = Assert.Throws<InvalidOperationException>(() => BoxCustodyOptions.Create(
+            "https://api.box.com/2.0/",
+            "https://upload.box.com/api/2.0/",
+            BoxCustodyOptions.ProductionRootFolderId,
+            BoxConfigJson,
+            "client-secret",
+            "test-holding-folder",
+            BoxCustodyOptions.DevelopmentRootFolderId));
+        var developmentRootUnderProductionHost = Assert.Throws<InvalidOperationException>(() => BoxCustodyOptions.Create(
+            "https://api.box.com/2.0/",
+            "https://upload.box.com/api/2.0/",
+            BoxCustodyOptions.DevelopmentRootFolderId,
+            BoxConfigJson,
+            "client-secret",
+            "test-holding-folder"));
+
+        Assert.Equal("425169015650", development.RootFolderId);
+        Assert.Contains("425169015650", productionRootUnderDevelopmentHost.Message, StringComparison.Ordinal);
+        Assert.Contains("405543781910", developmentRootUnderProductionHost.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ConfigurationRejectsMissingOrMalformedJwtMaterial()
     {
