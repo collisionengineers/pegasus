@@ -148,7 +148,7 @@ public sealed class PrincipalApiCaseDataSnapshotPersistenceTests
                         new DiscardingCommittedWorkPublisher(),
                         new TriageCasePairing(new EfTriageStore(factory,
                             [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], TimeProvider.System))),
-                    new EfCaseDataStore(factory, TimeProvider.System));
+                    new EfCaseDataStore(factory));
             }
             catch
             {

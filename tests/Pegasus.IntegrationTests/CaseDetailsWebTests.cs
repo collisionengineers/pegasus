@@ -380,7 +380,7 @@ public sealed class CaseDetailsWebTests
         Assert.Equal(1, Occurrences(html, $"/Cases/{store.CaseId:D}?handler=Save"));
         Assert.Equal(1, Occurrences(html, "id=\"case-edit-form\""));
         Assert.Equal(1, Occurrences(html, "data-edit-save"));
-        // Each editable value SaveCase writes appears once across the
+        // Each editable value the Case save writes appears once across the
         // record, so no control is shadowed by a stale copy of itself.
         foreach (var field in new[]
         {

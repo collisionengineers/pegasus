@@ -23,7 +23,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var caseId = (await harness.AcceptAsync("spec-snapshot-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
-        var save = new SaveEstimate(harness.RepairSpecifications, jobs, harness.Clock);
+        var save = new SaveEstimate(harness.RepairSpecifications, jobs);
         var snapshots = new EfRepairSpecificationSnapshotStore(harness.Factory, harness.Clock);
         var lines = new EstimateLineInput[]
         {
@@ -93,7 +93,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var caseId = (await harness.AcceptAsync("spec-restore-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
-        var save = new SaveEstimate(harness.RepairSpecifications, jobs, harness.Clock);
+        var save = new SaveEstimate(harness.RepairSpecifications, jobs);
         var snapshots = new EfRepairSpecificationSnapshotStore(harness.Factory, harness.Clock);
         var lease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "spec-restore-save-lease");
         var specification = await save.ExecuteAsync(
@@ -167,7 +167,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var caseId = (await harness.AcceptAsync("spec-scale-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
-        var save = new SaveEstimate(harness.RepairSpecifications, jobs, harness.Clock);
+        var save = new SaveEstimate(harness.RepairSpecifications, jobs);
         var snapshots = new EfRepairSpecificationSnapshotStore(harness.Factory, harness.Clock);
         var rateCard = await new EfLabourRateCardStore(harness.Factory, harness.Clock).SaveAsync(
             new(Guid.NewGuid(), "Panel and paint", 80m, true, 0,

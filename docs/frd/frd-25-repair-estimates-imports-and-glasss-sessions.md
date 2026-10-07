@@ -49,6 +49,9 @@ a staff member types in, imports or brings back from Glass's becomes Current
 when it is created (operator, 25 September 2026). The one it replaces stays
 in the list, and **Use repair spec** switches back to it. An AI draft only
 proposes: it stays a Draft until a staff member presses **Use repair spec**.
+The Automation Actor may edit any live spec in place, the Current one
+included, but never puts a spec in use (operator, 7 October 2026;
+[FRD-10](frd-10-mcp-automation-and-actor-boundary.md#ai-job-and-estimate-tools)).
 The Current spec stays editable while the Case is writable; each change marks
 a generated report stale, and the numbered versions below keep the history.
 Create audit copies every live estimate, with its lines and its Current

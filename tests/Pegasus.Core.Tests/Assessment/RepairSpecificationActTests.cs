@@ -341,29 +341,53 @@ public sealed class RepairSpecificationActTests
     }
 
     /// <summary>
-    /// PR 792 took the Engineer account type out of the authority rules: scaling
-    /// and removing scaling are staff acts. What is still refused is an actor who
-    /// is not staff at all, which is what RequireStaffAuthor stands for.
+    /// Scaling, removing scaling and restoring a snapshot are casework: the
+    /// Automation actor does them as staff do (operator, 7 October 2026). An
+    /// actor without the casework right is refused before the store is asked.
     /// </summary>
     [Fact]
-    public async Task OnlyStaffActOnARepairSpecification()
+    public async Task EveryCaseworkActorActsOnARepairSpecification()
     {
         var specification = Estimate(Header(rate: 40m), Line("new_part", price: 100m));
-        var store = new RecordingStore(specification);
+        var store = new RecordingStore(specification) { RestoreResult = specification };
         var automation = ActionActor.Automation("pegasus-automation");
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new ScaleRepairSpecification(new RecordingAssessment(10_000m), store).ExecuteAsync(
+        await new ScaleRepairSpecification(new RecordingAssessment(10_000m), store).ExecuteAsync(
+            new(
+                CaseId, 3, automation, "op-scale", new string('l', 32), specification.SpecificationId,
+                40m,
+                ScalingFloors.Default),
+            CancellationToken.None);
+        await new RemoveRepairSpecificationScaling(store).ExecuteAsync(
+            new(CaseId, 3, automation, "op-remove", new string('l', 32), specification.SpecificationId),
+            CancellationToken.None);
+        await new RestoreRepairSpecificationSnapshot(store).ExecuteAsync(
+            new(CaseId, 3, automation, "op-restore", new string('l', 32), specification.SpecificationId, Guid.NewGuid()),
+            CancellationToken.None);
+        Assert.Equal(automation.SubjectId, Assert.Single(store.ScaleSaves).Actor.SubjectId);
+        Assert.Equal(automation.SubjectId, Assert.Single(store.Removals).Actor.SubjectId);
+        Assert.Equal(automation.SubjectId, Assert.Single(store.Restores).Actor.SubjectId);
+
+        var worker = ActionActor.SystemWorker("case-worker");
+        var refused = new RecordingStore(specification) { RestoreResult = specification };
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            new ScaleRepairSpecification(new RecordingAssessment(10_000m), refused).ExecuteAsync(
                 new(
-                    CaseId, 3, automation, "op", new string('l', 32), specification.SpecificationId,
+                    CaseId, 3, worker, "op", new string('l', 32), specification.SpecificationId,
                     40m,
                     ScalingFloors.Default),
                 CancellationToken.None));
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new RemoveRepairSpecificationScaling(store).ExecuteAsync(
-                new(CaseId, 3, automation, "op", new string('l', 32), specification.SpecificationId),
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            new RemoveRepairSpecificationScaling(refused).ExecuteAsync(
+                new(CaseId, 3, worker, "op", new string('l', 32), specification.SpecificationId),
                 CancellationToken.None));
-        Assert.Empty(store.Saves);
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            new RestoreRepairSpecificationSnapshot(refused).ExecuteAsync(
+                new(CaseId, 3, worker, "op", new string('l', 32), specification.SpecificationId, Guid.NewGuid()),
+                CancellationToken.None));
+        Assert.Empty(refused.ScaleSaves);
+        Assert.Empty(refused.Removals);
+        Assert.Empty(refused.Restores);
     }
 
     private static EstimateDetails Header(decimal rate) => new("Repair spec", rate, null, 20m,

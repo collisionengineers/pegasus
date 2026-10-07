@@ -5,6 +5,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
+using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Assessment;
@@ -15,8 +16,9 @@ namespace Pegasus.Core.Assessment;
 /// persistence; the required-when pairings from the screen's own hints are
 /// enforced against the merged state; and the actor rules implement the
 /// operator-decided direct-write model: a staff or Automation save records
-/// the Case's value with its provenance, and a professional-finding field is
-/// recorded only by an authenticated staff actor. There is no per-field
+/// the Case's value with its provenance, professional findings included
+/// (operator, 7 October 2026: the Automation actor does anything a staff
+/// member can). There is no per-field
 /// review (operator, 25 September 2026): Review is a Case stage, and Hand to
 /// Engineer is the review. Estimate derivation (totals, worklists) is
 /// deliberately absent until its formulas hold accepted authority (EXT-09,
@@ -61,28 +63,10 @@ public static class AssessmentPolicy
     }
 
     /// <summary>
-    /// The one owner of who may record a professional finding: an
-    /// authenticated staff member, never the Automation actor. The field gate
-    /// (<see cref="NormalizeWritableField"/>) applies it to every finding path
-    /// a field save writes, naming the field; a caller that writes a finding
-    /// outside a field save - the Engineer's Value valuation - applies it on
-    /// its own.
-    /// </summary>
-    public static void RequireFindingAuthority(ActionActor actor)
-    {
-        ArgumentNullException.ThrowIfNull(actor);
-        if (actor.Kind != ActorKind.Staff)
-        {
-            throw new InvalidOperationException(
-                "A professional finding can be recorded only by authenticated staff.");
-        }
-    }
-
-    /// <summary>
     /// The one gate every generic field save passes: the path must be part of
     /// the vocabulary, must not be derived from the damage impacts or recorded
-    /// by the vehicle lookup, must not be owned by the accepted case record,
-    /// and a professional finding is written only by staff. The value is then canonicalized
+    /// by the vehicle lookup, and must not be owned by the accepted case
+    /// record. The value is then canonicalized
     /// against its own definition. Both the assessment save and the Case
     /// workspace save call it, so an unwritable path fails the same way on
     /// either route.
@@ -113,22 +97,30 @@ public static class AssessmentPolicy
                 $"The field path '{path}' is not part of the assessment vocabulary.",
                 nameof(path));
         }
-        if (definition.IsFinding && actor.Kind != ActorKind.Staff)
-        {
-            throw new InvalidOperationException(
-                $"The field '{path}' is a professional finding; only staff record it on the Case.");
-        }
 
         return NormalizeValue(definition, rawValue);
     }
 
     /// <summary>
     /// Whether an automated fill (the original-report extraction, the vehicle
-    /// lookup's Vehicle type) lands on a cell: only where staff have not
-    /// recorded a value. A value staff typed is never overwritten; a value an
-    /// automation recorded takes the newer reading.
+    /// lookup's Vehicle type) lands on a cell: only where no one has recorded
+    /// a value or another fill recorded it. A value staff or the Automation
+    /// actor recorded on purpose is never overwritten (operator, 7 October
+    /// 2026); a value a fill recorded takes the newer reading.
     /// </summary>
-    public static bool FillLands(ActorKind? recordedByKind) => recordedByKind != ActorKind.Staff;
+    public static bool FillLands(ActorKind? recordedByKind, string? recordedBy) =>
+        recordedByKind is null
+        || (recordedByKind == ActorKind.Automation
+            && recordedBy is not null
+            && SystemFillRecorders.Contains(recordedBy));
+
+    private static readonly HashSet<string> SystemFillRecorders = new(StringComparer.Ordinal)
+    {
+        OriginalReportPrefillPolicy.RecorderId,
+        VehicleLookupFillPolicy.RecorderId,
+        GlassVinFillPolicy.RecorderId,
+        PrincipalDefaultFeePolicy.RecorderId,
+    };
 
     public static void RequireOriginalReportScope(IEnumerable<string> paths, CaseType caseType)
     {
@@ -194,8 +186,7 @@ public static class AssessmentPolicy
     /// </summary>
     public static void CompleteCoupledWrites(
         Dictionary<string, string?> writes,
-        IReadOnlyDictionary<string, string> current,
-        ActorKind actorKind)
+        IReadOnlyDictionary<string, string> current)
     {
         ArgumentNullException.ThrowIfNull(writes);
         ArgumentNullException.ThrowIfNull(current);
@@ -205,7 +196,6 @@ public static class AssessmentPolicy
             && writes.TryGetValue(AssessmentVocabulary.Outcome, out var requestedOutcome)
             && !string.Equals(requestedOutcome, "contract_repair", StringComparison.Ordinal);
         if (!leavingContract
-            && actorKind == ActorKind.Staff
             && writes.TryGetValue(AssessmentVocabulary.SettlementContractSum, out var sum)
             && decimal.TryParse(sum, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)
             && amount > 0)
@@ -523,7 +513,8 @@ public static class AssessmentPolicy
                     || !definition.Codes.Contains(value, StringComparer.Ordinal))
                 {
                     throw new ArgumentException(
-                        $"The value for '{definition.Path}' is not one of its accepted codes.",
+                        $"The value for '{definition.Path}' is not one of its accepted codes: "
+                        + string.Join(", ", definition.Codes ?? []) + ".",
                         nameof(rawValue));
                 }
                 return value;
@@ -791,20 +782,13 @@ public static class AssessmentPolicy
                     "An estimate line price must be a non-negative amount with at most two decimal places.",
                     nameof(lines));
             }
-            if (line.Unpriced && line.Price is not null)
-            {
-                throw new ArgumentException(
-                    "A line marked To be confirmed cannot also carry a price.",
-                    nameof(lines));
-            }
-
-            var evidence = NormalizeCode(
-                line.EvidenceLabel,
-                EstimateLineCodes.EvidenceLabels,
-                "evidence label");
+            var evidence = NormalizeEvidenceLabel(line.EvidenceLabel);
             normalized.Add(line with
             {
                 Type = line.Type!.Trim(),
+                // A priced line is not To be confirmed: the price wins, as
+                // pricing a To be confirmed line on the Case does.
+                Unpriced = line.Unpriced && line.Price is null,
                 GuideCode = NormalizeText(line.GuideCode, 50, "guide code"),
                 Description = NormalizeText(line.Description, 300, "description"),
                 EvidenceLabel = evidence,
@@ -824,10 +808,7 @@ public static class AssessmentPolicy
         return NormalizeLines(lines);
     }
 
-    private static string? NormalizeCode(
-        string? value,
-        IReadOnlyList<string> codes,
-        string description)
+    private static string? NormalizeEvidenceLabel(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -835,10 +816,12 @@ public static class AssessmentPolicy
         }
 
         var normalized = value.Trim();
-        return codes.Contains(normalized, StringComparer.Ordinal)
+        return EstimateLineCodes.EvidenceLabels.Contains(normalized, StringComparer.Ordinal)
             ? normalized
             : throw new ArgumentException(
-                $"An estimate line carries an unrecognized {description}.",
+                $"An estimate line carries an unrecognized evidence label '{normalized}'; use one of: "
+                + string.Join(", ", EstimateLineCodes.EvidenceLabels)
+                + ". Source text belongs in the line's justification.",
                 nameof(value));
     }
 

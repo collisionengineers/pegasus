@@ -1,22 +1,7 @@
 using Pegasus.Core.Address;
-using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Cases;
-
-public sealed class SaveCase(ICaseDataStore store) : ISaveCase
-{
-    private readonly ICaseDataStore _store = store ?? throw new ArgumentNullException(nameof(store));
-
-    public Task<CaseDataProjection> ExecuteAsync(
-        SaveCaseRequest request,
-        CancellationToken cancellationToken)
-    {
-        CaseDataPolicy.ValidateMutation(request);
-        var normalized = CaseDataPolicy.Normalize(request.Data);
-        return _store.SaveAsync(request with { Data = normalized }, cancellationToken);
-    }
-}
 
 public static class CaseCompletenessPolicy
 {
@@ -54,9 +39,6 @@ public static class CaseDataPolicy
 {
     public const string EditPolicyKey = "case-data-edit";
     public const int EditPolicyVersion = 1;
-
-    public static void ValidateMutation(CaseMutationRequest request) =>
-        CaseLifecycleRules.ValidateMutation(request);
 
     /// <summary>
     /// Completeness records the two factual instruction and image values.

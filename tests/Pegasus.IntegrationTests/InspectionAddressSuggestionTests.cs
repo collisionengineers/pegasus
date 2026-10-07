@@ -32,16 +32,14 @@ public sealed class InspectionAddressSuggestionTests
         var priorIds = await CloneCasesAsync(factory, currentId, 1);
         var priorId = priorIds[0];
 
-        // C06 review R-22: SaveEditableDataAsync posts a partial
-        // CaseEditableData, and EfCaseDataStore.SetConfirmed deletes a
-        // confirmed field whose incoming value is null — a second save
-        // naming only StorageLocation would wipe the ClaimantAddress the
-        // line above it just confirmed. Seed both confirmed fields this
-        // case needs in one save so neither is destroyed by the other.
-        await SaveEditableDataAsync(
+        // C06 review R-22: a submitted Case save section replaces its own
+        // members, so the claimant address (Overview) and the storage
+        // location (Inspection) this case needs are seeded in one save.
+        await SaveWorkspaceAsync(
             factory,
             currentId,
-            new(ClaimantAddress: "Riverside House, AB1 2CD", StorageLocation: "Riverside Yard, AB1 5GH"));
+            Overview(claimantAddress: "Riverside House, AB1 2CD"),
+            Inspection(CaseReportAddressTreatment.Undetermined, null, "Riverside Yard, AB1 5GH"));
         await SaveInspectionAddressAsync(factory, priorId, "Riverside Garage, AB1 9ZZ");
         await using (var scope = factory.Services.CreateAsyncScope())
         {
@@ -90,7 +88,7 @@ public sealed class InspectionAddressSuggestionTests
     /// is regular.
     /// </summary>
     /// <remarks>
-    /// C06 review R-21: the fixture cannot seed through <c>ISaveCase</c> —
+    /// C06 review R-21: the fixture cannot seed through the Case save —
     /// <c>CaseDataOperations.Text</c> collapses whitespace on write, so the
     /// doubled space would never reach the row. The intake-acceptance path
     /// (<c>Ext18InspectionAddressPolicy.Evaluate</c>, which only
@@ -283,25 +281,26 @@ public sealed class InspectionAddressSuggestionTests
         WebApplicationFactory<Program> factory,
         Guid caseId,
         string claimantAddress) =>
-        await SaveEditableDataAsync(factory, caseId, new(ClaimantAddress: claimantAddress));
+        await SaveWorkspaceAsync(factory, caseId, Overview(claimantAddress), null);
 
     private static async Task SaveInspectionAddressAsync(
         WebApplicationFactory<Program> factory,
         Guid caseId,
         string inspectionAddress) =>
-        await SaveEditableDataAsync(
+        await SaveWorkspaceAsync(
             factory,
             caseId,
-            new(InspectionAddress: inspectionAddress, InspectionMode: CaseInspectionMode.PhysicalAddress));
+            null,
+            Inspection(CaseReportAddressTreatment.PhysicalVehicleLocation, inspectionAddress));
 
     /// <summary>
     /// C06 review R-21: seeds a confirmed <c>inspection_address</c> field
-    /// directly at the row level, bypassing <c>ISaveCase</c> /
+    /// directly at the row level, bypassing the Case save /
     /// <c>CaseDataPolicy.Normalize</c> — whose <c>Text(...)</c> helper
     /// collapses every whitespace run on write — the same way the
     /// intake-acceptance path (<c>Trim()</c> only) can leave a stored value
     /// with irregular interior whitespace. Not reachable through
-    /// <c>ISaveCase</c> at all, so this is the only route to that state.
+    /// the Case save at all, so this is the only route to that state.
     /// </summary>
     private static async Task SeedConfirmedInspectionAddressAsync(
         WebApplicationFactory<Program> factory,
@@ -336,10 +335,20 @@ public sealed class InspectionAddressSuggestionTests
         await context.SaveChangesAsync();
     }
 
-    private static async Task SaveEditableDataAsync(
+    private static CaseWorkspaceOverview Overview(string claimantAddress) =>
+        new(null, null, claimantAddress, null, null, null, null, null, null, null, null, null);
+
+    private static CaseWorkspaceInspection Inspection(
+        CaseReportAddressTreatment treatment,
+        string? address,
+        string? storageLocation = null) =>
+        new(treatment, address, null, storageLocation, null, null, null, null, null, null, null, null, null, null, null);
+
+    private static async Task SaveWorkspaceAsync(
         WebApplicationFactory<Program> factory,
         Guid caseId,
-        CaseEditableData editableData)
+        CaseWorkspaceOverview? overview,
+        CaseWorkspaceInspection? inspection)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
@@ -351,15 +360,18 @@ public sealed class InspectionAddressSuggestionTests
             .ExecuteAsync(
                 new(caseId, current.Version, actor, $"lease-{Guid.NewGuid():N}"),
                 CancellationToken.None);
-        await services.GetRequiredService<ISaveCase>().ExecuteAsync(
-            new(
+        await services.GetRequiredService<ICaseWorkspaceStore>().SaveAsync(
+            new SaveCaseWorkspaceRequest(
                 caseId,
                 current.Version,
                 actor,
                 $"save-{Guid.NewGuid():N}",
                 "Suggestion search fixture",
-                lease.Token,
-                editableData),
+                lease.Token)
+            {
+                Overview = overview,
+                Inspection = inspection
+            },
             CancellationToken.None);
     }
 

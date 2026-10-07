@@ -284,7 +284,7 @@ public sealed class ScaleRepairSpecification(
         ScaleRepairSpecificationRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         var projection = await assessment.GetAsync(request.CaseId, request.Work, cancellationToken);
         var field = projection?.Field(AssessmentVocabulary.ValueEngineer);
         decimal? engineerValue = field is not null
@@ -306,7 +306,7 @@ public sealed class RemoveRepairSpecificationScaling(
         RemoveRepairSpecificationScalingRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         return await store.RemoveScalingAsync(request, cancellationToken);
     }
 }
@@ -319,7 +319,7 @@ public sealed class RestoreRepairSpecificationSnapshot(
         RestoreRepairSpecificationSnapshotRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         return await store.RestoreSnapshotAsync(request, cancellationToken);
     }
 }
