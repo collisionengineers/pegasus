@@ -242,7 +242,7 @@ public sealed class CaseAssetPreparationWebTests
             StaffRole.User);
 
         var leased = await workspace.GetWorkspaceAsync();
-        var card = Card(ImageGrid(await GetFilesFragmentAsync(workspace, leased)), fixture.OverviewOccurrenceId);
+        var card = Card(ImageGrid(await GetFilesFragmentAsync(workspace, leased)), fixture.FirstSupportingOccurrenceId);
 
         Assert.Contains("image-tile-panel", card, StringComparison.Ordinal);
         Assert.Contains("handler=SetImageInReport", card, StringComparison.Ordinal);
@@ -253,6 +253,51 @@ public sealed class CaseAssetPreparationWebTests
         Assert.Contains("data-image-full-page", card, StringComparison.Ordinal);
         Assert.Contains("class=\"grip\"", card, StringComparison.Ordinal);
         Assert.DoesNotContain("data-image-report-read", card, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Each tile's order is the place its image prints, shown at once for an
+    /// image nobody has ordered. The Overview holds place 1 and the Close-up
+    /// place 2 by their tags (operator, 7 October 2026), so their order is
+    /// read-only and they have no drag handle.
+    /// </summary>
+    [Fact]
+    public async Task EachTileShowsThePlaceItPrintsAndTheTaggedPlacesAreFixed()
+    {
+        var fixture = new PreparedImages();
+        var store = fixture.Store();
+        store.Preparations = [.. store.Preparations.Select(item => item with { Order = null })];
+        using var workspace = await EnterEngineerEditModeAsync(
+            store,
+            services => Substitute<ICaseAssetPreparationQueries>(services, store));
+
+        var leased = await workspace.GetWorkspaceAsync();
+        var grid = ImageGrid(await GetFilesFragmentAsync(workspace, leased));
+
+        static string OrderInput(string card) =>
+            Regex.Match(card, "<input[^>]*data-preparation-order[^>]*>").Value;
+        var overview = Card(grid, fixture.OverviewOccurrenceId);
+        var closeUp = Card(grid, fixture.CloseUpOccurrenceId);
+        Assert.Contains("data-preparation-order=\"1\"", overview, StringComparison.Ordinal);
+        Assert.Contains("value=\"1\"", OrderInput(overview), StringComparison.Ordinal);
+        Assert.Contains("readonly", OrderInput(overview), StringComparison.Ordinal);
+        Assert.DoesNotContain("class=\"grip\"", overview, StringComparison.Ordinal);
+        Assert.Contains("data-preparation-order=\"2\"", closeUp, StringComparison.Ordinal);
+        Assert.Contains("readonly", OrderInput(closeUp), StringComparison.Ordinal);
+        Assert.DoesNotContain("class=\"grip\"", closeUp, StringComparison.Ordinal);
+        string[] supportingPlaces =
+        [
+            .. new[] { fixture.FirstSupportingOccurrenceId, fixture.SecondSupportingOccurrenceId }
+                .Select(occurrenceId => Card(grid, occurrenceId))
+                .Select(card =>
+                {
+                    Assert.DoesNotContain("readonly", OrderInput(card), StringComparison.Ordinal);
+                    Assert.Contains("class=\"grip\"", card, StringComparison.Ordinal);
+                    return Regex.Match(card, "data-preparation-order=\"(\\d+)\"").Groups[1].Value;
+                })
+                .Order(StringComparer.Ordinal),
+        ];
+        Assert.Equal(["3", "4"], supportingPlaces);
     }
 
     /// <summary>
@@ -577,8 +622,10 @@ public sealed class CaseAssetPreparationWebTests
                 SecondSupportingFileName, UnusedFileName
             }.Single(fileName => tile.Contains(fileName, StringComparison.Ordinal)))
             .ToArray();
+        // The Overview holds place 1 and the Close-up place 2 by their tags
+        // (operator, 7 October 2026), whatever order they were given.
         Assert.Equal(
-            new[] { CloseUpFileName, OverviewFileName, FirstSupportingFileName, SecondSupportingFileName, UnusedFileName },
+            new[] { OverviewFileName, CloseUpFileName, FirstSupportingFileName, SecondSupportingFileName, UnusedFileName },
             tileOrder);
         Assert.DoesNotContain("data-preparation-role", tiles, StringComparison.Ordinal);
         Assert.DoesNotContain("data-image-remove", tiles, StringComparison.Ordinal);

@@ -90,7 +90,7 @@ readiness list: every blocker, one row each with the requirement, its source,
 why it is outstanding, what clears it and a link to the section that clears
 it ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
 Where a tab inside that section clears it, the link opens that tab too
-(operator, 1 October 2026): a missing Close-up, Overview or report image
+(operator, 1 October 2026): a missing Overview or report image
 source opens Files on **Images**, and the agreed fee or its description
 lines open Report on **Fee**.
 The rows run in page order (operator, 2 October 2026): section by section
@@ -718,10 +718,13 @@ read-only in Completed. An image has one place (v28 P50): whether the report
 uses it, its order and the tools that change them are on its tile under
 Files, and non-destructive crops leave the retained source and its hash
 untouched. A new image is in the report. The tile has no report
-role: its tag decides how it prints, the first tagged `Close-up` first and
-the first other one tagged `Overview` second, the rest as supporting images
-in order (operator, 26 September 2026). The Close-up prints on page 1 and the
-Overview leads the image pages
+role: its tag decides how it prints, the first tagged `Overview` first and
+the first other one tagged `Close-up` second, the rest as supporting images
+in order (operator, 7 October 2026). The tile's order is the place its image
+prints, shown as soon as the image is in the report. The two tagged places
+are fixed: their order cannot be changed and they have no grip, and ordering
+moves only the rest. The Overview prints on page 1 and the
+Close-up leads the image pages
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
 Beneath the grid a line counts what the report uses, out of the images that
 can print
@@ -729,9 +732,11 @@ can print
 an image still being stored is in neither number. The tile also carries
 Rotate and **Full page** (v28 P41): Full page is a flag on an image the
 report uses, so the image prints on a page of its own; the grip drags a tile
-above the one it lands on and the order the tiles then stand in is the
-report's order. While the Case edits, clicking the image itself presses its
-In report (v28 P27). The Report section carries no image surface.
+above the one it lands on, and a typed order moves the tile to that place;
+the order the tiles then stand in is the report's order. The tile shows the
+whole image. Clicking the image opens the full-screen viewer, while editing
+or reading; In report is pressed on the tile or in the viewer (operator,
+7 October 2026). The Report section carries no image surface.
 
 The Repair Spec section (v28 P31: the word "Estimate" stays for an imported
 repairer's document) carries the repair specification set (`EXT-09`): named

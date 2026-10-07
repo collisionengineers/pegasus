@@ -278,13 +278,11 @@ public sealed class AssessmentReportTemplateConformanceTests(RenderedTemplateSam
     {
         var (_, report, template) = rendered[name];
 
-        // Page 1: the Close-up at the left and the damage diagram at the right, each 80.4 by 36 mm.
+        // Page 1: the Overview at the left and the damage diagram at the right, each slot 80.4 by 36 mm.
         var slots = Slots(template[0], LeadSlotHeight);
         Assert.Equal(2, slots.Count);
         var lead = Assert.Single(report[0].Images, image => image.Top > BodyTop);
-        AssertNear(slots[0], lead, name + " page 1 image");
-        Assert.InRange(lead.Width, SlotWidth - 0.2, SlotWidth + 0.2);
-        Assert.InRange(lead.Height, LeadSlotHeight - 0.2, LeadSlotHeight + 0.2);
+        AssertFitsWhole(slots[0], lead, name + " page 1 image");
         var drawing = report[0].Shapes
             .Where(shape => !shape.Clip && shape.Top > slots[1].Top - Near && shape.Bottom < BodyBottom)
             .ToArray();
@@ -307,20 +305,19 @@ public sealed class AssessmentReportTemplateConformanceTests(RenderedTemplateSam
             (slots[1].Left + slots[1].Right) / 2 - 1,
             (slots[1].Left + slots[1].Right) / 2 + 1);
 
-        // The image page: six images, two across and three down, each 80.4 by 48 mm.
+        // The image page: six images, two across and three down, each slot 80.4 by 48 mm.
         var grid = Slots(template[4], GridSlotHeight);
+        // Each image is centred in its slot, so a row's images share a middle, not a top.
         var images = report[4].Images
             .Where(image => image.Top > BodyTop)
-            .OrderBy(image => Math.Round(image.Top))
+            .OrderBy(image => Math.Round((image.Top + image.Bottom) / 2))
             .ThenBy(image => image.Left)
             .ToArray();
         Assert.Equal(6, grid.Count);
         Assert.Equal(6, images.Length);
         foreach (var (image, slot) in images.Zip(grid))
         {
-            AssertNear(slot, image, name + " page 5 image");
-            Assert.InRange(image.Width, SlotWidth - 0.2, SlotWidth + 0.2);
-            Assert.InRange(image.Height, GridSlotHeight - 0.2, GridSlotHeight + 0.2);
+            AssertFitsWhole(slot, image, name + " page 5 image");
         }
         // No other page carries a photograph.
         Assert.All(
@@ -567,6 +564,22 @@ public sealed class AssessmentReportTemplateConformanceTests(RenderedTemplateSam
         string.Create(
             CultureInfo.InvariantCulture,
             $"{what}: the template sets {expected.Left:0.0} {expected.Top:0.0} {expected.Right:0.0} {expected.Bottom:0.0} and the report {printed.Left:0.0} {printed.Top:0.0} {printed.Right:0.0} {printed.Bottom:0.0}."));
+
+    /// <summary>
+    /// An image prints whole in its slot (operator, 7 October 2026): inside
+    /// it, centred, and meeting the slot's edges across or down.
+    /// </summary>
+    private static void AssertFitsWhole(PrintedBox slot, PrintedBox printed, string what) => Assert.True(
+        printed.Left >= slot.Left - Near
+        && printed.Right <= slot.Right + Near
+        && printed.Top >= slot.Top - Near
+        && printed.Bottom <= slot.Bottom + Near
+        && Math.Abs((printed.Left + printed.Right - slot.Left - slot.Right) / 2) <= Near
+        && Math.Abs((printed.Top + printed.Bottom - slot.Top - slot.Bottom) / 2) <= Near
+        && (Math.Abs(printed.Width - slot.Width) <= Near || Math.Abs(printed.Height - slot.Height) <= Near),
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"{what}: the template's slot is {slot.Left:0.0} {slot.Top:0.0} {slot.Right:0.0} {slot.Bottom:0.0} and the report's image {printed.Left:0.0} {printed.Top:0.0} {printed.Right:0.0} {printed.Bottom:0.0}."));
 
     private static string Describe(PrintedLetter letter) => string.Create(
         CultureInfo.InvariantCulture,
