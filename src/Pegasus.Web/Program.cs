@@ -37,6 +37,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Eva;
+using Pegasus.Infrastructure.Glass;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Transport;
 using Microsoft.ApplicationInsights.Extensibility;
@@ -131,6 +132,28 @@ if (builder.Configuration.GetValue<bool>("Features:LocalIntake")
 {
     throw new InvalidOperationException(
         "Features:LocalIntake requires the DevelopmentOffline runtime profile.");
+}
+// The local live-integration opt-ins. Each is a DevelopmentOffline feature in
+// the same sense as Features:LocalIntake: Production composes its vendors from
+// its own required keys and never reads these, so a Production host carrying
+// one fails at start naming the key rather than composing a second truth.
+var liveVehicleLookup = builder.Configuration.GetValue<bool>("Features:LiveVehicleLookup");
+var liveBoxCustody = builder.Configuration.GetValue<bool>("Features:LiveBoxCustody");
+var liveGlass = builder.Configuration.GetValue<bool>("Features:LiveGlass");
+var passwordSignIn = builder.Configuration.GetValue<bool>("Features:PasswordSignIn");
+foreach (var (featureKey, enabled) in new[]
+{
+    ("Features:LiveVehicleLookup", liveVehicleLookup),
+    ("Features:LiveBoxCustody", liveBoxCustody),
+    ("Features:LiveGlass", liveGlass),
+    ("Features:PasswordSignIn", passwordSignIn),
+})
+{
+    if (enabled && !developmentOfflineProfile)
+    {
+        throw new InvalidOperationException(
+            $"{featureKey} requires the DevelopmentOffline runtime profile.");
+    }
 }
 if (!developmentOfflineProfile && !productionProfile)
 {
@@ -266,10 +289,22 @@ else
             "AzureWebJobsStorage is required for DevelopmentOffline queue transport.");
     intakeWorkQueue = new QueueClient(queueConnectionString, "intake-work");
     allowLocalQueueCreation = true;
+    if (liveBoxCustody)
+    {
+        // Live Box custody keeps the production storage shape over the run's
+        // Azurite account: the same container the Worker provisions and reads.
+        builder.Services.AddSingleton(
+            new BlobContainerClient(queueConnectionString, "transient-intake"));
+    }
 }
 builder.Services.AddSingleton<ICursorProtector, DataProtectionCursorProtector>();
 var localDocumentCustodyConfigured =
     builder.Configuration.GetValue<bool>("Features:LocalDocumentCustody");
+if (localDocumentCustodyConfigured && liveBoxCustody)
+{
+    throw new InvalidOperationException(
+        "Features:LocalDocumentCustody and Features:LiveBoxCustody name two custody stores; configure one.");
+}
 
 // The Automation MCP ingress is composition-gated off by default: when the
 // flag is absent nothing below registers and no /mcp or /connect/token route
@@ -436,10 +471,14 @@ builder.Services.AddAuthentication(options =>
         {
             var configuration = context.RequestServices.GetRequiredService<IConfiguration>();
             var environment = context.RequestServices.GetRequiredService<IHostEnvironment>();
+            // Features:PasswordSignIn hands the offline host back to the
+            // Identity cookie so the real sign-in page and role matrix can be
+            // exercised; the automatic scheme then never answers.
             return environment.IsDevelopment()
                 && configuration["Runtime:Profile"]?.Equals(
                     DevelopmentOfflineProfile,
                     StringComparison.Ordinal) == true
+                && !configuration.GetValue<bool>("Features:PasswordSignIn")
                     ? DevelopmentOfflineAuthenticationScheme
                     : IdentityConstants.ApplicationScheme;
         };
@@ -631,7 +670,10 @@ builder.Services.Configure<FormOptions>(options =>
     options.MultipartBodyLengthLimit = IntakeEnvelopeLimits.MaximumBatchContentLength;
 });
 
-Func<IServiceProvider, string>? localArtifactRootFactory = developmentOfflineProfile
+// Live Box custody offline composes the production storage set instead of the
+// local artifact root, so the two never resolve side by side.
+var composesLocalArtifactRoot = developmentOfflineProfile && !liveBoxCustody;
+Func<IServiceProvider, string>? localArtifactRootFactory = composesLocalArtifactRoot
     ? serviceProvider =>
     {
         var configuration = serviceProvider.GetRequiredService<IConfiguration>();
@@ -650,12 +692,14 @@ builder.Services.AddPegasusInfrastructure((serviceProvider, options) =>
         ?? throw new InvalidOperationException("Connection string 'Pegasus' is required.");
     PegasusSqlServer.Configure(options, connectionString);
 }, localArtifactRootFactory,
-documentStorage: !productionProfile
+documentStorage: composesLocalArtifactRoot
     ? null
     : (Action<IServiceCollection>)(registrations => registrations.AddProductionDocumentStorage(
         provider => provider.GetRequiredService<BlobContainerClient>(),
-        // Web never provisions the container; the Worker owns that.
-        static _ => false,
+        // Web never provisions the production container; the Worker owns that.
+        // The local run starts Web before the Worker, so offline it may create
+        // the Azurite container it is about to write.
+        _ => liveBoxCustody,
         // Deferred to first Box use: parsing this at host build aborted the
         // process whenever the platform handed over an unresolved Key Vault
         // reference.
@@ -665,7 +709,10 @@ documentStorage: !productionProfile
             builder.Configuration["Box:RootFolderId"],
             builder.Configuration["Box:ConfigJson"],
             builder.Configuration["Box:ClientSecret"],
-            builder.Configuration["Box:HoldingFolderId"]))));
+            builder.Configuration["Box:HoldingFolderId"],
+            liveBoxCustody
+                ? BoxCustodyOptions.DevelopmentRootFolderId
+                : BoxCustodyOptions.ProductionRootFolderId))));
 // EXT-04: the manual Send to EVA route. Production only — the offline
 // profile reaches no vendor — and the options are read lazily for the same
 // unresolved-Key-Vault-reference reason as Box's.
@@ -676,6 +723,17 @@ if (productionProfile)
 }
 
 builder.Services.AddPegasusReportRendering();
+// EXT-06: Glass's is composed only by a host that reaches the provider;
+// every other host offers no control and refuses the command (fail closed).
+if (productionProfile || liveGlass)
+{
+    builder.Services.AddGlassRepairEstimates(
+        GlassRepairEstimateOptions.Create(key => builder.Configuration[key]));
+}
+else
+{
+    builder.Services.AddUnavailableGlassRepairEstimates();
+}
 // Glass's provider work runs in this host after the staff member's request has
 // answered. It stays here, not in the Worker: the session state and per-staff
 // credentials it reads are protected by this host's key ring (ADR-0058).
@@ -687,7 +745,11 @@ if (developmentOfflineProfile)
 {
     builder.Services.AddScoped<Pegasus.Core.Operations.IStaffMailSend, UnavailableStaffMailSend>();
     builder.Services.AddScoped<Pegasus.Core.Operations.IStaffReportSend, UnavailableStaffReportSend>();
-    builder.Services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);
+    // The Web only records the request either way; the mode names which
+    // adapter the offline Worker answers it with.
+    builder.Services.AddSingleton(liveVehicleLookup
+        ? VehicleLookupAvailability.ProductionLive
+        : VehicleLookupAvailability.DevelopmentOfflineReplay);
     builder.Services.AddSingleton<LocalApprovedMailboxIdentityResolver>();
     builder.Services.AddSingleton<IResolveApprovedMailboxIdentity>(provider =>
         provider.GetRequiredService<LocalApprovedMailboxIdentityResolver>());
@@ -824,7 +886,7 @@ var localIntakeConfigured = app.Configuration.GetValue<bool>("Features:LocalInta
 // The document surface follows composed custody, not the Development-only feature
 // flag: Production composes Box-backed custody and must serve the staff pages.
 var documentCustodyEnabled =
-    (developmentOffline && localDocumentCustodyConfigured) || productionProfile;
+    (developmentOffline && (localDocumentCustodyConfigured || liveBoxCustody)) || productionProfile;
 
 if (developmentOffline && !app.Environment.IsDevelopment())
 {

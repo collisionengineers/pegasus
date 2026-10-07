@@ -22,19 +22,31 @@ public sealed record BoxCustodyOptions(
     string EnterpriseId,
     string HoldingFolderId)
 {
+    /// <summary>The production custody root: the "pegasus" folder every deployed Case folder sits under.</summary>
+    public const string ProductionRootFolderId = "405543781910";
+
+    /// <summary>
+    /// The local-test custody root a DevelopmentOffline host may write under
+    /// when it opts into live Box custody. A second fenced root, not a free
+    /// setting: the host still names the one folder it may create under.
+    /// </summary>
+    public const string DevelopmentRootFolderId = "425169015650";
+
     public static BoxCustodyOptions Create(
         string? baseUri,
         string? uploadUri,
         string? rootFolderId,
         string? configJson,
         string? clientSecret,
-        string? holdingFolderId = null)
+        string? holdingFolderId = null,
+        string approvedRootFolderId = ProductionRootFolderId)
     {
         var api = RequireBoxUri(baseUri, "api.box.com", "Box:BaseUri");
         var upload = RequireBoxUri(uploadUri, "upload.box.com", "Box:UploadUri");
-        if (!string.Equals(rootFolderId, "405543781910", StringComparison.Ordinal))
+        if (!string.Equals(rootFolderId, approvedRootFolderId, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("Box:RootFolderId must be the approved pegasus root 405543781910.");
+            throw new InvalidOperationException(
+                $"Box:RootFolderId must be the approved Box root {approvedRootFolderId}.");
         }
         if (string.IsNullOrWhiteSpace(holdingFolderId)
             || string.Equals(holdingFolderId, rootFolderId, StringComparison.Ordinal))

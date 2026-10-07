@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -414,6 +415,36 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         Assert.DoesNotContain("handler=LaunchGlass", html, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=ResumeGlass", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A host that does not reach Glass's offers no control even to an enabled
+    /// account, and a launch posted at it regardless is refused with the
+    /// Estimate section's notice rather than failing on a missing setting.
+    /// </summary>
+    [Fact]
+    public async Task TheGlassControlIsAbsentAndALaunchIsRefusedWhereGlassIsNotComposed()
+    {
+        await using var workspace = await Workspace.CreateAsync(liveGlass: false);
+        await workspace.ClaimLeaseAsync();
+
+        var html = await workspace.CaseHtmlAsync();
+        Assert.DoesNotContain("handler=LaunchGlass", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ResumeGlass", html, StringComparison.Ordinal);
+
+        // No Glass's form is rendered, so the post borrows another form's
+        // antiforgery token and lease, as a stale window would present them.
+        var form = FormFor(html, "ReleaseLease");
+        form["operationKey"] = Guid.NewGuid().ToString("N");
+        form["expectedCaseVersion"] = (await workspace.CaseVersionAsync()).ToString(CultureInfo.InvariantCulture);
+        using var refused = await workspace.PostAsync("LaunchGlass", form);
+
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        Assert.Empty(await workspace.SessionsAsync());
+        Assert.Contains(
+            HtmlEncoder.Default.Encode(Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.Unavailable),
+            await workspace.CaseHtmlAsync(),
+            StringComparison.Ordinal);
     }
 
     // ------------------------------------------------------------- the return
@@ -1166,7 +1197,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
             bool credentialed = true,
             string role = StaffRoleNames.Engineer,
             GatewayFault? fault = null,
-            CaseReadFault? caseReadFault = null)
+            CaseReadFault? caseReadFault = null,
+            bool liveGlass = true)
         {
             var mva = new ScriptedGlass();
             GlassProviderFixture.Script(mva);
@@ -1176,6 +1208,9 @@ public sealed class GlassRepairEstimateCallbackWebTests
                 builder.ConfigureAppConfiguration((_, configuration) =>
                     configuration.AddInMemoryCollection(new Dictionary<string, string?>
                     {
+                        // The offline host composes Glass's only when asked to;
+                        // without the flag it composes the unavailable gateway.
+                        ["Features:LiveGlass"] = liveGlass ? "true" : "false",
                         ["Glass:MarketValueAssessorBaseUri"] = GlassProviderFixture.MvaBase.AbsoluteUri,
                         ["Glass:EstimatorBaseUri"] = GlassProviderFixture.EstimatorBase.AbsoluteUri,
                         ["Glass:CallbackBaseUri"] = PegasusOrigin,

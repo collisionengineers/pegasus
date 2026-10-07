@@ -488,18 +488,11 @@ public static class DependencyInjection
             provider.GetRequiredService<EfGlassRepairEstimateSessionStore>());
         services.AddScoped<IGlassRepairEstimateSessionReader>(provider =>
             provider.GetRequiredService<EfGlassRepairEstimateSessionStore>());
-        services.AddSingleton(provider => GlassRepairEstimateOptions.Create(
-            key => provider.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()[key]));
-        services.AddHttpClient(GlassRepairEstimateOptions.HttpClientName)
-            .ConfigureHttpClient((provider, client) =>
-                client.Timeout = provider.GetRequiredService<GlassRepairEstimateOptions>().RequestTimeout)
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-            {
-                AllowAutoRedirect = false,
-                UseCookies = false,
-            });
+        // The Glass's gateway itself is composed by the host, which decides
+        // whether this process reaches the provider at all (AddGlassRepairEstimates
+        // or AddUnavailableGlassRepairEstimates). The session store and the
+        // Case authority stay here: the Case record reads sessions in every profile.
         services.AddScoped<IGlassRepairEstimateCaseAuthority, EfGlassRepairEstimateCaseAuthority>();
-        services.AddScoped<IGlassRepairEstimateGateway, GlassRepairEstimateGateway>();
         services.AddScoped<IImportRawEstimate, ImportRawEstimate>();
         services.AddScoped<ISaveEstimate, SaveEstimate>();
         services.AddScoped<IDuplicateEstimate, DuplicateEstimate>();
@@ -936,12 +929,9 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(vehicleOptions);
 
         services.AddSingleton(graphOptions);
-        services.AddSingleton(vehicleOptions);
         services.AddHttpClient(nameof(GraphMailClient), client =>
                 client.Timeout = TimeSpan.FromSeconds(100))
             .WithRotatingConnectionPool();
-        services.AddHttpClient(nameof(DvlaDvsaProductionAdapter), client =>
-            client.Timeout = TimeSpan.FromSeconds(100));
         services.AddSingleton(provider => new GraphMailClient(
             provider.GetRequiredService<TokenCredential>(),
             provider.GetRequiredService<GraphApprovedMailboxOptions>().BaseUri,
@@ -956,6 +946,25 @@ public static class DependencyInjection
         services.AddScoped<PollSentEvidence>();
         services.AddScoped<IStaffMailEvidenceReconciler>(provider =>
             provider.GetRequiredService<PollSentEvidence>());
+        return services.AddLiveVehicleLookup(vehicleOptions);
+    }
+
+    /// <summary>
+    /// The live DVLA/DVSA vehicle-lookup adapter on its own. Production reaches
+    /// it through <see cref="AddProductionExternalAdapters"/>; a DevelopmentOffline
+    /// Worker that opts into live lookups composes exactly this and nothing of
+    /// Graph, so the two hosts share one registration rather than a copy.
+    /// </summary>
+    public static IServiceCollection AddLiveVehicleLookup(
+        this IServiceCollection services,
+        DvlaDvsaProductionOptions vehicleOptions)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(vehicleOptions);
+
+        services.AddSingleton(vehicleOptions);
+        services.AddHttpClient(nameof(DvlaDvsaProductionAdapter), client =>
+            client.Timeout = TimeSpan.FromSeconds(100));
         services.AddSingleton(VehicleLookupAvailability.ProductionLive);
         services.AddSingleton<IVehicleLookupAdapter>(provider => new DvlaDvsaProductionAdapter(
             provider.GetRequiredService<DvlaDvsaProductionOptions>(),
@@ -1033,5 +1042,50 @@ public static class DependencyInjection
             provider.GetRequiredService<GraphMailClient>(),
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(GraphStaffMailSender)),
             provider.GetRequiredService<IStaffMailUploadProgress>()));
+    }
+
+    /// <summary>
+    /// EXT-06: the Glass's repair-estimate gateway, for a host that reaches the
+    /// provider. The options arrive as a value, not a factory: none of them is
+    /// a secret, so a malformed or missing <c>Glass:*</c> setting fails at host
+    /// build naming its key, as <see cref="GlassRepairEstimateOptions"/> promises,
+    /// rather than at an Engineer's Launch on a Case record.
+    /// </summary>
+    public static IServiceCollection AddGlassRepairEstimates(
+        this IServiceCollection services,
+        GlassRepairEstimateOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
+
+        services.AddSingleton(options);
+        services.AddSingleton(GlassRepairEstimateAvailability.Configured);
+        // The handler must not follow redirects and must not manage cookies: a
+        // Glass's session's cookie jar is per session and durable, so the adapter
+        // carries it in protected state rather than in a pooled handler.
+        services.AddHttpClient(GlassRepairEstimateOptions.HttpClientName)
+            .ConfigureHttpClient(client => client.Timeout = options.RequestTimeout)
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                AllowAutoRedirect = false,
+                UseCookies = false,
+            });
+        services.AddScoped<IGlassRepairEstimateGateway, GlassRepairEstimateGateway>();
+        return services;
+    }
+
+    /// <summary>
+    /// A host that does not reach Glass's. The Case record still reads the
+    /// sessions it holds, offers no Glass's control, and refuses a Glass's
+    /// command outright; the gateway registered here is the fence behind that
+    /// refusal, never a stand-in for the provider.
+    /// </summary>
+    public static IServiceCollection AddUnavailableGlassRepairEstimates(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddSingleton(GlassRepairEstimateAvailability.Unavailable);
+        services.AddScoped<IGlassRepairEstimateGateway, UnavailableGlassRepairEstimateGateway>();
+        return services;
     }
 }
