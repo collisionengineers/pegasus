@@ -133,8 +133,13 @@ public sealed partial class SendToAiIntegrationTests
         Assert.Null(command.TargetPercentOfEngineerValue);
     }
 
+    /// <summary>
+    /// Core names the Case in the instruction when no direction is given
+    /// (<c>AiJobPolicy.DefaultEstimateInstruction</c>), for staff and the
+    /// Automation Actor alike; the page passes the empty direction through.
+    /// </summary>
     [Fact]
-    public async Task AnEmptyDirectionFallsBackToANamedInstruction()
+    public async Task AnEmptyDirectionLeavesTheNamedInstructionToCore()
     {
         var caseId = Guid.NewGuid();
         using var factory = Compose(caseId);
@@ -151,7 +156,7 @@ public sealed partial class SendToAiIntegrationTests
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var command = Assert.Single(((RecordingCreateAiJob)GetJobFactory(factory)).Commands);
-        Assert.Equal("Draft an estimate for case QDOS-2026-00042.", command.Instruction);
+        Assert.Equal(string.Empty, command.Instruction);
     }
 
     /// <summary>

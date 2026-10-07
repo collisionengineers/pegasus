@@ -335,7 +335,8 @@ public sealed class AutomationAiJobIngressTests
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, JobsScope);
 
-        // Only the queue pass may be started by the Actor (operator decision D5).
+        // The Actor creates any kind (ADR-0064), with the subject the staff
+        // action names: an Estimate job names its Case.
         using (var refused = await PostMcpAsync(
             client,
             token,
@@ -344,11 +345,25 @@ public sealed class AutomationAiJobIngressTests
                 "pegasus_ai_job_create",
                 new { kind = "Estimate", instruction = "Draft it.", operationKey = "mcp:create-estimate" })))
         {
-            using var document = await ReadJsonRpcAsync(refused);
-            Assert.Contains(
-                "UnidentifiedQueuePass",
-                document.RootElement.ToString(),
-                StringComparison.Ordinal);
+            Assert.Contains("needs caseId", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+        }
+
+        // A subject another kind needs is refused, not ignored.
+        using (var refused = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                11,
+                "pegasus_ai_job_create",
+                new
+                {
+                    kind = "UnidentifiedQueuePass",
+                    instruction = "Pass.",
+                    caseId = Guid.NewGuid(),
+                    operationKey = "mcp:create-pass-with-case"
+                })))
+        {
+            Assert.Contains("does not take caseId", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
         }
 
         Guid jobId;
@@ -413,7 +428,7 @@ public sealed class AutomationAiJobIngressTests
             version = progressed.GetProperty("version").GetInt64();
         }
 
-        // An action outside the five is refused by name, before any Core call.
+        // An action outside the seven is refused by name, before any Core call.
         using (var refused = await PostMcpAsync(
             client,
             token,
@@ -422,7 +437,7 @@ public sealed class AutomationAiJobIngressTests
                 "pegasus_ai_job_transition",
                 new { jobId, expectedVersion = version, action = "Finish", operationKey = "mcp:bad-action" })))
         {
-            Assert.Contains("Take, Progress, Complete, Fail or Release", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+            Assert.Contains("Take, Progress, Complete, Fail, Release, Cancel or Confirm", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
         }
 
         // Complete without its result kind is refused by name.
@@ -493,18 +508,32 @@ public sealed class AutomationAiJobIngressTests
             Assert.Contains("cannot move from DraftReady", document.RootElement.ToString(), StringComparison.Ordinal);
         }
 
+        // A Draft ready queue pass is completed by hand, as the Work Centre's
+        // Complete job does; the Actor confirms it as staff would.
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                12,
+                "pegasus_ai_job_transition",
+                new { jobId, expectedVersion = version, action = "Confirm", operationKey = "mcp:confirm-1" })))
+        {
+            var completed = await ReadStructuredContentAsync(response);
+            Assert.Equal("Completed", completed.GetProperty("state").GetString());
+        }
+
         // Nothing was applied to any record: the ledger row is the only
         // business effect, and every step is attributed Automation history.
-        Assert.Equal(4, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(5, await factory.Database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'ai_job'
               AND AggregateId = N'{jobId:D}'
               AND ActorKind = N'Automation'
               AND ActorSubjectId = N'{ClientId}'
-              AND EventKind IN (N'ai_job_created', N'ai_job_taken', N'ai_job_progress', N'ai_job_draft_ready')
+              AND EventKind IN (N'ai_job_created', N'ai_job_taken', N'ai_job_progress', N'ai_job_draft_ready', N'ai_job_completed')
             """));
-        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(3, await factory.Database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'automation_mcp'
@@ -520,6 +549,86 @@ public sealed class AutomationAiJobIngressTests
               AND Outcome = N'Succeeded'
             """));
         Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM UnidentifiedItems"));
+    }
+
+    /// <summary>
+    /// Cancel is the staff act on a job (ADR-0064): the Actor cancels any
+    /// queued, taken or Draft ready job with a reason, and a Confirm is refused
+    /// for a job that is not a Draft ready queue pass or query response.
+    /// </summary>
+    [Fact]
+    public async Task TheActorCancelsAJobWithAReasonAndConfirmsOnlyWhatCompletesByHand()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, JobsScope);
+
+        Guid jobId;
+        long version;
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                1,
+                "pegasus_ai_job_create",
+                new { kind = "UnidentifiedQueuePass", instruction = "Pass.", operationKey = "mcp:cancel-create" })))
+        {
+            var created = await ReadStructuredContentAsync(response);
+            jobId = created.GetProperty("jobId").GetGuid();
+            version = created.GetProperty("version").GetInt64();
+        }
+
+        using (var refused = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                2,
+                "pegasus_ai_job_transition",
+                new { jobId, expectedVersion = version, action = "Confirm", operationKey = "mcp:confirm-queued" })))
+        {
+            Assert.Contains("confirmed by hand", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+        }
+
+        using (var refused = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                3,
+                "pegasus_ai_job_transition",
+                new { jobId, expectedVersion = version, action = "Cancel", operationKey = "mcp:cancel-no-reason" })))
+        {
+            Assert.Contains("Cancel needs reason", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+        }
+
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                4,
+                "pegasus_ai_job_transition",
+                new
+                {
+                    jobId,
+                    expectedVersion = version,
+                    action = "Cancel",
+                    reason = "Queued twice.",
+                    operationKey = "mcp:cancel-1"
+                })))
+        {
+            var cancelled = await ReadStructuredContentAsync(response);
+            Assert.Equal("Cancelled", cancelled.GetProperty("state").GetString());
+            Assert.Equal("Queued twice.", cancelled.GetProperty("closureReason").GetString());
+        }
+
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE AggregateType = N'ai_job'
+              AND AggregateId = N'{jobId:D}'
+              AND ActorKind = N'Automation'
+              AND EventKind = N'ai_job_cancelled'
+            """));
     }
 
     [Fact]

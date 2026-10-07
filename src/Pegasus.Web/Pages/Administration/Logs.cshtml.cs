@@ -464,7 +464,10 @@ public sealed class LogsModel(
             or "pegasus_case_action"
             or "pegasus_report_list"
             or "pegasus_report_action"
-            or "pegasus_document_action";
+            or "pegasus_document_action"
+            // A dismissed record is a Case, an Unidentified item or an AI job;
+            // only a Case resolves to a reference here.
+            or "pegasus_work_centre_dismiss";
 
     // Disabled and deleted accounts are retained rows, so this resolves them
     // too; only a genuinely absent identity falls through to "Former staff".

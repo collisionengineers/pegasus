@@ -8,10 +8,11 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.AiWork;
 
 /// <summary>
-/// Policy for the AI job ledger. Staff create jobs; the Automation Actor
-/// creates only the scheduled Unidentified-queue pass (operator decision D5) and is
-/// the only actor that takes, progresses, completes, fails or releases;
-/// staff cancel and confirm. A Taken job whose lease has lapsed reads as
+/// Policy for the AI job ledger. Staff and the Automation Actor create any
+/// kind, and both cancel and confirm (ADR-0064: a job is how an external agent
+/// picks up work, so creating one is casework). The Automation Actor is the
+/// only actor that takes, progresses, completes, fails or releases. A Taken
+/// job whose lease has lapsed reads as
 /// Queued regardless of the job's own expiry (ADR-0035: taken jobs expire
 /// back to Queued), and a Queued job past its own expiry reads as Expired,
 /// so no timer is needed for either rule.
@@ -128,7 +129,7 @@ public static class AiJobPolicy
                 nameof(job),
                 "The job expiry must be between one second and seven days.");
         }
-        RequireCreator(job.Actor, job.Kind);
+        StaffAuthorization.Require(job.Actor, StaffAccessRight.PerformCasework);
         ValidateOperationKey(job.OperationKey);
     }
 
@@ -159,10 +160,6 @@ public static class AiJobPolicy
                 when transition.Actor.Kind != ActorKind.Automation:
                 throw new InvalidOperationException(
                     "Only the Automation Actor takes, releases, progresses, completes or fails an AI job.");
-            case AiJobState.Cancelled or AiJobState.Completed
-                when transition.Actor.Kind != ActorKind.Staff:
-                throw new InvalidOperationException(
-                    "Cancelling or confirming an AI job is a staff action.");
             case AiJobState.Failed or AiJobState.Cancelled
                 when string.IsNullOrWhiteSpace(transition.Reason):
                 throw new ArgumentException(
@@ -218,6 +215,33 @@ public static class AiJobPolicy
         }
     }
 
+    /// <summary>
+    /// What one Unidentified-resolution job is asked to do. FRD-27 gives this
+    /// kind "the U reference only" as its input, so the direction is fixed
+    /// rather than typed: it is the job's payload, never operator copy.
+    /// </summary>
+    public const string UnidentifiedResolutionInstruction =
+        "Propose a destination for this Unidentified item and give the reason.";
+
+    /// <summary>
+    /// A Query response job answers a retained post-report query that is
+    /// linked to its Case (FRD-27); any other message is not its source.
+    /// </summary>
+    public static bool IsQueryResponseSource(Intake.RetainedMailDetail detail)
+    {
+        ArgumentNullException.ThrowIfNull(detail);
+        return detail.Summary.CaseId is not null
+            && detail.Classification?.Current is
+            {
+                Outcome: Intake.MailClassificationOutcome.Classified,
+                Category.IsPostReport: true
+            };
+    }
+
+    /// <summary>The instruction an Estimate job carries when its caller gives no direction.</summary>
+    public static string DefaultEstimateInstruction(string caseReference) =>
+        $"Draft an estimate for case {caseReference}.";
+
     public static bool IsEligibleEstimateCaseState(CaseLifecycleState state) =>
         state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
 
@@ -226,14 +250,17 @@ public static class AiJobPolicy
             or CaseLifecycleState.PostReportComplete
             or CaseLifecycleState.Query;
 
-    private static void RequireCreator(ActionActor actor, AiJobKind kind)
+    /// <summary>
+    /// FRD-27: a Draft ready Query response or queue pass is completed by hand
+    /// (Work Centre **Complete job**, or the Automation Actor's confirm); an
+    /// Estimate and an Unidentified resolution close through their record's
+    /// own act.
+    /// </summary>
+    public static bool CompletesByHand(AiJobRecord job)
     {
-        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        if (actor.Kind == ActorKind.Automation && kind != AiJobKind.UnidentifiedQueuePass)
-        {
-            throw new InvalidOperationException(
-                "The Automation Actor creates only Unidentified-queue pass jobs.");
-        }
+        ArgumentNullException.ThrowIfNull(job);
+        return job.State == AiJobState.DraftReady
+            && job.Kind is AiJobKind.QueryResponse or AiJobKind.UnidentifiedQueuePass;
     }
 
     private static void ValidateOperationKey(string operationKey)
@@ -321,7 +348,9 @@ public sealed class CreateAiJob(
             AiJobSubjectKind.Case,
             record.CaseId,
             record.Identity.Reference,
-            command.Instruction,
+            string.IsNullOrWhiteSpace(command.Instruction)
+                ? AiJobPolicy.DefaultEstimateInstruction(record.Identity.Reference)
+                : command.Instruction,
             command.TargetPercentOfEngineerValue,
             valueAtSend,
             command.Actor,

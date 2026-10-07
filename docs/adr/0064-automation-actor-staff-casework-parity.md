@@ -103,11 +103,20 @@ fact the call did not name.
 - The first delivery grows the inventory from 36 to 42 tools; the second
   adds `pegasus_case_action`, `pegasus_directory_search`,
   `pegasus_report_list`, `pegasus_report_action` and
-  `pegasus_document_action`, making 47.
+  `pegasus_document_action`, making 47; the queue and job delivery adds
+  eight more, making 55.
 - This is the first of four deliveries. The second, the Case lifecycle,
-  report and document tools, is delivered. Later ones add queue and job
-  tools, and outward sending under a new `automation.send` scope. Until each
-  lands, those acts stay with staff.
+  report and document tools, is delivered. Outward sending under a new
+  `automation.send` scope is the last; until it lands, sending stays with
+  staff.
+- Queue and job tools: delivered (operator, 7 October 2026;
+  [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md#queue-and-intake-tools)).
+  The Actor creates any AI job kind, cancels and confirms jobs, assigns,
+  unassigns and notes a Triage, closes and reopens Unidentified items,
+  creates a Case directly, accepts a received item and retries its
+  allocation, moves and dismisses mail, and dismisses Work Centre records.
+  Settling an inspection address stays with staff: its record names the
+  member of staff who settled it.
 
 ## Links
 
