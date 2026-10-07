@@ -562,6 +562,56 @@ public sealed class PollSentEvidenceTests
     }
 
     /// <summary>
+    /// A report send freezes its artifacts' hashes as custody wrote them, in
+    /// lower-case hex, while the Sent reader hashes the MIME parts in
+    /// upper-case (7 October 2026: both QDOS26075 report sends read as
+    /// Ambiguous and never reached the Case's Correspondence). The same bytes
+    /// in either case mark the operation Sent.
+    /// </summary>
+    [Fact]
+    public async Task AReportSendsAttachmentHashMatchesInEitherHexCase()
+    {
+        var lease = Lease();
+        var operationId = Guid.NewGuid();
+        var generationId = Guid.NewGuid();
+        var caseId = Guid.NewGuid();
+        var hash = "d55af48ee9df39073d06dcec6438aa90a5ceeb662af297ca59d1aa6f68373fc7";
+        var operation = new StaffMailOperation(
+            operationId, StaffMailState.Submitted, StaffMailAttemptStage.ObserveSent, 5,
+            NowUtc.AddMinutes(-5), NowUtc.AddMinutes(-2), null, null,
+            lease.ApprovedMailboxId, lease.Generation, new string('C', 64), null, null,
+            StaffMailPurpose.CaseReport, generationId, 1, null);
+        var staffStore = new ObservationStore(new StaffMailExecution(
+            Guid.NewGuid().ToString("D"), operation, "draft",
+            [new(Guid.NewGuid(), Guid.NewGuid(), hash, 10, "report.pdf", "application/pdf")],
+            StaffMailPurpose.CaseReport, generationId, 1, caseId));
+        var messageId = $"<{StaffMailCorrelationHeaders.MessageId(operationId)}>";
+        var template = Item("staff-report", "sent-items", "cursor", [], []);
+        var item = template with
+        {
+            Provenance = template.Provenance! with
+            {
+                InternetMessageIdentity = messageId,
+                StaffMailOperationId = StaffMailCorrelationHeaders.TryReadOperationId(messageId),
+                AttachmentSha256 = [hash.ToUpperInvariant()]
+            }
+        };
+        var pollStore = new RecordingPollStore(lease);
+        var poll = CreateUseCase(
+            pollStore,
+            new SequencedSource(new ApprovedSentPage([item], "cursor", false)),
+            new ResponsePort(), new ReportPort(), autoLinkPort: AutoLinkPort.Linked(),
+            staffMailStore: staffStore);
+
+        await poll.ExecuteAsync(1, 10, ActionActor.SystemWorker("test"), CancellationToken.None);
+
+        Assert.Equal(1, staffStore.TransitionCount);
+        Assert.Equal(
+            SentEvidencePollOutcomeKind.ReportEvidenceAutoLinked,
+            Assert.Single(pollStore.OutcomeAttempts).Kind);
+    }
+
+    /// <summary>
     /// The provider keeps the Message-ID Pegasus assigned where it drops the
     /// custom X- headers (5 October 2026: both live sends read as Unmatched).
     /// An operation named by the Message-ID alone, with no frozen markers,
