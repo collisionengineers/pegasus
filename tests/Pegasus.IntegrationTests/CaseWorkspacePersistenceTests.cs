@@ -915,8 +915,7 @@ public sealed class CaseWorkspacePersistenceTests
                 [AssessmentVocabulary.FeeDescriptionLines] = "Assessment report",
                 [AssessmentVocabulary.ReportDiscloseGuideSource] = "true",
                 [AssessmentVocabulary.ReportValuationCommentary] = "false",
-                [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "false",
-                [AssessmentVocabulary.ReportDateOverride] = "false"
+                [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "false"
             }, signOffEngineerId, new DateOnly(2031, 5, 20))
         };
 
@@ -940,7 +939,6 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal("Scuffed", saved.Assessment.Field(AssessmentVocabulary.EngineersComments)?.Value);
         Assert.Equal("120.00", saved.Assessment.Field(AssessmentVocabulary.AgreedFee)?.Value);
         Assert.Equal("2031-05-20", saved.Assessment.Field(AssessmentVocabulary.ReportDate)?.Value);
-        Assert.Equal("false", saved.Assessment.Field(AssessmentVocabulary.ReportDateOverride)?.Value);
         Assert.All(saved.Assessment.Fields, field => Assert.Equal(ActorKind.Staff, field.RecordedByKind));
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {

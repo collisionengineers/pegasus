@@ -973,23 +973,13 @@ public sealed class AssessmentPolicyTests
     }
 
     [Fact]
-    public void AnOverriddenReportDateWithoutADateIsNamed()
+    public void AnEmptyReportDateIsNeverARequirement()
     {
-        var overridden = AssessmentPolicy.EvaluatePostReviewReadiness(
-            Projection([Field(AssessmentVocabulary.ReportDateOverride, "true")]));
+        // An empty Report date means the day the report is generated
+        // (operator, 7 October 2026), so nothing asks for one.
+        var undated = AssessmentPolicy.EvaluatePostReviewReadiness(Projection([]));
 
-        var reportDate = Assert.Single(overridden, item => item.Field == AssessmentVocabulary.ReportDate);
-        Assert.Equal("Report date", reportDate.Requirement);
-
-        var dated = AssessmentPolicy.EvaluatePostReviewReadiness(Projection(
-        [
-            Field(AssessmentVocabulary.ReportDateOverride, "true"),
-            Field(AssessmentVocabulary.ReportDate, "2026-08-19")
-        ]));
-        var notOverridden = AssessmentPolicy.EvaluatePostReviewReadiness(
-            Projection([Field(AssessmentVocabulary.ReportDateOverride, "false")]));
-        Assert.DoesNotContain(dated, item => item.Requirement == "Report date");
-        Assert.DoesNotContain(notOverridden, item => item.Requirement == "Report date");
+        Assert.DoesNotContain(undated, item => item.Field == AssessmentVocabulary.ReportDate);
     }
 
     /// <summary>

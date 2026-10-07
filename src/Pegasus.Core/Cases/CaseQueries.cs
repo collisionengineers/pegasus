@@ -12,13 +12,18 @@ using Pegasus.Core.Vehicle;
 
 namespace Pegasus.Core.Cases;
 
+/// <param name="States">
+/// The lifecycle states a Case may be in; null or empty matches every state.
+/// More than one lets a caller find an operator stage that spans Core states,
+/// such as With Engineer (operator decision D3), in one paged search.
+/// </param>
 public sealed record CaseSearchFilters(
     string? CaseReference = null,
     string? Registration = null,
     string? Claimant = null,
     string? ClaimNumber = null,
     string? Principal = null,
-    CaseLifecycleState? State = null,
+    IReadOnlyList<CaseLifecycleState>? States = null,
     Guid? EngineerId = null,
     DateOnly? ReceivedDate = null,
     DateOnly? FromDate = null,
@@ -831,7 +836,7 @@ internal static class CaseSearchQueryValidation
         {
             throw new ArgumentException("The Engineer filter is invalid.", nameof(filters));
         }
-        if (filters.State is { } state && !Enum.IsDefined(state))
+        if (filters.States is { } states && states.Any(state => !Enum.IsDefined(state)))
         {
             throw new ArgumentException("The lifecycle-state filter is invalid.", nameof(filters));
         }
@@ -853,6 +858,7 @@ internal static class CaseSearchQueryValidation
             Claimant = Normalize(filters.Claimant, 300, nameof(CaseSearchFilters.Claimant)),
             ClaimNumber = Normalize(filters.ClaimNumber, 100, nameof(CaseSearchFilters.ClaimNumber)),
             Principal = Normalize(filters.Principal, 20, nameof(CaseSearchFilters.Principal))?.ToUpperInvariant(),
+            States = filters.States is { Count: > 0 } requested ? requested.Distinct().Order().ToArray() : null,
             Origin = Normalize(filters.Origin, 100, nameof(CaseSearchFilters.Origin)),
             Query = Normalize(filters.Query, 300, nameof(CaseSearchFilters.Query))
         };
@@ -1003,7 +1009,7 @@ public sealed class SearchCasesByCursor(ICaseQueryStore store, ICursorProtector 
             filters.Claimant,
             filters.ClaimNumber,
             filters.Principal,
-            filters.State?.ToString(),
+            filters.States is { } states ? string.Join(",", states) : null,
             filters.EngineerId?.ToString(),
             InvariantDate(filters.ReceivedDate),
             InvariantDate(filters.FromDate),

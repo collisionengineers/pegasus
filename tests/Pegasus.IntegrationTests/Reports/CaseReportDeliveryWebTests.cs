@@ -1318,7 +1318,7 @@ public sealed partial class AssessmentReportDraftWebTests
             caseId, 0, "CE-100", reportOperationKey, CaseReportActor.None, ReportFixtureAtUtc,
             Guid.NewGuid(), new string('a', 64), "image/png", input.CurrentEstimate!.SpecificationId, input.CurrentEstimate.Version,
             report.Costs, report.EngineerValue, Guid.NewGuid(),
-            report.Content, report.Guides, report.ReportDate, false,
+            report.Content, report.Guides, report.ReportDate,
             report.AgreedFee, report.FeeDescriptionLines, [], [],
             AssessmentReportContract.TemplateVersion, "fake", report)
         {

@@ -212,10 +212,10 @@ public sealed class EfCaseQueryStore(
         {
             rows = rows.Where(item => item.Principal == principal);
         }
-        if (filters.State is { } state)
+        if (filters.States is { Count: > 0 } states)
         {
-            var stateName = state.ToString();
-            rows = rows.Where(item => item.State == stateName);
+            var stateNames = states.Select(state => state.ToString()).ToArray();
+            rows = rows.Where(item => stateNames.Contains(item.State));
         }
         if (filters.EngineerId is { } engineerId)
         {

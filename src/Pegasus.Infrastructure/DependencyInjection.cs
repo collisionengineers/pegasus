@@ -559,6 +559,7 @@ public static class DependencyInjection
         // valuation with the card's notice. A fetched valuation's report is
         // filed by the host's own scheduler.
         services.AddScoped<IFetchGuideValuation, FetchGuideValuation>();
+        services.AddScoped<IFillGlassVin, EfGlassVinFill>();
         services.AddScoped<IFileGuideValuationReport, FileGuideValuationReport>();
         services.AddScoped<IWorkAiJob, WorkAiJob>();
         services.AddScoped<ICancelAiJob, CancelAiJob>();

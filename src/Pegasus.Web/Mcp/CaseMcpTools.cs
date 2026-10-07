@@ -130,7 +130,7 @@ internal sealed class CaseMcpTools(
                             Claimant: claimant,
                             ClaimNumber: claimNumber,
                             Principal: principal,
-                            State: stateFilter,
+                            States: stateFilter is { } stateValue ? [stateValue] : null,
                             Query: query),
                         Cursor: cursor,
                         Limit: effectiveLimit),

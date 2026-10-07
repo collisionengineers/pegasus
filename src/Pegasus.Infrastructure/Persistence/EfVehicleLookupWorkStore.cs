@@ -672,7 +672,8 @@ internal sealed class EfVehicleLookupWorkStore(
     private sealed record MotTestEnvelope(int Version, MotTestObservation[] Observations);
 
     /// <summary>
-    /// The assessment values lookups filled on the Case since
+    /// The assessment values lookups and Glass's VIN fills
+    /// (<see cref="GlassVinFillWriter"/>) filled on the Case since
     /// <paramref name="sinceVersion"/>, each with its value before the first of
     /// them: what a Save prepared at that version shows for those fields.
     /// </summary>
@@ -685,7 +686,7 @@ internal sealed class EfVehicleLookupWorkStore(
         var outcomes = await context.CaseWorkflowEvents.AsNoTracking()
             .Where(item => item.CaseId == caseId
                 && item.AfterVersion > sinceVersion
-                && item.EventType.StartsWith("vehicle_lookup_")
+                && (item.EventType.StartsWith("vehicle_lookup_") || item.EventType == GlassVinFillWriter.EventType)
                 && item.ResultJson != null)
             .OrderBy(item => item.AfterVersion)
             .Select(item => item.ResultJson!)
@@ -693,7 +694,7 @@ internal sealed class EfVehicleLookupWorkStore(
         var filledFrom = new Dictionary<string, string?>(StringComparer.Ordinal);
         foreach (var json in outcomes)
         {
-            var history = JsonSerializer.Deserialize<VehicleOutcomeHistory>(json, JsonOptions);
+            var history = JsonSerializer.Deserialize<FilledHistory>(json, JsonOptions);
             foreach (var (path, before) in history?.Filled ?? new Dictionary<string, string?>())
             {
                 filledFrom.TryAdd(path, before);
@@ -714,4 +715,7 @@ internal sealed class EfVehicleLookupWorkStore(
         string Outcome,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         IReadOnlyDictionary<string, string?>? Filled = null);
+
+    /// <summary>What <see cref="FilledSinceAsync"/> reads of a filling event's history.</summary>
+    private sealed record FilledHistory(IReadOnlyDictionary<string, string?>? Filled);
 }

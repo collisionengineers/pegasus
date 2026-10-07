@@ -101,7 +101,6 @@ public static class AssessmentVocabulary
     /// </summary>
     public const string ReportValuationCommentaryText = "report.valuation_commentary_text";
     public const string ReportIncludeUnrelatedDamage = "report.include_unrelated_damage";
-    public const string ReportDateOverride = "report.date_override";
     public const string ReportDate = "report.report_date";
     public const string EngineerName = "engineer.name";
     public const string EngineerQualifications = "engineer.qualifications";
@@ -256,7 +255,6 @@ public static class AssessmentVocabulary
         new(ReportValuationCommentary, AssessmentFieldType.Flag, 5, IsFinding: false),
         new(ReportValuationCommentaryText, AssessmentFieldType.Text, 4000, IsFinding: false),
         new(ReportIncludeUnrelatedDamage, AssessmentFieldType.Flag, 5, IsFinding: false),
-        new(ReportDateOverride, AssessmentFieldType.Flag, 5, IsFinding: false),
         new(ReportDate, AssessmentFieldType.Date, 10, IsFinding: false),
         new(SettlementExcess, AssessmentFieldType.Money, 20, IsFinding: false),
         new(SettlementBetterment, AssessmentFieldType.Money, 20, IsFinding: false),

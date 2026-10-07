@@ -247,7 +247,7 @@ approve before issue.
 **What a generation freezes.** The Case version, signatory account and
 signature digest, Current estimate identity, version and breakdown, the
 Engineer's Value with its retail and trade values, the applied valuation
-identity when one exists, content switches, report date or override, the
+identity when one exists, content switches, report date, the
 Engineer's changes to the report's wording — headings, wording, order and
 what is off the report — fee, source documents with their Box identities,
 and how each image in the report prints, its order, rotation and crop.
@@ -425,10 +425,11 @@ size. A render that outlives its caller is told to stop and keeps its place in
 the renderer's admission until it has, so abandoned renders cannot add to the
 queue (issue 850).
 
-A report generated without an overridden report date is dated the day it was
-generated, and that date is written into the Case's own record so the screen
-and the document agree (v28 P40). A date already recorded is never
-overwritten.
+A report is dated with the Report date recorded on the Case, or, when none is
+recorded, the day it is generated (operator, 7 October 2026). Generation never
+writes its date back into the Case: with no Report date recorded, the Report
+section shows the date the current report carries, so the screen and the
+document agree (v28 P40).
 
 The Repair Spec section offers **Print Repair Spec**, an unretained Estimate
 document in the report's page style for any saved estimate version from
@@ -485,7 +486,7 @@ Each fact is recorded in one section of the Case record
 | The Engineer's Value with its retail and trade values ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)) | Valuation |
 | A Current repair spec with lines, a labour rate and a repairer VAT status the report can word ([Estimate VAT on the rendered report](#estimate-vat-on-the-rendered-report)) | Repair Spec |
 | Outcome and roadworthiness; the unroadworthy reason; on a total loss the salvage category and salvage value; on a contract repair the agreed contract sum | Decisions |
-| Agreed fee; the report date when overridden; valuation commentary when its switch is on | Report |
+| Agreed fee; valuation commentary when its switch is on | Report |
 | An image in the report tagged Overview, and every image in the report matching its confirmed source | Files |
 
 A new Case starts with its Principal's default fee as its agreed fee
