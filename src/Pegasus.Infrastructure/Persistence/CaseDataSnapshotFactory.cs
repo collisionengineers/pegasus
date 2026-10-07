@@ -395,6 +395,11 @@ internal static class CaseDataSnapshotFactory
         var sourceKind = resolution.State == InspectionAddressResolutionState.Accepted
             ? CaseDataCodes.CaseAcceptance
             : CaseDataCodes.StaffCorrection;
+        // A corrected or supplied address is the settler's own: Create case's
+        // draft writes the same value back to its review field as a keyed
+        // candidate ("keyed by staff"), and inheriting that row's provenance
+        // would name staff for the Automation actor.
+        var inheritUnderlying = resolution.State == InspectionAddressResolutionState.Accepted;
         var settledBy = InspectionAddressResolutionPolicy.SettlerWord(settlerKind);
         var addressLabel = resolution.State switch
         {
@@ -418,7 +423,8 @@ internal static class CaseDataSnapshotFactory
             Ext18InspectionAddressPolicy.PolicyKey,
             Ext18InspectionAddressPolicy.PolicyVersion,
             sourceKind,
-            addressLabel);
+            addressLabel,
+            inheritUnderlying);
         UpsertConfirmed(
             snapshot,
             CaseDataFieldNames.InspectionMode,
@@ -434,7 +440,8 @@ internal static class CaseDataSnapshotFactory
             Ext18InspectionAddressPolicy.PolicyKey,
             Ext18InspectionAddressPolicy.PolicyVersion,
             sourceKind,
-            modeLabel);
+            modeLabel,
+            inheritUnderlying);
     }
 
     private static void AddAcceptedDeadline(
@@ -551,12 +558,15 @@ internal static class CaseDataSnapshotFactory
         string fallbackPolicyKey,
         int fallbackPolicyVersion,
         string fallbackSourceKind = CaseDataCodes.CaseAcceptance,
-        string fallbackSourceLabel = "accepted case review")
+        string fallbackSourceLabel = "accepted case review",
+        bool inheritUnderlying = true)
     {
-        var underlying = snapshot.Fields.SingleOrDefault(
-            item => item.FieldName == fieldName
-                && item.ValueKind is CaseDataCodes.Fact or CaseDataCodes.Suggestion
-                && string.Equals(item.Value, value, StringComparison.OrdinalIgnoreCase));
+        var underlying = inheritUnderlying
+            ? snapshot.Fields.SingleOrDefault(
+                item => item.FieldName == fieldName
+                    && item.ValueKind is CaseDataCodes.Fact or CaseDataCodes.Suggestion
+                    && string.Equals(item.Value, value, StringComparison.OrdinalIgnoreCase))
+            : null;
         snapshot.Fields.RemoveAll(
             item => item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Confirmed);
         snapshot.Fields.Add(new()

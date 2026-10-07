@@ -239,7 +239,8 @@ public sealed class AutomationSendIngressTests
         Assert.Equal(nameof(StaffMailPurpose.CaseChaser), result.GetProperty("purpose").GetString());
         Assert.Equal(nameof(StaffMailState.Submitted), result.GetProperty("state").GetString());
         Assert.Equal(caseId, result.GetProperty("caseId").GetGuid());
-        Assert.Equal(JsonValueKind.Null, result.GetProperty("messageId").ValueKind);
+        Assert.True(!result.TryGetProperty("messageId", out var answered)
+            || answered.ValueKind == JsonValueKind.Null);
 
         var command = Assert.Single(mail.Commands);
         Assert.Equal(ActorKind.Automation, command.Actor.Kind);

@@ -67,6 +67,7 @@ internal sealed record ImagePreparationToolItem(
     bool FullPage,
     long PreparationVersion,
     IReadOnlyList<Guid> TagIds,
+    string? PreparedByKind,
     string? PreparedBy,
     DateTimeOffset? PreparedAtUtc);
 
@@ -457,6 +458,9 @@ internal sealed class ReportPreparationMcpTools(
             .. items.Select(item =>
             {
                 var place = placed.GetValueOrDefault(item.OccurrenceId);
+                // The store stamps "Kind:SubjectId"; the result names the
+                // kind and the subject apart, as the other tools' actors do.
+                var preparedBy = item.PreparedBy?.Split(':', 2);
                 return new ImagePreparationToolItem(
                     item.OccurrenceId,
                     item.VersionId,
@@ -472,7 +476,8 @@ internal sealed class ReportPreparationMcpTools(
                     item.FullPage,
                     item.PreparationVersion,
                     item.TagIds,
-                    item.PreparedBy,
+                    preparedBy is [var kind, _] ? kind : null,
+                    preparedBy is [_, var subjectId] ? subjectId : item.PreparedBy,
                     item.PreparedAtUtc);
             }),
         ];
