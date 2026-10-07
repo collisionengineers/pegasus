@@ -1544,10 +1544,20 @@
         var id = form.getAttribute('id');
         if (id && document.getElementById(id)) { return document.getElementById(id); }
         var action = form.getAttribute('action');
+        // Every image tile's In report and tag forms share their actions, so
+        // the form found again names the same image and tag: the first match
+        // by action alone would act on another image.
+        function names(candidate, field) {
+            var own = form.elements.namedItem(field);
+            var theirs = candidate.elements.namedItem(field);
+            return !own || (theirs && theirs.value === own.value);
+        }
         var dialogs = document.querySelector('[data-case-dialogs]');
         var candidates = Array.prototype.slice.call(record.querySelectorAll('form[action]'))
             .concat(dialogs ? Array.prototype.slice.call(dialogs.querySelectorAll('form[action]')) : []);
-        return candidates.find(function (candidate) { return candidate.getAttribute('action') === action; }) || null;
+        return candidates.find(function (candidate) {
+            return candidate.getAttribute('action') === action && names(candidate, 'occurrenceId') && names(candidate, 'tagId');
+        }) || null;
     }
 
     // The frame owns this shortcut even inside a field; site.js handles it on
