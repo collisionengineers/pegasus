@@ -89,6 +89,7 @@ public sealed class AutomationReportPreparationIngressTests
             Assert.Equal(90, image.GetProperty("rotation").GetInt32());
             Assert.Equal(0.5m, image.GetProperty("crop").GetProperty("width").GetDecimal());
             Assert.True(image.GetProperty("fullPage").GetBoolean());
+            Assert.Equal("Automation", image.GetProperty("preparedByKind").GetString());
             Assert.Equal(ClientId, image.GetProperty("preparedBy").GetString());
         }
 
@@ -110,7 +111,7 @@ public sealed class AutomationReportPreparationIngressTests
         var occurrence = await db.Set<DocumentOccurrenceEntity>().AsNoTracking().SingleAsync(row => row.Id == occurrenceId);
         Assert.Equal((short)90, occurrence.RotationDegrees);
         Assert.True(occurrence.PreparationFullPage);
-        Assert.Equal(ClientId, occurrence.PreparedBy);
+        Assert.Equal($"Automation:{ClientId}", occurrence.PreparedBy);
         // The one-command lease is released after the save.
         var workflow = await db.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId);
         Assert.Null(workflow.EditLeaseHolder);
