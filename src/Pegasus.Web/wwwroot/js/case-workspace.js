@@ -48,6 +48,11 @@
     // lease without ending it (operator, 6 October 2026); the page catches up
     // with it once nothing is in flight.
     var catchUpWanted = false;
+    // A landed save draws the sections that show what it changed (the
+    // Engineer's Value in Settlement, a registration in the Report title) by
+    // the same catch up, once nothing waits on the queue (operator, 7
+    // October 2026).
+    var redrawWanted = false;
     // One editor: the record's Save form. The Repair Spec and the valuation
     // calculator are controls of it.
     var editorLabels = {
@@ -535,6 +540,9 @@
         if (commitPending) { commitPending = false; commitNow(); return; }
         if (commitTimer !== null) { return; }
         if (catchUpWanted) { catchUp(); return; }
+        // What waits (Done, a link away, an action) draws the record or
+        // leaves it, so the redraw a save asked for comes after it.
+        if (redrawWanted && !commitWaiters.length) { catchUp({ afterSave: true }); return; }
         var waiters = commitWaiters;
         commitWaiters = [];
         waiters.forEach(function (waiter) { waiter.run(); });
@@ -733,12 +741,23 @@
         if (!queueBusy()) { settleQueue(); }
     }
     // The control the operator is in keeps its place and what they have
-    // typed into it.
+    // typed into it. A control with no id (a decision's radio, the salvage
+    // slider) is found again by its place in its section, when the redrawn
+    // section has the same kind of control there.
+    var FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]';
+    function focusKind(control) {
+        return control.tagName + '|' + (control.getAttribute('name') || '') + '|' + (control.getAttribute('data-radio-value') || '');
+    }
     function focusedControl() {
         var control = document.activeElement;
-        if (!control || !control.id || !main || !main.contains(control)) { return null; }
+        if (!control || !main || !main.contains(control)) { return null; }
+        var host = control.id ? null : control.closest('.record-section[id]');
+        if (!control.id && !host) { return null; }
         return {
             id: control.id,
+            section: host ? host.id : null,
+            index: host ? Array.prototype.indexOf.call(host.querySelectorAll(FOCUSABLE), control) : -1,
+            kind: focusKind(control),
             typed: typeof control.defaultValue === 'string' && control.type !== 'hidden' && control.value !== control.defaultValue,
             value: control.value,
             start: control.selectionStart,
@@ -747,8 +766,10 @@
     }
     function refocus(saved) {
         if (!saved) { return; }
-        var control = document.getElementById(saved.id);
-        if (!control || control === document.activeElement) { return; }
+        var host = saved.section ? document.getElementById(saved.section) : null;
+        var control = saved.id ? document.getElementById(saved.id)
+            : host && saved.index >= 0 ? host.querySelectorAll(FOCUSABLE)[saved.index] : null;
+        if (!control || control === document.activeElement || focusKind(control) !== saved.kind) { return; }
         if (saved.typed) { control.value = saved.value; }
         control.focus({ preventScroll: true });
         try {
@@ -757,18 +778,24 @@
     }
     // The page drawn again as the Case now stands, holding the queue so no
     // commit or action reads a half-drawn record. A section holding a value
-    // not yet sent stays as the operator has it.
-    function catchUp() {
+    // not yet sent stays as the operator has it. After a save of the
+    // operator's own, Files and Notes stay as loaded: neither shows a value
+    // the Save form holds, and system work reaches them by the heartbeat.
+    function catchUp(options) {
+        var afterSave = !catchUpWanted && !!(options && options.afterSave);
         catchUpWanted = false;
+        redrawWanted = false;
         submitting = true;
-        var focused = focusedControl();
         fetch(window.location.href, {
             credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' }
         }).then(function (response) {
             if (!response.ok || !samePage(response.url || window.location.href)) { throw new Error('catch up: ' + response.status); }
             return response.text();
         }).then(function (html) {
-            if (swap(html, null, null, { catchUp: true })) { refocus(focused); }
+            // The control the operator is in now, not when the read began:
+            // they may have moved on while it was in flight.
+            var focused = focusedControl();
+            if (swap(html, null, null, { catchUp: true, afterSave: afterSave })) { refocus(focused); }
         }).catch(function () {
             // The next beat or commit catches up again.
         }).finally(function () {
@@ -868,18 +895,20 @@
             && incoming.getAttribute('data-case-editing') === 'true';
         var isCommit = !!command && command.editor === 'case-edit-form'
             && record.getAttribute('data-case-editing') === 'true';
-        // A commit that landed keeps every section as the operator has it and
-        // redraws what the Case's new facts change: the notices, the ribbon,
-        // the aside and the dialogs. A refused commit redraws only the notices
-        // and the aside, so the typed value stays for another go. Anything
-        // else, a commit whose session ended included, is the whole record as
-        // the server now draws it.
+        // A commit that landed redraws at once what its answer carries: the
+        // notices, the ribbon, the aside and the dialogs; the sections follow
+        // by a catch up once nothing waits. A refused commit redraws only the
+        // notices and the aside, so the typed value stays for another go.
+        // Anything else, a commit whose session ended included, is the whole
+        // record as the server now draws it.
         var commitLanded = isCommit && mayAdvance;
         var commitRefused = isCommit && !confirmed;
-        // Catching up redraws each section that holds nothing unsent. A
-        // session that ended (a colleague took the Case over) keeps every
-        // section, so what the operator typed stays to copy (FRD-14).
+        // Catching up redraws each section that holds nothing unsent, with
+        // the dialogs drawn after it unless one is open. A session that ended
+        // (a colleague took the Case over) keeps every section, so what the
+        // operator typed stays to copy (FRD-14).
         var catchingUp = !!(options && options.catchUp);
+        var afterSave = catchingUp && !!options.afterSave;
         var editingEnded = catchingUp && incoming.getAttribute('data-case-editing') !== 'true';
         var keepSections = commitLanded || commitRefused || catchingUp;
         // The section a head Edit was pressed on keeps its place; any other
@@ -947,9 +976,16 @@
             // parent that stays is weighed on its own.
             Array.prototype.forEach.call(parsed.querySelectorAll('#case-main .record-section[id]'), function (next) {
                 if (document.contains(next)) { return; }
+                if (afterSave && next.hasAttribute('data-lazy')) { return; }
                 var current = document.getElementById(next.id);
                 if (!current || !main.contains(current) || holdsUnsent(current)) { return; }
-                current.replaceWith(next);
+                var part = sectionPart(current);
+                if (part.some(function (element) {
+                    return element.matches('[data-dialog]:not([hidden])') || element.querySelector('[data-dialog]:not([hidden])');
+                })) { return; }
+                var incomingPart = sectionPart(next);
+                part.slice(1).forEach(function (dialog) { dialog.remove(); });
+                current.replaceWith.apply(current, incomingPart);
                 if (next.hasAttribute('data-lazy')) { lazyRedrawn.push(next); }
             });
             // The forms kept as the operator has them, the Save form among
@@ -991,9 +1027,15 @@
         }
         updateSectionFields();
         measure();
-        if (!keepSections) { keep(saved); }
+        // A section redrawn above the reading line may have grown or shrunk;
+        // the section at the reading line stays where it was on the screen.
+        if (!keepSections || (catchingUp && !editingEnded)) { keep(saved); }
+        // The whole record drawn afresh leaves no section to follow a save.
+        if (!keepSections) { redrawWanted = false; }
         if (commitLanded) {
             setCommitStatus('saved', clockNow());
+            // The sections showing what the save changed follow it.
+            redrawWanted = true;
             // Past the commit's own version: system work landed alongside it.
             if (Number(incomingVersion) !== Number(command.expectedVersion) + 1) { catchUpWanted = true; }
         } else if (commitRefused) {
@@ -1025,18 +1067,19 @@
             return false;
         }
     }
-    // Choosing a repair spec (a spec tab, New repair spec, Compare's From and
-    // To) changes only what the Repair Spec section draws: the section and
-    // the dialogs drawn after it. Only those are redrawn from the page the
-    // choice addresses, so nothing above them moves and the page stays where
-    // it is. A choice that cannot be redrawn takes the navigation it replaced.
-    function estimatePart(section) {
+    // A section and the dialogs drawn after it, which a redraw moves together.
+    function sectionPart(section) {
         var part = [section];
         for (var next = section.nextElementSibling; next && next.hasAttribute('data-dialog'); next = next.nextElementSibling) {
             part.push(next);
         }
         return part;
     }
+    // Choosing a repair spec (a spec tab, New repair spec, Compare's From and
+    // To) changes only what the Repair Spec section draws: the section and
+    // the dialogs drawn after it. Only those are redrawn from the page the
+    // choice addresses, so nothing above them moves and the page stays where
+    // it is. A choice that cannot be redrawn takes the navigation it replaced.
     function showEstimate(href) {
         glassRefreshGeneration += 1;
         return fetch(href, {
@@ -1048,8 +1091,8 @@
             var section = sectionFor('estimate');
             var next = new DOMParser().parseFromString(html, 'text/html').getElementById('section-estimate');
             if (!section || !next) { throw new Error('section estimate: not returned'); }
-            var incoming = estimatePart(next);
-            estimatePart(section).slice(1).forEach(function (dialog) {
+            var incoming = sectionPart(next);
+            sectionPart(section).slice(1).forEach(function (dialog) {
                 if (!dialog.hidden && typeof dialog.pegasusClose === 'function') { dialog.pegasusClose(); }
                 dialog.remove();
             });
