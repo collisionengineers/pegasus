@@ -220,7 +220,7 @@ public sealed class CasesIndexWebTests
         Assert.Equal("Claimant", query.Filters.Claimant);
         Assert.Equal("CLM42", query.Filters.ClaimNumber);
         Assert.Equal("QDOS", query.Filters.Principal);
-        Assert.Equal(CaseLifecycleState.Review, query.Filters.State);
+        Assert.Equal(new[] { CaseLifecycleState.Review }, query.Filters.States);
         Assert.Equal(engineerId, query.Filters.EngineerId);
         Assert.Equal(new DateOnly(2031, 5, 1), query.Filters.ReceivedDate);
         Assert.Equal(new DateOnly(2031, 4, 1), query.Filters.FromDate);
@@ -259,6 +259,35 @@ public sealed class CasesIndexWebTests
             Assert.Contains(expected, href, StringComparison.OrdinalIgnoreCase);
         }
         Assert.DoesNotContain("total", html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// With Engineer is one stage over two Core states (D3): the State filter
+    /// lists it once and finds Cases in either state, whichever of the two a
+    /// link carries.
+    /// </summary>
+    [Fact]
+    public async Task SearchStateFilterListsWithEngineerOnceAndFindsBothStates()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var search = new RecordingSearchCases();
+        using var factory = Configure(baseFactory, search);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync("/Search?state=PostReport&query=needle");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var query = Assert.Single(search.Queries, candidate => candidate.Filters.Query == "needle");
+        Assert.Equal(
+            new[] { CaseLifecycleState.ReportPreparation, CaseLifecycleState.PostReport },
+            query.Filters.States);
+        var option = Assert.Single(Regex.Matches(
+            html,
+            "<option[^>]*>With Engineer</option>",
+            RegexOptions.CultureInvariant));
+        Assert.Contains("value=\"ReportPreparation\"", option.Value, StringComparison.Ordinal);
+        Assert.Contains("selected", option.Value, StringComparison.Ordinal);
     }
 
     [Fact]
