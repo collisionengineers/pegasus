@@ -556,6 +556,7 @@ public sealed class GetOperationsSnapshot(
                 Attempts: null)
             {
                 Route = StaffNotificationPolicy.CaseRoute(work.CaseId),
+                RecordRoute = StaffNotificationPolicy.CaseRoute(work.CaseId),
                 // Each chase is its own occurrence; a due row always has its chase instant.
                 QualifiedAtUtc = work.NextChaseAtUtc ?? DateTimeOffset.MinValue
             });
@@ -581,6 +582,7 @@ public sealed class GetOperationsSnapshot(
             {
                 OwnerStaffId = held.EngineerId,
                 Route = StaffNotificationPolicy.CaseRoute(held.CaseId),
+                RecordRoute = StaffNotificationPolicy.CaseRoute(held.CaseId),
                 QualifiedAtUtc = held.HeldAtUtc ?? held.StateEnteredAtUtc ?? held.CreatedAtUtc
             });
         }
@@ -605,6 +607,7 @@ public sealed class GetOperationsSnapshot(
             {
                 OwnerStaffId = review.EngineerId,
                 Route = StaffNotificationPolicy.CaseRoute(review.CaseId, "review"),
+                RecordRoute = StaffNotificationPolicy.CaseRoute(review.CaseId),
                 QualifiedAtUtc = review.StateEnteredAtUtc ?? review.CreatedAtUtc
             });
         }
@@ -628,6 +631,7 @@ public sealed class GetOperationsSnapshot(
                 Received: unassigned.ReceivedAtUtc)
             {
                 Route = StaffNotificationPolicy.CaseRoute(unassigned.CaseId, "assign"),
+                RecordRoute = StaffNotificationPolicy.CaseRoute(unassigned.CaseId),
                 QualifiedAtUtc = unassigned.StateEnteredAtUtc ?? unassigned.CreatedAtUtc
             });
         }
@@ -651,6 +655,7 @@ public sealed class GetOperationsSnapshot(
                 Received: row.ReceivedAtUtc)
             {
                 Route = StaffNotificationPolicy.UnidentifiedRoute(row.Id),
+                RecordRoute = StaffNotificationPolicy.UnidentifiedRoute(row.Id),
                 QualifiedAtUtc = row.OpenedAtUtc ?? row.ReceivedAtUtc
             });
         }
@@ -674,7 +679,8 @@ public sealed class GetOperationsSnapshot(
                 Received: record.CreatedAtUtc)
             {
                 OwnerStaffId = record.AssigneeId,
-                Route = $"/Cases/{record.CaseId:D}",
+                Route = StaffNotificationPolicy.CaseRoute(record.CaseId),
+                RecordRoute = StaffNotificationPolicy.CaseRoute(record.CaseId),
                 QualifiedAtUtc = record.StateEnteredAtUtc ?? record.CreatedAtUtc
             });
         }
@@ -699,6 +705,14 @@ public sealed class GetOperationsSnapshot(
             {
                 OwnerStaffId = owner,
                 Route = draft.Route ?? string.Empty,
+                RecordRoute = draft.Job.SubjectId is { } subjectId
+                    ? draft.Job.SubjectKind switch
+                    {
+                        AiJobSubjectKind.Case => StaffNotificationPolicy.CaseRoute(subjectId),
+                        AiJobSubjectKind.Unidentified => StaffNotificationPolicy.UnidentifiedRoute(subjectId),
+                        _ => null
+                    }
+                    : null,
                 QualifiedAtUtc = WorkCentreDismissalPolicy.AiJobQualifiedAt(draft.Job)
             });
         }
@@ -722,6 +736,7 @@ public sealed class GetOperationsSnapshot(
             {
                 OwnerStaffId = paired.EngineerId,
                 Route = StaffNotificationPolicy.CaseRoute(paired.CaseId),
+                RecordRoute = StaffNotificationPolicy.CaseRoute(paired.CaseId),
                 QualifiedAtUtc = paired.PairedAtUtc
             });
         }

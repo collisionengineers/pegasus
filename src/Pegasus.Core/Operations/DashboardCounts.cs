@@ -116,8 +116,7 @@ public enum NeedsAttentionPriority
 
 /// <summary>
 /// One needs-attention row and its detail. Every field is a recorded fact
-/// or a Core enum name; the Web layer labels them and owns the route to the
-/// record behind <paramref name="Id"/>.
+/// or a Core enum name; the Web layer labels them.
 /// </summary>
 /// <param name="Id">The record the row opens (Case, Unidentified item, Triage record; the Case for external work).</param>
 /// <param name="Reason">Why it needs attention — a Core enum name or a recorded failure fact: a chase state, a Case state, an Unidentified reason code, a Triage state or an external failure reason.</param>
@@ -148,6 +147,9 @@ public sealed record NeedsAttentionItem(
 
     /// <summary>The relative application path the row's action opens (Work Centre P4).</summary>
     public string Route { get; init; } = string.Empty;
+
+    /// <summary>The relative path of the record <see cref="Reference"/> names; null when it names none (the Unidentified queue).</summary>
+    public string? RecordRoute { get; init; }
 
     /// <summary>When the row's current occurrence began; a dismissal of <see cref="Id"/> at or after it hides the row.</summary>
     public DateTimeOffset QualifiedAtUtc { get; init; }

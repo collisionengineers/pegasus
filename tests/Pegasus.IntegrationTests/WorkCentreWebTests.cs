@@ -205,13 +205,16 @@ public sealed class WorkCentreWebTests
     {
         var unassigned = Item(NeedsAttentionKind.UnassignedEngineer, "QDOS26005", NeedsAttentionPriority.Today, Now.AddHours(3)) with
         {
-            Route = "/Cases/00000000-0000-0000-0000-000000000005?section=assign"
+            Route = "/Cases/00000000-0000-0000-0000-000000000005?section=assign",
+            RecordRoute = "/Cases/00000000-0000-0000-0000-000000000005"
         };
         using var host = Host(new FakeSnapshot { Items = [unassigned], TodayCount = 1 });
         using var client = Client(host);
 
         var closed = await GetOkAsync(client, "/");
         Assert.Contains($"href=\"/?scope=office&amp;selected={unassigned.Id:D}\"", closed, StringComparison.Ordinal);
+        // The reference opens the Case.
+        Assert.Contains("<a href=\"/Cases/00000000-0000-0000-0000-000000000005\">QDOS26005</a>", closed, StringComparison.Ordinal);
         Assert.DoesNotContain("wc-inline-detail", closed, StringComparison.Ordinal);
         Assert.DoesNotContain("data-wc-take", closed, StringComparison.Ordinal);
 
