@@ -13,8 +13,8 @@ namespace Pegasus.Core.Intake;
 /// the work-type notification titles live only inside the attached instruction letter. Body
 /// keyword matching is deliberately absent — corpus evidence shows "audit" in a body
 /// signals an existing case being chased, not a new instruction. When predicates for more
-/// than one category match, the result is the recorded Ambiguous outcome, never an
-/// invented winner; when none match, the message fails closed as Unclassified.
+/// than one category match, the result is Unclassified with the candidates named in the
+/// reason, never an invented winner; when none match, it also fails closed as Unclassified.
 ///
 /// MAIL-011/MAIL-012: QDOS sends triage requests in two templates, and the reviewed
 /// corpus shows the body-phrase and subject-line templates to be disjoint. Current
@@ -95,7 +95,7 @@ public sealed partial class PrincipalMailClassificationPolicy(string principalCo
             .ToArray();
         var hasAttachmentTriage = attachmentTriageCandidates.Length > 0;
         // One candidate from all accepted tells. Adding a second candidate for the same
-        // category would resolve to Ambiguous, so a message carrying both
+        // category would leave the message Unclassified, so a message carrying both
         // tells would classify worse than one carrying either.
         var isTriageRequest = hasTriagePhrase || hasTriageSubject;
         var hasAuditTitle = documentTexts.Any(text =>
@@ -188,7 +188,7 @@ public sealed partial class PrincipalMailClassificationPolicy(string principalCo
 
         var candidates = new List<ClassificationCandidate>();
         // Two notices, one category: as with the triage tells, a second case-update
-        // candidate would only turn a notice into Ambiguous.
+        // candidate would only leave a notice Unclassified.
         if (hasGarageAllocation || hasRepairsAuthorised)
         {
             candidates.Add(new(
@@ -281,14 +281,9 @@ public sealed partial class PrincipalMailClassificationPolicy(string principalCo
 
         if (candidates.Count > 1)
         {
-            return MailClassificationResult.Ambiguous(
-                candidates
-                    .Select(candidate => CandidateName(candidate, candidates))
-                    .ToArray(),
-                predicates,
-                "Predicates for more than one category matched simultaneously; no winner is invented (open decision: mailbox rule activation).",
-                Key,
-                Version);
+            return MoreThanOneCategory(
+                candidates.Select(candidate => CandidateName(candidate, candidates)),
+                predicates);
         }
 
         var candidate = candidates[0];
@@ -307,6 +302,24 @@ public sealed partial class PrincipalMailClassificationPolicy(string principalCo
             Version,
             caseType,
             standaloneAuditReport);
+    }
+
+    private static MailClassificationResult MoreThanOneCategory(
+        IEnumerable<string> names,
+        IReadOnlyList<MailClassificationPredicateResult> predicates)
+    {
+        // The stored reason is 500 characters; the list of names gives way first.
+        const int MaxNamesLength = 400;
+        var joined = string.Join(", ", names);
+        if (joined.Length > MaxNamesLength)
+        {
+            joined = joined[..(MaxNamesLength - 3)] + "...";
+        }
+        return MailClassificationResult.Unclassified(
+            predicates,
+            $"Predicates for more than one category matched ({joined}); no winner is invented.",
+            Key,
+            Version);
     }
 
     private static string CandidateName(
@@ -361,8 +374,7 @@ public sealed partial class PrincipalMailClassificationPolicy(string principalCo
         }
         if (audit && inspection)
         {
-            return MailClassificationResult.Ambiguous(["audit", "inspection"], predicates,
-                "Separate Audit and credit-repair requests compete; no work type is selected.", Key, Version);
+            return MoreThanOneCategory(["audit", "inspection"], predicates);
         }
         return MailClassificationResult.Classified(
             MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, audit ? "audit" : "inspection"),

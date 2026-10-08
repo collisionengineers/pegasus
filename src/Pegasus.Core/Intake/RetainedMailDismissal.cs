@@ -5,9 +5,8 @@ namespace Pegasus.Core.Intake;
 /// <summary>
 /// Dismiss (Inbox planning, 13 September): a message row or record gains a Dismiss
 /// action that takes the message out of the incoming scopes without classifying
-/// or linking it. The message moves to the <see cref="MailLogicalFolderType.Dismissed"/>
-/// logical folder, is reachable under the Dismissed scope, and can be restored from
-/// there. Nothing is deleted, and the act is logged. Always allowed, including on a
+/// or linking it. The message is reachable under the Dismissed scope and can be
+/// restored from there. Nothing is deleted, and the act is logged. Always allowed, including on a
 /// message with an open Unidentified item, which stays open.
 /// </summary>
 public sealed record DismissRetainedMailRequest(

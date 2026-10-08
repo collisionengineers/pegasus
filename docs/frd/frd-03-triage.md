@@ -86,8 +86,8 @@ established Principal and a known registration, Pegasus allocates the `t.`
 Case/PO, opens the Triage Case as `Open`, records its origin receipt and
 history, and starts standard Case custody, all in one transaction. No known
 registration registers the material as Unidentified with its reason and
-opens no Triage until a registration is known. A message classified as
-Ambiguous opens no Triage and goes to staff.
+opens no Triage until a registration is known. A message left
+Unclassified opens no Triage and goes to staff.
 
 **Registration and states.** Without a registration the request stays
 `Unidentified`. With one, the Triage opens as `Open`, may move to
@@ -250,7 +250,7 @@ card: its `t.` Case/PO as a link, its state and its current finding
 - No established Principal: no Triage opens; the material waits in
   Unidentified and allocates nothing.
 - No registration: no Triage opens; the material waits in Unidentified.
-- Ambiguous classification: no Triage opens; staff decide.
+- Unclassified: no Triage opens; staff decide.
 - A finding with neither dimension is refused.
 - Automatic linking stops when more than one Case matches, or a Case edit
   lease is live; it retries later.

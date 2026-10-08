@@ -69,6 +69,11 @@ identity and activation time. Before that, the administration list reports
 it as not activated, not as awaiting a first poll, because no poll is
 pending.
 
+A mailbox has no purpose. Which approved mailbox received a message is
+never classification evidence; every mailbox feeds the one classification in
+[FRD-08](frd-08-email-mailbox-and-background-processing.md#classification-and-destination-catalogue)
+(operator, 8 October 2026).
+
 **Wipe.** An explicitly authorised intake-data wipe records one UTC
 receive-time cutoff in the existing Inbox poll state, in the same
 transaction that clears the SQL data. It does not change mailbox identity,

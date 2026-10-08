@@ -19,7 +19,7 @@ $preserve = @(
     'AspNetRoleClaims', 'AspNetRoles', 'AspNetUserClaims', 'AspNetUserLogins',
     'AspNetUserRoles', 'AspNetUsers', 'AspNetUserTokens', 'UserExternalCredentials',
     'OpenIddictApplications', 'OpenIddictAuthorizations', 'OpenIddictScopes', 'OpenIddictTokens',
-    'ApprovedInboxPollStates', 'ApprovedMailboxes', 'ApprovedMailboxFolderBindings',
+    'ApprovedInboxPollStates', 'ApprovedMailboxes',
     'ApprovedOutlookCategories', 'ApprovedSentPollStates',
     'Organizations', 'OrganizationRoles', 'OrganizationAdministrationOperations',
     'ContactRoles', 'ContactPrincipalLinks',

@@ -782,8 +782,7 @@ public sealed class EfCaseQueryStore(
     /// channel; an active manual association to this Case, or no manual
     /// association and an accepted link to it (<see
     /// cref="CurrentIntakeAssociations"/>); and the category the persisted
-    /// decision maps to, which ignores the decision's outcome and is Other
-    /// whenever an Other name is recorded.
+    /// decision maps to, which ignores the decision's outcome.
     /// </summary>
     private static Task<Guid?> ReadLinkedCancellationMessageIdAsync(
         PegasusDbContext context,
@@ -792,7 +791,6 @@ public sealed class EfCaseQueryStore(
     {
         var mailbox = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox);
         var manualUpload = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload);
-        var received = EfIntakeReceiptStore.ToCode(MailDirection.Received);
         var inProgressCases = MailTaxonomy.CategoryName(ReceivedMailFamily.InProgressCases);
         return context.IntakeReceipts.AsNoTracking()
             .Where(item => (item.SourceChannel == mailbox || item.SourceChannel == manualUpload)
@@ -803,8 +801,6 @@ public sealed class EfCaseQueryStore(
                         && context.CaseIntakeLinks.Any(link =>
                             link.IntakeReceiptId == item.Id && link.CaseId == caseId)))
                 && item.MailClassificationDecision != null
-                && item.MailClassificationDecision.OtherName == null
-                && item.MailClassificationDecision.Direction == received
                 && item.MailClassificationDecision.Family == inProgressCases
                 && item.MailClassificationDecision.Subtype == MailCategory.CancellationSubtype)
             .Join(

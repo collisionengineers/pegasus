@@ -198,11 +198,7 @@ public sealed class AdministrationPolicyTests
                 "  mailbox-op  ",
                 "  mailbox-identity  ",
                 "  inbox-folder  ",
-                "  sent-folder  ",
-                [
-                    new(MailLogicalFolderType.Billing, "  billing-folder  "),
-                    new(MailLogicalFolderType.Instructions, "instructions-folder")
-                ]),
+                "  sent-folder  "),
             default);
 
         Assert.Equal("instructions@collisionengineers.co.uk", updated.Address);
@@ -218,18 +214,6 @@ public sealed class AdministrationPolicyTests
         Assert.Equal("mailbox-identity", request.MailboxIdentity);
         Assert.Equal("inbox-folder", request.InboxFolderIdentity);
         Assert.Equal("sent-folder", request.SentFolderIdentity);
-        Assert.Collection(
-            request.FolderBindings!,
-            item =>
-            {
-                Assert.Equal(MailLogicalFolderType.Instructions, item.FolderType);
-                Assert.Equal("instructions-folder", item.FolderIdentity);
-            },
-            item =>
-            {
-                Assert.Equal(MailLogicalFolderType.Billing, item.FolderType);
-                Assert.Equal("billing-folder", item.FolderIdentity);
-            });
         Assert.True(updated.IdentityIsBound);
     }
 
@@ -256,41 +240,6 @@ public sealed class AdministrationPolicyTests
         await command.ExecuteAsync(
             request with { VerifiedEncodedMessageSizeLimit = 25_000_000 }, default);
         Assert.Equal(25_000_000, store.UpdateRequest!.VerifiedEncodedMessageSizeLimit);
-    }
-
-    [Fact]
-    public async Task ApprovedMailboxRejectsDuplicateOrInexactFolderBindingsBeforeStore()
-    {
-        var store = new MailboxStore();
-        var command = new UpdateApprovedMailbox(store);
-        var request = new UpdateApprovedMailboxRequest(
-            Guid.NewGuid(),
-            "instructions@collisionengineers.co.uk",
-            [ApprovedMailboxRouteScope.InboundIntake],
-            ApprovedMailboxState.Approved,
-            0,
-            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
-            "mailbox-op",
-            "mailbox-identity",
-            "inbox-folder",
-            null,
-            [
-                new(MailLogicalFolderType.Instructions, "folder-one"),
-                new(MailLogicalFolderType.Instructions, "folder-two")
-            ]);
-
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => command.ExecuteAsync(request, default));
-        var invalidIdentity = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
-            () => command.ExecuteAsync(
-                request with
-                {
-                    FolderBindings = [new(MailLogicalFolderType.Instructions, "has space")]
-                },
-                default));
-
-        Assert.Equal(ApprovedMailboxUpdateError.InvalidMailboxIdentity, invalidIdentity.Error);
-        Assert.Null(store.UpdateRequest);
     }
 
     [Theory]
@@ -469,8 +418,7 @@ public sealed class AdministrationPolicyTests
                 request.SentFolderIdentity,
                 request.MailboxIdentity is not null,
                 request.State == ApprovedMailboxState.Approved ? DateTimeOffset.UtcNow : null,
-                request.ExpectedVersion + 1,
-                request.FolderBindings?.ToArray() ?? []));
+                request.ExpectedVersion + 1));
         }
 
         public Task<ApprovedMailbox> SetDefaultAsync(
@@ -489,7 +437,6 @@ public sealed class AdministrationPolicyTests
                 true,
                 DateTimeOffset.UtcNow,
                 request.ExpectedVersion + 1,
-                [],
                 1,
                 10485760,
                 true));

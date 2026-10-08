@@ -57,15 +57,6 @@ public sealed class RetainedMailDismissalTests
         Assert.Empty(store.OperationKeys);
     }
 
-    [Fact]
-    public void TheDismissedFolderIsInTheVocabulary()
-    {
-        // MailLogicalFolderPolicyTests covers that no settled classification
-        // recommends it: Dismissed is only ever reached by the Dismiss act.
-        Assert.Equal("Dismissed", MailLogicalFolders.Definition(MailLogicalFolderType.Dismissed).Label);
-        Assert.Equal("dismissed", MailLogicalFolders.Definition(MailLogicalFolderType.Dismissed).Key);
-    }
-
     private sealed class RecordingStore : IRetainedMailDismissalStore
     {
         private DateTimeOffset? _dismissedAt;
