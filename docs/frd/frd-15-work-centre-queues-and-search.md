@@ -154,11 +154,11 @@ repeats no Dismiss; the row's own control is the one.
 days, newest first, whatever created it: reference, registration, claimant,
 principal and an arrival chip (Manual, E-mail, Principal API, Automation). A
 "Since you last looked" divider marks what is new for this person. Opening the
-Work Centre records the look. A change the Automation actor makes to an
-existing Case appears as a "Changed by automation" row naming the change. The
-section is a table (v32 A): Case, Detail (registration, claimant, principal
-and the change), Arrival, Received and **Dismiss**; the "Since you last
-looked" divider is a group row. The section is paged.
+Work Centre records the look. The section lists new Cases only: what the
+Automation actor does to an existing Case is that Case's history, not a row
+here (operator, 8 October 2026). The section is a table (v32 A): Case, Detail
+(registration, claimant and principal), Arrival, Received and **Dismiss**; the
+"Since you last looked" divider is a group row. The section is paged.
 
 **AI jobs.** The office's unfinished AI jobs (Queued, Taken with its lease
 expiry, Draft ready) and those that failed in the same 7 days, excluding
@@ -187,7 +187,7 @@ dismissal shows again:
 | Unidentified | The item was opened or reopened |
 | Triage | The Triage changed state, or opened |
 | AI draft, AI job | The job entered the state it shows (taken, draft written, failed, or returned to the queue when its lease lapsed); a job released back to the queue keeps its creation time |
-| New case, Changed by automation | The Case was created; the change was made |
+| New case | The Case was created |
 
 Due dates play no part, so a target change never brings a dismissed row back.
 The section counts, kind chips, groups and pages leave dismissed rows out;

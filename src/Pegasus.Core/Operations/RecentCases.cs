@@ -16,30 +16,19 @@ public enum CaseArrival
     Automation
 }
 
-public enum RecentCaseRowKind
-{
-    /// <summary>A Case created in the window.</summary>
-    NewCase,
-
-    /// <summary>An existing Case the Automation actor changed in the window, so nothing automation does is silent.</summary>
-    ChangedByAutomation
-}
-
 /// <summary>
-/// One row of the Work Centre's New cases section. For a change by automation,
-/// <see cref="OccurredAtUtc"/> is when the change was made and
-/// <see cref="ChangeKind"/> the recorded event type the Web layer labels.
+/// One row of the Work Centre's New cases section: a Case created in the
+/// window. What the Automation actor later does to a Case is its history, not
+/// a new Case (operator, 8 October 2026).
 /// </summary>
 public sealed record RecentCaseRow(
-    RecentCaseRowKind Kind,
     Guid CaseId,
     string Reference,
     string? Registration,
     string? Claimant,
     string Principal,
-    DateTimeOffset OccurredAtUtc,
-    CaseArrival Arrival,
-    string? ChangeKind = null);
+    DateTimeOffset CreatedAtUtc,
+    CaseArrival Arrival);
 
 public sealed record RecentCasesPage(
     IReadOnlyList<RecentCaseRow> Items,
@@ -52,7 +41,7 @@ public sealed record RecentCasesPage(
 
 public interface IRecentCaseQueries
 {
-    /// <summary>Cases created and automation changes made at or after <paramref name="sinceUtc"/>, newest first, less those dismissed (<see cref="WorkCentreDismissalPolicy"/>).</summary>
+    /// <summary>Cases created at or after <paramref name="sinceUtc"/>, newest first, less those dismissed (<see cref="WorkCentreDismissalPolicy"/>).</summary>
     Task<RecentCasesPage> ListAsync(
         DateTimeOffset sinceUtc,
         int page,
