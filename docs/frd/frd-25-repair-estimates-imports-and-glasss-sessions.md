@@ -181,7 +181,10 @@ assume another Case-version increment.
 value scales a spec down under the Engineer's hand: one factor lowers every
 part price, every materials figure and the labour rate, each to its floor
 (£50 an hour and 65 % of price unless the Engineer sets others); hours never
-move. Moving the slider previews (P34; operator, 28 September 2026): Core
+move. The slider starts at the spec's own share of the Engineer's Value,
+above 100 % where the spec costs more, and goes no higher, so scaling only
+lowers prices; a contract repair's agreed sum below that share is the
+starting target instead (operator, 8 October 2026). Moving the slider previews (P34; operator, 28 September 2026): Core
 scales and totals the spec as the editor holds it, read on the save's own
 terms, the changed cells show its figures in amber and cannot be typed in,
 and the rollup and the readout follow. The readout, previewed and recorded

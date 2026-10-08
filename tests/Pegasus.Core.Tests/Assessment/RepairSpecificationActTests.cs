@@ -62,6 +62,31 @@ public sealed class RepairSpecificationActTests
         Assert.Equal("Repair spec scaled: " + readout, RepairSpecificationWording.Scaled(result, 60m));
         Assert.Throws<InvalidOperationException>(() => RepairSpecificationScaling.TargetGross(null, 30m));
         Assert.Throws<ArgumentException>(() => RepairSpecificationScaling.TargetGross(2_000m, 0.5m));
+        // The spec's own total is the only ceiling (operator, 8 October 2026):
+        // a spec above the Engineer's Value scales down from its own share.
+        Assert.Equal(2_600m, RepairSpecificationScaling.TargetGross(2_000m, 130m));
+    }
+
+    [Fact]
+    public void TheSliderStartsAtTheSpecsOwnShareAndATargetThereLeavesItAsEstimated()
+    {
+        // Operator, 8 October 2026: the slider starts at the spec's share of
+        // value, rounded up, so the starting target never scales it.
+        Assert.Equal(74.5m, RepairSpecificationScaling.PercentOfValue(1_000m, 744.24m));
+        Assert.Equal(60m, RepairSpecificationScaling.PercentOfValue(1_000m, 600m));
+        Assert.Throws<InvalidOperationException>(() => RepairSpecificationScaling.PercentOfValue(0m, 600m));
+        var specification = Estimate(
+            Header(rate: 80m),
+            Line("new_part", price: 400m, quantity: 2),
+            Line("repair", workUnits: 4m));
+        var asEstimated = EstimateTotals.Compute(specification).Printed.Gross;
+        var share = RepairSpecificationScaling.PercentOfValue(2_000m, asEstimated);
+
+        var result = RepairSpecificationScaling.Scale(
+            specification, RepairSpecificationScaling.TargetGross(2_000m, share), ScalingFloors.Default);
+
+        Assert.Equal(asEstimated, result.GrossAfter);
+        Assert.Equal(1m, result.PriceFactor);
     }
 
     [Fact]
