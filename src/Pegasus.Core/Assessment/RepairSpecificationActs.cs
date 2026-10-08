@@ -108,7 +108,9 @@ public static class RepairSpecificationScaling
 
     /// <summary>
     /// The total inc VAT a percentage of the Engineer's Value asks for. The
-    /// Engineer's Value must be recorded and the percentage between 1 and 100.
+    /// Engineer's Value must be recorded and the percentage at least 1. There
+    /// is no upper bound here: the spec's own total is the ceiling, and
+    /// <see cref="Scale"/> never raises a spec above it (operator, 8 October 2026).
     /// </summary>
     public static decimal TargetGross(decimal? engineerValue, decimal targetPercent)
     {
@@ -116,12 +118,27 @@ public static class RepairSpecificationScaling
         {
             throw new InvalidOperationException("An Engineer's Value is required before scaling.");
         }
-        if (targetPercent is < 1m or > 100m)
+        if (targetPercent < 1m)
         {
             throw new ArgumentException(
-                "The target must be between 1 and 100 percent of the Engineer's Value.", nameof(targetPercent));
+                "The target must be at least 1 percent of the Engineer's Value.", nameof(targetPercent));
         }
         return value * targetPercent / 100m;
+    }
+
+    /// <summary>
+    /// The spec's own share of the Engineer's Value, rounded up to a tenth of
+    /// a percent: where the Target % of value slider starts and the highest it
+    /// goes (operator, 8 October 2026). Rounded up, so a target at it leaves
+    /// the spec as estimated.
+    /// </summary>
+    public static decimal PercentOfValue(decimal engineerValue, decimal gross)
+    {
+        if (engineerValue <= 0m)
+        {
+            throw new InvalidOperationException("An Engineer's Value is required before scaling.");
+        }
+        return Math.Ceiling(gross / engineerValue * 1_000m) / 10m;
     }
 
     public static decimal GrossAt(RepairSpecificationVersion specification, decimal factor, ScalingFloors floors) =>
