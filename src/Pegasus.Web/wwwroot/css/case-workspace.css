@@ -45,6 +45,9 @@
    the current view reads plain and strong, the other is a link. */
 [data-case-views] .next-row{gap:8px}
 [data-case-views] [aria-current="page"]{font-weight:600;color:var(--ink)}
+/* Linked cases: the finding wraps onto its own line rather than clipping in the 285px aside. */
+[data-case-linked-triage] .next-row{flex-wrap:wrap;justify-content:flex-start}
+[data-case-linked-triage] .linked-finding{flex-basis:100%}
 /* Next action (issue 899) stacks a stale generation's notice, its line and
    the report blockers; a blocker's words wrap inside the 285px aside. */
 [data-next-action] .panel-body>*+*{margin-top:8px}
