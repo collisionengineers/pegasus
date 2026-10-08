@@ -1932,7 +1932,7 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
-    public async Task LinkedUnclassifiedMessageShowsTheCaseDestinationWhileAnUnlinkedMessageRemainsUnidentified()
+    public async Task LinkedMessageTakesTheCaseStateClassificationWhileAnUnlinkedMessageRemainsUnidentified()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
@@ -1962,8 +1962,11 @@ public sealed class MailWorkspaceWebTests
         // A fresh viewer checks the persisted message destination independently.
         using var viewer = CreateClient(factory);
         var linked = await GetHtmlAsync(viewer, $"/Inbox/{linkedMessageId:D}");
+        // FRD-08 case-state classification: linked to a Review Case, the
+        // unclassified message becomes in-progress ongoing correspondence.
         Assert.Contains("<span>Classification</span>", linked, StringComparison.Ordinal);
-        Assert.Contains("<strong>Unclassified</strong>", linked, StringComparison.Ordinal);
+        Assert.Contains("Ongoing correspondence</strong>", linked, StringComparison.Ordinal);
+        Assert.DoesNotContain("<strong>Unclassified</strong>", linked, StringComparison.Ordinal);
         Assert.Contains("<span>Destination</span>", linked, StringComparison.Ordinal);
         Assert.Contains(
             $"<a href=\"/Cases/{caseId:D}\">MAIL-DESTINATION</a>",
@@ -1979,11 +1982,11 @@ public sealed class MailWorkspaceWebTests
         var linkedRowEnd = previewPage.IndexOf("</div>", linkedRowStart, StringComparison.Ordinal);
         Assert.True(linkedRowEnd > linkedRowStart, "The linked message row was not complete.");
         var linkedRow = previewPage[linkedRowStart..linkedRowEnd];
-        Assert.Contains("Unclassified", linkedRow, StringComparison.Ordinal);
-        Assert.DoesNotMatch("Unclassified\\s*·\\s*Unidentified", linkedRow);
+        Assert.Contains("Ongoing correspondence", linkedRow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unidentified", linkedRow, StringComparison.Ordinal);
 
         var preview = Between(previewPage, "<aside id=\"mail-quick-preview\"", "</aside>");
-        Assert.Contains("data-mail-preview-classification>Unclassified</dd>", preview, StringComparison.Ordinal);
+        Assert.Contains("Ongoing correspondence</dd>", preview, StringComparison.Ordinal);
         // An instruction Case: the Case cell names its Case/PO and the pane offers Open Case.
         Assert.Contains("<dt>Case</dt>", preview, StringComparison.Ordinal);
         Assert.Contains("data-mail-preview-association>MAIL-DESTINATION</dd>", preview, StringComparison.Ordinal);
