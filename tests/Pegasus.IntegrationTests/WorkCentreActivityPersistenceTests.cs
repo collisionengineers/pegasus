@@ -67,13 +67,15 @@ public sealed class WorkCentreActivityPersistenceTests
                 Event(lastWeek.Id, "case_completed", WeekStart.AddDays(-1)),
                 Event(todayToo.Id, "case_query_received", DayStart.AddHours(7)));
 
-            // E-mails received: mailbox receipts today; an upload is also a
-            // receipt and is not counted; yesterday's mail is not today's.
+            // E-mails received: mailbox receipts; an upload is also a receipt
+            // and is not counted; yesterday's mail is this week's, not today's,
+            // and last week's is neither.
             context.AddRange(
                 Receipt("mailbox", DayStart.AddHours(1)),
                 Receipt("mailbox", DayStart.AddHours(8)),
                 Receipt("upload", DayStart.AddHours(2)),
-                Receipt("mailbox", DayStart.AddHours(-3)));
+                Receipt("mailbox", DayStart.AddHours(-3)),
+                Receipt("mailbox", WeekStart.AddHours(-1)));
             await context.SaveChangesAsync();
         }
 
@@ -82,13 +84,11 @@ public sealed class WorkCentreActivityPersistenceTests
             .GetAsync(DayStart, WeekStart, CancellationToken.None);
 
         Assert.Equal(new WorkCentreActivityCounts(
-            NewCasesToday: 2,
-            SentToEngineerToday: 1,
-            SentToEngineerThisWeek: 2,
-            ReportsSentToday: 1,
-            ReportsSentThisWeek: 2,
-            CompletedThisWeek: 3,
-            EmailsReceivedToday: 2), counts);
+            NewCases: new(Today: 2, ThisWeek: 3),
+            SentToEngineer: new(Today: 1, ThisWeek: 2),
+            ReportsSent: new(Today: 1, ThisWeek: 2),
+            Completed: new(Today: 1, ThisWeek: 3),
+            EmailsReceived: new(Today: 2, ThisWeek: 3)), counts);
     }
 
     [Fact]
@@ -100,7 +100,8 @@ public sealed class WorkCentreActivityPersistenceTests
         var counts = await scope.ServiceProvider.GetRequiredService<IWorkCentreActivityQueries>()
             .GetAsync(DayStart, WeekStart, CancellationToken.None);
 
-        Assert.Equal(new WorkCentreActivityCounts(0, 0, 0, 0, 0, 0, 0), counts);
+        var none = new WorkCentreActivityFigure(0, 0);
+        Assert.Equal(new WorkCentreActivityCounts(none, none, none, none, none), counts);
     }
 
     private static CaseEntity Case(Guid id, SeededPrincipalTestData principal, int sequence, DateTimeOffset createdAtUtc) => new()

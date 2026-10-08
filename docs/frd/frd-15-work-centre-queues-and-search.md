@@ -45,10 +45,9 @@ no figure and the section's unavailable notice, never `0`.
 
 **Activity** (v32 A, operator 5 October 2026). Under the counts, a panel
 headed Activity holds a table: the figures head the columns and the rows are
-**Today** and **This week**. The figures are New cases (today), Sent to
-Engineer (today and this week), Reports sent (today and this week),
-Completed (this week) and E-mails received (today); a half that is not
-defined is not drawn. Today runs from midnight Europe/London and This week
+**Today** and **This week**. The figures are New cases, Sent to Engineer,
+Reports sent, Completed and E-mails received, each counted for both rows
+(operator 8 October 2026). Today runs from midnight Europe/London and This week
 from Monday 00:00 Europe/London, both to the instant of the read. Every
 figure is office-wide and plain text; New cases opens the New cases tab
 when that tab is shown. The definitions:

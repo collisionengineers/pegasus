@@ -2317,6 +2317,7 @@ public static class OperatorLabels
         public const string SectionNav = "Case sections";
 
         // The identity ribbon the frame itself renders (D29, D31).
+        public const string RibbonRegistration = "Registration";
         public const string RibbonClaimant = "Claimant";
         public const string RibbonPrincipal = "Principal";
         public const string RibbonState = "State";

@@ -18,7 +18,8 @@ Its stable frame is:
 
 The ribbon owns:
 
-- Case reference / registration context;
+- Case reference, under "Case workspace";
+- Registration, its own cell (operator, 8 October 2026);
 - Claimant;
 - Principal;
 - Engineer;
