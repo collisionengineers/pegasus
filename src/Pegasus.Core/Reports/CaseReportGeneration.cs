@@ -1100,7 +1100,7 @@ public sealed class GenerateCaseReport(
     private static string FileNameOf(CaseReportGenerationRecord generation, CaseReportArtifactKind kind) =>
         $"{Slug(generation.Snapshot.CaseReference)}_{kind switch
         {
-            CaseReportArtifactKind.AssessmentReport => "assessment",
+            CaseReportArtifactKind.AssessmentReport => "report",
             CaseReportArtifactKind.FeeNote => "fee_note",
             CaseReportArtifactKind.RepairSpecification => "repair_specification",
             CaseReportArtifactKind.ImagePack => "images",
