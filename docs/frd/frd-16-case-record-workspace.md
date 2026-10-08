@@ -335,13 +335,15 @@ to Engineer needs no session. The rules behind each action are in
 
 ### Overview
 
-Overview opens on the outstanding requirements; the workflow position is
-the ribbon's state chip, so there is no strip of stages. Each requirement is a named unmet item from the instruction-
-or image-completeness set, with title, source, reason and resolve action.
-There is never a percentage
+Overview carries no list of outstanding requirements: they are the aside's
+Next action and **Report not ready** card, and nowhere else (operator, 8
+October 2026). The workflow position is the ribbon's state chip, so there
+is no strip of stages. Each requirement is a named unmet item from the
+instruction- or image-completeness set, with title, source, reason and the
+section that clears it. There is never a percentage or a count
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)). An
 Audit with no original report at all, neither a filed report nor one kept
-from the instruction email, also lists **Original report missing**, sourced
+from the instruction email, also has **Original report missing**, sourced
 from Audit.
 
 Then the Case and Principal cards, each folding and staying folded per

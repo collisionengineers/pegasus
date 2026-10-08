@@ -208,3 +208,7 @@ Screenshots are in [v35-conformance/](v35-conformance/verification.json): each s
 Not proven here: a signed-in walk of a running Pegasus, including the aside redrawn after a real save.
 
 Seen and not changed: Case details' own Outstanding requirements panel still shows "2 outstanding". That count is the kind FRD-13 rules out, and the panel now repeats the card's requirements. It is outside this round's brief and is left for the operator.
+
+## 14. 8 October 2026: the Case details duplicate removed
+
+The operator: "Yes, this duplication should be removed." Case details' Outstanding requirements panel and its "N outstanding" count are gone. The outstanding requirements now have one home: the aside's Next action and Report not ready card. FRD-16's Overview paragraph says so. Its `.sub-panel.blockers` styles had no other user and went too.
