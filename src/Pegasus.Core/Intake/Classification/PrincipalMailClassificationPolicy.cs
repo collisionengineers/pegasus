@@ -20,17 +20,29 @@ namespace Pegasus.Core.Intake;
 /// corpus shows the body-phrase and subject-line templates to be disjoint. Current
 /// cohort counts belong to the versioned evidence/evaluation output rather than this
 /// policy comment. All supported tells produce one triage candidate.
+///
+/// Version 3 adds the generated letter-in-body notices Qdos's case system pastes into
+/// the email: garage allocation and repair authorisation (case-update), the report
+/// chase (chasing-for-update) and the pre-accident-value dispute (dispute). Each tell
+/// is the notice's fixed sentence, verified over the QDOS template registry of 8 October
+/// 2026 (desk@ mailbox, twelve months): every example carries it and no handrolled
+/// QDOS or non-QDOS message does. The two case-update tells feed one candidate, as the
+/// two triage tells do.
 /// </summary>
 public sealed partial class PrincipalMailClassificationPolicy(string principalCode) : IMailClassificationPolicy
 {
     public const string Key = "principal_mail_classification";
-    public const int Version = 2;
+    public const int Version = 3;
 
     private const string TriagePhrase = "Triage Only Request";
     private const string TriageSubjectPrefix = "Engineer Triage";
     private const string AuditNotificationTitle = "AUDIT REPORT NOTIFICATION";
     private const string EngineerNotificationTitle = "ENGINEER NOTIFICATION";
     private const string ReportPlusAuditMarker = "REPORT + AUDIT REPORT";
+    private const string GarageAllocationTell = "Please be advised that the garage allocated to this claim are shown below for your records:";
+    private const string RepairsAuthorisedTell = "We are now able to authorise repairs. Please can you arrange this with the garage below:";
+    private const string ReportChaseTell = "we note that we have heard nothing further from you since then.";
+    private const string PavDisputeTell = "The client has confirmed that they do not agree with the figure for the pre-accident value of their vehicle.";
 
     // The extraction is pure and reads text only, so no retained bytes stand
     // behind this reading; the placeholder only satisfies its provenance field.
@@ -95,6 +107,12 @@ public sealed partial class PrincipalMailClassificationPolicy(string principalCo
             text.Contains(EngineerNotificationTitle, StringComparison.Ordinal)
             && !text.Contains(ReportPlusAuditMarker, StringComparison.Ordinal));
         var hasEngineerTitle = hasPlainEngineerTitle || hasReportPlusAudit;
+        // The notice tells are matched case-exactly with only line wrapping tolerated, on the
+        // current body alone: a notice quoted under a later reply is not fresh work.
+        var hasGarageAllocation = bodyTexts.Any(text => GarageAllocationNoticeRegex().IsMatch(text));
+        var hasRepairsAuthorised = bodyTexts.Any(text => RepairsAuthorisedNoticeRegex().IsMatch(text));
+        var hasReportChase = bodyTexts.Any(text => ReportChaseNoticeRegex().IsMatch(text));
+        var hasPavDispute = bodyTexts.Any(text => PavDisputeLetterRegex().IsMatch(text));
 
         MailClassificationPredicateResult[] predicates =
         [
@@ -141,10 +159,57 @@ public sealed partial class PrincipalMailClassificationPolicy(string principalCo
                     ? hasReportPlusAudit
                         ? $"An attached document contains the generated title '{EngineerNotificationTitle} ({ReportPlusAuditMarker})'."
                         : $"An attached document contains the generated title '{EngineerNotificationTitle}' without the '{ReportPlusAuditMarker}' marker."
-                    : $"No attached document contains the title '{EngineerNotificationTitle}'.")
+                    : $"No attached document contains the title '{EngineerNotificationTitle}'."),
+            new(
+                "body.garage-allocation-notice",
+                hasGarageAllocation,
+                hasGarageAllocation
+                    ? $"The email body contains the generated notice sentence '{GarageAllocationTell}'."
+                    : $"The email body does not contain '{GarageAllocationTell}'."),
+            new(
+                "body.repairs-authorised-notice",
+                hasRepairsAuthorised,
+                hasRepairsAuthorised
+                    ? $"The email body contains the generated notice sentence '{RepairsAuthorisedTell}'."
+                    : $"The email body does not contain '{RepairsAuthorisedTell}'."),
+            new(
+                "body.report-chase-notice",
+                hasReportChase,
+                hasReportChase
+                    ? $"The email body contains the generated chase sentence '{ReportChaseTell}'."
+                    : $"The email body does not contain '{ReportChaseTell}'."),
+            new(
+                "body.pav-dispute-letter",
+                hasPavDispute,
+                hasPavDispute
+                    ? $"The email body contains the generated dispute sentence '{PavDisputeTell}'."
+                    : $"The email body does not contain '{PavDisputeTell}'.")
         ];
 
         var candidates = new List<ClassificationCandidate>();
+        // Two notices, one category: as with the triage tells, a second case-update
+        // candidate would only turn a notice into Ambiguous.
+        if (hasGarageAllocation || hasRepairsAuthorised)
+        {
+            candidates.Add(new(
+                MailCategory.Received(ReceivedMailFamily.InProgressCases, "case-update", isReplyContext: isReplyPrefixed),
+                null));
+        }
+
+        if (hasReportChase)
+        {
+            candidates.Add(new(
+                MailCategory.Received(ReceivedMailFamily.InProgressCases, "chasing-for-update", isReplyContext: isReplyPrefixed),
+                null));
+        }
+
+        if (hasPavDispute)
+        {
+            candidates.Add(new(
+                MailCategory.Received(ReceivedMailFamily.PostReportEmails, MailCategory.DisputeSubtype, isReplyContext: isReplyPrefixed),
+                null));
+        }
+
         if (isAutomaticReply)
         {
             candidates.Add(new(
@@ -454,6 +519,32 @@ public sealed partial class PrincipalMailClassificationPolicy(string principalCo
         RegexOptions.CultureInvariant,
         100)]
     private static partial Regex OfficialInspectionWillFollowRegex();
+
+    // The notice sentences, verbatim, with each space allowed to be a line wrap. Case is
+    // significant: a handler typing "the garage allocated to this claim" is not the tell.
+    [GeneratedRegex(
+        @"Please\s+be\s+advised\s+that\s+the\s+garage\s+allocated\s+to\s+this\s+claim\s+are\s+shown\s+below\s+for\s+your\s+records:",
+        RegexOptions.CultureInvariant,
+        100)]
+    private static partial Regex GarageAllocationNoticeRegex();
+
+    [GeneratedRegex(
+        @"We\s+are\s+now\s+able\s+to\s+authorise\s+repairs\.\s+Please\s+can\s+you\s+arrange\s+this\s+with\s+the\s+garage\s+below:",
+        RegexOptions.CultureInvariant,
+        100)]
+    private static partial Regex RepairsAuthorisedNoticeRegex();
+
+    [GeneratedRegex(
+        @"we\s+note\s+that\s+we\s+have\s+heard\s+nothing\s+further\s+from\s+you\s+since\s+then\.",
+        RegexOptions.CultureInvariant,
+        100)]
+    private static partial Regex ReportChaseNoticeRegex();
+
+    [GeneratedRegex(
+        @"The\s+client\s+has\s+confirmed\s+that\s+they\s+do\s+not\s+agree\s+with\s+the\s+figure\s+for\s+the\s+pre-accident\s+value\s+of\s+their\s+vehicle\.",
+        RegexOptions.CultureInvariant,
+        100)]
+    private static partial Regex PavDisputeLetterRegex();
 
     // A word occurrence is not automatically a report outcome: "unrepairable",
     // "not repairable", and "not a total loss" must never allocate a permanent

@@ -9,7 +9,80 @@ public sealed class PrincipalMailClassificationPolicyTests
     public void PolicyKeyAndVersionAreStable()
     {
         Assert.Equal("principal_mail_classification", PrincipalMailClassificationPolicy.Key);
-        Assert.Equal(2, PrincipalMailClassificationPolicy.Version);
+        Assert.Equal(3, PrincipalMailClassificationPolicy.Version);
+    }
+
+    /// <summary>
+    /// Version 3: the notices Qdos's case system pastes into the body, verified over the
+    /// QDOS template registry (8 October 2026). Each tell is the notice's fixed sentence.
+    /// </summary>
+    [Theory]
+    [InlineData(
+        "We refer to the above claim and to the instructions that were sent to you on 11 June 2026.\nPlease be advised that the garage allocated to this claim are shown below for your records:\nName\nEssex Emergency Services Ltd",
+        "in-progress-cases", "case-update", "body.garage-allocation-notice")]
+    [InlineData(
+        "We refer to your previous without prejudice inspection.\nWe are now able to authorise repairs. Please can you arrange this with the\r\ngarage below:\nName: John Card ARC",
+        "in-progress-cases", "case-update", "body.repairs-authorised-notice")]
+    [InlineData(
+        "We note that we have recently given you instructions to inspect our client's vehicle and prepare a report, however; we note that we have heard nothing further from you since then.\nPlease provide us with a copy of your report by return.",
+        "in-progress-cases", "chasing-for-update", "body.report-chase-notice")]
+    [InlineData(
+        "We refer to the above claim and further to previous correspondence.\nThe client has confirmed that they do not agree with the figure for the pre-accident value of their vehicle. The client has therefore provided their comments and evidence to support an increased value.",
+        "post-report-emails", "dispute", "body.pav-dispute-letter")]
+    public void AGeneratedNoticeSentenceClassifiesItsCategory(string body, string family, string subtype, string predicate)
+    {
+        var result = Classify(subject: "(EREF23) RTA on 06/06/2026 : Mr Example (Our Ref: KAD/45975/1, Vehicle: M15GGF)", body: body);
+
+        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
+        var category = Assert.IsType<MailCategory>(result.Category);
+        Assert.Equal(family, category.Name);
+        Assert.Equal(subtype, category.Subtype);
+        Assert.False(category.IsReplyContext);
+        Assert.True(result.Predicates.Single(item => item.Key == predicate).Matched);
+    }
+
+    [Fact]
+    public void BothCaseUpdateNoticesTogetherAreOneCaseUpdateCandidate()
+    {
+        var result = Classify(body:
+            "Please be advised that the garage allocated to this claim are shown below for your records:\n"
+            + "We are now able to authorise repairs. Please can you arrange this with the garage below:");
+
+        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
+        Assert.Equal("case-update", Assert.IsType<MailCategory>(result.Category).Subtype);
+    }
+
+    [Fact]
+    public void AChaseAndADisputeTogetherRemainAmbiguous()
+    {
+        var result = Classify(body:
+            "we note that we have heard nothing further from you since then.\n"
+            + "The client has confirmed that they do not agree with the figure for the pre-accident value of their vehicle.");
+
+        Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
+        Assert.Contains("in-progress-cases/chasing-for-update", result.AmbiguousCandidates);
+        Assert.Contains("post-report-emails/dispute", result.AmbiguousCandidates);
+    }
+
+    [Theory]
+    [InlineData("please be advised that the garage allocated to this claim are shown below for your records:")]
+    [InlineData("As discussed, we have heard nothing further from you since then.")]
+    [InlineData("The client does not agree with the figure for the pre-accident value of their vehicle.")]
+    public void AHumanParaphraseOfANoticeIsNotTheTell(string body)
+    {
+        Assert.Equal(MailClassificationOutcome.Unclassified, Classify(body: body).Outcome);
+    }
+
+    [Fact]
+    public void ANoticeOnAReplyThreadKeepsItsCategoryInReplyContext()
+    {
+        var result = Classify(
+            subject: "RE: (EREF12) RTA on 15/06/2026 : Mr Example (Our Ref: SAB/46286/1, Vehicle: HN13XMO)",
+            body: "we note that we have heard nothing further from you since then.");
+
+        var category = Assert.IsType<MailCategory>(result.Category);
+        Assert.Equal("chasing-for-update", category.Subtype);
+        Assert.True(category.IsReplyContext);
     }
 
     [Fact]
@@ -712,7 +785,7 @@ public sealed class PrincipalMailClassificationPolicyTests
     {
         var result = Classify(body: "Anything at all.");
 
-        Assert.Equal(7, result.Predicates.Count);
+        Assert.Equal(11, result.Predicates.Count);
         Assert.Equal(
             result.Predicates.Count,
             result.Predicates.Select(predicate => predicate.Key).Distinct(StringComparer.Ordinal).Count());
