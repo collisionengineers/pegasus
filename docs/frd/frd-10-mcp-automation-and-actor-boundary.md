@@ -20,7 +20,7 @@
   Cases, received items and their inspection address, direct Case creation,
   Case details and notes, findings, valuation, estimates, the Case's
   lifecycle acts, reports and their approval, report wording, image
-  preparation, the Case's documents, AI jobs, mail dismiss and folder moves,
+  preparation, the Case's documents, AI jobs, mail dismiss and restore,
   and Work Centre dismiss. It sends reports to the Principal and e-mail under
   its own `automation.send` scope. It never puts an estimate in use, never
   runs a Glass's session and never touches Glass's credentials.
@@ -332,10 +332,8 @@ replays by its operation key.
 - `pegasus_unidentified_resolve` with `targetKind` Closed is **Close with
   reason**: it names no destination. `pegasus_unidentified_reopen` withdraws
   a resolution or closure with a reason.
-- `pegasus_mail_action` with `move_folder` confirms the move to the folder
-  the classification recommends, with the classification, recommendation
-  and mailbox versions `pegasus_mail_get` returns; `dismiss` and `restore`
-  change the message's Pegasus scope only
+- `pegasus_mail_action` is `dismiss` or `restore`; each changes the
+  message's Pegasus scope only (ADR-0067)
   ([FRD-20](frd-20-mailbox-workspace.md#dismiss)).
 - `pegasus_work_centre_dismiss` dismisses a Case, Unidentified item or AI
   job from the Work Centre for everyone, as a row's **Dismiss** does
@@ -450,7 +448,7 @@ its one command when none is given.
 | `automation.assessment` | `pegasus_assessment_update`, `pegasus_valuation_save`, `pegasus_estimate_save`, `pegasus_estimate_act`, `pegasus_estimate_import` | The assessment, valuation and estimate writes above | one-command lease |
 | `automation.mail` | `pegasus_mail_list`, `pegasus_mail_get` | The retained mail workspace; one message with classification and history | none |
 | `automation.mail` | `pegasus_mail_correct_classification` | Correct a classification through the staff command | version and key |
-| `automation.mail` | `pegasus_mail_action` | `move_folder` to the recommended Outlook folder; `dismiss` or `restore` in Pegasus | versions and key for a move; key for dismiss and restore |
+| `automation.mail` | `pegasus_mail_action` | `dismiss` or `restore` in Pegasus | key |
 | `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
 | `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does | one-command lease |
 | `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `new` (or a chaser), `reply`, `reply_all`, `forward`, `triage_reply` | Case or Triage version and key |

@@ -213,12 +213,6 @@ internal sealed class EfRetainedMailboxMessageStore(
                             document.AttachmentFileName == null
                             && document.Text != null
                             && document.Text.Contains(searchTerm))),
-                context.RetainedMailFolderMoves
-                    .Where(move => move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded")
-                    .OrderByDescending(move => move.RecordedAtUtc)
-                    .ThenByDescending(move => move.Id)
-                    .Select(move => move.FolderType)
-                    .FirstOrDefault(),
                 item.BodyPlainText == null
                     ? null
                     : item.BodyPlainText.Substring(0, 600),
@@ -276,10 +270,6 @@ internal sealed class EfRetainedMailboxMessageStore(
                     && receipt.SearchDocuments.Any(document =>
                         document.AttachmentFileName == null && document.Text != null
                         && document.Text.Contains(searchTerm))),
-                context.RetainedMailFolderMoves
-                    .Where(move => move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded")
-                    .OrderByDescending(move => move.RecordedAtUtc).ThenByDescending(move => move.Id)
-                    .Select(move => move.FolderType).FirstOrDefault(),
                 item.BodyPlainText == null ? null : item.BodyPlainText.Substring(0, 600),
                 null,
                 item.DismissedAtUtc))
@@ -348,7 +338,6 @@ internal sealed class EfRetainedMailboxMessageStore(
                     .SingleOrDefault()
             })
             .SingleOrDefaultAsync(cancellationToken);
-        var currentFolderType = await ReadCurrentFolderTypeAsync(context, entity.Id, cancellationToken);
 
         var summaryRows = new List<SummaryRow>
         {
@@ -368,7 +357,6 @@ internal sealed class EfRetainedMailboxMessageStore(
                     && receipt?.BodySearchText?.Contains(
                         searchTerm,
                         StringComparison.OrdinalIgnoreCase) == true,
-                currentFolderType,
                 entity.BodyPlainText,
                 null,
                 entity.DismissedAtUtc)
@@ -451,18 +439,13 @@ internal sealed class EfRetainedMailboxMessageStore(
             entity.ImmutableMessageId,
             entity.InternetMessageIdentity,
             entity.ConversationIdentity,
-            await ClassificationDossierAsync(
-                context,
-                receipt?.Decision,
-                RetainedMailDirection.Of(ParseFolderScope(entity.FolderScope)),
-                cancellationToken));
+            await ClassificationDossierAsync(context, receipt?.Decision, cancellationToken));
     }
 
     /// <summary>
     /// The Inbox preview pane's read. A summary the caller already holds from the
     /// list is kept as it is, search matches included; without one the message's
-    /// own summary is read. Neither reads the thread, the staff names, the folder
-    /// recommendation or the latest move.
+    /// own summary is read. Neither reads the thread or the staff names.
     /// </summary>
     public async Task<RetainedMailPreview?> GetPreviewAsync(
         Guid id,
@@ -481,7 +464,6 @@ internal sealed class EfRetainedMailboxMessageStore(
 
         if (summary is null)
         {
-            var currentFolderType = await ReadCurrentFolderTypeAsync(context, entity.Id, cancellationToken);
             summary = (await MapSummariesAsync(
                 context,
                 [
@@ -498,7 +480,6 @@ internal sealed class EfRetainedMailboxMessageStore(
                         entity.Attachments.Count,
                         entity.ExternalReceiptToken,
                         false,
-                        currentFolderType,
                         entity.BodyPlainText,
                         null,
                         entity.DismissedAtUtc)
@@ -522,17 +503,6 @@ internal sealed class EfRetainedMailboxMessageStore(
             decision is null ? null : EfIntakeReceiptStore.MapMailClassificationDecision(decision),
             ParseFolderScope(entity.FolderScope));
     }
-
-    private static Task<string?> ReadCurrentFolderTypeAsync(
-        PegasusDbContext context,
-        Guid retainedMessageId,
-        CancellationToken cancellationToken) =>
-        context.RetainedMailFolderMoves.AsNoTracking()
-            .Where(move => move.RetainedMailboxMessageId == retainedMessageId && move.Outcome == "succeeded")
-            .OrderByDescending(move => move.RecordedAtUtc)
-            .ThenByDescending(move => move.Id)
-            .Select(move => move.FolderType)
-            .FirstOrDefaultAsync(cancellationToken);
 
     public async Task<RetainedMailDetail?> GetByOriginReceiptAsync(
         Guid originReceiptId,
@@ -763,22 +733,17 @@ internal sealed class EfRetainedMailboxMessageStore(
         var message = await context.RetainedMailboxMessages
             .AsNoTracking()
             .Where(item => item.Id == messageId)
-            .Select(item => new { item.ExternalReceiptToken, item.FolderScope })
+            .Select(item => item.ExternalReceiptToken)
             .SingleOrDefaultAsync(cancellationToken);
         return message is null
             ? null
-            : await LoadClassificationByTokenAsync(
-                context,
-                message.ExternalReceiptToken,
-                RetainedMailDirection.Of(ParseFolderScope(message.FolderScope)),
-                cancellationToken);
+            : await LoadClassificationByTokenAsync(context, message, cancellationToken);
     }
 
     /// <summary>The classification dossier of the message whose receipt token is known.</summary>
     private static async Task<MailClassificationDossier?> LoadClassificationByTokenAsync(
         PegasusDbContext context,
         string externalReceiptToken,
-        MailDirection direction,
         CancellationToken cancellationToken)
     {
         var decision = await context.IntakeReceipts
@@ -787,7 +752,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                 && item.ExternalReceiptToken == externalReceiptToken)
             .Select(item => item.MailClassificationDecision)
             .SingleOrDefaultAsync(cancellationToken);
-        return await ClassificationDossierAsync(context, decision, direction, cancellationToken);
+        return await ClassificationDossierAsync(context, decision, cancellationToken);
     }
 
     /// <summary>
@@ -797,7 +762,6 @@ internal sealed class EfRetainedMailboxMessageStore(
     private static async Task<MailClassificationDossier?> ClassificationDossierAsync(
         PegasusDbContext context,
         IntakeMailClassificationDecisionEntity? decision,
-        MailDirection direction,
         CancellationToken cancellationToken)
     {
         if (decision is null)
@@ -823,10 +787,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             EfIntakeReceiptStore.MapMailClassificationDecision(decision),
             decision.DecidedByActor,
             decision.DecidedAtUtc,
-            history)
-        {
-            MessageDirection = direction
-        };
+            history);
     }
 
     private static void Apply(
@@ -836,16 +797,12 @@ internal sealed class EfRetainedMailboxMessageStore(
         target.Outcome = source.Outcome switch
         {
             MailClassificationOutcome.Classified => "classified",
-            MailClassificationOutcome.Ambiguous => "ambiguous",
             MailClassificationOutcome.Unclassified => "unclassified",
             _ => throw new InvalidOperationException("Unknown mail classification outcome.")
         };
-        target.Direction = source.Category?.Direction.ToString().ToLowerInvariant();
-        target.Family = source.Category is { IsOther: false } ? source.Category.Name : null;
+        target.Family = source.Category?.Name;
         target.Subtype = source.Category?.Subtype;
         target.IsReplyContext = source.Category?.IsReplyContext ?? false;
-        target.OtherName = source.Category?.OtherName;
-        target.OtherReasoning = source.Category?.OtherReasoning;
         target.CaseType = source.CaseType is { } caseType
             ? CaseTypeCodes.ToCode(caseType)
             : null;
@@ -853,7 +810,6 @@ internal sealed class EfRetainedMailboxMessageStore(
         target.StandaloneAuditReportAssessment = source.StandaloneAuditReport is { } report
             ? EfIntakeReceiptStore.ToCode(report.Assessment)
             : null;
-        target.AmbiguousCandidatesJson = EfIntakeReceiptStore.SerializeEnvelope(source.AmbiguousCandidates);
         target.PredicatesJson = EfIntakeReceiptStore.SerializeEnvelope(source.Predicates);
         target.Reason = source.Reason;
         target.PolicyKey = source.PolicyKey;
@@ -885,13 +841,9 @@ internal sealed class EfRetainedMailboxMessageStore(
 
     private sealed record ClassificationSnapshot(
         MailClassificationOutcome Outcome,
-        MailDirection? Direction,
         string? Family,
         string? Subtype,
         bool IsReplyContext,
-        string? OtherName,
-        string? OtherReasoning,
-        IReadOnlyList<string> AmbiguousCandidates,
         IReadOnlyList<MailClassificationPredicateResult> Predicates,
         string Reason,
         string PolicyKey,
@@ -901,13 +853,9 @@ internal sealed class EfRetainedMailboxMessageStore(
     {
         public static ClassificationSnapshot From(MailClassificationResult value) => new(
             value.Outcome,
-            value.Category?.Direction,
-            value.Category is { IsOther: false } ? value.Category.Name : null,
+            value.Category?.Name,
             value.Category?.Subtype,
             value.Category?.IsReplyContext ?? false,
-            value.Category?.OtherName,
-            value.Category?.OtherReasoning,
-            value.AmbiguousCandidates,
             value.Predicates,
             value.Reason,
             value.PolicyKey,
@@ -917,17 +865,12 @@ internal sealed class EfRetainedMailboxMessageStore(
 
         public MailClassificationResult ToResult()
         {
-            MailCategory? category = OtherName is not null
-                ? MailCategory.Other(Direction!.Value, OtherName, OtherReasoning!)
-                : Family is null
-                    ? null
-                    : Direction == MailDirection.Received
-                        ? MailCategory.Received(MailTaxonomy.ParseReceivedFamily(Family), Subtype, IsReplyContext)
-                        : MailCategory.Sent(MailTaxonomy.ParseSentFamily(Family), IsReplyContext);
+            var category = Family is null
+                ? null
+                : MailCategory.Received(MailTaxonomy.ParseReceivedFamily(Family), Subtype, IsReplyContext);
             return new(
                 Outcome,
                 category,
-                AmbiguousCandidates,
                 Predicates,
                 Reason,
                 PolicyKey,
@@ -1231,9 +1174,6 @@ internal sealed class EfRetainedMailboxMessageStore(
                     caseReference,
                     allocationState,
                     row.SearchMatches,
-                    row.CurrentFolderType is null
-                        ? null
-                        : Enum.Parse<MailLogicalFolderType>(row.CurrentFolderType),
                     classification,
                     classification is null
                         ? null
@@ -1249,8 +1189,8 @@ internal sealed class EfRetainedMailboxMessageStore(
     }
 
     /// <summary>
-    /// The one filter pipeline for a workspace scope: folder, the not-moved
-    /// Inbox exclusion, mailbox, unread, search and classification. The list
+    /// The one filter pipeline for a workspace scope: folder, dismissal,
+    /// mailbox, unread, search and classification. The list
     /// pages it and the scope-rail counts it; neither owns a second copy.
     /// </summary>
     private static IQueryable<RetainedMailboxMessageEntity> BuildMatches(
@@ -1261,11 +1201,6 @@ internal sealed class EfRetainedMailboxMessageStore(
         var matches = context.RetainedMailboxMessages
             .AsNoTracking()
             .Where(item => item.FolderScope == ToCode(scope.Folder));
-        if (scope.Folder == MailFolderScope.Inbox && searchTerm is null)
-        {
-            matches = matches.Where(item => !context.RetainedMailFolderMoves.Any(move =>
-                move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded"));
-        }
         // A dismissed message sits in the Dismissed scope and nowhere else.
         matches = scope.DismissedOnly
             ? matches.Where(item => item.DismissedAtUtc != null)
@@ -1307,20 +1242,18 @@ internal sealed class EfRetainedMailboxMessageStore(
         PegasusDbContext context,
         MailWorkspaceScope scope)
     {
-        if (scope.Destination is null && scope.DetailedClassification is null)
+        if (scope.Destination is null && scope.Family is null)
         {
             return messages;
         }
 
         var query = scope.Destination is { } destination
             ? MailOperationalDestinationPolicy.Query(destination)
-            : new MailOperationalDestinationQuery(
-                ExactClassification: scope.DetailedClassification);
+            : new MailOperationalDestinationQuery(ReceivedFamilies: [scope.Family!.Value]);
         var familyNames = query.Families
             .Select(MailTaxonomy.CategoryName)
             .ToArray();
         var exact = query.ExactClassification;
-        var exactDirection = exact?.Direction.ToString().ToLowerInvariant();
         var exactFamily = exact?.Name;
         var exactSubtype = exact?.Subtype;
         const string classified = "classified";
@@ -1338,14 +1271,9 @@ internal sealed class EfRetainedMailboxMessageStore(
                         && item.OriginId == receipt.Id
                         && item.State == resolved)
                 : receipt.MailClassificationDecision.Outcome == classified
-                    && ((query.IncludesOther
-                            && receipt.MailClassificationDecision.OtherName != null)
-                        || (receipt.MailClassificationDecision.Direction == "received"
-                            && receipt.MailClassificationDecision.Family != null
+                    && ((receipt.MailClassificationDecision.Family != null
                             && familyNames.Contains(receipt.MailClassificationDecision.Family))
                         || (exact != null
-                            && receipt.MailClassificationDecision.OtherName == null
-                            && receipt.MailClassificationDecision.Direction == exactDirection
                             && receipt.MailClassificationDecision.Family == exactFamily
                             && receipt.MailClassificationDecision.Subtype == exactSubtype)))));
     }
@@ -1466,7 +1394,6 @@ internal sealed class EfRetainedMailboxMessageStore(
     private static MailClassificationOutcome ParseClassificationOutcome(string value) => value switch
     {
         "classified" => MailClassificationOutcome.Classified,
-        "ambiguous" => MailClassificationOutcome.Ambiguous,
         "unclassified" => MailClassificationOutcome.Unclassified,
         _ => throw new InvalidDataException($"Unknown persisted mail-classification outcome '{value}'.")
     };
@@ -1492,7 +1419,6 @@ internal sealed class EfRetainedMailboxMessageStore(
         int AttachmentCount,
         string ExternalReceiptToken,
         bool BodyMatched,
-        string? CurrentFolderType,
         // Enough retained body, blank lines intact, to read the forwarded
         // header block from. BodyExcerpt drops blank lines, so it cannot
         // answer this question (MAIL-009).

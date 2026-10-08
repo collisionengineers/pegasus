@@ -44,11 +44,8 @@ internal sealed record MailToolPage(
     MailToolFreshness Freshness);
 
 internal sealed record MailToolCategory(
-    string Direction,
     string Name,
-    string? Subtype,
-    bool IsOther,
-    string? OtherReasoning);
+    string? Subtype);
 
 internal sealed record MailToolPredicate(
     string Key,
@@ -58,7 +55,6 @@ internal sealed record MailToolPredicate(
 internal sealed record MailToolClassificationResult(
     string Outcome,
     MailToolCategory? Category,
-    IReadOnlyList<string> AmbiguousCandidates,
     IReadOnlyList<MailToolPredicate> Predicates,
     string Reason,
     string PolicyKey,
@@ -78,7 +74,7 @@ internal sealed record MailToolClassification(
     MailToolClassificationResult Current,
     string CurrentActor,
     DateTimeOffset CurrentDecidedAtUtc,
-    string OperationalDestination,
+    string? OperationalDestination,
     IReadOnlyList<MailToolCorrectionHistoryEntry> History,
     IReadOnlyList<MailClassificationSelection.SelectionOption> CorrectionOptions);
 
@@ -94,21 +90,6 @@ internal sealed record MailToolThreadEntry(
     string? Subject,
     DateTimeOffset ReceivedAtUtc);
 
-internal sealed record MailToolFolderRecommendation(
-    string? FolderType,
-    string PolicyKey,
-    int PolicyVersion,
-    string Reason,
-    int? MailboxVersion,
-    bool CanMove);
-
-internal sealed record MailToolFolderMove(
-    string Outcome,
-    string FolderType,
-    string Reason,
-    DateTimeOffset RecordedAtUtc,
-    string? FailureReason);
-
 internal sealed record MailToolDetail(
     MailToolSummary Summary,
     string Folder,
@@ -120,24 +101,18 @@ internal sealed record MailToolDetail(
     string? ClassificationOutcome,
     string? RouteDisposition,
     MailToolClassification? Classification,
-    MailToolFolderRecommendation? FolderRecommendation,
-    MailToolFolderMove? LatestFolderMove,
     string CorrelationId);
 
 internal sealed record MailActionToolResult(
     Guid MessageId,
     string Action,
-    string? MoveOutcome,
-    string? MoveFolderType,
-    string? MoveFailureReason,
-    bool? IsDismissed,
+    bool IsDismissed,
     bool IsReplay,
     string OperationKey,
     string CorrelationId);
 
 internal enum MailAction
 {
-    MoveFolder,
     Dismiss,
     Restore
 }
@@ -147,8 +122,7 @@ internal enum MailAction
 /// queries and the same commands the staff mail pages call, behind the
 /// per-area <c>automation.mail</c> scope. Reads mirror the workspace list and
 /// message detail; the mutations are the staff-equivalent classification
-/// correction, Dismiss and Restore (Pegasus-side only), and the confirmed move
-/// to the recommended Outlook folder (ADR-0064). Nothing here sends mail:
+/// correction, and Dismiss and Restore (Pegasus-side only). Nothing here sends mail:
 /// sending is <c>pegasus_mail_send</c>, under <c>automation.send</c>.
 /// </summary>
 [McpServerToolType]
@@ -157,7 +131,6 @@ internal sealed class MailMcpTools(
     GetRetainedMail getRetainedMail,
     GetRetainedMailFreshness getFreshness,
     CorrectRetainedMailClassification correctClassification,
-    MoveRetainedMailFolder moveFolder,
     IDismissRetainedMail dismiss,
     IRestoreRetainedMail restore,
     AutomationActorResolver resolver,
@@ -245,7 +218,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Gets one retained message: recipients, body text, attachment names, thread, the versioned classification decision with its permanent correction history and operational destination, the canonical correction options, the Outlook folder recommendation (with the policy and mailbox versions pegasus_mail_action move_folder confirms) and the latest folder move. Attachments are listed by name, type and size; their content is not returned here — a message attached to a Case exposes its documents through the document tools.")]
+    [Description("Gets one retained message: recipients, body text, attachment names, thread, the versioned classification decision with its permanent correction history and operational destination, and the canonical correction options. Attachments are listed by name, type and size; their content is not returned here — a message attached to a Case exposes its documents through the document tools.")]
     public async Task<MailToolDetail> GetAsync(
         [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
         CancellationToken cancellationToken = default)
@@ -282,23 +255,6 @@ internal sealed class MailMcpTools(
                     detail.ClassificationOutcome?.ToString(),
                     detail.RouteDisposition?.ToString(),
                     detail.Classification is { } dossier ? Map(dossier) : null,
-                    detail.FolderRecommendation is { } recommendation
-                        ? new MailToolFolderRecommendation(
-                            recommendation.FolderType?.ToString(),
-                            recommendation.PolicyKey,
-                            recommendation.PolicyVersion,
-                            recommendation.Reason,
-                            recommendation.MailboxVersion,
-                            recommendation.CanMove)
-                        : null,
-                    detail.LatestFolderMove is { } move
-                        ? new MailToolFolderMove(
-                            move.Outcome.ToString(),
-                            move.FolderType.ToString(),
-                            move.Reason,
-                            move.RecordedAtUtc,
-                            move.FailureReason)
-                        : null,
                     context.TraceIdentifier);
             }),
             cancellationToken);
@@ -312,15 +268,13 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Corrects one retained message's classification using the same versioned Core command as the staff workspace. Requires the exact classification key from the message's correction options (Other keys also need otherName and otherReasoning; a received:NewInstructionReceived key also needs workType), a reason, the expected classification version, and a mcp:-prefixed operation key. The prior decision stays in permanent history.")]
+    [Description("Corrects one retained message's classification using the same versioned Core command as the staff workspace. Requires the exact classification key from the message's correction options (a received:NewInstructionReceived key also needs workType), a reason, the expected classification version, and a mcp:-prefixed operation key. The prior decision stays in permanent history.")]
     public async Task<MailToolClassification> CorrectClassificationAsync(
         [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
         [Description("The classification version last read, for optimistic concurrency.")] int expectedClassificationVersion,
-        [Description("A correction options key, for example received:NewInstructionReceived:inspection, sent:ReportSent, other-received.")] string classificationKey,
+        [Description("A correction options key, for example received:NewInstructionReceived:inspection.")] string classificationKey,
         [Description("Why this classification is being corrected (1 to 500 characters).")] string reason,
         [Description("Caller idempotency key, prefixed mcp:.")] string operationKey,
-        [Description("New category name; required only with an other-received or other-sent key.")] string? otherName = null,
-        [Description("Why no existing category fits; required only with an other-received or other-sent key.")] string? otherReasoning = null,
         [Description("The case type a New instruction names: Inspection, Audit or InspectionAndAudit; required only with a received:NewInstructionReceived key.")] string? workType = null,
         CancellationToken cancellationToken = default)
     {
@@ -333,14 +287,9 @@ internal sealed class MailMcpTools(
             key,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
-                if (!MailClassificationSelection.TryParse(
-                        classificationKey?.Trim(),
-                        otherName,
-                        otherReasoning,
-                        out var category))
+                if (!MailClassificationSelection.TryParse(classificationKey?.Trim(), out var category))
                 {
-                    throw new McpException(
-                        "The classification key is not a canonical correction option, or the Other details are missing or outside their bounds.");
+                    throw new McpException("The classification key is not a canonical correction option.");
                 }
                 CaseType? caseType = null;
                 if (!string.IsNullOrWhiteSpace(workType)
@@ -367,22 +316,17 @@ internal sealed class MailMcpTools(
 
     [McpServerTool(
         Name = "pegasus_mail_action",
-        Title = "Move or dismiss retained mail",
+        Title = "Dismiss or restore retained mail",
         ReadOnly = false,
         Destructive = false,
         Idempotent = true,
-        OpenWorld = true,
+        OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("One staff mail act on a retained message, through the same Core command as the message page. move_folder moves the message in Outlook to the folder its classification recommends, confirming the classification version, recommendation policy key and version and mailbox version read from pegasus_mail_get, with a reason; the outcome is Succeeded, Failed (retry with a new operation key) or Uncertain (replay the same operation key to check where the message is). dismiss takes the message out of the incoming scopes without classifying or linking it, and restore brings a dismissed message back; neither touches Outlook, deletes anything or closes an open Unidentified item. Requires a mcp:-prefixed operation key; nothing here sends mail.")]
+    [Description("One staff mail act on a retained message, through the same Core command as the message page. dismiss takes the message out of the incoming scopes without classifying or linking it, and restore brings a dismissed message back; neither touches Outlook, deletes anything or closes an open Unidentified item. Requires a mcp:-prefixed operation key; nothing here sends mail.")]
     public async Task<MailActionToolResult> ActAsync(
         [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
-        [Description("move_folder, dismiss or restore.")] string action,
+        [Description("dismiss or restore.")] string action,
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
-        [Description("move_folder only: the classification version read from pegasus_mail_get.")] int? expectedClassificationVersion = null,
-        [Description("move_folder only: folderRecommendation.policyKey from pegasus_mail_get.")] string? expectedRecommendationPolicyKey = null,
-        [Description("move_folder only: folderRecommendation.policyVersion from pegasus_mail_get.")] int? expectedRecommendationPolicyVersion = null,
-        [Description("move_folder only: folderRecommendation.mailboxVersion from pegasus_mail_get.")] int? expectedMailboxVersion = null,
-        [Description("move_folder only: why the message is moved, 1 to 500 characters.")] string? reason = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.MailScope, cancellationToken);
@@ -396,49 +340,7 @@ internal sealed class MailMcpTools(
             {
                 var id = AutomationMcpErrors.RequireId(messageId, "retained message identifier");
                 var parsed = ParseMailAction(action);
-                if (parsed != MailAction.MoveFolder
-                    && (expectedClassificationVersion is not null
-                        || expectedRecommendationPolicyKey is not null
-                        || expectedRecommendationPolicyVersion is not null
-                        || expectedMailboxVersion is not null
-                        || reason is not null))
-                {
-                    throw new McpException(
-                        "dismiss and restore take no versions or reason; those belong to move_folder.");
-                }
-
                 var correlation = AutomationMcpAuditor.CorrelationId(context, key);
-                if (parsed == MailAction.MoveFolder)
-                {
-                    var moved = await moveFolder.ExecuteAsync(
-                        context.Actor,
-                        new(
-                            id,
-                            expectedClassificationVersion
-                                ?? throw new McpException("move_folder needs expectedClassificationVersion."),
-                            expectedRecommendationPolicyKey
-                                ?? throw new McpException("move_folder needs expectedRecommendationPolicyKey."),
-                            expectedRecommendationPolicyVersion
-                                ?? throw new McpException("move_folder needs expectedRecommendationPolicyVersion."),
-                            expectedMailboxVersion
-                                ?? throw new McpException("move_folder needs expectedMailboxVersion."),
-                            AutomationMcpErrors.DeriveOperationGuid("mail-folder-move", context.Actor, key)
-                                .ToString("D"),
-                            reason ?? throw new McpException("move_folder needs reason.")),
-                        cancellationToken)
-                        ?? throw new McpException("The retained message was not found.");
-                    return new MailActionToolResult(
-                        id,
-                        "move_folder",
-                        moved.Outcome.ToString(),
-                        moved.FolderType.ToString(),
-                        moved.FailureReason,
-                        null,
-                        moved.IsReplay,
-                        key,
-                        correlation);
-                }
-
                 var dismissal = (parsed == MailAction.Dismiss
                     ? await dismiss.ExecuteAsync(new(id, context.Actor, key), cancellationToken)
                     : await restore.ExecuteAsync(new(id, context.Actor, key), cancellationToken))
@@ -446,9 +348,6 @@ internal sealed class MailMcpTools(
                 return new MailActionToolResult(
                     id,
                     parsed == MailAction.Dismiss ? "dismiss" : "restore",
-                    null,
-                    null,
-                    null,
                     dismissal.IsDismissed,
                     dismissal.IsReplay,
                     key,
@@ -459,10 +358,9 @@ internal sealed class MailMcpTools(
 
     private static MailAction ParseMailAction(string? action) => action?.Trim() switch
     {
-        "move_folder" => MailAction.MoveFolder,
         "dismiss" => MailAction.Dismiss,
         "restore" => MailAction.Restore,
-        _ => throw new McpException("action must be move_folder, dismiss or restore.")
+        _ => throw new McpException("action must be dismiss or restore.")
     };
 
     private static MailToolSummary Map(RetainedMailSummary summary) => new(
@@ -488,7 +386,7 @@ internal sealed class MailMcpTools(
         Map(dossier.Current),
         dossier.CurrentActor,
         dossier.CurrentDecidedAtUtc,
-        MailOperationalDestinationPolicy.Map(dossier.Current).Destination.ToString(),
+        MailOperationalDestinationPolicy.Map(dossier.Current).Destination?.ToString(),
         dossier.History.Select(entry => new MailToolCorrectionHistoryEntry(
             entry.Version,
             Map(entry.Before),
@@ -496,19 +394,13 @@ internal sealed class MailMcpTools(
             entry.Actor,
             entry.Reason,
             entry.CorrectedAtUtc)).ToArray(),
-        MailClassificationSelection.OptionsFor(dossier.MessageDirection));
+        MailClassificationSelection.Options);
 
     private static MailToolClassificationResult Map(MailClassificationResult result) => new(
         result.Outcome.ToString(),
         result.Category is { } category
-            ? new(
-                category.Direction.ToString(),
-                category.Name,
-                category.Subtype,
-                category.IsOther,
-                category.OtherReasoning)
+            ? new(category.Name, category.Subtype)
             : null,
-        result.AmbiguousCandidates,
         result.Predicates.Select(predicate => new MailToolPredicate(
             predicate.Key,
             predicate.Matched,

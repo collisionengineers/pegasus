@@ -1780,16 +1780,11 @@
         (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindGalleryImages);
     })();
 
-    // The Other classification name and reasoning fields exist only while an
-    // Other option is selected, and the case type only while a New instruction
-    // is; the select drives their visibility.
+    // The case type field exists only while a New instruction is selected;
+    // the select drives its visibility.
     document.querySelectorAll('[data-other-toggle]').forEach(function (select) {
         var scope = select.closest('[data-dialog]') || document;
         function sync() {
-            var isOther = select.value === 'other-received' || select.value === 'other-sent';
-            scope.querySelectorAll('[data-other-field]').forEach(function (field) {
-                field.hidden = !isOther;
-            });
             var isInstruction = select.value.indexOf('received:NewInstructionReceived') === 0;
             scope.querySelectorAll('[data-work-type-field]').forEach(function (field) {
                 field.hidden = !isInstruction;

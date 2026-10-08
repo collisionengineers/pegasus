@@ -116,7 +116,7 @@
                         }
                     </optgroup>
                     <optgroup label="@OperatorLabels.Inbox.CategoryGroup">
-                        @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.DetailedViews)
+                        @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.FamilyViews)
                         {
                             <option value="@option.Value" selected="@(Model.QueueFilter == option.Value)">@option.Label</option>
                         }
@@ -314,9 +314,9 @@
                                     <span class="row-meta">
                                         @Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(classification)
                                         @if (item.CaseId is null
-                                            && item.OperationalDestination is { } operationalDestination)
+                                            && item.OperationalDestination is { Destination: { } operationalDestination })
                                         {
-                                            @: · @OperatorLabels.MailOperationalDestinationLabel(operationalDestination.Destination)
+                                            @: · @OperatorLabels.MailOperationalDestinationLabel(operationalDestination)
                                         }
                                     </span>
                                 }
@@ -457,7 +457,7 @@
                             </dl>
                             <dl class="fact">
                                 <dt>Folder</dt>
-                                <dd data-mail-preview-folder>@Pegasus.Web.Pages.Mail.IndexModel.FolderValue(detail)</dd>
+                                <dd data-mail-preview-folder>@Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(detail.Folder)</dd>
                             </dl>
                             @* Only while a search term is typed: where it matched. *@
                             @if (matchValue is not null)

@@ -657,7 +657,7 @@ public sealed class TriageQueuesWebTests
         var registered = await services.GetRequiredService<IRegisterUnidentified>().ExecuteAsync(
             new RegisterUnidentifiedRequest(
                 UnidentifiedOrigin.Receipt(receipt.Id),
-                UnidentifiedReasonCode.AmbiguousOwnershipOrDestination,
+                UnidentifiedReasonCode.NoUsableIdentification,
                 "The source needs a decision.",
                 ActionActor.SystemWorker("test-intake"),
                 Guid.NewGuid().ToString("N"),

@@ -3,7 +3,7 @@ id: ADR-0064
 status: accepted
 date: 2026-10-07
 supersedes: [ADR-0021, ADR-0031]
-superseded_by: []
+superseded_by: [ADR-0067]
 related_capabilities: [MCP-01, MCP-02, MCP-06]
 related_frd: [frd-06, frd-10, frd-11, frd-14, frd-21, frd-24, frd-25, frd-27]
 tags: [mcp, automation, ai, assessment, estimate]
@@ -132,7 +132,7 @@ fact the call did not name.
   The Actor creates any AI job kind, cancels and confirms jobs, assigns,
   unassigns and notes a Triage, closes and reopens Unidentified items,
   creates a Case directly, accepts a received item and retries its
-  allocation, moves and dismisses mail, and dismisses Work Centre records.
+  allocation, moves and dismisses mail (ADR-0067, 8 October 2026: dismiss and restore only; the move is removed), and dismisses Work Centre records.
 - Inspection address, report wording and image preparation: delivered
   (operator, 7 October 2026). `pegasus_intake_action`
   `resolve_inspection_address` settles a received item's inspection address

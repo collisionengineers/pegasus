@@ -672,11 +672,9 @@ public sealed class CaseMatchIntegrationTests
             {
                 IntakeReceiptId = receiptId,
                 Outcome = "classified",
-                Direction = "received",
                 Family = family,
                 Subtype = subtype,
                 IsReplyContext = false,
-                AmbiguousCandidatesJson = "{\"version\":1,\"data\":[]}",
                 PredicatesJson = "{\"version\":1,\"data\":[]}",
                 Reason = "Test classification.",
                 PolicyKey = "test-classification",

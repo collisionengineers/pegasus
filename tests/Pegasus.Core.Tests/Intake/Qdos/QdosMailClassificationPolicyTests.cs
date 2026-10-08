@@ -71,7 +71,7 @@ public sealed class PrincipalMailClassificationPolicyTests
 
     /// <summary>
     /// Both tells at once is one triage request, not two candidates. A second
-    /// candidate for the same category would resolve to Ambiguous, leaving a
+    /// candidate for the same category would leave the message Unclassified, leaving a
     /// message carrying more evidence classified worse than one carrying less.
     /// </summary>
     [Fact]
@@ -113,7 +113,7 @@ public sealed class PrincipalMailClassificationPolicyTests
     }
 
     [Fact]
-    public void DistinctTriageLettersRemainAmbiguousCandidates()
+    public void DistinctTriageLettersRemainUnclassifiedCandidates()
     {
         var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
@@ -129,11 +129,10 @@ public sealed class PrincipalMailClassificationPolicyTests
             [],
             false));
 
-        Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
         Assert.Null(result.Category);
-        Assert.Equal(2, result.AmbiguousCandidates.Count);
-        Assert.Contains(result.AmbiguousCandidates, item => item.Contains("triage-one.pdf", StringComparison.Ordinal));
-        Assert.Contains(result.AmbiguousCandidates, item => item.Contains("triage-two.doc", StringComparison.Ordinal));
+        Assert.Contains("triage-one.pdf", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("triage-two.doc", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -163,7 +162,7 @@ public sealed class PrincipalMailClassificationPolicyTests
     }
 
     [Fact]
-    public void PlainAndCombinedEngineerLettersRemainAmbiguous()
+    public void PlainAndCombinedEngineerLettersRemainUnclassified()
     {
         var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
@@ -175,11 +174,10 @@ public sealed class PrincipalMailClassificationPolicyTests
             [],
             false));
 
-        Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
         Assert.Null(result.CaseType);
-        Assert.Equal(2, result.AmbiguousCandidates.Count);
-        Assert.Contains(result.AmbiguousCandidates, item => item.EndsWith("/Inspection", StringComparison.Ordinal));
-        Assert.Contains(result.AmbiguousCandidates, item => item.EndsWith("/InspectionAndAudit", StringComparison.Ordinal));
+        Assert.Matches("/Inspection[,)]", result.Reason);
+        Assert.Contains("/InspectionAndAudit", result.Reason, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -542,18 +540,17 @@ public sealed class PrincipalMailClassificationPolicyTests
     }
 
     [Fact]
-    public void SimultaneousCategoryPredicatesProduceAmbiguityWithNoInventedWinner()
+    public void SimultaneousCategoryPredicatesAreUnclassifiedWithNoInventedWinner()
     {
         var result = Classify(
             body: "Triage Only Request. Please provide an initial assessment.",
             document: "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1");
 
-        Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
         Assert.Null(result.Category);
-        Assert.Equal(2, result.AmbiguousCandidates.Count);
         Assert.Null(result.CaseType);
-        Assert.Contains("pre-instruction-emails/triage-request", result.AmbiguousCandidates);
-        Assert.Contains("new-instruction-received/audit", result.AmbiguousCandidates);
+        Assert.Contains("pre-instruction-emails/triage-request", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("new-instruction-received/audit", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -563,7 +560,6 @@ public sealed class PrincipalMailClassificationPolicyTests
 
         Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
         Assert.Null(result.Category);
-        Assert.Empty(result.AmbiguousCandidates);
     }
 
     [Theory]
@@ -689,7 +685,7 @@ public sealed class PrincipalMailClassificationPolicyTests
     }
 
     [Fact]
-    public void SimultaneousAuditAndEngineerTitlesAreAmbiguousWithoutACaseType()
+    public void SimultaneousAuditAndEngineerTitlesAreUnclassifiedWithoutACaseType()
     {
         var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
@@ -701,10 +697,10 @@ public sealed class PrincipalMailClassificationPolicyTests
             [],
             false));
 
-        Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
         Assert.Null(result.CaseType);
-        Assert.Contains("new-instruction-received/audit", result.AmbiguousCandidates);
-        Assert.Contains("new-instruction-received/inspection", result.AmbiguousCandidates);
+        Assert.Contains("new-instruction-received/audit", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("new-instruction-received/inspection", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -112,7 +112,6 @@ public sealed class CaseCorrespondenceUploadWebTests
         if (receipt.MailClassificationDecision is { } decision)
         {
             decision.Outcome = "classified";
-            decision.Direction = "received";
             decision.Family = family;
             decision.Subtype = subtype;
         }
@@ -122,11 +121,9 @@ public sealed class CaseCorrespondenceUploadWebTests
             {
                 IntakeReceiptId = receipt.Id,
                 Outcome = "classified",
-                Direction = "received",
                 Family = family,
                 Subtype = subtype,
                 IsReplyContext = false,
-                AmbiguousCandidatesJson = "{\"version\":1,\"data\":[]}",
                 PredicatesJson = "{\"version\":1,\"data\":[]}",
                 Reason = "Fixture.",
                 PolicyKey = "fixture",

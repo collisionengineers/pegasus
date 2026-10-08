@@ -623,8 +623,6 @@ public sealed class ProcessIntake(
             or IntakeDecision.TechnicalFailure => UnidentifiedReasonCode.CouldNotBeRead,
         _ when receipt.CaseMatchDecision?.Outcome == CaseMatchOutcome.Ambiguous =>
             UnidentifiedReasonCode.ConflictingIdentification,
-        _ when receipt.MailClassificationDecision?.Outcome == MailClassificationOutcome.Ambiguous =>
-            UnidentifiedReasonCode.AmbiguousOwnershipOrDestination,
         _ when receipt.Evidence.Any(evidence => evidence.Signal == "intake_limit_exceeded") =>
             UnidentifiedReasonCode.UnreadableOrCorruptContent,
         _ => UnidentifiedReasonCode.NoUsableIdentification
@@ -1310,7 +1308,6 @@ public sealed class ProcessIntake(
     {
         ArgumentNullException.ThrowIfNull(result);
         ArgumentNullException.ThrowIfNull(result.Predicates);
-        ArgumentNullException.ThrowIfNull(result.AmbiguousCandidates);
         ArgumentException.ThrowIfNullOrWhiteSpace(result.Reason);
         ArgumentException.ThrowIfNullOrWhiteSpace(result.PolicyKey);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(result.PolicyVersion);
@@ -1329,18 +1326,14 @@ public sealed class ProcessIntake(
 
         var consistent = result.Outcome switch
         {
-            MailClassificationOutcome.Classified =>
-                result.Category is not null && result.AmbiguousCandidates.Count == 0,
-            MailClassificationOutcome.Ambiguous =>
-                result.Category is null && result.AmbiguousCandidates.Count > 1,
-            MailClassificationOutcome.Unclassified =>
-                result.Category is null && result.AmbiguousCandidates.Count == 0,
+            MailClassificationOutcome.Classified => result.Category is not null,
+            MailClassificationOutcome.Unclassified => result.Category is null,
             _ => false
         };
         if (!consistent)
         {
             throw new InvalidOperationException(
-                "The mail-classification outcome is inconsistent with its category and candidate evidence.");
+                "The mail-classification outcome is inconsistent with its category.");
         }
     }
 
