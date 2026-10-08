@@ -723,7 +723,7 @@ public sealed class StartupWarmupTests
 
             await EnterWorkCentreReadAsync();
             var newest = new RecentCaseRow(
-                RecentCaseRowKind.NewCase, NewestCaseId, "QD-1", null, null, "Principal",
+                NewestCaseId, "QD-1", null, null, "Principal",
                 DateTimeOffset.UnixEpoch, CaseArrival.Manual);
             return new RecentCasesFeed(
                 new RecentCasesPage([newest], 1, RecentCasesPolicy.PageSize, 1),
