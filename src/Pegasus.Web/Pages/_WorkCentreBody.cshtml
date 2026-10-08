@@ -125,9 +125,9 @@
 </div>
 
 @* The Activity panel (v32 A, items C–I): the figures head the columns, Today
-   and This week the rows. A half that is not defined is not drawn; a failed
-   read shows the notice and no figure. It is drawn even when there is no
-   work to show (item O). *@
+   and This week the rows, every figure in both. A failed read shows the
+   notice and no figure. It is drawn even when there is no work to show
+   (item O). *@
 <section class="panel wc-activity" aria-labelledby="wc-activity-title" data-wc-activity data-wc-refresh-section="activity" data-wc-refresh-state="@activityState">
     <div class="panel-head"><h2 id="wc-activity-title">@Labels.Activity</h2></div>
 @if (Model.ActivityFailed)
@@ -163,19 +163,19 @@ else
         <tbody>
             <tr>
                 <th scope="row">@Labels.Today</th>
-                <td data-figure="new-cases-today">@counts.NewCasesToday</td>
-                <td data-figure="sent-today">@counts.SentToEngineerToday</td>
-                <td data-figure="reports-today">@counts.ReportsSentToday</td>
-                <td></td>
-                <td data-figure="emails-today">@counts.EmailsReceivedToday</td>
+                <td data-figure="new-cases-today">@counts.NewCases.Today</td>
+                <td data-figure="sent-today">@counts.SentToEngineer.Today</td>
+                <td data-figure="reports-today">@counts.ReportsSent.Today</td>
+                <td data-figure="completed-today">@counts.Completed.Today</td>
+                <td data-figure="emails-today">@counts.EmailsReceived.Today</td>
             </tr>
             <tr>
                 <th scope="row">@Labels.ThisWeek</th>
-                <td></td>
-                <td data-figure="sent-week">@counts.SentToEngineerThisWeek</td>
-                <td data-figure="reports-week">@counts.ReportsSentThisWeek</td>
-                <td data-figure="completed-week">@counts.CompletedThisWeek</td>
-                <td></td>
+                <td data-figure="new-cases-week">@counts.NewCases.ThisWeek</td>
+                <td data-figure="sent-week">@counts.SentToEngineer.ThisWeek</td>
+                <td data-figure="reports-week">@counts.ReportsSent.ThisWeek</td>
+                <td data-figure="completed-week">@counts.Completed.ThisWeek</td>
+                <td data-figure="emails-week">@counts.EmailsReceived.ThisWeek</td>
             </tr>
         </tbody>
     </table>

@@ -127,8 +127,8 @@ _Avoid_: Sent to Engineer (the activity count), report sent
 The Work Centre activity count of Cases whose `First sent to Engineer` falls within the Europe/London day or Monday-based week. A Case that returns to With Engineer is not counted again.
 _Avoid_: First sent to Engineer (the per-Case event), reports sent
 
-**New cases today**:
-The Work Centre metric for instructed Cases created since Europe/London midnight, including Cases later completed or given a cancellation/rejection disposition that day and excluding Image intakes, Triage Cases and `Unidentified`.
+**New cases today/week**:
+The Work Centre metric for instructed Cases created within the Europe/London day or Monday-based week, including Cases later completed or given a cancellation/rejection disposition and excluding Image intakes, Triage Cases and `Unidentified`.
 _Avoid_: In today, Due today, received today
 
 **Not ready**:
