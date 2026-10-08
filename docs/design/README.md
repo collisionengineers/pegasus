@@ -142,9 +142,11 @@ editing".
 
 The Case record (`/Cases/{id}`) has no page header. A sticky block sits under
 the utility bar: the 56px **ribbon** — the reference as the page's heading
-under "Case workspace · registration", Claimant, Principal and Engineer; chips
+under "Case workspace", Registration (its own cell, natural width above 1100px;
+operator, 8 October 2026), Claimant, Principal and Engineer; chips
 for state ("Held · review on 24 Sep"), Case type (Audit, Inspection + Audit)
-and a colleague editing; then Edit Case, or while editing the Editing badge,
+and a colleague editing (chips that do not fit beside the facts take their own
+row under them; the reference and registration are never cut short); then Edit Case, or while editing the Editing badge,
 its status word (Saving…, Saved 14:02, or why the last change was not saved)
 and Done, and one **Actions** menu — and the 40px **section row** of
 section links, Refresh and the Scroll/Tabs switch. Scroll is the default in
@@ -893,7 +895,7 @@ deleted in wave 5.
 | --- | --- |
 | `record`, `record-head`, `record-accent`, `record-bar`, `record-body` | Single-record container |
 | `sticky-block` (`[data-sticky-block]`) | The record's sticky block under the utility bar, measured at runtime into `--sticky-h` |
-| `ribbon`, `ribbon-facts`, `ribbon-item`, `ribbon-ref`, `ribbon-value`, `ribbon-chips`, `ribbon-actions` | The 56px identity ribbon: the reference as the page's `h1` (`ribbon-value`) under "Case workspace · registration", Claimant, Principal, Engineer; state, Case type and colleague-editing chips; then the edit controls and the one **Actions** menu |
+| `ribbon`, `ribbon-facts`, `ribbon-item`, `ribbon-ref`, `ribbon-registration`, `ribbon-value`, `ribbon-chips`, `ribbon-actions` | The 56px identity ribbon: the reference as the page's `h1` (`ribbon-value`) under "Case workspace", Registration, Claimant, Principal, Engineer; state, Case type and colleague-editing chips; then the edit controls and the one **Actions** menu |
 | `section-row`, `section-nav`, `section-link`, `section-tools`, `layout-switch` | The 40px section row: section links (the one in view carries `aria-current`), Refresh and the Scroll/Tabs switch |
 | `workspace`, `workspace-aside` | The record grid: sections beside a 285px aside (the Views card once an Audit exists, Figures, Next action, Report not ready) that folds above the sections below 1441px |
 | `context-card` (`[data-case-views]`), `next-row` | The Views card: one row per view, the current one plain with `aria-current="page"`, the other a link |

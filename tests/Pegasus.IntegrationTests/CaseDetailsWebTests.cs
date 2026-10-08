@@ -497,14 +497,24 @@ public sealed class CaseDetailsWebTests
         Assert.Equal(1, Occurrences(html, "class=\"ribbon\""));
         Assert.Equal(1, Occurrences(html, "class=\"section-row\""));
 
-        // The identity row: the eyebrow with the registration, the reference
-        // as the page's one heading, Claimant, Principal, Engineer, the
-        // state chip and the record's two controls. Back to Cases and the
-        // presence strip are gone (v25 decisions 1 and C).
+        // The identity row: the eyebrow, the reference as the page's one
+        // heading, Registration in its own cell (operator, 8 October 2026),
+        // Claimant, Principal, Engineer, the state chip and the record's two
+        // controls. Back to Cases and the presence strip are gone (v25
+        // decisions 1 and C).
         Assert.Contains(
-            "<div class=\"ribbon-label\">Case workspace · AB12CDE</div>",
+            "<div class=\"ribbon-label\">Case workspace</div>",
             html,
             StringComparison.Ordinal);
+        Assert.DoesNotContain("Case workspace · ", html, StringComparison.Ordinal);
+        var registrationStart = html.IndexOf("<div class=\"ribbon-item ribbon-registration\">", StringComparison.Ordinal);
+        Assert.True(registrationStart >= 0, "The ribbon has a Registration cell.");
+        var registrationCell = html[registrationStart..html.IndexOf("<div class=\"ribbon-item\">", registrationStart, StringComparison.Ordinal)];
+        Assert.Contains(
+            $"<div class=\"ribbon-label\">{OperatorLabels.CaseWorkspace.RibbonRegistration}</div>",
+            registrationCell,
+            StringComparison.Ordinal);
+        Assert.Contains("<div class=\"ribbon-value mono\"><span>AB12CDE</span></div>", registrationCell, StringComparison.Ordinal);
         Assert.Equal(1, Occurrences(html, "<h1 class=\"ribbon-value\">"));
         Assert.DoesNotContain("Back to Cases", html, StringComparison.Ordinal);
         Assert.DoesNotContain("presence-strip", html, StringComparison.Ordinal);
