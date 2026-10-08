@@ -97,8 +97,8 @@ section's control.
 **Report not ready** is a card of its own below Next action, folded until
 the browser opens it and remembered per browser like the section folds. It
 lists everything outstanding, the step's own item included: every
-outstanding Case requirement while the Case is Not ready or Held, then the
-report's readiness list, every blocker under the name of the section that
+outstanding Case requirement, in whatever state, then the report's
+readiness list, every blocker under the name of the section that
 clears it, each with the requirement as its link, its source, why it is
 outstanding and what clears it
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
