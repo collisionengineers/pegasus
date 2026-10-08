@@ -365,7 +365,8 @@ public sealed class AssessmentPolicyTests
     {
         foreach (var definition in AssessmentVocabulary.Definitions.Values
             .Where(definition => !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)
-                && !AssessmentVocabulary.LookupDerivedPaths.Contains(definition.Path)))
+                && !AssessmentVocabulary.LookupDerivedPaths.Contains(definition.Path)
+                && !AssessmentVocabulary.GuideCardDerivedPaths.Contains(definition.Path)))
         {
             var value = definition.Type switch
             {
@@ -403,6 +404,24 @@ public sealed class AssessmentPolicyTests
         Assert.Equal(("underside", "heavy"), AssessmentPolicy.DeriveImpactValues("[{\"areas\":[\"underside\"],\"severity\":\"heavy\",\"note\":\"\"}]"));
         // Two discs over the same area are one headline location.
         Assert.Equal(("rear", "moderate"), AssessmentPolicy.DeriveImpactValues("[{\"areas\":[\"rear\"],\"severity\":\"light\",\"note\":\"\"},{\"areas\":[\"rear\"],\"severity\":\"moderate\",\"note\":\"\"}]"));
+    }
+
+    [Fact]
+    public void TheDamageImpactsFormatNamesEveryCodeAndItsExampleIsAccepted()
+    {
+        var format = AssessmentVocabulary.Definitions[AssessmentVocabulary.DamageImpacts].Format;
+        Assert.NotNull(format);
+        foreach (var code in AssessmentVocabulary.DamageAreas.Keys.Concat(AssessmentVocabulary.DamageSeverities.Keys))
+        {
+            Assert.Contains(code, format, StringComparison.Ordinal);
+        }
+        const string marker = "Example: ";
+        var example = format[(format.IndexOf(marker, StringComparison.Ordinal) + marker.Length)..];
+
+        var normalized = AssessmentPolicy.ValidateAndNormalize(
+            Request(new() { [AssessmentVocabulary.DamageImpacts] = example }));
+
+        Assert.Equal(example, normalized.Fields[AssessmentVocabulary.DamageImpacts]);
     }
 
     [Fact]
@@ -519,27 +538,51 @@ public sealed class AssessmentPolicyTests
     }
 
     [Fact]
-    public void TheReportsThreeValuesAreFieldsAnyCaseworkActorRecordsOrClears()
+    public void TheEngineersValueIsAFieldAnyCaseworkActorRecordsOrClears()
     {
-        // Retail, Trade and Engineer's value are ordinary fields of Valuation
-        // (operator, 26 September 2026): staff and the Automation actor type
-        // or clear them like any other (operator, 7 October 2026).
-        foreach (var path in new[]
+        // The Engineer's Value is an ordinary field of Valuation (operator,
+        // 26 September 2026): staff and the Automation actor type or clear it
+        // like any other (operator, 7 October 2026).
+        var path = AssessmentVocabulary.ValueEngineer;
+        foreach (var actor in new[] { Engineer, PlainStaff, Automation })
         {
-            AssessmentVocabulary.ValueRetail,
-            AssessmentVocabulary.ValueTrade,
-            AssessmentVocabulary.ValueEngineer
-        })
+            Assert.Equal(
+                "4500.00",
+                AssessmentPolicy.ValidateAndNormalize(Request(new() { [path] = "4500.00" }, actor)).Fields[path]);
+            Assert.Null(
+                AssessmentPolicy.ValidateAndNormalize(Request(new() { [path] = null }, actor)).Fields[path]);
+        }
+    }
+
+    [Theory]
+    [InlineData(AssessmentVocabulary.ValueRetail)]
+    [InlineData(AssessmentVocabulary.ValueTrade)]
+    public void RetailAndTradeAreTheChosenCardsAndNoFieldSaveWritesThem(string path)
+    {
+        // The report's Retail and Trade are the chosen guide card's figures
+        // (operator, 8 October 2026): no actor types or clears one.
+        foreach (var actor in new[] { Engineer, PlainStaff, Automation })
         {
-            foreach (var actor in new[] { Engineer, PlainStaff, Automation })
+            foreach (var value in new string?[] { "4500.00", null })
             {
-                Assert.Equal(
-                    "4500.00",
-                    AssessmentPolicy.ValidateAndNormalize(Request(new() { [path] = "4500.00" }, actor)).Fields[path]);
-                Assert.Null(
-                    AssessmentPolicy.ValidateAndNormalize(Request(new() { [path] = null }, actor)).Fields[path]);
+                var refusal = Assert.Throws<InvalidOperationException>(() =>
+                    AssessmentPolicy.ValidateAndNormalize(Request(new() { [path] = value }, actor)));
+                Assert.Contains("chosen guide card", refusal.Message, StringComparison.Ordinal);
             }
         }
+    }
+
+    [Fact]
+    public void TheReportValuesAreTheCardsFiguresCanonicalized()
+    {
+        var both = ValuationPolicy.ReportValues(4500m, 3200.5m);
+        Assert.Equal("4500.00", both[AssessmentVocabulary.ValueRetail]);
+        Assert.Equal("3200.50", both[AssessmentVocabulary.ValueTrade]);
+
+        // A figure the card leaves blank is blank on the report.
+        var retailOnly = ValuationPolicy.ReportValues(4500m, null);
+        Assert.Equal("4500.00", retailOnly[AssessmentVocabulary.ValueRetail]);
+        Assert.Null(retailOnly[AssessmentVocabulary.ValueTrade]);
     }
 
     [Fact]
@@ -703,10 +746,10 @@ public sealed class AssessmentPolicyTests
     public void EveryCaseworkActorMayRecordEveryFormerFindingField(StaffRole? role)
     {
         var actor = role is { } staffRole ? ActionActor.Staff(Guid.NewGuid(), [staffRole]) : Automation;
+        // Retail and Trade left this list on 8 October 2026: they are the
+        // chosen guide card's figures, which no field save writes.
         string[] formerFindings =
         [
-            AssessmentVocabulary.ValueRetail,
-            AssessmentVocabulary.ValueTrade,
             AssessmentVocabulary.ValueEngineer,
             AssessmentVocabulary.Outcome,
             AssessmentVocabulary.LegalStatus,

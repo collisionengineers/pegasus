@@ -801,31 +801,34 @@ approved design:
 a disabled control. The direct Audatex service-launch control is removed on
 that rule. By the operator's 15 September 2026 instruction the
 Valuation section has one route to a guide card: Glass's, Brego, Super CAP,
-CAP and Cazana are each one row with retail, trade and month boxes under
-shared column heads (rows since 6 October 2026; the
-Case's own mileage is used; a row has none, 24 September 2026)
-— greyed while reading, editable while editing — and, while editing, a Get
-valuation button that looks the figures up and fills the boxes in place
-(a source with no working provider shows the row's notice from the start and
-has no button) and a Use this value button that chooses the card and records
-the decision on the next save (28 September 2026); the boxes are typed by hand
-just as well. The card has no Save of
+CAP and Cazana are each one card in a grid of three (cards since 8 October
+2026; the Case's own mileage is used; a card has none, 24 September 2026)
+holding Retail, Trade and Guide month — text while reading, boxes in the same
+place while editing — and, while editing, a Get valuation button in the
+card's head that looks the figures up and fills the boxes in place (a source
+with no working provider shows the card's notice from the start and has no
+button); the boxes are typed by hand just as well. A click anywhere on a card
+is the decision to use it: the card takes a red border and the word
+Selected, and the next save records the calculation against it and writes
+the report's Retail and Trade from it (operator, 8 October 2026; there is no
+Use this value button). The card has no Save of
 its own (23 September 2026): its boxes belong to the Case form and each save
 records a changed card with whatever was entered; any box may be left blank.
 Every change to the Case saves as it is made (29 September 2026): the
 Repair Spec and the valuation calculator carry no Save or Apply of their own.
-The chosen source opens (operator, 6 October 2026): the calculation and the
-Retail, Trade and Engineer's Value boxes stand under its row, or close the
-list when no source is chosen; the Engineer's Value box is the one place the
-figure stands, each adjustment's amount shows in its own cell's label line,
-and the box's label carries a recorded calculation's source as one `src-tag`
-word. AI market research has its own standing row with its Valuation month
-and Get valuation, and On the report closes the section.
+Below the cards stand the value increases (Add 20 % VAT among them), the
+condition deduction and the previous total loss tick box with its
+−10 % / −20 % switch, then the Engineer's Value box, the one place the figure
+stands, with the basis it starts from beside it; each adjustment's amount
+shows beside its control, and the box's label carries a recorded
+calculation's source as one `src-tag` word. AI market research is a card of
+its own with its Valuation month and Get valuation, and On the report closes
+the section as one line.
 There is no separate Add valuation
 dialog. This does not
 remove the Estimate section's selected configured-staff-account Glass's
 repair-estimate launch. Glass's is the one connected guide source, so only its
-row offers Get valuation; the other guide rows are filled in by hand
+card offers Get valuation; the other guide cards are filled in by hand
 ([FRD-24](../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md)). Glass's and Audatex file
 import stays in scope through the Estimate section's direct Import button and
 temporary section-scoped drop overlay; Cazana remains the disabled seam.

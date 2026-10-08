@@ -88,7 +88,7 @@ internal sealed class SendMcpTools(
         [Description("To recipients, plain e-mail addresses; omit both to and cc for the Principal's suggested recipients.")] string[]? to = null,
         [Description("Cc recipients, plain e-mail addresses. An address also in To is sent once, in To.")] string[]? cc = null,
         [Description("The companion documents to attach beside the report: FeeNote, RepairSpecification and/or ImagePack. Each must be confirmed on the generation. Omit for every confirmed document the generation holds.")] string[]? attach = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one send.")] string? editLeaseToken = null,
+        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one send.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.SendScope, cancellationToken);

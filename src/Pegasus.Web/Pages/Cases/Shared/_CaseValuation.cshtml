@@ -1,27 +1,28 @@
 @*
-    Valuation (v33 design D, operator, 6 October 2026; one route per source
-    since 15 September; one look and one Save since 23 September 2026): the
-    sources are rows, and the chosen one opens to hold the calculation and
-    the report's Retail, Trade and Engineer's Value boxes, so the calculation
-    stands against the box it fills. With no source chosen that block closes
-    the list. On the report closes the section.
+    Valuation (v34, operator, 8 October 2026; one route per source since
+    15 September; one look and one Save since 23 September 2026): the sources
+    are guide cards in a grid, then the value increases, the deductions, the
+    Engineer's Value with the calculation's basis, and On the report.
 
-    Read and edit show the same rows and the same calculation: Glass's,
-    Brego, Super CAP, CAP and Cazana are each one row holding that source's
-    latest recorded retail, trade and guide month, as greyed boxes while
-    reading and as inputs while editing. A row carries no mileage: the Case's
-    own is used wherever a valuation needs one (operator, 24 September 2026).
-    A row's inputs belong to the record's one Save form, #case-edit-form, so
-    the Case's save records a changed row (the same source and month
-    replaces); Get valuation asks the connected provider by script and fills
-    the boxes, or shows the row's notice. A source with no connected provider
-    says so on its row before anything is pressed and offers no Get valuation.
+    Read and edit show the same cards: Glass's, Brego, Super CAP, CAP and
+    Cazana each hold that source's latest recorded retail, trade and guide
+    month, as text while reading and as inputs in the same place while
+    editing. A card carries no mileage: the Case's own is used wherever a
+    valuation needs one (operator, 24 September 2026). A card's inputs belong
+    to the record's one Save form, #case-edit-form, so the Case's save records
+    a changed card (the same source and month replaces); Get valuation asks
+    the connected provider by script and fills the boxes, or shows the card's
+    notice. A source with no connected provider says so on its card before
+    anything is pressed and offers no Get valuation.
 
-    AI market research has its own standing row (6 October 2026): its
-    figures, the Valuation month it is asked for and its own Get valuation,
-    which starts the existing research job. The Basis radios, chosen by
-    clicking a row, belong to the Case form; the script moves the calculation
-    under the row chosen.
+    A click anywhere on a card with a retail is the Engineer's decision to use
+    it (operator, 8 October 2026): the script chooses it as the basis and
+    switches on selection.Use, so the save records the calculation against it
+    and writes the report's Retail and Trade from it. The card says "Selected".
+    A card with no retail answers the click with the approved sentence. AI
+    market research is a card of its own (6 October 2026): its figures, the
+    Valuation month it is asked for and its own Get valuation, which starts
+    the existing research job.
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using System.Globalization
@@ -35,31 +36,26 @@
     var editable = Model.SectionIsEditable("valuation");
     var pending = Model.PendingMarketResearch;
     var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "valuation");
-    // The five guide sources, each one row (v28 P8, P13): Cazana is drawn like the rest.
+    // The five guide sources, each one card (v28 P8, P13).
     var guideSources = new[] { ValuationSource.Glasses, ValuationSource.Brego, ValuationSource.SuperCap, ValuationSource.Cap, ValuationSource.Cazana };
     // Every other recorded card is AI market research's.
     var researchCards = Model.GuideValuations.Where(valuation => !guideSources.Contains(valuation.Details.Source)).ToArray();
-    // The row shown as chosen: the calculator's basis while editing, the recorded basis while reading.
+    // The card shown as chosen: the calculator's basis while editing, the recorded basis while reading.
     var selectedId = editable ? Model.DefaultBasis?.ValuationId : Model.RecordedValuation?.GuideValuationId;
     // The research job lands on the current work, so the Inspection view does not offer it.
     var researchOffered = editable && !Model.IsInspectionView;
-    // The calculation is drawn once: under the chosen row, else after the list.
-    var opened = false;
-    var absent = OperatorLabels.CaseWorkspace.AbsentValue;
-    var cellClass = editable ? "fc" : "fc ro";
     var researchLabel = ValuationLabels.SourceLabel(ValuationSource.AiMarketResearch);
     var researchSlug = ValuationLabels.SourceSlug(ValuationSource.AiMarketResearch);
     var reportEditable = Model.SectionIsEditable("report") && Model.Case!.Data is not null;
 
     string GetValuationAction(ValuationSource source) =>
         Url.Page("/Cases/Details", "GetValuation", new { id = caseId, source, view = Model.ViewRoute })!;
-    string Money(decimal value) => ValuationCalculationPolicy.FormatMoney(value);
-    string MoneyOrAbsent(decimal? value) => value is { } amount ? Money(amount) : absent;
     string Figure(decimal? value) => value?.ToString("0.00", CultureInfo.InvariantCulture) ?? string.Empty;
+    string Month(DateOnly? month) => month?.ToString("MMM yyyy", CultureInfo.InvariantCulture) ?? ValuationLabels.AbsentGuideMonth;
 
     // What a recorded research card was asked with: its month, mileage and date.
     string CardMeta(CaseValuation valuation) =>
-        (valuation.Details.GuideMonth?.ToString("MMM yyyy", CultureInfo.InvariantCulture) ?? ValuationLabels.AbsentGuideMonth)
+        Month(valuation.Details.GuideMonth)
         + (valuation.Details.Mileage is { } metaMileage ? " · " + metaMileage.ToString("N0", CultureInfo.InvariantCulture) + " miles" : string.Empty) + " · "
         + valuation.Details.Date.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
 }
@@ -73,15 +69,7 @@
         </div>
     </div>
     <div class="panel-body stack">
-        <div class="valuation-sources" data-valuation-cards>
-            @* The column heads the rows' boxes stand under. Each box keeps its
-               own label for a screen reader, and shows it once the columns fold. *@
-            <div class="valuation-source valuation-source--head" aria-hidden="true">
-                <span></span>
-                <span class="lbl">@ValuationLabels.Retail</span>
-                <span class="lbl">@ValuationLabels.Trade</span>
-                <span class="lbl">@ValuationLabels.GuideMonth</span>
-            </div>
+        <div class="valuation-cards" data-valuation-cards>
             @for (var index = 0; index < guideSources.Length; index++)
             {
                 var source = guideSources[index];
@@ -90,18 +78,18 @@
                 var selected = recorded is not null && selectedId == recorded.ValuationId;
                 var retail = recorded?.Details.RetailValue;
                 var trade = recorded?.Details.TradeValue;
-                // A row holds exactly what was recorded, in both modes: any
+                // A card holds exactly what was recorded, in both modes: any
                 // box may be blank (operator, 23 September 2026).
                 var canBeBasis = recorded is not null && Pegasus.Web.Pages.Cases.DetailsModel.CanBeBasis(recorded);
-                var month = recorded?.Details.GuideMonth;
+                var connected = editable && Model.GuideSourceConnected(source);
                 var field = "guideEntries[" + index.ToString(CultureInfo.InvariantCulture) + "].";
                 var idPrefix = "f-valuation-" + slug + "-";
-                @* One row per source in both modes. While editing, its boxes join
-                   the Case form and the Case's save records a changed row; Get
-                   valuation fills them by script. The Basis radio, chosen by
-                   clicking the row, joins the same form. *@
-                <div class="valuation-source entry @(selected ? "sel" : null)"
-                     tabindex="@(editable && canBeBasis ? "0" : null)"
+                @* While editing, a card's boxes join the Case form and the
+                   Case's save records a changed card; Get valuation fills them
+                   by script. The Basis radio of a recorded card joins the same
+                   form; the script checks it when the card is clicked. *@
+                <div class="valuation-card entry @(selected ? "sel" : null)"
+                     tabindex="@(editable ? "0" : null)"
                      data-valuation-entry="@slug"
                      data-valuation-source-card="@source"
                      data-valuation-card="@(recorded?.ValuationId.ToString("D") ?? slug)"
@@ -111,8 +99,8 @@
                     {
                         <input type="hidden" name="@(field)Source" value="@source" form="case-edit-form" />
                     }
-                    <h3>
-                        <span>@ValuationLabels.SourceLabel(source)</span>
+                    <div class="valuation-card-head">
+                        <h3>@ValuationLabels.SourceLabel(source)</h3>
                         @if (editable && canBeBasis && recorded is not null)
                         {
                             <label class="pick sr-only">
@@ -123,81 +111,63 @@
                                 @ValuationLabels.Basis
                             </label>
                         }
-                    </h3>
-                    <div class="@cellClass">
-                        @{ CellLabel(editable, idPrefix + "retail", ValuationLabels.Retail); }
-                        <div class="fv mono @(retail is null ? "empty" : null)">@MoneyOrAbsent(retail)</div>
-                        @if (editable)
+                        <span class="valuation-card-word" data-valuation-chosen-word hidden="@(selected ? null : "hidden")">@ValuationLabels.Selected</span>
+                        @if (connected)
                         {
-                            <input id="@(idPrefix)retail" class="fi mono" type="number" min="0" step="0.01" name="@(field)RetailValue" form="case-edit-form" value="@Figure(retail)" data-valuation-retail />
+                            <button type="button" class="btn btn--small" data-valuation-get data-busy-label="@OperatorLabels.Busy.LookingUp" data-busy-done="@OperatorLabels.Busy.Done.Valued" data-valuation-source="@slug"
+                                    data-valuation-url="@GetValuationAction(source)"><span>@ValuationLabels.GetValuation</span></button>
                         }
                     </div>
-                    <div class="@cellClass">
-                        @{ CellLabel(editable, idPrefix + "trade", ValuationLabels.Trade); }
-                        <div class="fv mono @(trade is null ? "empty" : null)">@MoneyOrAbsent(trade)</div>
-                        @if (editable)
-                        {
-                            <input id="@(idPrefix)trade" class="fi mono" type="number" min="0" step="0.01" name="@(field)TradeValue" form="case-edit-form" value="@Figure(trade)" data-valuation-trade />
-                        }
-                    </div>
-                    <div class="@cellClass">
-                        @{ CellLabel(editable, idPrefix + "month", ValuationLabels.GuideMonth); }
-                        <div class="fv @(month is null ? "empty" : null)">@(month?.ToString("MMM yyyy", CultureInfo.InvariantCulture) ?? absent)</div>
-                        @if (editable)
-                        {
-                            <input id="@(idPrefix)month" class="fi" type="month" name="@(field)GuideMonth" form="case-edit-form" value="@month?.ToString("yyyy-MM", CultureInfo.InvariantCulture)" data-valuation-entry-month />
-                        }
+                    <div class="valuation-card-figs">
+                        @{ CardFigure(editable, idPrefix + "retail", ValuationLabels.Retail, retail, field + "RetailValue", "retail");
+                            CardFigure(editable, idPrefix + "trade", ValuationLabels.Trade, trade, field + "TradeValue", "trade"); }
+                        <div class="valuation-card-fig valuation-card-month">
+                            @if (editable)
+                            {
+                                <label for="@(idPrefix)month">@ValuationLabels.GuideMonth</label>
+                                <input id="@(idPrefix)month" class="fi" type="month" name="@(field)GuideMonth" form="case-edit-form" value="@recorded?.Details.GuideMonth?.ToString("yyyy-MM", CultureInfo.InvariantCulture)" data-valuation-entry-month />
+                            }
+                            else
+                            {
+                                <span class="lbl">@ValuationLabels.GuideMonth</span>
+                                <span class="valuation-card-value @(recorded?.Details.GuideMonth is null ? "is-blank" : null)">@Month(recorded?.Details.GuideMonth)</span>
+                            }
+                        </div>
                     </div>
                     @if (editable)
                     {
-                        var connected = Model.GuideSourceConnected(source);
+                        @* The card's own answer to Get valuation (operator-approved
+                           wording, 23 September 2026): standing where no provider is
+                           connected, or shown by script with a refusal's own words.
+                           It becomes an alert only when it shows. *@
+                        @* Two branches, not a conditional attribute: Razor writes
+                           data-valuation-not-connected="" for a null there, and the
+                           script would then keep a connected card's notice standing. *@
                         if (connected)
                         {
-                            <div class="valuation-source-get">
-                                <button type="button" class="btn btn--small" data-valuation-get data-busy-label="@OperatorLabels.Busy.LookingUp" data-busy-done="@OperatorLabels.Busy.Done.Valued" data-valuation-source="@slug"
-                                        data-valuation-url="@GetValuationAction(source)"><span>@ValuationLabels.GetValuation</span></button>
-                            </div>
-                        }
-                        <div class="valuation-source-use">
-                            <button type="button" class="btn btn--small" data-valuation-use aria-pressed="false"><span>@ValuationLabels.UseThisValue</span></button>
-                        </div>
-                        @* The row's own answer to Get valuation (operator-approved
-                           wording, 23 September 2026): shown by script when the
-                           source has no working provider, or with the refusal's
-                           own words when the request was refused. It becomes an
-                           alert only when it shows. *@
-                        if (connected)
-                        {
-                            <div class="notice notice--danger valuation-source-note" data-valuation-notice hidden>
+                            <div class="notice notice--danger valuation-card-note" data-valuation-notice hidden>
                                 <span data-valuation-unavailable>@ValuationLabels.UnavailableLead(source)<button type="button" class="link-button" data-dialog-open="problem-dialog">@ValuationLabels.ReportAProblem</button>.</span>
                                 <span data-valuation-refused hidden></span>
                             </div>
                         }
                         else
                         {
-                            @* No provider is connected: the row says so now, and
-                               offers no Get valuation that could not work. *@
-                            <div class="notice notice--info valuation-source-note" data-valuation-notice data-valuation-not-connected>
+                            <div class="notice notice--info valuation-card-note" data-valuation-notice data-valuation-not-connected>
                                 <span data-valuation-unavailable>@ValuationLabels.UnavailableLead(source)<button type="button" class="link-button" data-dialog-open="problem-dialog">@ValuationLabels.ReportAProblem</button>.</span>
                                 <span data-valuation-refused hidden></span>
                             </div>
                         }
+                        <div class="notice notice--info valuation-card-note" data-valuation-needs-retail hidden>@ValuationLabels.UseNeedsRetail</div>
                     }
                 </div>
-                if (selected && !opened)
-                {
-                    opened = true;
-                    <partial name="Cases/Shared/_CaseValuationCalculation" model="Model" />
-                }
             }
-            @* AI market research's standing row: the latest research, or
-               nothing recorded yet, and the month and Get valuation that ask
-               for the next one. An earlier research card stays as a row of
-               its own beneath it. While research is in progress the row reads
-               as Researching for the job's month in place of the recorded
-               figures: a re-run replaces them. The result is filed without
-               the Case edit lease, so it returns while the Engineer is still
-               editing. *@
+            @* AI market research's card: the latest research, or nothing
+               recorded yet, and the month and Get valuation that ask for the
+               next one. An earlier research card stays as a card of its own.
+               While research is in progress the card reads as Researching for
+               the job's month in place of the recorded figures: a re-run
+               replaces them. The result is filed without the Case edit lease,
+               so it returns while the Engineer is still editing. *@
             @for (var row = 0; row < (pending is null ? Math.Max(1, researchCards.Length) : 1); row++)
             {
                 var valuation = pending is null && row < researchCards.Length ? researchCards[row] : null;
@@ -206,9 +176,8 @@
                 var usable = editable && valuation is { Details.RetailValue: > 0m };
                 var retail = valuation?.Details.RetailValue;
                 var trade = valuation?.Details.TradeValue;
-                var month = valuation?.Details.GuideMonth;
-                <div class="valuation-source valuation-source--research @(selected ? "sel" : null) @(pending is null ? null : "is-pending")"
-                     tabindex="@(editable && valuation is not null ? "0" : null)"
+                <div class="valuation-card valuation-card--research @(selected ? "sel" : null) @(pending is null ? null : "is-pending")"
+                     tabindex="@(usable ? "0" : null)"
                      data-valuation-pending="@pending?.JobId"
                      data-valuation-card="@(valuation?.ValuationId.ToString("D") ?? researchSlug)"
                      data-valuation-source-card="@ValuationSource.AiMarketResearch"
@@ -227,126 +196,108 @@
                             <input type="hidden" name="view" value="@Model.ViewRoute" />
                         </form>
                     }
-                    <h3>
-                        <span>@researchLabel</span> <span class="src-tag src-tag--ai">AI</span>
-                        @if (editable && valuation is not null)
+                    <div class="valuation-card-head">
+                        <h3>@researchLabel</h3>
+                        <span class="src-tag src-tag--ai">AI</span>
+                        @if (usable)
                         {
                             <label class="pick sr-only">
-                                <input type="radio" name="selection.GuideValuationId" value="@valuation.ValuationId"
+                                <input type="radio" name="selection.GuideValuationId" value="@valuation!.ValuationId"
                                        form="case-edit-form" checked="@(selected ? "checked" : null)"
                                        data-valuation-basis
                                        data-source-name="@researchLabel" />
                                 @ValuationLabels.Basis
                             </label>
                         }
-                    </h3>
-                    @if (pending is not null)
-                    {
-                        <div class="fc ro"><span class="lbl">@ValuationLabels.Retail</span><div class="fv mono derived">—</div></div>
-                        <div class="fc ro"><span class="lbl">@ValuationLabels.Trade</span><div class="fv mono derived">—</div></div>
-                    }
-                    else
-                    {
-                        <div class="fc ro"><span class="lbl">@ValuationLabels.Retail</span><div class="fv mono @(retail is null ? "empty" : null)">@MoneyOrAbsent(retail)</div></div>
-                        <div class="fc ro"><span class="lbl">@ValuationLabels.Trade</span><div class="fv mono @(trade is null ? "empty" : null)">@MoneyOrAbsent(trade)</div></div>
-                    }
-                    @if (asks)
-                    {
-                        <div class="fc">
-                            <label for="f-valuation-month">@ValuationLabels.ValuationMonth</label>
-                            <input id="f-valuation-month" class="fi" type="month" name="guideMonth" form="case-market-research-form" value="@Model.ValuationMonth" data-valuation-month />
-                        </div>
-                        <div class="valuation-source-get">
+                        <span class="valuation-card-word" data-valuation-chosen-word hidden="@(selected ? null : "hidden")">@ValuationLabels.Selected</span>
+                        @if (asks)
+                        {
                             <button type="submit" data-busy-label="@OperatorLabels.Busy.Starting" form="case-market-research-form" class="btn btn--small" data-valuation-source="@researchSlug"><span>@ValuationLabels.GetValuation</span></button>
-                        </div>
-                    }
-                    else if (pending is not null)
-                    {
-                        <div class="fc ro"><span class="lbl">@ValuationLabels.ValuationMonth</span><div class="fv">@Model.PendingMarketResearchMonth</div></div>
-                    }
-                    else
-                    {
-                        <div class="fc ro"><span class="lbl">@ValuationLabels.GuideMonth</span><div class="fv @(month is null ? "empty" : null)">@(month?.ToString("MMM yyyy", CultureInfo.InvariantCulture) ?? absent)</div></div>
-                    }
-                    @if (usable)
-                    {
-                        @* A card with no retail has no figure to use. *@
-                        <div class="valuation-source-use">
-                            <button type="button" class="btn btn--small" data-valuation-use aria-pressed="false"><span>@ValuationLabels.UseThisValue</span></button>
-                        </div>
-                    }
-                    @if (pending is not null)
-                    {
-                        <div class="valuation-source-note researching">
-                            <span>@ValuationLabels.Researching · @Model.PendingMarketResearchMonth</span>
-                            @if (editable)
+                        }
+                    </div>
+                    <div class="valuation-card-figs">
+                        @{ CardFigure(false, null, ValuationLabels.Retail, retail, null, null, pending is not null);
+                            CardFigure(false, null, ValuationLabels.Trade, trade, null, null, pending is not null); }
+                        <div class="valuation-card-fig valuation-card-month">
+                            @if (asks)
                             {
-                                <span class="muted" data-valuation-pending-note>@ValuationLabels.ResearchFiledNote</span>
+                                <label for="f-valuation-month">@ValuationLabels.ValuationMonth</label>
+                                <input id="f-valuation-month" class="fi" type="month" name="guideMonth" form="case-market-research-form" value="@Model.ValuationMonth" data-valuation-month />
+                            }
+                            else if (pending is null && valuation is not null)
+                            {
+                                <span class="lbl">@ValuationLabels.GuideMonth</span>
+                                <span class="valuation-card-value @(valuation.Details.GuideMonth is null ? "is-blank" : null)">@Month(valuation.Details.GuideMonth)</span>
                             }
                         </div>
+                    </div>
+                    @if (pending is not null)
+                    {
+                        <div class="valuation-card-meta researching">@ValuationLabels.Researching · @Model.PendingMarketResearchMonth</div>
+                        @if (editable)
+                        {
+                            <div class="valuation-card-meta muted" data-valuation-pending-note>@ValuationLabels.ResearchFiledNote</div>
+                        }
                     }
                     else if (valuation is not null)
                     {
                         @* What the recorded research was asked with. *@
-                        <div class="valuation-source-note meta">@CardMeta(valuation)</div>
+                        <div class="valuation-card-meta">@CardMeta(valuation)</div>
                     }
                 </div>
-                if (selected && !opened)
-                {
-                    opened = true;
-                    <partial name="Cases/Shared/_CaseValuationCalculation" model="Model" />
-                }
             }
         </div>
-        @if (!opened)
-        {
-            <partial name="Cases/Shared/_CaseValuationCalculation" model="Model" />
-        }
+
+        <partial name="Cases/Shared/_CaseValuationCalculation" model="Model" />
 
         @* On the report (v28 P38): the three content switches, decided beside
-           the valuation they describe. One cell, so editing shows the
-           switches in place of the summary. A checkbox posts "true" ahead
+           the valuation they describe, as one line. One cell, so editing shows
+           the switches in place of the summary. A checkbox posts "true" ahead
            of its hidden "false", so an unticked switch still records No. *@
-        <div class="sub-panel @Model.CollapsedClass("case.valuation.report")" data-collapse="case.valuation.report" data-field="report-content">
-            <h3>@CaseWorkspaceLabels.Frame.OnTheReport <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.valuation.report")" /></h3>
-            <div class="fc @(reportEditable ? null : "ro")">
-                <div class="fv" data-report-content>@Model.ReportContentSummary</div>
-                @if (reportEditable)
-                {
-                    <div class="fi chk switches" data-report-switches>
-                        @foreach (var (path, label) in new[]
-                        {
-                            (AssessmentVocabulary.ReportDiscloseGuideSource, CaseWorkspaceLabels.Report.DiscloseGuideSource),
-                            (AssessmentVocabulary.ReportValuationCommentary, CaseWorkspaceLabels.Report.ValuationCommentary),
-                            (AssessmentVocabulary.ReportIncludeUnrelatedDamage, CaseWorkspaceLabels.Report.UnrelatedDamage)
-                        })
-                        {
-                            var switchName = CaseWorkspaceLabels.Editors.FormName(path);
-                            <label class="choice">
-                                <input type="checkbox" name="@switchName" value="true" form="case-edit-form" checked="@(string.Equals(Model.AssessmentEditorValue(path), "true", StringComparison.OrdinalIgnoreCase) ? "checked" : null)" data-report-switch="@path" />
-                                <input type="hidden" name="@switchName" value="false" form="case-edit-form" />
-                                <span>@label</span>
-                            </label>
-                        }
-                    </div>
-                }
-            </div>
+        <div class="valuation-report fc @(reportEditable ? null : "ro")" data-field="report-content">
+            <span class="lbl">@CaseWorkspaceLabels.Frame.OnTheReport</span>
+            <div class="fv" data-report-content>@Model.ReportContentSummary</div>
+            @if (reportEditable)
+            {
+                <div class="fi chk switches" data-report-switches>
+                    @foreach (var (path, label) in new[]
+                    {
+                        (AssessmentVocabulary.ReportDiscloseGuideSource, CaseWorkspaceLabels.Report.DiscloseGuideSource),
+                        (AssessmentVocabulary.ReportValuationCommentary, CaseWorkspaceLabels.Report.ValuationCommentary),
+                        (AssessmentVocabulary.ReportIncludeUnrelatedDamage, CaseWorkspaceLabels.Report.UnrelatedDamage)
+                    })
+                    {
+                        var switchName = CaseWorkspaceLabels.Editors.FormName(path);
+                        <label class="choice">
+                            <input type="checkbox" name="@switchName" value="true" form="case-edit-form" checked="@(string.Equals(Model.AssessmentEditorValue(path), "true", StringComparison.OrdinalIgnoreCase) ? "checked" : null)" data-report-switch="@path" />
+                            <input type="hidden" name="@switchName" value="false" form="case-edit-form" />
+                            <span>@label</span>
+                        </label>
+                    }
+                </div>
+            }
         </div>
     </div>
 </section>
 
 @functions {
-    // The cell's label: a real <label> for the control while editing, the
-    // same words as a plain caption while reading.
-    private void CellLabel(bool editable, string id, string text)
+    // One figure line of a card: its label, then the figure as text while
+    // reading, or the Case form's box in the same place while editing.
+    private void CardFigure(bool editable, string? id, string label, decimal? value, string? name, string? kind, bool pending = false)
     {
-        if (editable)
-        {
-            <label for="@id">@text</label>
-        }
-        else
-        {
-            <span class="lbl">@text</span>
-        }
+        <div class="valuation-card-fig">
+            @if (editable)
+            {
+                <label for="@id">@label</label>
+                <input id="@id" class="fi mono" type="number" min="0" step="0.01" placeholder="£" name="@name" form="case-edit-form"
+                       value="@value?.ToString("0.00", CultureInfo.InvariantCulture)"
+                       data-valuation-retail="@(kind == "retail" ? "" : null)" data-valuation-trade="@(kind == "trade" ? "" : null)" />
+            }
+            else
+            {
+                <span class="lbl">@label</span>
+                <span class="valuation-card-value mono @(pending ? "derived" : value is null ? "is-blank" : null)">@(pending || value is null ? "—" : ValuationCalculationPolicy.FormatMoney(value.Value))</span>
+            }
+        </div>
     }
 }

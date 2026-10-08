@@ -1996,8 +1996,8 @@ public sealed class CaseWorkflowPersistenceTests
     /// <summary>
     /// Automation holds and staff competes: the staff claim, a write presenting the
     /// holder's own token, renew, heartbeat, and release are all refused; the retained lease is
-    /// untouched by every refusal; and the holder then heartbeats, saves, and finds its lease
-    /// consumed by that save exactly as before.
+    /// untouched by every refusal; and the holder then heartbeats, saves, keeps its lease
+    /// through that save (operator, 8 October 2026) and ends it.
     /// </summary>
     [Fact]
     public async Task AnAutomationHeldLeaseRefusesEveryStaffOperationAndTheHolderStillSaves()
@@ -2031,14 +2031,15 @@ public sealed class CaseWorkflowPersistenceTests
 
         var afterSave = await harness.ReadLeaseRowAsync(harness.CaseId);
         Assert.Equal(1, afterSave.Version);
-        Assert.Null(afterSave.Holder);
-        Assert.Null(afterSave.HolderKind);
-        Assert.Null(afterSave.Token);
-        // The save consumed the lease, so ending it afterwards is refused as having none.
-        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
-            harness.Store.ReleaseAsync(
-                new(harness.CaseId, automation, "mcp:automation-ends-after-save", lease.Token),
-                default));
+        Assert.Equal(automation.SubjectId, afterSave.Holder);
+        Assert.Equal(nameof(ActorKind.Automation), afterSave.HolderKind);
+        // The save kept the Automation lease, so the holder ends it with its own token.
+        await harness.Store.ReleaseAsync(
+            new(harness.CaseId, automation, "mcp:automation-ends-after-save", lease.Token),
+            default);
+        var released = await harness.ReadLeaseRowAsync(harness.CaseId);
+        Assert.Null(released.Holder);
+        Assert.Null(released.HolderKind);
     }
 
     /// <summary>

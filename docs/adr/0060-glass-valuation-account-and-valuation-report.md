@@ -101,6 +101,9 @@ unsaved edit and its Save are untouched.
   The pre-provision check refuses an empty or malformed secret URI.
 - The other four guide sources stay unconnected until each has its own
   adapter.
+- The Automation Actor presses Get valuation through `pegasus_valuation_get`
+  with the same account (operator, 8 October 2026); it is not a Glass's
+  session ([ADR-0064](0064-automation-actor-staff-casework-parity.md)).
 
 ## Links
 

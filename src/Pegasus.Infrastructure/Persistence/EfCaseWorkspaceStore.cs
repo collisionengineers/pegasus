@@ -182,6 +182,18 @@ public sealed class EfCaseWorkspaceStore(
                 assessmentFields.ToDictionary(
                     item => item.FieldPath, item => (string?)item.Value, StringComparer.Ordinal));
         }
+        if (request.Valuation is { Adoption: { } chosen } chosenValuation)
+        {
+            // The report's Retail and Trade follow the guide card the
+            // calculation is chosen against (operator, 8 October 2026).
+            var withReportValues = new Dictionary<string, string?>(requestedFields, StringComparer.Ordinal);
+            foreach (var (path, value) in await EfValuationStore.ReportValuesAsync(
+                context, workId, chosen, chosenValuation.GuideEntries ?? [], cancellationToken))
+            {
+                withReportValues[path] = value;
+            }
+            requestedFields = withReportValues;
+        }
         var (fieldsToWrite, merged) = AssessmentWriteSet.Build(requestedFields, assessmentFields);
         var (beforeFields, afterFields) = AssessmentWriteSet.Apply(
             context,
@@ -256,8 +268,9 @@ public sealed class EfCaseWorkspaceStore(
         // 2026), and a calculation the operator changed is recorded against
         // the basis card as the save leaves it: the valuation store's
         // transaction-local writers, under this transaction's one version,
-        // workflow event and history line. The Retail, Trade and Engineer's
-        // value boxes are ordinary fields, written above with the rest.
+        // workflow event and history line. The Engineer's Value box is an
+        // ordinary field, and Retail and Trade follow the basis card; both
+        // were written above with the rest.
         var guideEntries = request.Valuation is { } valuationSection
             ? await EfValuationStore.RecordGuideEntriesAsync(
                 context,

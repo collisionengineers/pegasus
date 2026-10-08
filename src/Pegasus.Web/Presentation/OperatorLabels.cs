@@ -841,7 +841,6 @@ public static class OperatorLabels
         public const string NotRecorded = "Not recorded";
         public const string Unavailable = "Work Centre is unavailable. Refresh to run the live queues again.";
         public const string NewCases = "New cases";
-        public const string ChangedByAutomation = "Changed by automation";
         public const string SinceYouLastLooked = "Since you last looked";
         public const string NoNewCases = "No Case was created in the last 7 days";
         public const string NewCasesUnavailable = "New cases are unavailable.";

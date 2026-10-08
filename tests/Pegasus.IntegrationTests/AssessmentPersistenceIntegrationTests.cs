@@ -45,9 +45,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.All(saved.Fields.Where(field => field.Path is AssessmentVocabulary.DamageImpacts or AssessmentVocabulary.ImpactLocation or AssessmentVocabulary.ImpactSeverity),
             field => Assert.Equal(ActorKind.Automation, field.RecordedByKind));
 
-        var clearLease = await harness.AcquireLeaseAsync(caseId, saved.CaseVersion, harness.AutomationActor, "damage-lease-2");
+        // The Automation lease stands after its save, so the same token clears the damage.
         var cleared = await harness.SaveAssessment.ExecuteAsync(new(
-            caseId, clearLease.Version, harness.AutomationActor, "damage-save-2", "Clear damage.", clearLease.Token,
+            caseId, saved.CaseVersion, harness.AutomationActor, "damage-save-2", "Clear damage.", lease.Token,
             new Dictionary<string, string?>(StringComparer.Ordinal) { [AssessmentVocabulary.DamageImpacts] = null }), CancellationToken.None);
 
         Assert.Null(cleared.Field(AssessmentVocabulary.DamageImpacts));
@@ -472,6 +472,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         // permanent evidence (logging parity, side by side). The clock
         // advances so the two history rows order deterministically.
         harness.Advance(TimeSpan.FromMinutes(1));
+        await harness.ReleaseLeaseAsync(caseId, harness.AutomationActor, "assessment-lease-automation-end", automationLease.Token);
         var staffLease = await harness.AcquireLeaseAsync(
             caseId,
             saved.CaseVersion,
@@ -912,6 +913,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 Result: new(AiJobResultKind.Estimate, aiDraft.SpecificationId.ToString("D"), null)),
             CancellationToken.None);
 
+        await harness.ReleaseLeaseAsync(caseId, harness.AutomationActor, "estimate-lease-ai-end", leaseAi.Token);
         var leaseUseAi = await LeaseAsync(engineer, "estimate-lease-use-ai");
         var currentAi = await setCurrent.ExecuteAsync(
             new(caseId, leaseUseAi.Version, engineer, "estimate-use-ai", "Use the AI draft.",
@@ -1783,7 +1785,10 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal("Confirmed", await harness.Database.ScalarAsync<string>(
             $"SELECT State FROM CaseReportGenerations WHERE Id = '{supersededId:D}'"));
         Assert.Equal(1, await StaleRowCountAsync(harness, caseId));
-        Assert.Equal(CaseReportStaleReasons.ValuationChanged, await LatestStaleReasonAsync(harness, caseId));
+        // The adoption writes the report's Retail and Trade from the basis
+        // card (operator, 8 October 2026), so the printed assessment facts
+        // change first and name the stale row.
+        Assert.Equal(CaseReportStaleReasons.AssessmentFactsChanged, await LatestStaleReasonAsync(harness, caseId));
 
         // Replay of the same operation returns before any mutation, so the
         // stale row count does not move.
@@ -2325,6 +2330,15 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             ActionActor actor,
             string operationKey) => acquireLease.ExecuteAsync(
             new(caseId, version, actor, operationKey),
+            CancellationToken.None);
+
+        /// <summary>Ends a lease that stands after its write, as the Automation actor's does.</summary>
+        public Task ReleaseLeaseAsync(
+            Guid caseId,
+            ActionActor actor,
+            string operationKey,
+            string leaseToken) => new EfCaseWorkflowStore(Factory, timeProvider).ReleaseAsync(
+            new(caseId, actor, operationKey, leaseToken),
             CancellationToken.None);
 
         public async ValueTask DisposeAsync() => await database.DisposeAsync();
