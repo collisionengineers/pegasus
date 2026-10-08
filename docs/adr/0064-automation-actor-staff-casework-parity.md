@@ -64,10 +64,12 @@ fact the call did not name.
    8 October 2026).
 3. **Findings.** `pegasus_assessment_update` records the professional
    findings staff record: outcome, roadworthiness, the unroadworthy reason,
-   salvage category and value, and the Retail, Trade and Engineer's values.
+   salvage category and value, and the Engineer's Value.
    `pegasus_valuation_save` records guide cards and adopts the valuation
-   calculation. Derived fields, Case-owned facts and lookup facts stay
-   refused, as for staff.
+   calculation, which writes the report's Retail and Trade from its basis
+   card: since 8 October 2026 they are the chosen card's figures, typed by
+   no one (FRD-24). Derived fields, guide-card figures, Case-owned facts and
+   lookup facts stay refused, as for staff.
 4. **System fills defer to a deliberate value.** A system fill (vehicle
    lookup, original-report extraction, Glass's VIN, Principal default fee)
    lands only on

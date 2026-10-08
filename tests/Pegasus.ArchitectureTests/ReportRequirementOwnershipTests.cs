@@ -89,6 +89,12 @@ public sealed class ReportRequirementOwnershipTests
             {
                 writers.Add("the vehicle lookup");
             }
+            // The Case save writes these from the chosen guide card
+            // (operator, 8 October 2026).
+            if (AssessmentVocabulary.GuideCardDerivedPaths.Contains(path))
+            {
+                writers.Add("the chosen guide card");
+            }
             // None is the #834 defect; two means a derived or lookup path
             // leaked into an editor.
             if (writers.Count != 1)
@@ -217,11 +223,13 @@ public sealed class ReportRequirementOwnershipTests
         Assert.Null(AutomationRefusal(AssessmentVocabulary.Outcome));
         Assert.Null(AutomationRefusal(AssessmentVocabulary.ValueEngineer));
         // The 25 Decisions editors (the outcome, roadworthiness and salvage
-        // findings included since 7 October 2026), 3 Valuation, 4 original
-        // report, 7 Report, 14 Damage and 4 Vehicle editors, the vehicle
-        // history and condition, and the 5 typed Case-save paths. A new editor
-        // changes this count on purpose: it widens what automation may write.
-        Assert.Equal(64, accepted.Count);
+        // findings included since 7 October 2026), 1 Valuation (the
+        // Engineer's Value: Retail and Trade follow the chosen guide card since
+        // 8 October 2026), 4 original report, 7 Report, 14 Damage and 4 Vehicle
+        // editors, the vehicle history and condition, and the 5 typed Case-save
+        // paths. A new editor changes this count on purpose: it widens what
+        // automation may write.
+        Assert.Equal(62, accepted.Count);
     }
 
     [Theory]

@@ -336,6 +336,49 @@ public sealed class EfValuationStore(
         };
     }
 
+    /// <summary>
+    /// The report's Retail and Trade values a save carrying a chosen
+    /// calculation writes (operator, 8 October 2026): the basis card's
+    /// figures as the save leaves that card. That is the card this save
+    /// records for the basis source, else the recorded card, resolved the way
+    /// <see cref="AdoptAsync"/> resolves its basis but before the save writes
+    /// its fields, so they are written whether or not the calculation itself
+    /// is recorded (a figure typed over it is still the Engineer's own).
+    /// </summary>
+    internal static async Task<IReadOnlyDictionary<string, string?>> ReportValuesAsync(
+        PegasusDbContext context,
+        Guid workId,
+        ValuationCalculationSelection selection,
+        IReadOnlyList<ValuationDetails> guideEntries,
+        CancellationToken cancellationToken)
+    {
+        ValuationSource source;
+        CaseValuationEntity? recorded;
+        if (selection.GuideValuationId != Guid.Empty)
+        {
+            recorded = await RequiredGuideAsync(context, workId, selection.GuideValuationId, cancellationToken);
+            source = Map(recorded).Details.Source;
+        }
+        else
+        {
+            source = selection.GuideSource
+                ?? throw new InvalidOperationException("A guide valuation must be selected as the basis.");
+            var sourceName = source.ToString();
+            recorded = (await context.CaseValuations
+                    .Where(item => item.WorkId == workId && item.Source == sourceName)
+                    .ToArrayAsync(cancellationToken))
+                .OrderByDescending(OrderKey)
+                .FirstOrDefault();
+        }
+        if (guideEntries.LastOrDefault(entry => entry.Source == source) is { } entry)
+        {
+            return ValuationPolicy.ReportValues(entry.RetailValue, entry.TradeValue);
+        }
+        return recorded is null
+            ? throw new InvalidOperationException("Enter the retail value on the card you chose to use.")
+            : ValuationPolicy.ReportValues(recorded.RetailValue, recorded.TradeValue);
+    }
+
     private static async Task<CaseValuationEntity> RequiredGuideAsync(
         PegasusDbContext context,
         Guid workId,

@@ -65,13 +65,14 @@ public sealed class CaseValuationWebTests
     }
 
     /// <summary>
-    /// Retail, Trade and Engineer's value are boxes of the Case form
-    /// (operator, 26 September 2026): typed with no mileage and no card, the
-    /// Save carries them as the Valuation section's own fields, with no
-    /// calculation, and a box emptied is carried as a clear.
+    /// The Engineer's Value is the one box of the Case form (operator, 26
+    /// September 2026): typed with no mileage and no card, the Save carries it
+    /// as the Valuation section's own field, with no calculation. The report's
+    /// Retail and Trade are the chosen card's figures (operator, 8 October
+    /// 2026), so the Case form has no box for them and the Save carries none.
     /// </summary>
     [Fact]
-    public async Task TheCaseSaveCarriesTheThreeTypedValues()
+    public async Task TheCaseSaveCarriesTheTypedEngineersValueAndNoRetailOrTrade()
     {
         var store = new RecordingCaseDetailsStore
         {
@@ -81,23 +82,30 @@ public sealed class CaseValuationWebTests
         using var workspace = await EnterEngineerEditModeAsync(
             store,
             services => Substitute<ISaveCaseWorkspace>(services, store));
+        var page = await workspace.GetWorkspaceAsync();
+        Assert.DoesNotContain(
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ValueRetail),
+            page,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ValueTrade),
+            page,
+            StringComparison.Ordinal);
 
         using var response = await workspace.Client.PostAsync(
             $"/Cases/{store.CaseId:D}?handler=Save",
             workspace.MutationForm(
                 DetailsModelOperationKey,
-                "Typed the values",
-                (Pegasus.Web.Presentation.CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ValueRetail), "12500.00"),
-                (Pegasus.Web.Presentation.CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ValueTrade), ""),
+                "Typed the value",
                 (Pegasus.Web.Presentation.CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ValueEngineer), "12750.00")));
 
         AssertPrg(response, store.CaseId);
         var valuation = Assert.Single(store.Saves).Valuation!;
         Assert.Null(valuation.Adoption);
         Assert.Empty(valuation.GuideEntries!);
-        Assert.Equal("12500.00", valuation.AssessmentFields![AssessmentVocabulary.ValueRetail]);
-        Assert.True(string.IsNullOrEmpty(valuation.AssessmentFields[AssessmentVocabulary.ValueTrade]));
-        Assert.Equal("12750.00", valuation.AssessmentFields[AssessmentVocabulary.ValueEngineer]);
+        Assert.Equal("12750.00", valuation.AssessmentFields![AssessmentVocabulary.ValueEngineer]);
+        Assert.False(valuation.AssessmentFields.ContainsKey(AssessmentVocabulary.ValueRetail));
+        Assert.False(valuation.AssessmentFields.ContainsKey(AssessmentVocabulary.ValueTrade));
     }
 
     /// <summary>

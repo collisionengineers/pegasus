@@ -310,6 +310,19 @@ public static class AssessmentVocabulary
     };
 
     /// <summary>
+    /// The report's Retail and Trade values: the chosen guide card's figures
+    /// (operator, 8 October 2026). The Case save writes them from the card a
+    /// calculation is chosen against
+    /// (<see cref="ValuationPolicy.ReportValues"/>); no field save types or
+    /// clears one.
+    /// </summary>
+    public static IReadOnlySet<string> GuideCardDerivedPaths { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        ValueRetail,
+        ValueTrade
+    };
+
+    /// <summary>
     /// Facts only the DVLA/DVSA vehicle lookup records (operator, 24 September
     /// 2026): engine capacity, fuel, colour, tax expiry and MOT expiry, each set by
     /// <see cref="Pegasus.Core.Vehicle.VehicleLookupFillPolicy.DerivedAssessmentWrites"/>

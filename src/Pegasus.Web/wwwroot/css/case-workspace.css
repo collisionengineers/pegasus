@@ -164,78 +164,85 @@
 
 
 /* ==== valuation ==== */
-/* ---- Valuation (v33 design D, 6 October 2026): the sources as rows; under the chosen one, the calculation and the three values ---- */
-#section-valuation .valuation-sources{border:1px solid var(--line);border-radius:var(--radius);background:#fff;min-width:0}
-/* A source row: its name, its three boxes under the column heads, and while
-   editing its two buttons. Reading keeps no column for the buttons. */
-#section-valuation .valuation-source{display:grid;grid-template-columns:118px minmax(0,1fr) minmax(0,1fr) 150px;gap:6px 10px;align-items:start;padding:7px 10px;border-top:1px solid var(--line);min-width:0}
-.case-record.is-editing #section-valuation:not(.is-locked) .valuation-source{grid-template-columns:118px minmax(0,1fr) minmax(0,1fr) 150px 106px 116px}
-#section-valuation .valuation-source--head{padding:7px 10px 0;border-top:0}
-#section-valuation .valuation-source--head+.valuation-source{border-top:0;padding-top:4px}
-#section-valuation .valuation-source--head .lbl{font-size:10.5px;color:var(--quiet);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding-left:9px}
-#section-valuation .valuation-source h3{margin:0;padding-top:6px;min-height:30px;font-size:12.5px;font-weight:700;line-height:1.35;min-width:0}
-#section-valuation .valuation-source h3 .src-tag{margin-left:2px}
-/* The column heads name the boxes; each box's own label is kept for a screen
-   reader and shown once the columns fold. */
-#section-valuation .valuation-source>.fc>label,#section-valuation .valuation-source>.fc>.lbl{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0)}
-#section-valuation .valuation-source .fc .fv,#section-valuation .valuation-source .fc .fi{min-height:30px;padding:3px 8px;font-size:12.5px}
-#section-valuation .valuation-source.sel{outline:2px solid var(--navy);outline-offset:-2px}
-.case-record.is-editing #section-valuation .valuation-source[tabindex="0"]{cursor:pointer}
-.case-record.is-editing #section-valuation .valuation-source[tabindex="0"]:focus-visible{outline:2px solid var(--red);outline-offset:-2px}
-#section-valuation .valuation-source-get{grid-column:5;grid-row:1;justify-self:end}
-#section-valuation .valuation-source-use{grid-column:6;grid-row:1;justify-self:end}
-#section-valuation .valuation-source-get .btn,#section-valuation .valuation-source-use .btn{white-space:nowrap}
-#section-valuation .valuation-source-note{grid-column:2/-1;min-width:0;margin:0;font-size:12px}
-#section-valuation .valuation-source .notice{padding:5px 8px}
-#section-valuation .valuation-source .notice .link-button{color:inherit;text-decoration:underline}
-#section-valuation .valuation-source-note.meta{font-size:11px;color:var(--muted)}
-#section-valuation .valuation-source.is-pending .fv.derived{opacity:.65}
-#section-valuation .valuation-source-note.researching{display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline}
-#section-valuation .valuation-source-note.researching>span:first-child::before{content:"";display:inline-block;width:9px;height:9px;border:2px solid var(--navy);border-right-color:transparent;border-radius:50%;margin-right:6px;vertical-align:-1px;animation:pegasus-spin .8s linear infinite}
-/* The chosen source opens: the calculation, then the three values it ends in.
-   With no source chosen the same block closes the list. */
-#section-valuation .valuation-open{display:grid;gap:10px;padding:10px 12px 12px;border-top:1px solid var(--line);border-left:3px solid var(--navy);background:var(--surface-2)}
-#section-valuation .valuation-open .calc-inputs{background:#fff}
-#section-valuation .valuation-sources+.valuation-open{border:1px solid var(--line);border-radius:var(--radius)}
-/* What an adjustment comes to, in its own cell's label line. */
-#section-valuation .calc-amount{float:right;margin-left:8px;font:600 11px var(--mono);letter-spacing:0;text-transform:none;color:var(--ink)}
-#section-valuation .calc-inputs[aria-busy="true"] .calc-amount{opacity:.65}
-#section-valuation [data-valuation-preview-host] .notice{margin-top:10px}
-#section-valuation [data-valuation-none]{padding-top:6px;font-size:12.5px}
-#section-valuation .adds-head{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.08em;margin:12px 0 6px}
-#section-valuation .adds-head.none{display:none}
-#section-valuation .adds{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 14px}
-#section-valuation .add{display:grid;grid-template-columns:20px 1fr 110px;gap:8px;align-items:center;min-height:32px;font-size:12.5px}
+/* ---- Valuation (v34, operator, 8 October 2026): the sources as guide cards, then the value increases, the deductions, the Engineer's Value and On the report ---- */
+#section-valuation .valuation-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;min-width:0}
+/* A guide card: its name with the chosen word and Get valuation, then
+   Retail, Trade and Guide month as text while reading and boxes while
+   editing, in the same place. The whole card is the click target. */
+#section-valuation .valuation-card{display:grid;align-content:start;gap:6px;min-width:0;padding:10px 12px 11px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface)}
+#section-valuation .valuation-card.sel{border-color:var(--red-dark);box-shadow:inset 0 0 0 1px var(--red-dark);background:#fff9f8}
+.case-record.is-editing #section-valuation .valuation-card[tabindex="0"],.case-record.is-editing #section-valuation .valuation-card[tabindex="0"] label{cursor:pointer}
+.case-record.is-editing #section-valuation .valuation-card input{cursor:text}
+.case-record.is-editing #section-valuation .valuation-card[tabindex="0"]:hover{border-color:var(--line-strong)}
+.case-record.is-editing #section-valuation .valuation-card.sel[tabindex="0"]:hover{border-color:var(--red-dark)}
+.case-record.is-editing #section-valuation .valuation-card[tabindex="0"]:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+#section-valuation .valuation-card-head{display:flex;align-items:center;gap:6px;min-height:28px;min-width:0}
+#section-valuation .valuation-card-head h3{margin:0;font-size:13px;font-weight:700;line-height:1.3;min-width:0}
+#section-valuation .valuation-card-word{margin-left:auto;font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--red-dark)}
+#section-valuation .valuation-card-head .btn{margin-left:auto;white-space:nowrap}
+#section-valuation .valuation-card-word:not([hidden])+.btn{margin-left:8px}
+#section-valuation .valuation-card-figs{display:grid;gap:2px}
+#section-valuation .valuation-card-fig{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,120px);align-items:center;gap:8px;min-height:28px;font-size:12.5px}
+#section-valuation .valuation-card-fig>.lbl,#section-valuation .valuation-card-fig>label{color:var(--muted);font-size:12.5px;font-weight:400;margin:0}
+#section-valuation .valuation-card-value{justify-self:end;font-weight:600;color:var(--ink)}
+#section-valuation .valuation-card-value.is-blank{color:var(--quiet);font-weight:400}
+#section-valuation .valuation-card-value.derived{opacity:.65}
+#section-valuation .valuation-card-fig .fi{min-height:28px;padding:2px 8px;font-size:12.5px;text-align:right;width:100%;min-width:0}
+#section-valuation .valuation-card-month,#section-valuation .valuation-card-month>.lbl,#section-valuation .valuation-card-month>label{font-size:11.5px}
+#section-valuation .valuation-card-month .valuation-card-value{font-weight:400;color:var(--muted)}
+#section-valuation .valuation-card-month .fi{text-align:left;font-size:12px}
+#section-valuation .valuation-card-meta{font-size:11px;color:var(--muted)}
+#section-valuation .valuation-card-meta.researching::before{content:"";display:inline-block;width:9px;height:9px;border:2px solid var(--navy);border-right-color:transparent;border-radius:50%;margin-right:6px;vertical-align:-1px;animation:pegasus-spin .8s linear infinite}
+#section-valuation .valuation-card-note{margin:2px 0 0;padding:5px 8px;font-size:12px}
+#section-valuation .valuation-card-note .link-button{color:inherit;text-decoration:underline}
+/* The value increases and the deductions: dashed panels under the cards. */
+#section-valuation .valuation-increases,#section-valuation .valuation-deductions{border-style:dashed;background:var(--surface)}
+#section-valuation .adds-head{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px}
+#section-valuation .adds{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 28px}
+#section-valuation .add{display:grid;grid-template-columns:20px minmax(0,1fr) 96px;gap:8px;align-items:center;min-height:32px;font-size:12.5px}
 #section-valuation .add input[type=checkbox]{width:15px;height:15px;min-height:0;margin:0;accent-color:var(--red)}
 #section-valuation .add input[type=number],#section-valuation .add input[type=text]{min-height:30px;padding:3px 8px;font-size:12px;border:1px solid var(--line-strong);border-radius:var(--radius);width:100%;min-width:0}
 #section-valuation .add .amt{text-align:right;font-family:var(--mono)}
 #section-valuation .add:not(.on) .amt,#section-valuation .add:not(.on) input[type=text]{opacity:.55}
 #section-valuation .add .add-check{display:inline-grid;place-items:center;width:15px;height:15px;color:var(--green)}
 #section-valuation .add .add-check .icon{width:13px;height:13px}
-/* On the report: the switches stand in the summary's cell while editing. */
-#section-valuation .fc .fi.switches{border:0;padding-left:0;background:transparent}
-#section-valuation .fc .fi.chk.choice{border:0;padding-left:0;display:none;align-items:center;gap:7px;min-height:var(--control);font-size:12.5px}
-.case-record.is-editing #section-valuation .fc .fi.chk.choice{display:inline-flex}
-#section-valuation .fc .fi.chk.choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
-/* Narrower: Use this value keeps its column; the provider's part, Get
-   valuation or the notice, takes the second line. */
+#section-valuation .add--vat label{display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px}
+#section-valuation .add--vat .calc-amount{float:none;justify-self:end;margin:0}
+#section-valuation .valuation-deductions{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);gap:12px 24px;align-items:start}
+/* Previous total loss: the tick box, then −10 % / −20 % on the Scroll / Tabs
+   switch's own look; a percentage is a radio of the field. */
+#section-valuation .valuation-ptl>.lbl{min-height:13px}
+#section-valuation .fc .fi.valuation-ptl-row{border:0;padding:0;background:transparent;align-items:center;flex-wrap:wrap;gap:8px 12px}
+#section-valuation .valuation-ptl-row .choice{min-height:var(--control)}
+#section-valuation .valuation-ptl-switch{margin:0}
+#section-valuation .valuation-ptl-switch label{position:relative;display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:2px;font:600 11.5px var(--mono);color:var(--muted);cursor:pointer}
+#section-valuation .valuation-ptl-switch input{position:absolute;opacity:0;width:1px;height:1px;margin:0}
+#section-valuation .valuation-ptl-switch label:has(input:checked){background:var(--nav-2);color:var(--nav-text)}
+#section-valuation .valuation-ptl-switch label:has(input:disabled){opacity:.45;cursor:default}
+#section-valuation .valuation-ptl-switch label:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:1px}
+/* What an adjustment comes to, beside its control. */
+#section-valuation .calc-amount{float:right;margin-left:8px;font:600 11px var(--mono);letter-spacing:0;text-transform:none;color:var(--ink)}
+#section-valuation .valuation-calc[aria-busy="true"] .calc-amount{opacity:.65}
+#section-valuation .valuation-calc{display:grid;gap:12px}
+/* The Engineer's Value: the one box, the calculation's basis beside it. */
+#section-valuation .valuation-value{display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:8px 24px;align-items:end;padding:12px 14px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface-2)}
+#section-valuation .valuation-value .fc .fv,#section-valuation .valuation-value .fc .fi{min-height:40px;font-size:17px;font-weight:650;justify-content:flex-end;text-align:right}
+#section-valuation .valuation-value-calc{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;min-height:40px;padding-bottom:9px;font-size:12.5px;color:var(--muted)}
+#section-valuation .valuation-value-calc>.lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.08em}
+#section-valuation [data-valuation-preview-host]{flex-basis:100%}
+#section-valuation [data-valuation-preview-host]:empty{display:none}
+#section-valuation [data-valuation-preview-host] .notice{margin:0}
+/* On the report: one line, the switches in the summary's place while editing. */
+#section-valuation .valuation-report{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px}
+#section-valuation .valuation-report>.lbl{margin:0}
+#section-valuation .valuation-report .fv{min-height:0;padding:0;border:0;background:transparent;font-size:12.5px;width:auto}
+#section-valuation .valuation-report .fi.switches{border:0;padding:0;background:transparent;flex-wrap:wrap;gap:6px 20px;width:auto}
 @media(max-width:1180px){
-  .case-record.is-editing #section-valuation:not(.is-locked) .valuation-source{grid-template-columns:104px minmax(0,1fr) minmax(0,1fr) 128px 116px}
-  #section-valuation .valuation-source-use{grid-column:5}
-  #section-valuation .valuation-source-get{grid-column:2;grid-row:2;justify-self:start}
-  #section-valuation .valuation-source:has(.valuation-source-get) .valuation-source-note{grid-column:3/-1;grid-row:2;align-self:center}
-  #section-valuation .adds{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #section-valuation .valuation-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
-/* Narrowest: the column heads go and each box shows its own label. */
 @media(max-width:760px){
-  #section-valuation .valuation-source,.case-record.is-editing #section-valuation:not(.is-locked) .valuation-source{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
-  #section-valuation .valuation-source--head{display:none}
-  #section-valuation .valuation-source h3{grid-column:1/-1}
-  #section-valuation .valuation-source>.fc>label,#section-valuation .valuation-source>.fc>.lbl{position:static;width:auto;height:auto;margin:0 0 3px 9px;clip:auto}
-  #section-valuation .valuation-source>div.fc:nth-of-type(3){grid-column:1/-1}
-  #section-valuation .valuation-source-get,#section-valuation .valuation-source-use{grid-column:auto;grid-row:auto;justify-self:start}
-  #section-valuation .valuation-source-note,#section-valuation .valuation-source:has(.valuation-source-get) .valuation-source-note{grid-column:1/-1;grid-row:auto}
-  #section-valuation .adds{grid-template-columns:minmax(0,1fr)}
+  #section-valuation .valuation-cards,#section-valuation .adds,#section-valuation .valuation-deductions,#section-valuation .valuation-value{grid-template-columns:minmax(0,1fr)}
+  #section-valuation .valuation-value-calc{min-height:0;padding-bottom:0}
 }
 
 

@@ -463,7 +463,7 @@ internal sealed class CaseEditMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Records valuation guide cards on a case and, optionally, the valuation calculation against a basis card, as the Valuation section's Save does. A card for the same source and guide month replaces the earlier one. The Retail, Trade and Engineer's values themselves are assessment fields (assessment.values.*), written with pegasus_assessment_update. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command).")]
+    [Description("Records valuation guide cards on a case and, optionally, the valuation calculation against a basis card, as the Valuation section's Save does. A card for the same source and guide month replaces the earlier one. A calculation writes the report's Retail and Trade values (assessment.values.retail, assessment.values.trade) from its basis card; nothing else writes them. The Engineer's Value (assessment.values.engineer) is written with pegasus_assessment_update. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command).")]
     public async Task<ValuationSaveToolResult> SaveValuationsAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
