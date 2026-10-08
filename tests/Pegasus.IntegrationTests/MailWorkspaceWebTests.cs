@@ -398,7 +398,8 @@ public sealed class MailWorkspaceWebTests
         // the receipt's classification decision for the classification dossier too,
         // rather than reading that decision a second time. The other two commands that
         // join it are the summary mapping (the row's own label) and the intake read (the
-        // receipt aggregate).
+        // receipt aggregate). Removing the Outlook folder recommendation (ADR-0067) took
+        // its approved-mailbox and latest-move reads with it: 27.
         Assert.True(
             messageCommands == InboxMessageCommands,
             $"The Inbox message page sent {messageCommands} SQL commands; it is pinned at {InboxMessageCommands}."
@@ -414,7 +415,7 @@ public sealed class MailWorkspaceWebTests
             + Environment.NewLine + previewDescription);
     }
 
-    private const int InboxMessageCommands = 29;
+    private const int InboxMessageCommands = 27;
 
     private const int InboxListCommands = 24;
 
