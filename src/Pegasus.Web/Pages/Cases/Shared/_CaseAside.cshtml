@@ -19,6 +19,7 @@
     const string BlockerLink = "blocker-name";
     string FormatMoney(decimal value) => "£" + value.ToString("N2", CultureInfo.GetCultureInfo("en-GB"));
     string SectionLabel(string key) => OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == key).Label;
+    var repairSpecLabel = SectionLabel("estimate");
     string RequirementSource(DetailsModel.CaseRequirement requirement) =>
         requirement.Why is { Length: > 0 } why ? $"{requirement.Source} · {why}" : requirement.Source;
     // The blockers under the section that clears each, in page order: the
@@ -186,7 +187,7 @@
                         <small class="next-step-how">@first.HowToResolve</small>
                         @if (firstFocus is not null)
                         {
-                            <partial name="Cases/Shared/_CaseBlockerEdit" model="new CaseBlockerEditView(Model, firstFocus, SectionLabel("estimate"), StepButton)" />
+                            <partial name="Cases/Shared/_CaseBlockerEdit" model="new CaseBlockerEditView(Model, firstFocus, repairSpecLabel, StepButton)" />
                         }
                         else if (firstSection is not null)
                         {
