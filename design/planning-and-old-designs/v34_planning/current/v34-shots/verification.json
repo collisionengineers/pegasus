@@ -1,0 +1,86 @@
+{
+  "date": "2026-10-08",
+  "result": {
+    "fail": [],
+    "okCount": 366
+  },
+  "sectionHeights": {
+    "fetched": {
+      "1580": 896,
+      "1440": 896,
+      "760": 1822
+    },
+    "fetched-read": {
+      "1580": 612,
+      "1440": 612,
+      "760": 1322
+    },
+    "recorded": {
+      "1580": 1045,
+      "1440": 1045,
+      "760": 1972
+    },
+    "recorded-read": {
+      "1580": 849,
+      "1440": 849,
+      "760": 1561
+    },
+    "own": {
+      "1580": 896,
+      "1440": 896,
+      "760": 1822
+    },
+    "refused": {
+      "1580": 910,
+      "1440": 910,
+      "760": 1867
+    },
+    "claimant-vat": {
+      "1580": 896,
+      "1440": 896,
+      "760": 1822
+    },
+    "pending": {
+      "1580": 905,
+      "1440": 905,
+      "760": 1844
+    },
+    "inspection": {
+      "1580": 896,
+      "1440": 896,
+      "760": 1818
+    },
+    "empty": {
+      "1580": 896,
+      "1440": 896,
+      "760": 1820
+    },
+    "empty-read": {
+      "1580": 591,
+      "1440": 591,
+      "760": 1300
+    }
+  },
+  "screenshots": [
+    "01-fetched-1580.png",
+    "01-fetched-1440.png",
+    "01-fetched-760.png",
+    "02-fetched-read-1580.png",
+    "02-fetched-read-1440.png",
+    "02-fetched-read-760.png",
+    "03-recorded-1580.png",
+    "03-recorded-1440.png",
+    "03-recorded-760.png",
+    "04-recorded-read-1580.png",
+    "04-recorded-read-1440.png",
+    "04-recorded-read-760.png",
+    "05-own-1580.png",
+    "06-refused-1580.png",
+    "07-claimant-vat-1580.png",
+    "08-pending-1580.png",
+    "09-inspection-1580.png",
+    "10-empty-1580.png",
+    "11-empty-read-1580.png",
+    "00-page-fetched-1580.png"
+  ]
+}

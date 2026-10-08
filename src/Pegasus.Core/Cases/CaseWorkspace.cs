@@ -247,15 +247,16 @@ public sealed record CaseWorkspaceImagePreparation(
     IReadOnlyList<CaseAssetPreparationEdit>? Edits);
 
 /// <summary>
-/// The guide source cards the Case save records, the Retail, Trade and
-/// Engineer's value boxes, and the calculation it records (23 September 2026:
-/// one Save). A source card has no Save of its own, and the same source and
-/// guide month replaces the earlier card. The boxes are ordinary fields,
-/// typed or filled from a guide card (operator, 26 September 2026). The
-/// <see cref="Adoption"/> is present only when the operator changed the
-/// calculation since the page opened; the save then records the calculated
-/// value against the basis card as this save leaves it, so the Case keeps
-/// where the figures came from. Typed values need no calculation.
+/// The guide source cards the Case save records, the Engineer's Value box,
+/// and the calculation it records (23 September 2026: one Save). A source
+/// card has no Save of its own, and the same source and guide month replaces
+/// the earlier card. The Engineer's Value is an ordinary field, typed or
+/// filled by the calculation. The <see cref="Adoption"/> is present when the
+/// operator chose a card or changed the calculation since the page opened;
+/// the save then writes the report's Retail and Trade from the basis card as
+/// this save leaves it (operator, 8 October 2026), and records the
+/// calculated value against that card while the Engineer's Value holds it, so
+/// the Case keeps where the figures came from.
 /// </summary>
 public sealed record CaseWorkspaceValuation(
     IReadOnlyList<ValuationDetails>? GuideEntries,

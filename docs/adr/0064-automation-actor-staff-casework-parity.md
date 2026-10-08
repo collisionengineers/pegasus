@@ -58,12 +58,18 @@ fact the call did not name.
 2. **Two exceptions.** Automation never puts an estimate in use (**Use repair
    spec**, making an estimate Current). It never runs a Glass's session,
    since a session signs in with the staff member's own Glass's account.
+   Get valuation is not a session: it uses Pegasus's own valuation account
+   ([ADR-0060](0060-glass-valuation-account-and-valuation-report.md)), and
+   `pegasus_valuation_get` presses it and records the card (operator,
+   8 October 2026).
 3. **Findings.** `pegasus_assessment_update` records the professional
    findings staff record: outcome, roadworthiness, the unroadworthy reason,
-   salvage category and value, and the Retail, Trade and Engineer's values.
+   salvage category and value, and the Engineer's Value.
    `pegasus_valuation_save` records guide cards and adopts the valuation
-   calculation. Derived fields, Case-owned facts and lookup facts stay
-   refused, as for staff.
+   calculation, which writes the report's Retail and Trade from its basis
+   card: since 8 October 2026 they are the chosen card's figures, typed by
+   no one (FRD-24). Derived fields, guide-card figures, Case-owned facts and
+   lookup facts stay refused, as for staff.
 4. **System fills defer to a deliberate value.** A system fill (vehicle
    lookup, original-report extraction, Glass's VIN, Principal default fee)
    lands only on
@@ -81,7 +87,9 @@ fact the call did not name.
    holds, recorded as a takeover. A staff member still cannot take over an
    Automation lease; it lapses within five minutes. An Automation lease that
    lapsed with nobody claiming since carries on with its token, as a staff
-   lease does.
+   lease does. A write under an Automation lease keeps the lease, so one
+   `pegasus_edit_begin` token carries every write until `pegasus_edit_end`
+   (operator, 8 October 2026); a staff write still ends its lease.
 8. **Lifecycle, reports and documents.** The operator approved the Case
    lifecycle and the reports and documents tiers, report approval included
    (7 October 2026). `pegasus_case_action` takes the Case's Actions-menu

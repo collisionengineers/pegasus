@@ -126,13 +126,29 @@ internal static class CaseMutationGuard
     }
 
     /// <summary>
-    /// A staff write under the lease: the version advances and the lease it was made under ends,
-    /// so the holder's next write presents the lease claimed again after it.
+    /// A write under the lease: the version advances and the lease it was made under ends as
+    /// <see cref="EndWriteLease"/> says.
     /// </summary>
     public static void Complete(CaseWorkflowEntity workflow)
     {
         Advance(workflow);
-        ClearLease(workflow);
+        EndWriteLease(workflow);
+    }
+
+    /// <summary>
+    /// The lease a write was made under, once the write is made. A staff lease ends, so the
+    /// holder's next write presents the lease claimed again after it. The Automation actor's
+    /// lease stands until pegasus_edit_end releases it, so one token from pegasus_edit_begin
+    /// carries every write of its multi-step work (operator, 8 October 2026). A write proves
+    /// the lease first, so the retained holder is the writer.
+    /// </summary>
+    public static void EndWriteLease(CaseWorkflowEntity workflow)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        if (RetainedHolderKind(workflow.EditLeaseHolderKind) != ActorKind.Automation)
+        {
+            ClearLease(workflow);
+        }
     }
 
     /// <summary>

@@ -1,0 +1,75 @@
+    // TEMPORARY v34 capture, never committed: dumps the rendered Case page for the conformance check.
+    [Fact]
+    public async Task V34CaptureTemp()
+    {
+        var directory = Environment.GetEnvironmentVariable("PEGASUS_V34_CAPTURE");
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return;
+        }
+        Directory.CreateDirectory(directory);
+
+        RecordingValuationSection Guides(RecordingCaseDetailsStore store, bool research = true)
+        {
+            var valuation = new RecordingValuationSection(store.CaseId);
+            valuation.AddGuide(ValuationSource.Cap, 3_100m, 2_320m);
+            valuation.AddGuide(ValuationSource.Glasses, 2_950m, 2_180m);
+            valuation.AddGuide(ValuationSource.Brego, 3_050m, 2_260m);
+            valuation.AddGuide(ValuationSource.Cazana, 2_875m, 2_090m);
+            if (research)
+            {
+                valuation.AddGuide(ValuationSource.AiMarketResearch, 3_195m, 2_400m);
+            }
+            foreach (var (label, amount) in new[] { ("Tow bar", 300m), ("Decals", 500m), ("Camper conversion", 0m), ("PCO plated", 1_500m), ("Driving tuition", 500m) })
+            {
+                valuation.AddPreset(label, amount);
+            }
+            return valuation;
+        }
+        async Task EditAsync(RecordingCaseDetailsStore store, RecordingValuationSection valuation, string name)
+        {
+            using var workspace = await EnterEngineerEditModeAsync(store, services =>
+            {
+                valuation.Register(services);
+                services.AddSingleton<IGuideValuationProvider>(new FakeGuideValuationProvider(ValuationSource.Glasses, 2_950m, 2_180m));
+            });
+            await File.WriteAllTextAsync(
+                Path.Combine(directory, name + ".html"),
+                await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation"));
+        }
+
+        // Fetched figures, nothing recorded.
+        {
+            var store = new RecordingCaseDetailsStore { EngineerValue = "3100.00" };
+            var valuation = Guides(store);
+            await File.WriteAllTextAsync(Path.Combine(directory, "read-fetched.html"), await ReadValuationAsync(store, valuation));
+            await EditAsync(store, valuation, "edit-fetched");
+        }
+
+        // A calculation recorded against CAP: VAT, −10 %, Tow bar £300, £250 deduction.
+        {
+            var store = new RecordingCaseDetailsStore { EngineerValue = "3398.00" };
+            var valuation = Guides(store);
+            var cap = (await ((IListCaseValuations)valuation).ExecuteAsync(store.CaseId, CaseWorkSelector.Current, CancellationToken.None))[0];
+            valuation.SetApplied(cap, valuation.Presets[0], 300m);
+            await File.WriteAllTextAsync(Path.Combine(directory, "read-applied.html"), await ReadValuationAsync(store, valuation));
+            await EditAsync(store, valuation, "edit-applied");
+        }
+
+        // Nothing recorded at all.
+        {
+            var store = new RecordingCaseDetailsStore();
+            var valuation = new RecordingValuationSection(store.CaseId);
+            await File.WriteAllTextAsync(Path.Combine(directory, "read-empty.html"), await ReadValuationAsync(store, valuation));
+            await EditAsync(store, valuation, "edit-empty");
+        }
+
+        // Research pending.
+        {
+            var store = new RecordingCaseDetailsStore { EngineerValue = "3100.00" };
+            var valuation = Guides(store, research: false);
+            valuation.SetPending(new DateOnly(2031, 5, 1));
+            await EditAsync(store, valuation, "edit-pending");
+        }
+    }
+

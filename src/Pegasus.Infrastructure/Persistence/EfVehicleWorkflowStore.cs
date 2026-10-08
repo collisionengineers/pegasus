@@ -135,7 +135,7 @@ internal sealed class EfVehicleWorkflowStore(
         var nowUtc = UtcNow();
         var beforeVersion = workflow.Version;
         workflow.Version = checked(workflow.Version + 1);
-        ClearLease(workflow);
+        CaseMutationGuard.EndWriteLease(workflow);
         var workItemId = Guid.NewGuid();
         context.ExternalWorkItems.Add(new()
         {
@@ -674,9 +674,6 @@ internal sealed class EfVehicleWorkflowStore(
         string leaseToken,
         DateTimeOffset nowUtc) =>
         CaseMutationGuard.RequireLease(workflow, actor, leaseToken, nowUtc);
-
-    private static void ClearLease(CaseWorkflowEntity workflow) =>
-        CaseMutationGuard.ClearLease(workflow);
 
     private static void AddWorkflowEvent(
         PegasusDbContext context,

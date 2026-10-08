@@ -131,7 +131,7 @@ public sealed class EfCaseAssessmentStore(
 
         var beforeVersion = workflow.Version;
         workflow.Version++;
-        ClearLease(workflow);
+        CaseMutationGuard.EndWriteLease(workflow);
         CaseMutationHistory.Add(
             context,
             workflow,
@@ -351,9 +351,6 @@ public sealed class EfCaseAssessmentStore(
         string token,
         DateTimeOffset now) =>
         CaseMutationGuard.RequireLease(workflow, actor, token, now);
-
-    private static void ClearLease(CaseWorkflowEntity workflow) =>
-        CaseMutationGuard.ClearLease(workflow);
 
     private DateTimeOffset UtcNow()
     {
