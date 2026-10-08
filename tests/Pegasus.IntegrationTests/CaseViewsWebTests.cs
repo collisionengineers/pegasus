@@ -519,7 +519,7 @@ public sealed class CaseViewsWebTests
 
         // No Inspection generation yet: Generate report, in the Inspection view.
         var next = NextAction(await host.ReadAsync(inspectionPath));
-        Assert.Contains($"<span data-next-label>{CaseWorkspaceLabels.ReportDelivery.GenerateReport}</span>", next, StringComparison.Ordinal);
+        Assert.Contains($"<strong data-next-label>{CaseWorkspaceLabels.ReportDelivery.GenerateReport}</strong>", next, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{store.CaseId:D}?section=report&view=inspection#section-report\"", next, StringComparison.Ordinal);
         Assert.Contains("data-section-jump=\"report\"", next, StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-not-ready", next, StringComparison.Ordinal);
@@ -527,13 +527,13 @@ public sealed class CaseViewsWebTests
         // The Audit's own step is untouched by the Inspection's: its stored
         // report awaits delivery, and its link lands on the Audit view.
         var auditNext = NextAction(await host.ReadAsync($"/Cases/{store.CaseId:D}"));
-        Assert.Contains($"<span data-next-label>{CaseWorkspaceLabels.ReportDelivery.SendReport}</span>", auditNext, StringComparison.Ordinal);
+        Assert.Contains($"<strong data-next-label>{CaseWorkspaceLabels.ReportDelivery.SendReport}</strong>", auditNext, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{store.CaseId:D}?section=report#section-report\"", auditNext, StringComparison.Ordinal);
 
         // The Inspection report stored: its delivery is the step.
         reports.Inspection = ReportsPerWork.Generation(store.CaseId, Reference, CaseWorkKind.Primary);
         next = NextAction(await host.ReadAsync(inspectionPath));
-        Assert.Contains($"<span data-next-label>{CaseWorkspaceLabels.ReportDelivery.SendReport}</span>", next, StringComparison.Ordinal);
+        Assert.Contains($"<strong data-next-label>{CaseWorkspaceLabels.ReportDelivery.SendReport}</strong>", next, StringComparison.Ordinal);
         Assert.Contains("view=inspection#section-report", next, StringComparison.Ordinal);
 
         // The Inspection report sent: nothing more for the Inspection.
@@ -575,15 +575,17 @@ public sealed class CaseViewsWebTests
 
         if (caseType != CaseType.InspectionAndAudit)
         {
-            Assert.Contains($"<span data-next-label>{Frame.MarkCompleted}</span>", next, StringComparison.Ordinal);
+            Assert.Contains($"<strong data-next-label>{Frame.MarkCompleted}</strong>", next, StringComparison.Ordinal);
             Assert.DoesNotContain("data-next-create-audit", next, StringComparison.Ordinal);
             return;
         }
-        Assert.Contains($"<span data-next-label>{Frame.CreateAudit}</span>", next, StringComparison.Ordinal);
+        // The step is Create audit's own control, not its words beside it
+        // (operator, 8 October 2026).
+        Assert.DoesNotContain("data-next-label", next, StringComparison.Ordinal);
         if (condition is null)
         {
             Assert.Contains(
-                $"<button type=\"button\" class=\"btn btn--small\" data-dialog-open=\"case-create-audit-dialog\" data-next-create-audit>{Frame.CreateAudit}</button>",
+                $"<button type=\"button\" class=\"btn next-step-go\" data-dialog-open=\"case-create-audit-dialog\" data-next-create-audit>{Frame.CreateAudit}</button>",
                 next,
                 StringComparison.Ordinal);
             Assert.DoesNotContain("menu-gated", next, StringComparison.Ordinal);
@@ -647,7 +649,7 @@ public sealed class CaseViewsWebTests
         Assert.Contains($"generationId={reports.Inspection!.Id:D}", report, StringComparison.Ordinal);
         Assert.Contains("view=inspection", report, StringComparison.Ordinal);
         var next = NextAction(arrived);
-        Assert.Contains($"<span data-next-label>{CaseWorkspaceLabels.ReportDelivery.SendReport}</span>", next, StringComparison.Ordinal);
+        Assert.Contains($"<strong data-next-label>{CaseWorkspaceLabels.ReportDelivery.SendReport}</strong>", next, StringComparison.Ordinal);
 
         var later = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, $"/Cases/{caseId}?section=report&view=inspection"));
         Assert.DoesNotContain("data-open-on-arrival=\"true\"", later, StringComparison.Ordinal);
@@ -655,8 +657,9 @@ public sealed class CaseViewsWebTests
 
     /// <summary>
     /// While the Inspection report is not ready, the Inspection view's Next
-    /// action lists that report's own blockers, each linking to its section
-    /// in the Inspection view (operator, 2 October 2026).
+    /// action is that report's own first blocker and its Report not ready
+    /// card lists every one, each linking to its section in the Inspection
+    /// view (operator, 2 October 2026; 8 October 2026).
     /// </summary>
     [Fact]
     public async Task TheInspectionViewListsTheInspectionReportsBlockers()
@@ -674,11 +677,15 @@ public sealed class CaseViewsWebTests
             Substitute<ICaseReportSnapshotSource>(services, store);
         });
 
-        var next = NextAction(await host.ReadAsync($"/Cases/{store.CaseId:D}?view=inspection"));
+        var html = await host.ReadAsync($"/Cases/{store.CaseId:D}?view=inspection");
+        var next = NextAction(html);
+        var card = ReportNotReadyRegex().Match(html);
 
-        Assert.Contains("data-report-not-ready", next, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-next-label", next, StringComparison.Ordinal);
-        var blockerLinks = Regex.Matches(next, "data-report-blocker=\"[a-z-]+\".*?href=\"([^\"]+)\"", RegexOptions.Singleline);
+        Assert.True(card.Success, "The Report not ready card is not rendered.");
+        Assert.DoesNotContain("data-report-not-ready", next, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(next, "data-next-label"));
+        Assert.Matches("(?s)data-next-step data-report-blocker=\"[a-z-]+\".*?href=\"[^\"]*view=inspection#section-", next);
+        var blockerLinks = Regex.Matches(card.Value, "data-report-blocker=\"[a-z-]+\".*?href=\"([^\"]+)\"", RegexOptions.Singleline);
         Assert.NotEmpty(blockerLinks);
         Assert.All(blockerLinks, link => Assert.Contains("view=inspection#section-", link.Groups[1].Value, StringComparison.Ordinal));
     }

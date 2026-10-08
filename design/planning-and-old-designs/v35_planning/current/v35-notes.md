@@ -1,0 +1,216 @@
+# v35 notes: the Case aside's Next action
+
+Temporary review artifact; see [README](README.md).
+
+## 1. What is wrong today and what each design changes
+
+Today, in the operator's screenshot of 8 October 2026 (Review, eleven blockers), the step reads "Assign Engineer" beside a button that also says Assign Engineer. Under it, an amber-filled panel holds eleven white cards. Each card has its own amber bar, the captions **Source:** and **Why:**, the same "Assessment record" and "No value is recorded." lines repeated, and a button named after its section. The same section button appears twice in a row (Vehicle, Vehicle). The aside's content is 1,809px tall at 1580, so the sticky aside scrolls through about two screens.
+
+| Problem today | Change | Shots |
+| --- | --- | --- |
+| The step's words and its button say the same thing | A, B, C: where the control says what the step says (Assign Engineer, Create audit), the step is that one control at full width. Steps whose control names a section (Generate report → Report) keep today's words and link | 02–04, 19–21 |
+| The amber fill and per-card amber bars read as a warning on top of a warning | A, B, C: no fill and no bars. A small amber warning glyph beside "Report not ready" and an amber dot per blocker keep the incomplete colour (design README) | 02–04 |
+| Card per blocker with captions and a section button: 132px per blocker | **A** groups the blockers under the section that clears them; the requirement is the link; source and reason share one line. 80px per blocker, aside content 1,348px | 02, 06, 10 |
+| | **B** is one 35px line per blocker: requirement, and at the right the section link. The line opens to show source, reason and what clears it, with today's captions. Aside content 665px | 03, 07, 11, 13 |
+| The list pushes the step and the Figures out of view | **C** gives the blockers their own card, "Report not ready", below Next action. Each row is one whole link with the section at its right. At 1580 only that card scrolls, so Figures and the step stay in view. 83px per blocker | 04, 08, 12 |
+| At 1440 and below, the folded strip stretches Figures to Next action's height | C's blocker card spans the strip's full width, so Figures and Next action sit side by side at their own heights | 22–25 |
+
+Heights are the aside's content measured at 1580 in the Review state (eleven blockers) and the near state (four).
+
+## 2. Live rules the mockup mirrors
+
+| Rule | Source |
+| --- | --- |
+| Next action order: AI drafts, Cancellation received, the stale notice, the step, then the blockers | `_CaseAside.cshtml` |
+| The step: Assign Engineer in Review (no control where the Actions menu does not offer it); none With Engineer while blockers exist; Generate report, Waiting for the report to be stored, Send report; Create audit or Mark completed after the send | `CaseNextAction.Of`, `DetailsModel.NextAction` |
+| Every blocker in page order: section by section, then by field order | `CaseWorkspaceLabels.Report.InPageOrder` |
+| A blocker's control: the Repair Spec claim with focus for the two repairer VAT blockers; else the section (and its Images or Fee tab); else Accounts for an Administrator; else none | `BlockerEditFocus`, `BlockerSectionKey`, `BlockerTab`, `BlockerOpensAccounts` |
+| No count of blockers anywhere | FRD-13 "Blockers are specific" |
+| The aside is sticky and capped at 1441px and above; the list is capped at 400px in the folded strip below | `case-workspace.css` |
+| Blocker words | `AssessmentPolicy.Evaluate`, `CaseReportReadiness` |
+
+## 3. Frame rules
+
+- Aside 285px at 1441px and above, sticky under the 48px utility bar and the sticky block; folded into a two-column strip above the sections at 1440 and below; one column at 760.
+- 12.5px aside rows, 11px blocker detail, 36px full-width step control (today's step button is the 32px small button).
+- No new copy: every word is a live label or Core's blocker text (asserted by the self-check).
+
+## 4. Decisions taken and their authority
+
+- Amber stays the incomplete colour: design README, product states.
+- Every blocker keeps its requirement, source, reason and what clears it, each linking where today's does: FRD-13, FRD-16.
+- Page order is kept, so A's groups are the runs of one section that the order already produces.
+
+## 5. Deliberate departures from live
+
+- The captured frame is a Not ready Case; the ribbon's chip and Engineer are repainted per state, but the sections still show that Case's values.
+
+## 6. Sign-off list
+
+Which design (A, B, C or a mix) is the operator's choice and is not lettered. Each item below applies to the designs named.
+
+- **A** (A, B, C). Where the step's control says what the step says, the step is that control alone at full width; Generate report and Send report keep their words with the Report link. Confirm, or keep words and button side by side.
+- **B** (A, B, C). The step control is a secondary button. Confirm, or make it primary red (strip: Step control; shots 30–32).
+- **C** (A, B, C). The amber fill and the amber bar on each blocker go; an amber glyph beside "Report not ready" and an amber dot per blocker remain. Confirm, or keep the fill.
+- **D** (A, C). The **Source:** and **Why:** captions go; source and reason read as one line, "Assessment record · No value is recorded.". Confirm, or keep the captions.
+- **E** (A). Blockers sit under their section's name, and the requirement itself is the link; there is no button per blocker. The repairer VAT blocker's requirement opens the Repair Spec for editing, as its button does today. Confirm, or keep a section button per blocker.
+- **F** (B). Source, reason and what clears it show only when a row is opened. FRD-13 says the screen shows each, so FRD-13 and FRD-16 would say they show on opening the row. Confirm, or show them always (which is A or C).
+- **G** (C). The blockers leave the Next action card for their own card, "Report not ready", below it. With Engineer with no other step, there is no Next action card. FRD-16 and FRD-13 would say the aside carries the readiness list in its own card. Confirm, or keep the list inside Next action.
+- **H** (C). At 1441px and above only the blocker card scrolls, so Figures and Next action stay in view. Confirm, or let the whole aside scroll as today.
+- **I**. This folder is removed in the Stage 2 pull request. Confirm, or keep it as the record.
+
+## 7. Self-check
+
+`python check-rail-v35.py` on 8 October 2026: `RESULT {"fail": [], "okCount": 768}`, no console error. It covers live, A, B and C in all six states at 1580, 1440 and 760. This is evidence about the mockup, not the application.
+
+## 8. Known limits
+
+- The frame is a captured page with its scripts removed: section links scroll to the section but do not open a tab or edit mode, and step buttons do nothing.
+- The Inspection + Audit Case's Views card and the Linked cases card are not drawn; they sit above Figures and no design changes them.
+- The fixtures are synthetic; the eleven-blocker list follows the operator's screenshot and continues in page order.
+
+## 9. 8 October 2026, second round: a Case missing nearly everything
+
+The operator asked what the aside looks like when images, claimant or Case details and the original report are missing. Added state **Not ready · original report, images, Case facts missing**: a standalone Audit just in, with its original report and images outstanding (the Case requirements) and 22 report blockers, Case facts included (`AssessmentPolicy.EvaluateReadiness`). Shots 33–42.
+
+What today does with it (shot 33):
+
+- The step names only the first Case requirement, "Original report missing", with a Case details button (`CaseNextAction.BeforeTheReport`). "Images incomplete" is not in the aside at all; only Case details' Outstanding requirements panel lists it.
+- "Original report missing" links to Case details, but **Mark as original report** is on Files (`_CaseDocuments.cshtml`).
+- The aside's content is 3,346px tall at 1580. A: 2,331px, B: 1,046px, C: 2,112px (the step stays in view, and the blocker card scrolls).
+- Outside this round: Case details' Outstanding requirements head shows "2 outstanding", the kind of count FRD-13 rules out.
+
+New items:
+
+- **J** (A, B, C). Next action lists every outstanding Case requirement, headed "Outstanding requirements", in the design's own row style above "Report not ready", in place of the one step line (strip: Case requirements; shots 37–42). Each keeps its source and reason and today's Case details link. FRD-13 and FRD-16 would say "names every outstanding requirement". Confirm, or keep the first only.
+- **K**. "Original report missing" links to Files, where Mark as original report is, rather than Case details. Confirm, or keep Case details.
+
+Self-check on 8 October 2026 after this round: `RESULT {"fail": [], "okCount": 1194}`, no console error, seven states. The captured frame still shows that Case's own claimant, claim reference and so on, so the sections disagree with this state's blockers.
+
+## 10. 8 October 2026, third round: six designs built for the worst case
+
+The operator asked for the mockups to be redone with the missing-everything Case in mind, six of them. The mockup now opens on that Case: the Not ready standalone Audit with two Case requirements and 22 report blockers. Designs are numbered 1–6 so they do not clash with the lettered items. A, B and C of rounds 1 and 2 are now 1, 2 and 3. Every design lists every Case requirement (item J) and sends Original report missing to Files (item K). Shots are `v35-shots/r3-NN-*.png`; the round 1 and 2 shots stay as the record.
+
+| Design | Idea | Rail height at 1580, missing everything | Review, 11 blockers | Shots |
+| --- | --- | --- | --- | --- |
+| Live today | First requirement only; amber card per blocker | 3,356px | 1,819px | r3-01, 11 |
+| 1 · Grouped by section | Requirements, then the blockers under the section that clears them; every item in full; the requirement is the link | 2,427px | 1,356px | r3-02, 12 |
+| 2 · One line each | Every item on one line with its section link; a line opens to source, reason and what clears it | 1,114px | 673px | r3-03, 08, 13 |
+| 3 · Its own card | Requirements in Next action; the blockers in a "Report not ready" card that alone scrolls, so Figures and Next action stay in view | 2,184px (card scrolls) | 1,215px | r3-04, 14 |
+| 4 · One row per section | One row per section: its name (the link) and the names of what it is missing; the row opens to every item in full | 897px | 618px | r3-05, 09, 15 |
+| 5 · First item in full | The first thing to do in full with a full-width button; everything else one line each, opening for detail | 1,207px | 673px | r3-06, 16 |
+| 6 · Follows the page | As 4, and the section row marks each section that clears a blocker with an amber dot; the aside opens the row of the section in view as the page scrolls, and scrolls itself to show it | 1,148px | 618px | r3-07, 10, 17 |
+
+Other states: AI draft, cancellation and the special blockers (r3-18 to 24); Create audit, where the step is said once (r3-25 to 31); the folded strip at 1440 (r3-32 to 38); one column at 760 (r3-39 to 45).
+
+Items, restated for the six designs. Letters A to K keep their meaning; designs named by number:
+
+- **A** (1–6). The step said once at full width. Unchanged.
+- **B** (1–6). Secondary step control, or primary. Unchanged.
+- **C** (1–6). No amber fill or bars; an amber glyph by each heading and an amber dot per item. Unchanged.
+- **D** (1, 3, 4, 6). The Source: and Why: captions go where an item shows in full. 2 and 5 keep them in the opened line.
+- **E** (1, 4, 6). The requirement is the link; no button per blocker.
+- **F** (2, 4, 5, 6). Source, reason and what clears it show only when a line or section row is opened. FRD-13 and FRD-16 would say so. Confirm, or show them always (1 or 3).
+- **G**, **H** (3). Unchanged.
+- **I**. Unchanged.
+- **J** (1–6). Every outstanding Case requirement is listed, now in every design.
+- **K** (1–6). Original report missing links to Files, now in every design.
+- **L** (5). The first thing to do is drawn in full with its control at full width: the step where there is one, else the first Case requirement, else the first report blocker. Confirm, or draw every item alike.
+- **M** (6). The section row marks with an amber dot each section that clears a report blocker; Damage and Valuation mark Vehicle. The aside opens the section in view and scrolls itself to it. This changes the section row (FRD-16). Confirm, or keep the section row as it is.
+- **N** (4, 6). A closed section row names what its section is missing, by name ("Vehicle registration · Vehicle make · …"). It is not a count, which FRD-13 rules out. Confirm.
+
+Self-check on 8 October 2026 after this round: `RESULT {"fail": [], "okCount": 2106}`, no console error: live and designs 1–6, seven states, three widths. Known limits as section 8; in addition the captured frame is an Inspection Case, so its section row has no Original report section.
+
+## 11. 8 October 2026, fourth round: Next action is one thing
+
+The operator: "It doesn't really make sense if it's 'next action' and then there's like 50 things." In designs 7 to 12 Next action holds exactly one step, and everything else outstanding lives somewhere else. The step is chosen this way:
+
+- the first Case requirement;
+- else the state's step (Assign Engineer, Generate report, Create audit);
+- else the first report blocker, as the Cases list's Current work already names it (`CaseNextAction.ReportStep`).
+
+The step is drawn in full: its words, source and reason, what clears it, and one full-width button. The AI draft and Cancellation received rows stay with it. Shots are `v35-shots/r4-NN-*.png`.
+
+| Design | Where the rest goes | Shots |
+| --- | --- | --- |
+| 7 · The rest in a dialog | Under the step, one "Report not ready ›" line opens a wide dialog. It lists the other requirements and every blocker in full, under their sections in two columns. A link lands on its section and closes the dialog. | r4-02, 08, 15, 22, 29 |
+| 8 · The rest in a closed card | A "Report not ready" card below Next action, closed until opened, with the same grouped list | r4-03, 09, 16, 23, 30 |
+| 9 · The rest on the page | No list in the rail. Each section with something missing opens with a "Report not ready" box listing what it is missing, in full. Each field the report needs carries an amber dot on its label, and the section row marks each such section. | r4-04, 10, 17, 24, 31 |
+| 10 · The rest in Report | Under the step, "Report not ready ›" links to the Report section. Report opens with the full list in three columns. | r4-05, 11, 18, 25, 32 |
+| 11 · A checklist of sections | A card lists every section in page order: a green tick when nothing is missing, otherwise the section's name and what it is missing, opening to each item in full. Requirements sit under the section that clears them. | r4-06, 12, 19, 26, 33 |
+| 12 · One step in a bar across the page | Next action leaves the aside for a bar above the sections: the step on one line with its button. "Report not ready" opens the full list below it across the page's width, in three columns. The aside keeps Figures. | r4-07, 13, 20, 27, 34 |
+
+Folded strip at 1440: r4-35 to 40. One column at 760: r4-41 to 46.
+
+New items:
+
+- **O** (7–12). Next action is one step, chosen as above. The other outstanding requirements and the report blockers are not in Next action. FRD-16 says the Next action carries the readiness list (issue 899, operator 28 September 2026), and FRD-13 says it lists every blocker With Engineer. Both would say the list lives where the chosen design puts it. Confirm, or keep the list in Next action (designs 1–6).
+- **P** (7). The list is a dialog opened from Next action. Confirm.
+- **Q** (8). The list is a card of its own, closed until opened. Confirm, or open.
+- **R** (9). There is no list in the rail. Each section opens with what it is missing, fields are marked on their labels, and the section row is marked (FRD-16 section row and section bodies). A blocker no section clears (the Sign-off account) sits with Case details. Confirm.
+- **S** (10). The list returns to the top of Report, which issue 899 moved it out of (operator, 28 September 2026). Confirm, or keep it out of Report.
+- **T** (11). A checklist of every section, with a green tick on each section missing nothing. The tick is a mark, not a count. Confirm.
+- **U** (12). Next action leaves the aside for a bar above the sections, and the aside keeps Figures (v25 decision 7 placed it in the aside). Confirm.
+
+Items A to N stand for designs 1 to 6. For 7 to 12, A (the step said once), B (step tone), C (no amber fill), J (every requirement listed) and K (Original report missing to Files) apply as drawn.
+
+Self-check on 8 October 2026 after this round: `RESULT {"fail": [], "okCount": 3925}`, no console error: live and designs 1–12, seven states, three widths. In 7 to 12 it also asserts that Next action holds at most one item.
+
+Known limits added this round:
+
+- Files is a lazily loaded placeholder in the capture, so design 9 gives it a bare head and body.
+- The captured fields show that Case's own values, so design 9 marks fields that are filled in on this frame.
+
+## 12. 8 October 2026: design 8 approved, items settled
+
+The operator chose **design 8**: Next action is one step, and everything else is a Report not ready card of its own below it, folded until opened. Stage 2 followed the same day.
+
+Settled items:
+
+- *A: confirmed as drawn.* The step is said once, as a full-width control.
+- *B: secondary* (operator's answer). The step control is a secondary button.
+- *C: confirmed as drawn.* No amber fill. An amber glyph by the card's heading and an amber dot per item.
+- *D: confirmed as drawn.* The Source: and Why: captions go; source and reason share one line.
+- *E: confirmed as drawn.* The requirement is the link; there is no button per blocker.
+- *I: keep* (operator's answer). The folder stays as the record, marked historical.
+- *J: confirmed as drawn.* Every outstanding Case requirement is listed.
+- *K: confirmed as drawn.* Original report missing links to Files.
+- *O: confirmed.* Next action is one step, and the list is the Report not ready card's.
+- *Q: remembered per browser* (operator's answer). The card is folded until opened, through the existing fold cookie (`data-collapse-folded`).
+- *New, the card's contents: everything outstanding* (operator's answer). This includes the item the step already shows, so the card is the complete picture. It departs from the mockup, which left the step's item out of the card.
+- *Not chosen:* F, G, H, L, M, N, P, R, S, T, U (designs 2–7 and 9–12).
+
+Departures in the implementation, each a decision rather than a defect:
+
+- The card's inner "Outstanding requirements" and "Report not ready" headings appear only when both lists are present. The card's own heading names the one that is.
+- Only a requirement or blocker step carries the amber edge. A step such as Generate report is its words above its section's control, without amber, because amber means incomplete.
+
+## 13. 8 October 2026: Stage 2 conformance
+
+The application rendered the Case page in four states: Not ready on a standalone Audit missing its original report and images; Review; With Engineer with blockers; and a stored report awaiting Send report. A temporary test made those pages; it was never committed, and its text is kept in [captured/capture-implementation-test.cs.txt](captured/capture-implementation-test.cs.txt). [check-aside-implementation.py](check-aside-implementation.py) opened them with the live CSS, site.js and case-workspace.js, served from localhost so the fold cookie works: `RESULT {"fail": [], "okCount": 47}`.
+
+The check proves:
+
+- Next action holds one step in every state.
+- In the Not ready state:
+  - the step is Original report missing with a full-width Files control;
+  - the card lists both requirements, Original report missing opening Files and Images incomplete opening Case details;
+  - the card is headed Report not ready.
+- In Review, Assign Engineer is drawn as Next action's one step.
+- With Engineer, the step is a blocker drawn in full.
+- In the ready state, the step's words sit above its Report control, and there is no card.
+- The card starts folded, opens with its chevron, and the fold cookie names it. A reload keeps it open, and a second click folds it and removes the name.
+- A section's fold still names a folded section, so the existing default-open meaning is kept.
+- No row has a fill, and nothing spills sideways at 1580, 1440 or 760.
+
+Screenshots are in [v35-conformance/](v35-conformance/verification.json): each state at 1580, 1440 and 760, plus the opened card at 1580. Compare 01/04 (Not ready) with r4-03/r4-09, 05/08 (Review) with r4-16, and 09/12 (With Engineer) with r4-23. The one visible difference is the decided one: the card also lists the step's own item.
+
+Not proven here: a signed-in walk of a running Pegasus, including the aside redrawn after a real save.
+
+Seen and not changed: Case details' own Outstanding requirements panel still shows "2 outstanding". That count is the kind FRD-13 rules out, and the panel now repeats the card's requirements. It is outside this round's brief and is left for the operator.
+
+## 14. 8 October 2026: the Case details duplicate removed
+
+The operator: "Yes, this duplication should be removed." Case details' Outstanding requirements panel and its "N outstanding" count are gone. The outstanding requirements now have one home: the aside's Next action and Report not ready card. FRD-16's Overview paragraph says so. Its `.sub-panel.blockers` styles had no other user and went too.
+
+CI then showed what the panel had been carrying: an Audit past Not ready that is still missing its original report showed Original report missing only there. The card therefore lists the Case's outstanding requirements in every state, as the panel did. Only Not ready and Held name one as Next action's step, the states where `CaseNextAction` makes it the step.

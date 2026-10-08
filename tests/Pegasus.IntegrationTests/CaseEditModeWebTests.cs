@@ -1678,8 +1678,9 @@ public sealed class CaseEditModeWebTests
 
     /// <summary>
     /// The Report not ready label and the blocker list show outside edit mode
-    /// too: the label in the Report head, the list in the aside's Next action
-    /// (issue 899), never both in Report.
+    /// too: the label in the Report head, the list in the aside's own Report
+    /// not ready card, folded until opened, beside a Next action of one step
+    /// (operator, 8 October 2026), never both in Report.
     /// </summary>
     [Fact]
     public async Task TheReportNotReadyLabelAndBlockersShowOutsideEditMode()
@@ -1691,12 +1692,17 @@ public sealed class CaseEditModeWebTests
         var html = await ReportSectionAsync(workspace);
         var report = Section(html, "section-report-title");
         var nextAction = NextActionRegex().Match(html);
+        var card = ReportNotReadyRegex().Match(html);
 
         Assert.Contains("data-report-gate", report, StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-not-ready", report, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"case-generate-report-form\"", report, StringComparison.Ordinal);
         Assert.True(nextAction.Success, "The Case aside must state its Next action.");
-        Assert.Contains("data-report-not-ready", nextAction.Value, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-not-ready", nextAction.Value, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(nextAction.Value, "data-next-label"));
+        Assert.True(card.Success, "The Case aside must carry the Report not ready card.");
+        Assert.Contains("data-collapse=\"case.aside.report\" data-collapse-folded", card.Value, StringComparison.Ordinal);
+        Assert.Contains("is-collapsed", card.Value[..card.Value.IndexOf('>')], StringComparison.Ordinal);
     }
 
     /// <summary>A report with nothing blocking it, and the generation the page calls.</summary>
