@@ -8,13 +8,16 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class RecentCasesPersistenceTests
 {
-    private static readonly string[] ExpectedAutomationChangeKinds =
-        ["operator_note", "case_field_updated", "audit_created"];
     private static readonly DateTimeOffset Since =
         new(2031, 5, 1, 9, 0, 0, TimeSpan.Zero);
 
+    /// <summary>
+    /// New cases lists Cases created in the window, each once, whatever its
+    /// events; what the Automation actor did to an older Case in the window is
+    /// that Case's history, not a new Case (operator, 8 October 2026).
+    /// </summary>
     [Fact]
-    public async Task CreationEventsSetArrivalButDoNotDuplicateNewCasesAndAutomationEditsIncludeInitialAndNoteVersions()
+    public async Task OnlyCasesCreatedInTheWindowAreListedAndAutomationChangesToOlderCasesAreNot()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var ids = await SeedAsync(database);
@@ -23,23 +26,17 @@ public sealed class RecentCasesPersistenceTests
         var queries = scope.ServiceProvider.GetRequiredService<IRecentCaseQueries>();
         var first = await queries.ListAsync(Since, 1, 2, CancellationToken.None);
         var second = await queries.ListAsync(Since, 2, 2, CancellationToken.None);
-        var third = await queries.ListAsync(Since, 3, 2, CancellationToken.None);
 
-        Assert.Equal(6, first.TotalCount);
-        Assert.Equal(3, first.TotalPages);
-        Assert.Equal([ids.Note, ids.InitialEdit], first.Items.Select(item => item.CaseId));
-        Assert.Equal([ids.Audited, ids.Guidance], second.Items.Select(item => item.CaseId));
-        Assert.Equal([ids.Replacement, ids.Mail], third.Items.Select(item => item.CaseId));
-        Assert.Equal(CaseArrival.Email, Assert.Single(third.Items, item => item.CaseId == ids.Mail).Arrival);
-        Assert.Equal(CaseArrival.Automation, Assert.Single(third.Items, item => item.CaseId == ids.Replacement).Arrival);
-        Assert.Equal(CaseArrival.Manual, Assert.Single(second.Items, item => item.CaseId == ids.Guidance).Arrival);
-        Assert.All(
-            first.Items.Concat(second.Items).Where(item => item.Kind == RecentCaseRowKind.ChangedByAutomation),
-            item => Assert.Contains(item.ChangeKind, ExpectedAutomationChangeKinds));
+        Assert.Equal(3, first.TotalCount);
+        Assert.Equal(2, first.TotalPages);
+        Assert.Equal([ids.Guidance, ids.Replacement], first.Items.Select(item => item.CaseId));
+        Assert.Equal([ids.Mail], second.Items.Select(item => item.CaseId));
+        Assert.Equal(CaseArrival.Email, Assert.Single(second.Items, item => item.CaseId == ids.Mail).Arrival);
+        Assert.Equal(CaseArrival.Automation, Assert.Single(first.Items, item => item.CaseId == ids.Replacement).Arrival);
+        Assert.Equal(CaseArrival.Manual, Assert.Single(first.Items, item => item.CaseId == ids.Guidance).Arrival);
         Assert.DoesNotContain(
-            first.Items.Concat(second.Items).Concat(third.Items),
-            item => item.Kind == RecentCaseRowKind.ChangedByAutomation
-                && item.ChangeKind is "case_created_as_replacement" or "case_guidance_applied");
+            first.Items.Concat(second.Items),
+            item => item.CaseId == ids.Audited || item.CaseId == ids.InitialEdit || item.CaseId == ids.Note);
     }
 
     [Fact]
@@ -52,21 +49,19 @@ public sealed class RecentCasesPersistenceTests
         var queries = scope.ServiceProvider.GetRequiredService<IRecentCaseQueries>();
         var whole = await queries.ListAsync(Since, 1, 100, CancellationToken.None);
 
-        // Six Cases created at one moment, one after it, and the Automation's
-        // changes to two older Cases at the same moments: the Triage Case, a
-        // creation event and version-0 guidance never appear.
-        Assert.Equal(12, whole.TotalCount);
-        Assert.Equal(12, whole.Items.Count);
+        // Six Cases created at one moment and one after it. The Triage Case
+        // and the Automation's changes to two older Cases at the same moments
+        // never appear.
+        Assert.Equal(7, whole.TotalCount);
+        Assert.Equal(7, whole.Items.Count);
         Assert.DoesNotContain(whole.Items, item => item.Reference.StartsWith('T'));
-        Assert.DoesNotContain(
-            whole.Items,
-            item => item.ChangeKind is "manual_case_created" or "case_guidance_applied");
+        Assert.All(whole.Items, item => Assert.True(item.CreatedAtUtc >= Since));
         Assert.Equal(
             whole.Items
-                .OrderByDescending(item => item.OccurredAtUtc)
+                .OrderByDescending(item => item.CreatedAtUtc)
                 .ThenBy(item => item.Reference, StringComparer.Ordinal)
-                .Select(item => (item.OccurredAtUtc, item.Reference)),
-            whole.Items.Select(item => (item.OccurredAtUtc, item.Reference)));
+                .Select(item => (item.CreatedAtUtc, item.Reference)),
+            whole.Items.Select(item => (item.CreatedAtUtc, item.Reference)));
 
         foreach (var pageSize in new[] { 1, 2, 3, 5 })
         {
@@ -82,8 +77,8 @@ public sealed class RecentCasesPersistenceTests
                 }
             }
 
-            // Ties on one Case at one moment have a fixed order, so the
-            // walk is the whole page row for row.
+            // Cases created at one moment have a fixed order, so the walk
+            // is the whole page row for row.
             Assert.Equal(whole.Items, walked);
         }
 
@@ -102,15 +97,15 @@ public sealed class RecentCasesPersistenceTests
         var page = await queries.ListAsync(Since, int.MaxValue, 50, CancellationToken.None);
 
         Assert.Empty(page.Items);
-        Assert.Equal(12, page.TotalCount);
+        Assert.Equal(7, page.TotalCount);
     }
 
     /// <summary>
-    /// A row its Case was dismissed at or after (FRD-15) is neither listed nor
-    /// counted; a change made after the dismissal still is.
+    /// A Case dismissed at or after its creation (FRD-15) is neither listed
+    /// nor counted.
     /// </summary>
     [Fact]
-    public async Task ARowItsCaseWasDismissedAtOrAfterIsNeitherListedNorCounted()
+    public async Task ACaseDismissedAtOrAfterItsCreationIsNeitherListedNorCounted()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var ids = await SeedAsync(database);
@@ -118,17 +113,14 @@ public sealed class RecentCasesPersistenceTests
 
         await using var scope = database.CreateAsyncScope();
         var dismissals = scope.ServiceProvider.GetRequiredService<IWorkCentreDismissalStore>();
-        // At the moment it was created, after its change, and before its change.
+        // At the moment it was created, and after it.
         await dismissals.DismissAsync(ids.Mail, Since.AddMinutes(50), staff, CancellationToken.None);
-        await dismissals.DismissAsync(ids.Note, Since.AddMinutes(56), staff, CancellationToken.None);
-        await dismissals.DismissAsync(ids.Audited, Since.AddMinutes(52), staff, CancellationToken.None);
+        await dismissals.DismissAsync(ids.Guidance, Since.AddMinutes(56), staff, CancellationToken.None);
         var page = await scope.ServiceProvider.GetRequiredService<IRecentCaseQueries>()
             .ListAsync(Since, 1, 50, CancellationToken.None);
 
-        Assert.Equal(4, page.TotalCount);
-        Assert.Equal(
-            [ids.InitialEdit, ids.Audited, ids.Guidance, ids.Replacement],
-            page.Items.Select(item => item.CaseId));
+        Assert.Equal(1, page.TotalCount);
+        Assert.Equal([ids.Replacement], page.Items.Select(item => item.CaseId));
     }
 
     private static async Task SeedTiesAsync(LocalDbTestDatabase database)

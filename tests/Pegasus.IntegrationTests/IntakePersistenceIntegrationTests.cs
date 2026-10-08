@@ -223,7 +223,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261007181000_InspectionAddressSettlerKind",
                 "20261007182000_StaffMailSendActorKind",
                 "20261007183000_GrantWorkerTriageFindings",
-                "20261007184000_RemoveEva"
+                "20261007184000_RemoveEva",
+                "20261008090000_DropAutomationWorkflowEventTimeIndex"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -326,10 +327,11 @@ public sealed class IntakePersistenceIntegrationTests
               AND name LIKE N'IX_Cases[_]%'
             """));
         // The Work Centre's feed and queue reads are answered by their own
-        // indexes: the included columns spare a lookup into each table.
+        // indexes: the included columns spare a lookup into each table. New
+        // cases no longer reads the Automation actor's events, so their
+        // index is gone.
         Assert.Equal(
-            "CaseWorkflowEvents.IX_CaseWorkflowEvents_ActorKind_OccurredAtUtc:ActorKind,OccurredAtUtc|AfterVersion,BeforeVersion,CaseId,EventType;"
-            + "CaseWorkflows.IX_CaseWorkflows_State:State|;"
+            "CaseWorkflows.IX_CaseWorkflows_State:State|;"
             + "Cases.IX_Cases_CreatedAtUtc:CreatedAtUtc|Type",
             await database.ScalarAsync<string>(
                 """

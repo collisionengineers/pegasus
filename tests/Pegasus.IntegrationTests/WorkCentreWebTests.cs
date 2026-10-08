@@ -263,7 +263,7 @@ public sealed class WorkCentreWebTests
     }
 
     [Fact]
-    public async Task NewCasesShowArrivalChipsTheSinceYouLastLookedLineAndAutomationChanges()
+    public async Task NewCasesShowArrivalChipsAndTheSinceYouLastLookedLine()
     {
         var lastSeen = Now.AddHours(-5);
         var feed = new FakeRecentCases
@@ -271,9 +271,9 @@ public sealed class WorkCentreWebTests
             LastSeen = lastSeen,
             Rows =
             [
-                new(RecentCaseRowKind.NewCase, Guid.NewGuid(), "QDOS26100", "AB12CDE", "Mr A Claimant", "QDOS", Now.AddHours(-1), CaseArrival.PrincipalApi),
-                new(RecentCaseRowKind.ChangedByAutomation, Guid.NewGuid(), "QDOS26101", "CD34EFG", "Ms B Claimant", "QDOS", Now.AddHours(-2), CaseArrival.Automation, "case_workspace_saved"),
-                new(RecentCaseRowKind.NewCase, Guid.NewGuid(), "PCH26102", "EF56GHJ", "Mr C Claimant", "PCH", Now.AddDays(-2), CaseArrival.Email)
+                new(Guid.NewGuid(), "QDOS26100", "AB12CDE", "Mr A Claimant", "QDOS", Now.AddHours(-1), CaseArrival.PrincipalApi),
+                new(Guid.NewGuid(), "QDOS26101", "CD34EFG", "Ms B Claimant", "QDOS", Now.AddHours(-2), CaseArrival.Automation),
+                new(Guid.NewGuid(), "PCH26102", "EF56GHJ", "Mr C Claimant", "PCH", Now.AddDays(-2), CaseArrival.Email)
             ]
         };
         using var host = Host(new FakeSnapshot(), feed);
@@ -289,7 +289,8 @@ public sealed class WorkCentreWebTests
         Assert.Contains("data-wc-arrival>Principal API</span>", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-arrival>Automation</span>", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-arrival>E-mail</span>", html, StringComparison.Ordinal);
-        Assert.Matches("QDOS26101</a>\\s*<small>Changed by automation</small>", html);
+        // The tab lists new Cases only; what automation does to a Case is its history.
+        Assert.DoesNotContain("Changed by automation", html, StringComparison.Ordinal);
         Assert.Equal(1, Regex.Count(html, "data-wc-divider"));
         Assert.True(
             html.IndexOf("QDOS26101", StringComparison.Ordinal) < html.IndexOf("data-wc-divider", StringComparison.Ordinal)
@@ -334,7 +335,7 @@ public sealed class WorkCentreWebTests
         var feed = new FakeRecentCases
         {
             LastSeen = lastSeen,
-            Rows = [new(RecentCaseRowKind.NewCase, Guid.NewGuid(), "QDOS26100", "AB12CDE", "Mr A Claimant", "QDOS", Now.AddHours(-1), CaseArrival.Manual)]
+            Rows = [new(Guid.NewGuid(), "QDOS26100", "AB12CDE", "Mr A Claimant", "QDOS", Now.AddHours(-1), CaseArrival.Manual)]
         };
         using var host = Host(snapshot, feed);
         using var client = Client(host);
@@ -467,7 +468,7 @@ public sealed class WorkCentreWebTests
     {
         var item = Item(NeedsAttentionKind.ReviewCase, "QDOS26300", NeedsAttentionPriority.Today, Now.AddHours(3));
         var newCase = new RecentCaseRow(
-            RecentCaseRowKind.NewCase, Guid.NewGuid(), "QDOS26301", "AB12CDE", "Meridian Claims", "QDOS", Now.AddHours(-1), CaseArrival.Email);
+            Guid.NewGuid(), "QDOS26301", "AB12CDE", "Meridian Claims", "QDOS", Now.AddHours(-1), CaseArrival.Email);
         var queued = Job(AiJobKind.Estimate, AiJobState.Queued, "QDOS26302", Guid.NewGuid());
         var kept = Job(AiJobKind.Estimate, AiJobState.Queued, "QDOS26303", Guid.NewGuid());
         using var host = Host(

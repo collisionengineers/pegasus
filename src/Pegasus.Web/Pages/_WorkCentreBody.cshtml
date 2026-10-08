@@ -484,7 +484,7 @@ else
             var feed = Model.NewCases!;
             var rows = feed.Page.Items;
             var divider = Model.DividerUtc;
-            var anyNewer = divider is { } line && rows.Any(row => row.OccurredAtUtc > line);
+            var anyNewer = divider is { } line && rows.Any(row => row.CreatedAtUtc > line);
             var divided = false;
             if (rows.Count == 0)
             {
@@ -507,26 +507,21 @@ else
                         @for (var index = 0; index < rows.Count; index++)
                         {
                             var row = rows[index];
-                            if (!divided && anyNewer && row.OccurredAtUtc <= divider)
+                            if (!divided && anyNewer && row.CreatedAtUtc <= divider)
                             {
                                 divided = true;
                                 <tr class="wc-group-row" data-wc-divider><td colspan="5"><h3>@Labels.SinceYouLastLooked</h3></td></tr>
                             }
-                            var changed = row.Kind == RecentCaseRowKind.ChangedByAutomation;
-                            var subParts = new[] { row.Registration, row.Claimant, row.Principal, changed ? OperatorLabels.HistoryEvent(row.ChangeKind) : null }
+                            var subParts = new[] { row.Registration, row.Claimant, row.Principal }
                                 .Where(part => !string.IsNullOrWhiteSpace(part));
                             var after = index + 1 < rows.Count ? $"wc-new-{index + 1}" : "wc-new-cases-title";
                             <tr id="wc-new-@index" data-wc-new-case-row data-wc-record="@row.CaseId">
                                 <td class="wc-col-ref">
-                                    <a class="wc-task-link" asp-page="/Cases/Details" asp-route-id="@row.CaseId" data-wc-new-case="@(changed ? "changed" : "new")">@row.Reference</a>
-                                    @if (changed)
-                                    {
-                                        <small>@Labels.ChangedByAutomation</small>
-                                    }
+                                    <a class="wc-task-link" asp-page="/Cases/Details" asp-route-id="@row.CaseId">@row.Reference</a>
                                 </td>
                                 <td>@string.Join(" · ", subParts)</td>
                                 <td class="wc-col-arrival"><span class="status status--@Labels.ArrivalTone(row.Arrival)" data-wc-arrival>@Labels.Arrival(row.Arrival)</span></td>
-                                <td class="wc-col-time"><time datetime="@row.OccurredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.OccurredAtUtc)</time></td>
+                                <td class="wc-col-time"><time datetime="@row.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.CreatedAtUtc)</time></td>
                                 <td class="wc-col-dismiss">
                                     <form method="post" asp-page="/Index" asp-page-handler="Dismiss" class="wc-dismiss" data-wc-dismiss>
                                         <input type="hidden" name="recordId" value="@row.CaseId" />
