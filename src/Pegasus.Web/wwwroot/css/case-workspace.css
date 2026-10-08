@@ -6,6 +6,17 @@
 .case-record{min-width:0}
 .case-record .sticky-block{border-radius:var(--radius-lg) var(--radius-lg) 0 0}
 .case-record .ribbon-ref .ribbon-value{display:block}
+/* The reference and the registration keep their whole width and the other
+   facts hold a basis; chips that do not fit beside the facts take their own
+   row under them rather than squeezing the facts or running under the
+   actions. Below 1100px the ribbon's own wrap takes over. */
+@media(min-width:1101px){
+  .case-record .ribbon-facts{flex-wrap:wrap}
+  .case-record .ribbon .ribbon-item{flex-basis:96px}
+  .case-record .ribbon .ribbon-ref{flex:1.2 0 auto}
+  .case-record .ribbon .ribbon-registration{flex:0 0 auto}
+  .case-record .ribbon-chips{flex:0 1 auto;flex-wrap:wrap;align-content:center;row-gap:4px;padding-block:4px}
+}
 .case-record .ribbon-chips .status .icon{width:12px;height:12px}
 .case-record .lease-line{font-size:11px;color:var(--muted);font-family:var(--mono);white-space:nowrap}
 .case-record .lease-line.is-refused{color:var(--red);font-weight:700}
