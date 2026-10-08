@@ -267,7 +267,7 @@ public sealed class CaseValuationV26WebTests
             $"name=\"selection.GuideValuationId\" value=\"{glasses.ValuationId:D}\"\\s+form=\"case-edit-form\"",
             html);
         Assert.Contains(
-            "name=\"selection.PriorTotalLossPercentage\" form=\"case-edit-form\"", html, StringComparison.Ordinal);
+            "name=\"selection.PriorTotalLossPercentage\" value=\"10\" form=\"case-edit-form\"", html, StringComparison.Ordinal);
         Assert.Contains($"name=\"selection.AdditionPresetId\" value=\"{preset.Id:D}\" form=\"case-edit-form\"", html, StringComparison.Ordinal);
         var opening = WebUtility.HtmlDecode(InputValue(html, "selection.Opening"));
         Assert.Contains(glasses.ValuationId.ToString("D"), opening, StringComparison.Ordinal);
@@ -747,9 +747,10 @@ public sealed class CaseValuationV26WebTests
         valuation.SetApplied(glasses, towBar, 175m);
 
         var read = await ReadValuationAsync(store, valuation);
-        // Reading lists what the calculation applied, not every preset.
+        // Reading lists what the calculation applied, not every preset: the
+        // tow bar and Add 20 % VAT, which is a row of the value increases.
         Assert.DoesNotContain("Roof bars", read, StringComparison.Ordinal);
-        Assert.Single(Regex.Matches(read, "data-valuation-applied-addition=\"true\"", RegexOptions.CultureInvariant));
+        Assert.Equal(2, Regex.Count(read, "data-valuation-applied-addition=\"true\"", RegexOptions.CultureInvariant));
         var decoded = WebUtility.HtmlDecode(read);
         Assert.Matches("<span class=\"src-tag\" data-valuation-recorded-word>Glass's</span>", decoded);
         Assert.Matches("data-valuation-head>Engineer's Value £13,425.00<", decoded);
