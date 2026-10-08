@@ -15,4 +15,8 @@ public abstract class StaffPageModel : PageModel
             out actor);
 
     public static string NewOperationKey() => Guid.NewGuid().ToString("N");
+
+    /// <summary>The request is one a page script posted with its own fetch (site.js, case-workspace.js).</summary>
+    protected bool IsScriptRequest =>
+        string.Equals(Request.Headers["X-Requested-With"].ToString(), "fetch", StringComparison.Ordinal);
 }

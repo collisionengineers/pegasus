@@ -1,11 +1,12 @@
 @*
     A report blocker the Repair Spec clears by one control (issue 898): the
-    section-head Edit's claim, on the Current spec, labelled as the section
-    it opens. Once edit mode is open in place the control named by
-    data-edit-focus takes focus; without script the claim lands on the
-    section.
+    section-head Edit's claim, on the Current spec, in the words and class
+    the caller gives (the blocker's requirement in the Report not ready card,
+    the section's name as the Next action step). Once edit mode is open in
+    place the control named by data-edit-focus takes focus; without script
+    the claim lands on the section.
 
-    Model: the page and the control's selector.
+    Model: the page, the control's selector, the words and the button class.
 *@
 @using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Cases.CaseBlockerEditView
@@ -20,5 +21,5 @@
     <input type="hidden" name="section" value="estimate" />
     <input type="hidden" name="view" value="@owner.ViewRoute" />
     <input type="hidden" name="estimate" value="@owner.CurrentSpecification!.SpecificationId" />
-    <button type="submit" data-busy-label="@OperatorLabels.Busy.Opening" class="btn btn--small" data-section-edit="estimate" data-edit-focus="@Model.Focus">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == "estimate").Label</button>
+    <button type="submit" data-busy-label="@OperatorLabels.Busy.Opening" class="@Model.ButtonClass" data-section-edit="estimate" data-edit-focus="@Model.Focus">@Model.Label</button>
 </form>

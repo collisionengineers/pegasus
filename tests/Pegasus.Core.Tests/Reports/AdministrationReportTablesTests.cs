@@ -20,7 +20,7 @@ public sealed class AdministrationReportTablesTests
             new(Guid.NewGuid(), "QDOS", 2, 3, 2, 1, 0, 0, 0, 0,
                 TimeSpan.FromHours(20), TimeSpan.FromHours(21), TimeSpan.FromHours(22), TimeSpan.FromHours(40),
                 0, null, 1, From, 0,
-                [new("AssessmentReport", 2, 0), new("FeeNote", 1, 0)],
+                ReportsProduced: 2,
                 AgreedFeeTotal: 250m,
                 AuditReportsProduced: 1,
                 AuditSent: 1,
@@ -48,12 +48,11 @@ public sealed class AdministrationReportTablesTests
                 "Principal",
                 "Reports produced", "Reports produced · Inspection", "Reports produced · Audit",
                 "Reports sent", "Reports sent · Inspection", "Reports sent · Audit",
-                "Agreed fees", "Agreed fees · Inspection", "Agreed fees · Audit",
-                "Report types"
+                "Agreed fees", "Agreed fees · Inspection", "Agreed fees · Audit"
             ],
             byPrincipal.Columns.Select(column => column.Title));
         Assert.All(byPrincipal.Columns.Skip(7).Take(3), column => Assert.Equal(WorkbookColumnKind.Money, column.Kind));
-        Assert.Equal(["QDOS", 2, 1, 1, 2, 1, 1, 250m, 150m, 100m, "AssessmentReport 2; FeeNote 1"], byPrincipal.Rows.Single());
+        Assert.Equal(["QDOS", 2, 1, 1, 2, 1, 1, 250m, 150m, 100m], byPrincipal.Rows.Single());
         Assert.False(sheets[2].Totals); // Averages and dates do not sum.
         Assert.Equal(
             [

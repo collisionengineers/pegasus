@@ -134,7 +134,8 @@ public sealed partial class AssessmentReportDraftWebTests
         AssertBlockerLinks(
             BlockerRow(BlockerList(WebUtility.HtmlDecode(html)), AssessmentReportProjection.RepairCostRequirement),
             caseId,
-            "estimate");
+            "estimate",
+            AssessmentReportProjection.RepairCostRequirement);
         // FRD-11: the control stays, disabled with its condition — no
         // submittable Generate form and no Preview link are offered.
         Assert.DoesNotContain("data-generate-report", html, StringComparison.Ordinal);
@@ -298,11 +299,14 @@ public sealed partial class AssessmentReportDraftWebTests
                 var accounts = AccountsLinkRegex().Match(row);
                 Assert.True(accounts.Success, "An Administrator's Sign-off blocker links to Accounts.");
                 Assert.Contains("href=\"/Administration/Accounts\"", accounts.Value, StringComparison.Ordinal);
-                Assert.Equal(OperatorLabels.Admin.Accounts, accounts.Groups["label"].Value);
+                // The requirement is the link, under the Accounts heading
+                // (operator, 8 October 2026).
+                Assert.Equal(reason.Requirement, accounts.Groups["label"].Value);
+                Assert.Contains($"<div class=\"blocker-group-head\">{OperatorLabels.Admin.Accounts}</div>", list, StringComparison.Ordinal);
             }
             else
             {
-                AssertBlockerLinks(row, caseId, key);
+                AssertBlockerLinks(row, caseId, key, reason.Requirement);
                 Assert.Equal(expectedTabs.GetValueOrDefault(reason.Requirement), CaseWorkspaceLabels.Report.BlockerTab(reason));
                 if (expectedTabs.TryGetValue(reason.Requirement, out var tab))
                 {
@@ -333,11 +337,16 @@ public sealed partial class AssessmentReportDraftWebTests
             CaseReportReadiness.SignatoryRequirement);
         Assert.Contains("in Accounts", engineerRow, StringComparison.Ordinal);
         Assert.False(
-            engineerRow.Contains("blocker-actions", StringComparison.Ordinal),
+            engineerRow.Contains("href=", StringComparison.Ordinal),
             $"An Engineer's Sign-off blocker links nowhere: {engineerRow}");
 
+        // The Next action is one step: the first blocker in page order, in
+        // full (operator, 8 October 2026).
         var panel = CaseWebTestSupport.NextActionRegex().Match(html).Value;
-        Assert.DoesNotContain("data-next-label", panel, StringComparison.Ordinal);
+        var first = CaseWorkspaceLabels.Report.InPageOrder(readiness.Reasons)[0];
+        Assert.Single(Regex.Matches(panel, "data-next-label"));
+        Assert.Contains($"<strong data-next-label>{first.Requirement}</strong>", panel, StringComparison.Ordinal);
+        Assert.Contains(first.HowToResolve, panel, StringComparison.Ordinal);
         var report = CaseWebTestSupport.Section(html, "section-report-title");
         Assert.Contains("data-report-gate", report, StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-not-ready", report, StringComparison.Ordinal);
@@ -428,7 +437,7 @@ public sealed partial class AssessmentReportDraftWebTests
 
         var row = BlockerRow(BlockerList(html), CaseReportReadiness.SignatoryRequirement);
         Assert.Contains("Choose the Sign-off Engineer on Case details.", row, StringComparison.Ordinal);
-        AssertBlockerLinks(row, caseId, "overview");
+        AssertBlockerLinks(row, caseId, "overview", CaseReportReadiness.SignatoryRequirement);
         Assert.DoesNotContain("data-blocker-accounts", row, StringComparison.Ordinal);
     }
 
@@ -462,7 +471,7 @@ public sealed partial class AssessmentReportDraftWebTests
         });
 
         var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
-        AssertBlockerLinks(BlockerRow(BlockerList(html), "Claimant name"), caseId, "claim");
+        AssertBlockerLinks(BlockerRow(BlockerList(html), "Claimant name"), caseId, "claim", "Claimant name");
 
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
@@ -783,32 +792,34 @@ public sealed partial class AssessmentReportDraftWebTests
         return await response.Content.ReadAsStringAsync();
     }
 
-    /// <summary>The Next action's readiness list in decoded markup (issue 899).</summary>
+    /// <summary>
+    /// The aside's Report not ready card in decoded markup: the readiness list
+    /// (operator, 8 October 2026).
+    /// </summary>
     private static string BlockerList(string html)
     {
-        var nextAction = CaseWebTestSupport.NextActionRegex().Match(html);
-        Assert.True(nextAction.Success, "The Case aside must state its Next action.");
-        var list = BlockerListRegex().Match(nextAction.Value);
-        Assert.True(list.Success, "The Next action must list what the report still needs.");
-        return list.Value;
+        var card = CaseWebTestSupport.ReportNotReadyRegex().Match(html);
+        Assert.True(card.Success, "The Case aside must list what the report still needs.");
+        return card.Value;
     }
 
     /// <summary>The readiness list's row that names <paramref name="requirement"/>.</summary>
     private static string BlockerRow(string list, string requirement)
     {
-        var row = Regex.Match(
-            list,
-            $"<li class=\"blocker\"[^>]*>\\s*<strong>{Regex.Escape(requirement)}</strong>.*?</li>",
-            RegexOptions.Singleline | RegexOptions.CultureInvariant);
-        Assert.True(row.Success, $"The readiness list must name {requirement}.");
-        return row.Value;
+        var row = Regex.Matches(
+                list,
+                "<li class=\"blocker\"[^>]*>.*?</li>",
+                RegexOptions.Singleline | RegexOptions.CultureInvariant)
+            .FirstOrDefault(match => match.Value.Contains($">{requirement}</", StringComparison.Ordinal));
+        Assert.True(row is not null, $"The readiness list must name {requirement}.");
+        return row!.Value;
     }
 
     /// <summary>
-    /// The row names the section that clears it and jumps there, labelled as
-    /// the section row labels that section.
+    /// The row's requirement is its link to the section that clears it
+    /// (operator, 8 October 2026), and it jumps there.
     /// </summary>
-    private static void AssertBlockerLinks(string row, Guid caseId, string key)
+    private static void AssertBlockerLinks(string row, Guid caseId, string key, string requirement)
     {
         Assert.Contains($"data-report-blocker=\"{key}\"", row, StringComparison.Ordinal);
         var link = SectionJumpRegex().Match(row);
@@ -818,18 +829,13 @@ public sealed partial class AssessmentReportDraftWebTests
             $"href=\"/Cases/{caseId:D}?section={key}#section-{key}\"",
             link.Value,
             StringComparison.Ordinal);
-        Assert.Equal(
-            OperatorLabels.CaseWorkspace.Sections.Single(section => section.Key == key).Label,
-            link.Groups["label"].Value);
+        Assert.Equal(requirement, link.Groups["label"].Value);
     }
-
-    [GeneratedRegex("<div[^>]*data-report-not-ready[^>]*>.*?</ul>\\s*</div>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
-    private static partial Regex BlockerListRegex();
 
     [GeneratedRegex("<a[^>]*data-blocker-accounts[^>]*>(?<label>[^<]*)</a>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
     private static partial Regex AccountsLinkRegex();
 
-    [GeneratedRegex("<span data-next-label>(?<label>.*?)</span>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    [GeneratedRegex("<strong data-next-label>(?<label>.*?)</strong>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
     private static partial Regex NextLabelRegex();
 
     [GeneratedRegex("<a[^>]*data-section-jump=\"(?<key>[^\"]+)\"[^>]*>(?<label>[^<]*)</a>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]

@@ -1,6 +1,5 @@
 ﻿@*
-    Overview (v26, trimmed by v28 P4 and P7): outstanding requirements, the
-    Lifecycle actions sub-panel, the three fact columns (Case / Principal /
+    Overview (v26, trimmed by v28 P4 and P7): the Lifecycle actions sub-panel, the three fact columns (Case / Principal /
     Claimant), the Notes band (record notes beside this Case's notes) and the
     accident band. One look for read and edit (operator, 23 September 2026):
     every fact is a .fc cell whose greyed value box and control box share the
@@ -24,7 +23,6 @@
     var data = details.Data;
     var mayEdit = Model.CanEditCaseData && data is not null;
     var state = workflow.State;
-    var requirements = Model.OutstandingRequirements;
     var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "overview");
     var notes = details.RecordNotes;
     var caseNotes = data?.Workspace;
@@ -113,27 +111,8 @@
             </div>
         }
 
-        @if (requirements.Count > 0)
-        {
-            <div class="sub-panel blockers" data-outstanding-requirements>
-                <h3>@Frame.OutstandingRequirements <span class="status status--amber">@requirements.Count outstanding</span></h3>
-                <ul class="blocker-list">
-                    @foreach (var requirement in requirements)
-                    {
-                        <li class="blocker">
-                            <strong>@requirement.Title</strong>
-                            <small>
-                                <b>Source:</b> @requirement.Source
-                                @if (!string.IsNullOrWhiteSpace(requirement.Why))
-                                {
-                                    <br /><b>Why:</b> @requirement.Why
-                                }
-                            </small>
-                        </li>
-                    }
-                </ul>
-            </div>
-        }
+        @* No list of outstanding requirements here: they are the aside's
+           Next action and Report not ready card (operator, 8 October 2026). *@
 
         @* The remaining Core lifecycle actions: return to Review and the
            correction of a wrongly linked report-Sent item. Archiving ends a

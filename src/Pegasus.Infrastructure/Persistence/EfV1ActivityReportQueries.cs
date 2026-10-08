@@ -270,13 +270,6 @@ internal sealed class EfV1ActivityReportQueries(
             .Where(x => x.OriginIntakeReceiptId is { } receiptId && received.ContainsKey(receiptId))
             .Select(x => x.ObservedSentAtUtc - received[x.OriginIntakeReceiptId!.Value])
             .ToList();
-        var types = artifacts.GroupBy(x => x.Kind, StringComparer.Ordinal)
-            .OrderBy(x => x.Key, StringComparer.Ordinal)
-            .Select(x => new PrincipalReportArtifactTypeActivity(
-                x.Key,
-                x.Count(IsConfirmed),
-                x.Count() - x.Count(IsConfirmed)))
-            .ToArray();
         // Each work with a confirmed report whose first report falls in the
         // period contributes its frozen fee once.
         var feeWorks = confirmed
@@ -304,7 +297,7 @@ internal sealed class EfV1ActivityReportQueries(
             held.Count,
             held.Select(x => x.HeldAtUtc).Min(),
             held.Count(x => x.HeldAtUtc is null),
-            types,
+            confirmed.Count(x => x.Kind == nameof(CaseReportArtifactKind.AssessmentReport)),
             feeWorks.Sum(x => agreedFees[x.WorkId]),
             confirmed.Count(x => x.Kind == nameof(CaseReportArtifactKind.AssessmentReport) && x.IsAudit),
             sent.Count(x => x.IsAudit),

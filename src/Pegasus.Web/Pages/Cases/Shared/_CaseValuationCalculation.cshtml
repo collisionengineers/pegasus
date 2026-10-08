@@ -198,16 +198,20 @@
        refusal's own reason here. *@
     <div class="valuation-value" data-valuation-values>
         @{ ValueCell(); }
-        <div class="valuation-value-calc">
-            <span class="lbl">@ValuationLabels.Calculation</span>
-            <span data-valuation-basis-name>@(basisName is null ? string.Empty : string.Format(CultureInfo.InvariantCulture, ValuationLabels.FromRetail, basisName))</span>
-            <div data-valuation-preview-host>
-                @if (editable && calculation is null)
-                {
-                    <div class="muted" data-valuation-none>@ValuationLabels.NoneYet</div>
-                }
+        @* Reading with no recorded calculation has nothing to say here. *@
+        @if (editable || basisName is not null)
+        {
+            <div class="valuation-value-calc">
+                <span class="lbl">@ValuationLabels.Calculation</span>
+                <span data-valuation-basis-name>@(basisName is null ? string.Empty : string.Format(CultureInfo.InvariantCulture, ValuationLabels.FromRetail, basisName))</span>
+                <div data-valuation-preview-host>
+                    @if (editable && calculation is null)
+                    {
+                        <div class="muted" data-valuation-none>@ValuationLabels.NoneYet</div>
+                    }
+                </div>
             </div>
-        </div>
+        }
     </div>
 </div>
 
@@ -253,7 +257,7 @@
             {
                 <span class="lbl">@label@(tag?.Render())@if (word is not null) {<span class="@wordClass" data-valuation-recorded-word>@word</span>}</span>
             }
-            <div class="fv mono @(Model.AssessmentIsAbsent(path) ? "empty" : null)">@Model.AssessmentDisplay(path)</div>
+            <div class="fv mono @(Model.AssessmentIsAbsent(path) ? "empty" : null)">@(Model.AssessmentIsAbsent(path) ? "—" : Model.AssessmentDisplay(path))</div>
             @if (editable)
             {
                 <input id="@id" class="fi mono" type="number" min="0" step="0.01" name="@CaseWorkspaceLabels.Editors.FormName(path)"
