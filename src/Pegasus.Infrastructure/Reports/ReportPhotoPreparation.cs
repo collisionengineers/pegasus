@@ -28,13 +28,13 @@ namespace Pegasus.Infrastructure.Reports;
 internal static class ReportPhotoPreparation
 {
     /// <summary>
-    /// A slot's width in pixels: 80.4 mm at 300 dpi needs 950, so neither
-    /// the grid nor page 1 prints a soft image, and each embeds at most 1000
+    /// A slot's width in pixels: 80.4 mm at 300 dpi needs 950, so page 1
+    /// never prints a soft image, and each embeds at most 1000
     /// px across whatever the source size.
     /// </summary>
     internal const int SlotPixels = 1000;
 
-    /// <summary>The longest edge of an image that prints on a page of its own.</summary>
+    /// <summary>The longest edge of an image on the image pages.</summary>
     internal const int FullPagePixels = 2000;
 
     /// <summary>
@@ -53,7 +53,7 @@ internal static class ReportPhotoPreparation
     /// <param name="reference">The image's name, for the refusal that names it.</param>
     /// <param name="rotation">The Engineer's whole-turn rotation.</param>
     /// <param name="crop">The Engineer's crop, as fractions of the rotated source.</param>
-    /// <param name="slotHeight">The slot's height in millimetres, or null for a page of its own.</param>
+    /// <param name="slotHeight">The page-1 slot's height in millimetres, or null for an image page.</param>
     /// <param name="cancellationToken">Checked while a large image is read.</param>
     /// <param name="scanlineFromPixels">Where a PNG starts being read by scanline.</param>
     internal static byte[] Prepare(

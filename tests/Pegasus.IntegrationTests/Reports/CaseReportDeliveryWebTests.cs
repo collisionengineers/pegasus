@@ -553,7 +553,7 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Contains("target=\"_blank\"", link, StringComparison.Ordinal);
         Assert.Contains("data-document-preview", link, StringComparison.Ordinal);
         Assert.Contains("data-no-inplace", link, StringComparison.Ordinal);
-        Assert.Contains("data-file-name=\"CE_100_assessment.pdf\"", link, StringComparison.Ordinal);
+        Assert.Contains("data-file-name=\"CE_100_report.pdf\"", link, StringComparison.Ordinal);
         Assert.Contains("<use href=\"#icon-eye\" />", link, StringComparison.Ordinal);
         Assert.DoesNotContain("#icon-download", link, StringComparison.Ordinal);
         Assert.Contains(
@@ -1337,7 +1337,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 reportHasFile ? Guid.NewGuid() : null,
                 reportConfirmed ? new string('c', 64) : null,
                 reportHasFile ? 3 : null,
-                reportHasFile ? "CE_100_assessment.pdf" : null,
+                reportHasFile ? "CE_100_report.pdf" : null,
                 reportHasFile ? "application/pdf" : null,
                 null, null,
                 reportHasFile && !reportConfirmed ? "pending/ce-100-assessment" : null,

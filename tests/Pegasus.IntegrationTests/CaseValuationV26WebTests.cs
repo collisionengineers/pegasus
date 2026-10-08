@@ -94,6 +94,13 @@ public sealed class CaseValuationV26WebTests
                 Assert.Contains("form=\"case-edit-form\"", input.Value, StringComparison.Ordinal);
                 Assert.DoesNotContain("required", input.Value, StringComparison.Ordinal);
             }
+            // Get valuation fills the first box carrying each hook, so each
+            // figure's hook is on its own box alone (QDOS26086: Glass's trade
+            // figure landed in the retail box).
+            Assert.Single(Regex.Matches(card, "<input[^>]*data-valuation-retail[^>]*>", RegexOptions.CultureInvariant));
+            Assert.Single(Regex.Matches(card, "<input[^>]*data-valuation-trade[^>]*>", RegexOptions.CultureInvariant));
+            InputTag(card, $"guideEntries[{index}].RetailValue", "data-valuation-retail");
+            InputTag(card, $"guideEntries[{index}].TradeValue", "data-valuation-trade");
             // No provider is connected: the card says so now and offers no Get valuation.
             Assert.DoesNotContain("data-valuation-get", card, StringComparison.Ordinal);
             Assert.DoesNotContain("data-valuation-notice hidden", card, StringComparison.Ordinal);

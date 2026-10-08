@@ -63,7 +63,7 @@ public sealed class CaseReportArtifactFilingTests
         hasVersion ? Guid.NewGuid() : null,
         hasVersion ? new string('c', 64) : null,
         hasVersion ? 3 : null,
-        hasVersion ? "CE_100_assessment.pdf" : null,
+        hasVersion ? "CE_100_report.pdf" : null,
         hasVersion ? "application/pdf" : null,
         null, null,
         status == CaseReportArtifactStatus.Pending && hasVersion ? "pending/ce-100" : null,
