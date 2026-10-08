@@ -493,9 +493,9 @@ was asked with.
 The result is filed without the Case edit lease, so it returns while the
 Engineer is still editing and does not end the edit; the row says so
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)).
-Read and edit list the same value increases, every active preset with a tick
-on each the recorded calculation applied, and the calculator opens on that
-applied selection, while the Engineer's Value holds that calculation's figure.
+Editing lists every active preset value increase with a tick on each the
+recorded calculation applied; reading lists only the applied increases
+(operator, 8 October 2026). The calculator opens on that applied selection, while the Engineer's Value holds that calculation's figure.
 A different figure saved over it is the Engineer's own: the calculator then
 opens blank and no source opens while reading (operator, 6 October 2026).
 Choosing a card as the basis fills Retail value and
