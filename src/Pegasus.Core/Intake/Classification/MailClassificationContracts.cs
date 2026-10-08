@@ -331,6 +331,17 @@ public sealed record MailClassificationResult(
         string policyKey,
         int policyVersion) =>
         new(MailClassificationOutcome.Unclassified, null, [], predicates, reason, policyKey, policyVersion);
+
+    /// <summary>
+    /// The decision for a received mail message no Principal policy classified:
+    /// its sender matched no accepted route, or the route had no policy. Nothing
+    /// is classified, but the message still carries a decision, so staff can
+    /// correct it and the workspace can list it (FRD-08).
+    /// </summary>
+    public const string NoPolicyKey = "no_mail_classification_policy";
+
+    public static MailClassificationResult NoPolicy(string reason) =>
+        Unclassified([], reason, NoPolicyKey, 1);
 }
 
 /// <summary>

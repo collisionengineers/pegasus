@@ -831,6 +831,63 @@ public sealed class StaffMailSendPersistenceTests
             item.CaseId == fixture.CaseId && item.EventType == "intake_case_linked"));
     }
 
+    /// <summary>FRD-13: a message attached to a Completed Case is a query, classified from the Case's state.</summary>
+    [Fact]
+    public async Task StaffLinkOfAnUnclassifiedMessageToACompletedCaseClassifiesItAsAQueryAndEntersQuery()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var mailboxId = Guid.NewGuid();
+        var retainedMessageId = Guid.NewGuid();
+        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
+        var fixture = await SeedPostReportQueryAsync(
+            database, mailboxId, retainedMessageId, isQueryReceipt: false, isAssociated: false);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using (var seed = await factory.CreateDbContextAsync())
+        {
+            var seededWorkflow = await seed.CaseWorkflows.SingleAsync(item => item.CaseId == fixture.CaseId);
+            seededWorkflow.State = nameof(CaseLifecycleState.PostReportComplete);
+            seededWorkflow.ClosureOutcome = nameof(CaseClosureOutcome.PostReportComplete);
+            var seededDecision = await seed.Set<IntakeMailClassificationDecisionEntity>()
+                .SingleAsync(item => item.IntakeReceiptId == fixture.ReceiptId);
+            seededDecision.Outcome = "unclassified";
+            seededDecision.Family = null;
+            await seed.SaveChangesAsync();
+        }
+
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var workflowStore = new EfCaseWorkflowStore(factory, TimeProvider.System);
+        var lease = await workflowStore.ClaimAsync(
+            new(fixture.CaseId, fixture.WorkflowVersion, actor, "claim-unclassified-query"),
+            CancellationToken.None);
+        var mutationStore = new EfIntakeMutationStore(factory);
+        var receipt = await mutationStore.GetAsync(fixture.ReceiptId, CancellationToken.None);
+        Assert.NotNull(receipt);
+
+        await mutationStore.LinkAsync(
+            new(
+                fixture.ReceiptId,
+                fixture.CaseId,
+                receipt!.IntakeVersion,
+                fixture.WorkflowVersion,
+                lease.Token,
+                actor,
+                "link-unclassified-query",
+                null),
+            DateTimeOffset.UtcNow,
+            CancellationToken.None);
+
+        await using var verify = await factory.CreateDbContextAsync();
+        var persisted = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == fixture.CaseId);
+        Assert.Equal(nameof(CaseLifecycleState.Query), persisted.State);
+        var decision = await verify.Set<IntakeMailClassificationDecisionEntity>()
+            .SingleAsync(item => item.IntakeReceiptId == fixture.ReceiptId);
+        Assert.Equal("post-report-emails", decision.Family);
+        Assert.Equal("query", decision.Subtype);
+        Assert.Equal(CaseStateMailClassification.Key, decision.PolicyKey);
+        Assert.Equal(CaseStateMailClassification.Actor, decision.DecidedByActor);
+    }
+
     [Fact]
     public async Task UnlinkingTheOnlyPostReportMessageReturnsAQueryCaseToCompleted()
     {
