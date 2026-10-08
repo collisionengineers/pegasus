@@ -103,6 +103,12 @@
     4: '4 · One row per section, opens for detail',
     5: '5 · First item in full, the rest one line each',
     6: '6 · Follows the page',
+    7: '7 · One step; the rest in a dialog',
+    8: '8 · One step; the rest in a closed card',
+    9: '9 · One step; the rest on the page',
+    10: '10 · One step; the rest in Report',
+    11: '11 · One step; a checklist of sections',
+    12: '12 · One step in a bar across the page',
   };
   const TONE = { 'Not ready': 'amber', Review: 'navy', 'With Engineer': 'navy', Complete: 'green' };
 
@@ -355,7 +361,161 @@
     }
   }
 
-  const DRAW = { live, 1: design1, 2: design2, 3: design3, 4: design4, 5: design5, 6: design6 };
+  // ---- round 4: Next action is one thing -----------------------------------------
+  // In 7 to 12 Next action holds exactly one step: the first Case requirement,
+  // else the state's step, else the first report blocker (as the Cases list's
+  // Current work names it). Everything else outstanding lives elsewhere.
+
+  function oneOf(p) {
+    const reqs = requirementsOf(p);
+    const blockers = [...p.blockers];
+    if (reqs.length) return { item: reqs.shift(), reqs, blockers };
+    if (p.step) return { step: p.step, reqs, blockers };
+    if (blockers.length) return { item: blockers.shift(), reqs, blockers };
+    return { reqs, blockers };
+  }
+
+  function oneStep(one) {
+    if (one.item) return featured(one.item);
+    const s = one.step;
+    if (!s) return '';
+    if (s.label === s.control) return step(s);
+    // A step whose control names a section: its words, then that control.
+    const tone = state.tone === 'primary' ? ' btn--primary' : '';
+    return `<div class="rail-first rail-first--step"><strong data-next-label>${esc(s.label)}</strong><a class="btn${tone} rail-first-go" href="#section-${s.section}" data-section-jump="${s.section}">${esc(s.control)}</a></div>`;
+  }
+
+  const restCount = (one) => one.reqs.length + one.blockers.length;
+  // The rest in full: the requirements, then the blockers under their sections.
+  function restInFull(one, cls = '') {
+    const reqs = one.reqs.length ? fullList(one.reqs, OUTSTANDING, 'data-case-requirements') : '';
+    const blockers = one.blockers.length ? `<div class="rail-block ${cls}" data-report-not-ready>${head(REPORT_NOT_READY)}<div class="rail-groups">${groups(one.blockers).map((g) =>
+      `<div class="rail-group" data-rail-group="${g.key}">${groupLabel(g.key) ? `<div class="rail-group-head">${esc(groupLabel(g.key))}</div>` : ''}<ul class="rail-items">${g.items.map(fullItem).join('')}</ul></div>`).join('')}</div></div>` : '';
+    return reqs + blockers;
+  }
+  const restWord = (one) => one.blockers.length ? REPORT_NOT_READY : OUTSTANDING;
+  const opener = (one, attrs) => restCount(one)
+    ? `<button type="button" class="rail-open" ${attrs}>${icon('icon-alert-triangle')}<span>${esc(restWord(one))}</span>${icon('icon-chevron-right')}</button>` : '';
+
+  // 7: the rest in a dialog the Next action opens.
+  function design7(p) {
+    const one = oneOf(p);
+    return `${figures(p)}${nextCard(p, oneStep(one) + opener(one, 'data-rail-dialog-open'))}`;
+  }
+  function after7(frame, p) {
+    const one = oneOf(p);
+    if (!restCount(one)) return;
+    frame.insertAdjacentHTML('beforeend', `<div class="dialog-backdrop" data-rail-dialog data-rail-elsewhere hidden><section class="dialog dialog--wide rail-dialog" role="dialog" aria-modal="true" aria-labelledby="rail-dialog-title"><div class="dialog-head"><h2 id="rail-dialog-title" tabindex="-1">${esc(restWord(one))}</h2><button type="button" class="dialog-close" data-rail-dialog-close aria-label="Close">${icon('icon-x')}</button></div><div class="dialog-body">${restInFull(one)}</div></section></div>`);
+  }
+
+  // 8: the rest in a card of its own below, closed until opened.
+  function design8(p) {
+    const one = oneOf(p);
+    const fold = restCount(one) ? `<details class="panel context-card rail-fold" data-rail-fold><summary class="panel-head">${head(restWord(one), 'h2')}</summary><div class="panel-body">${restInFull(one)}</div></details>` : '';
+    return `${figures(p)}${nextCard(p, oneStep(one))}${fold}`;
+  }
+
+  // 9: the rest on the page: each section opens with what it is missing,
+  // its fields are marked, and the section row marks the section.
+  const FIELD_LABEL = {
+    'Claim reference': 'Claim reference', 'Incident date': 'Incident date', 'Sign-off Engineer': 'Sign-off Engineer',
+    'Claimant name': 'Claimant', 'Inspection type': 'Inspect at', 'Inspection date': 'Inspection date',
+    'Vehicle registration': 'Registration', 'Vehicle make': 'Make', 'Vehicle model': 'Model', 'Vehicle year': 'Year',
+    'Vehicle type': 'Vehicle type', 'Pre-incident condition': 'Pre-incident condition', 'Vehicle history check': 'Vehicle history',
+    'Impact location': 'Impact location', 'Impact severity': 'Impact severity', 'Retail value': 'Retail value',
+    'Trade value': 'Trade value', "Engineer's Value": "Engineer's Value", 'Assessment outcome': 'Outcome',
+    Roadworthiness: 'Roadworthiness', 'Agreed fee': 'Agreed fee',
+  };
+  function design9(p) {
+    const one = oneOf(p);
+    return `${figures(p)}${nextCard(p, oneStep(one))}`;
+  }
+  function after9(frame, p) {
+    const one = oneOf(p);
+    const items = [...one.reqs, ...one.blockers];
+    const bySection = new Map();
+    for (const b of items) {
+      const key = b.section ?? 'overview';
+      if (!bySection.has(key)) bySection.set(key, []);
+      bySection.get(key).push(b);
+    }
+    for (const [key, list] of bySection) {
+      const section = frame.querySelector(`#section-${key}`);
+      // Files loads lazily on the live page; the capture holds its
+      // placeholder, so the mockup gives it a head and a body.
+      if (section?.classList.contains('section-placeholder')) {
+        section.classList.remove('section-placeholder');
+        section.innerHTML = `<div class="panel-head"><h2>${esc(SECTIONS[key])}</h2></div><div class="panel-body"></div>`;
+      }
+      const body = section?.querySelector('.panel-body');
+      if (!body) continue;
+      body.insertAdjacentHTML('afterbegin', `<div class="rail-here" data-rail-elsewhere>${head(list.some((b) => !b.requirementRow) ? REPORT_NOT_READY : OUTSTANDING)}<ul class="rail-items">${list.map(fullItem).join('')}</ul></div>`);
+      for (const b of list) {
+        const label = FIELD_LABEL[b.requirement];
+        if (!label) continue;
+        const lbl = [...section.querySelectorAll('.lbl')].find((l) => ((l.querySelector('label') ?? l).firstChild?.textContent ?? '').trim() === label);
+        lbl?.insertAdjacentHTML('beforeend', '<span class="rail-field-mark" aria-hidden="true"></span>');
+      }
+    }
+    const marked = new Set(items.map((b) => NAV[b.section] ?? b.section).filter(Boolean));
+    for (const link of frame.querySelectorAll('[data-section-link]')) {
+      if (marked.has(link.dataset.sectionLink)) link.insertAdjacentHTML('beforeend', '<span class="rail-nav-mark" aria-hidden="true"></span>');
+    }
+  }
+
+  // 10: the rest in the Report section, which the Next action links to.
+  function design10(p) {
+    const one = oneOf(p);
+    const link = restCount(one) ? `<a class="rail-open" href="#section-report" data-section-jump="report">${icon('icon-alert-triangle')}<span>${esc(restWord(one))}</span>${icon('icon-chevron-right')}</a>` : '';
+    return `${figures(p)}${nextCard(p, oneStep(one) + link)}`;
+  }
+  function after10(frame, p) {
+    const one = oneOf(p);
+    if (!restCount(one)) return;
+    frame.querySelector('#section-report .panel-body')?.insertAdjacentHTML('afterbegin', `<div class="rail-report" data-rail-elsewhere>${restInFull(one)}</div>`);
+  }
+
+  // 11: the rest as a checklist of every section: done, or what it is
+  // missing (requirements under the section that clears them).
+  const CHECKLIST = ['overview', 'claim', 'inspection', 'vehicle', 'damage', 'valuation', 'estimate', 'settlement', 'report', 'files'];
+  function design11(p) {
+    const one = oneOf(p);
+    const items = [...one.reqs, ...one.blockers];
+    let card = '';
+    if (items.length) {
+      const rows = CHECKLIST.map((key) => {
+        const mine = items.filter((b) => b.section === key);
+        const link = `<a class="rail-name" href="#section-${key}" data-section-jump="${key}">${esc(SECTIONS[key])}</a>`;
+        if (!mine.length) return `<div class="rail-check rail-check--done" data-rail-group="${key}">${icon('icon-check')}${link}</div>`;
+        return `<details class="rail-sect rail-check" data-rail-group="${key}"><summary><span class="rail-sect-main">${link}<small>${mine.map((b) => esc(b.requirement)).join(' · ')}</small></span>${icon('icon-chevron-down')}</summary><ul class="rail-items">${mine.map(fullItem).join('')}</ul></details>`;
+      }).join('');
+      const other = items.filter((b) => !CHECKLIST.includes(b.section));
+      const rest = other.length ? `<ul class="rail-items rail-check-other">${other.map(fullItem).join('')}</ul>` : '';
+      card = `<section class="panel context-card" data-rail-checklist><div class="panel-head">${head(restWord(one), 'h2')}</div><div class="panel-body"><div class="rail-sects">${rows}</div>${rest}</div></section>`;
+    }
+    return `${figures(p)}${nextCard(p, oneStep(one))}${card}`;
+  }
+
+  // 12: Next action leaves the aside for a bar across the page above the
+  // sections; the rest opens below it, across the page's width.
+  function design12(p) {
+    return figures(p);
+  }
+  function after12(frame, p) {
+    const one = oneOf(p);
+    const s = one.step;
+    let body = '';
+    if (one.item) body = `<span class="rail-bar-what" ${mark(one.item)}><strong>${esc(one.item.requirement)}</strong><small>${sourceWhy(one.item)}${one.item.how ? ` · ${esc(one.item.how)}` : ''}</small></span>${control(one.item, `btn${state.tone === 'primary' ? ' btn--primary' : ''}`)}`;
+    else if (s && s.label === s.control) body = `<span class="rail-bar-what"></span><button type="button" class="btn${state.tone === 'primary' ? ' btn--primary' : ''}" data-next-step>${esc(s.control)}</button>`;
+    else if (s) body = `<span class="rail-bar-what"><strong data-next-label>${esc(s.label)}</strong></span><a class="btn" href="#section-${s.section}" data-section-jump="${s.section}">${esc(s.control)}</a>`;
+    const extra = extras(p);
+    const more = restCount(one) ? `<details class="rail-bar-more" data-rail-bar-more><summary class="rail-open">${icon('icon-alert-triangle')}<span>${esc(restWord(one))}</span>${icon('icon-chevron-down')}</summary><div class="rail-bar-list">${restInFull(one)}</div></details>` : '';
+    frame.querySelector('.workspace')?.insertAdjacentHTML('beforebegin', `<section class="panel rail-bar" data-next-action data-rail-elsewhere><div class="rail-bar-row"><h2 class="rail-bar-title">Next action</h2>${extra ? `<div class="rail-bar-extras">${extra}</div>` : ''}${body}</div>${more}</section>`);
+  }
+
+  const AFTER = { 7: after7, 9: after9, 10: after10, 12: after12 };
+  const DRAW = { live, 1: design1, 2: design2, 3: design3, 4: design4, 5: design5, 6: design6,
+    7: design7, 8: design8, 9: design9, 10: design10, 11: design11, 12: design12 };
 
   // ---- page --------------------------------------------------------------------
 
@@ -371,6 +531,7 @@
     aside.dataset.rail = state.design;
     aside.innerHTML = DRAW[state.design](p);
     if (state.design === '6') markSectionRow(frame, p);
+    AFTER[state.design]?.(frame, p);
     followed = null;
     follow();
     const q = new URLSearchParams({ design: state.design, state: state.preset });
@@ -402,7 +563,19 @@
     document.body.append(el);
   }
 
+  const railDialog = (open) => {
+    const d = document.querySelector('[data-rail-dialog]');
+    if (!d) return;
+    d.hidden = !open;
+    if (open) d.querySelector('h2')?.focus();
+  };
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') railDialog(false); });
+
   document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-rail-dialog-open]')) { railDialog(true); return; }
+    if (e.target.closest('[data-rail-dialog-close]') || e.target.matches('[data-rail-dialog]')) { railDialog(false); return; }
+    // A link in the dialog lands on its section and closes the dialog.
+    if (e.target.closest('[data-rail-dialog] a[href^="#section-"]')) railDialog(false);
     const dismiss = e.target.closest('[data-dismiss]');
     if (dismiss) { dismiss.closest('[data-dismissable]')?.remove(); return; }
     const jump = e.target.closest('a[href^="#section-"]');

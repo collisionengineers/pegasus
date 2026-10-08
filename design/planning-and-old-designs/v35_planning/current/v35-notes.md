@@ -120,3 +120,43 @@ Items, restated for the six designs. Letters A to K keep their meaning; designs 
 - **N** (4, 6). A closed section row names what its section is missing, by name ("Vehicle registration · Vehicle make · …"). It is not a count, which FRD-13 rules out. Confirm.
 
 Self-check on 8 October 2026 after this round: `RESULT {"fail": [], "okCount": 2106}`, no console error: live and designs 1–6, seven states, three widths. Known limits as section 8; in addition the captured frame is an Inspection Case, so its section row has no Original report section.
+
+## 11. 8 October 2026, fourth round: Next action is one thing
+
+The operator: "It doesn't really make sense if it's 'next action' and then there's like 50 things." In designs 7 to 12 Next action holds exactly one step, and everything else outstanding lives somewhere else. The step is chosen this way:
+
+- the first Case requirement;
+- else the state's step (Assign Engineer, Generate report, Create audit);
+- else the first report blocker, as the Cases list's Current work already names it (`CaseNextAction.ReportStep`).
+
+The step is drawn in full: its words, source and reason, what clears it, and one full-width button. The AI draft and Cancellation received rows stay with it. Shots are `v35-shots/r4-NN-*.png`.
+
+| Design | Where the rest goes | Shots |
+| --- | --- | --- |
+| 7 · The rest in a dialog | Under the step, one "Report not ready ›" line opens a wide dialog. It lists the other requirements and every blocker in full, under their sections in two columns. A link lands on its section and closes the dialog. | r4-02, 08, 15, 22, 29 |
+| 8 · The rest in a closed card | A "Report not ready" card below Next action, closed until opened, with the same grouped list | r4-03, 09, 16, 23, 30 |
+| 9 · The rest on the page | No list in the rail. Each section with something missing opens with a "Report not ready" box listing what it is missing, in full. Each field the report needs carries an amber dot on its label, and the section row marks each such section. | r4-04, 10, 17, 24, 31 |
+| 10 · The rest in Report | Under the step, "Report not ready ›" links to the Report section. Report opens with the full list in three columns. | r4-05, 11, 18, 25, 32 |
+| 11 · A checklist of sections | A card lists every section in page order: a green tick when nothing is missing, otherwise the section's name and what it is missing, opening to each item in full. Requirements sit under the section that clears them. | r4-06, 12, 19, 26, 33 |
+| 12 · One step in a bar across the page | Next action leaves the aside for a bar above the sections: the step on one line with its button. "Report not ready" opens the full list below it across the page's width, in three columns. The aside keeps Figures. | r4-07, 13, 20, 27, 34 |
+
+Folded strip at 1440: r4-35 to 40. One column at 760: r4-41 to 46.
+
+New items:
+
+- **O** (7–12). Next action is one step, chosen as above. The other outstanding requirements and the report blockers are not in Next action. FRD-16 says the Next action carries the readiness list (issue 899, operator 28 September 2026), and FRD-13 says it lists every blocker With Engineer. Both would say the list lives where the chosen design puts it. Confirm, or keep the list in Next action (designs 1–6).
+- **P** (7). The list is a dialog opened from Next action. Confirm.
+- **Q** (8). The list is a card of its own, closed until opened. Confirm, or open.
+- **R** (9). There is no list in the rail. Each section opens with what it is missing, fields are marked on their labels, and the section row is marked (FRD-16 section row and section bodies). A blocker no section clears (the Sign-off account) sits with Case details. Confirm.
+- **S** (10). The list returns to the top of Report, which issue 899 moved it out of (operator, 28 September 2026). Confirm, or keep it out of Report.
+- **T** (11). A checklist of every section, with a green tick on each section missing nothing. The tick is a mark, not a count. Confirm.
+- **U** (12). Next action leaves the aside for a bar above the sections, and the aside keeps Figures (v25 decision 7 placed it in the aside). Confirm.
+
+Items A to N stand for designs 1 to 6. For 7 to 12, A (the step said once), B (step tone), C (no amber fill), J (every requirement listed) and K (Original report missing to Files) apply as drawn.
+
+Self-check on 8 October 2026 after this round: `RESULT {"fail": [], "okCount": 3925}`, no console error: live and designs 1–12, seven states, three widths. In 7 to 12 it also asserts that Next action holds at most one item.
+
+Known limits added this round:
+
+- Files is a lazily loaded placeholder in the capture, so design 9 gives it a bare head and body.
+- The captured fields show that Case's own values, so design 9 marks fields that are filled in on this frame.

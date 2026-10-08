@@ -1,14 +1,14 @@
 # v35 current: the Case aside's Next action
 
-**What this is.** An offline HTML mockup of the Case page's aside (Figures and Next action) as it is today and as six proposals, designs 1 to 6, made at the operator's request on 8 October 2026. It is a temporary design review artifact: not application code, not design authority and not implementation evidence. It is removed or kept by the operator's instruction in the final Stage 2 pull request.
+**What this is.** An offline HTML mockup of the Case page's aside (Figures and Next action) as it is today and as twelve proposals, made at the operator's request on 8 October 2026. In designs 7 to 12 Next action holds one step and the rest lives elsewhere. It is a temporary design review artifact: not application code, not design authority and not implementation evidence. It is removed or kept by the operator's instruction in the final Stage 2 pull request.
 
 **How to open it.** Open [pegasus_case_rail_v35.html](pegasus_case_rail_v35.html) in a browser. No server or network is needed.
 
 **Mockup controls.** The dark panel at the bottom left is a demo control, not product UI. It holds:
 
-- Design: Live today, or 1 grouped by section, 2 one line each, 3 Report not ready as its own card, 4 one row per section, 5 first item in full, 6 follows the page
+- Design: Live today, or 1 grouped by section, 2 one line each, 3 Report not ready as its own card, 4 one row per section, 5 first item in full, 6 follows the page; and with one step in Next action, 7 the rest in a dialog, 8 in a closed card, 9 on the page, 10 in Report, 11 a checklist of sections, 12 a bar across the page
 - Case state: Not ready with the original report, images and Case facts missing; Review with Assign Engineer and eleven blockers (the operator's screenshot); With Engineer with the same blockers; With Engineer with an AI draft, a cancellation and four blockers of the special kinds; Generate report; a stale generation; Create audit
-- Step control (1–6): secondary or primary button
+- Step control (1–12): secondary or primary button
 - Viewer: Administrator or User (the Accounts blocker links only for an Administrator)
 
 The mockup opens on the Not ready Case. Every choice is also reachable by query string, for example `?design=4&state=near&role=user`.
@@ -23,10 +23,10 @@ The mockup opens on the Not ready Case. Every choice is also reachable by query 
 | [lib/](lib/rail-v35-runtime.js) | The states, the four aside drawings and the design CSS |
 | [check-rail-v35.py](check-rail-v35.py) | Self-check and screenshot capture (Playwright) |
 | [verification.json](verification.json) | The dated self-check record |
-| [v35-shots/](v35-shots/r3-01-live-notready-1580.png) | Screenshots: `r3-*` for the six designs; the unprefixed ones are rounds 1 and 2 |
+| [v35-shots/](v35-shots/r3-01-live-notready-1580.png) | Screenshots: `r4-*` for designs 7–12, `r3-*` for 1–6 (`python check-rail-v35.py --r3`), unprefixed for rounds 1 and 2 |
 | [v35-notes.md](v35-notes.md) | What changes, live rules mirrored, departures, the sign-off list, known limits |
 | [discussion-log.md](discussion-log.md) | The operator's brief and each round |
 
 ## Status
 
-Awaiting the operator's choice of design and the lettered items in [v35-notes.md](v35-notes.md), sections 6, 9 and 10. Stage 2 has not started.
+Awaiting the operator's choice of design and the lettered items in [v35-notes.md](v35-notes.md), sections 6, 9, 10 and 11. Stage 2 has not started.

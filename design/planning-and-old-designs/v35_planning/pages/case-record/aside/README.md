@@ -1,10 +1,26 @@
 # Case record aside: Figures and Next action
 
-- **Mockup route:** `pegasus_case_rail_v35.html?design=<live|1|2|3|4|5|6>&state=<notready|review|engineer|near|ready|stale|audit>` in [`../../../current/`](../../../current/README.md)
+- **Mockup route:** `pegasus_case_rail_v35.html?design=<live|1–12>&state=<notready|review|engineer|near|ready|stale|audit>` in [`../../../current/`](../../../current/README.md)
 - **Live source:** `src/Pegasus.Web/Pages/Cases/Shared/_CaseAside.cshtml`
 - **Dialogs:** [`dialogs/`](dialogs/README.md) · **States:** [`states/`](states/README.md) · **Panels:** [`panels/`](panels/README.md)
 
 - [**How it works**](how-it-works.md) · [**How it should work**](how-it-should-work.md)
+
+## Screenshots, round 4 (one step in Next action)
+
+Not ready, missing everything, 1580: [live](../../../current/v35-shots/r4-01-live-notready-1580.png) · [7](../../../current/v35-shots/r4-02-7-notready-1580.png) · [8](../../../current/v35-shots/r4-03-8-notready-1580.png) · [9](../../../current/v35-shots/r4-04-9-notready-1580.png) · [10](../../../current/v35-shots/r4-05-10-notready-1580.png) · [11](../../../current/v35-shots/r4-06-11-notready-1580.png) · [12](../../../current/v35-shots/r4-07-12-notready-1580.png)
+
+The rest opened: [7 dialog](../../../current/v35-shots/r4-08-7-notready-dialog-1580.png) · [8 card](../../../current/v35-shots/r4-09-8-notready-open-1580.png) · [9 Vehicle section](../../../current/v35-shots/r4-10-9-notready-vehicle-1580.png) · [10 Report](../../../current/v35-shots/r4-11-10-notready-report-1580.png) · [11 Vehicle row](../../../current/v35-shots/r4-12-11-notready-open-1580.png) · [12 bar](../../../current/v35-shots/r4-13-12-notready-open-1580.png)
+
+Review, 1580: [live](../../../current/v35-shots/r4-14-live-review-1580.png) · [7](../../../current/v35-shots/r4-15-7-review-1580.png) · [8](../../../current/v35-shots/r4-16-8-review-1580.png) · [9](../../../current/v35-shots/r4-17-9-review-1580.png) · [10](../../../current/v35-shots/r4-18-10-review-1580.png) · [11](../../../current/v35-shots/r4-19-11-review-1580.png) · [12](../../../current/v35-shots/r4-20-12-review-1580.png)
+
+With Engineer, the first blocker as the step, 1580: [live](../../../current/v35-shots/r4-21-live-engineer-1580.png) · [7](../../../current/v35-shots/r4-22-7-engineer-1580.png) · [8](../../../current/v35-shots/r4-23-8-engineer-1580.png) · [9](../../../current/v35-shots/r4-24-9-engineer-1580.png) · [10](../../../current/v35-shots/r4-25-10-engineer-1580.png) · [11](../../../current/v35-shots/r4-26-11-engineer-1580.png) · [12](../../../current/v35-shots/r4-27-12-engineer-1580.png)
+
+AI draft, cancellation and four special blockers, 1580: [live](../../../current/v35-shots/r4-28-live-near-1580.png) · [7](../../../current/v35-shots/r4-29-7-near-1580.png) · [8](../../../current/v35-shots/r4-30-8-near-1580.png) · [9](../../../current/v35-shots/r4-31-9-near-1580.png) · [10](../../../current/v35-shots/r4-32-10-near-1580.png) · [11](../../../current/v35-shots/r4-33-11-near-1580.png) · [12](../../../current/v35-shots/r4-34-12-near-1580.png)
+
+Folded strip, 1440: [7](../../../current/v35-shots/r4-35-7-notready-1440.png) · [8](../../../current/v35-shots/r4-36-8-notready-1440.png) · [9](../../../current/v35-shots/r4-37-9-notready-1440.png) · [10](../../../current/v35-shots/r4-38-10-notready-1440.png) · [11](../../../current/v35-shots/r4-39-11-notready-1440.png) · [12](../../../current/v35-shots/r4-40-12-notready-1440.png)
+
+One column, 760: [7](../../../current/v35-shots/r4-41-7-notready-760.png) · [8](../../../current/v35-shots/r4-42-8-notready-760.png) · [9](../../../current/v35-shots/r4-43-9-notready-760.png) · [10](../../../current/v35-shots/r4-44-10-notready-760.png) · [11](../../../current/v35-shots/r4-45-11-notready-760.png) · [12](../../../current/v35-shots/r4-46-12-notready-760.png)
 
 ## Screenshots, round 3 (six designs)
 

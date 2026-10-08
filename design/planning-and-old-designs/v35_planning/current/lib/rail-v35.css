@@ -101,3 +101,58 @@ a.rail-row:hover,button.rail-row:hover{background:var(--surface-2);text-decorati
 .v35-mock select{width:100%;min-width:0;min-height:28px;border-radius:3px;border:1px solid #55524c;background:#2a2a2d;color:#f3f1ec;font:inherit;padding:2px 6px}
 .v35-mock p{margin:0;color:#a8a49b;line-height:1.5}
 @media print{.v35-mock{display:none}}
+
+/* ==== round 4: Next action is one thing ==== */
+.rail-first--step strong{font-size:13.5px}
+.rail-open{display:flex;align-items:center;gap:6px;width:100%;margin-top:10px;padding:8px 0 0;border:0;border-top:1px solid var(--line);background:none;font:inherit;font-size:11.5px;font-weight:650;color:var(--muted);text-align:left;text-decoration:none;cursor:pointer}
+.rail-open:hover{color:var(--ink);text-decoration:none}
+.rail-open .icon{width:14px;height:14px;flex:none}
+.rail-open>.icon:first-child{color:var(--amber)}
+.rail-open>span{flex:1}
+
+/* 7: the dialog; the groups run in two columns */
+.rail-dialog .dialog-body .rail-groups{columns:2;column-gap:24px}
+.rail-dialog .rail-group{break-inside:avoid;margin:0 0 10px}
+.rail-dialog .rail-group+.rail-group{margin-top:0}
+@media(max-width:760px){.rail-dialog .dialog-body .rail-groups{columns:1}}
+
+/* 8: the closed card */
+[data-rail-checklist] .panel-head h2.rail-head,.rail-fold>summary.panel-head h2.rail-head{margin:0;font-size:inherit;color:inherit;text-transform:none;letter-spacing:0;font-weight:inherit}
+[data-rail-checklist] .panel-head h2.rail-head .icon,.rail-fold>summary.panel-head h2.rail-head .icon{width:15px;height:15px}
+.rail-fold>summary.panel-head::-webkit-details-marker{display:none}
+
+/* 9: each section opens with what it is missing; fields and tabs marked */
+.rail-here{margin:0 0 12px;padding:8px 12px;border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:var(--radius)}
+.rail-here .rail-items{columns:2;column-gap:24px}
+.rail-here .rail-item{break-inside:avoid}
+.rail-here .rail-item+.rail-item{border-top:0}
+.lbl .rail-field-mark{display:inline-block;width:6px;height:6px;margin-left:5px;border-radius:50%;background:var(--amber);vertical-align:1px}
+@media(max-width:760px){.rail-here .rail-items{columns:1}}
+
+/* 10: the rest at the top of Report, in columns */
+.rail-report{margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:var(--radius)}
+.rail-report .rail-groups,.rail-bar-list .rail-groups{columns:3;column-gap:24px}
+.rail-report .rail-group,.rail-bar-list .rail-group{break-inside:avoid;margin:0 0 10px}
+.rail-report .rail-group+.rail-group,.rail-bar-list .rail-group+.rail-group{margin-top:0}
+@media(max-width:1440px){.rail-report .rail-groups,.rail-bar-list .rail-groups{columns:2}}
+@media(max-width:760px){.rail-report .rail-groups,.rail-bar-list .rail-groups{columns:1}}
+
+/* 11: the checklist of sections */
+.rail-check--done{display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid var(--line)}
+.rail-check--done .icon{width:14px;height:14px;color:var(--green);flex:none}
+.rail-check--done .rail-name{font-weight:500;color:var(--muted)}
+.rail-check-other{margin-top:8px}
+
+/* 12: the bar across the page */
+.rail-bar{margin:0 0 12px;padding:10px 14px;border-left:3px solid var(--amber)}
+.rail-bar-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.rail-bar-title{margin:0;font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.08em;white-space:nowrap}
+.rail-bar-what{display:grid;gap:2px;flex:1;min-width:200px}
+.rail-bar-what strong{font-size:13.5px;font-weight:650}
+.rail-bar-what small{font-size:11px;color:var(--muted);line-height:1.4}
+.rail-bar-extras{display:grid;gap:6px;min-width:240px}
+.rail-bar-extras .next-row+.next-row{margin-top:0}
+.rail-bar-more>summary{list-style:none;width:auto}
+.rail-bar-more>summary::-webkit-details-marker{display:none}
+.rail-bar-more[open]>summary>.icon:last-child{transform:rotate(180deg)}
+.rail-bar-list{padding-top:10px}
