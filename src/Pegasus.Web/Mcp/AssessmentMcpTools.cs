@@ -227,7 +227,7 @@ internal sealed class AssessmentMcpTools(
         [Description("The retained document's occurrence identifier (from pegasus_case_get).")] Guid occurrenceId,
         [Description("The retained document's exact version identifier.")] Guid documentVersionId,
         [Description("The retained document's SHA-256, as pegasus_case_get and the download report it.")] string sha256,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.AssessmentScope, cancellationToken);
@@ -287,7 +287,7 @@ internal sealed class AssessmentMcpTools(
         [Description("Override of which categories carry VAT: any of Labour, Parts, Materials, Specialist; an empty list charges none.")] IReadOnlyList<string>? vatCategories = null,
         [Description("Discounts by category, each a fraction of one (0.1 is 10%).")] EstimateDiscountsToolInput? discounts = null,
         [Description("Whether the regional labour uplift applies.")] bool? regionalUplift = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(
@@ -425,7 +425,7 @@ internal sealed class AssessmentMcpTools(
         [Description("scale: the lowest labour rate per hour scaling may reach; defaults to 50.")] decimal? floorLabourRate = null,
         [Description("scale: the lowest percentage of a price scaling may reach; defaults to 65.")] decimal? floorPricePercent = null,
         [Description("restore: the snapshot to restore.")] Guid? snapshotId = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.AssessmentScope, cancellationToken);
@@ -585,8 +585,8 @@ internal sealed class AssessmentMcpTools(
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same result.")] string operationKey,
         [Description("Why these values are being recorded (case history reason, at most 500 characters).")] string reason,
-        [Description("Scalar assessment values keyed by field path, limited to fields staff can record on the Case; a null value clears the field.")] Dictionary<string, string?>? fields = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description("Assessment values keyed by field path, each as a string, limited to fields staff can record on the Case; a null value clears the field. An enumerated field takes one of its codes, and damage.impacts takes a JSON array in the format pegasus_vocabulary_get gives for it.")] Dictionary<string, string?>? fields = null,
+        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(

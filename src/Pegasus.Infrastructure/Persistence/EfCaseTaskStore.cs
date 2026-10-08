@@ -126,7 +126,7 @@ public sealed class EfCaseTaskStore(
         context.CaseTasks.Add(task);
         var beforeCaseVersion = workflow.Version;
         workflow.Version = checked(workflow.Version + 1);
-        ClearLease(workflow);
+        CaseMutationGuard.EndWriteLease(workflow);
         var result = Map(task, workflow.Version);
         AddHistory(
             context,
@@ -255,7 +255,7 @@ public sealed class EfCaseTaskStore(
         var beforeCaseVersion = workflow.Version;
         task.Version = checked(task.Version + 1);
         workflow.Version = checked(workflow.Version + 1);
-        ClearLease(workflow);
+        CaseMutationGuard.EndWriteLease(workflow);
         var result = Map(task, workflow.Version);
         AddHistory(
             context,
@@ -349,9 +349,6 @@ public sealed class EfCaseTaskStore(
         string token,
         DateTimeOffset now) =>
         CaseMutationGuard.RequireLease(workflow, actor, token, now);
-
-    private static void ClearLease(CaseWorkflowEntity workflow) =>
-        CaseMutationGuard.ClearLease(workflow);
 
     private static void AddHistory(
         PegasusDbContext context,

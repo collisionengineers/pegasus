@@ -68,7 +68,7 @@ internal sealed class DocumentActionMcpTools(
         [Description("retry_custody: case_source (the Case's own Box folder) or audit_reference (the Audit's a. folder).")] string? retryTarget = null,
         [Description("create_image_tag: the new tag's name (at most 40 characters, unique without regard to case).")] string? tagName = null,
         [Description("create_image_tag: the tag's colour, one of Blue, Green, Amber, Navy, Red or Grey.")] string? tagColour = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
