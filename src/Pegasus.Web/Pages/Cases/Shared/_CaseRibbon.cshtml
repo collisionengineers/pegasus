@@ -29,9 +29,6 @@
     // one is offered; the ribbon names them and offers Take over.
     var mayAct = !Model.ColleagueIsEditing;
     var mayActOnCaseData = mayAct && !Model.IsPostReportReadOnly;
-    var registration = string.IsNullOrWhiteSpace(summary.Registration)
-        ? "No registration"
-        : summary.Registration!;
     var canAssignEngineer = Model.CanAssignEngineer;
     // The confirmation is a lease-carrying Core action; without detected
     // evidence there is nothing to confirm (D10: a send is never asserted here).
@@ -69,8 +66,15 @@
 <div class="ribbon" aria-label="Case identity">
     <div class="ribbon-facts" data-case-ribbon-facts>
         <div class="ribbon-item ribbon-ref">
-            <div class="ribbon-label">Case workspace · @registration</div>
+            <div class="ribbon-label">Case workspace</div>
             <h1 class="ribbon-value">@workflow.Identity.Reference</h1>
+        </div>
+        @* The registration has its own cell (operator, 8 October 2026),
+           as on the Triage Case ribbon; above 1100px it takes its natural
+           width so the other facts keep theirs. *@
+        <div class="ribbon-item ribbon-registration">
+            <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonRegistration</div>
+            <div class="ribbon-value mono"><span>@(string.IsNullOrWhiteSpace(summary.Registration) ? OperatorLabels.CaseWorkspace.AbsentValue : summary.Registration)</span></div>
         </div>
         <div class="ribbon-item">
             <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonClaimant</div>

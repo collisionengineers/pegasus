@@ -44,8 +44,9 @@ Case at the same route renders as the Triage Case page instead
 
 **The ribbon** travels with the page as it scrolls. It shows:
 
-- the Case/PO as the page heading, under "Case workspace · registration";
-- claimant, principal and Engineer;
+- the Case/PO as the page heading, under "Case workspace";
+- registration, claimant, principal and Engineer (the registration has its
+  own cell, operator, 8 October 2026);
 - chips for state, Case type (Audit, Inspection + Audit) and, while someone
   else holds the edit lease, "{name} is editing" with a lock. A held Case
   reads "Held · review on {date}" when the hold has a review date;
