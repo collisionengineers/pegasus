@@ -152,7 +152,7 @@ public static class AssessmentReportProjection
         var assessedOn = Ready(owned.InspectionDate, "inspection date");
         var assessmentMethod = MapAssessmentMethod(owned.InspectionMode)
             ?? throw new InvalidDataException("A ready report is missing its inspection type.");
-        var reportOutcome = MapOutcome(Field(fields, AssessmentVocabulary.Outcome)!);
+        var reportOutcome = AssessmentReportOutcomes.Parse(Field(fields, AssessmentVocabulary.Outcome)!);
         var signatory = input.Signatory!;
 
         var snapshot = new AssessmentReportSnapshot(
@@ -341,15 +341,6 @@ public static class AssessmentReportProjection
         "PhysicalAddress" => "physical",
         "ImageBasedAssessment" => "image_based",
         _ => null,
-    };
-
-    private static AssessmentReportOutcome MapOutcome(string value) => value switch
-    {
-        "total_loss" => AssessmentReportOutcome.TotalLoss,
-        "repairable" => AssessmentReportOutcome.Repairable,
-        "cash_in_lieu" => AssessmentReportOutcome.CashInLieu,
-        "contract_repair" => AssessmentReportOutcome.ContractRepair,
-        _ => throw new InvalidOperationException($"Unrecognized assessment outcome '{value}'."),
     };
 
     private static decimal? ParseMoney(string? value) =>

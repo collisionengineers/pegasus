@@ -49,7 +49,7 @@ public static class MailTaxonomy
             [ReceivedMailFamily.InProgressCases] =
                 [MailCategory.CancellationSubtype, "case-update", "chasing-for-update", "ongoing-correspondence"],
             [ReceivedMailFamily.PostReportEmails] =
-                ["query", "dispute", "amendment-request"],
+                ["query", MailCategory.DisputeSubtype, MailCategory.AmendmentRequestSubtype],
             [ReceivedMailFamily.PreInstructionEmails] =
                 [MailCategory.TriageRequestSubtype, "pre-formal-instruction-request", MailCategory.ImagesReceivedSubtype],
             [ReceivedMailFamily.InternalCc] = []
@@ -112,6 +112,12 @@ public sealed record MailCategory
     public const string TriageRequestSubtype = "triage-request";
     public const string CancellationSubtype = "cancellation";
     public const string ImagesReceivedSubtype = "images-received";
+
+    /// <summary>Post-report mail disputing the report: one of MI-01's and the Case list's queries.</summary>
+    public const string DisputeSubtype = "dispute";
+
+    /// <summary>Post-report mail asking for the report to be amended: one of MI-01's and the Case list's queries.</summary>
+    public const string AmendmentRequestSubtype = "amendment-request";
 
     private MailCategory(
         MailDirection direction,

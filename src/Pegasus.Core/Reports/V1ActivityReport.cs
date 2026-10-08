@@ -22,16 +22,12 @@ public sealed record PrincipalReportActivity(
     int CurrentHeldCases,
     DateTimeOffset? OldestHeldAtUtc,
     int HeldWithoutRecordedHoldEvent,
-    IReadOnlyList<PrincipalReportArtifactTypeActivity> ArtifactTypes,
+    int ReportsProduced,
     decimal AgreedFeeTotal = 0,
     int AuditReportsProduced = 0,
     int AuditSent = 0,
     decimal AuditAgreedFeeTotal = 0)
 {
-    public int ReportsProduced => ArtifactTypes
-        .Where(type => type.Kind == nameof(CaseReportArtifactKind.AssessmentReport))
-        .Sum(type => type.Generated);
-
     // MI-02: each total splits into Inspection and Audit reports
     // (CaseWorkPolicy.IsAuditReport decides which).
     public int InspectionReportsProduced => ReportsProduced - AuditReportsProduced;
@@ -47,11 +43,6 @@ public static class FirstReportFeeAttribution
     public static bool InPeriod(DateTimeOffset firstReportAtUtc, DateTimeOffset fromUtc, DateTimeOffset toUtc) =>
         firstReportAtUtc >= fromUtc && firstReportAtUtc < toUtc;
 }
-
-public sealed record PrincipalReportArtifactTypeActivity(
-    string Kind,
-    int Generated,
-    int PendingOrFailed);
 
 public sealed record PrincipalReportActivityReport(
     DateTimeOffset FromUtc,
@@ -119,9 +110,7 @@ public sealed class GetV1ActivityReport(IV1ActivityReportQueries queries)
         || row.HeldWithoutRecordedHoldEvent < 0
         || row.HeldWithoutRecordedHoldEvent > row.CurrentHeldCases
         || row.AgreedFeeTotal < 0
-        || row.ArtifactTypes is null
-        || row.ArtifactTypes.Any(x => string.IsNullOrWhiteSpace(x.Kind)
-            || x.Generated < 0 || x.PendingOrFailed < 0)
+        || row.ReportsProduced < 0
         // MI-02's Audit share is part of each total.
         || row.AuditReportsProduced < 0
         || row.AuditReportsProduced > row.ReportsProduced
