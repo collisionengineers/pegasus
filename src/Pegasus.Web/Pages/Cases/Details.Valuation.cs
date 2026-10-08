@@ -205,7 +205,7 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The value-increase rows, in the order the screen draws them in both
-    /// modes: read mode shows the preset rows and the applied ones.
+    /// modes: read mode shows only the applied ones.
     /// </summary>
     public IReadOnlyList<ValuationIncreaseRow> ValuationIncreaseRows => valuationIncreaseRows ??= IncreaseRows();
 
