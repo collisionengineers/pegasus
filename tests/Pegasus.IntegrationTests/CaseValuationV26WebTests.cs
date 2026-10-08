@@ -726,8 +726,8 @@ public sealed class CaseValuationV26WebTests
 
     /// <summary>
     /// The calculator opens on the recorded calculation while the Engineer's
-    /// Value holds its figure, in both modes: read mode ticks the applied
-    /// increase among every preset, and editing starts from the same
+    /// Value holds its figure, in both modes: read mode lists only the
+    /// applied increase, and editing starts from the same
     /// selection rather than from blank. The Engineer's Value label carries
     /// the recorded source as its one word, the section head reads the saved
     /// figure, and each adjustment's amount stands in its own cell.
@@ -743,7 +743,7 @@ public sealed class CaseValuationV26WebTests
         valuation.SetApplied(glasses, towBar, 175m);
 
         var read = await ReadValuationAsync(store, valuation);
-        Assert.Contains("Roof bars", read, StringComparison.Ordinal);
+        Assert.DoesNotContain("Roof bars", read, StringComparison.Ordinal);
         Assert.Single(Regex.Matches(read, "data-valuation-applied-addition=\"true\"", RegexOptions.CultureInvariant));
         var decoded = WebUtility.HtmlDecode(read);
         Assert.Matches("<span class=\"src-tag\" data-valuation-recorded-word>Glass's</span>", decoded);
