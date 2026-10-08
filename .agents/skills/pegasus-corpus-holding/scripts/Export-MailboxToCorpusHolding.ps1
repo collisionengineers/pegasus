@@ -20,10 +20,10 @@
     applied to the returned results instead.
 
     .EXAMPLE
-    pwsh ./scripts/Export-MailboxToCorpusHolding.ps1 -Mailbox desk@collisionengineers.co.uk -Folder inbox -First 5
+    pwsh ./.agents/skills/pegasus-corpus-holding/scripts/Export-MailboxToCorpusHolding.ps1 -Mailbox desk@collisionengineers.co.uk -Folder inbox -First 5
 
     .EXAMPLE
-    pwsh ./scripts/Export-MailboxToCorpusHolding.ps1 -Mailbox info@collisionengineers.co.uk,engineers@collisionengineers.co.uk -Since 2026-09-01 -Search 'QDOS' -First 200 -WhatIf
+    pwsh ./.agents/skills/pegasus-corpus-holding/scripts/Export-MailboxToCorpusHolding.ps1 -Mailbox info@collisionengineers.co.uk,engineers@collisionengineers.co.uk -Since 2026-09-01 -Search 'QDOS' -First 200 -WhatIf
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param(
