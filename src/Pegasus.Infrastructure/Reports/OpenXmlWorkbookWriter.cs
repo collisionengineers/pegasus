@@ -10,7 +10,7 @@ namespace Pegasus.Infrastructure.Reports;
 /// <summary>
 /// Writes Core's typed sheets as one .xlsx: a bold frozen header with a
 /// filter, typed cells (numbers stay numbers, money and durations carry a
-/// number format, instants are spreadsheet dates), sized columns and, where a
+/// number format, instants and dates are spreadsheet dates), sized columns and, where a
 /// sheet asks for them, SUM formulas under every Count and Money column.
 /// </summary>
 public sealed class OpenXmlWorkbookWriter : IWorkbookWriter
@@ -24,6 +24,7 @@ public sealed class OpenXmlWorkbookWriter : IWorkbookWriter
     private const uint TotalIntegerStyle = 6;
     private const uint TotalMoneyStyle = 7;
     private const uint TotalTextStyle = 8;
+    private const uint DateStyle = 9;
 
     public byte[] Write(IReadOnlyList<WorkbookSheet> sheets)
     {
@@ -157,6 +158,8 @@ public sealed class OpenXmlWorkbookWriter : IWorkbookWriter
             case WorkbookColumnKind.Duration when value is TimeSpan duration:
                 // A spreadsheet duration is a fraction of a day.
                 return new Cell { CellReference = reference, StyleIndex = DurationStyle, DataType = CellValues.Number, CellValue = new CellValue(duration.TotalDays.ToString("R", CultureInfo.InvariantCulture)) };
+            case WorkbookColumnKind.Date when value is DateOnly date:
+                return new Cell { CellReference = reference, StyleIndex = DateStyle, DataType = CellValues.Number, CellValue = new CellValue(date.ToDateTime(TimeOnly.MinValue).ToOADate().ToString("R", CultureInfo.InvariantCulture)) };
             case WorkbookColumnKind.DateTime when value is DateTimeOffset instant:
                 return new Cell { CellReference = reference, StyleIndex = DateTimeStyle, DataType = CellValues.Number, CellValue = new CellValue(LondonCalendar.LocalAt(instant).DateTime.ToOADate().ToString("R", CultureInfo.InvariantCulture)) };
             default:
@@ -178,6 +181,7 @@ public sealed class OpenXmlWorkbookWriter : IWorkbookWriter
         string text => text,
         TimeSpan duration => duration.ToString("c", CultureInfo.InvariantCulture),
         DateTimeOffset instant => instant.ToString("u", CultureInfo.InvariantCulture),
+        DateOnly date => date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture),
         IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
         _ => value.ToString() ?? string.Empty
     };
@@ -222,8 +226,9 @@ public sealed class OpenXmlWorkbookWriter : IWorkbookWriter
             new NumberingFormat { NumberFormatId = 164, FormatCode = "#,##0" },
             new NumberingFormat { NumberFormatId = 165, FormatCode = "\"£\"#,##0.00" },
             new NumberingFormat { NumberFormatId = 166, FormatCode = "[h]:mm" },
-            new NumberingFormat { NumberFormatId = 167, FormatCode = "dd mmm yyyy hh:mm" })
-        { Count = 4 };
+            new NumberingFormat { NumberFormatId = 167, FormatCode = "dd mmm yyyy hh:mm" },
+            new NumberingFormat { NumberFormatId = 168, FormatCode = "dd mmm yyyy" })
+        { Count = 5 };
         var cellFormats = new CellFormats(
             new CellFormat(),
             new CellFormat { FontId = 1, FillId = 2, ApplyFont = true, ApplyFill = true },
@@ -233,8 +238,9 @@ public sealed class OpenXmlWorkbookWriter : IWorkbookWriter
             new CellFormat { NumberFormatId = 167, ApplyNumberFormat = true },
             new CellFormat { NumberFormatId = 164, FontId = 1, BorderId = 1, ApplyNumberFormat = true, ApplyFont = true, ApplyBorder = true },
             new CellFormat { NumberFormatId = 165, FontId = 1, BorderId = 1, ApplyNumberFormat = true, ApplyFont = true, ApplyBorder = true },
-            new CellFormat { FontId = 1, BorderId = 1, ApplyFont = true, ApplyBorder = true })
-        { Count = 9 };
+            new CellFormat { FontId = 1, BorderId = 1, ApplyFont = true, ApplyBorder = true },
+            new CellFormat { NumberFormatId = 168, ApplyNumberFormat = true })
+        { Count = 10 };
         return new Stylesheet(numberFormats, fonts, fills, borders, cellFormats);
     }
 }

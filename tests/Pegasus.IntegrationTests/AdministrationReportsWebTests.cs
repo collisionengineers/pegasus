@@ -197,6 +197,146 @@ public sealed class AdministrationReportsWebTests
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    [Fact]
+    public async Task ThePageIsManagementReportsAndOffersTheCaseListWithoutReportTypes()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = CreateClient(factory);
+
+        var html = await client.GetStringAsync(Page);
+
+        Assert.Contains("<title>Management Reports", html, StringComparison.Ordinal);
+        Assert.Contains("data-case-list", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"case.reference\" checked=\"checked\"", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"original.agrees\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("value=\"original.agrees\" checked", html, StringComparison.Ordinal);
+        Assert.Contains("handler=CaseListCsv", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Report types", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheCaseListDownloadsTheChosenColumnsAsCsvAndWorkbook()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = CreateClient(factory);
+        var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync(Page));
+
+        using var csv = await client.PostAsync($"{Page}?handler=CaseListCsv", CaseListForm(token, ("AllTime", "true"), ("Columns", "case.type"), ("Columns", "case.reference")));
+
+        Assert.Equal(HttpStatusCode.OK, csv.StatusCode);
+        Assert.Equal("case-list-all-time.csv", csv.Content.Headers.ContentDisposition!.FileName!.Trim('"'));
+        Assert.StartsWith("Case/PO,Case type\r\n", await csv.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        using var workbook = await client.PostAsync($"{Page}?handler=CaseListWorkbook", CaseListForm(
+            token, ("ReceivedFrom", "2031-04-01"), ("ReceivedTo", "2031-04-30"), ("Columns", "case.received")));
+
+        Assert.Equal(HttpStatusCode.OK, workbook.StatusCode);
+        Assert.Equal("case-list-2031-04-01-2031-04-30.xlsx", workbook.Content.Headers.ContentDisposition!.FileName!.Trim('"'));
+        using var stream = new MemoryStream(await workbook.Content.ReadAsByteArrayAsync());
+        using var document = SpreadsheetDocument.Open(stream, false);
+        Assert.Equal(CaseListTables.SheetName, document.WorkbookPart!.Workbook!.Sheets!.Elements<Sheet>().Single().Name!.Value);
+    }
+
+    [Fact]
+    public async Task ARefusedCaseListTellsAScriptWhyAndShowsThePageWithoutOne()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = CreateClient(factory);
+        var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync(Page));
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{Page}?handler=CaseListCsv")
+        {
+            Content = CaseListForm(token, ("AllTime", "true"))
+        };
+        request.Headers.Add("X-Requested-With", "fetch");
+        using var scripted = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, scripted.StatusCode);
+        Assert.Equal("text/plain", scripted.Content.Headers.ContentType!.MediaType);
+        Assert.Equal("Choose at least one column.", await scripted.Content.ReadAsStringAsync());
+
+        using var plain = await client.PostAsync($"{Page}?handler=CaseListCsv", CaseListForm(
+            token, ("ReceivedFrom", "2031-04-01"), ("Columns", "case.reference")));
+
+        Assert.Equal(HttpStatusCode.OK, plain.StatusCode);
+        var html = await plain.Content.ReadAsStringAsync();
+        Assert.Contains("Choose both received dates", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"case.reference\" checked=\"checked\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task APresetIsSavedChosenUpdatedAndRemoved()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = CreateClient(factory);
+        var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync(Page));
+        var presetId = Guid.NewGuid();
+
+        using var created = await client.PostAsync($"{Page}?handler=CaseListPresetCreate", CaseListForm(
+            token,
+            ("PresetName", "Invoicing"),
+            ("NewPresetId", presetId.ToString("D")),
+            ("OperationKey", Guid.NewGuid().ToString("N")),
+            ("Columns", "case.reference"),
+            ("Columns", "agreed_fee.inspection")));
+
+        Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
+        Assert.Contains($"preset={presetId:D}", created.Headers.Location!.OriginalString, StringComparison.Ordinal);
+        var chosen = await client.GetStringAsync($"{Page}?preset={presetId:D}");
+        Assert.Contains("value=\"agreed_fee.inspection\" checked=\"checked\"", chosen, StringComparison.Ordinal);
+        Assert.DoesNotContain("value=\"case.type\" checked", chosen, StringComparison.Ordinal);
+        Assert.Contains("value=\"Invoicing\"", chosen, StringComparison.Ordinal);
+
+        using var duplicate = await client.PostAsync($"{Page}?handler=CaseListPresetCreate", CaseListForm(
+            token,
+            ("PresetName", "invoicing"),
+            ("NewPresetId", Guid.NewGuid().ToString("D")),
+            ("OperationKey", Guid.NewGuid().ToString("N")),
+            ("Columns", "case.reference")));
+
+        Assert.Equal(HttpStatusCode.OK, duplicate.StatusCode);
+        Assert.Contains("Another preset already has that name.", await duplicate.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        using var saved = await client.PostAsync($"{Page}?handler=CaseListPresetSave", CaseListForm(
+            token,
+            ("PresetId", presetId.ToString("D")),
+            ("ExpectedVersion", "1"),
+            ("PresetName", "Invoicing"),
+            ("OperationKey", Guid.NewGuid().ToString("N")),
+            ("Columns", "case.type")));
+
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        Assert.Contains("value=\"case.type\" checked=\"checked\"", await client.GetStringAsync($"{Page}?preset={presetId:D}"), StringComparison.Ordinal);
+
+        using var removed = await client.PostAsync($"{Page}?handler=CaseListPresetRemove", CaseListForm(
+            token,
+            ("PresetId", presetId.ToString("D")),
+            ("ExpectedVersion", "2"),
+            ("OperationKey", Guid.NewGuid().ToString("N"))));
+
+        Assert.Equal(HttpStatusCode.Redirect, removed.StatusCode);
+        Assert.DoesNotContain(">Invoicing</option>", await client.GetStringAsync(Page), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NonAdministratorsCannotDownloadTheCaseListOrKeepPresets()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = CreateClient(factory);
+        var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync(Page));
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
+
+        foreach (var handler in new[] { "CaseListCsv", "CaseListWorkbook", "CaseListPresetCreate" })
+        {
+            using var response = await client.PostAsync($"{Page}?handler={handler}", CaseListForm(
+                token, ("AllTime", "true"), ("Columns", "case.reference"), ("PresetName", "Mine"), ("OperationKey", Guid.NewGuid().ToString("N"))));
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+    }
+
+    private static FormUrlEncodedContent CaseListForm(string token, params (string Name, string Value)[] fields) =>
+        new([new("__RequestVerificationToken", token), .. fields.Select(field => new KeyValuePair<string, string>(field.Name, field.Value))]);
+
     private static HttpClient CreateClient(IntakeWebApplicationFactory factory) =>
         factory.CreateClient(new WebApplicationFactoryClientOptions
         {

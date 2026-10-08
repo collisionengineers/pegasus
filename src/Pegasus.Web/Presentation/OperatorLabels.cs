@@ -382,7 +382,7 @@ public static class OperatorLabels
 
         // C08 shell administration areas start
         public const string AiJobs = "AI jobs";
-        public const string Reports = "Reports";
+        public const string Reports = "Management Reports";
         public const string Health = "Service health";
         public const string ValuationPresets = "Valuation presets";
         // C08 shell administration areas end
@@ -716,17 +716,6 @@ public static class OperatorLabels
 
         return Duration(duration);
     }
-
-    /// <summary>
-    /// The plain name for a generated report's kind, as persisted from
-    /// <see cref="Pegasus.Core.Reports.CaseReportArtifactKind"/>.
-    /// </summary>
-    public static string ReportKind(string kind) => kind switch
-    {
-        nameof(Pegasus.Core.Reports.CaseReportArtifactKind.AssessmentReport) => "Report",
-        nameof(Pegasus.Core.Reports.CaseReportArtifactKind.FeeNote) => "Fee note",
-        _ => Humanise(kind)
-    };
 
     /// <summary>The stage name for a persisted stage string, however stored.</summary>
     public static string CaseStage(string? state) =>
@@ -1971,6 +1960,48 @@ public static class OperatorLabels
 
         /// <summary>A salvage category as the Case names it: "Cat S".</summary>
         public static string SalvageCategory(string code) => $"Cat {code}";
+    }
+
+    /// <summary>Management Reports' Case list (MI-04) and its presets — one list.</summary>
+    public static class CaseList
+    {
+        public const string Title = "Case list";
+        public const string Note = "One row per Case received in the period, open or closed. N/A means the column does not apply to that Case type; a blank cell means nothing is recorded yet.";
+        public const string ReceivedFrom = "Received from";
+        public const string ReceivedTo = "Received to";
+        public const string AllTime = "All time";
+        public const string IncludeTriage = "Include Triage Cases";
+        public const string Preset = "Preset";
+        public const string NoPreset = "No preset";
+        public const string UsePreset = "Use preset";
+        public const string PresetName = "Preset name";
+        public const string SaveAsNewPreset = "Save as new preset";
+        public const string SavePreset = "Save preset";
+        public const string RemovePreset = "Remove preset";
+        public const string PresetsUnavailable = "Presets are unavailable.";
+        public const string Unavailable = "The Case list is unavailable.";
+        public const string ChooseColumns = "Choose at least one column.";
+        public const string ChoosePeriod = "Choose both received dates, the first no later than the second, or All time.";
+        public const string PresetCreated = "The preset was saved.";
+        public const string PresetSaved = "The preset was updated.";
+        public const string PresetRemoved = "The preset was removed.";
+        public const string PresetNameRequired = "Enter a preset name of up to 100 characters.";
+        public const string PresetDuplicateName = "Another preset already has that name.";
+        public const string PresetNotFound = "That preset no longer exists.";
+        public const string PresetStale = "The preset changed after this page was loaded. Choose it again and retry.";
+        public const string PresetExpired = "The form has expired. Retry the operation.";
+        public const string PresetNotAccepted = "The preset change was not accepted.";
+
+        public static string Group(Pegasus.Core.Reports.CaseListColumnGroup group) => group switch
+        {
+            Pegasus.Core.Reports.CaseListColumnGroup.Case => "Case",
+            Pegasus.Core.Reports.CaseListColumnGroup.Outcomes => "Outcomes",
+            Pegasus.Core.Reports.CaseListColumnGroup.Engineers => "Engineers",
+            Pegasus.Core.Reports.CaseListColumnGroup.ClaimAndVehicle => "Claim and vehicle",
+            Pegasus.Core.Reports.CaseListColumnGroup.Money => "Money",
+            Pegasus.Core.Reports.CaseListColumnGroup.PartiesAndActivity => "Parties and activity",
+            _ => Humanise(group.ToString())
+        };
     }
 
     /// <summary>The Mail settings area labels and status values — one list.</summary>

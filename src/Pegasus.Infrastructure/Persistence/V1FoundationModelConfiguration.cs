@@ -43,6 +43,14 @@ internal static class V1FoundationModelConfiguration
                 new ValuationPresetEntity { Id=Guid.Parse("00000000-0000-4000-8000-00000000f004"), Label="Camper conversion", SuggestedAmount=0m, Active=true, Version=1, UpdatedBy="system:v1-foundation", UpdatedAtUtc=DateTimeOffset.UnixEpoch, ConcurrencyToken=Guid.Parse("00000000-0000-4000-8000-00000000f104") },
                 new ValuationPresetEntity { Id=Guid.Parse("00000000-0000-4000-8000-00000000f005"), Label="Driving tuition", SuggestedAmount=500m, Active=true, Version=1, UpdatedBy="system:v1-foundation", UpdatedAtUtc=DateTimeOffset.UnixEpoch, ConcurrencyToken=Guid.Parse("00000000-0000-4000-8000-00000000f105") });
         });
+        builder.Entity<CaseListPresetEntity>(e =>
+        {
+            // A removed preset frees its name: nothing names a preset but the list.
+            e.ToTable("CaseListPresets"); e.HasKey(x => x.Id); e.HasIndex(x => x.Name).IsUnique().HasFilter("[RemovedAtUtc] IS NULL");
+            e.Property(x => x.Name).HasMaxLength(Pegasus.Core.Reports.CaseListPresetPolicy.MaximumNameLength); e.Property(x => x.UpdatedBy).HasMaxLength(200);
+            e.Property(x => x.Version).IsConcurrencyToken(); e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
+        });
+        builder.HasDbFunction(typeof(SqlJson).GetMethod(nameof(SqlJson.Value))!).HasName("JSON_VALUE").IsBuiltIn();
         builder.Entity<LabourRateCardEntity>(e =>
         {
             e.ToTable("LabourRateCards"); e.HasKey(x => x.Id);

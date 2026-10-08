@@ -48,7 +48,7 @@ The direction is Operations-first. The UI must provide:
   context, evidence selection, position and unsaved edits;
 - administration for authorised accounts, roles, principals, workflow
   configuration, mail settings, automation and AI settings, service health,
-  action logs and reports
+  action logs and management reports
   ([FRD-17](frd-17-administration-workspace.md#administration));
 - exact state labels mapped to Core decisions;
 - loading, empty, current, stale, unavailable, partial, failed, validation,
