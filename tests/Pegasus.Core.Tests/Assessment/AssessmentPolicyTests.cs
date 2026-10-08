@@ -365,7 +365,8 @@ public sealed class AssessmentPolicyTests
     {
         foreach (var definition in AssessmentVocabulary.Definitions.Values
             .Where(definition => !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)
-                && !AssessmentVocabulary.LookupDerivedPaths.Contains(definition.Path)))
+                && !AssessmentVocabulary.LookupDerivedPaths.Contains(definition.Path)
+                && !AssessmentVocabulary.GuideCardDerivedPaths.Contains(definition.Path)))
         {
             var value = definition.Type switch
             {
