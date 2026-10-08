@@ -88,9 +88,16 @@
     var contractPercent = outcomeIsContract && contractSum is > 0m && engineerValue is > 0m
         ? contractSum.Value / engineerValue.Value * 100m
         : (decimal?)null;
-    var suggestedPercent = contractPercent is >= 1m and <= 100m
-        ? Math.Round(contractPercent.Value, 1, MidpointRounding.AwayFromZero)
+    // The slider starts at the spec's own share of the Engineer's Value and
+    // goes no higher; scaling only lowers prices (operator, 8 October 2026).
+    // An agreed sum below that share is the starting target (P35).
+    var specPercent = engineerValue is > 0m
+        ? Math.Max(1m, RepairSpecificationScaling.PercentOfValue(engineerValue.Value, printed.Gross))
         : 100m;
+    var suggestedPercent = contractPercent is { } agreedPercent && agreedPercent >= 1m && agreedPercent <= specPercent
+        ? Math.Round(agreedPercent, 1, MidpointRounding.AwayFromZero)
+        : specPercent;
+    var specPercentText = specPercent.ToString("0.#", CultureInfo.InvariantCulture);
     var others = Model.Estimates.Where(item => item.SpecificationId != estimate?.SpecificationId).ToArray();
     string VersionOrigin(RepairSpecificationVersion version) =>
         $"Populated {OperatorLabels.OfficeTime(version.CreatedAtUtc)} by {version.CreatedBy}, {RepairSpecificationRouteWords.Of(version.Source.Route)} · {EstimateLabels.LinesCount(version.Lines.Count)} · {EngineerLabels.LabourRate.ToLowerInvariant()} {Money(version.Details.HourlyRate)}/h";
@@ -370,8 +377,8 @@
                     }
                     else
                     {
-                        <input type="range" min="1" max="100" step="0.1" value="@suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-range />
-                        <span class="dsc"><input type="number" name="targetPercent" form="case-estimate-scale-form" min="1" max="100" step="0.1" value="@suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)" inputmode="decimal" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-percent /><label>%</label></span>
+                        <input type="range" min="1" max="@specPercentText" step="0.1" value="@suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-range />
+                        <span class="dsc"><input type="number" name="targetPercent" form="case-estimate-scale-form" min="1" max="@specPercentText" step="0.1" value="@suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)" inputmode="decimal" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-percent /><label>%</label></span>
                         <span class="mono" data-scale-read aria-live="polite"></span>
                         <span class="status status--navy status--plain" data-scale-preview hidden>@EstimateLabels.ScalePreview</span>
                     }
@@ -379,11 +386,11 @@
                         <span class="dsc"><label for="estimate-floor-rate">@EstimateLabels.FloorLabour</label><input id="estimate-floor-rate" name="floorRate" form="case-estimate-scale-form" type="number" min="0" step="1" inputmode="decimal" value="@ScalingFloors.Default.LabourRatePerHour.ToString("0.##", CultureInfo.InvariantCulture)" data-scale-floor-rate /></span>
                         <span class="dsc"><label for="estimate-floor-price">@EstimateLabels.FloorPrices</label><input id="estimate-floor-price" name="floorPrice" form="case-estimate-scale-form" type="number" min="0" max="100" step="5" inputmode="decimal" value="@ScalingFloors.Default.PricePercent.ToString("0.##", CultureInfo.InvariantCulture)" data-scale-floor-price /></span>
                     </span>
-                    @if (contractPercent is >= 1m and <= 100m)
+                    @if (contractPercent is { } shownPercent && shownPercent >= 1m && shownPercent <= specPercent)
                     {
                         <span class="muted">Agreed sum suggests @suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)%.</span>
                     }
-                    else if (contractPercent is > 100m)
+                    else if (contractPercent > specPercent)
                     {
                         <span class="muted">Scaling cannot raise the repair spec to the agreed sum.</span>
                     }
