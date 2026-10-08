@@ -221,6 +221,40 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     /// <summary>
+    /// A stale generation's confirmed fee note keeps its key: Generate report
+    /// makes a new generation, whose fee note is a new operation.
+    /// </summary>
+    [Fact]
+    public async Task RegeneratingAfterAChangeGivesTheFeeNoteANewOperationKey()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        const string previousOperationKey = "previous-fee-note-operation";
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]))
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseReportGenerationStore>();
+                services.AddSingleton<ICaseReportGenerationStore>(new FakeCurrentGeneration(
+                    caseId,
+                    feeNoteStatus: CaseReportArtifactStatus.Confirmed,
+                    feeNoteOperationKey: previousOperationKey,
+                    stale: true));
+            }));
+        using var client = Client(factory);
+
+        var html = await EnterEditModeAsync(client, caseId);
+        var feeNoteKey = InputValue(FormHtml(html, "GenerateReport"), "feeNoteOperationKey");
+
+        Assert.False(string.IsNullOrWhiteSpace(feeNoteKey));
+        Assert.NotEqual(previousOperationKey, feeNoteKey);
+    }
+
+    /// <summary>
     /// A report the Worker confirmed after its request ended has no fee note
     /// yet, so Generate report is offered again with the report's own key:
     /// the report replays and the fee note is made.
