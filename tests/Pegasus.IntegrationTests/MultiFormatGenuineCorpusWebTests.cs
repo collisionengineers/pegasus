@@ -59,7 +59,6 @@ public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
         var classification = receipt.MailClassificationDecision;
         Assert.NotNull(classification);
         Assert.Equal(MailClassificationOutcome.Classified, classification!.Outcome);
-        Assert.Equal(MailDirection.Received, classification.Category?.Direction);
         Assert.Equal(ReceivedMailFamily.NewInstructionReceived, classification.Category?.ReceivedFamily);
         Assert.Equal("inspection", classification.Category?.Subtype);
         Assert.False(classification.Category?.IsReplyContext);

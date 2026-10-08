@@ -208,13 +208,6 @@
                 <span>@classificationNotice</span>
             </div>
         }
-        @if (Model.FolderMoveNotice is { } folderMoveNotice)
-        {
-            <div class="notice" role="status">
-                <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
-                <span>@folderMoveNotice</span>
-            </div>
-        }
         @if (Model.AssociationNotice is { } associationNotice)
         {
             <div class="notice notice--success" role="status">
@@ -386,11 +379,12 @@
                                         <strong><a asp-page="/Cases/Details" asp-route-id="@destinationCaseId">@summary.CaseReference</a></strong>
                                     </div>
                                 }
-                                else if (dossier is { } destinationDossier)
+                                else if (dossier is { } destinationDossier
+                                    && Pegasus.Web.Pages.Mail.MessageModel.Destination(destinationDossier.Current).Destination is { } operationalDestination)
                                 {
                                     <div class="decision-row">
                                         <span>Destination</span>
-                                        <strong>@OperatorLabels.MailOperationalDestinationLabel(Pegasus.Web.Pages.Mail.MessageModel.Destination(destinationDossier.Current).Destination)</strong>
+                                        <strong>@OperatorLabels.MailOperationalDestinationLabel(operationalDestination)</strong>
                                     </div>
                                 }
                                 <div class="decision-row">
@@ -404,30 +398,6 @@
                                         <strong class="quiet">@Pegasus.Web.Pages.Mail.MessageModel.AssociationLabel(summary.CaseReference)</strong>
                                     }
                                 </div>
-                                @if (Model.Detail.LatestFolderMove is { Outcome: Pegasus.Core.Intake.RetainedMailFolderMoveOutcome.Uncertain })
-                                {
-                                    <div class="decision-row">
-                                        <span>Folder</span>
-                                        <strong>
-                                            <partial name="Shared/_StatusChip" model="@("Unconfirmed")"
-                                                     view-data='@(new ViewDataDictionary(ViewData) { ["StatusTone"] = "amber" })' />
-                                        </strong>
-                                    </div>
-                                }
-                                else if (Model.Detail.LatestFolderMove is { Outcome: Pegasus.Core.Intake.RetainedMailFolderMoveOutcome.Succeeded, FolderType: { } movedFolder })
-                                {
-                                    <div class="decision-row">
-                                        <span>Folder</span>
-                                        <strong>@Pegasus.Core.Intake.MailLogicalFolders.Definition(movedFolder).Label</strong>
-                                    </div>
-                                }
-                                else if (Model.Detail.FolderRecommendation is { IsAvailable: true, FolderType: { } recommendedFolder })
-                                {
-                                    <div class="decision-row">
-                                        <span>Folder</span>
-                                        <strong class="quiet">@Pegasus.Core.Intake.MailLogicalFolders.Definition(recommendedFolder).Label — not moved</strong>
-                                    </div>
-                                }
                                 @if (dossier is { } decidedDossier)
                                 {
                                     var actorWord = decidedDossier.CurrentActorDisplayName == "System"
@@ -448,35 +418,6 @@
                             {
                                 <div class="button-row section-gap">
                                     <button class="btn btn--dark" type="button" data-dialog-open="correctClassificationDialog">Correct classification</button>
-                                    @if (Model.Detail.LatestFolderMove is
-                                        {
-                                            Outcome: Pegasus.Core.Intake.RetainedMailFolderMoveOutcome.Uncertain,
-                                            OperationKey: { } recoveryOperationKey,
-                                            ExpectedClassificationVersion: { } recoveryClassificationVersion,
-                                            ExpectedRecommendationPolicyKey: { } recoveryPolicyKey,
-                                            ExpectedRecommendationPolicyVersion: { } recoveryPolicyVersion,
-                                            ExpectedMailboxVersion: { } recoveryMailboxVersion
-                                        } uncertainMove)
-                                    {
-                                        <form method="post" asp-page-handler="MoveToRecommendedFolder" asp-route-id="@summary.Id"
-                                              asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
-                                              asp-route-search="@Model.SearchTerm" asp-route-queue="@Model.QueueFilter"
-                                                                                            asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
-                                              asp-route-pageNumber="@Model.PageNumber">
-                                            <input type="hidden" name="ExpectedClassificationVersion" value="@recoveryClassificationVersion" />
-                                            <input type="hidden" name="ExpectedRecommendationPolicyKey" value="@recoveryPolicyKey" />
-                                            <input type="hidden" name="ExpectedRecommendationPolicyVersion" value="@recoveryPolicyVersion" />
-                                            <input type="hidden" name="ExpectedMailboxVersion" value="@recoveryMailboxVersion" />
-                                            <input type="hidden" name="MoveOperationKey" value="@recoveryOperationKey" />
-                                            <input type="hidden" name="Reason" value="@uncertainMove.Reason" />
-                                            <button class="btn" type="submit" data-busy-label="@OperatorLabels.Busy.Checking">Check move status</button>
-                                        </form>
-                                    }
-                                    else if (Model.Detail.SuggestedMove is { } suggestedMove
-                                        && Model.Detail.FolderRecommendation is { MailboxVersion: not null })
-                                    {
-                                        <button class="btn" type="button" data-dialog-open="moveFolderDialog">Move to @Pegasus.Core.Intake.MailLogicalFolders.Definition(suggestedMove.FolderType).Label</button>
-                                    }
                                 </div>
                             }
                         </div>
@@ -1006,14 +947,6 @@
                         </select>
                         <span asp-validation-for="WorkType"></span>
                     </div>
-                    <div class="field" data-other-field hidden>
-                        <label asp-for="OtherClassificationName">New category name</label>
-                        <input asp-for="OtherClassificationName" maxlength="200" />
-                    </div>
-                    <div class="field" data-other-field hidden>
-                        <label asp-for="OtherClassificationReasoning">Why no existing category fits</label>
-                        <textarea asp-for="OtherClassificationReasoning" rows="2" maxlength="1000"></textarea>
-                    </div>
                     <div class="field">
                         <label class="req" asp-for="CorrectionReason">Reason for correction</label>
                         <textarea asp-for="CorrectionReason" rows="3" maxlength="500" required></textarea>
@@ -1029,59 +962,6 @@
     </div>
 }
 
-@if (Model.Detail.SuggestedMove is { } dialogSuggestedMove
-    && Model.Detail.LatestFolderMove is not { Outcome: Pegasus.Core.Intake.RetainedMailFolderMoveOutcome.Uncertain }
-    && dossier is { } moveDossier
-    && Model.Detail.FolderRecommendation is { MailboxVersion: { } dialogMailboxVersion } dialogRecommendation)
-{
-    var moveOperationKey = Guid.NewGuid().ToString("D");
-    var folderLabel = Pegasus.Core.Intake.MailLogicalFolders.Definition(dialogSuggestedMove.FolderType).Label;
-    <div id="moveFolderDialog" class="dialog-backdrop" role="dialog" aria-modal="true"
-         aria-labelledby="moveFolderDialog_title" data-dialog="moveFolderDialog" hidden>
-        <section class="dialog">
-            <div class="dialog-head">
-                <h2 id="moveFolderDialog_title" tabindex="-1">Move to @folderLabel</h2>
-            </div>
-            @{
-                // The expected decision, policy, and mailbox versions travel in
-                // the action URL, so the posted body carries only the reason —
-                // never a transport identity.
-                var moveAction = Url.Page(
-                    "/Mail/Message",
-                    "MoveToRecommendedFolder",
-                    new
-                    {
-                        id = summary.Id,
-                        mailbox = Model.MailboxFilter,
-                        folder = Model.FolderFilter,
-                        pageNumber = Model.PageNumber,
-                        search = Model.SearchTerm,
-                        queue = Model.QueueFilter,
-                                                sort = Model.OldestFirst ? "oldest" : null,
-                        expectedClassificationVersion = moveDossier.Version,
-                        expectedRecommendationPolicyKey = dialogRecommendation.PolicyKey,
-                        expectedRecommendationPolicyVersion = dialogRecommendation.PolicyVersion,
-                        expectedMailboxVersion = dialogMailboxVersion,
-                        moveOperationKey
-                    });
-            }
-            <form method="post" action="@moveAction">
-                @Html.AntiForgeryToken()
-                <div class="dialog-body">
-                    <div class="definition-list">
-                        <dl class="definition"><dt>From</dt><dd>@Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(Model.Detail.Folder)</dd></dl>
-                        <dl class="definition"><dt>To</dt><dd>@folderLabel</dd></dl>
-                    </div>
-                    <input type="hidden" name="Reason" value="@dialogSuggestedMove.Reason" />
-                </div>
-                <div class="dialog-foot">
-                    <button type="button" class="btn" data-dialog-close>Cancel</button>
-                    <button type="submit" class="btn btn--dark" data-busy-label="@OperatorLabels.Busy.Moving">Move</button>
-                </div>
-            </form>
-        </section>
-    </div>
-}
 @section Scripts {
     <script src="~/js/case-picker.js" asp-append-version="true"></script>
 }

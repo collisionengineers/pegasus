@@ -195,6 +195,11 @@ association never links new material to an archived Case.
 The Engineer answers queries and disputes from the Principal, a third-party
 insurer or the claimant. When a query is received for, or attached to, a
 Completed Case, the Case moves to Query. Replying moves it back to Completed.
+A received message that joins a Completed Case with no classification of its
+own becomes a post-report query by
+[case-state classification](frd-08-email-mailbox-and-background-processing.md#classification-and-destination-catalogue)
+in the same transaction, so an automatic association or a staff link enters
+Query without a separate correction (operator, 8 October 2026).
 Correcting a linked message's classification to a post-report family attaches
 a query in the same way. Correcting it away, or unlinking it, before any reply
 was sent, while no other post-report message is linked, returns the Case to

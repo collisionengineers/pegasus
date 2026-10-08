@@ -115,11 +115,6 @@ public static class DependencyInjection
         services.AddScoped<GetRetainedMail>();
         services.AddScoped<GetRetainedMailPreview>();
         services.AddScoped<CorrectRetainedMailClassification>();
-        services.TryAddSingleton<IRetainedMailFolderMover, UnavailableRetainedMailFolderMover>();
-        services.AddScoped<EfRetainedMailFolderMoveStore>();
-        services.AddScoped<IRetainedMailFolderMoveStore>(provider =>
-            provider.GetRequiredService<EfRetainedMailFolderMoveStore>());
-        services.AddScoped<MoveRetainedMailFolder>();
         services.AddScoped<IRetainedMailDismissalStore, EfRetainedMailDismissalStore>();
         services.AddScoped<IDismissRetainedMail, DismissRetainedMail>();
         services.AddScoped<IRestoreRetainedMail, RestoreRetainedMail>();

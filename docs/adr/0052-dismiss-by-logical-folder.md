@@ -3,7 +3,7 @@ id: ADR-0052
 status: accepted
 date: 2026-09-16
 supersedes: [ADR-0036]
-superseded_by: []
+superseded_by: [ADR-0067]
 related_capabilities: []
 related_frd: [frd-08, frd-12]
 tags: [mailbox, inbox, persistence]
@@ -18,6 +18,10 @@ Inbox) that Stage 2 implemented. Partially supersedes ADR-0036's Flag and
 Delete clause only. Send, the approved-mailbox identity, the Sent-item
 evidence rule and the composed-or-absent pattern remain accepted under
 ADR-0036 and ADR-0042.
+
+Partially superseded by ADR-0067 on 8 October 2026: the logical-folder
+vocabulary and the folder-move seam are removed, so Dismiss is a dismissed-at
+scope with no logical folder. Flag and Delete stay withdrawn.
 
 ## Context
 

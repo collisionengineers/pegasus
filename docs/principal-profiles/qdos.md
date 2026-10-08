@@ -71,7 +71,7 @@ extraction reads no single outcome, the message gets no automatic Audit.
 QDOS sends triage requests in two reviewed templates and the templates are
 disjoint in the evaluated corpus. The two tells therefore feed **one** triage
 candidate — a second candidate for the same category would resolve to
-Ambiguous, so a message carrying both tells would classify worse than one
+Unclassified, so a message carrying both tells would classify worse than one
 carrying either. Both predicates are still recorded separately, so the
 decision says which fired (MAIL-012). Exact current source counts and immutable
 hashes live in the versioned
@@ -89,7 +89,7 @@ the source aggregate in `qdos-policy-v5-volume-evaluation` and supersede the
 stale seven/five statement without changing policy behaviour.
 
 Outcomes: exactly one category predicate → that category; more than one → the
-recorded **Ambiguous** outcome (never an invented winner); none →
+**Unclassified** with the competing candidates named in the reason (never an invented winner); none →
 **Unclassified**, failing closed. Nested-message content is excluded from the
 attachment tells.
 

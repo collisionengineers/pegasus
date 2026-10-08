@@ -196,7 +196,7 @@ public sealed class AutomationMailIngressTests
     }
 
     [Fact]
-    public async Task ClassificationCorrectionCarriesTheCaseTypeAndKeepsToTheMessageDirection()
+    public async Task ClassificationCorrectionCarriesTheCaseType()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
@@ -205,8 +205,6 @@ public sealed class AutomationMailIngressTests
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, AllScopes);
 
-        // The offered options follow the message's direction: an Inbox message
-        // lists no Sent family.
         using (var read = await PostMcpAsync(
             client,
             token,
@@ -218,7 +216,6 @@ public sealed class AutomationMailIngressTests
                 .Select(option => option.GetProperty("value").GetString())
                 .ToArray();
             Assert.Contains("received:NewInstructionReceived:audit", options);
-            Assert.DoesNotContain("sent:ReportSent", options);
         }
 
         // A New instruction correction carries the case type the Worker's
@@ -244,27 +241,7 @@ public sealed class AutomationMailIngressTests
             Assert.Equal("Audit", structured.GetProperty("current").GetProperty("caseType").GetString());
         }
 
-        // A Sent family is refused on a received message, and a New instruction
-        // without its case type is refused; neither writes.
-        using (var crossed = await PostMcpAsync(
-            client,
-            token,
-            ToolCallPayload(
-                22,
-                "pegasus_mail_correct_classification",
-                new
-                {
-                    messageId = ids[0],
-                    expectedClassificationVersion = 2,
-                    classificationKey = "sent:ReportSent",
-                    reason = "Wrong direction.",
-                    operationKey = "mcp:mail-correct-crossed"
-                })))
-        {
-            using var document = await ReadJsonRpcAsync(crossed);
-            Assert.Contains("received classification", document.RootElement.ToString(), StringComparison.Ordinal);
-        }
-
+        // A New instruction without its case type is refused and writes nothing.
         using (var noWorkType = await PostMcpAsync(
             client,
             token,
@@ -469,8 +446,7 @@ public sealed class AutomationMailIngressTests
     /// <summary>
     /// Dismiss and Restore are the staff acts on a message (ADR-0064): the
     /// Automation Actor takes a message out of the incoming scopes and brings
-    /// it back, in its own name, and a move's confirmations are refused on
-    /// them.
+    /// it back, in its own name.
     /// </summary>
     [Fact]
     public async Task TheActorDismissesAndRestoresAMessageInItsOwnName()
@@ -484,20 +460,6 @@ public sealed class AutomationMailIngressTests
         using (var refused = await PostMcpAsync(
             client,
             token,
-            ToolCallPayload(1, "pegasus_mail_action", new
-            {
-                messageId = ids[0],
-                action = "dismiss",
-                reason = "Not ours.",
-                operationKey = "mcp:mail-dismiss-with-reason"
-            })))
-        {
-            Assert.Contains("move_folder", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
-        }
-
-        using (var refused = await PostMcpAsync(
-            client,
-            token,
             ToolCallPayload(2, "pegasus_mail_action", new
             {
                 messageId = ids[0],
@@ -505,7 +467,7 @@ public sealed class AutomationMailIngressTests
                 operationKey = "mcp:mail-unknown-action"
             })))
         {
-            Assert.Contains("move_folder, dismiss or restore", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+            Assert.Contains("dismiss or restore", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
         }
 
         using (var response = await PostMcpAsync(

@@ -53,7 +53,7 @@ never renumbered or reused.
 | [ADR-0033](0033-warm-unified-work-queue-for-five-second-intake.md) | Warm unified work queue for five-second intake | accepted | — | INT-33 |
 | [ADR-0034](0034-per-principal-eva-api-submission-settings.md) | Per-Principal EVA API submission settings | superseded | ADR-0038 | EXT-04 |
 | [ADR-0035](0035-ai-job-ledger.md) | AI job ledger | accepted | — | AI-10, AI-09, MCP-06, MCP-01 |
-| [ADR-0036](0036-outbound-mail-via-approved-mailbox.md) | Outbound mail via the approved mailbox | accepted | ADR-0042, ADR-0052 | — |
+| [ADR-0036](0036-outbound-mail-via-approved-mailbox.md) | Outbound mail via the approved mailbox | accepted | ADR-0042, ADR-0052, ADR-0067 (mover only) | — |
 | [ADR-0037](0037-linux-authorised-release-workstation.md) | Linux authorised release workstation | superseded | ADR-0039 | OPS-10, OPS-24 |
 | [ADR-0038](0038-manual-only-eva-api-submission.md) | Manual-only EVA API submission | superseded | ADR-0048 | EXT-04 |
 | [ADR-0039](0039-windows-and-linux-release-workstations.md) | Windows and Linux release workstations | accepted | — | OPS-10, OPS-24 |
@@ -69,7 +69,7 @@ never renumbered or reused.
 | [ADR-0049](0049-host-web-on-app-service-code-deploy.md) | Host Pegasus Web on an App Service Web App by code deployment | accepted | — | EXT-08 |
 | [ADR-0050](0050-questpdf-report-renderer.md) | Render reports with QuestPDF inside the application | accepted | — | EXT-08, RPT-01, RPT-02 |
 | [ADR-0051](0051-linked-audit-case-identity-and-custody.md) | Linked Audit Case identity and custody | superseded | ADR-0056 | — |
-| [ADR-0052](0052-dismiss-by-logical-folder.md) | Dismiss a retained message by logical folder; no Flag or Delete | accepted | — | — |
+| [ADR-0052](0052-dismiss-by-logical-folder.md) | Dismiss a retained message by logical folder; no Flag or Delete | accepted | ADR-0067 (dismiss scope only) | — |
 | [ADR-0053](0053-personal-staff-notification-store.md) | Personal staff notification store | accepted | — | — |
 | [ADR-0054](0054-release-notes-authored-in-the-application.md) | Release notes are authored in the application by an Administrator | accepted | — | — |
 | [ADR-0055](0055-github-issues-as-the-problem-report-sink.md) | GitHub issues as the problem-report sink | accepted | — | — |
@@ -81,8 +81,10 @@ never renumbered or reused.
 | [ADR-0061](0061-ocr-every-scanned-document-page.md) | OCR every scanned document page; a full-page raster is a document or a photograph by its colour | accepted | — | INT-16, AI-04 |
 | [ADR-0062](0062-glass-placeholder-vehicle-for-unknown-plates.md) | A plate Glass's does not know launches its estimate on a placeholder vehicle | accepted | — | EXT-06 |
 | [ADR-0063](0063-glass-estimate-belongs-to-its-repair-spec.md) | A Glass's estimate belongs to its repair spec, by its stock vehicle | accepted | — | EXT-06, ENG-01 |
-| [ADR-0064](0064-automation-actor-staff-casework-parity.md) | The Automation Actor has staff casework parity | accepted | — | MCP-01, MCP-02, MCP-06 |
+| [ADR-0064](0064-automation-actor-staff-casework-parity.md) | The Automation Actor has staff casework parity | accepted | ADR-0067 (mail action only) | MCP-01, MCP-02, MCP-06 |
 | [ADR-0065](0065-case-export-replaces-eva-routes.md) | The Case export replaces the EVA routes | accepted | — | CASE-21, CASE-30, EXT-03 |
+| [ADR-0066](0066-case-state-mail-classification.md) | Case-state mail classification | accepted | — | MAIL-02, MAIL-09, MAIL-21 |
+| [ADR-0067](0067-simplify-mail-classification.md) | Simplify mail classification | accepted | — | MAIL-02, MAIL-21, MAIL-22, MAIL-23, UI-14 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

@@ -23,21 +23,6 @@ public sealed class MailTaxonomyTests
             Enum.GetValues<ReceivedMailFamily>().Select(MailTaxonomy.CategoryName).ToArray());
     }
 
-    [Fact]
-    public void ExactlyTheFourSettledSentFamiliesExist()
-    {
-        string[] expected =
-        [
-            "Report sent",
-            "case-rejected",
-            "query-sent",
-            "additional-image-request"
-        ];
-        Assert.Equal(
-            expected,
-            Enum.GetValues<SentMailFamily>().Select(MailTaxonomy.CategoryName).ToArray());
-    }
-
     [Theory]
     [InlineData(ReceivedMailFamily.General, new[] { "autoreply", "undeliverable", "acknowledgement", "general-chase", "case-summary" })]
     [InlineData(ReceivedMailFamily.Billing, new[] { "payment-notification", "remittance", "invoice-request", "billing-query", "general-billing" })]
@@ -70,23 +55,7 @@ public sealed class MailTaxonomyTests
     }
 
     [Fact]
-    public void OtherRequiresBothNameAndReasoning()
-    {
-        Assert.Throws<ArgumentException>(() =>
-            MailCategory.Other(MailDirection.Received, "new-category", " "));
-        Assert.Throws<ArgumentException>(() =>
-            MailCategory.Other(MailDirection.Received, " ", "The settled taxonomy has no fit."));
-
-        var other = MailCategory.Other(
-            MailDirection.Received,
-            "new-category",
-            "The settled taxonomy has no fit.");
-        Assert.True(other.IsOther);
-        Assert.Equal("new-category", other.Name);
-    }
-
-    [Fact]
-    public void ReplyMirrorsTheUnderlyingCategoryInBothDirections()
+    public void ReplyMirrorsTheUnderlyingCategory()
     {
         var receivedReply = MailCategory.Received(
             ReceivedMailFamily.NewInstructionReceived,
@@ -96,11 +65,6 @@ public sealed class MailTaxonomyTests
         Assert.Equal("audit", receivedReply.Subtype);
         Assert.True(receivedReply.IsReplyContext);
         Assert.Equal("new-instruction-received", receivedReply.Name);
-
-        var sentReply = MailCategory.Sent(SentMailFamily.QuerySent, isReplyContext: true);
-        Assert.Equal(SentMailFamily.QuerySent, sentReply.SentFamily);
-        Assert.True(sentReply.IsReplyContext);
-        Assert.Equal("query-sent", sentReply.Name);
     }
 
     [Fact]

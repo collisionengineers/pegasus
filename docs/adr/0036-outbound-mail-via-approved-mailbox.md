@@ -3,7 +3,7 @@ id: ADR-0036
 status: accepted
 date: 2026-08-28
 supersedes: []
-superseded_by: [ADR-0042, ADR-0052]
+superseded_by: [ADR-0042, ADR-0052, ADR-0067]
 related_capabilities: []
 related_frd: [frd-08]
 tags: [mailbox, outbound-mail, graph]
@@ -19,7 +19,7 @@ production activation it names is a separately approved step.
 
 ## Current applicability
 
-FRD-08 distinguishes durable send-operation attempts/recovery from authoritative observed Sent evidence. A tracked operation does not itself assert that mail was sent. ADR-0042 records the persistence clarification. ADR-0052 withdraws the Flag and Delete clause: neither was built, and Dismiss is a Pegasus-side logical-folder move that touches no mailbox. The send decision and its evidence rule are unchanged.
+FRD-08 distinguishes durable send-operation attempts/recovery from authoritative observed Sent evidence. A tracked operation does not itself assert that mail was sent. ADR-0042 records the persistence clarification. ADR-0052 withdraws the Flag and Delete clause: neither was built, and Dismiss is a Pegasus-side logical-folder move that touches no mailbox. The send decision and its evidence rule are unchanged. ADR-0067 (8 October 2026) removes `IRetainedMailFolderMover` and the folder-move pipeline: sending is the only mailbox mutation.
 
 ## Context
 

@@ -22,19 +22,18 @@ internal static class PostReportQueryTransitions
     internal const string QueryWithdrawnEvent = "case_query_withdrawn";
     internal const string QueryRepliedEvent = "case_query_replied";
 
-    /// <summary>A mailbox receipt whose current classification is a received post-report family.</summary>
+    /// <summary>A mailbox receipt whose current classification is the post-report family.</summary>
     internal static readonly Expression<Func<IntakeReceiptEntity, bool>> IsPostReportReceipt =
         item => item.SourceChannel == "mailbox"
             && item.MailClassificationDecision != null
             && item.MailClassificationDecision.Outcome == "classified"
-            && item.MailClassificationDecision.Direction == "received"
             && item.MailClassificationDecision.Family == "post-report-emails";
 
     internal static bool IsPostReport(IntakeReceiptEntity receipt) =>
         receipt.SourceChannel == "mailbox" && IsPostReport(receipt.MailClassificationDecision);
 
     internal static bool IsPostReport(IntakeMailClassificationDecisionEntity? decision) =>
-        decision is { Outcome: "classified", Direction: "received", Family: "post-report-emails" };
+        decision is { Outcome: "classified", Family: "post-report-emails" };
 
     internal sealed record Entry(
         PostReportQueryEntry Kind,

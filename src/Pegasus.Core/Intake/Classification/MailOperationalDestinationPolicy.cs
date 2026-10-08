@@ -1,21 +1,22 @@
 namespace Pegasus.Core.Intake;
 
 /// <summary>
-/// Application work views are distinct from both the detailed classification and the
-/// Outlook folder recommendation. Unidentified is an abstention, never a category.
+/// Application work views are distinct from the classification. Unidentified is an
+/// abstention, never a category.
 /// </summary>
 public enum MailOperationalDestination
 {
     ReceivingWork,
     Queries,
-    DetailedClassification,
-    Other,
     Unidentified,
     Triage
 }
 
+/// <summary>
+/// A null <see cref="Destination"/> is a known classification with no work view.
+/// </summary>
 public sealed record MailOperationalDestinationResult(
-    MailOperationalDestination Destination,
+    MailOperationalDestination? Destination,
     MailCategory? Classification,
     string PolicyKey,
     int PolicyVersion,
@@ -28,7 +29,6 @@ public sealed record MailOperationalDestinationResult(
 /// </summary>
 public sealed record MailOperationalDestinationQuery(
     bool IncludesUnidentified = false,
-    bool IncludesOther = false,
     IReadOnlyList<ReceivedMailFamily>? ReceivedFamilies = null,
     MailCategory? ExactClassification = null)
 {
@@ -50,7 +50,7 @@ public static class MailOperationalDestinationPolicy
             return Result(
                 MailOperationalDestination.Unidentified,
                 null,
-                "The classification is absent or ambiguous; no operational destination is inferred.");
+                "The mail message is unclassified; no operational destination is inferred.");
         }
 
         return Map(classification.Category);
@@ -76,18 +76,14 @@ public static class MailOperationalDestinationPolicy
                 category.ReceivedFamily == ReceivedMailFamily.Billing
                     ? "A billing query enters Queries."
                     : "Post-report correspondence enters Queries."),
-            MailOperationalDestination.Other => Result(
-                MailOperationalDestination.Other,
-                category,
-                "A reasoned novel classification uses the reserved Other destination."),
             MailOperationalDestination.Triage => Result(
                 MailOperationalDestination.Triage,
                 category,
                 "An accepted Triage predicate routes to the separate Triage workflow."),
             _ => Result(
-                MailOperationalDestination.DetailedClassification,
+                null,
                 category,
-                $"The known classification '{CategoryKey(category)}' retains its own operational view.")
+                $"The known classification '{CategoryKey(category)}' has no work view.")
         };
     }
 
@@ -101,15 +97,11 @@ public static class MailOperationalDestinationPolicy
                 ExactClassification: MailCategory.Received(
                     ReceivedMailFamily.Billing,
                     "billing-query")),
-            MailOperationalDestination.Other => new(IncludesOther: true),
             MailOperationalDestination.Unidentified => new(IncludesUnidentified: true),
             MailOperationalDestination.Triage => new(
                 ExactClassification: MailCategory.Received(
                     ReceivedMailFamily.PreInstructionEmails,
                     MailCategory.TriageRequestSubtype)),
-            MailOperationalDestination.DetailedClassification => throw new ArgumentException(
-                "Detailed mail views require one exact canonical classification.",
-                nameof(destination)),
             _ => throw new ArgumentOutOfRangeException(nameof(destination), destination, null)
         };
 
@@ -117,7 +109,6 @@ public static class MailOperationalDestinationPolicy
     [
         MailOperationalDestination.ReceivingWork,
         MailOperationalDestination.Queries,
-        MailOperationalDestination.Other,
         MailOperationalDestination.Triage
     ];
 
@@ -125,23 +116,17 @@ public static class MailOperationalDestinationPolicy
         MailOperationalDestinationQuery query,
         MailCategory category)
     {
-        if (query.IncludesOther && category.IsOther)
-        {
-            return true;
-        }
-        if (category.ReceivedFamily is { } family && query.Families.Contains(family))
+        if (query.Families.Contains(category.ReceivedFamily))
         {
             return true;
         }
         return query.ExactClassification is { } exact
-            && exact.Direction == category.Direction
             && exact.ReceivedFamily == category.ReceivedFamily
-            && exact.SentFamily == category.SentFamily
             && string.Equals(exact.Subtype, category.Subtype, StringComparison.Ordinal);
     }
 
     private static MailOperationalDestinationResult Result(
-        MailOperationalDestination destination,
+        MailOperationalDestination? destination,
         MailCategory? classification,
         string reason) => new(destination, classification, Key, Version, reason);
 

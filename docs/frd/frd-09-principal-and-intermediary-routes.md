@@ -269,8 +269,8 @@ body phrase `Triage Only Request`, and a subject opening with
 `Engineer Triage` after any forward or reply prefix. Both are matched
 case-exactly, because the casing is part of the generated tell; a human
 sentence mentioning either is not the tell. Two tells feed one Triage
-candidate. A second candidate for one category would resolve to the
-Ambiguous outcome, so a message carrying both would classify worse than one
+candidate. A second candidate for one category would resolve to
+Unclassified, so a message carrying both would classify worse than one
 carrying either.
 
 The classification decision is itself the Triage-match evidence, stamped with
@@ -323,7 +323,7 @@ permission to guess.
 - Envelope over the limits: 413.
 - Existing-Case match, unique or ambiguous: `principal_existing_case_match`,
   nothing allocated or changed.
-- Two matching classification categories: Ambiguous, no Triage, no Case.
+- Two matching classification categories: Unclassified, no Triage, no Case.
 - Overlapping route predicates: fail closed with evidence.
 - No retained submission binding: kept for sorting, not allocated.
 

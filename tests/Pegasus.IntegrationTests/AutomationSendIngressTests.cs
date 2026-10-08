@@ -336,7 +336,6 @@ public sealed class AutomationSendIngressTests
         IdentityIsBound: true,
         ActivatedAtUtc: SeedUtcNow,
         Version: 1,
-        FolderBindings: [],
         Generation: 3,
         VerifiedEncodedMessageSizeLimit: 25_000_000,
         IsDefaultStaffSend: true);

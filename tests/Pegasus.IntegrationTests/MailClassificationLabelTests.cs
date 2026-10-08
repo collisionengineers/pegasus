@@ -24,36 +24,11 @@ public sealed class MailClassificationLabelTests
     }
 
     [Fact]
-    public void EverySentFamilyHasAnOperatorLabel()
-    {
-        foreach (var family in Enum.GetValues<SentMailFamily>())
-        {
-            AssertOperatorWorded(OperatorLabels.MailClassification(MailCategory.Sent(family)));
-        }
-    }
-
-    [Fact]
-    public void AnOtherCategoryRendersTheOperatorsOwnName()
-    {
-        var category = MailCategory.Other(
-            MailDirection.Received,
-            "Salvage circulars",
-            "Circulated salvage lists fit no settled family.");
-
-        Assert.Equal("Salvage circulars", OperatorLabels.MailClassification(category));
-    }
-
-    [Fact]
     public void RegistryNamesStillRoundTrip()
     {
         foreach (var family in Enum.GetValues<ReceivedMailFamily>())
         {
             Assert.Equal(family, MailTaxonomy.ParseReceivedFamily(MailTaxonomy.CategoryName(family)));
-        }
-
-        foreach (var family in Enum.GetValues<SentMailFamily>())
-        {
-            Assert.Equal(family, MailTaxonomy.ParseSentFamily(MailTaxonomy.CategoryName(family)));
         }
     }
 
