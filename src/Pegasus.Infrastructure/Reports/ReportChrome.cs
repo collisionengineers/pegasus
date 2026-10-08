@@ -2,6 +2,7 @@ using Pegasus.Core.Reports;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using SkiaSharp;
 
 namespace Pegasus.Infrastructure.Reports;
 
@@ -79,15 +80,16 @@ internal static class ReportChrome
     /// <summary>The gap between two tables.</summary>
     internal const float TableGap = 5.13f;
 
-    // An image slot, in millimetres: the grid's and page 1's.
+    // An image column's width and page 1's slot height, in millimetres.
     internal const float SlotWidth = 80.4f;
-    internal const float GridSlotHeight = 48f;
     internal const float LeadSlotHeight = 36f;
     internal const float GridRowGap = 6.84f;
 
+    /// <summary>The tallest a grid image prints, in millimetres: under the 236 mm body.</summary>
+    private const float GridImageMaxHeight = 160f;
+
     /// <summary>The gap between what stands above a row of slots and the row.</summary>
     internal const float SlotGap = 5f;
-    internal const int GridImagesPerPage = 6;
 
     /// <summary>
     /// One A4 page of a document: the running header and footer on every
@@ -595,86 +597,61 @@ internal static class ReportChrome
     // ---- Images ------------------------------------------------------------
 
     /// <summary>
-    /// The pages the images fill, in the Engineer's order: six ordinary
-    /// images to a page, and an image flagged Full page alone on a page of
-    /// its own. One paginator serves the report and the image pack.
-    /// </summary>
-    internal static IReadOnlyList<IReadOnlyList<PreparedReportPhoto>> ImagePages(
-        IReadOnlyList<PreparedReportPhoto> photos)
-    {
-        var pages = new List<IReadOnlyList<PreparedReportPhoto>>();
-        var ordinary = new List<PreparedReportPhoto>(GridImagesPerPage);
-
-        void Flush()
-        {
-            if (ordinary.Count > 0)
-            {
-                pages.Add([.. ordinary]);
-                ordinary.Clear();
-            }
-        }
-
-        foreach (var photo in photos)
-        {
-            if (photo.FullPage)
-            {
-                Flush();
-                pages.Add([photo]);
-                continue;
-            }
-            ordinary.Add(photo);
-            if (ordinary.Count == GridImagesPerPage)
-            {
-                Flush();
-            }
-        }
-        Flush();
-        return pages;
-    }
-
-    /// <summary>
-    /// The image pages: the first follows what stands above it on its page,
-    /// and each one after it opens a page of its own. A Full page image is
-    /// fitted whole into what is left of its page.
+    /// The image pages, in the Engineer's order (operator, 8 October 2026):
+    /// two images to a row, each unframed at the column's full width and its
+    /// own shape, the rows flowing onto the next page and never parted. An
+    /// image flagged Full page is fitted whole on a page of its own. One
+    /// layout serves the report and the image pack.
     /// </summary>
     internal static void Images(
         ColumnDescriptor column,
         IReadOnlyList<PreparedReportPhoto> photos,
         float gapAbove)
     {
-        var pages = ImagePages(photos);
         Gap(column, gapAbove);
-        for (var index = 0; index < pages.Count; index++)
+        var afterFullPage = false;
+        for (var index = 0; index < photos.Count; index++)
         {
-            var page = pages[index];
-            if (index > 0)
+            var left = photos[index];
+            if (left.FullPage || afterFullPage)
             {
-                column.Item().PageBreak();
+                if (index > 0)
+                {
+                    column.Item().PageBreak();
+                }
             }
-            if (page[0].FullPage)
+            else if (index > 0)
+            {
+                Gap(column, GridRowGap);
+            }
+            afterFullPage = left.FullPage;
+            if (left.FullPage)
             {
                 column.Item()
                     .AlignCenter()
-                    .Image(page[0].Content)
+                    .Image(left.Content)
                     .UseOriginalImage()
                     .FitArea();
                 continue;
             }
-            column.Item().ShowEntire().Column(grid =>
-            {
-                grid.Spacing(GridRowGap, Unit.Millimetre);
-                for (var row = 0; row < page.Count; row += 2)
-                {
-                    var left = page[row];
-                    var right = row + 1 < page.Count ? page[row + 1] : null;
-                    grid.Item().Element(slots => ImageSlots(
-                        slots,
-                        GridSlotHeight,
-                        slot => Frame(slot, left.Content),
-                        right is null ? null : slot => Frame(slot, right.Content)));
-                }
-            });
+            var right = index + 1 < photos.Count && !photos[index + 1].FullPage ? photos[++index] : null;
+            column.Item().ShowEntire().Element(slots => ImageSlots(
+                slots,
+                Math.Max(GridImageHeight(left.Content), right is null ? 0 : GridImageHeight(right.Content)),
+                slot => Fit(slot, left.Content),
+                right is null ? null : slot => Fit(slot, right.Content)));
         }
+    }
+
+    /// <summary>
+    /// How tall an image stands at the column's width, in millimetres. A very
+    /// tall one is held to <see cref="GridImageMaxHeight"/>, so its row still
+    /// fits on an empty page.
+    /// </summary>
+    private static float GridImageHeight(byte[] image)
+    {
+        using var codec = SKCodec.Create(new MemoryStream(image));
+        return Math.Min(GridImageMaxHeight, SlotWidth * codec.Info.Height / Math.Max(1, codec.Info.Width));
     }
 
     /// <summary>Two slots side by side, at the body's left edge and at its right.</summary>
@@ -690,12 +667,6 @@ internal static class ReportChrome
             var rightSlot = row.ConstantItem(SlotWidth, Unit.Millimetre).Height(slotHeight, Unit.Millimetre);
             right?.Invoke(rightSlot);
         });
-
-    /// <summary>An image of the grid: it sits in its slot inside a hairline frame, as the template draws one.</summary>
-    private static void Frame(IContainer slot, byte[] image) => slot
-        .Border(0.5f)
-        .BorderColor(Grid)
-        .Element(framed => Fit(framed, image));
 
     /// <summary>
     /// An image prints whole in its slot (operator, 7 October 2026): fitted
