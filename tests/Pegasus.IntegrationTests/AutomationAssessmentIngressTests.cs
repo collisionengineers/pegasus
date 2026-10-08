@@ -177,7 +177,7 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(hash, line.SourceDocumentSha256);
         });
         Assert.Single(await store.ListEstimatesAsync(caseId, CaseWorkSelector.Current, default));
-        await store.RequireImportAuthorityAsync(new(ActionActor.Automation(imported.CreatedBy), caseId, 2, replayLease.LeaseToken,
+        await store.RequireImportAuthorityAsync(new(ActionActor.Automation(imported.CreatedBy), caseId, 2, lease.LeaseToken,
             occurrenceId, versionId, hash, "mcp:replay-authority", "Glass's 1"), default);
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM ActionHistory WHERE EventKind = N'estimate_created' AND ActorKind = N'Automation'"));
@@ -203,7 +203,7 @@ public sealed class AutomationAssessmentIngressTests
         {
             caseId,
             expectedVersion = 2,
-            editLeaseToken = replayLease.LeaseToken,
+            editLeaseToken = lease.LeaseToken,
             operationKey = "mcp:edit-imported-estimate",
             reason = "Automation reviewed the imported estimate.",
             estimateId = importedId,
