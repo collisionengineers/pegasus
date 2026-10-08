@@ -56,7 +56,35 @@
       how: 'An Administrator sets a name and signature on the account in Accounts.', section: null, accounts: true },
   ];
 
+  // A standalone Audit just in, Not ready: its original report and images
+  // are missing (the Case requirements), and the report still needs nearly
+  // everything, Case facts included (AssessmentPolicy.EvaluateReadiness).
+  const caseFact = (requirement, section, why, how) => ({ requirement, source: 'Case record', why, how, section });
+  const EMPTY = [
+    caseFact('Claim reference', 'overview', 'The report prints the claim reference as Your Ref and none is recorded.', 'Record it on the Case details section.'),
+    caseFact('Incident date', 'overview', 'The report prints the incident date and none is recorded.', 'Record it on the Case details section.'),
+    caseFact('Sign-off Engineer', 'overview', 'The Case has no Sign-off Engineer.', 'Choose the Sign-off Engineer on Case details.'),
+    caseFact('Claimant name', 'claim', "The report prints the claimant's name and none is recorded.", 'Record it on the Claim section.'),
+    caseFact('Inspection type', 'inspection', 'The report says how the vehicle was assessed and no inspection type is recorded.', 'Choose Inspect at on the Inspection details section.'),
+    caseFact('Inspection date', 'inspection', 'The report says the damage was assessed on the Inspection date and none is recorded.', 'Record it on the Inspection details section.'),
+    caseFact('Vehicle registration', 'vehicle', 'The report prints the registration and none is recorded.', 'Record it on the Vehicle section.'),
+    caseFact('Vehicle make', 'vehicle', 'No confirmed make is recorded.', 'Record it on the Vehicle section.'),
+    caseFact('Vehicle model', 'vehicle', 'No confirmed model is recorded.', 'Record it on the Vehicle section.'),
+    caseFact('Vehicle year', 'vehicle', 'No confirmed year is recorded.', 'Record it on the Vehicle section.'),
+    field('Vehicle type', 'vehicle', 'Record it on the Vehicle section.'),
+    ...FRESH,
+  ];
+  // The Case requirements (DetailsModel.OutstandingRequirements): the step
+  // names the first; Case details lists them all.
+  const REQUIREMENTS = [
+    { title: 'Original report missing', source: 'Audit', why: null },
+    { title: 'Images incomplete', source: 'Case requirements', why: 'Details are incomplete' },
+  ];
+
   const PRESETS = {
+    notready: { label: 'Not ready · original report, images, Case facts missing', chip: 'Not ready', engineer: 'Not recorded',
+      step: { label: REQUIREMENTS[0].title, control: 'Case details', kind: 'section', section: 'overview' },
+      requirements: REQUIREMENTS, blockers: EMPTY },
     review: { label: 'Review · Assign Engineer + blockers', chip: 'Review', engineer: 'Not recorded',
       step: { label: 'Assign Engineer', control: 'Assign Engineer', kind: 'dialog' }, blockers: FRESH },
     engineer: { label: 'With Engineer · blockers only', chip: 'With Engineer', engineer: 'A. Engineer', step: null, blockers: FRESH },
@@ -70,7 +98,7 @@
       step: { label: 'Create audit', control: 'Create audit', kind: 'dialog' }, blockers: [], repair: 4218.6, value: 9150 },
   };
   const DESIGNS = { live: 'Live today', a: 'A · Grouped by section', b: 'B · One line each, opens for detail', c: 'C · Report not ready as its own card' };
-  const TONE = { Review: 'navy', 'With Engineer': 'navy', Complete: 'green' };
+  const TONE = { 'Not ready': 'amber', Review: 'navy', 'With Engineer': 'navy', Complete: 'green' };
 
   const esc = (v) => String(v).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
   const icon = (id) => `<svg class="icon" aria-hidden="true"><use href="#${id}" /></svg>`;
@@ -84,6 +112,7 @@
     preset: PRESETS[params.get('state')] ? params.get('state') : 'review',
     tone: params.get('tone') === 'primary' ? 'primary' : 'plain',
     role: params.get('role') === 'user' ? 'user' : 'admin',
+    reqs: params.get('reqs') === 'all' ? 'all' : 'first',
   };
 
   // ---- pieces every design shares ------------------------------------------
@@ -149,7 +178,18 @@
     return `<a class="${cls}" href="${href(b)}" ${attrs(b)}>${content}</a>`;
   }
 
-  const notReadyHead = (tag = 'h3') => `<${tag} class="rail-head">${icon('icon-alert-triangle')}Report not ready</${tag}>`;
+  const head = (words, tag = 'h3') => `<${tag} class="rail-head">${icon('icon-alert-triangle')}${esc(words)}</${tag}>`;
+  const REPORT_NOT_READY = 'Report not ready';
+  const OUTSTANDING = 'Outstanding requirements';
+
+  // A Case requirement drawn as a blocker row: its title, its source and
+  // reason, and today's link to Case details.
+  const asRow = (r) => ({ requirement: r.title, source: r.source, why: r.why, how: null, section: 'overview', requirementRow: true });
+  const mark = (b) => b.requirementRow ? 'data-case-requirement' : `data-report-blocker="${b.section ?? ''}"`;
+  const sourceWhy = (b) => b.why ? `${esc(b.source)} · ${esc(b.why)}` : esc(b.source);
+  const how = (b) => b.how ? `<small class="rail-how">${esc(b.how)}</small>` : '';
+  // Every outstanding Case requirement as rows (item J), or today's one step.
+  const allRequirements = (p) => state.reqs === 'all' && p.requirements?.length;
 
   // ---- live today ------------------------------------------------------------
 
@@ -168,37 +208,44 @@
   // are adjacent). The requirement is the link; source and reason share one
   // line; what clears it follows.
 
-  function designA(p) {
-    let list = '';
-    if (p.blockers.length) {
-      const groups = [];
-      for (const b of p.blockers) {
-        const key = b.section ?? (b.accounts ? 'accounts' : 'none');
-        if (!groups.length || groups.at(-1).key !== key) groups.push({ key, items: [] });
-        groups.at(-1).items.push(b);
-      }
-      list = `<div class="rail-a" data-report-not-ready>${notReadyHead()}${groups.map((g) => {
-        const head = SECTIONS[g.key]
-          ? `<div class="rail-a-group-head">${esc(SECTIONS[g.key][0])}</div>`
-          : g.key === 'accounts' && state.role === 'admin' ? `<div class="rail-a-group-head">${esc(ACCOUNTS)}</div>` : '';
-        return `<div class="rail-a-group" data-rail-group="${g.key}">${head}<ul>${g.items.map((b) => {
-          const name = control(b, 'rail-a-name', esc(b.requirement)) || `<span class="rail-a-name">${esc(b.requirement)}</span>`;
-          return `<li data-report-blocker="${b.section ?? ''}">${name}<small>${esc(b.source)} · ${esc(b.why)}</small><small class="rail-how">${esc(b.how)}</small></li>`;
-        }).join('')}</ul></div>`;
-      }).join('')}</div>`;
+  function listA(items, words, attr, grouped) {
+    const groups = [];
+    for (const b of items) {
+      const key = grouped ? b.section ?? (b.accounts ? 'accounts' : 'none') : 'all';
+      if (!groups.length || groups.at(-1).key !== key) groups.push({ key, items: [] });
+      groups.at(-1).items.push(b);
     }
-    return `${figures(p)}<section class="panel context-card" data-next-action><div class="panel-head"><h2>Next action</h2></div><div class="panel-body">${extras(p)}${step(p.step)}${list}</div></section>`;
+    return `<div class="rail-a" ${attr}>${head(words)}${groups.map((g) => {
+      const gh = !grouped ? '' : SECTIONS[g.key]
+        ? `<div class="rail-a-group-head">${esc(SECTIONS[g.key][0])}</div>`
+        : g.key === 'accounts' && state.role === 'admin' ? `<div class="rail-a-group-head">${esc(ACCOUNTS)}</div>` : '';
+      return `<div class="rail-a-group" data-rail-group="${g.key}">${gh}<ul>${g.items.map((b) => {
+        const name = control(b, 'rail-a-name', esc(b.requirement)) || `<span class="rail-a-name">${esc(b.requirement)}</span>`;
+        return `<li ${mark(b)}>${name}<small>${sourceWhy(b)}</small>${how(b)}</li>`;
+      }).join('')}</ul></div>`;
+    }).join('')}</div>`;
+  }
+
+  function designA(p) {
+    const first = allRequirements(p) ? listA(p.requirements.map(asRow), OUTSTANDING, 'data-case-requirements', false) : step(p.step);
+    const list = p.blockers.length ? listA(p.blockers, REPORT_NOT_READY, 'data-report-not-ready', true) : '';
+    return `${figures(p)}<section class="panel context-card" data-next-action><div class="panel-head"><h2>Next action</h2></div><div class="panel-body">${extras(p)}${first}${list}</div></section>`;
   }
 
   // ---- B: one line each, opens for detail ----------------------------------
   // Each blocker is one line: its requirement and, at the right, the section
   // that clears it. The line opens to show source, reason and what clears it.
 
+  function listB(items, words, attr) {
+    return `<div class="rail-b" ${attr}>${head(words)}<div class="rail-b-list">${
+      items.map((b) => `<details class="rail-b-row" ${mark(b)}><summary>${icon('icon-chevron-right')}<span class="rail-b-name">${esc(b.requirement)}</span>${control(b, 'rail-b-go')}</summary><div class="rail-b-detail"><b>Source:</b> ${esc(b.source)}${b.why ? `<br /><b>Why:</b> ${esc(b.why)}` : ''}${b.how ? `<br />${esc(b.how)}` : ''}</div></details>`).join('')
+    }</div></div>`;
+  }
+
   function designB(p) {
-    const list = p.blockers.length ? `<div class="rail-b" data-report-not-ready>${notReadyHead()}<div class="rail-b-list">${
-      p.blockers.map((b) => `<details class="rail-b-row" data-report-blocker="${b.section ?? ''}"><summary>${icon('icon-chevron-right')}<span class="rail-b-name">${esc(b.requirement)}</span>${control(b, 'rail-b-go')}</summary><div class="rail-b-detail"><b>Source:</b> ${esc(b.source)}<br /><b>Why:</b> ${esc(b.why)}<br />${esc(b.how)}</div></details>`).join('')
-    }</div></div>` : '';
-    return `${figures(p)}<section class="panel context-card" data-next-action><div class="panel-head"><h2>Next action</h2></div><div class="panel-body">${extras(p)}${step(p.step)}${list}</div></section>`;
+    const first = allRequirements(p) ? listB(p.requirements.map(asRow), OUTSTANDING, 'data-case-requirements') : step(p.step);
+    const list = p.blockers.length ? listB(p.blockers, REPORT_NOT_READY, 'data-report-not-ready') : '';
+    return `${figures(p)}<section class="panel context-card" data-next-action><div class="panel-head"><h2>Next action</h2></div><div class="panel-body">${extras(p)}${first}${list}</div></section>`;
   }
 
   // ---- C: Report not ready as its own card ----------------------------------
@@ -206,16 +253,24 @@
   // below it, each row one whole link to the section that clears it; on a
   // tall list only this card scrolls, so Figures and the step stay in view.
 
+  function rowsC(items) {
+    return `<ul class="rail-c-list">${items.map((b) => {
+      const t = target(b);
+      const inner = `<span class="rail-c-top"><strong>${esc(b.requirement)}</strong>${t ? `<span class="rail-c-where">${esc(t.label)}${icon('icon-chevron-right')}</span>` : ''}</span><small>${sourceWhy(b)}</small>${how(b)}`;
+      const row = control(b, 'rail-c-row', inner) || `<div class="rail-c-row">${inner}</div>`;
+      return `<li ${mark(b)}>${row}</li>`;
+    }).join('')}</ul>`;
+  }
+
   function designC(p) {
-    const next = (extras(p) || p.step)
-      ? `<section class="panel context-card" data-next-action><div class="panel-head"><h2>Next action</h2></div><div class="panel-body">${extras(p)}${step(p.step)}</div></section>` : '';
-    const card = p.blockers.length ? `<section class="panel context-card rail-c" data-report-not-ready><div class="panel-head">${notReadyHead('h2')}</div><ul class="rail-c-list">${
-      p.blockers.map((b) => {
-        const t = target(b);
-        const inner = `<span class="rail-c-top"><strong>${esc(b.requirement)}</strong>${t ? `<span class="rail-c-where">${esc(t.label)}${icon('icon-chevron-right')}</span>` : ''}</span><small>${esc(b.source)} · ${esc(b.why)}</small><small class="rail-how">${esc(b.how)}</small>`;
-        const row = control(b, 'rail-c-row', inner) || `<div class="rail-c-row">${inner}</div>`;
-        return `<li data-report-blocker="${b.section ?? ''}">${row}</li>`;
-      }).join('')}</ul></section>` : '';
+    let next = '';
+    if (allRequirements(p)) {
+      // The requirements are the step: rows in the Next action card itself.
+      next = `<section class="panel context-card rail-c rail-c--next" data-next-action data-case-requirements><div class="panel-head"><h2>Next action</h2></div>${extras(p) ? `<div class="panel-body">${extras(p)}</div>` : ''}${rowsC(p.requirements.map(asRow))}</section>`;
+    } else if (extras(p) || p.step) {
+      next = `<section class="panel context-card" data-next-action><div class="panel-head"><h2>Next action</h2></div><div class="panel-body">${extras(p)}${step(p.step)}</div></section>`;
+    }
+    const card = p.blockers.length ? `<section class="panel context-card rail-c" data-report-not-ready><div class="panel-head">${head(REPORT_NOT_READY, 'h2')}</div>${rowsC(p.blockers)}</section>` : '';
     return `${figures(p)}${next}${card}`;
   }
 
@@ -237,6 +292,7 @@
     const q = new URLSearchParams({ design: state.design, state: state.preset });
     if (state.tone !== 'plain') q.set('tone', state.tone);
     if (state.role !== 'admin') q.set('role', state.role);
+    if (state.reqs !== 'first') q.set('reqs', state.reqs);
     history.replaceState(null, '', `?${q}`);
     for (const [key, value] of Object.entries(state)) {
       const picker = document.querySelector(`[data-pick="${key}"]`);
@@ -254,7 +310,8 @@
       pick('design', 'Design', DESIGNS)}${
       pick('preset', 'Case state', Object.fromEntries(Object.entries(PRESETS).map(([k, v]) => [k, v.label])))}${
       pick('tone', 'Step control (A–C)', { plain: 'Secondary button', primary: 'Primary button' })}${
-      pick('role', 'Viewer', { admin: 'Administrator', user: 'User' })
+      pick('role', 'Viewer', { admin: 'Administrator', user: 'User' })}${
+      pick('reqs', 'Case requirements (A–C)', { first: 'First only, as today', all: 'Every one (item J)' })
     }<p>Demo control, not product UI. Synthetic data.</p></div>`;
     el.addEventListener('change', (e) => {
       const key = e.target.dataset.pick;

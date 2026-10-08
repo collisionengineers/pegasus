@@ -30,7 +30,7 @@ CURRENT = Path(__file__).resolve().parent
 SHOTS = CURRENT / 'v35-shots'
 PAGE = CURRENT / 'pegasus_case_rail_v35.html'
 DESIGNS = ['live', 'a', 'b', 'c']
-STATES = ['review', 'engineer', 'near', 'ready', 'stale', 'audit']
+STATES = ['review', 'engineer', 'near', 'ready', 'stale', 'audit', 'notready']
 WIDTHS = [(1580, 1000), (1440, 900), (760, 1000)]
 # Every word the aside may show besides the fixtures' blocker text: the live
 # labels the aside already renders (CaseWorkspaceLabels, OperatorLabels).
@@ -39,7 +39,7 @@ LABELS = {'Figures', 'Next action', 'Repair cost inc VAT', "Engineer's Value", '
           'Cancellation received', 'Open message', 'Source:', 'Why:', 'Staff accounts & roles',
           'A newer fact changed after this generation. Generate again before delivery.', '—', '·',
           'Case details', 'Claim', 'Inspection details', 'Vehicle', 'Damage', 'Valuation', 'Repair Spec', 'Decisions',
-          'Files', 'Notes'}
+          'Files', 'Notes', 'Original report', 'Outstanding requirements'}
 
 ok = []
 fail = []
@@ -107,6 +107,9 @@ def main():
                             check(f"{tag} {b['requirement']} shows its {key}", b[key] in row, row[:80])
                     check(f'{tag} no count of blockers', not re.search(r'\b\d+\s+(items?|blockers?|outstanding|more)\b', r['text'], re.I))
                     allowed = LABELS | {b[k] for b in blockers for k in ['requirement', 'source', 'why', 'how']}
+                    reqs = preset.get('requirements') or []
+                    allowed |= {r[k] for r in reqs for k in ['title', 'source', 'why'] if r[k]}
+                    allowed |= {f"{r['source']} · {r['why']}" for r in reqs if r['why']}
                     allowed |= {f"{b['source']} · {b['why']}" for b in blockers}
                     stray = [w for w in r['words'] if w not in allowed and not re.fullmatch(r'£[\d,]+\.\d\d|\d+%', w)]
                     check(f'{tag} only application words', not stray, stray)
@@ -132,6 +135,19 @@ def main():
             check(f'{design} no Accounts link for a User', page.locator('aside [data-blocker-accounts]').count() == 0)
             load(page, design, 'review', '&tone=primary')
             check(f'{design} primary step', page.locator('aside [data-next-step].btn--primary').count() == 1)
+        # Item J: every outstanding Case requirement, each linking to Case details.
+        reqs = presets['notready']['requirements']
+        for design in ['a', 'b', 'c']:
+            load(page, design, 'notready', '&reqs=all')
+            rows = page.locator('aside [data-case-requirement]')
+            check(f'{design} every Case requirement', rows.count() == len(reqs), rows.count())
+            for i, r in enumerate(reqs):
+                text = rows.nth(i).text_content()
+                check(f"{design} {r['title']} with its source", r['title'] in text and r['source'] in text, text)
+            check(f'{design} requirements link to Case details', page.locator('aside [data-case-requirement] [data-section-jump="overview"], aside [data-case-requirement] a.rail-c-row[data-section-jump="overview"]').count() == len(reqs))
+            check(f'{design} no step line when listed', page.locator('aside [data-next-label]').count() == 0)
+            load(page, design, 'notready')
+            check(f'{design} first requirement only by default', page.locator('aside [data-case-requirement]').count() == 0 and reqs[0]['title'] in page.locator('aside').text_content())
         check('no console error', not console, console)
 
         if shots:
@@ -171,6 +187,13 @@ def main():
                 names.append(shot(f'{d}-review-760', d, 'review', 760, 1000))
             for d in ['a', 'b', 'c']:
                 names.append(shot(f'{d}-review-primary-1580', d, 'review', extra='&tone=primary'))
+            for d in DESIGNS:
+                names.append(shot(f'{d}-notready-1580', d, 'notready'))
+            for d in ['a', 'b', 'c']:
+                names.append(shot(f'{d}-notready-all-1580', d, 'notready', extra='&reqs=all'))
+            names.append(shot('b-notready-all-open-1580', 'b', 'notready', extra='&reqs=all', before="document.querySelectorAll('[data-case-requirement]').forEach(d=>d.open=true)"))
+            for d in ['a', 'c']:
+                names.append(shot(f'{d}-notready-all-1440', d, 'notready', 1440, 900, extra='&reqs=all'))
             print('shots', len(names))
         browser.close()
 

@@ -24,6 +24,10 @@ One column, 760: [live](../../../current/v35-shots/26-live-review-760.png) · [A
 
 Primary step control (item B): [A](../../../current/v35-shots/30-a-review-primary-1580.png) · [B](../../../current/v35-shots/31-b-review-primary-1580.png) · [C](../../../current/v35-shots/32-c-review-primary-1580.png)
 
+Not ready, original report, images and Case facts missing, 1580: [live](../../../current/v35-shots/33-live-notready-1580.png) · [A](../../../current/v35-shots/34-a-notready-1580.png) · [B](../../../current/v35-shots/35-b-notready-1580.png) · [C](../../../current/v35-shots/36-c-notready-1580.png)
+
+The same with every Case requirement listed (item J): [A](../../../current/v35-shots/37-a-notready-all-1580.png) · [B](../../../current/v35-shots/38-b-notready-all-1580.png) · [B opened](../../../current/v35-shots/40-b-notready-all-open-1580.png) · [C](../../../current/v35-shots/39-c-notready-all-1580.png) · [A at 1440](../../../current/v35-shots/41-a-notready-all-1440.png) · [C at 1440](../../../current/v35-shots/42-c-notready-all-1440.png)
+
 ## Notes
 
 The Views and Linked cases cards are unchanged by every design and are not drawn.

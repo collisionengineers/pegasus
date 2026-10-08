@@ -75,3 +75,8 @@ a.rail-c-row:hover,button.rail-c-row:hover{background:var(--surface-2);text-deco
 .v35-mock select{width:100%;min-width:0;min-height:28px;border-radius:3px;border:1px solid #55524c;background:#2a2a2d;color:#f3f1ec;font:inherit;padding:2px 6px}
 .v35-mock p{margin:0;color:#a8a49b;line-height:1.5}
 @media print{.v35-mock{display:none}}
+
+/* ---- item J: every outstanding Case requirement ---- */
+.rail-a+.rail-a,.rail-b+.rail-b{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+@media(min-width:1441px){.workspace-aside[data-rail="c"]>.rail-c--next{flex:none;min-height:0}}
+@media(max-width:1440px){.workspace-aside[data-rail="c"]>.rail-c--next{grid-column:auto}.rail-c--next .rail-c-list{max-height:none}}

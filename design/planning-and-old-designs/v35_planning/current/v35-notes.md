@@ -68,3 +68,21 @@ Which design (A, B, C or a mix) is the operator's choice and is not lettered. Ea
 - The frame is a captured page with its scripts removed: section links scroll to the section but do not open a tab or edit mode, and step buttons do nothing.
 - The Inspection + Audit Case's Views card and the Linked cases card are not drawn; they sit above Figures and no design changes them.
 - The fixtures are synthetic; the eleven-blocker list follows the operator's screenshot and continues in page order.
+
+## 9. 8 October 2026, second round: a Case missing nearly everything
+
+The operator asked what the aside looks like when images, claimant or Case details and the original report are missing. Added state **Not ready · original report, images, Case facts missing**: a standalone Audit just in, with its original report and images outstanding (the Case requirements) and 22 report blockers, Case facts included (`AssessmentPolicy.EvaluateReadiness`). Shots 33–42.
+
+What today does with it (shot 33):
+
+- The step names only the first Case requirement, "Original report missing", with a Case details button (`CaseNextAction.BeforeTheReport`). "Images incomplete" is not in the aside at all; only Case details' Outstanding requirements panel lists it.
+- "Original report missing" links to Case details, but **Mark as original report** is on Files (`_CaseDocuments.cshtml`).
+- The aside's content is 3,346px tall at 1580. A: 2,331px, B: 1,046px, C: 2,112px (the step stays in view, and the blocker card scrolls).
+- Outside this round: Case details' Outstanding requirements head shows "2 outstanding", the kind of count FRD-13 rules out.
+
+New items:
+
+- **J** (A, B, C). Next action lists every outstanding Case requirement, headed "Outstanding requirements", in the design's own row style above "Report not ready", in place of the one step line (strip: Case requirements; shots 37–42). Each keeps its source and reason and today's Case details link. FRD-13 and FRD-16 would say "names every outstanding requirement". Confirm, or keep the first only.
+- **K**. "Original report missing" links to Files, where Mark as original report is, rather than Case details. Confirm, or keep Case details.
+
+Self-check on 8 October 2026 after this round: `RESULT {"fail": [], "okCount": 1194}`, no console error, seven states. The captured frame still shows that Case's own claimant, claim reference and so on, so the sections disagree with this state's blockers.

@@ -7,9 +7,10 @@
 **Mockup controls.** The dark panel at the bottom left is a demo control, not product UI. It holds:
 
 - Design: Live today, A, B or C
-- Case state: Review with Assign Engineer and eleven blockers (the operator's screenshot); With Engineer with the same blockers; With Engineer with an AI draft, a cancellation and four blockers of the special kinds; Generate report; a stale generation; Create audit
+- Case state: Not ready with the original report, images and Case facts missing; Review with Assign Engineer and eleven blockers (the operator's screenshot); With Engineer with the same blockers; With Engineer with an AI draft, a cancellation and four blockers of the special kinds; Generate report; a stale generation; Create audit
 - Step control (A–C): secondary or primary button
 - Viewer: Administrator or User (the Accounts blocker links only for an Administrator)
+- Case requirements (A–C): the first only, as today, or every one (item J)
 
 Every choice is also reachable by query string, for example `?design=c&state=near&role=user`.
 
@@ -29,4 +30,4 @@ Every choice is also reachable by query string, for example `?design=c&state=nea
 
 ## Status
 
-Awaiting the operator's choice of design and the lettered items in [v35-notes.md](v35-notes.md), section 6. Stage 2 has not started.
+Awaiting the operator's choice of design and the lettered items in [v35-notes.md](v35-notes.md), sections 6 and 9. Stage 2 has not started.
