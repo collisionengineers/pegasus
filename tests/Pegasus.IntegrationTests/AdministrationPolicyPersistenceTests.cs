@@ -355,7 +355,6 @@ public sealed class AdministrationPolicyPersistenceTests
                 $"{identity}-mailbox",
                 $"{identity}-inbox",
                 includeSentFolder ? $"{identity}-sent" : null,
-                null,
                 10485760),
             default);
 }
