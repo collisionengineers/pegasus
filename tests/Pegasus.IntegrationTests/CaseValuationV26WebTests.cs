@@ -704,7 +704,7 @@ public sealed class CaseValuationV26WebTests
     /// <summary>
     /// Read mode shows the same five source cards as editing (23 September
     /// 2026): each holds its source's latest figures in greyed boxes, or reads
-    /// Not recorded, and none carries a control, a card Save or Get valuation.
+    /// as dashes, and none carries a control, a card Save or Get valuation.
     /// </summary>
     [Fact]
     public async Task ReadModeShowsTheSameSourceCardsWithoutControls()
@@ -727,7 +727,9 @@ public sealed class CaseValuationV26WebTests
             ValuationCalculationPolicy.FormatMoney(12_500m),
             WebUtility.HtmlDecode(EntryCard(html, "glasses")),
             StringComparison.Ordinal);
-        Assert.Contains(
+        // An empty card reads as dashes, not words.
+        Assert.Equal(3, Regex.Count(WebUtility.HtmlDecode(EntryCard(html, "brego")), "is-blank\">—<", RegexOptions.CultureInvariant));
+        Assert.DoesNotContain(
             Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.AbsentValue,
             EntryCard(html, "brego"),
             StringComparison.Ordinal);
