@@ -62,5 +62,5 @@ Disclose guide source, Valuation commentary and Unrelated damage are tick boxes 
 
 ## Things the FRD does not settle
 
-- What the report's Retail value and Trade value should be when no source is chosen and the boxes are gone (raised by item I of this round).
-- Whether a source with no provider must say so in a sentence or may say so in one word (item C).
+- What the report's Retail value and Trade value should be when no source is chosen and the boxes are gone. Settled on 8 October 2026: blank, so the report stays blocked (item I).
+- Whether a source with no provider must say so in a sentence or may say so in one word. Settled for this section on 8 October 2026: the sentence stays (item C).

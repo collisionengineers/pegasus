@@ -1,6 +1,6 @@
 # Case record: Valuation
 
-- Mockup route: `current/pegasus_case_valuation_v34.html`, with `?state=` and `?opt=` presets.
+- Mockup route: `current/pegasus_case_valuation_v34.html`, with `?state=` presets.
 - Live source: `src/Pegasus.Web/Pages/Cases/Shared/_CaseValuation.cshtml`, `_CaseValuationCalculation.cshtml`, `_CaseValuationOpening.cshtml`, `Pages/Cases/Details.Valuation.cs`, the `#section-valuation` block of `wwwroot/css/case-workspace.css`, and the valuation block of `wwwroot/js/case-workspace.js`.
 - [How it works today](how-it-works.md) · [How it should work](how-it-should-work.md)
 - [Dialogs](dialogs/README.md) · [States](states/README.md) · [Panels](panels/README.md)
@@ -22,8 +22,6 @@ In `current/v34-shots/`. Each is the whole section unless noted.
 | `08-pending` | Editing: AI market research in progress | 1580 |
 | `09-inspection` | Editing in the Inspection view | 1580 |
 | `10-empty`, `11-empty-read` | Nothing recorded, editing and reading | 1580 |
-| `12-fetched-word-basis` | Item B's other choice: "Basis" | 1580 |
-| `13-fetched-manual-sentence` | Item C's other choice: the standing sentence | 1580 |
 
 ## Notes
 

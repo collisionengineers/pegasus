@@ -6808,7 +6808,7 @@ body.has-viewer{overflow:hidden}
         
 
 </template>
-<div id="v34-live" class="sr-only" role="status" aria-live="polite"></div><details class="v34-mock" open><summary>Mockup controls · v34 Valuation</summary><div class="v34-mock-body"><label>Page state<select data-state-picker><option value="fetched">Editing · Glass's fetched, others typed, nothing recorded</option><option value="fetched-read">Reading · Glass's fetched, nothing recorded</option><option value="recorded">Editing · calculation recorded</option><option value="recorded-read">Reading · calculation recorded</option><option value="own">Editing · Engineer's own figure typed</option><option value="refused">Editing · calculation cannot be worked out</option><option value="claimant-vat">Editing · claimant is VAT registered</option><option value="pending">Editing · AI market research in progress</option><option value="inspection">Editing · Inspection view</option><option value="empty">Editing · nothing recorded</option><option value="empty-read">Reading · nothing recorded</option></select></label><label>Chosen card's word (item B)<select data-option-picker="word"><option value="selected">Selected</option><option value="basis">Basis</option></select></label><label>Source with no provider (item C)<select data-option-picker="manual"><option value="tag">Manual tag</option><option value="sentence">Standing sentence (23 Sep)</option></select></label><p>An offline proposal using synthetic data. Changes save a moment after they are made, as on the live page, and change only this page.</p><a class="plain" href="pegasus_case_valuation_v34.html" data-strip-reset>Reset</a></div></details><script>window.valuationDesign={"presets":[["fetched","Editing · Glass's fetched, others typed, nothing recorded"],["fetched-read","Reading · Glass's fetched, nothing recorded"],["recorded","Editing · calculation recorded"],["recorded-read","Reading · calculation recorded"],["own","Editing · Engineer's own figure typed"],["refused","Editing · calculation cannot be worked out"],["claimant-vat","Editing · claimant is VAT registered"],["pending","Editing · AI market research in progress"],["inspection","Editing · Inspection view"],["empty","Editing · nothing recorded"],["empty-read","Reading · nothing recorded"]],"options":[{"key":"word","label":"Chosen card's word (item B)","values":[["selected","Selected"],["basis","Basis"]]},{"key":"manual","label":"Source with no provider (item C)","values":[["tag","Manual tag"],["sentence","Standing sentence (23 Sep)"]]}],"defaults":{"word":"selected","manual":"tag"}};window.mockupErrors=[];window.addEventListener('error',event=>window.mockupErrors.push(event.message));</script><script>// v34 mockup runtime: the Valuation section as guide cards, drawn inside the
+<div id="v34-live" class="sr-only" role="status" aria-live="polite"></div><details class="v34-mock" open><summary>Mockup controls · v34 Valuation</summary><div class="v34-mock-body"><label>Page state<select data-state-picker><option value="fetched">Editing · Glass's fetched, others typed, nothing recorded</option><option value="fetched-read">Reading · Glass's fetched, nothing recorded</option><option value="recorded">Editing · calculation recorded</option><option value="recorded-read">Reading · calculation recorded</option><option value="own">Editing · Engineer's own figure typed</option><option value="refused">Editing · calculation cannot be worked out</option><option value="claimant-vat">Editing · claimant is VAT registered</option><option value="pending">Editing · AI market research in progress</option><option value="inspection">Editing · Inspection view</option><option value="empty">Editing · nothing recorded</option><option value="empty-read">Reading · nothing recorded</option></select></label><p>An offline proposal using synthetic data. Changes save a moment after they are made, as on the live page, and change only this page.</p><a class="plain" href="pegasus_case_valuation_v34.html" data-strip-reset>Reset</a></div></details><script>window.valuationDesign={"presets":[["fetched","Editing · Glass's fetched, others typed, nothing recorded"],["fetched-read","Reading · Glass's fetched, nothing recorded"],["recorded","Editing · calculation recorded"],["recorded-read","Reading · calculation recorded"],["own","Editing · Engineer's own figure typed"],["refused","Editing · calculation cannot be worked out"],["claimant-vat","Editing · claimant is VAT registered"],["pending","Editing · AI market research in progress"],["inspection","Editing · Inspection view"],["empty","Editing · nothing recorded"],["empty-read","Reading · nothing recorded"]],"options":[],"defaults":{}};window.mockupErrors=[];window.addEventListener('error',event=>window.mockupErrors.push(event.message));</script><script>// v34 mockup runtime: the Valuation section as guide cards, drawn inside the
 // captured Case page. Nothing here is application code. The arithmetic
 // mirrors ValuationCalculationPolicy.Calculate; the recording rule mirrors
 // DetailsModel.ChosenCalculation, with a card click standing for Use this
@@ -6821,13 +6821,12 @@ body.has-viewer{overflow:hidden}
   var host = document.getElementById('v34-frame');
 
   // Exact strings from CaseWorkspaceLabels.Valuation, CaseWorkspaceLabels.Editors,
-  // CaseWorkspaceLabels.Report, OperatorLabels and Core's own refusal. The
-  // two words the operator's screenshot brings (Selected, Manual) sit behind
-  // strip switches (items B and C).
+  // CaseWorkspaceLabels.Report, OperatorLabels and Core's own refusal, plus
+  // "Selected" on the chosen card (operator, 8 October 2026, item B).
   var L = {
     engineer: "Engineer's Value", valuationMonth: 'Valuation month', getValuation: 'Get valuation',
     lookingUp: 'Looking up…', starting: 'Starting…', ai: 'AI market research',
-    retail: 'Retail', trade: 'Trade', guideMonth: 'Guide month', basis: 'Basis', selected: 'Selected', manual: 'Manual',
+    retail: 'Retail', trade: 'Trade', guideMonth: 'Guide month', selected: 'Selected',
     calculation: 'Calculation', ptl: 'Previous total loss', ded: 'Condition deduction',
     addVat: 'Add 20 % VAT', claimantVat: 'Claimant is VAT registered',
     increases: 'Value increases', other: 'Other…', applied: 'Applied', notRecorded: 'Not recorded', noneYet: 'None yet',
@@ -7018,7 +7017,7 @@ body.has-viewer{overflow:hidden}
     return '<div class="gc-fig gc-month"><span class="lbl">' + L.guideMonth + '</span><span class="gc-val' + (value ? '' : ' is-blank') + '">' + (value ? month(value) : L.notRecorded) + '</span></div>';
   }
   function chosenWord() {
-    return '<span class="gc-word" data-valuation-chosen-word>' + (opt.word === 'basis' ? L.basis : L.selected) + '</span>';
+    return '<span class="gc-word" data-valuation-chosen-word>' + L.selected + '</span>';
   }
   function getButton(slug, research) {
     var busy = S.busy === slug;
@@ -7036,16 +7035,14 @@ body.has-viewer{overflow:hidden}
   function sourceCard(source) {
     var slug = source.slug;
     var selected = shownBasis() === slug;
-    var manualTag = !source.connected && opt.manual === 'tag';
     var head = '<div class="gc-head"><h3>' + esc(source.name) + '</h3>'
-      + (manualTag ? '<span class="src-tag" data-valuation-not-connected>' + L.manual + '</span>' : '')
       + (selected ? chosenWord() : '')
       + (editing() && source.connected ? '<span class="gc-get">' + getButton(slug, false) + '</span>' : '')
       + '</div>';
     return '<div class="gc' + (selected ? ' sel' : '') + '"' + (pickable(slug) ? ' tabindex="0" role="button" aria-pressed="' + selected + '"' : '') + ' data-pick="' + slug + '" data-valuation-entry="' + slug + '">'
       + head
       + '<div class="gc-figs">' + figure(slug, 'retail', true) + figure(slug, 'trade', true) + guideMonth(slug, true) + '</div>'
-      + (editing() && !source.connected && opt.manual === 'sentence' ? unavailable(source) : '')
+      + (editing() && !source.connected ? unavailable(source) : '')
       + (editing() && S.notices[slug] ? '<div class="notice notice--info gc-note" role="status" data-valuation-needs-retail>' + esc(S.notices[slug]) + '</div>' : '')
       + '</div>';
   }

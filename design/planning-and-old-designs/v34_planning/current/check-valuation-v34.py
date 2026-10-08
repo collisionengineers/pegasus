@@ -8,7 +8,7 @@ renders with no script error; none of the operator's screenshot narration
 and no Apply button; one Engineer's Value box and no Retail or Trade boxes;
 Get valuation only on a connected card and the research card; every control
 today's section has, except the two deliberate drops; every visible word is
-one the application already uses, or one of the two strip-switched words;
+one the application already uses, or the chosen card's word "Selected";
 the figures move as the live arithmetic moves them; nothing spills sideways
 at 1580, 1440 and 760. It then writes the section screenshots and
 verification.json. This is evidence about the mockup, not the application.
@@ -84,8 +84,8 @@ PATTERNS = [re.compile(pattern) for pattern in [
 FIXTURE_WORDS = {"Glass's", 'Brego', 'Super CAP', 'CAP', 'Cazana', 'AI market research', 'AI',
                  'Tow bar', 'Decals', 'Camper conversion', 'PCO plated', 'Driving tuition',
                  'Edit', 'None', 'Collapse section', '​'}
-# The two words the operator's screenshot brings, each behind its strip switch.
-SWITCHED_WORDS = {'Selected', 'Manual'}
+# The chosen card's word, from the operator's screenshot (item B, 8 October 2026).
+SWITCHED_WORDS = {'Selected'}
 
 VISIBLE_TEXT = """
 () => {
@@ -155,39 +155,34 @@ def spill(page):
 
 
 def run_checks(page, errors, allowed):
-    # Every state, both strip choices each way.
+    # Every state.
     for state in STATES:
-        for options in ['', 'word:basis,manual:sentence']:
-            label = f'{state}{" (" + options + ")" if options else ""}'
-            before = len(errors)
-            load(page, state, options)
-            text = section_text(page)
-            editing = not state.endswith('-read')
-            check(f'{label}: renders with no script error', len(errors) == before, '; '.join(errors[before:]))
-            for phrase in NARRATION:
-                check(f'{label}: no "{phrase}"', phrase.lower() not in text.lower())
-            check(f'{label}: no Apply button', page.locator('#section-valuation button:has-text("Apply")').count() == 0)
-            check(f'{label}: one Engineer\'s Value cell', page.locator('[data-field="assessment.values.engineer"]').count() == 1)
-            check(f'{label}: no Retail or Trade value boxes',
-                  page.locator('[data-field="assessment.values.retail"], [data-field="assessment.values.trade"], [data-valuation-value="retail"], [data-valuation-value="trade"]').count() == 0)
-            check(f'{label}: every word is the application\'s', not invented(page, allowed), str(invented(page, allowed)))
-            check(f'{label}: "None yet" only with no card chosen', ('None yet' in text) == (state == 'empty'))
-            gets = page.locator('[data-valuation-get]')
-            owners = sorted(set(gets.nth(i).evaluate("b => b.closest('[data-pick]').dataset.pick") for i in range(gets.count())))
-            expected = [] if not editing else (['glasses'] if state == 'inspection' else ['ai', 'glasses'])
-            check(f'{label}: Get valuation only on connected and research cards', owners == expected, str(owners))
-            word = 'Basis' if 'word:basis' in options else 'Selected'
-            chosen = page.locator('.gc.sel')
-            if state in ('empty', 'empty-read', 'fetched-read'):
-                check(f'{label}: no card chosen', chosen.count() == 0)
-            else:
-                check(f'{label}: one chosen card carrying its word', chosen.count() == 1 and chosen.locator('[data-valuation-chosen-word]').text_content() == word)
-            if editing and 'manual:sentence' in options:
-                check(f'{label}: four standing sentences and no Manual tag',
-                      page.locator('[data-valuation-unavailable]').count() == 4 and 'Manual' not in text)
-            elif editing:
-                check(f'{label}: four Manual tags and no standing sentence',
-                      page.locator('.src-tag:has-text("Manual")').count() == 4 and page.locator('[data-valuation-unavailable]').count() == 0)
+        label = state
+        before = len(errors)
+        load(page, state)
+        text = section_text(page)
+        editing = not state.endswith('-read')
+        check(f'{label}: renders with no script error', len(errors) == before, '; '.join(errors[before:]))
+        for phrase in NARRATION:
+            check(f'{label}: no "{phrase}"', phrase.lower() not in text.lower())
+        check(f'{label}: no Apply button', page.locator('#section-valuation button:has-text("Apply")').count() == 0)
+        check(f"{label}: one Engineer's Value cell", page.locator('[data-field="assessment.values.engineer"]').count() == 1)
+        check(f'{label}: no Retail or Trade value boxes',
+              page.locator('[data-field="assessment.values.retail"], [data-field="assessment.values.trade"], [data-valuation-value="retail"], [data-valuation-value="trade"]').count() == 0)
+        check(f"{label}: every word is the application's", not invented(page, allowed), str(invented(page, allowed)))
+        check(f'{label}: "None yet" only with no card chosen', ('None yet' in text) == (state == 'empty'))
+        gets = page.locator('[data-valuation-get]')
+        owners = sorted(set(gets.nth(i).evaluate("b => b.closest('[data-pick]').dataset.pick") for i in range(gets.count())))
+        expected = [] if not editing else (['glasses'] if state == 'inspection' else ['ai', 'glasses'])
+        check(f'{label}: Get valuation only on connected and research cards', owners == expected, str(owners))
+        chosen = page.locator('.gc.sel')
+        if state in ('empty', 'empty-read', 'fetched-read'):
+            check(f'{label}: no card chosen', chosen.count() == 0)
+        else:
+            check(f'{label}: one chosen card saying Selected', chosen.count() == 1 and chosen.locator('[data-valuation-chosen-word]').text_content() == 'Selected')
+        if editing:
+            check(f'{label}: the approved sentence on the four unconnected cards, no Manual tag',
+                  page.locator('[data-valuation-unavailable]').count() == 4 and 'Manual' not in text)
 
     # Coverage: every control kind today's section has, in the edit states.
     load(page, 'fetched')
@@ -210,7 +205,6 @@ def run_checks(page, errors, allowed):
     }
     for name, (selector, count) in kinds.items():
         check(f'coverage: {name}', page.locator(selector).count() == count, str(page.locator(selector).count()))
-    load(page, 'fetched', 'manual:sentence')
     check('coverage: Report a problem', page.locator('[data-act="problem"]').count() == 4)
     load(page, 'recorded')
     check('coverage: earlier research stays a card', page.locator('.gc--ai').count() == 2)
@@ -321,13 +315,11 @@ def run_widths(browser, heights):
     for width, height in WIDTHS:
         page = browser.new_page(viewport={'width': width, 'height': height})
         for state in STATES:
-            for options in ['', 'manual:sentence']:
-                load(page, state, options)
-                worst = spill(page)
-                check(f'{state} {options} at {width}: nothing spills sideways', worst <= 1, str(worst))
-                if not options:
-                    box = page.locator('#section-valuation').bounding_box()
-                    heights.setdefault(state, {})[str(width)] = round(box['height'])
+            load(page, state)
+            worst = spill(page)
+            check(f'{state} at {width}: nothing spills sideways', worst <= 1, str(worst))
+            box = page.locator('#section-valuation').bounding_box()
+            heights.setdefault(state, {})[str(width)] = round(box['height'])
         page.close()
 
 
@@ -335,7 +327,6 @@ SHOT_LIST = [
     ('fetched', '', True), ('fetched-read', '', True), ('recorded', '', True), ('recorded-read', '', True),
     ('own', '', False), ('refused', '', False), ('claimant-vat', '', False), ('pending', '', False),
     ('inspection', '', False), ('empty', '', False), ('empty-read', '', False),
-    ('fetched', 'word:basis', False), ('fetched', 'manual:sentence', False),
 ]
 
 

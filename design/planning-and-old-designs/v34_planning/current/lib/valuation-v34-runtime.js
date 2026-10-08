@@ -11,13 +11,12 @@
   var host = document.getElementById('v34-frame');
 
   // Exact strings from CaseWorkspaceLabels.Valuation, CaseWorkspaceLabels.Editors,
-  // CaseWorkspaceLabels.Report, OperatorLabels and Core's own refusal. The
-  // two words the operator's screenshot brings (Selected, Manual) sit behind
-  // strip switches (items B and C).
+  // CaseWorkspaceLabels.Report, OperatorLabels and Core's own refusal, plus
+  // "Selected" on the chosen card (operator, 8 October 2026, item B).
   var L = {
     engineer: "Engineer's Value", valuationMonth: 'Valuation month', getValuation: 'Get valuation',
     lookingUp: 'Looking up…', starting: 'Starting…', ai: 'AI market research',
-    retail: 'Retail', trade: 'Trade', guideMonth: 'Guide month', basis: 'Basis', selected: 'Selected', manual: 'Manual',
+    retail: 'Retail', trade: 'Trade', guideMonth: 'Guide month', selected: 'Selected',
     calculation: 'Calculation', ptl: 'Previous total loss', ded: 'Condition deduction',
     addVat: 'Add 20 % VAT', claimantVat: 'Claimant is VAT registered',
     increases: 'Value increases', other: 'Other…', applied: 'Applied', notRecorded: 'Not recorded', noneYet: 'None yet',
@@ -208,7 +207,7 @@
     return '<div class="gc-fig gc-month"><span class="lbl">' + L.guideMonth + '</span><span class="gc-val' + (value ? '' : ' is-blank') + '">' + (value ? month(value) : L.notRecorded) + '</span></div>';
   }
   function chosenWord() {
-    return '<span class="gc-word" data-valuation-chosen-word>' + (opt.word === 'basis' ? L.basis : L.selected) + '</span>';
+    return '<span class="gc-word" data-valuation-chosen-word>' + L.selected + '</span>';
   }
   function getButton(slug, research) {
     var busy = S.busy === slug;
@@ -226,16 +225,14 @@
   function sourceCard(source) {
     var slug = source.slug;
     var selected = shownBasis() === slug;
-    var manualTag = !source.connected && opt.manual === 'tag';
     var head = '<div class="gc-head"><h3>' + esc(source.name) + '</h3>'
-      + (manualTag ? '<span class="src-tag" data-valuation-not-connected>' + L.manual + '</span>' : '')
       + (selected ? chosenWord() : '')
       + (editing() && source.connected ? '<span class="gc-get">' + getButton(slug, false) + '</span>' : '')
       + '</div>';
     return '<div class="gc' + (selected ? ' sel' : '') + '"' + (pickable(slug) ? ' tabindex="0" role="button" aria-pressed="' + selected + '"' : '') + ' data-pick="' + slug + '" data-valuation-entry="' + slug + '">'
       + head
       + '<div class="gc-figs">' + figure(slug, 'retail', true) + figure(slug, 'trade', true) + guideMonth(slug, true) + '</div>'
-      + (editing() && !source.connected && opt.manual === 'sentence' ? unavailable(source) : '')
+      + (editing() && !source.connected ? unavailable(source) : '')
       + (editing() && S.notices[slug] ? '<div class="notice notice--info gc-note" role="status" data-valuation-needs-retail>' + esc(S.notices[slug]) + '</div>' : '')
       + '</div>';
   }

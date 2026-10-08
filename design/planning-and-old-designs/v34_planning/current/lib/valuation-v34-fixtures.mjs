@@ -1,6 +1,7 @@
-// The v34 proposal's states and the undecided choices the strip switches.
-// Synthetic: one Case, Glass's connected, the other four guide sources not
-// connected, as in production on 8 October 2026.
+// The v34 proposal's states. Synthetic: one Case, Glass's connected, the
+// other four guide sources not connected, as in production on 8 October 2026.
+// The strip's two choices were settled by the operator on 8 October 2026
+// ("Selected", the approved sentence), so it switches states only.
 
 // [id, label]. "-read" is the same record outside an edit session.
 export const presets = [
@@ -17,17 +18,6 @@ export const presets = [
   ['empty-read', 'Reading · nothing recorded'],
 ];
 
-export const options = [
-  {
-    key: 'word',
-    label: 'Chosen card\'s word (item B)',
-    values: [['selected', 'Selected'], ['basis', 'Basis']],
-  },
-  {
-    key: 'manual',
-    label: 'Source with no provider (item C)',
-    values: [['tag', 'Manual tag'], ['sentence', 'Standing sentence (23 Sep)']],
-  },
-];
+export const options = [];
 
-export const defaults = { word: 'selected', manual: 'tag' };
+export const defaults = {};

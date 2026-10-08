@@ -15,5 +15,3 @@ The eleven presets in the mockup strip, each reachable as `?state=<id>`:
 | `inspection` | Editing in the Inspection view: no research month or research Get valuation |
 | `empty` | Editing: nothing recorded; "None yet" |
 | `empty-read` | Reading: nothing recorded |
-
-Each state can be drawn with either strip choice: `opt=word:selected|basis`, `opt=manual:tag|sentence`.

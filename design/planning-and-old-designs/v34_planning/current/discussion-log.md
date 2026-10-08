@@ -53,3 +53,20 @@ Built on `task/valuation-cards-v34` from `origin/dev` acb2ffbd1, by forking the 
 - The self-check gained the whole-card checks and now passes 671 (was 656).
 
 Recorded under item E, D9 and D9a. Stage 2 must change `selectCard` the same way.
+
+## 8 October 2026: the list settled
+
+The operator answered the lettered list:
+
+> 1. this is the task. its not a decision thats open. the point of the task is to do this. b. selected c. approved sentence D. keep E. not a decision thats open this is literally what i asked for F. Confirm G. Confirm H. Stays out I. Confirmed J. Confirm K. keep
+
+**Lesson.** A (cards in place of rows) and E (a click is the decision to use) were the request itself and should never have been listed as open. They keep their letters, marked as the request.
+
+**Changed.**
+- The strip's two switches were removed. The mockup draws "Selected" on the chosen card and the approved sentence on the four unconnected cards.
+- The self-check runs each state once and passes 366.
+- 20 screenshots were taken.
+
+**Reading of I.** "Confirmed" is taken to mean that, with no card chosen, the report's Retail and Trade are blank and the report stays blocked, and that a figure no card holds cannot be typed.
+
+The notes (sections 6 and 9) and how-it-should-work (D1–D14, "Decided 8 October 2026") record the settlement. Stage 2 waits for the operator's go-ahead.
