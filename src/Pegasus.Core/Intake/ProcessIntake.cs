@@ -874,7 +874,8 @@ public sealed class ProcessIntake(
                 null,
                 null,
                 null,
-                mailRouteDecision);
+                mailRouteDecision,
+                MailClassificationResult.NoPolicy(mailRouteDecision.Reason));
         }
 
         var principalContext = EstablishPrincipalContext(mailRouteDecision)
@@ -902,10 +903,16 @@ public sealed class ProcessIntake(
             : principalContext?.PrincipalCode == QdosInstructionExtractionPolicy.SupportedPrincipalCode
                 ? readResult
                 : readResult with { Content = PrincipalMailRoutePolicy.CurrentInstructionContent(readResult).ToArray() };
-        var mailClassificationDecision = retainedClassification ?? EvaluateMailClassification(
-            readResult,
-            conflictingProfile ? null : principalContext?.PrincipalCode,
-            instructionSelection.InstructionContent);
+        // Every mail message leaves with a decision, so staff can correct one no
+        // policy classified; an uploaded or API file without a route keeps none.
+        var mailClassificationDecision = retainedClassification
+            ?? EvaluateMailClassification(
+                readResult,
+                conflictingProfile ? null : principalContext?.PrincipalCode,
+                instructionSelection.InstructionContent)
+            ?? (mailRouteDecision is null
+                ? null
+                : MailClassificationResult.NoPolicy("No classification policy ran for the accepted mail route."));
         var caseMatchDecision = await caseMatchEvaluator.ExecuteAsync(
             instructionRead,
             extractionPolicy is null ? null : mailRouteDecision,

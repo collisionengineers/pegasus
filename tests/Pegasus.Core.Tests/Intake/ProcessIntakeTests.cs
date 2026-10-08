@@ -27,7 +27,7 @@ public sealed class ProcessIntakeTests
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Null(receipt.InstructionDraft);
         Assert.Null(receipt.ExtractionPolicyKey);
-        Assert.Null(receipt.MailClassificationDecision);
+        Assert.Equal(MailClassificationResult.NoPolicyKey, receipt.MailClassificationDecision?.PolicyKey);
         Assert.NotEqual(CaseMatchOutcome.UniqueMatch, receipt.CaseMatchDecision?.Outcome);
         Assert.Contains("conflicts", receipt.DecisionReason, StringComparison.Ordinal);
     }
@@ -1258,7 +1258,7 @@ public sealed class ProcessIntakeTests
 
         var recorded = Assert.IsType<MailClassificationResult>(classified.MailClassificationDecision);
         Assert.Equal(MailClassificationOutcome.Classified, recorded.Outcome);
-        Assert.Null(unclassified.MailClassificationDecision);
+        Assert.Equal(MailClassificationOutcome.Unclassified, unclassified.MailClassificationDecision?.Outcome);
         Assert.Equal(unclassified.Decision, classified.Decision);
         Assert.Equal(unclassified.DecisionReason, classified.DecisionReason);
     }
@@ -1408,7 +1408,7 @@ public sealed class ProcessIntakeTests
 
         var recorded = Assert.IsType<MailClassificationResult>(ambiguous.MailClassificationDecision);
         Assert.Equal(MailClassificationOutcome.Ambiguous, recorded.Outcome);
-        Assert.Null(without.MailClassificationDecision);
+        Assert.Equal(MailClassificationOutcome.Unclassified, without.MailClassificationDecision?.Outcome);
         Assert.Equal(without.Decision, ambiguous.Decision);
         Assert.Equal(without.DecisionReason, ambiguous.DecisionReason);
     }

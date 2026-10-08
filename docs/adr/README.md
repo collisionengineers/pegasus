@@ -83,6 +83,7 @@ never renumbered or reused.
 | [ADR-0063](0063-glass-estimate-belongs-to-its-repair-spec.md) | A Glass's estimate belongs to its repair spec, by its stock vehicle | accepted | — | EXT-06, ENG-01 |
 | [ADR-0064](0064-automation-actor-staff-casework-parity.md) | The Automation Actor has staff casework parity | accepted | — | MCP-01, MCP-02, MCP-06 |
 | [ADR-0065](0065-case-export-replaces-eva-routes.md) | The Case export replaces the EVA routes | accepted | — | CASE-21, CASE-30, EXT-03 |
+| [ADR-0066](0066-case-state-mail-classification.md) | Case-state mail classification | accepted | — | MAIL-02, MAIL-09, MAIL-21 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

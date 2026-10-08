@@ -133,15 +133,37 @@ a reasoned new class. `Unidentified` is an abstention, used when evidence is
 missing, unsupported, contradictory or ambiguous. It is never a
 classification.
 
-Classification may use mailbox and message identity, direction, headers,
-sender and domain, fresh body text, attachment and document evidence,
-Principal-route tells, reply and thread signals, and a separately produced
-Case correlation. `In-Reply-To` and `References` establish reply context.
+Classification may use message identity, direction, headers, sender and
+domain, fresh body text, attachment and document evidence, Principal-route
+tells, reply and thread signals, and a separately produced Case correlation.
+Which approved mailbox received the message is never classification
+evidence: a mailbox carries no purpose (operator, 8 October 2026).
+`In-Reply-To` and `References` establish reply context.
 `RE:` is a fallback. `FW:` or `FWD:` alone does not make a reply. Quoted or
 attached old content is not evidence of fresh work. A deterministic rule
 names its policy, version and predicates. Otherwise an authorised staff
 member records the decision and the reason. The history rules below keep
 the evidence, actor, time, policy version and later corrections.
+
+Every retained received message carries a classification decision. A
+message whose sender matches no accepted route, or whose route has no
+classification policy, is recorded `Unclassified` under the
+`no_mail_classification_policy` rule with the route's reason, so staff can
+correct it and the workspace lists it; nothing is left without a decision.
+
+**Case-state classification** (`case_state_mail_classification` v1,
+operator 8 October 2026). When a received mail message joins a Case, by
+automatic association or by a staff link, and its decision is still
+`Unclassified`, the Case's lifecycle state classifies it: a Case whose report
+is out (With Engineer after the report, Completed or Query) makes it
+`post-report-emails/query`; a Case still in progress (Not ready, Held,
+Review, With Engineer before the report) makes it
+`in-progress-cases/ongoing-correspondence`; a closed Case classifies
+nothing. The Principal's own case-match keys found the Case, so this is
+per-Principal evidence without a per-Principal predicate. A `Classified`
+decision, including a staff correction, is never overridden. The decision is
+written in the same transaction as the link, before the Query rule in
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#completed-and-query) reads it.
 
 | Classification | Positive criteria and exclusions | Method | Operational destination | Outlook folder type |
 | --- | --- | --- | --- | --- |
@@ -164,8 +186,8 @@ the evidence, actor, time, policy version and later corrections.
 | `in-progress-cases/cancellation` | Explicit cancellation; it wins over quoted old instructions | route predicate or staff | Detailed: `in-progress-cases/cancellation` | Cancellations |
 | `in-progress-cases/case-update` | Update on ongoing work, excluding a new instruction or a post-report challenge | staff | Detailed: `in-progress-cases/case-update` | Case updates |
 | `in-progress-cases/chasing-for-update` | Client or Principal asks for progress on ongoing work | staff | Detailed: `in-progress-cases/chasing-for-update` | Case updates |
-| `in-progress-cases/ongoing-correspondence` | Other ongoing correspondence once more specific subtypes are excluded | reasoned staff decision | Detailed: `in-progress-cases/ongoing-correspondence` | Case updates |
-| `post-report-emails/query` | Question about a delivered report | route or thread evidence or staff | Queries | Case queries |
+| `in-progress-cases/ongoing-correspondence` | Other ongoing correspondence once more specific subtypes are excluded | case state of the linked Case, or reasoned staff decision | Detailed: `in-progress-cases/ongoing-correspondence` | Case updates |
+| `post-report-emails/query` | Question about a delivered report | case state of the linked Case, route or thread evidence, or staff | Queries | Case queries |
 | `post-report-emails/dispute` | Challenge to a delivered report or finding | route or thread evidence or staff | Queries | Case queries |
 | `post-report-emails/amendment-request` | Request to amend a delivered report | route or thread evidence or staff | Queries | Case queries |
 | `pre-instruction-emails/triage-request` | Accepted Triage request; a missing VRM stays Unidentified under FRD-03 | route predicate or staff | Triage | Pre-instructions |
