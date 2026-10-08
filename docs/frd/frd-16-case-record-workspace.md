@@ -83,12 +83,28 @@ date) and, once a report has been sent, when and from which mailbox. There is
 no workflow strip and no lifecycle panel; Return to Review, Unlink report
 evidence and Archive are items of the one Actions menu.
 
-An aside beside the sections holds **Figures** (three figures) and **Next action** (AI drafts ready on the Case with their
-per-kind action, and the next permitted action with a link to its section).
-While the report is not ready, the Next action carries the report's
-readiness list: every blocker, one row each with the requirement, its source,
-why it is outstanding, what clears it and a link to the section that clears
-it ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
+An aside beside the sections holds **Figures** (three figures), **Next
+action** and, while anything is outstanding, **Report not ready** (operator,
+8 October 2026). Next action holds the AI drafts ready on the Case with their
+per-kind action and one step: the first outstanding Case requirement while
+the Case is Not ready or Held, else the state's own step, else, while the
+report is not ready, its first blocker in page order. A requirement or a
+blocker as the step is drawn in full (what is missing, its source and reason,
+what clears it) with one full-width control to where it is cleared; a step
+whose control says what the step says, such as Assign Engineer or Create
+audit, is that control alone, and any other step names itself above its
+section's control.
+**Report not ready** is a card of its own below Next action, folded until
+the browser opens it and remembered per browser like the section folds. It
+lists everything outstanding, the step's own item included: every
+outstanding Case requirement while the Case is Not ready or Held, then the
+report's readiness list, every blocker under the name of the section that
+clears it, each with the requirement as its link, its source, why it is
+outstanding and what clears it
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
+Original report missing links to Files, where Mark as original report is;
+the other Case requirements link to Case details. The card is headed
+**Outstanding requirements** when no blocker remains.
 Where a tab inside that section clears it, the link opens that tab too
 (operator, 1 October 2026): a missing Overview or report image
 source opens Files on **Images**, and the agreed fee or its description
@@ -96,11 +112,10 @@ lines open Report on **Fee**.
 The rows run in page order (operator, 2 October 2026): section by section
 from the top, then by where the field that clears each sits within its
 section, so working down the list moves down the page; a blocker no Case
-section clears comes last. The Cases list's Current work names the same
-first row.
-With Engineer the list is the next action; in Not ready and Review it follows
-that state's next action. It shows beside every section and in both modes;
-a long list scrolls within the aside rather than pushing the sections down.
+section clears comes last, under Accounts where it opens Accounts. The
+Cases list's Current work names the same first row.
+The card shows beside every section and in both modes; a long list scrolls
+within the aside rather than pushing the sections down.
 When a newer fact has made the current generation stale, the Next action
 carries the dismissable warning "A newer fact changed after this generation.
 Generate again before delivery." There is no page-wide stale bar and no
@@ -586,8 +601,8 @@ separate Fee pane for the agreed fee, description lines and fee note preview
 **Generate report** is offered in and out of edit mode when nothing blocks;
 in edit mode it waits for a change not yet sent to land. While something blocks, the head shows
 the one availability label **Not ready** in both modes (operator, 26
-September 2026); the blocker list itself is the aside's Next action (operator,
-28 September 2026).
+September 2026); the blocker list itself is the aside's Report not ready card
+(operator, 8 October 2026).
 The content switches are under **On the report** in Valuation. The report
 renders the sign-off Engineer tuple and the marked damage diagram. The
 diagram is the Case page's own plan: the report and the Damage section draw
@@ -910,7 +925,7 @@ Inspection's values only.
 ## Acceptance evidence
 
 Acceptance covers the ten sections and the `?section=` jump, the Report
-readiness list in the Next action linking each blocker to its section,
+readiness list in the aside's Report not ready card linking each blocker to its section,
 the read-only rule in Completed, the Actions menu per state, and save as
 you go: a save keeps the session and returns the authority the next one
 carries, and the ribbon offers Done and no Save or Cancel. Web tests cover

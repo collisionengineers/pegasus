@@ -14,7 +14,7 @@ Its stable frame is:
 2. sticky 56px Case ribbon;
 3. sticky 40px section row;
 4. Case sections;
-5. Figures + Next action context aside.
+5. Figures + Next action + Report not ready context aside.
 
 The ribbon owns:
 
@@ -102,7 +102,7 @@ Important ownership decisions:
 - Valuation owns the guide cards, the valuation calculation, the Engineer's Value box and the On the report content switches.
 - Repair Spec owns specification tabs, header/lines, Import, Send to AI and Compare.
 - Decisions owns settlement decisions and settlement-only figures.
-- Report owns generation/preview/finality controls, report wording, report date, commentary and the Fee pane. Its head keeps the one **Not ready** label; the blocker list is the aside's Next action (below).
+- Report owns generation/preview/finality controls, report wording, report date, commentary and the Fee pane. Its head keeps the one **Not ready** label; the blocker list is the aside's Report not ready card (below).
 - Files owns Case images, documents, crop/tag/viewer tools, upload requests and correspondence/file surfaces. A document row may offer **Import as repair spec**, which runs Repair Spec's own import on that file (operator, 25 September 2026).
 - Notes owns the single Case timeline, notes and chase recording.
 
@@ -297,14 +297,19 @@ Viewer controls must not overlap the image stage. Keep the crop toolbar coherent
 ## Aside
 
 The context aside contains the Views card (only once an Audit exists), the Linked cases card (only
-while a Triage Case is linked; operator, 7 October 2026), then Figures and Next action.
+while a Triage Case is linked; operator, 7 October 2026), then Figures, Next action and Report not
+ready.
 
-While the report is not ready, Next action lists every report blocker (With Engineer, in place of
-its one line), each row linking to the section that owns the fact rather than repeating it. A stale generation's warning notice sits at the
-top of Next action; there is no page-wide stale bar and no second stale notice in Report
-(operator, 28 September 2026). Beside the sections the sticky aside is capped at the viewport and
-scrolls on its own; folded above them, the blocker list scrolls inside its panel. Do not let a long
-list push the sections down or hide below a sticky aside.
+Next action is one step (operator, 8 October 2026): the first outstanding Case requirement, else
+the state's step, else the report's first blocker, drawn in full with one full-width control. Do not
+list anything else in it. Everything outstanding is the **Report not ready** card below, folded
+until opened and remembered per browser (`data-collapse-folded`): the Case requirements, then every
+report blocker under its section's name, the requirement as its link to the section that owns the
+fact rather than repeating it. A stale generation's warning notice sits at the top of Next action;
+there is no page-wide stale bar and no second stale notice in Report (operator, 28 September 2026).
+Beside the sections the sticky aside is capped at the viewport and scrolls on its own; folded above
+them, the card's list scrolls inside it. Do not let a long list push the sections down or hide below
+a sticky aside.
 
 Do not recreate a separate "Current position" card that repeats the ribbon.
 
