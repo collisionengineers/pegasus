@@ -1,0 +1,100 @@
+/* v34 mockup only. What the guide-card design adds to the live site.css and
+   case-workspace.css, scoped to the Valuation section. Tokens are the live
+   ones; no new colour, radius or spacing scale. The −10 / −20 choice is the
+   live .case-layout-switch (Scroll / Tabs). */
+
+.v34-frame .section-placeholder{display:none}
+#section-valuation[data-design="v34"] .panel-body{display:grid;gap:12px}
+
+/* ---- guide cards ---- */
+#section-valuation .gcs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;min-width:0}
+#section-valuation .gc{display:grid;align-content:start;gap:6px;min-width:0;padding:10px 12px 11px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface)}
+#section-valuation .gc.sel{border-color:var(--red-dark);box-shadow:inset 0 0 0 1px var(--red-dark);background:#fff6f6}
+.case-record.is-editing #section-valuation .gc[tabindex="0"]{cursor:pointer}
+.case-record.is-editing #section-valuation .gc[tabindex="0"]:hover{border-color:var(--line-strong)}
+.case-record.is-editing #section-valuation .gc.sel[tabindex="0"]:hover{border-color:var(--red-dark)}
+.case-record.is-editing #section-valuation .gc[tabindex="0"]:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+#section-valuation .gc-head{display:flex;align-items:center;gap:6px;min-height:28px;min-width:0}
+#section-valuation .gc-head h3{margin:0;font-size:13px;font-weight:700;line-height:1.3;min-width:0}
+#section-valuation .gc-word{margin-left:auto;font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--red-dark)}
+#section-valuation .gc-get{margin-left:auto}
+#section-valuation .gc-word+.gc-get{margin-left:8px}
+#section-valuation .gc-get .btn{white-space:nowrap}
+#section-valuation .gc-figs{display:grid;gap:2px}
+#section-valuation .gc-fig{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,120px);align-items:center;gap:8px;min-height:28px;font-size:12.5px}
+#section-valuation .gc-fig>.lbl,#section-valuation .gc-fig>label{color:var(--muted);font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0;margin:0}
+#section-valuation .gc-val{justify-self:end;font-weight:600;color:var(--ink)}
+#section-valuation .gc-val.is-blank{color:var(--quiet);font-weight:400}
+#section-valuation .gc-val.derived{opacity:.65}
+#section-valuation .gc-fig .fi{min-height:28px;padding:2px 8px;font-size:12.5px;text-align:right;width:100%;min-width:0}
+#section-valuation .gc-month,#section-valuation .gc-month>.lbl,#section-valuation .gc-month>label{font-size:11.5px}
+#section-valuation .gc-month .gc-val{font-weight:400;color:var(--muted)}
+#section-valuation .gc-month .gc-val.is-blank{color:var(--quiet)}
+#section-valuation .gc-month .fi{text-align:left;font-size:12px}
+#section-valuation .gc-meta{font-size:11px;color:var(--muted)}
+#section-valuation .gc-meta.researching::before{content:"";display:inline-block;width:9px;height:9px;border:2px solid var(--navy);border-right-color:transparent;border-radius:50%;margin-right:6px;vertical-align:-1px;animation:pegasus-spin .8s linear infinite}
+#section-valuation .gc-note{margin:2px 0 0;padding:5px 8px;font-size:12px}
+#section-valuation .gc-note .link-button{color:inherit;text-decoration:underline}
+#section-valuation .gc.is-pending .gc-figs{opacity:.8}
+/* Reading: every figure is text; a card has nothing to press. */
+.case-record:not(.is-editing) #section-valuation .gc{cursor:default}
+
+/* ---- value increases ---- */
+#section-valuation .v-adds,#section-valuation .v-deds{border-style:dashed;background:var(--surface)}
+#section-valuation .v-adds .adds-head{margin:0 0 8px}
+#section-valuation[data-design="v34"] .adds{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 28px}
+#section-valuation[data-design="v34"] .add{grid-template-columns:20px minmax(0,1fr) 96px}
+#section-valuation[data-design="v34"] .add--custom{grid-template-columns:20px minmax(0,1fr) 96px}
+#section-valuation .add--vat label{display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px}
+#section-valuation .add .amt--figure{justify-self:end;font:600 12px var(--mono);opacity:1}
+#section-valuation .add:not(.on) .amt--figure{opacity:.55}
+
+/* ---- deductions ---- */
+#section-valuation .v-deds-row{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);gap:12px 24px;align-items:start}
+#section-valuation .v-ptl>.lbl{display:block}
+#section-valuation .v-ptl-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;min-height:var(--control)}
+#section-valuation .v-ptl-row .choice{display:inline-flex;align-items:center;gap:7px;font-size:12.5px}
+#section-valuation .v-ptl-row .choice input{width:15px;height:15px;min-height:0;margin:0;accent-color:var(--red)}
+#section-valuation .v-ptl-switch{margin:0}
+#section-valuation .v-ptl-switch button{font-family:var(--mono);font-weight:600}
+#section-valuation .v-ptl-switch button:disabled{opacity:.45;cursor:default}
+
+/* ---- the Engineer's Value ---- */
+#section-valuation .v-ev{display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:8px 24px;align-items:end;padding:12px 14px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface-2)}
+#section-valuation .v-ev-cell .fv,#section-valuation .v-ev-cell .fi{min-height:40px;font-size:17px;font-weight:650}
+#section-valuation .v-ev-cell .fi{text-align:right}
+#section-valuation .v-ev-cell .fv{justify-content:flex-end}
+#section-valuation .v-ev-cell label .src-tag,#section-valuation .v-ev-cell .lbl .src-tag{margin-left:6px}
+#section-valuation .v-ev-calc{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;min-height:40px;padding-bottom:9px;font-size:12.5px;color:var(--muted)}
+#section-valuation .v-ev-calc .lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.08em}
+#section-valuation .v-ev-calc [data-out="calc-note"]{flex-basis:100%}
+#section-valuation .v-ev-calc [data-out="calc-note"]:empty{display:none}
+#section-valuation .v-ev-calc .notice{margin:0}
+#section-valuation [data-out="eng-tag"]:empty{display:none}
+
+/* ---- on the report ---- */
+#section-valuation .v-report{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;font-size:12.5px}
+#section-valuation .v-report>.lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.08em}
+#section-valuation .v-report .switches{display:flex;flex-wrap:wrap;gap:6px 20px}
+#section-valuation .v-report .choice{display:inline-flex;align-items:center;gap:7px}
+#section-valuation .v-report .choice input{width:15px;height:15px;min-height:0;margin:0;accent-color:var(--red)}
+#section-valuation .v-report .fv{min-height:0;padding:0;border:0;background:transparent}
+
+@media(max-width:1180px){
+  #section-valuation .gcs{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:760px){
+  #section-valuation .gcs,#section-valuation[data-design="v34"] .adds,#section-valuation .v-deds-row,#section-valuation .v-ev{grid-template-columns:minmax(0,1fr)}
+  #section-valuation .v-ev-calc{min-height:0;padding-bottom:0}
+}
+
+/* ---- mockup strip: demo control, not product UI ---- */
+.v34-mock{position:fixed;left:10px;bottom:10px;z-index:400;width:220px;background:#1d1d1f;color:#f3f1ec;border-radius:4px;font-size:12px;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+.v34-mock summary{cursor:pointer;padding:8px 12px;font-weight:650;list-style:none}
+.v34-mock summary::-webkit-details-marker{display:none}
+.v34-mock-body{display:grid;gap:8px;padding:4px 12px 12px;max-height:70vh;overflow:auto}
+.v34-mock label{display:grid;gap:3px;color:#c9c5bc}
+.v34-mock select{width:100%;min-width:0;text-overflow:ellipsis;min-height:28px;border-radius:3px;border:1px solid #55524c;background:#2a2a2d;color:#f3f1ec;font:inherit;padding:2px 6px}
+.v34-mock p{margin:0;color:#a8a49b;line-height:1.5}
+.v34-mock a.plain{color:#f3f1ec}
+@media print{.v34-mock{display:none}}
