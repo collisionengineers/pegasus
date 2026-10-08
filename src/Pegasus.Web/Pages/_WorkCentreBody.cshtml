@@ -311,7 +311,16 @@ else
                                     <span class="wc-fold">@NeedsAttentionPresentation.OwnerLabel(item) · @received</span>
                                 </td>
                                 <td class="wc-col-record">
-                                    <span class="mono">@NeedsAttentionPresentation.ReferenceLabel(item)</span>
+                                    <span class="mono">
+                                        @if (!string.IsNullOrWhiteSpace(item.RecordRoute))
+                                        {
+                                            <a href="@item.RecordRoute">@NeedsAttentionPresentation.ReferenceLabel(item)</a>
+                                        }
+                                        else
+                                        {
+                                            @NeedsAttentionPresentation.ReferenceLabel(item)
+                                        }
+                                    </span>
                                     @if (subject is not null)
                                     {
                                         <small>@subject</small>
