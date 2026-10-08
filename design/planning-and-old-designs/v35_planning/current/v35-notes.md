@@ -184,3 +184,27 @@ Departures in the implementation, each a decision rather than a defect:
 
 - The card's inner "Outstanding requirements" and "Report not ready" headings appear only when both lists are present. The card's own heading names the one that is.
 - Only a requirement or blocker step carries the amber edge. A step such as Generate report is its words above its section's control, without amber, because amber means incomplete.
+
+## 13. 8 October 2026: Stage 2 conformance
+
+The application rendered the Case page in four states: Not ready on a standalone Audit missing its original report and images; Review; With Engineer with blockers; and a stored report awaiting Send report. A temporary test made those pages; it was never committed, and its text is kept in [captured/capture-implementation-test.cs.txt](captured/capture-implementation-test.cs.txt). [check-aside-implementation.py](check-aside-implementation.py) opened them with the live CSS, site.js and case-workspace.js, served from localhost so the fold cookie works: `RESULT {"fail": [], "okCount": 47}`.
+
+The check proves:
+
+- Next action holds one step in every state.
+- In the Not ready state:
+  - the step is Original report missing with a full-width Files control;
+  - the card lists both requirements, Original report missing opening Files and Images incomplete opening Case details;
+  - the card is headed Report not ready.
+- In Review, Assign Engineer is drawn as Next action's one step.
+- With Engineer, the step is a blocker drawn in full.
+- In the ready state, the step's words sit above its Report control, and there is no card.
+- The card starts folded, opens with its chevron, and the fold cookie names it. A reload keeps it open, and a second click folds it and removes the name.
+- A section's fold still names a folded section, so the existing default-open meaning is kept.
+- No row has a fill, and nothing spills sideways at 1580, 1440 or 760.
+
+Screenshots are in [v35-conformance/](v35-conformance/verification.json): each state at 1580, 1440 and 760, plus the opened card at 1580. Compare 01/04 (Not ready) with r4-03/r4-09, 05/08 (Review) with r4-16, and 09/12 (With Engineer) with r4-23. The one visible difference is the decided one: the card also lists the step's own item.
+
+Not proven here: a signed-in walk of a running Pegasus, including the aside redrawn after a real save.
+
+Seen and not changed: Case details' own Outstanding requirements panel still shows "2 outstanding". That count is the kind FRD-13 rules out, and the panel now repeats the card's requirements. It is outside this round's brief and is left for the operator.
