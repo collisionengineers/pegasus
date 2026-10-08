@@ -138,7 +138,11 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             .GetRequiredService<IIntakeReceiptQueries>().GetAsync(receiptId, default));
 
         Assert.Equal(caseId, receipt.CurrentCaseId);
-        Assert.Equal(MailClassificationOutcome.Unclassified, receipt.MailClassificationDecision!.Outcome);
+        // FRD-08 case-state classification: no predicate matched, so the
+        // in-progress Case it joined classifies it as ongoing correspondence.
+        Assert.Equal(
+            MailCategory.Received(ReceivedMailFamily.InProgressCases, "ongoing-correspondence"),
+            receipt.MailClassificationDecision!.Category);
         Assert.Equal(CaseMatchOutcome.UniqueMatch, receipt.CaseMatchDecision!.Outcome);
         Assert.Equal(4, InstructionEvidenceImages.Select(receipt.AssetRecords).Count);
         await AssertFiledAsync(factory, caseId, DocumentCustodyStatus.Confirmed);
