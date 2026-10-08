@@ -1,0 +1,89 @@
+    // TEMPORARY v35 capture, never committed: inserted into CaseViewsWebTests,
+    // run with PEGASUS_V35_CAPTURE set, then removed. Dumps the rendered Case
+    // page in each aside state for the conformance check.
+    [Fact]
+    public async Task V35CaptureTemp()
+    {
+        var directory = Environment.GetEnvironmentVariable("PEGASUS_V35_CAPTURE");
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return;
+        }
+        Directory.CreateDirectory(directory);
+
+        async Task CaptureAsync(RecordingCaseDetailsStore store, string name, Action<IServiceCollection> substitute)
+        {
+            using var host = new ReadingHost(store, substitute);
+            await File.WriteAllTextAsync(
+                Path.Combine(directory, name + ".html"),
+                await GetHtmlAsync(host.Client, $"/Cases/{store.CaseId:D}"));
+        }
+
+        // Not ready: a standalone Audit missing its original report and its
+        // images, with the report blockers the recording store's assessment has.
+        {
+            var store = new RecordingCaseDetailsStore
+            {
+                State = CaseLifecycleState.NotReady,
+                CaseState = CaseLifecycleState.NotReady,
+                SummaryCaseType = CaseType.Audit
+            };
+            var data = (CaseDataProjection)typeof(RecordingCaseDetailsStore)
+                .GetMethod("CreateData", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .Invoke(store, null)!;
+            store.DataOverride = data with
+            {
+                Completeness = data.Completeness with
+                {
+                    Values = new(InstructionComplete: true, ImagesComplete: false),
+                    Evaluation = data.Completeness.Evaluation with { MissingRequirements = ["Images"] }
+                }
+            };
+            await CaptureAsync(store, "notready", services =>
+            {
+                Substitute<ICaseReportGenerationStore>(services, new ReportsPerWork(store.CaseId) { Inspection = null });
+                Substitute<ICaseReportSnapshotSource>(services, store);
+            });
+        }
+
+        // Review: Assign Engineer, then the blockers.
+        {
+            var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
+            await CaptureAsync(store, "review", services =>
+            {
+                Substitute<ICaseReportGenerationStore>(services, new ReportsPerWork(store.CaseId) { Inspection = null });
+                Substitute<ICaseReportSnapshotSource>(services, store);
+            });
+        }
+
+        // With Engineer: the first blocker is the step.
+        {
+            var store = new RecordingCaseDetailsStore
+            {
+                State = CaseLifecycleState.ReportPreparation,
+                AssignedEngineerId = Guid.NewGuid()
+            };
+            await CaptureAsync(store, "engineer", services =>
+            {
+                Substitute<ICaseReportGenerationStore>(services, new ReportsPerWork(store.CaseId) { Inspection = null });
+                Substitute<ICaseReportSnapshotSource>(services, store);
+            });
+        }
+
+        // With Engineer, report ready: Generate report.
+        {
+            var store = new RecordingCaseDetailsStore
+            {
+                State = CaseLifecycleState.ReportPreparation,
+                AssignedEngineerId = Guid.NewGuid()
+            };
+            await CaptureAsync(store, "ready", services =>
+            {
+                Substitute<ICaseReportGenerationStore>(services, new ReportsPerWork(store.CaseId) { Inspection = null });
+                Substitute<ICaseReportSnapshotSource>(
+                    services,
+                    new AssessmentReportDraftWebTests.FakeProjectionSource(AssessmentReportDraftWebTests.ReadyInput(store.CaseId)));
+            });
+        }
+    }
+

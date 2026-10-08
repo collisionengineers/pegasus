@@ -795,6 +795,10 @@ public sealed class CaseDetailsWebTests
         Assert.Equal(
             requirementExpected,
             html.Contains("Original report missing", StringComparison.Ordinal));
+        // One home: the aside names it; Case details lists no requirements
+        // and counts none (operator, 8 October 2026).
+        Assert.DoesNotContain("data-outstanding-requirements", html, StringComparison.Ordinal);
+        Assert.DoesNotMatch(@"\d+ outstanding</span>", html);
     }
 
     [Fact]

@@ -474,13 +474,17 @@
         }
         busyDownload(link, null, link.href, { method: 'GET' });
     });
+    // A form whose other buttons save (the Case list's presets) marks only its
+    // download buttons.
     document.addEventListener('submit', function (event) {
         var form = event.target;
-        if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-busy-download') || event.defaultPrevented) {
+        var submitter = event.submitter || null;
+        if (!(form instanceof HTMLFormElement) || event.defaultPrevented
+            || !(form.hasAttribute('data-busy-download')
+                || submitter && submitter.hasAttribute('data-busy-download'))) {
             return;
         }
         event.preventDefault();
-        var submitter = event.submitter || null;
         var url = (submitter && submitter.getAttribute('formaction')) || form.action;
         busyDownload(submitter || defaultSubmitter(form), form, url, {
             method: 'POST',
@@ -2116,7 +2120,9 @@ window.pegasusPreferences = (function () {
 //   [data-dismiss]           removes the enclosing .notice (or [data-dismissable])
 //   [data-collapse="key"]    a panel whose [data-collapse-toggle] folds its body,
 //                            remembered in the "pegasus-collapsed" cookie (the
-//                            folded keys joined by "|", served in the first paint)
+//                            folded keys joined by "|", served in the first paint);
+//                            with [data-collapse-folded] the panel starts folded
+//                            and the cookie names it once opened
 (function () {
     'use strict';
 
@@ -2211,14 +2217,18 @@ window.pegasusPreferences = (function () {
             }
 
             // The server already painted a folded panel from the cookie; the
-            // cookie is read again for a body mounted after load.
-            var collapsed = panel.classList.contains('is-collapsed') || collapsedKeys().indexOf(key) !== -1;
+            // cookie is read again for a body mounted after load. The cookie
+            // names a panel that is not as it starts: folded, or opened when
+            // it starts folded.
+            var foldedFirst = panel.hasAttribute('data-collapse-folded');
+            var named = collapsedKeys().indexOf(key) !== -1;
+            var collapsed = foldedFirst ? !named : panel.classList.contains('is-collapsed') || named;
             apply(collapsed);
             toggle.addEventListener('click', function () {
                 collapsed = !collapsed;
                 apply(collapsed);
                 var keys = collapsedKeys().filter(function (other) { return other !== key; });
-                if (collapsed && KEY_PATTERN.test(key)) {
+                if (collapsed !== foldedFirst && KEY_PATTERN.test(key)) {
                     keys.push(key);
                 }
                 saveCollapsedKeys(keys);

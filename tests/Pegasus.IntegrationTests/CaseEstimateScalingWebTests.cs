@@ -193,6 +193,11 @@ public sealed class CaseEstimateScalingWebTests
         var previewUrl = $"/Cases/{caseId:D}?handler=PreviewEstimateScale";
         Assert.Contains($"data-scale-preview-url=\"{previewUrl}\"", html, StringComparison.Ordinal);
         Assert.Contains("data-rollup=\"gross\"", html, StringComparison.Ordinal);
+        // The slider starts at the spec's own share of value, £744.24 of
+        // £1,000 rounded up, and goes no higher (operator, 8 October 2026).
+        Assert.Contains(
+            "<input type=\"range\" min=\"1\" max=\"74.5\" step=\"0.1\" value=\"74.5\"", html, StringComparison.Ordinal);
+        Assert.Contains("min=\"1\" max=\"74.5\" step=\"0.1\" value=\"74.5\" inputmode=\"decimal\"", html, StringComparison.Ordinal);
         var draft = store.WorkingEstimate;
 
         async Task<JsonElement> PreviewAsync(string percent, string partPounds = "620.20")
@@ -235,6 +240,7 @@ public sealed class CaseEstimateScalingWebTests
         Assert.Equal("£483.76", preview.GetProperty("rollup").GetProperty("gross").GetString());
         var readout = preview.GetProperty("readout").GetString();
         Assert.StartsWith("£744.24 ", readout, StringComparison.Ordinal);
+        Assert.Equal("74.5", preview.GetProperty("ceiling").GetString());
         // The readout states the share asked for, as Apply records it. The
         // line has no labour hours, so the total stops moving once the
         // price floor bites and the labour rate never reaches its floor.
@@ -246,6 +252,15 @@ public sealed class CaseEstimateScalingWebTests
         var edited = await PreviewAsync("45", "500.00");
         Assert.Equal("ok", edited.GetProperty("status").GetString());
         Assert.StartsWith("£600.00 ", edited.GetProperty("readout").GetString(), StringComparison.Ordinal);
+        // The spec as edited sets the slider's top.
+        Assert.Equal("60", edited.GetProperty("ceiling").GetString());
+        // A spec above the Engineer's Value scales down from its own share:
+        // £1,200.00 of £1,000 is 120 %, so 110 % is a target below it.
+        var above = await PreviewAsync("110", "1000.00");
+        Assert.Equal("ok", above.GetProperty("status").GetString());
+        Assert.Equal("120", above.GetProperty("ceiling").GetString());
+        Assert.StartsWith("£1,200.00 → ", above.GetProperty("readout").GetString(), StringComparison.Ordinal);
+        Assert.Contains("(110.0 % of value)", above.GetProperty("readout").GetString(), StringComparison.Ordinal);
         // A line the save refuses is refused by the preview.
         Assert.Equal("refused", (await PreviewAsync("45", "500.005")).GetProperty("status").GetString());
 

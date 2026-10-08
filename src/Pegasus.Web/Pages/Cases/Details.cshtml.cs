@@ -310,7 +310,9 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// The requirements the current configured policy reports as unmet,
-    /// accompanied by the Case's due-work reason where available.
+    /// accompanied by the Case's due-work reason where available, each with
+    /// the section that clears it: the original report is marked on Files
+    /// (operator, 8 October 2026); the rest arrive with the Case's details.
     /// </summary>
     public IReadOnlyList<CaseRequirement> OutstandingRequirements
     {
@@ -327,11 +329,11 @@ public sealed partial class DetailsModel(
             var requirements = new List<CaseRequirement>();
             if (OriginalReportMissing)
             {
-                requirements.Add(new("Original report missing", "Audit", null));
+                requirements.Add(new("Original report missing", "Audit", null, "files"));
             }
             requirements.AddRange(data.Completeness.Evaluation.MissingRequirements
                 .Select(requirement => new CaseRequirement(
-                    Pegasus.Web.Presentation.OperatorLabels.RequirementIncomplete(requirement), "Case requirements", why)));
+                    Pegasus.Web.Presentation.OperatorLabels.RequirementIncomplete(requirement), "Case requirements", why, "overview")));
             return requirements;
         }
     }
@@ -344,7 +346,8 @@ public sealed partial class DetailsModel(
             CaseFiles.Current(FilesSection?.Documents ?? Case?.Documents ?? [])
                 .Any(file => file.Occurrence.SemanticRole == DocumentSemanticRole.AuditReport));
 
-    public sealed record CaseRequirement(string Title, string Source, string? Why);
+    /// <summary>An unmet Case requirement and the section that clears it.</summary>
+    public sealed record CaseRequirement(string Title, string Source, string? Why, string SectionKey);
 
 
     public CasePageFrame? Case { get; private set; }
@@ -3176,6 +3179,9 @@ public sealed partial class DetailsModel(
             {
                 status = "ok",
                 readout = RepairSpecificationWording.ScaleReadout(result, percent),
+                // The spec as edited sets the slider's top (operator, 8 October 2026).
+                ceiling = Math.Max(1m, RepairSpecificationScaling.PercentOfValue(engineerValue!.Value, result.GrossBefore))
+                    .ToString("0.#", CultureInfo.InvariantCulture),
                 labourRate = Amount(result.Details.LabourRate),
                 lines = editor.LineRows.Select((row, index) => new
                 {

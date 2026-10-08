@@ -15,8 +15,8 @@ public sealed class V1ActivityReportTests
         var beta = Guid.NewGuid();
         var queries = new Queries(
         [
-            new(qdos, "QDOS", 1, 2, 1, 1, 0, 0, 0, 0, TimeSpan.FromDays(2), TimeSpan.FromDays(2), TimeSpan.FromDays(2), TimeSpan.FromDays(3), 0, null, 0, null, 0, []),
-            new(beta, "BETA", 1, 1, 0, 1, 1, 1, 0, 0, null, null, null, null, 0, null, 0, null, 0, [])
+            new(qdos, "QDOS", 1, 2, 1, 1, 0, 0, 0, 0, TimeSpan.FromDays(2), TimeSpan.FromDays(2), TimeSpan.FromDays(2), TimeSpan.FromDays(3), 0, null, 0, null, 0, 0),
+            new(beta, "BETA", 1, 1, 0, 1, 1, 1, 0, 0, null, null, null, null, 0, null, 0, null, 0, 0)
         ]);
 
         var result = await new GetV1ActivityReport(queries)
@@ -61,11 +61,11 @@ public sealed class V1ActivityReportTests
     {
         var id = Guid.NewGuid();
         var invalid = new GetV1ActivityReport(new Queries(
-            [new(id, "QDOS", 0, 0, 1, 0, 0, 0, 0, 2, null, null, null, null, 0, null, 0, null, 0, [])]));
+            [new(id, "QDOS", 0, 0, 1, 0, 0, 0, 0, 2, null, null, null, null, 0, null, 0, null, 0, 0)]));
         var duplicate = new GetV1ActivityReport(new Queries(
         [
-            new(id, "QDOS", 0, 0, 0, 0, 0, 0, 0, 0, null, null, null, null, 0, null, 0, null, 0, []),
-            new(id, "QDOS", 0, 0, 0, 0, 0, 0, 0, 0, null, null, null, null, 0, null, 0, null, 0, [])
+            new(id, "QDOS", 0, 0, 0, 0, 0, 0, 0, 0, null, null, null, null, 0, null, 0, null, 0, 0),
+            new(id, "QDOS", 0, 0, 0, 0, 0, 0, 0, 0, null, null, null, null, 0, null, 0, null, 0, 0)
         ]));
 
         await Assert.ThrowsAsync<InvalidDataException>(() => invalid.ExecuteAsync(
@@ -78,7 +78,7 @@ public sealed class V1ActivityReportTests
     public async Task ReportRejectsAnAuditShareOutsideItsTotal()
     {
         var id = Guid.NewGuid();
-        IReadOnlyList<PrincipalReportArtifactTypeActivity> oneReport = [new(nameof(CaseReportArtifactKind.AssessmentReport), 1, 0)];
+        const int oneReport = 1;
         IReadOnlyList<PrincipalReportActivity> invalidRows =
         [
             new(id, "QDOS", 1, 1, 1, 0, 0, 0, 0, 0, null, null, null, null, 0, null, 0, null, 0, oneReport, 10m, AuditReportsProduced: 2),

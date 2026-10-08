@@ -233,11 +233,8 @@ public sealed class V1ActivityReportPersistenceTests
         Assert.Equal(From.AddDays(4), row.OldestHeldAtUtc);
         Assert.Equal(0, row.HeldWithoutRecordedHoldEvent);
         Assert.Equal(111.25m, row.AgreedFeeTotal);
-        Assert.Equal(
-        [
-            new PrincipalReportArtifactTypeActivity(nameof(CaseReportArtifactKind.AssessmentReport), 1, 0),
-            new PrincipalReportArtifactTypeActivity("DOCX", 0, 1)
-        ], row.ArtifactTypes);
+        // The DOCX artifact never confirmed, so only the confirmed report is produced.
+        Assert.Equal(1, row.ReportsProduced);
     }
 
     private static IntakeReceiptEntity Receipt(Guid id) => new()

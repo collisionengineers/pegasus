@@ -1022,7 +1022,7 @@ public sealed class AdministrationSearchAccountWebTests
 
         Assert.Contains("Reports by Principal", html, StringComparison.Ordinal);
         Assert.Contains("QDOS", html, StringComparison.Ordinal);
-        Assert.Contains("Report 1", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Report types", html, StringComparison.Ordinal);
         Assert.DoesNotContain("generated artifact", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("pending or failed", html, StringComparison.OrdinalIgnoreCase);
 
@@ -1034,11 +1034,11 @@ public sealed class AdministrationSearchAccountWebTests
         Assert.Contains(
             "Principal,Reports produced,Reports produced · Inspection,Reports produced · Audit,"
             + "Reports sent,Reports sent · Inspection,Reports sent · Audit,"
-            + "Agreed fees,Agreed fees · Inspection,Agreed fees · Audit,Report types",
+            + "Agreed fees,Agreed fees · Inspection,Agreed fees · Audit\r\n",
             csv,
             StringComparison.Ordinal);
         // An Inspection Case's report, send and fee are all Inspection.
-        Assert.Contains("QDOS,1,1,0,1,1,0,0.00,0.00,0.00,Report 1", csv, StringComparison.Ordinal);
+        Assert.Contains("QDOS,1,1,0,1,1,0,0.00,0.00,0.00\r\n", csv, StringComparison.Ordinal);
     }
 
     [Fact]

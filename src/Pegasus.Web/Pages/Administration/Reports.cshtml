@@ -1,7 +1,7 @@
 @page
 @model Pegasus.Web.Pages.Administration.ReportsModel
 @{
-    ViewData["Title"] = "Reports";
+    ViewData["Title"] = OperatorLabels.Admin.Reports;
     ViewData["Eyebrow"] = "Administration";
     ViewData["AdminArea"] = "reports";
     var from = Model.From?.ToString("yyyy-MM-ddTHH:mm");
@@ -96,7 +96,7 @@
                 </div>
                 <div class="table-wrap section-gap">
                     <table class="table table--compact">
-                        <thead><tr><th scope="col">Principal</th><th scope="col" class="num">Reports produced</th><th scope="col" class="num">@ReportsModel.InspectionColumn("Reports produced")</th><th scope="col" class="num">@ReportsModel.AuditColumn("Reports produced")</th><th scope="col" class="num">Reports sent</th><th scope="col" class="num">@ReportsModel.InspectionColumn("Reports sent")</th><th scope="col" class="num">@ReportsModel.AuditColumn("Reports sent")</th><th scope="col" class="num">Agreed fees</th><th scope="col" class="num">@ReportsModel.InspectionColumn("Agreed fees")</th><th scope="col" class="num">@ReportsModel.AuditColumn("Agreed fees")</th><th scope="col">Report types</th></tr></thead>
+                        <thead><tr><th scope="col">Principal</th><th scope="col" class="num">Reports produced</th><th scope="col" class="num">@ReportsModel.InspectionColumn("Reports produced")</th><th scope="col" class="num">@ReportsModel.AuditColumn("Reports produced")</th><th scope="col" class="num">Reports sent</th><th scope="col" class="num">@ReportsModel.InspectionColumn("Reports sent")</th><th scope="col" class="num">@ReportsModel.AuditColumn("Reports sent")</th><th scope="col" class="num">Agreed fees</th><th scope="col" class="num">@ReportsModel.InspectionColumn("Agreed fees")</th><th scope="col" class="num">@ReportsModel.AuditColumn("Agreed fees")</th></tr></thead>
                         <tbody>
                         @if (Model.PrincipalActivity is { } mi02)
                         {
@@ -114,14 +114,13 @@
                                     <td class="num tabular">@Money(row.AgreedFeeTotal)</td>
                                     <td class="num tabular">@Money(row.InspectionAgreedFeeTotal)</td>
                                     <td class="num tabular">@Money(row.AuditAgreedFeeTotal)</td>
-                                    <td>@string.Join(", ", row.ArtifactTypes.Where(type => type.Generated > 0).Select(type => $"{OperatorLabels.ReportKind(type.Kind)} {type.Generated}"))</td>
                                 </tr>
                             }
-                            @if (mi02Rows.Length == 0) { <tr><td colspan="11" class="muted">No reports were recorded for this period.</td></tr> }
+                            @if (mi02Rows.Length == 0) { <tr><td colspan="10" class="muted">No reports were recorded for this period.</td></tr> }
                         }
                         else
                         {
-                            <tr><td colspan="11" class="muted">Unavailable</td></tr>
+                            <tr><td colspan="10" class="muted">Unavailable</td></tr>
                         }
                         </tbody>
                     </table>
@@ -205,6 +204,84 @@
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </section>
+
+        @{
+            var caseList = Model.CaseList;
+            var chosen = caseList.Columns.ToHashSet(StringComparer.Ordinal);
+            var selectedPreset = Model.SelectedPreset;
+        }
+        <section class="panel" aria-labelledby="mi04-title" data-case-list>
+            <div class="panel-head"><h2 id="mi04-title">@OperatorLabels.CaseList.Title</h2><span class="meta">MI04</span></div>
+            <div class="panel-body stack">
+                <p class="muted admin-report-note">@OperatorLabels.CaseList.Note</p>
+                @if (Model.CaseListError is { } caseListError)
+                {
+                    <div class="notice notice--danger" role="alert">@caseListError</div>
+                }
+                @if (Model.CaseListPresets is { } presets)
+                {
+                    <form method="get" class="form-grid form-grid--auto admin-report-filter" aria-label="@OperatorLabels.CaseList.Preset">
+                        <div class="field">
+                            <label for="case-list-preset">@OperatorLabels.CaseList.Preset</label>
+                            <select id="case-list-preset" name="preset">
+                                <option value="">@OperatorLabels.CaseList.NoPreset</option>
+                                @foreach (var preset in presets)
+                                {
+                                    <option value="@preset.Id.ToString("D")" selected="@(preset.Id == selectedPreset?.Id)">@preset.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="cluster"><button class="btn" type="submit">@OperatorLabels.CaseList.UsePreset</button></div>
+                    </form>
+                }
+                else
+                {
+                    <p class="muted">@OperatorLabels.CaseList.PresetsUnavailable</p>
+                }
+                <form method="post" class="stack" aria-label="@OperatorLabels.CaseList.Title">
+                    <input type="hidden" name="PresetId" value="@caseList.PresetId?.ToString("D")" />
+                    <input type="hidden" name="ExpectedVersion" value="@caseList.ExpectedVersion" />
+                    <input type="hidden" name="NewPresetId" value="@caseList.NewPresetId.ToString("D")" />
+                    <input type="hidden" name="OperationKey" value="@caseList.OperationKey" />
+                    <div class="form-grid form-grid--auto admin-report-filter">
+                        <div class="field"><label for="case-list-from">@OperatorLabels.CaseList.ReceivedFrom</label><input id="case-list-from" name="ReceivedFrom" type="date" value="@caseList.ReceivedFrom?.ToString("yyyy-MM-dd", invariant)" /></div>
+                        <div class="field"><label for="case-list-to">@OperatorLabels.CaseList.ReceivedTo</label><input id="case-list-to" name="ReceivedTo" type="date" value="@caseList.ReceivedTo?.ToString("yyyy-MM-dd", invariant)" /></div>
+                        <label class="choice"><input type="checkbox" name="AllTime" value="true" checked="@caseList.AllTime" /> @OperatorLabels.CaseList.AllTime</label>
+                        <label class="choice"><input type="checkbox" name="IncludeTriage" value="true" checked="@caseList.IncludeTriage" /> @OperatorLabels.CaseList.IncludeTriage</label>
+                    </div>
+                    @foreach (var group in Pegasus.Core.Reports.CaseListColumns.All.GroupBy(column => column.Group))
+                    {
+                        <fieldset class="stack">
+                            <legend>@OperatorLabels.CaseList.Group(group.Key)</legend>
+                            <div class="form-grid form-grid--auto">
+                                @foreach (var column in group)
+                                {
+                                    <label class="choice"><input type="checkbox" name="Columns" value="@column.Key" checked="@chosen.Contains(column.Key)" /> @column.Title</label>
+                                }
+                            </div>
+                        </fieldset>
+                    }
+                    <div class="button-row">
+                        <button class="btn btn--dark" type="submit" asp-page-handler="CaseListCsv" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Download CSV</span></button>
+                        <button class="btn" type="submit" asp-page-handler="CaseListWorkbook" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="#icon-file-spreadsheet" /></svg><span>Download workbook</span></button>
+                    </div>
+                    @if (Model.CaseListPresets is not null)
+                    {
+                        <div class="form-grid form-grid--auto admin-report-filter">
+                            <div class="field"><label for="case-list-preset-name">@OperatorLabels.CaseList.PresetName</label><input id="case-list-preset-name" name="PresetName" maxlength="@Pegasus.Core.Reports.CaseListPresetPolicy.MaximumNameLength" value="@caseList.PresetName" /></div>
+                            <div class="button-row">
+                                <button class="btn" type="submit" asp-page-handler="CaseListPresetCreate" data-busy-label="@OperatorLabels.Busy.Saving">@OperatorLabels.CaseList.SaveAsNewPreset</button>
+                                @if (caseList.PresetId is not null)
+                                {
+                                    <button class="btn" type="submit" asp-page-handler="CaseListPresetSave" data-busy-label="@OperatorLabels.Busy.Saving">@OperatorLabels.CaseList.SavePreset</button>
+                                    <button class="btn btn--danger" type="submit" asp-page-handler="CaseListPresetRemove" data-busy-label="@OperatorLabels.Busy.Removing">@OperatorLabels.CaseList.RemovePreset</button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </form>
             </div>
         </section>
     </div>

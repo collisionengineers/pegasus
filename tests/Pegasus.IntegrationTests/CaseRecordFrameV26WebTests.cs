@@ -326,7 +326,8 @@ public sealed class CaseRecordFrameV26WebTests
     /// <summary>
     /// Assign Engineer on a Review Case is the select. Assign to me is not a
     /// second way to take the Case. The Next action opens the Actions menu's
-    /// own dialog rather than jumping to a section (issue 1025).
+    /// own dialog rather than jumping to a section (issue 1025), and the step
+    /// is that one control, not its words beside it (operator, 8 October 2026).
     /// </summary>
     [Fact]
     public async Task AssignEngineerDoesNotOfferAssignToMe()
@@ -346,9 +347,10 @@ public sealed class CaseRecordFrameV26WebTests
             RecordBar(leased),
             StringComparison.Ordinal);
         Assert.Matches(
-            "<div class=\"next-row\">\\s*<span data-next-label>Assign Engineer</span>\\s*"
-                + "<button type=\"button\" class=\"btn btn--small\" data-dialog-open=\"case-handoff-dialog\" data-next-assign-engineer>Assign Engineer</button>\\s*</div>",
+            "<div class=\"next-step\" data-next-step>\\s*"
+                + "<button type=\"button\" class=\"btn next-step-go\" data-dialog-open=\"case-handoff-dialog\" data-next-assign-engineer>Assign Engineer</button>\\s*</div>",
             leased);
+        Assert.DoesNotContain("<strong data-next-label>Assign Engineer</strong>", leased, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -371,7 +373,7 @@ public sealed class CaseRecordFrameV26WebTests
 
         var html = await workspace.GetWorkspaceAsync();
 
-        Assert.Matches("<div class=\"next-row\">\\s*<span data-next-label>Assign Engineer</span>\\s*</div>", html);
+        Assert.Matches("<div class=\"next-step\" data-next-step>\\s*<strong data-next-label>Assign Engineer</strong>\\s*</div>", html);
         Assert.DoesNotContain("data-next-assign-engineer", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-dialog-open=\"case-handoff-dialog\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-dialog=\"case-handoff-dialog\"", html, StringComparison.Ordinal);

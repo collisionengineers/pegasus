@@ -838,6 +838,9 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         }
         Assert.DoesNotContain("ProblemReports:DELETE", deleteGrants);
         Assert.Contains("ProblemReports", await ReadDeniedDeleteTablesAsync(database, WebRole));
+        // 20261008174505_CaseListPresets: a removed preset is kept, never deleted.
+        Assert.DoesNotContain("CaseListPresets:DELETE", deleteGrants);
+        Assert.Contains("CaseListPresets", await ReadDeniedDeleteTablesAsync(database, WebRole));
     }
 
     // 20260924180000_CaseWorksAndTriageCases: Web and Worker both create Cases

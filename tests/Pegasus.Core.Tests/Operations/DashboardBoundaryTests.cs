@@ -170,6 +170,7 @@ public sealed class DashboardBoundaryTests
         Assert.Null(item.OwnerStaffId);
         Assert.Equal("Unassigned", item.Owner);
         Assert.Equal($"/Cases/{caseId:D}", item.Route);
+        Assert.Equal($"/Cases/{caseId:D}", item.RecordRoute);
     }
 
     [Fact]
@@ -217,6 +218,12 @@ public sealed class DashboardBoundaryTests
             && item.Owner == "Unassigned");
         Assert.DoesNotContain(snapshot.NeedsAttention, item =>
             item.Kind == NeedsAttentionKind.ReviewCase && item.Id == unassignedId);
+        // The action opens its section; the reference opens the Case itself.
+        var review = snapshot.NeedsAttention.Single(item => item.Id == reviewId);
+        Assert.Equal($"/Cases/{reviewId:D}?section=review", review.Route);
+        Assert.Equal($"/Cases/{reviewId:D}", review.RecordRoute);
+        var unassigned = snapshot.NeedsAttention.Single(item => item.Id == unassignedId);
+        Assert.Equal($"/Cases/{unassignedId:D}", unassigned.RecordRoute);
         Assert.Equal(
             1,
             searchCases.RequestedStates.Count(state => state == CaseLifecycleState.Review));
@@ -355,6 +362,44 @@ public sealed class DashboardBoundaryTests
         Assert.Null(owners["D4"]);
         var read = Assert.Single(workflows.Calls);
         Assert.Equal(new[] { assignedCase, unknownCase }.Order(), read.Order());
+    }
+
+    /// <summary>
+    /// A row's reference opens the record it names: a draft's Case or
+    /// Unidentified item, an Unidentified row's item; a queue draft names none.
+    /// </summary>
+    [Fact]
+    public async Task EachReferenceOpensTheRecordItNames()
+    {
+        var caseId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        var rowId = Guid.NewGuid();
+        var jobs = new StubAiJobs(
+        [
+            NewDraft(AiJobSubjectKind.Case, caseId, "D1").Job,
+            NewDraft(AiJobSubjectKind.Unidentified, itemId, "D2").Job,
+            NewDraft(AiJobSubjectKind.Queue, Guid.NewGuid(), "D3").Job
+        ]);
+
+        var snapshot = await new GetOperationsSnapshot(
+            new StubListTriage(),
+            new StubDueWorkQueries(),
+            new RecordingDashboardQueries(),
+            new StubSearchCases(),
+            new StubUnidentifiedQueue { Rows = [NewUnidentified(rowId, "U3001")] },
+            new UnknownStaffAccounts(),
+            new FixedWorkflowConfiguration(new("case-workflow", 1)),
+            new InMemoryWorkCentreDismissals(),
+            new FixedTimeProvider(NowUtc),
+            jobs,
+            new RecordingAssignedEngineers(new Dictionary<Guid, Guid?>())).ExecuteAsync(
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]));
+
+        var routes = snapshot.Attention.Items.ToDictionary(item => item.Reference, item => item.RecordRoute);
+        Assert.Equal($"/Cases/{caseId:D}", routes["D1"]);
+        Assert.Equal($"/Unidentified/{itemId:D}", routes["D2"]);
+        Assert.Null(routes["D3"]);
+        Assert.Equal($"/Unidentified/{rowId:D}", routes["U3001"]);
     }
 
     [Fact]

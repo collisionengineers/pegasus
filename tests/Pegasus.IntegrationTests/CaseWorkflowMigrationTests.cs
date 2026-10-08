@@ -456,7 +456,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20261007182000_StaffMailSendActorKind",
                 "20261007183000_GrantWorkerTriageFindings",
                 "20261007184000_RemoveEva",
-                "20261008090000_DropAutomationWorkflowEventTimeIndex"
+                "20261008090000_DropAutomationWorkflowEventTimeIndex",
+                "20261008174505_CaseListPresets"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

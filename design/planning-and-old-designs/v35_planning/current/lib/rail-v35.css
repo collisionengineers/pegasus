@@ -1,0 +1,158 @@
+/* v35 mockup only. What the six aside proposals add to the live site.css
+   and case-workspace.css. Tokens are the live ones; no new colour, radius or
+   type scale. Amber stays the incomplete colour (design README), drawn as a
+   mark rather than a filled panel. */
+
+/* ---- shared ---- */
+.rail-step{display:grid}
+.rail-step .btn{width:100%}
+.rail-block+.rail-block,.rail-step+.rail-block,.next-row+.rail-block,.notice+.rail-block,.rail-first+.rail-block{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.notice+.rail-step,.notice+.next-row,.next-row+.rail-step,.next-row+.rail-first,.notice+.rail-first{margin-top:8px}
+.rail-head{display:flex;align-items:center;gap:6px;margin:0 0 8px;font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.08em}
+.rail-head .icon{width:13px;height:13px;color:var(--amber);flex:none}
+.rail-how{color:var(--quiet)}
+.rail-name{display:inline;padding:0;border:0;background:none;font:inherit;font-size:12px;font-weight:650;color:var(--ink);text-align:left;cursor:pointer;text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:2px;overflow-wrap:anywhere}
+span.rail-name{cursor:default;text-decoration:none}
+.rail-name:hover{text-decoration-color:currentColor}
+
+/* An item in full (1, 4, 6, and the requirements in 1, 4, 6) */
+.rail-items{list-style:none;margin:0;padding:0}
+.rail-item{padding:6px 0 6px 12px;position:relative;overflow-wrap:anywhere}
+.rail-item+.rail-item{border-top:1px dashed var(--line)}
+.rail-item::before{content:"";position:absolute;left:1px;top:12px;width:6px;height:6px;border-radius:50%;background:var(--amber)}
+.rail-item small{display:block;font-size:11px;color:var(--muted);line-height:1.4;margin-top:2px}
+.rail-item small.rail-how{color:var(--quiet)}
+
+/* ---- 1: grouped by section ---- */
+.rail-group+.rail-group{margin-top:10px}
+.rail-group-head{padding:0 0 4px;border-bottom:1px solid var(--line);font-size:11.5px;font-weight:650;color:var(--muted)}
+
+/* ---- 2 and 5: one line each, opens for detail ---- */
+.rail-lines{border-top:1px solid var(--line)}
+.rail-line{border-bottom:1px solid var(--line)}
+.rail-line summary{display:grid;grid-template-columns:14px minmax(0,1fr) auto;align-items:center;gap:6px;min-height:34px;padding:4px 0;list-style:none;cursor:pointer;font-size:12px}
+.rail-line summary::-webkit-details-marker{display:none}
+.rail-line summary>.icon{width:14px;height:14px;color:var(--quiet)}
+.rail-line[open] summary>.icon{transform:rotate(90deg)}
+.rail-line-name{font-weight:600;overflow-wrap:anywhere}
+.rail-line-go{padding:2px 0;border:0;background:none;font:inherit;font-size:11px;font-weight:600;color:var(--muted);white-space:nowrap;cursor:pointer;text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:2px}
+.rail-line-go:hover{color:var(--ink)}
+.rail-line-detail{padding:0 0 8px 20px;font-size:11px;line-height:1.45;color:var(--muted);overflow-wrap:anywhere}
+
+/* ---- 3: Report not ready as its own card ---- */
+.rail-card .panel-head h2.rail-head{margin:0;font-size:inherit;color:inherit;text-transform:none;letter-spacing:0;font-weight:inherit}
+.rail-card .panel-head h2.rail-head .icon{width:15px;height:15px}
+.rail-rows{list-style:none;margin:0;padding:0}
+.rail-rows li+li{border-top:1px solid var(--line)}
+.rail-row{display:grid;gap:2px;width:100%;padding:8px 12px;border:0;background:none;font:inherit;text-align:left;color:var(--ink);text-decoration:none;overflow-wrap:anywhere}
+a.rail-row,button.rail-row{cursor:pointer}
+a.rail-row:hover,button.rail-row:hover{background:var(--surface-2);text-decoration:none}
+.rail-row-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.rail-row-top strong{font-size:12px;font-weight:650;padding-left:12px;position:relative}
+.rail-row-top strong::before{content:"";position:absolute;left:0;top:5px;width:6px;height:6px;border-radius:50%;background:var(--amber)}
+.rail-row-where{display:inline-flex;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--muted);white-space:nowrap}
+.rail-row-where .icon{width:13px;height:13px}
+.rail-row small{display:block;font-size:11px;color:var(--muted);line-height:1.4;padding-left:12px}
+.rail-row small.rail-how{color:var(--quiet)}
+@media(min-width:1441px){
+  .case-record .workspace-aside[data-rail="3"]{display:flex;flex-direction:column;overflow:hidden}
+  .workspace-aside[data-rail="3"]>.panel{flex:none}
+  .workspace-aside[data-rail="3"]>.rail-card:not(.rail-card--next){flex:0 1 auto;min-height:180px;display:flex;flex-direction:column}
+  .workspace-aside[data-rail="3"]>.rail-card:not(.rail-card--next) .rail-rows{overflow-y:auto;overscroll-behavior:contain;min-height:0}
+}
+
+/* ---- 4 and 6: one row per section, opens for detail ---- */
+.rail-sects{border-top:1px solid var(--line)}
+.rail-sect{border-bottom:1px solid var(--line)}
+.rail-sect summary{display:grid;grid-template-columns:minmax(0,1fr) 16px;align-items:start;gap:8px;padding:7px 0;list-style:none;cursor:pointer}
+.rail-sect summary::-webkit-details-marker{display:none}
+.rail-sect summary>.icon{width:16px;height:16px;color:var(--quiet);margin-top:1px}
+.rail-sect[open] summary>.icon{transform:rotate(180deg)}
+.rail-sect-main{display:grid;gap:2px;min-width:0;padding-left:12px;position:relative}
+.rail-sect-main::before{content:"";position:absolute;left:1px;top:6px;width:6px;height:6px;border-radius:50%;background:var(--amber)}
+.rail-sect-main small{font-size:11px;line-height:1.4;color:var(--muted);overflow-wrap:anywhere}
+.rail-sect[open] .rail-sect-main small{display:none}
+.rail-sect .rail-items{padding:0 0 6px 12px}
+.rail-sect.is-here{box-shadow:inset 3px 0 0 var(--amber);background:var(--surface-2);padding:0 6px 0 9px}
+
+/* 6: the section row's mark on each section that clears a blocker */
+.section-link .rail-nav-mark{display:inline-block;width:6px;height:6px;margin-left:5px;border-radius:50%;background:var(--amber);vertical-align:2px}
+
+/* ---- 5: the first item in full ---- */
+.rail-first{display:grid;gap:3px;padding:10px 12px;border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:var(--radius);overflow-wrap:anywhere}
+.rail-first strong{font-size:13.5px;font-weight:650}
+.rail-first small{font-size:11px;line-height:1.4;color:var(--muted)}
+.rail-first small.rail-how{color:var(--quiet)}
+.rail-first-go{width:100%;margin-top:6px}
+
+/* Below 1441px the aside folds into a strip above the sections (live). */
+@media(max-width:1440px){
+  .workspace-aside[data-rail="3"]>.rail-card:not(.rail-card--next){grid-column:1/-1}
+  .workspace-aside[data-rail="3"] .rail-card:not(.rail-card--next) .rail-rows{max-height:400px;overflow-y:auto;overscroll-behavior:contain}
+  .workspace-aside:not([data-rail="live"]):not([data-rail="3"]) [data-report-not-ready]{max-height:400px;overflow-y:auto;overscroll-behavior:contain}
+}
+
+/* ---- mockup strip ---- */
+.v35-mock{position:fixed;left:10px;bottom:10px;z-index:400;width:250px;background:#1d1d1f;color:#f3f1ec;border-radius:4px;font-size:12px;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+.v35-mock summary{cursor:pointer;padding:8px 12px;font-weight:650;list-style:none}
+.v35-mock summary::-webkit-details-marker{display:none}
+.v35-mock-body{display:grid;gap:8px;padding:4px 12px 12px;max-height:70vh;overflow:auto}
+.v35-mock label{display:grid;gap:3px;color:#c9c5bc}
+.v35-mock select{width:100%;min-width:0;min-height:28px;border-radius:3px;border:1px solid #55524c;background:#2a2a2d;color:#f3f1ec;font:inherit;padding:2px 6px}
+.v35-mock p{margin:0;color:#a8a49b;line-height:1.5}
+@media print{.v35-mock{display:none}}
+
+/* ==== round 4: Next action is one thing ==== */
+.rail-first--step strong{font-size:13.5px}
+.rail-open{display:flex;align-items:center;gap:6px;width:100%;margin-top:10px;padding:8px 0 0;border:0;border-top:1px solid var(--line);background:none;font:inherit;font-size:11.5px;font-weight:650;color:var(--muted);text-align:left;text-decoration:none;cursor:pointer}
+.rail-open:hover{color:var(--ink);text-decoration:none}
+.rail-open .icon{width:14px;height:14px;flex:none}
+.rail-open>.icon:first-child{color:var(--amber)}
+.rail-open>span{flex:1}
+
+/* 7: the dialog; the groups run in two columns */
+.rail-dialog .dialog-body .rail-groups{columns:2;column-gap:24px}
+.rail-dialog .rail-group{break-inside:avoid;margin:0 0 10px}
+.rail-dialog .rail-group+.rail-group{margin-top:0}
+@media(max-width:760px){.rail-dialog .dialog-body .rail-groups{columns:1}}
+
+/* 8: the closed card */
+[data-rail-checklist] .panel-head h2.rail-head,.rail-fold>summary.panel-head h2.rail-head{margin:0;font-size:inherit;color:inherit;text-transform:none;letter-spacing:0;font-weight:inherit}
+[data-rail-checklist] .panel-head h2.rail-head .icon,.rail-fold>summary.panel-head h2.rail-head .icon{width:15px;height:15px}
+.rail-fold>summary.panel-head::-webkit-details-marker{display:none}
+
+/* 9: each section opens with what it is missing; fields and tabs marked */
+.rail-here{margin:0 0 12px;padding:8px 12px;border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:var(--radius)}
+.rail-here .rail-items{columns:2;column-gap:24px}
+.rail-here .rail-item{break-inside:avoid}
+.rail-here .rail-item+.rail-item{border-top:0}
+.lbl .rail-field-mark{display:inline-block;width:6px;height:6px;margin-left:5px;border-radius:50%;background:var(--amber);vertical-align:1px}
+@media(max-width:760px){.rail-here .rail-items{columns:1}}
+
+/* 10: the rest at the top of Report, in columns */
+.rail-report{margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:var(--radius)}
+.rail-report .rail-groups,.rail-bar-list .rail-groups{columns:3;column-gap:24px}
+.rail-report .rail-group,.rail-bar-list .rail-group{break-inside:avoid;margin:0 0 10px}
+.rail-report .rail-group+.rail-group,.rail-bar-list .rail-group+.rail-group{margin-top:0}
+@media(max-width:1440px){.rail-report .rail-groups,.rail-bar-list .rail-groups{columns:2}}
+@media(max-width:760px){.rail-report .rail-groups,.rail-bar-list .rail-groups{columns:1}}
+
+/* 11: the checklist of sections */
+.rail-check--done{display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid var(--line)}
+.rail-check--done .icon{width:14px;height:14px;color:var(--green);flex:none}
+.rail-check--done .rail-name{font-weight:500;color:var(--muted)}
+.rail-check-other{margin-top:8px}
+
+/* 12: the bar across the page */
+.rail-bar{margin:0 0 12px;padding:10px 14px;border-left:3px solid var(--amber)}
+.rail-bar-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.rail-bar-title{margin:0;font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.08em;white-space:nowrap}
+.rail-bar-what{display:grid;gap:2px;flex:1;min-width:200px}
+.rail-bar-what strong{font-size:13.5px;font-weight:650}
+.rail-bar-what small{font-size:11px;color:var(--muted);line-height:1.4}
+.rail-bar-extras{display:grid;gap:6px;min-width:240px}
+.rail-bar-extras .next-row+.next-row{margin-top:0}
+.rail-bar-more>summary{list-style:none;width:auto}
+.rail-bar-more>summary::-webkit-details-marker{display:none}
+.rail-bar-more[open]>summary>.icon:last-child{transform:rotate(180deg)}
+.rail-bar-list{padding-top:10px}

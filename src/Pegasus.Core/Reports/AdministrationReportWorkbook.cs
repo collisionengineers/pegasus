@@ -9,16 +9,32 @@ public enum WorkbookColumnKind
     Count,
     Money,
     Duration,
-    DateTime
+    DateTime,
+
+    /// <summary>A calendar date with no time: a <see cref="DateOnly"/> cell.</summary>
+    Date
 }
 
 public sealed record WorkbookColumn(string Title, WorkbookColumnKind Kind);
 
 /// <summary>
+/// The one naming of a Management Reports column split by work: the measure's
+/// own label with the work it counts, e.g. "Reports produced · Inspection".
+/// </summary>
+public static class ReportColumnTitles
+{
+    public static string Inspection(string measure) => measure + " · Inspection";
+
+    public static string Audit(string measure) => measure + " · Audit";
+}
+
+/// <summary>
 /// One sheet: a titled, typed table with a header row, a filter over it, a
 /// frozen header and, when <see cref="Totals"/> is set, a totals row under
 /// every Integer and Money column. Cells are strings, integers, decimals,
-/// <see cref="TimeSpan"/> or <see cref="DateTimeOffset"/> values, or null.
+/// <see cref="TimeSpan"/>, <see cref="DateTimeOffset"/> or <see cref="DateOnly"/>
+/// values, or null. A text cell in a typed column (the Case list's N/A) is
+/// written as text and left out of the totals.
 /// </summary>
 public sealed record WorkbookSheet(
     string Name,
@@ -73,15 +89,14 @@ public static class AdministrationReportTables
             [
                 new("Principal", WorkbookColumnKind.Text),
                 new("Reports produced", WorkbookColumnKind.Count),
-                new(InspectionColumn("Reports produced"), WorkbookColumnKind.Count),
-                new(AuditColumn("Reports produced"), WorkbookColumnKind.Count),
+                new(ReportColumnTitles.Inspection("Reports produced"), WorkbookColumnKind.Count),
+                new(ReportColumnTitles.Audit("Reports produced"), WorkbookColumnKind.Count),
                 new("Reports sent", WorkbookColumnKind.Count),
-                new(InspectionColumn("Reports sent"), WorkbookColumnKind.Count),
-                new(AuditColumn("Reports sent"), WorkbookColumnKind.Count),
+                new(ReportColumnTitles.Inspection("Reports sent"), WorkbookColumnKind.Count),
+                new(ReportColumnTitles.Audit("Reports sent"), WorkbookColumnKind.Count),
                 new("Agreed fees", WorkbookColumnKind.Money),
-                new(InspectionColumn("Agreed fees"), WorkbookColumnKind.Money),
-                new(AuditColumn("Agreed fees"), WorkbookColumnKind.Money),
-                new("Report types", WorkbookColumnKind.Text)
+                new(ReportColumnTitles.Inspection("Agreed fees"), WorkbookColumnKind.Money),
+                new(ReportColumnTitles.Audit("Agreed fees"), WorkbookColumnKind.Money)
             ],
             principalReport.Rows
                 .Where(row => row.ReportsProduced > 0 || row.Sent > 0)
@@ -90,8 +105,7 @@ public static class AdministrationReportTables
                     row.PrincipalCode,
                     row.ReportsProduced, row.InspectionReportsProduced, row.AuditReportsProduced,
                     row.Sent, row.InspectionSent, row.AuditSent,
-                    row.AgreedFeeTotal, row.InspectionAgreedFeeTotal, row.AuditAgreedFeeTotal,
-                    string.Join("; ", row.ArtifactTypes.Where(type => type.Generated > 0).Select(type => $"{type.Kind} {type.Generated}"))
+                    row.AgreedFeeTotal, row.InspectionAgreedFeeTotal, row.AuditAgreedFeeTotal
                 ]).ToArray(),
             Totals: true));
         sheets.Add(new(
@@ -122,15 +136,15 @@ public static class AdministrationReportTables
                 new("Month", WorkbookColumnKind.Text),
                 new("Principal", WorkbookColumnKind.Text),
                 new("Reports produced", WorkbookColumnKind.Count),
-                new(InspectionColumn("Reports produced"), WorkbookColumnKind.Count),
-                new(AuditColumn("Reports produced"), WorkbookColumnKind.Count),
+                new(ReportColumnTitles.Inspection("Reports produced"), WorkbookColumnKind.Count),
+                new(ReportColumnTitles.Audit("Reports produced"), WorkbookColumnKind.Count),
                 new("Fee notes produced", WorkbookColumnKind.Count),
                 new("Reports sent", WorkbookColumnKind.Count),
-                new(InspectionColumn("Reports sent"), WorkbookColumnKind.Count),
-                new(AuditColumn("Reports sent"), WorkbookColumnKind.Count),
+                new(ReportColumnTitles.Inspection("Reports sent"), WorkbookColumnKind.Count),
+                new(ReportColumnTitles.Audit("Reports sent"), WorkbookColumnKind.Count),
                 new("Agreed fees", WorkbookColumnKind.Money),
-                new(InspectionColumn("Agreed fees"), WorkbookColumnKind.Money),
-                new(AuditColumn("Agreed fees"), WorkbookColumnKind.Money)
+                new(ReportColumnTitles.Inspection("Agreed fees"), WorkbookColumnKind.Money),
+                new(ReportColumnTitles.Audit("Agreed fees"), WorkbookColumnKind.Money)
             ],
             monthly.Select(row => (IReadOnlyList<object?>)
             [
@@ -143,12 +157,6 @@ public static class AdministrationReportTables
             Totals: true));
         return sheets;
     }
-
-    /// <summary>MI-02's split column: the measure's own label with the work it counts, e.g. "Reports produced · Inspection".</summary>
-    private static string InspectionColumn(string measure) => measure + " · Inspection";
-
-    /// <summary>MI-02's split column: the measure's own label with the work it counts, e.g. "Agreed fees · Audit".</summary>
-    private static string AuditColumn(string measure) => measure + " · Audit";
 }
 
 /// <summary>

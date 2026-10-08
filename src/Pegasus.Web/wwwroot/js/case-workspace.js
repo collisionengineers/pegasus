@@ -3213,7 +3213,7 @@
         if (!range || !percent) {
             return;
         }
-        var initial = percent.value || '100';
+        var initial = percent.value || range.max;
         percent.value = initial;
         range.value = initial;
         function reveal() {
@@ -3303,6 +3303,18 @@
             });
             if (read) { read.textContent = result.readout; }
             if (chip) { chip.hidden = false; }
+            // The spec as edited sets the slider's top: scaling only lowers
+            // prices (operator, 8 October 2026). A target left above it
+            // comes down to it and is previewed there.
+            if (result.ceiling) {
+                range.max = result.ceiling;
+                percent.max = result.ceiling;
+                if (Number(percent.value) > Number(result.ceiling)) {
+                    percent.value = result.ceiling;
+                    range.value = result.ceiling;
+                    schedule();
+                }
+            }
         }
         function preview() {
             var caseForm = document.getElementById('case-edit-form');

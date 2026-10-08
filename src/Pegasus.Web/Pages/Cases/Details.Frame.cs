@@ -171,24 +171,48 @@ public sealed partial class DetailsModel
     };
 
     /// <summary>
-    /// The report blockers the Next action lists (issue 899): while the viewed
-    /// work's report is not ready, every blocker, each linking to the section
-    /// that clears it (FRD-13). The Inspection view lists the Inspection
-    /// report's own blockers whatever the Case's state (operator, 2 October
-    /// 2026); the Audit view lists the Audit's while its assessment is
-    /// writable. Empty otherwise.
+    /// The report blockers the aside's Report not ready card lists: while the
+    /// viewed work's report is not ready, every blocker, each linking to the
+    /// section that clears it (FRD-13). The Inspection view lists the
+    /// Inspection report's own blockers whatever the Case's state (operator,
+    /// 2 October 2026); the Audit view lists the Audit's while its assessment
+    /// is writable. Empty otherwise.
     /// </summary>
-    public IReadOnlyList<AssessmentReadinessItem> NextActionBlockers =>
+    public IReadOnlyList<AssessmentReadinessItem> ReportNotReadyBlockers =>
         (IsInspectionView || !AssessmentIsReadOnly) && ReportDraftNotReady ? ReportDraftReasons : [];
 
     /// <summary>
-    /// The one-line Next action the aside states: the AI draft rows come first
-    /// (rendered by the view), then the viewed work's next step
-    /// (<see cref="CaseNextAction"/>). While the report is not ready there is
-    /// no line: the <see cref="NextActionBlockers"/> list is the next action,
-    /// except in a read-only Audit view, where the line names Report not
-    /// ready. The Inspection view states the Inspection report's own step and
-    /// nothing once that report is sent (operator, 2 October 2026).
+    /// The Case requirements the Report not ready card lists beside the
+    /// blockers: every one outstanding, in whatever state, since the card is
+    /// their one home on the Case page (operator, 8 October 2026); an Audit
+    /// still missing its original report says so past Not ready too. The
+    /// Inspection view states the Inspection report's own step and lists none.
+    /// </summary>
+    public IReadOnlyList<CaseRequirement> ReportNotReadyRequirements =>
+        IsInspectionView ? [] : OutstandingRequirements;
+
+    /// <summary>
+    /// The Case requirement the Next action's one step names, drawn in full
+    /// with a control to the section that clears it: the first outstanding
+    /// one while the Case is Not ready or Held, the states whose step it is
+    /// (<see cref="CaseNextAction"/>); null otherwise.
+    /// </summary>
+    public CaseRequirement? NextActionRequirement =>
+        Case!.Workflow.State is CaseLifecycleState.NotReady or CaseLifecycleState.Held
+        && NextAction is { Blocker: null }
+        && ReportNotReadyRequirements is [var first, ..]
+            ? first
+            : null;
+
+    /// <summary>
+    /// The Next action's one step (operator, 8 October 2026): the AI draft
+    /// rows come first (rendered by the view), then the viewed work's next
+    /// step (<see cref="CaseNextAction"/>): the first outstanding Case
+    /// requirement, the state's own step, or, while the report is not ready,
+    /// its first blocker in page order. A read-only Audit view names Report
+    /// not ready instead. The Inspection view states the Inspection report's
+    /// own step and nothing once that report is sent (operator, 2 October
+    /// 2026). Everything else outstanding is the Report not ready card's.
     /// </summary>
     public CaseNextActionStep? NextAction
     {
@@ -196,12 +220,11 @@ public sealed partial class DetailsModel
         {
             if (IsInspectionView)
             {
-                var inspection = CaseNextAction.OfPastWork(
-                    NextActionBlockers,
+                return CaseNextAction.OfPastWork(
+                    ReportNotReadyBlockers,
                     BlockerSectionKey,
                     CurrentReportGeneration,
                     Works?.Primary.ReportSentEvidence);
-                return inspection is { Blocker: not null } ? null : inspection;
             }
             var details = Case!;
             var next = CaseNextAction.Of(
@@ -212,12 +235,9 @@ public sealed partial class DetailsModel
                 ReportDraftNotReady ? ReportDraftReasons : [],
                 BlockerSectionKey,
                 CurrentReportGeneration);
-            if (next.Blocker is null)
-            {
-                return next;
-            }
-            // A writable view lists the blockers in place of this line.
-            return AssessmentIsReadOnly ? new(CaseWorkspaceLabels.Report.NotReady, "report") : null;
+            return next.Blocker is not null && AssessmentIsReadOnly
+                ? new(CaseWorkspaceLabels.Report.NotReady, "report")
+                : next;
         }
     }
 

@@ -597,6 +597,13 @@ function Get-MigrationPermissionMatrix {
     # 20261007183000_GrantWorkerTriageFindings: the Worker's automatic Triage
     # link reads the Triage's current finding to fill the Case's empty findings.
     $expected.Add('pegasus_worker_runtime_role|G|SELECT|TriageFindings')
+    # 20261008174505_CaseListPresets: Web keeps the shared Case list presets;
+    # a removal is soft, so neither role deletes one.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|CaseListPresets")
+    }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|CaseListPresets')
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|CaseListPresets')
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier
     # migrations this matrix reads still name them, and SQL Server keeps a
     # table's permission rows across a rename, so the rows read here are the
