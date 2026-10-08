@@ -923,7 +923,7 @@ public sealed class CaseViewsWebTests
                         Guid.NewGuid(), generationId, CaseReportArtifactKind.AssessmentReport,
                         CaseReportArtifactStatus.Confirmed, "operation-1",
                         Guid.NewGuid(), Guid.NewGuid(), new string('c', 64), 3,
-                        reference + "_assessment.pdf", "application/pdf",
+                        reference + "_report.pdf", "application/pdf",
                         null, null, null, null),
                 ])
             {

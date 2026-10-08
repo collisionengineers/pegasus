@@ -202,8 +202,8 @@ public sealed class MonthlyReportActivityPersistenceTests
                     CustodyFolder = CaseCustodyFolders.Audit
                 });
             context.Set<DocumentVersionEntity>().AddRange(
-                Version(inspectionVersionId, documentIds[0], inspectionGeneratedAt, inspectionHash, "QDOS31001_assessment.pdf"),
-                Version(auditVersionId, documentIds[1], auditGeneratedAt, auditHash, "A_QDOS31001_assessment.pdf"));
+                Version(inspectionVersionId, documentIds[0], inspectionGeneratedAt, inspectionHash, "QDOS31001_report.pdf"),
+                Version(auditVersionId, documentIds[1], auditGeneratedAt, auditHash, "A_QDOS31001_report.pdf"));
             context.Set<GeneratedCaseArtifactEntity>().AddRange(
                 Artifact(Guid.NewGuid(), inspectionGenerationId, inspectionVersionId, inspectionHash, nameof(CaseReportArtifactKind.AssessmentReport)),
                 Artifact(Guid.NewGuid(), auditGenerationId, auditVersionId, auditHash, nameof(CaseReportArtifactKind.AssessmentReport)));
