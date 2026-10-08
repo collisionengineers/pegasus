@@ -32,7 +32,7 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
         {
             CaseReportArtifactKind.FeeNote => "fee_note",
             CaseReportArtifactKind.ImagePack => "images",
-            CaseReportArtifactKind.AssessmentReport => "assessment",
+            CaseReportArtifactKind.AssessmentReport => "report",
             _ => throw new ReportRenderRejectedException($"Unsupported report artifact kind '{kind}'."),
         };
         var fileName = $"{ReportChrome.Slug(snapshot.OurReference)}_{suffix}.pdf";
@@ -91,8 +91,7 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
             }
             var fullPage = photo.FullPage && !ReferenceEquals(photo, overview);
             photos.Add(new PreparedReportPhoto(
-                await PreparePhotoAsync(photo, fullPage ? null : ReportChrome.GridSlotHeight, cancellationToken)
-                    .ConfigureAwait(false),
+                await PreparePhotoAsync(photo, null, cancellationToken).ConfigureAwait(false),
                 fullPage));
         }
         return new(leadImage, photos, PrepareSignature(snapshot.Signatory), ReportResources.Logo());

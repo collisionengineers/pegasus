@@ -678,7 +678,7 @@ public sealed class CaseReportGenerationTests
     }
 
     [Theory]
-    [InlineData(CaseReportArtifactKind.AssessmentReport, "CE_100_assessment.pdf")]
+    [InlineData(CaseReportArtifactKind.AssessmentReport, "CE_100_report.pdf")]
     [InlineData(CaseReportArtifactKind.FeeNote, "CE_100_fee_note.pdf")]
     [InlineData(CaseReportArtifactKind.RepairSpecification, "CE_100_repair_specification.pdf")]
     [InlineData(CaseReportArtifactKind.ImagePack, "CE_100_images.pdf")]
@@ -957,7 +957,7 @@ public sealed class CaseReportGenerationTests
     /// drawn, the Repair Spec's own document included.
     /// </summary>
     [Theory]
-    [InlineData(CaseReportArtifactKind.AssessmentReport, "CE_100_assessment.pdf")]
+    [InlineData(CaseReportArtifactKind.AssessmentReport, "CE_100_report.pdf")]
     [InlineData(CaseReportArtifactKind.FeeNote, "CE_100_fee_note.pdf")]
     [InlineData(CaseReportArtifactKind.RepairSpecification, "CE_100_repair_specification.pdf")]
     [InlineData(CaseReportArtifactKind.ImagePack, "CE_100_images.pdf")]

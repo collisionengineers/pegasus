@@ -87,7 +87,7 @@ internal static class AssessmentReportLayout
 
     /// <summary>
     /// The report's images alone, in the Engineer's order, on the report's
-    /// own image pages: six to a page and a Full page image on a page of its
+    /// own image pages: two to a row and a Full page image on a page of its
     /// own. It opens as the report opens, so the document says which Case it
     /// belongs to, and carries no narrative, no figures and no statement of
     /// truth.

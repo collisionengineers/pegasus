@@ -128,7 +128,7 @@ public sealed partial class AssessmentReportRendererTests
         var artifact = await new GenerateAssessmentReportDraft(renderer)
             .ExecuteAsync(snapshot, CaseReportArtifactKind.AssessmentReport);
 
-        Assert.Equal("CE_100_assessment.pdf", artifact.SuggestedFileName);
+        Assert.Equal("CE_100_report.pdf", artifact.SuggestedFileName);
         Assert.Equal(AssessmentReportContract.TemplateVersion, artifact.TemplateVersion);
         Assert.Equal(renderer.EngineVersion, artifact.EngineVersion);
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(artifact.Pdf)), artifact.Sha256);
@@ -271,15 +271,15 @@ public sealed partial class AssessmentReportRendererTests
 
     /// <summary>
     /// The image pack uses the report's own image pages (operator, 27
-    /// September 2026): six images to a page, the Overview among them, each
-    /// whole in its slot (operator, 7 October 2026).
+    /// September 2026): two images to a row, the Overview among them, each
+    /// whole and unframed at the column's width (operator, 8 October 2026).
     /// </summary>
     [Theory]
     [InlineData(5, 1)]
     [InlineData(6, 1)]
     [InlineData(7, 2)]
     [InlineData(13, 3)]
-    public async Task TheImagePackPrintsSixOrdinaryImagesToAPage(int images, int pages)
+    public async Task TheImagePackPrintsTwoImagesToARowAtTheColumnsWidth(int images, int pages)
     {
         await using var provider = RendererProvider();
         var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
@@ -301,8 +301,8 @@ public sealed partial class AssessmentReportRendererTests
         Assert.Equal(images, BodyImages(artifact.Pdf).Sum(page => page.Count));
         Assert.All(BodyImages(artifact.Pdf).SelectMany(page => page), image =>
         {
-            Assert.InRange(image.Width, 63.7, 64.3);
-            Assert.InRange(image.Height, 47.8, 48.2);
+            Assert.InRange(image.Width, 80.1, 80.7);
+            Assert.InRange(image.Height, 60.0, 60.6);
         });
     }
 
@@ -391,7 +391,7 @@ public sealed partial class AssessmentReportRendererTests
         var report = await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.AssessmentReport);
         var separate = await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.FeeNote);
 
-        Assert.Equal("CE_100_assessment.pdf", report.SuggestedFileName);
+        Assert.Equal("CE_100_report.pdf", report.SuggestedFileName);
         Assert.True(report.PageCount > separate.PageCount);
         var pages = PageTexts(report.Pdf);
         var last = pages[^1];
@@ -460,11 +460,12 @@ public sealed partial class AssessmentReportRendererTests
     }
 
     /// <summary>
-    /// Six images to a page, two across and three down, and an image flagged
+    /// Two images to a row at the column's width, unframed, the rows flowing
+    /// onto the next page (operator, 8 October 2026), and an image flagged
     /// Full page alone on a page of its own (operator, 27 September 2026).
     /// </summary>
     [Fact]
-    public async Task OrdinaryImagesPrintSixToAPageAndAFullPageImageAlone()
+    public async Task OrdinaryImagesPrintTwoToARowAndAFullPageImageAlone()
     {
         await using var provider = RendererProvider();
         var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
@@ -489,12 +490,12 @@ public sealed partial class AssessmentReportRendererTests
         Assert.Equal(2, VehicleImagePageCount(seven.Pdf));
         var pages = ImagePages(seven.Pdf);
         Assert.Equal([6, 1], pages.Select(page => page.Count));
-        // Two across and three down: the frames stand at the body's left
-        // edge and at 107.5 mm, 54.8 mm apart down the page, and each image
-        // stands whole in the middle of its frame, 8.2 mm in from its sides.
+        // Three rows of four-by-three images fit the first image page: the
+        // columns stand at the body's left edge and at 107.5 mm, and the rows
+        // 67.1 mm apart, an image's 60.3 mm and the row gap.
         (double Left, double Top)[] slots =
         [
-            (30.3, 52.2), (115.7, 52.2), (30.3, 107.0), (115.7, 107.0), (30.3, 161.9), (115.7, 161.9),
+            (22.1, 52.2), (107.5, 52.2), (22.1, 119.3), (107.5, 119.3), (22.1, 186.5), (107.5, 186.5),
         ];
         Assert.All(pages[0].Zip(slots), pair =>
         {
@@ -505,8 +506,8 @@ public sealed partial class AssessmentReportRendererTests
         Assert.InRange(Assert.Single(pages[1]).Top, 38.8, 39.2);
         Assert.All(pages.SelectMany(page => page), image =>
         {
-            Assert.InRange(image.Width, 63.7, 64.3);
-            Assert.InRange(image.Height, 47.8, 48.2);
+            Assert.InRange(image.Width, 80.1, 80.7);
+            Assert.InRange(image.Height, 60.0, 60.6);
         });
 
         var isolated = await draft.ExecuteAsync(
@@ -586,8 +587,8 @@ public sealed partial class AssessmentReportRendererTests
         Assert.InRange(overview.Height, 35.8, 36.2);
         var images = Assert.Single(ImagePages(artifact.Pdf));
         // The Close-up, then the supporting images in the Engineer's order;
-        // none is enlarged, and the Close-up fits the slot's 597 px height.
-        Assert.Equal([796, 400, 640], images.Select(image => image.PixelWidth));
+        // none is enlarged.
+        Assert.Equal([800, 400, 640], images.Select(image => image.PixelWidth));
         // The narrative, the vehicle data and the work lists carry no image,
         // the statement of truth carries the signature alone, and the fee
         // note none.
@@ -595,16 +596,17 @@ public sealed partial class AssessmentReportRendererTests
     }
 
     /// <summary>
-    /// An image prints whole in its slot after the Engineer's own crop
-    /// (operator, 7 October 2026): fitted inside the 80.4 by 48 mm slot at
-    /// its own shape, and never enlarged.
+    /// An image prints whole after the Engineer's own crop, at the column's
+    /// 80.4 mm width and its own shape (operator, 8 October 2026), its pixels
+    /// never enlarged. A very tall one is held to 160 mm high.
     /// </summary>
     [Theory]
-    [InlineData(1600, 1200, 796, 597, 64.0, 48.0)]
-    [InlineData(3000, 1000, 1000, 333, 80.4, 26.8)]
-    [InlineData(1200, 1600, 448, 597, 36.0, 48.0)]
-    [InlineData(160, 120, 160, 120, 64.0, 48.0)]
-    public async Task AnImagePrintsWholeInItsSlotAndIsNeverEnlarged(
+    [InlineData(1600, 1200, 1600, 1200, 80.4, 60.3)]
+    [InlineData(3000, 1000, 2000, 667, 80.4, 26.8)]
+    [InlineData(1200, 1600, 1200, 1600, 80.4, 107.2)]
+    [InlineData(160, 120, 160, 120, 80.4, 60.3)]
+    [InlineData(500, 2000, 500, 2000, 40.0, 160.0)]
+    public async Task AnImagePrintsWholeAtTheColumnsWidthWithItsPixelsNeverEnlarged(
         int width, int height, int printedWidth, int printedHeight, double millimetresWide, double millimetresHigh)
     {
         await using var provider = RendererProvider();
