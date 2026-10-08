@@ -124,8 +124,9 @@ kind or a term is on and clears both. A filter that matches nothing keeps the
 toolbar and says "No work matches these filters."
 
 **The ledger.** A table with seven columns: Next action (the task, with its
-kind beneath), Record / detail (the reference, with the subject beneath),
-Owner, Due, Received, the next action as a button (v32 item M) and
+kind beneath), Record / detail (the reference, with the subject beneath;
+the reference links to the Case, or to the Unidentified item it names, and
+an AI draft on the Unidentified queue has no link), Owner, Due, Received, the next action as a button (v32 item M) and
 **Dismiss**, an icon-only control named "Dismiss {reference}" (v32 item B).
 Owner is the person's name. A Held, Review, Unassigned, Vehicle images
 paired or Triage row with an empty person slot says **Unassigned**. A Case
