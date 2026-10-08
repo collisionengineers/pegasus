@@ -80,7 +80,6 @@ public sealed class StaffCorrespondenceWebTests
             IdentityIsBound: true,
             ActivatedAtUtc: NowUtc,
             Version: 0,
-            FolderBindings: [],
             Generation: positiveGeneration ? 1 : 0,
             VerifiedEncodedMessageSizeLimit: 1024,
             IsDefaultStaffSend: true);
@@ -1580,7 +1579,7 @@ public sealed class StaffCorrespondenceWebTests
                 _ => [ApprovedMailboxRouteScope.SentEvidence]
             },
             state,
-            "mailbox-identity", "inbox", "sent-items", true, NowUtc, 1, [], generation,
+            "mailbox-identity", "inbox", "sent-items", true, NowUtc, 1, generation,
             VerifiedEncodedMessageSizeLimit: 1024);
         using var configured = Configure(baseFactory, send);
         using var factory = configured.WithWebHostBuilder(builder =>

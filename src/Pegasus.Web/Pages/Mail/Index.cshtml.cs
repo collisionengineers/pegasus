@@ -15,7 +15,7 @@ namespace Pegasus.Web.Pages.Mail;
 /// Reading never mutates anything: the read state it shows is the retained one,
 /// and opening a message here does not mark it read in the mailbox. The one
 /// write on the list is Dismiss (and Restore under the Dismissed scope), which
-/// moves the retained message to the Dismissed logical folder without
+/// puts the retained message in the Dismissed scope without
 /// classifying or linking it and never reaches Outlook (Inbox, 13 September).
 /// </remarks>
 public sealed class IndexModel(
@@ -71,7 +71,7 @@ public sealed class IndexModel(
 
     public MailOperationalDestination? DestinationFilter { get; private set; }
 
-    public MailCategory? DetailedClassificationFilter { get; private set; }
+    public ReceivedMailFamily? FamilyFilter { get; private set; }
 
     public MailFolderScope Folder { get; private set; } = MailFolderScope.Inbox;
 
@@ -203,7 +203,7 @@ public sealed class IndexModel(
                 Folder,
                 SearchTerm,
                 DestinationFilter,
-                DetailedClassificationFilter,
+                FamilyFilter,
                 UnreadOnly: false,
                 OldestFirst,
                 DismissedOnly: Dismissed),
@@ -307,7 +307,7 @@ public sealed class IndexModel(
                 QueueFilter,
                 out var normalizedQueue,
                 out var destination,
-                out var detailedClassification)
+                out var family)
             || (folder is MailFolderScope.DeletedItems or MailFolderScope.Sent && normalizedQueue is not null))
         {
             return false;
@@ -318,7 +318,7 @@ public sealed class IndexModel(
         OldestFirst = oldestFirst;
         QueueFilter = normalizedQueue;
         DestinationFilter = destination;
-        DetailedClassificationFilter = detailedClassification;
+        FamilyFilter = family;
         return true;
     }
 
@@ -355,7 +355,7 @@ public sealed class IndexModel(
                 attachments = OperatorLabels.Inbox.Attachments(detail.Attachments),
                 classification = ClassificationValue(detail),
                 association = MessageModel.AssociationLabel(summary.CaseReference),
-                folder = FolderValue(detail),
+                folder = FolderLabel(detail.Folder),
                 // A pinned row's pane offers its own Open Case or Open Triage.
                 caseUrl = summary.CaseId is { } caseId ? Url.Page("/Cases/Details", new { id = caseId }) : null,
                 caseAction = summary.CaseId is null
@@ -488,12 +488,6 @@ public sealed class IndexModel(
         _ => throw new InvalidOperationException($"Unknown mail folder scope '{(int)folder}'.")
     };
 
-    /// <summary>The preview's Folder cell: the folder a confirmed move put the message in, else the scope it was read from.</summary>
-    public static string FolderValue(RetainedMailPreview preview) =>
-        preview.Summary.CurrentFolderType is { } currentFolderType
-            ? MailLogicalFolders.Definition(currentFolderType).Label
-            : FolderLabel(preview.Folder);
-
     /// <summary>
     /// The preview's Classification cell: the current decision's label, else
     /// "Not yet processed" for received mail. A Sent item is never processed;
@@ -609,7 +603,7 @@ public sealed class IndexModel(
             "download",
             MailFolderScope.Inbox,
             MailOperationalDestination.ReceivingWork),
-        new("Case updates", "reply", MailFolderScope.Inbox, MailOperationalDestination.Queries),
+        new("Queries", "reply", MailFolderScope.Inbox, MailOperationalDestination.Queries),
         new("Pre-instructions", "clock", MailFolderScope.Inbox, MailOperationalDestination.Triage),
         new(
             "Unidentified",
@@ -627,43 +621,30 @@ public sealed class IndexModel(
 
     public static IReadOnlyList<MailViewOption> AggregateViews { get; } =
         Enum.GetValues<MailOperationalDestination>()
-            .Where(destination => destination != MailOperationalDestination.DetailedClassification)
             .Select(destination => new MailViewOption(
                 DestinationKey(destination),
                 OperatorLabels.MailOperationalDestinationLabel(destination),
                 destination))
             .ToArray();
 
-    public static IReadOnlyList<MailViewOption> DetailedViews { get; } =
-        MailClassificationSelection.Options
-            .Select(option => new
-            {
-                Option = option,
-                Parsed = MailClassificationSelection.TryParse(
-                    option.Value,
-                    otherName: null,
-                    otherReasoning: null,
-                    out var category)
-                    ? category
-                    : null
-            })
-            .Where(item => item.Parsed is not null
-                && MailOperationalDestinationPolicy.Map(item.Parsed).Destination
-                    == MailOperationalDestination.DetailedClassification)
-            .Select(item => new MailViewOption(
-                $"classification:{item.Option.Value}",
-                item.Option.Label))
+    private const string FamilyPrefix = "family:";
+
+    public static IReadOnlyList<MailViewOption> FamilyViews { get; } =
+        Enum.GetValues<ReceivedMailFamily>()
+            .Select(family => new MailViewOption(
+                $"{FamilyPrefix}{family}",
+                OperatorLabels.MailClassification(MailCategory.Received(family))))
             .ToArray();
 
     internal static bool TryParseQueue(
         string? value,
         out string? normalized,
         out MailOperationalDestination? destination,
-        out MailCategory? detailedClassification)
+        out ReceivedMailFamily? family)
     {
         normalized = null;
         destination = null;
-        detailedClassification = null;
+        family = null;
         if (string.IsNullOrWhiteSpace(value))
         {
             return true;
@@ -681,36 +662,27 @@ public sealed class IndexModel(
             return true;
         }
 
-        const string prefix = "classification:";
-        if (!candidate.StartsWith(prefix, StringComparison.Ordinal)
-            || !MailClassificationSelection.TryParse(
-                candidate[prefix.Length..],
-                otherName: null,
-                otherReasoning: null,
-                out var category)
-            || category is null
-            || MailOperationalDestinationPolicy.Map(category).Destination
-                != MailOperationalDestination.DetailedClassification)
+        foreach (var option in FamilyViews)
         {
-            return false;
+            if (!string.Equals(option.Value, candidate, StringComparison.Ordinal))
+            {
+                continue;
+            }
+            normalized = option.Value;
+            family = Enum.Parse<ReceivedMailFamily>(candidate[FamilyPrefix.Length..]);
+            return true;
         }
 
-        normalized = $"{prefix}{candidate[prefix.Length..]}";
-        detailedClassification = category;
-        return true;
+        return false;
     }
 
     private static string DestinationKey(MailOperationalDestination destination) => destination switch
     {
         MailOperationalDestination.ReceivingWork => "receiving-work",
         MailOperationalDestination.Queries => "queries",
-        MailOperationalDestination.Other => "other",
         MailOperationalDestination.Unidentified => "unidentified",
         MailOperationalDestination.Triage => "triage",
-        MailOperationalDestination.DetailedClassification => throw new ArgumentException(
-            "Detailed views use a canonical classification key.",
-            nameof(destination)),
-        _ => throw new ArgumentOutOfRangeException(nameof(destination), destination, null)
+        _ =>throw new ArgumentOutOfRangeException(nameof(destination), destination, null)
     };
 
     public static string MatchLabel(RetainedMailSearchMatch match) => match.Kind switch

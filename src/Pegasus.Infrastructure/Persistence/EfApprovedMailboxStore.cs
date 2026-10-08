@@ -108,7 +108,6 @@ public sealed class EfApprovedMailboxStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entities = await context.Set<ApprovedMailboxEntity>()
             .AsNoTracking()
-            .Include(item => item.FolderBindings)
             .OrderBy(item => item.Address)
             .ThenBy(item => item.Id)
             .ToListAsync(cancellationToken);
@@ -172,7 +171,6 @@ public sealed class EfApprovedMailboxStore(
         }
 
         var entity = await context.Set<ApprovedMailboxEntity>()
-            .Include(item => item.FolderBindings)
             .SingleOrDefaultAsync(item => item.Id == request.MailboxId, cancellationToken);
         MailboxSnapshot? before = null;
         if (request.ExpectedVersion == 0)
@@ -242,11 +240,6 @@ public sealed class EfApprovedMailboxStore(
             entity.Address = request.Address;
             entity.State = request.State.ToString();
             entity.Version = checked(entity.Version + 1);
-        }
-
-        if (request.FolderBindings is not null)
-        {
-            ReplaceFolderBindings(entity, request.FolderBindings);
         }
 
         if (await context.Set<ApprovedMailboxEntity>()
@@ -383,7 +376,6 @@ public sealed class EfApprovedMailboxStore(
         }
 
         var target = await context.Set<ApprovedMailboxEntity>()
-            .Include(item => item.FolderBindings)
             .SingleOrDefaultAsync(item => item.Id == request.MailboxId, cancellationToken)
             ?? throw new ApprovedMailboxUpdateException(ApprovedMailboxUpdateError.NotFound);
         if (target.Version != request.ExpectedVersion)
@@ -393,7 +385,6 @@ public sealed class EfApprovedMailboxStore(
         }
 
         var previousDefault = await context.Set<ApprovedMailboxEntity>()
-            .Include(item => item.FolderBindings)
             .SingleOrDefaultAsync(item => item.IsDefaultStaffSend, cancellationToken);
         if (previousDefault?.Id != request.ExpectedPreviousDefaultMailboxId
             || previousDefault?.Version != request.ExpectedPreviousDefaultMailboxVersion)
@@ -480,7 +471,6 @@ public sealed class EfApprovedMailboxStore(
             || !IdentityMatchesReplay(snapshot.MailboxIdentity, request.MailboxIdentity)
             || !IdentityMatchesReplay(snapshot.InboxFolderIdentity, request.InboxFolderIdentity)
             || !IdentityMatchesReplay(snapshot.SentFolderIdentity, request.SentFolderIdentity)
-            || !FolderBindingsMatchReplay(snapshot.FolderBindings, request.FolderBindings)
             || !snapshot.RouteScopes.OrderBy(scope => scope).SequenceEqual(requestedRoutes))
         {
             throw new ApprovedMailboxUpdateException(
@@ -526,42 +516,8 @@ public sealed class EfApprovedMailboxStore(
     private static bool IdentityMatchesReplay(string? recorded, string? presented) =>
         presented is null || string.Equals(recorded, presented, StringComparison.Ordinal);
 
-    private static bool FolderBindingsMatchReplay(
-        IReadOnlyList<ApprovedMailboxFolderBinding> recorded,
-        IReadOnlyCollection<ApprovedMailboxFolderBinding>? presented) =>
-        presented is null
-        || recorded.SequenceEqual(presented.OrderBy(item => item.FolderType));
-
     private static bool IsDifferentIdentity(string? current, string? requested) =>
         requested is not null && !string.Equals(current, requested, StringComparison.Ordinal);
-
-    private static void ReplaceFolderBindings(
-        ApprovedMailboxEntity entity,
-        IReadOnlyCollection<ApprovedMailboxFolderBinding> bindings)
-    {
-        var requested = bindings.ToDictionary(item => item.FolderType.ToString(), StringComparer.Ordinal);
-        foreach (var existing in entity.FolderBindings.ToArray())
-        {
-            if (requested.Remove(existing.FolderType, out var binding))
-            {
-                existing.FolderIdentity = binding.FolderIdentity;
-            }
-            else
-            {
-                entity.FolderBindings.Remove(existing);
-            }
-        }
-
-        foreach (var binding in requested.Values)
-        {
-            entity.FolderBindings.Add(new ApprovedMailboxFolderBindingEntity
-            {
-                ApprovedMailboxId = entity.Id,
-                FolderType = binding.FolderType.ToString(),
-                FolderIdentity = binding.FolderIdentity
-            });
-        }
-    }
 
     private static MailboxSnapshot Snapshot(ApprovedMailboxEntity entity) => new(
         entity.Id,
@@ -575,12 +531,6 @@ public sealed class EfApprovedMailboxStore(
         entity.MailboxGeneration,
         entity.Version,
         entity.VerifiedEncodedMessageSizeLimit,
-        entity.FolderBindings
-            .Select(item => new ApprovedMailboxFolderBinding(
-                ParseFolderType(item.FolderType),
-                item.FolderIdentity))
-            .OrderBy(item => item.FolderType)
-            .ToArray(),
         entity.IsDefaultStaffSend);
 
     private static ApprovedMailbox Map(ApprovedMailboxEntity entity) => Map(Snapshot(entity));
@@ -596,7 +546,6 @@ public sealed class EfApprovedMailboxStore(
         snapshot.IdentityIsBound,
         snapshot.ActivatedAtUtc,
         snapshot.Version,
-        snapshot.FolderBindings,
         snapshot.Generation,
         snapshot.VerifiedEncodedMessageSizeLimit,
         snapshot.IsDefaultStaffSend);
@@ -635,12 +584,6 @@ public sealed class EfApprovedMailboxStore(
             ? state
             : throw new InvalidOperationException("An approved mailbox has an unknown state.");
 
-    private static MailLogicalFolderType ParseFolderType(string value) =>
-        Enum.TryParse<MailLogicalFolderType>(value, ignoreCase: false, out var type)
-        && Enum.IsDefined(type)
-            ? type
-            : throw new InvalidOperationException("An approved mailbox has an unknown logical folder type.");
-
     private sealed record MailboxSnapshot(
         Guid Id,
         string Address,
@@ -653,7 +596,6 @@ public sealed class EfApprovedMailboxStore(
         long Generation,
         int Version,
         long? VerifiedEncodedMessageSizeLimit,
-        IReadOnlyList<ApprovedMailboxFolderBinding> FolderBindings,
         bool IsDefaultStaffSend)
     {
         public bool IdentityIsBound => MailboxIdentity is not null;

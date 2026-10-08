@@ -4,11 +4,11 @@ namespace Pegasus.Core.Tests.Intake.Classification;
 
 public sealed class MailOperationalDestinationPolicyTests
 {
-    public static TheoryData<MailCategory, MailOperationalDestination> EverySettledCategory
+    public static TheoryData<MailCategory, MailOperationalDestination?> EverySettledCategory
     {
         get
         {
-            var data = new TheoryData<MailCategory, MailOperationalDestination>();
+            var data = new TheoryData<MailCategory, MailOperationalDestination?>();
             foreach (var family in Enum.GetValues<ReceivedMailFamily>())
             {
                 var subtypes = MailTaxonomy.ConfirmedReceivedSubtypes[family];
@@ -24,14 +24,6 @@ public sealed class MailOperationalDestinationPolicyTests
                 }
             }
 
-            foreach (var family in Enum.GetValues<SentMailFamily>())
-            {
-                data.Add(MailCategory.Sent(family), MailOperationalDestination.DetailedClassification);
-            }
-
-            data.Add(
-                MailCategory.Other(MailDirection.Received, "supplier-newsletter", "No named category fits."),
-                MailOperationalDestination.Other);
             return data;
         }
     }
@@ -40,7 +32,7 @@ public sealed class MailOperationalDestinationPolicyTests
     [MemberData(nameof(EverySettledCategory))]
     public void MapsSettledCategoryWithoutChangingIt(
         MailCategory category,
-        MailOperationalDestination expected)
+        MailOperationalDestination? expected)
     {
         var classification = Classified(category);
 
@@ -51,34 +43,26 @@ public sealed class MailOperationalDestinationPolicyTests
         Assert.Same(category, classification.Category);
         Assert.Equal(MailOperationalDestinationPolicy.Key, result.PolicyKey);
         Assert.Equal(MailOperationalDestinationPolicy.Version, result.PolicyVersion);
-        if (expected != MailOperationalDestination.DetailedClassification)
+        if (expected is { } destination)
         {
-            Assert.True(Matches(MailOperationalDestinationPolicy.Query(expected), category));
+            Assert.True(Matches(MailOperationalDestinationPolicy.Query(destination), category));
         }
     }
 
     [Fact]
-    public void OtherDestinationIsReservedForAReasonedNovelClassification()
+    public void KnownClassificationWithoutAWorkViewHasNoDestination()
     {
-        var knownDestinations = EverySettledCategory
-            .Where(row => !((MailCategory)row[0]).IsOther)
-            .Select(row => MailOperationalDestinationPolicy.Map(Classified((MailCategory)row[0])).Destination);
+        var result = MailOperationalDestinationPolicy.Map(Classified(
+            MailCategory.Received(ReceivedMailFamily.General, "autoreply")));
 
-        Assert.DoesNotContain(MailOperationalDestination.Other, knownDestinations);
-        Assert.Equal(
-            MailOperationalDestination.Other,
-            MailOperationalDestinationPolicy.Map(Classified(
-                MailCategory.Other(MailDirection.Received, "new-category", "No known category fits."))).Destination);
+        Assert.Null(result.Destination);
+        Assert.NotNull(result.Classification);
     }
 
-    [Theory]
-    [InlineData(MailClassificationOutcome.Ambiguous)]
-    [InlineData(MailClassificationOutcome.Unclassified)]
-    public void AbstentionFailsClosedToUnidentified(MailClassificationOutcome outcome)
+    [Fact]
+    public void UnclassifiedFailsClosedToUnidentified()
     {
-        var classification = outcome == MailClassificationOutcome.Ambiguous
-            ? MailClassificationResult.Ambiguous(["General", "billing"], [], "conflict", "test", 1)
-            : MailClassificationResult.Unclassified([], "no match", "test", 1);
+        var classification = MailClassificationResult.Unclassified([], "no match", "test", 1);
         var result = MailOperationalDestinationPolicy.Map(classification);
 
         Assert.Equal(MailOperationalDestination.Unidentified, result.Destination);
@@ -89,15 +73,10 @@ public sealed class MailOperationalDestinationPolicyTests
             MailOperationalDestination.Triage).IncludesUnidentified);
     }
 
-    [Fact]
-    public void DetailedClassificationRequiresAnExactCategoryRatherThanAnAggregateCriterion() =>
-        Assert.Throws<ArgumentException>(() => MailOperationalDestinationPolicy.Query(
-            MailOperationalDestination.DetailedClassification));
-
     private static MailClassificationResult Classified(MailCategory category) =>
         MailClassificationResult.Classified(category, [], "staff-confirmed", "test", 1);
 
-    private static MailOperationalDestination Expected(
+    private static MailOperationalDestination? Expected(
         ReceivedMailFamily family,
         string? subtype) => family switch
         {
@@ -105,17 +84,14 @@ public sealed class MailOperationalDestinationPolicyTests
             ReceivedMailFamily.PostReportEmails => MailOperationalDestination.Queries,
             ReceivedMailFamily.Billing when subtype == "billing-query" => MailOperationalDestination.Queries,
             ReceivedMailFamily.PreInstructionEmails when subtype == "triage-request" => MailOperationalDestination.Triage,
-            _ => MailOperationalDestination.DetailedClassification
+            _ => null
         };
 
     private static bool Matches(
         MailOperationalDestinationQuery query,
         MailCategory category) =>
-        (query.IncludesOther && category.IsOther)
-        || (category.ReceivedFamily is { } family && query.Families.Contains(family))
+        query.Families.Contains(category.ReceivedFamily)
         || (query.ExactClassification is { } exact
-            && exact.Direction == category.Direction
             && exact.ReceivedFamily == category.ReceivedFamily
-            && exact.SentFamily == category.SentFamily
             && exact.Subtype == category.Subtype);
 }

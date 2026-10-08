@@ -15,9 +15,6 @@ public static class MailClassificationSelection
 {
     public sealed record SelectionOption(string Value, string Label);
 
-    public const string OtherReceivedKey = "other-received";
-    public const string OtherSentKey = "other-sent";
-
     // Labels resolve through the one operator label map, so the picker and
     // every read-only rendering of a classification use the same words.
     public static IReadOnlyList<SelectionOption> Options { get; } =
@@ -30,20 +27,8 @@ public static class MailClassificationSelection
                     : MailTaxonomy.ConfirmedReceivedSubtypes[family].Select(subtype =>
                         new SelectionOption(
                             $"received:{family}:{subtype}",
-                            OperatorLabels.MailClassification(MailCategory.Received(family, subtype))))),
-            .. Enum.GetValues<SentMailFamily>().Select(family =>
-                new SelectionOption(
-                    $"sent:{family}",
-                    OperatorLabels.MailClassification(MailCategory.Sent(family)))),
-            new(OtherReceivedKey, "Other received classification"),
-            new(OtherSentKey, "Other sent classification")
+                            OperatorLabels.MailClassification(MailCategory.Received(family, subtype)))))
         ];
-
-    /// <summary>The options a message of one direction may be corrected to.</summary>
-    public static IReadOnlyList<SelectionOption> OptionsFor(MailDirection direction) =>
-        direction == MailDirection.Sent
-            ? [.. Options.Where(option => option.Value.StartsWith("sent:", StringComparison.Ordinal) || option.Value == OtherSentKey)]
-            : [.. Options.Where(option => option.Value.StartsWith("received:", StringComparison.Ordinal) || option.Value == OtherReceivedKey)];
 
     /// <summary>
     /// Parses the case type a New instruction correction names. Only the three
@@ -60,18 +45,13 @@ public static class MailClassificationSelection
 
     /// <summary>
     /// Parses a selected classification key into the canonical category.
-    /// Returns false — never a guessed category — for an unknown key, an
-    /// unregistered subtype, or Other details that are absent or outside the
-    /// canonical bounds.
+    /// Returns false — never a guessed category — for an unknown key or an
+    /// unregistered subtype.
     /// </summary>
-    public static bool TryParse(
-        string? key,
-        string? otherName,
-        string? otherReasoning,
-        out MailCategory? category)
+    public static bool TryParse(string? value, out MailCategory? category)
     {
         category = null;
-        var parts = key?.Split(':');
+        var parts = value?.Split(':');
         if (parts is ["received", var received]
             && Enum.TryParse<ReceivedMailFamily>(received, out var receivedFamily)
             && Enum.IsDefined(receivedFamily))
@@ -92,31 +72,6 @@ public static class MailClassificationSelection
                 return false;
             }
         }
-        if (parts is ["sent", var sent]
-            && Enum.TryParse<SentMailFamily>(sent, out var sentFamily)
-            && Enum.IsDefined(sentFamily))
-        {
-            category = MailCategory.Sent(sentFamily);
-            return true;
-        }
-        var otherDirection = key switch
-        {
-            OtherReceivedKey => MailDirection.Received,
-            OtherSentKey => MailDirection.Sent,
-            _ => (MailDirection?)null
-        };
-        if (otherDirection is null
-            || string.IsNullOrWhiteSpace(otherName)
-            || string.IsNullOrWhiteSpace(otherReasoning)
-            || otherName.Trim().Length > MailCategory.OtherNameMaxLength
-            || otherReasoning.Trim().Length > MailCategory.OtherReasoningMaxLength)
-        {
-            return false;
-        }
-        category = MailCategory.Other(
-            otherDirection.Value,
-            otherName,
-            otherReasoning);
-        return true;
+        return false;
     }
 }

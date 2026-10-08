@@ -544,7 +544,6 @@ public sealed class CaseReportDeliveryPersistenceTests
             IdentityIsBound: true,
             ActivatedAtUtc: StartUtc,
             Version: 1,
-            FolderBindings: [],
             Generation: 3);
 
         public Task<IReadOnlyList<ApprovedMailbox>> ListAsync(CancellationToken cancellationToken) =>

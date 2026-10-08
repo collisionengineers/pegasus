@@ -299,7 +299,6 @@ public sealed class TriageFromIntakeIntegrationTests
                     IntakeReceiptId = receiptId,
                     Outcome = "unclassified",
                     IsReplyContext = false,
-                    AmbiguousCandidatesJson = "{\"version\":1,\"data\":[]}",
                     PredicatesJson = "{\"version\":1,\"data\":[]}",
                     Reason = "No supported category matched.",
                     PolicyKey = "principal_mail_classification",

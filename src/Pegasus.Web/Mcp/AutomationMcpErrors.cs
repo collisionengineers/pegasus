@@ -96,8 +96,8 @@ internal static class AutomationMcpErrors
     }
 
     /// <summary>
-    /// A command whose Core contract keys replays by a GUID (a confirmed
-    /// Outlook folder move) takes one derived from the caller's key, the actor
+    /// A command whose Core contract keys replays by a GUID (an inspection
+    /// address change) takes one derived from the caller's key, the actor
     /// and the purpose, so replaying the same 'mcp:' key replays the command and
     /// no two actors or purposes share an identity.
     /// </summary>

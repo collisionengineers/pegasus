@@ -2986,7 +2986,6 @@ public sealed class CaseReportGenerationPersistenceTests
         IdentityIsBound: true,
         ActivatedAtUtc: new DateTimeOffset(2026, 9, 7, 10, 0, 0, TimeSpan.Zero),
         Version: 1,
-        FolderBindings: [],
         Generation: 3);
 
     private sealed class FixedRecipientSuggestions(ReportRecipientSuggestions suggestions)

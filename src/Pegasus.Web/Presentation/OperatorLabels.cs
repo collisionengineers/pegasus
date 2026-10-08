@@ -57,7 +57,6 @@ public static class OperatorLabels
         UnidentifiedReasonCode.UnsupportedContent => "Unsupported content",
         UnidentifiedReasonCode.NoUsableIdentification => "No usable identification",
         UnidentifiedReasonCode.ConflictingIdentification => "Conflicting identification",
-        UnidentifiedReasonCode.AmbiguousOwnershipOrDestination => "Ambiguous ownership or destination",
         UnidentifiedReasonCode.TechnicalProcessingFailure => "Technical processing failure",
         _ => Humanise(reason.ToString())
     };
@@ -503,13 +502,11 @@ public static class OperatorLabels
         public const string Loading = "Loading…";
         public const string LookingUp = "Looking up…";
         public const string Marking = "Marking…";
-        public const string Moving = "Moving…";
         public const string Opening = "Opening…";
         public const string Pausing = "Pausing…";
         public const string Placing = "Placing on hold…";
         public const string Publishing = "Publishing…";
         public const string Recording = "Recording…";
-        public const string Refreshing = "Refreshing…";
         public const string Refusing = "Refusing…";
         public const string Registering = "Registering…";
         public const string Releasing = "Releasing…";
@@ -1056,8 +1053,6 @@ public static class OperatorLabels
     {
         MailOperationalDestination.ReceivingWork => "Receiving work",
         MailOperationalDestination.Queries => "Queries",
-        MailOperationalDestination.DetailedClassification => "Detailed classification",
-        MailOperationalDestination.Other => "Other",
         MailOperationalDestination.Triage => "Triage",
         MailOperationalDestination.Unidentified => "Unidentified",
         _ => Humanise(destination.ToString())
@@ -1766,42 +1761,25 @@ public static class OperatorLabels
     /// <summary>
     /// A mail classification in operator words: the settled family label, with
     /// the subtype appended after a separator dot ("New instruction ·
-    /// Inspection"). Other categories carry the operator's own name verbatim.
+    /// Inspection").
     /// </summary>
     public static string MailClassification(Pegasus.Core.Intake.MailCategory category)
     {
-        if (category.IsOther)
+        var family = category.ReceivedFamily switch
         {
-            return category.OtherName!;
-        }
-
-        var family = category.ReceivedFamily is { } received
-            ? received switch
-            {
-                Pegasus.Core.Intake.ReceivedMailFamily.General => "General",
-                Pegasus.Core.Intake.ReceivedMailFamily.Billing => "Billing",
-                Pegasus.Core.Intake.ReceivedMailFamily.NewInstructionReceived => "New instruction",
-                Pegasus.Core.Intake.ReceivedMailFamily.NonClientRelated => "Not client related",
-                Pegasus.Core.Intake.ReceivedMailFamily.InProgressCases => "In-progress case",
-                Pegasus.Core.Intake.ReceivedMailFamily.PostReportEmails => "Post-report",
-                Pegasus.Core.Intake.ReceivedMailFamily.PreInstructionEmails => "Pre-instruction",
-                Pegasus.Core.Intake.ReceivedMailFamily.InternalCc => "Internal CC",
-                _ => throw new ArgumentOutOfRangeException(nameof(category))
-            }
-            : category.SentFamily switch
-            {
-                Pegasus.Core.Intake.SentMailFamily.ReportSent => "Report sent",
-                Pegasus.Core.Intake.SentMailFamily.CaseRejected => "Case rejected",
-                Pegasus.Core.Intake.SentMailFamily.QuerySent => "Query sent",
-                Pegasus.Core.Intake.SentMailFamily.AdditionalImageRequest => "Additional image request",
-                _ => throw new ArgumentOutOfRangeException(nameof(category))
-            };
-        var prefixed = category.Direction == Pegasus.Core.Intake.MailDirection.Sent
-            ? $"Sent · {family}"
-            : family;
+            Pegasus.Core.Intake.ReceivedMailFamily.General => "General",
+            Pegasus.Core.Intake.ReceivedMailFamily.Billing => "Billing",
+            Pegasus.Core.Intake.ReceivedMailFamily.NewInstructionReceived => "New instruction",
+            Pegasus.Core.Intake.ReceivedMailFamily.NonClientRelated => "Not client related",
+            Pegasus.Core.Intake.ReceivedMailFamily.InProgressCases => "In-progress case",
+            Pegasus.Core.Intake.ReceivedMailFamily.PostReportEmails => "Post-report",
+            Pegasus.Core.Intake.ReceivedMailFamily.PreInstructionEmails => "Pre-instruction",
+            Pegasus.Core.Intake.ReceivedMailFamily.InternalCc => "Internal CC",
+            _ => throw new ArgumentOutOfRangeException(nameof(category))
+        };
         return category.Subtype is { } subtype
-            ? $"{prefixed} · {SubtypeWord(subtype)}"
-            : prefixed;
+            ? $"{family} · {SubtypeWord(subtype)}"
+            : family;
     }
 
     /// <summary>
@@ -1987,7 +1965,6 @@ public static class OperatorLabels
         public const string AddCategory = "Add category";
         public const string SaveMailbox = "Save mailbox";
         public const string SaveCategory = "Save category";
-        public const string Refresh = "Refresh";
         public const string ApprovedAddress = "Approved address";
         public const string RouteScope = "Route scope";
         public const string DisplayName = "Display name";
@@ -1995,8 +1972,6 @@ public static class OperatorLabels
         public const string NoMailCategories = "No mail categories";
         public const string NotActivated = "Not activated";
         public const string NoSubscription = "None.";
-        public const string Configured = "Configured";
-        public const string NotConfigured = "Not configured";
 
         /// <summary>
         /// Both state vocabularies are the enum names themselves, so they
@@ -2008,9 +1983,6 @@ public static class OperatorLabels
 
         public static string CategoryState(ApprovedOutlookCategoryState state) =>
             Humanise(state.ToString());
-
-        public static string FolderState(bool configured) =>
-            configured ? Configured : NotConfigured;
 
         public static string PollStatus(
             ApprovedMailbox mailbox,

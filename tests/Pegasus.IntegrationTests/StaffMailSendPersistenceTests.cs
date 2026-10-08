@@ -1502,10 +1502,8 @@ public sealed class StaffMailSendPersistenceTests
             {
                 IntakeReceiptId = receiptId,
                 Outcome = "classified",
-                Direction = "received",
                 Family = isQueryReceipt ? "post-report-emails" : "general-correspondence",
                 IsReplyContext = false,
-                AmbiguousCandidatesJson = "{\"version\":1,\"data\":[]}",
                 PredicatesJson = "{\"version\":1,\"data\":[]}",
                 Reason = "staff-mail test classification",
                 PolicyKey = "staff-mail-test",
@@ -1653,11 +1651,9 @@ public sealed class StaffMailSendPersistenceTests
             {
                 IntakeReceiptId = receiptId,
                 Outcome = "classified",
-                Direction = "received",
                 Family = "post-report-emails",
                 Subtype = "dispute",
                 IsReplyContext = false,
-                AmbiguousCandidatesJson = "{\"version\":1,\"data\":[]}",
                 PredicatesJson = "{\"version\":1,\"data\":[]}",
                 Reason = "staff-mail test classification",
                 PolicyKey = "staff-mail-test",

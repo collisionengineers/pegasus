@@ -18,11 +18,10 @@ public sealed class CategoryCatalog
     public CategoryCatalog(IReadOnlyList<EmailCategory> categories)
     {
         Categories = categories;
-        if (Categories.Count != 12
-            || Categories.Count(category => category.Family == "Received") != 8
-            || Categories.Count(category => category.Family == "Sent") != 4)
+        if (Categories.Count != 8
+            || Categories.Count(category => category.Family == "Received") != 8)
         {
-            throw new InvalidDataException("The email taxonomy must contain exactly eight Received and four Sent categories.");
+            throw new InvalidDataException("The email taxonomy must contain exactly eight Received categories.");
         }
     }
 
@@ -32,8 +31,6 @@ public sealed class CategoryCatalog
     {
         var categories = Enum.GetValues<ReceivedMailFamily>()
             .Select(family => new EmailCategory("Received", MailTaxonomy.CategoryName(family)))
-            .Concat(Enum.GetValues<SentMailFamily>()
-                .Select(family => new EmailCategory("Sent", MailTaxonomy.CategoryName(family))))
             .ToList();
 
         return new CategoryCatalog(categories);

@@ -71,7 +71,7 @@ pending.
 
 A mailbox has no purpose. Which approved mailbox received a message is
 never classification evidence; every mailbox feeds the one classification in
-[FRD-08](frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue)
+[FRD-08](frd-08-email-mailbox-and-background-processing.md#classification-and-destination-catalogue)
 (operator, 8 October 2026).
 
 **Wipe.** An explicitly authorised intake-data wipe records one UTC

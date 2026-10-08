@@ -1,16 +1,16 @@
 # FRD-08: Email, mailbox, and background processing
 
-> Owner capabilities: MAIL-01 to MAIL-05, MAIL-07, MAIL-09, MAIL-13, MAIL-21 to MAIL-23, UI-14 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MAIL-01 to MAIL-04, MAIL-09, MAIL-13, MAIL-21 to MAIL-23, UI-14 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
 - Every retained message keeps its mailbox, folder, item, Message-ID,
   conversation and content hash as separate facts. Mailbox plus Message-ID
   is what makes a message unique.
-- Every message gets a named classification from the settled taxonomy, or is
-  left as Unidentified. Nothing is hidden in a generic Other.
-- Classification, application queue, Triage routing and Outlook folder are
-  four separate facts. Every decision and every correction stays in history.
+- Every received message gets a named classification from the settled
+  taxonomy, or is left Unclassified and Unidentified.
+- Classification, application queue and Triage routing are three separate
+  facts. Every decision and every correction stays in history.
 - The Worker alone reads mailboxes. Which mailboxes it reads, when each one
   starts and how it is woken are in
   [FRD-26](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md).
@@ -95,29 +95,17 @@ keeps the research context and is not a competing owner.
 | `pre-instruction-emails` | Triage requests; pre-formal-instruction handling requests; images received before formal instructions |
 | `internal-cc` | internal copied correspondence |
 
-Each example is a named classification, never material hidden in a generic
-`Other`. The canonical subtype spellings are `acknowledgement` for the
+Each example is a named classification. The canonical subtype spellings are `acknowledgement` for the
 General example; `payment-notification`, `remittance` and `invoice-request`
 for billing; `ongoing-correspondence` for the remaining in-progress example;
 `query`, `dispute` and `amendment-request` for post-report mail; and
 `triage-request`, `pre-formal-instruction-request` and `images-received` for
 pre-instruction mail. A family whose row names no subtype needs none.
 
-| Sent family | Confirmed meaning |
-| --- | --- |
-| `Report sent` | Collision Engineers' email sending the Engineer report |
-| `case-rejected` | Collision Engineers rejects a case |
-| `query-sent` | Collision Engineers sends an additional query or information request |
-| `additional-image-request` | existing images are insufficient and better or additional images are requested |
-
 Reply is not a recorded type of its own. A Collision Engineers reply to a
-Received message takes the Received category with reply context. A
-correspondent's reply to a Sent message takes the Sent category with reply
-context. The taxonomy also allows `Other`, which needs both a new category
-name and a reason.
+Received message takes the Received category with reply context.
 
-A correction keeps to the message's direction: a received message takes only
-a received category, a sent message only a sent one. A correction to
+A correction to
 `new-instruction-received` names the case type the instruction carries,
 Inspection, Audit or Inspection and Audit, which Create case preselects and
 allocation reads. A correction to or from `triage-request` writes or removes
@@ -125,15 +113,13 @@ the receipt's accepted Triage match, so Open the Triage reads one fact. A
 re-evaluation reads a corrected classification in place of the classifier and
 never removes or overwrites it or its history.
 
-### Classification, destination, and folder catalogue
+### Classification and destination catalogue
 
-A known classification has its own typed destination. It is never collapsed
-into a generic Other queue. `Other` exists only to extend the taxonomy with
-a reasoned new class. `Unidentified` is an abstention, used when evidence is
-missing, unsupported, contradictory or ambiguous. It is never a
-classification.
+A known classification has its own typed destination, or none where it has no
+work view. `Unclassified` is an abstention, used when evidence is missing,
+unsupported, contradictory or ambiguous. It is never a classification.
 
-Classification may use message identity, direction, headers, sender and
+Classification may use message identity, headers, sender and
 domain, fresh body text, attachment and document evidence, Principal-route
 tells, reply and thread signals, and a separately produced Case correlation.
 Which approved mailbox received the message is never classification
@@ -165,54 +151,39 @@ decision, including a staff correction, is never overridden. The decision is
 written in the same transaction as the link, before the Query rule in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#completed-and-query) reads it.
 
-| Classification | Positive criteria and exclusions | Method | Operational destination | Outlook folder type |
-| --- | --- | --- | --- | --- |
-| `General/autoreply` | Generated automatic-reply evidence; never quoted new-work text | route predicate or staff | Detailed: `General/autoreply` | No action |
-| `General/undeliverable` | Delivery-status or non-delivery evidence for the exact message | transport evidence or staff | Detailed: `General/undeliverable` | No action |
-| `General/acknowledgement` | Acknowledges receipt without a request, new work, dispute, amendment or cancellation | staff until a predicate is accepted | Detailed: `General/acknowledgement` | No action |
-| `General/general-chase` | General chase, including one about several Cases; never one-to-many association | staff | Detailed: `General/general-chase` | Case queries |
-| `General/case-summary` | Informational summary with no new instruction or actionable request | staff | Detailed: `General/case-summary` | No action |
-| `billing/payment-notification` | Payment notification, excluding a question or request | predicate or staff | Detailed: `billing/payment-notification` | Billing |
-| `billing/remittance` | Remittance advice or evidence, excluding a billing question | predicate or staff | Detailed: `billing/remittance` | Billing |
-| `billing/invoice-request` | Requests an invoice or invoice action | predicate or staff | Detailed: `billing/invoice-request` | Billing |
-| `billing/billing-query` | Asks a billing, invoice, payment or remittance question | predicate or staff | Queries | Billing |
-| `billing/general-billing` | Billing mail fitting no more specific billing subtype | reasoned staff decision | Detailed: `billing/general-billing` | Billing |
-| `new-instruction-received/audit` | Accepted Principal Audit instruction evidence; a body keyword or quoted old instruction is not enough | route predicate or staff | Receiving work | Audits |
-| `new-instruction-received/diminution` | Accepted Principal diminution instruction evidence | route predicate or staff | Receiving work | Diminution |
-| `new-instruction-received/inspection` | Accepted Principal Inspection instruction evidence | route predicate or staff | Receiving work | Instructions |
-| `new-instruction-received/new-client` | Initial work from a client with no accepted route | staff | Receiving work | New clients |
-| `new-instruction-received/website-enquiry` | Website-origin evidence meeting the accepted independent fingerprints | route predicate or staff | Receiving work | Enquiries |
-| `non-client-related` | Internal, company, tool, service or software mail unrelated to client work | sender or route evidence or staff | Detailed: `non-client-related` | Other |
-| `in-progress-cases/cancellation` | Explicit cancellation; it wins over quoted old instructions | route predicate or staff | Detailed: `in-progress-cases/cancellation` | Cancellations |
-| `in-progress-cases/case-update` | Update on ongoing work, excluding a new instruction or a post-report challenge | staff | Detailed: `in-progress-cases/case-update` | Case updates |
-| `in-progress-cases/chasing-for-update` | Client or Principal asks for progress on ongoing work | staff | Detailed: `in-progress-cases/chasing-for-update` | Case updates |
-| `in-progress-cases/ongoing-correspondence` | Other ongoing correspondence once more specific subtypes are excluded | case state of the linked Case, or reasoned staff decision | Detailed: `in-progress-cases/ongoing-correspondence` | Case updates |
-| `post-report-emails/query` | Question about a delivered report | case state of the linked Case, route or thread evidence, or staff | Queries | Case queries |
-| `post-report-emails/dispute` | Challenge to a delivered report or finding | route or thread evidence or staff | Queries | Case queries |
-| `post-report-emails/amendment-request` | Request to amend a delivered report | route or thread evidence or staff | Queries | Case queries |
-| `pre-instruction-emails/triage-request` | Accepted Triage request; a missing VRM stays Unidentified under FRD-03 | route predicate or staff | Triage | Pre-instructions |
-| `pre-instruction-emails/pre-formal-instruction-request` | Known pre-formal handling request, excluding Triage | staff | Detailed: `pre-instruction-emails/pre-formal-instruction-request` | Pre-instructions |
-| `pre-instruction-emails/images-received` | Images before a formal instruction, excluding an accepted instruction | attachment or route evidence or staff | Detailed: `pre-instruction-emails/images-received` | Images |
-| `internal-cc` | Internal copied correspondence, not the primary actionable occurrence | header or recipient evidence or staff | Detailed: `internal-cc` | Other |
-| Sent: `Report sent` | Exact sent report correspondence; classification alone does not prove delivery | immutable Sent-item evidence or staff | Detailed: Sent/`Report sent` | Other |
-| Sent: `case-rejected` | Exact outbound rejection | immutable Sent-item evidence or staff | Detailed: Sent/`case-rejected` | Other |
-| Sent: `query-sent` | Exact outbound query or information request | immutable Sent-item evidence or staff | Detailed: Sent/`query-sent` | Other |
-| Sent: `additional-image-request` | Exact outbound request for better or additional images | immutable Sent-item evidence or staff | Detailed: Sent/`additional-image-request` | Other |
-| reasoned `Other` | No registry entry fits; needs a new name and reason and may not hide a known class | authorised staff only | Other | Other |
-| `Ambiguous` / `Unclassified` | Several or no accepted predicates, or missing or conflicting evidence; no winner is invented | explicit abstention | Unidentified | none automatically |
+| Classification | Positive criteria and exclusions | Method | Operational destination |
+| --- | --- | --- | --- |
+| `General/autoreply` | Generated automatic-reply evidence; never quoted new-work text | route predicate or staff | — |
+| `General/undeliverable` | Delivery-status or non-delivery evidence for the exact message | transport evidence or staff | — |
+| `General/acknowledgement` | Acknowledges receipt without a request, new work, dispute, amendment or cancellation | staff until a predicate is accepted | — |
+| `General/general-chase` | General chase, including one about several Cases; never one-to-many association | staff | — |
+| `General/case-summary` | Informational summary with no new instruction or actionable request | staff | — |
+| `billing/payment-notification` | Payment notification, excluding a question or request | predicate or staff | — |
+| `billing/remittance` | Remittance advice or evidence, excluding a billing question | predicate or staff | — |
+| `billing/invoice-request` | Requests an invoice or invoice action | predicate or staff | — |
+| `billing/billing-query` | Asks a billing, invoice, payment or remittance question | predicate or staff | Queries |
+| `billing/general-billing` | Billing mail fitting no more specific billing subtype | reasoned staff decision | — |
+| `new-instruction-received/audit` | Accepted Principal Audit instruction evidence; a body keyword or quoted old instruction is not enough | route predicate or staff | Receiving work |
+| `new-instruction-received/diminution` | Accepted Principal diminution instruction evidence | route predicate or staff | Receiving work |
+| `new-instruction-received/inspection` | Accepted Principal Inspection instruction evidence | route predicate or staff | Receiving work |
+| `new-instruction-received/new-client` | Initial work from a client with no accepted route | staff | Receiving work |
+| `new-instruction-received/website-enquiry` | Website-origin evidence meeting the accepted independent fingerprints | route predicate or staff | Receiving work |
+| `non-client-related` | Internal, company, tool, service or software mail unrelated to client work | sender or route evidence or staff | — |
+| `in-progress-cases/cancellation` | Explicit cancellation; it wins over quoted old instructions | route predicate or staff | — |
+| `in-progress-cases/case-update` | Update on ongoing work, excluding a new instruction or a post-report challenge | staff | — |
+| `in-progress-cases/chasing-for-update` | Client or Principal asks for progress on ongoing work | staff | — |
+| `in-progress-cases/ongoing-correspondence` | Other ongoing correspondence once more specific subtypes are excluded | case state of the linked Case, or reasoned staff decision | — |
+| `post-report-emails/query` | Question about a delivered report | case state of the linked Case, route or thread evidence, or staff | Queries |
+| `post-report-emails/dispute` | Challenge to a delivered report or finding | route or thread evidence or staff | Queries |
+| `post-report-emails/amendment-request` | Request to amend a delivered report | route or thread evidence or staff | Queries |
+| `pre-instruction-emails/triage-request` | Accepted Triage request; a missing VRM stays Unidentified under FRD-03 | route predicate or staff | Triage |
+| `pre-instruction-emails/pre-formal-instruction-request` | Known pre-formal handling request, excluding Triage | staff | — |
+| `pre-instruction-emails/images-received` | Images before a formal instruction, excluding an accepted instruction | attachment or route evidence or staff | — |
+| `internal-cc` | Internal copied correspondence, not the primary actionable occurrence | header or recipient evidence or staff | — |
+| `Unclassified` | No accepted predicate, several accepted predicates (the reason names the competing candidates), or missing or conflicting evidence; no winner is invented | explicit abstention | Unidentified |
 
-The approved logical folder types are `Instructions`, `Audits`,
-`Diminution`, `New clients`, `Case queries`, `Enquiries`, `Billing`,
-`Pre-instructions`, `No action`, `Images`, `Cancellations`, `Case updates`
-and `Other`. MAIL-23 binds each type to an Administrator-approved exact
-Outlook folder identity per mailbox. MAIL-05 derives the per-message folder
-recommendation; MAIL-07 owns the separate confirmed move. Triage and
-Unidentified get no automatic folder recommendation just because they are
-application destinations.
-
-Worked examples: one accepted Audit instruction goes to Receiving work and
-the Audits folder; a billing question goes to Queries and the Billing
-folder; an accepted Triage request goes to the separate Triage workflow. A
+Worked examples: one accepted Audit instruction goes to Receiving work; a
+billing question goes to Queries; an accepted Triage request goes to the separate Triage workflow. A
 body that merely says "audit", a forwarded old instruction, two accepted
 matches at once, or incomplete route evidence must never be promoted by
 guesswork.
@@ -222,10 +193,8 @@ General occurrence. Pegasus neither copies it nor links it to many Cases. A
 `case-summary` is retained as non-actionable General correspondence and
 creates no intake, Triage or Case work.
 
-Classification, application queue, Triage routing and Outlook folder are
-four separate facts. `new-instruction-received` is a Received family with no
-confirmed Sent equivalent, and that boundary permits no conflicting rules.
-Accepted predicates must not overlap. An unexpected overlap is a defect: it
+Classification, application queue and Triage routing are three separate
+facts. Accepted predicates must not overlap. An unexpected overlap is a defect: it
 fails closed with visible evidence, and no confidence score or invented
 winner resolves it. [FRD-09](frd-09-principal-and-intermediary-routes.md)
 owns the route predicates.
@@ -297,7 +266,7 @@ received query and the actual reply are retained as Case correspondence.
 
 | Thing | States |
 | --- | --- |
-| A retained message | Processing (sender not yet established); classified into one named class, reasoned `Other`, or Unidentified; Case-associated or not; folder move recommended, confirmed, failed or done |
+| A retained message | Processing (sender not yet established); classified into one named class or Unclassified; Case-associated or not; dismissed or not |
 
 Case states are owned by
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels). Approved
@@ -325,7 +294,7 @@ mailbox and Graph subscription states are owned by
 
 ## Links
 
-- Capabilities: `MAIL-01`–`MAIL-05`, `MAIL-07`, `MAIL-09`, `MAIL-13`,
+- Capabilities: `MAIL-01`–`MAIL-04`, `MAIL-09`, `MAIL-13`,
   `MAIL-21`–`MAIL-23`, `UI-14` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md)
@@ -342,4 +311,6 @@ mailbox and Graph subscription states are owned by
   [ADR-0044](../adr/0044-mail-occurrence-and-business-identity.md) (mail identity
   separation), [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md)
   (approved mailbox sending),
-  [ADR-0052](../adr/0052-dismiss-by-logical-folder.md) (no deletion).
+  [ADR-0052](../adr/0052-dismiss-by-logical-folder.md) (Dismiss is a scope; no deletion),
+  [ADR-0067](../adr/0067-simplify-mail-classification.md) (the folder move
+  and Sent, Other and Ambiguous categories are removed).

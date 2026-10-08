@@ -1333,7 +1333,7 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
-    public async Task AMessageCarryingTwoCategoryTellsIsAmbiguousAndIsNoTriageMatch()
+    public async Task AMessageCarryingTwoCategoryTellsIsUnclassifiedAndIsNoTriageMatch()
     {
         // Ambiguity is not a Triage request: it is a message no policy may
         // resolve, and it must reach staff rather than open pre-case work.
@@ -1359,7 +1359,7 @@ public sealed class ProcessIntakeTests
             });
 
         Assert.Equal(
-            MailClassificationOutcome.Ambiguous,
+            MailClassificationOutcome.Unclassified,
             Assert.IsType<MailClassificationResult>(receipt.MailClassificationDecision).Outcome);
         Assert.DoesNotContain(
             receipt.Evidence,
@@ -1407,7 +1407,8 @@ public sealed class ProcessIntakeTests
             .ExecuteAsync(Source("classification-ambiguity-off"));
 
         var recorded = Assert.IsType<MailClassificationResult>(ambiguous.MailClassificationDecision);
-        Assert.Equal(MailClassificationOutcome.Ambiguous, recorded.Outcome);
+        Assert.Equal(MailClassificationOutcome.Unclassified, recorded.Outcome);
+        Assert.Contains("more than one category", recorded.Reason, StringComparison.Ordinal);
         Assert.Equal(MailClassificationOutcome.Unclassified, without.MailClassificationDecision?.Outcome);
         Assert.Equal(without.Decision, ambiguous.Decision);
         Assert.Equal(without.DecisionReason, ambiguous.DecisionReason);

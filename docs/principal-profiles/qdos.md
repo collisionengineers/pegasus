@@ -60,7 +60,7 @@ extraction reads no single outcome, the message gets no automatic Audit.
 QDOS sends triage requests in two reviewed templates and the templates are
 disjoint in the evaluated corpus. The two tells therefore feed **one** triage
 candidate — a second candidate for the same category would resolve to
-Ambiguous, so a message carrying both tells would classify worse than one
+Unclassified, so a message carrying both tells would classify worse than one
 carrying either. Both predicates are still recorded separately, so the
 decision says which fired (MAIL-012). Exact current source counts and immutable
 hashes live in the versioned
