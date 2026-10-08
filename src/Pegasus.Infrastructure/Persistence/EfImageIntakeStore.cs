@@ -596,7 +596,7 @@ public sealed class EfImageIntakeStore(
 
         if (entity.PrincipalId == request.PrincipalId)
         {
-            EfEditScopeStore.Complete(context, EditScopeKind.ImageIntake, entity.Id);
+            EfEditScopeStore.Complete(context, EditScopeKind.ImageIntake, entity.Id, entity.LifecycleVersion);
             await context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return Map(entity);
@@ -612,7 +612,7 @@ public sealed class EfImageIntakeStore(
 
         entity.PrincipalId = request.PrincipalId;
         entity.LifecycleVersion++;
-        EfEditScopeStore.Complete(context, EditScopeKind.ImageIntake, entity.Id);
+        EfEditScopeStore.Complete(context, EditScopeKind.ImageIntake, entity.Id, entity.LifecycleVersion);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(entity);
@@ -771,7 +771,7 @@ public sealed class EfImageIntakeStore(
         entity.ClosedAtUtc = targetState == ImageInitiatedCaseState.StaffClosed ? now : null;
         if (actor.Kind == ActorKind.Staff)
         {
-            EfEditScopeStore.Complete(context, EditScopeKind.ImageIntake, entity.Id);
+            EfEditScopeStore.Complete(context, EditScopeKind.ImageIntake, entity.Id, entity.LifecycleVersion);
         }
         context.ImageIntakeLifecycleEvents.Add(new ImageIntakeLifecycleEventEntity
         {

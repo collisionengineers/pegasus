@@ -46,6 +46,18 @@ internal sealed record ValuationSaveToolResult(
     string OperationKey,
     string CorrelationId);
 
+internal sealed record ValuationGetToolResult(
+    Guid CaseId,
+    [property: Description("Recorded, Unavailable or VehicleAge.")] string Outcome,
+    string? Message,
+    decimal? RetailValue,
+    decimal? TradeValue,
+    string? GuideMonth,
+    long? CaseVersion,
+    IReadOnlyList<ValuationToolItem> Valuations,
+    string OperationKey,
+    string CorrelationId);
+
 internal sealed record GuideCardToolInput(
     [property: Description("The guide the figures come from: Glasses, Cazana, EngineersValue, Brego, SuperCap or Cap.")] string Source,
     [property: Description("Retail value in pounds.")] decimal? RetailValue = null,
@@ -72,6 +84,7 @@ internal sealed record AssessmentFieldVocabularyItem(
     int MaximumLength,
     bool MustBePositive,
     IReadOnlyList<string>? Codes,
+    string? Format,
     string? Label,
     bool Writable,
     string? WhyNotWritable);
@@ -125,6 +138,7 @@ internal sealed class CaseEditMcpTools(
     ISaveCaseWorkspace saveCaseWorkspace,
     IAddCaseNote addCaseNote,
     IListCaseValuations listValuations,
+    IFetchGuideValuation fetchGuideValuation,
     IContactDirectoryQueries contactDirectory,
     IReadImageTagVocabulary imageTags,
     TimeProvider timeProvider,
@@ -179,7 +193,7 @@ internal sealed class CaseEditMcpTools(
         [Description("Inspection date, yyyy-MM-dd; the report prints it as the date the damage was assessed.")] string? inspectionDate = null,
         [Description("Inspection deadline, yyyy-MM-dd.")] string? inspectionDeadline = null,
         [Description("The Sign-off Engineer's staff identifier.")] Guid? signOffEngineerId = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
@@ -457,7 +471,7 @@ internal sealed class CaseEditMcpTools(
         [Description("The guide cards to record.")] IReadOnlyList<GuideCardToolInput>? guideCards = null,
         [Description("The calculation to record against its basis card.")] ValuationAdoptionToolInput? adoption = null,
         [Description("Why the valuation is being recorded (case history reason).")] string? reason = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.AssessmentScope, cancellationToken);
@@ -526,6 +540,105 @@ internal sealed class CaseEditMcpTools(
     }
 
     [McpServerTool(
+        Name = "pegasus_valuation_get",
+        Title = "Get a guide valuation",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = false,
+        OpenWorld = true,
+        UseStructuredContent = true)]
+    [Description("Runs the Valuation section's Get valuation for one guide source and records that source's card on the case with the figures it answers, as a member of staff pressing Get valuation and saving does. Pegasus asks the source's connected provider (Glass's) for the case's confirmed registration and mileage in the guide month, files the provider's own valuation report on the case afterwards and fills an empty case VIN the provider names. Outcome Recorded carries the figures; Unavailable (no connected provider, or it could not answer) and VehicleAge (the source does not value a vehicle of this age) record nothing. Adopting a basis card and the Retail, Trade and Engineer's values stay with pegasus_valuation_save and pegasus_assessment_update. Each call asks the provider again. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command).")]
+    public async Task<ValuationGetToolResult> GetValuationAsync(
+        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
+        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description("The guide source to value with: Glasses, Cazana, Brego, SuperCap or Cap.")] string source,
+        [Description("The guide month to value in, yyyy-MM; omit for the current month.")] string? guideMonth = null,
+        [Description("Why the valuation is being recorded (case history reason).")] string? reason = null,
+        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await resolver.RequireAsync(AutomationMcp.AssessmentScope, cancellationToken);
+        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
+        return await auditor.RecordAsync(
+            context,
+            "pegasus_valuation_get",
+            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
+            key,
+            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            {
+                AutomationMcpErrors.RequireId(caseId, "case identifier");
+                var valuationSource = ParseSource(source);
+                var today = LondonCalendar.DateAt(timeProvider.GetUtcNow());
+                var month = ParseGuideMonth(guideMonth) ?? new DateOnly(today.Year, today.Month, 1);
+                var fetched = await leases.RunCaseAsync(
+                    caseId,
+                    expectedVersion,
+                    editLeaseToken,
+                    context.Actor,
+                    key,
+                    async token =>
+                    {
+                        GuideValuationQuote quote;
+                        try
+                        {
+                            quote = await fetchGuideValuation.ExecuteAsync(
+                                new(caseId, expectedVersion, context.Actor, key, token, valuationSource, month),
+                                cancellationToken);
+                        }
+                        catch (GuideValuationProviderUnavailableException)
+                        {
+                            return new FetchedValuation(
+                                "Unavailable", CaseWorkspaceLabels.Valuation.Unavailable(valuationSource), null, null);
+                        }
+                        catch (GuideValuationVehicleAgeException)
+                        {
+                            return new FetchedValuation(
+                                "VehicleAge", CaseWorkspaceLabels.Valuation.VehicleAgeNotValued, null, null);
+                        }
+
+                        // The fetched figures are recorded as the card's Save records them.
+                        // A VIN the fetch filled advanced the version as system work, which
+                        // the lease this command holds still covers.
+                        var recordedAt = LondonCalendar.TimeAt(timeProvider.GetUtcNow());
+                        var card = new ValuationDetails(
+                            valuationSource,
+                            DateOnly.FromDateTime(recordedAt),
+                            TimeOnly.FromDateTime(recordedAt),
+                            // A guide card carries no mileage: the Case's own is used.
+                            null,
+                            quote.RetailValue,
+                            quote.TradeValue,
+                            quote.GuideMonth);
+                        var saved = await saveCaseWorkspace.ExecuteAsync(
+                            new(caseId, expectedVersion, context.Actor, key, reason, token)
+                            {
+                                Valuation = new([card], null),
+                            },
+                            cancellationToken);
+                        return new FetchedValuation("Recorded", null, quote, saved.Version);
+                    },
+                    cancellationToken);
+                var valuations = await listValuations.ExecuteAsync(caseId, CaseWorkSelector.Current, cancellationToken);
+                return new ValuationGetToolResult(
+                    caseId,
+                    fetched.Outcome,
+                    fetched.Message,
+                    fetched.Quote?.RetailValue,
+                    fetched.Quote?.TradeValue,
+                    fetched.Quote?.GuideMonth.ToString("yyyy-MM", CultureInfo.InvariantCulture),
+                    fetched.CaseVersion,
+                    valuations.Select(Map).ToArray(),
+                    key,
+                    AutomationMcpAuditor.CorrelationId(context, key));
+            }),
+            cancellationToken);
+    }
+
+    private sealed record FetchedValuation(
+        string Outcome, string? Message, GuideValuationQuote? Quote, long? CaseVersion);
+
+    [McpServerTool(
         Name = "pegasus_vocabulary_get",
         Title = "Get field vocabulary",
         ReadOnly = true,
@@ -533,7 +646,7 @@ internal sealed class CaseEditMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Returns the vocabularies the write tools accept: every assessment field path with its type, accepted codes, staff label and whether pegasus_assessment_update may write it (for example Roadworthiness is assessment.legal_status and the outcome is assessment.outcome); the estimate line types and evidence labels with their meanings; repairer VAT statuses and VAT categories; valuation sources; and the shared image tags pegasus_document_action applies.")]
+    [Description("Returns the vocabularies the write tools accept: every assessment field path with its type, accepted codes, the format a structured value takes (damage.impacts), staff label and whether pegasus_assessment_update may write it (for example Roadworthiness is assessment.legal_status and the outcome is assessment.outcome); the estimate line types and evidence labels with their meanings; repairer VAT statuses and VAT categories; valuation sources; and the shared image tags pegasus_document_action applies.")]
     public async Task<VocabularyToolResult> GetVocabularyAsync(CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
@@ -553,6 +666,7 @@ internal sealed class CaseEditMcpTools(
                             definition.MaximumLength,
                             definition.MustBePositive,
                             definition.Codes,
+                            definition.Format,
                             CaseWorkspaceLabels.Editors.Label(CaseWorkspaceLabels.Editors.FormName(definition.Path)),
                             refusal is null,
                             refusal);

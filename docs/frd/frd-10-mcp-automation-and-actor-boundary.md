@@ -115,7 +115,12 @@ multi-step work, named by `recordKind`, under that record's own scope
 **Take over** does, and the takeover goes into the record's history. Staff
 cannot take over an Automation lease; it lapses within five minutes. An
 Automation lease that lapsed, with nobody claiming the record since, carries
-on with the same token, as a staff lease does (operator, 7 October 2026).
+on with the same token, as a staff lease does (operator, 7 October 2026). A
+write made under an Automation lease advances the record's version and keeps
+the lease, so one token from `pegasus_edit_begin` carries every write of the
+work until `pegasus_edit_end` releases it (operator, 8 October 2026).
+`pegasus_edit_end` on a lease that has already lapsed or been released answers
+`released` false.
 
 **Assessment writes.** <a id="assessment-writes"></a>
 `pegasus_assessment_update` writes the assessment fields a staff member
@@ -135,7 +140,8 @@ A system fill never overwrites it, as it never overwrites a staff value.
 Case-owned facts, fields derived from damage entries and the facts the
 DVLA/DVSA lookup alone records (engine, fuel, colour, tax and MOT expiry) are
 refused. `pegasus_vocabulary_get` lists every assessment field path with its
-type, accepted codes, staff label and whether the tool may write it, with the
+type, accepted codes, the format a structured value takes (the damage entries
+of `damage.impacts`), staff label and whether the tool may write it, with the
 estimate line types and evidence labels, the repairer VAT statuses and VAT
 categories, the valuation sources and the shared image tags.
 
@@ -144,6 +150,13 @@ each guide card, the Engineer's Value card and any AI market research card.
 `pegasus_valuation_save` records guide cards and, optionally, adopts the
 valuation calculation against a basis card, as the Valuation section's Save
 does; a card for the same source and guide month replaces the earlier one.
+`pegasus_valuation_get` presses a guide card's **Get valuation** and records
+that card with the figures, as the section's Save would (operator, 8 October
+2026): Pegasus asks the source's connected provider with its own valuation
+account, files the provider's report and fills an empty VIN, exactly as for
+staff. An unavailable source, or a vehicle the source does not value, records
+nothing. Adopting a basis card and the Retail, Trade and Engineer's values
+stay with `pegasus_valuation_save` and `pegasus_assessment_update`.
 
 **Case details and notes.** Case facts, including the Inspection date the
 report prints as the date the damage was assessed, change through
@@ -214,7 +227,8 @@ Estimates go through the named estimate tools, with the same actor, lease,
 version and replay checks as the Case UI
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). Unidentified reason
 codes on the wire are the Core list under `unidentified`. No tool exposes
-Glass's credentials or runs a Glass's session.
+Glass's credentials or runs a Glass's session; Get valuation uses Pegasus's
+own valuation account and is not a session.
 
 **Sending.** <a id="sending"></a> The Actor sends as staff do, under
 `automation.send` (operator, 7 October 2026;
@@ -409,7 +423,7 @@ tranche rule above.
 
 ### Tool inventory
 
-The Actor's whole inventory, 61 tools, by scope. "One-command lease" means
+The Actor's whole inventory, 62 tools, by scope. "One-command lease" means
 the tool takes `expectedVersion` and `operationKey`, accepts an
 `editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
 its one command when none is given.
@@ -448,6 +462,7 @@ its one command when none is given.
 | `automation.documents` | `pegasus_report_wording_save`, `pegasus_image_prepare` | Change wording blocks through the Case save; crop, rotate, order and set a page of its own for images through the Case save | one-command lease |
 | `automation.assessment` | `pegasus_assessment_get`, `pegasus_estimate_list`, `pegasus_estimate_get`, `pegasus_valuation_list` | The recorded assessment surface; a Case's estimate headers; one estimate in full; the valuation cards | none |
 | `automation.assessment` | `pegasus_assessment_update`, `pegasus_valuation_save`, `pegasus_estimate_save`, `pegasus_estimate_act`, `pegasus_estimate_import` | The assessment, valuation and estimate writes above | one-command lease |
+| `automation.assessment` | `pegasus_valuation_get` | Get valuation for one guide source, recording its card as the Valuation section's Save does | one-command lease |
 | `automation.mail` | `pegasus_mail_list`, `pegasus_mail_get` | The retained mail workspace; one message with classification and history | none |
 | `automation.mail` | `pegasus_mail_correct_classification` | Correct a classification through the staff command | version and key |
 | `automation.mail` | `pegasus_mail_action` | `move_folder` to the recommended Outlook folder; `dismiss` or `restore` in Pegasus | versions and key for a move; key for dismiss and restore |

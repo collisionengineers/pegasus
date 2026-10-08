@@ -246,6 +246,11 @@ internal static class AutomationMcpTestSupport
                     lease.LeaseToken,
                     new(true, true, "mcp-ingress-review-readiness")),
                 CancellationToken.None);
+        // The Automation lease stands after its write, so the fixture ends it.
+        await scope.ServiceProvider.GetRequiredService<IReleaseCaseEditLease>()
+            .ExecuteAsync(
+                new(caseId, ActionActor.Automation(ClientId), Guid.NewGuid().ToString("N"), lease.LeaseToken),
+                CancellationToken.None);
     }
 
     private static async Task SeedPrincipalAsync(IServiceProvider services)

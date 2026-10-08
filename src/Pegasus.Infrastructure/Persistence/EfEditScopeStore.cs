@@ -210,7 +210,14 @@ public sealed class EfEditScopeStore(
         }
     }
 
-    internal static void Complete(PegasusDbContext context, EditScopeKind scopeKind, Guid recordId)
+    /// <summary>
+    /// The scope a write was made under, once the write is made at <paramref name="recordVersion"/>.
+    /// A staff scope ends. The Automation actor's scope stands at the new version until
+    /// pegasus_edit_end releases it, so one token carries its multi-step work (operator,
+    /// 8 October 2026).
+    /// </summary>
+    internal static void Complete(
+        PegasusDbContext context, EditScopeKind scopeKind, Guid recordId, long recordVersion)
     {
         ArgumentNullException.ThrowIfNull(context);
         var scope = context.Set<EditScopeEntity>().Local.SingleOrDefault(item =>
@@ -218,6 +225,12 @@ public sealed class EfEditScopeStore(
         if (scope is null)
         {
             throw new InvalidOperationException("The edit scope was not loaded by its mutation transaction.");
+        }
+
+        if (scope.HolderKind == nameof(ActorKind.Automation))
+        {
+            scope.ExpectedVersion = recordVersion;
+            return;
         }
 
         context.Remove(scope);

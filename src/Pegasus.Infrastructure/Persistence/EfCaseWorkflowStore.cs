@@ -1073,7 +1073,7 @@ public sealed class EfCaseWorkflowStore(
             "manual_chase_recorded",
             timeProvider.GetUtcNow(),
             (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays);
-        ClearLease(workflow);
+        CaseMutationGuard.EndWriteLease(workflow);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(due);
@@ -1213,7 +1213,15 @@ public sealed class EfCaseWorkflowStore(
         }
 
         workflow.Version = checked(workflow.Version + 1);
-        ClearLease(workflow);
+        // An archived Case cannot be released or edited, so no lease outlives its archive.
+        if (workflow.ArchivedAtUtc is not null)
+        {
+            ClearLease(workflow);
+        }
+        else
+        {
+            CaseMutationGuard.EndWriteLease(workflow);
+        }
         var afterJson = JsonSerializer.Serialize(HistoryValue(workflow));
         AddEvent(
             context,

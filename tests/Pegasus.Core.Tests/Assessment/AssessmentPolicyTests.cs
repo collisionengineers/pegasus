@@ -406,6 +406,24 @@ public sealed class AssessmentPolicyTests
     }
 
     [Fact]
+    public void TheDamageImpactsFormatNamesEveryCodeAndItsExampleIsAccepted()
+    {
+        var format = AssessmentVocabulary.Definitions[AssessmentVocabulary.DamageImpacts].Format;
+        Assert.NotNull(format);
+        foreach (var code in AssessmentVocabulary.DamageAreas.Keys.Concat(AssessmentVocabulary.DamageSeverities.Keys))
+        {
+            Assert.Contains(code, format, StringComparison.Ordinal);
+        }
+        const string marker = "Example: ";
+        var example = format[(format.IndexOf(marker, StringComparison.Ordinal) + marker.Length)..];
+
+        var normalized = AssessmentPolicy.ValidateAndNormalize(
+            Request(new() { [AssessmentVocabulary.DamageImpacts] = example }));
+
+        Assert.Equal(example, normalized.Fields[AssessmentVocabulary.DamageImpacts]);
+    }
+
+    [Fact]
     public void ADamageRecordedByAreaKeepsExactlyItsAreas()
     {
         // No disc: the areas are recorded as named, with nothing added around

@@ -153,7 +153,7 @@ internal sealed class ReportPreparationMcpTools(
         [Description("The blocks to change, each named by its key once.")] IReadOnlyList<ReportWordingBlockToolInput> blocks,
         [Description(WorkDescription)] string? work = null,
         [Description("Why the wording is being changed (case history reason).")] string? reason = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
@@ -243,7 +243,7 @@ internal sealed class ReportPreparationMcpTools(
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         [Description("The images to prepare, each named once.")] IReadOnlyList<ImagePreparationToolInput> images,
         [Description("Why the images are being prepared (case history reason).")] string? reason = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);

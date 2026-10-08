@@ -171,9 +171,10 @@ internal sealed class CaseMutationAuthority
     }
 
     /// <summary>
-    /// Completes a staff write: the workflow version advances and its lease
-    /// clears, or the Triage version advances and its edit scope ends — the
-    /// same completion every Triage mutation makes.
+    /// Completes a write: the workflow version advances and its lease ends, or
+    /// the Triage version advances and its edit scope ends — the same
+    /// completion every Triage mutation makes. The Automation actor's lease or
+    /// scope stands until it is released.
     /// </summary>
     public void CompleteStaffMutation(PegasusDbContext context)
     {
@@ -185,6 +186,6 @@ internal sealed class CaseMutationAuthority
         }
 
         Triage!.Version = checked(Triage.Version + 1);
-        EfEditScopeStore.Complete(context, EditScopeKind.Triage, Triage.CaseId);
+        EfEditScopeStore.Complete(context, EditScopeKind.Triage, Triage.CaseId, Triage.Version);
     }
 }
