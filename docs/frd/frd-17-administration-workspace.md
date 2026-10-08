@@ -1,12 +1,12 @@
 # FRD-17: Administration workspace
 
-> Owner capabilities: MI-01 to MI-03, UI-11, MAIL-24 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MI-01 to MI-04, UI-11, MAIL-24 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
 - `/Administration` has ten areas: Accounts, Contacts, Workflow
   configuration, Mail settings, E-mail templates, Valuation presets, Service
-  health, Logs, Reports and AI jobs. Automation appears only when composed.
+  health, Logs, Management Reports and AI jobs. Automation appears only when composed.
 - Administration buttons act on the click. There is no confirmation dialog.
 - Logs has two tabs: Action logs (who did what) and Intake log (what
   happened to each received file).
@@ -31,7 +31,7 @@ estimates by
 `/Administration` carries **Accounts**, **Contacts**, **Workflow
 configuration**, **Mail settings**, **E-mail templates**, **Valuation
 presets**, **Service
-health**, **Logs**, **Reports**, **Release notes**, **Problem reports** and **AI
+health**, **Logs**, **Management Reports**, **Release notes**, **Problem reports** and **AI
 jobs**. Automation appears only when
 its capability is composed. Its Automation & AI page carries the Send to AI
 switch
@@ -181,10 +181,10 @@ Open message where it came by e-mail, the processing evidence and the
 technical actions that apply
 ([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions)).
 
-### Reports
+### Management Reports
 
-**Reports** shares one period filter across MI-01 Engineer activity,
-MI-02 Reports by Principal (per-Principal report counts by type) and MI-03
+**Management Reports** shares one period filter across MI-01 Engineer activity,
+MI-02 Reports by Principal (per-Principal report counts) and MI-03
 Turnaround (current holding age, and instruction-to-produced, ready and sent
 turnaround). Each has its own totals and a downloadable CSV, and **Download
 workbook** gives every report for the period as one `.xlsx` with a sheet
@@ -205,7 +205,49 @@ MI-02 shows reports produced, reports sent and agreed fees each as
 Inspection and Audit columns beside their unchanged totals, on the page, in
 the CSV and in the workbook, its By month sheet included. A section whose
 query fails or returns invalid data renders an unavailable state, never a
-false zero.
+false zero. There is no count of report kinds per Principal.
+
+**MI-04 Case list** downloads one row per Case, open or closed, as a CSV or a
+one-sheet .xlsx. It has its own filter: received date from and to (the
+Case's received date), or **All time**. Triage Cases are left out unless
+**Include Triage Cases** is ticked. The Administrator ticks the columns, in
+groups: Case, Outcomes, Engineers, Claim and vehicle, Money, and Parties and
+activity. The Case group is ticked by default. Columns always come out in
+the list's own order.
+
+- An Inspection + Audit Case is one row. A measure that belongs to a work
+  (outcome, salvage category, report first sent, report sent by, agreed fee,
+  values, repair cost, salvage value, charges) has an Inspection column and
+  an Audit column.
+- **N/A** means the column does not apply to the Case's type: the Audit
+  columns of an Inspection Case, the Inspection columns of a standalone
+  Audit, every work column of a Triage Case. A blank cell means the column
+  applies but nothing is recorded yet, such as the Audit of an Inspection +
+  Audit Case before Create audit.
+- **Original firm** and **Original outcome** are the reviewed report's: on a
+  standalone Audit, the Original report section's assessor and repairable
+  status; on an Inspection + Audit Case, Collision Engineers Ltd and the
+  Inspection's own outcome; N/A otherwise. **Audit agrees with original**
+  reads Agrees or Differs once both outcomes are recorded.
+- An outcome reads Repairable, Total loss, Cash in lieu or Contract repair.
+  A salvage category of N/A reads **Not categorised**.
+- **Agreed fee** is the fee frozen in the work's first confirmed report, the
+  same fee MI-02 adds up; it is blank before a report. **Repair cost** is the
+  latest confirmed report's.
+- **Assigned engineer** is the Case's assigned Engineer. **Sign-off
+  engineer** is the signatory of the latest confirmed report, or the
+  signatory the Case would use now. **Report sent by** is who made the
+  work's first report send.
+- Queries, disputes and amendment requests are post-report mail linked to
+  the Case, counted as MI-01 counts them.
+
+**Presets** are named column sets every Administrator shares, such as
+"Invoicing". **Use preset** ticks a preset's columns; the ticks can still be
+changed for one download. **Save as new preset** keeps the ticked columns
+under the name given, **Save preset** replaces the chosen preset's name and
+columns, and **Remove preset** removes it. Each acts on the click with the
+version the page rendered. A refused download or preset change says why and
+keeps the form as it was.
 
 ### Release notes
 
@@ -249,19 +291,25 @@ checks the expected version inside its mutation transaction.
   guessed user.
 - A removed valuation preset never changes a valuation already recorded
   against it.
+- A Case list with no column, half a period or an unknown column is refused
+  with its reason. A failed or invalid Case list read refuses the download;
+  no cell reads unavailable or   in its place.
+- A Case list preset needs a name of up to 100 characters, unique among the
+  presets kept, and at least one column. A removed preset frees its name.
 
 ## Acceptance evidence
 
 Acceptance covers the twelve areas and their routes, the on-click actions
 without confirmation, the Action logs actor resolution and filter, the Intake
 log columns and actions, the six workflow settings and their ranges, and the
-three MI reports with their CSVs. Authenticated Web tests cover server-owned
+three MI reports with their CSVs, the Case list's downloads and refusals,
+and preset create, save and remove. Authenticated Web tests cover server-owned
 behaviour. Deployment and live acceptance are separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
 
-- Capabilities: `MI-01`–`MI-03`, `UI-11` in
+- Capabilities: `MI-01`–`MI-04`, `UI-11` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-04](frd-04-parties-accounts-and-access.md),

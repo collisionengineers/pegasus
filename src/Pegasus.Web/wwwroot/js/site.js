@@ -474,13 +474,17 @@
         }
         busyDownload(link, null, link.href, { method: 'GET' });
     });
+    // A form whose other buttons save (the Case list's presets) marks only its
+    // download buttons.
     document.addEventListener('submit', function (event) {
         var form = event.target;
-        if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-busy-download') || event.defaultPrevented) {
+        var submitter = event.submitter || null;
+        if (!(form instanceof HTMLFormElement) || event.defaultPrevented
+            || !(form.hasAttribute('data-busy-download')
+                || submitter && submitter.hasAttribute('data-busy-download'))) {
             return;
         }
         event.preventDefault();
-        var submitter = event.submitter || null;
         var url = (submitter && submitter.getAttribute('formaction')) || form.action;
         busyDownload(submitter || defaultSubmitter(form), form, url, {
             method: 'POST',

@@ -87,6 +87,19 @@ public enum AssessmentReportOutcome
     ContractRepair,
 }
 
+/// <summary>The one mapping from a recorded outcome code (<c>assessment.outcome</c>, <c>original_report.outcome</c>) to its outcome.</summary>
+public static class AssessmentReportOutcomes
+{
+    public static AssessmentReportOutcome Parse(string value) => value switch
+    {
+        "total_loss" => AssessmentReportOutcome.TotalLoss,
+        "repairable" => AssessmentReportOutcome.Repairable,
+        "cash_in_lieu" => AssessmentReportOutcome.CashInLieu,
+        "contract_repair" => AssessmentReportOutcome.ContractRepair,
+        _ => throw new InvalidOperationException($"Unrecognized assessment outcome '{value}'."),
+    };
+}
+
 /// <summary>
 /// One custody-confirmed source document the report draws on. The printed
 /// provenance triple is <see cref="Name"/>/<see cref="Version"/>/<see

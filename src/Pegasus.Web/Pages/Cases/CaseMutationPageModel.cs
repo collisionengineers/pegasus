@@ -109,10 +109,6 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     /// </summary>
     protected bool AnswersInPlace { get; private set; }
 
-    /// <summary>The request is one the page script posted with its own fetch (case-workspace.js).</summary>
-    protected bool IsScriptRequest =>
-        string.Equals(Request.Headers["X-Requested-With"].ToString(), "fetch", StringComparison.Ordinal);
-
     private readonly Dictionary<string, string?> heldNotices = [];
 
     protected void AnswerInPlace() => AnswersInPlace = true;

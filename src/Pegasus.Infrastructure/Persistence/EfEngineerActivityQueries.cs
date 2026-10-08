@@ -132,8 +132,8 @@ internal sealed class EfEngineerActivityQueries(
             .ToDictionary(group => group.Key, group => new
             {
                 Count = group.Count(),
-                Disputes = group.Count(item => item.Subtype == "dispute"),
-                Amendments = group.Count(item => item.Subtype == "amendment-request")
+                Disputes = group.Count(item => item.Subtype == MailCategory.DisputeSubtype),
+                Amendments = group.Count(item => item.Subtype == MailCategory.AmendmentRequestSubtype)
             });
 
         var reportsByEngineer = reports.ToDictionary(item => item.EngineerId);
