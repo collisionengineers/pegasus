@@ -129,8 +129,11 @@ editor posts and those a section writes through its own typed member (damage
 entries, mileage source, storage per day, recovery charge and report date).
 Professional findings are among them (operator, 7 October 2026): the
 outcome, roadworthiness (`assessment.legal_status`), the unroadworthy reason,
-the salvage category and value, and the Retail, Trade and Engineer's values
+the salvage category and value, and the Engineer's Value
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#professional-engineering-findings-and-correction)).
+The report's Retail and Trade are the chosen guide card's figures (operator,
+8 October 2026): `pegasus_assessment_update` refuses them, and
+`pegasus_valuation_save` with a calculation writes them from its basis card.
 As on the Case, a positive agreed contract sum makes the outcome a contract
 repair. Any other field is refused and named, so every Automation value is
 one staff can change or clear on its section (operator, 24 September 2026).

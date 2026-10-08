@@ -153,13 +153,13 @@ public static class CaseWorkspaceLabels
         };
 
         /// <summary>
-        /// The three values the report prints side by side, first in Valuation
-        /// (operator, 26 September 2026): typed, or filled from a guide card.
+        /// The one value Valuation's editor records: the Engineer's Value,
+        /// typed or filled by the calculation. The report's Retail and Trade
+        /// are the chosen guide card's (operator, 8 October 2026), so no box
+        /// records them.
         /// </summary>
         public static IReadOnlyDictionary<string, string> Valuation { get; } = new Dictionary<string, string>
         {
-            [AssessmentVocabulary.ValueRetail] = "Retail value",
-            [AssessmentVocabulary.ValueTrade] = "Trade value",
             [AssessmentVocabulary.ValueEngineer] = CaseWorkspaceLabels.Valuation.EngineersValueHead
         };
 
@@ -257,14 +257,17 @@ public static class CaseWorkspaceLabels
         public static string? SectionOf(string field)
         {
             // Fields shown outside the section their editor list names: the
-            // claimant's VAT answer is on Claim, and the report content
-            // switches are Valuation's On the report switches.
+            // claimant's VAT answer is on Claim, the report content switches
+            // are Valuation's On the report switches, and the report's Retail
+            // and Trade come from Valuation's chosen guide card.
             var shownElsewhere = field switch
             {
                 AssessmentVocabulary.SettlementClaimantVatRegistered => "claim",
                 AssessmentVocabulary.ReportDiscloseGuideSource
                     or AssessmentVocabulary.ReportValuationCommentary
-                    or AssessmentVocabulary.ReportIncludeUnrelatedDamage => "valuation",
+                    or AssessmentVocabulary.ReportIncludeUnrelatedDamage
+                    or AssessmentVocabulary.ValueRetail
+                    or AssessmentVocabulary.ValueTrade => "valuation",
                 _ => null
             };
             if (shownElsewhere is not null) return shownElsewhere;
@@ -815,10 +818,10 @@ public static class CaseWorkspaceLabels
                 ? string.Empty
                 : "− " + ValuationCalculationPolicy.FormatMoney(calculation.PriorTotalLossAmount);
 
-        // Use this value (operator, 28 September 2026): the visible action that
-        // says "use this card's figure". The Save records it on the one Case Save.
-        public const string UseThisValue = "Use this value";
-        public const string UsingThisValue = "Using this value";
+        // A click on a guide card is the decision to use its figure (operator,
+        // 8 October 2026); the chosen card says so in one word, and a card with
+        // no retail answers the click with the sentence below.
+        public const string Selected = "Selected";
         public const string UseNeedsRetail = "Enter the retail value on this card to use it.";
 
         // The calculation says why it cannot be worked out, never "None yet".

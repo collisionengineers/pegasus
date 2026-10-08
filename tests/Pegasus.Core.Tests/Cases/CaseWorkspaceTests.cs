@@ -78,15 +78,13 @@ public sealed class CaseWorkspaceTests
             CaseWorkspaceChangeSummary.Describe(before, before, beforeFields, beforeFields, false, 0, "  Checked with the repairer "));
     }
 
-    [Theory]
-    [InlineData(AssessmentVocabulary.ValueEngineer)]
-    [InlineData(AssessmentVocabulary.ValueRetail)]
-    [InlineData(AssessmentVocabulary.ValueTrade)]
-    public void TheCaseSaveRecordsAndClearsTheThreeValuesAsValuationFields(string path)
+    [Fact]
+    public void TheCaseSaveRecordsAndClearsTheEngineersValueAsAValuationField()
     {
-        // Retail, Trade and Engineer's value are Valuation's own boxes
-        // (operator, 26 September 2026): typed or filled from a card, and
-        // recorded or cleared like any field.
+        // The Engineer's Value is Valuation's own box (operator, 26 September
+        // 2026): typed or filled by the calculation, and recorded or cleared
+        // like any field.
+        var path = AssessmentVocabulary.ValueEngineer;
         foreach (var value in new string?[] { "4500.00", null })
         {
             var normalized = CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
@@ -97,6 +95,21 @@ public sealed class CaseWorkspaceTests
             }));
             Assert.Equal(value, CaseWorkspacePolicy.AssessmentFields(normalized)[path]);
         }
+    }
+
+    [Theory]
+    [InlineData(AssessmentVocabulary.ValueRetail)]
+    [InlineData(AssessmentVocabulary.ValueTrade)]
+    public void TheCaseSaveRefusesATypedRetailOrTrade(string path)
+    {
+        // The report's Retail and Trade follow the chosen guide card (operator,
+        // 8 October 2026); the save writes them from the card, never typed.
+        Assert.Throws<InvalidOperationException>(() => CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
+        {
+            Valuation = new(
+                [],
+                AssessmentFields: new Dictionary<string, string?>(StringComparer.Ordinal) { [path] = "4500.00" })
+        })));
     }
     /// <summary>
     /// The guide source cards have no Save of their own (23 September 2026):

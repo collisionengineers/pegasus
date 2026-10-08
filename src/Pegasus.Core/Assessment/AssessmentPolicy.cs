@@ -85,6 +85,12 @@ public static class AssessmentPolicy
             throw new InvalidOperationException(
                 $"The field '{path}' is filled by the DVLA/DVSA vehicle lookup and cannot be written directly.");
         }
+        if (AssessmentVocabulary.GuideCardDerivedPaths.Contains(path))
+        {
+            throw new InvalidOperationException(
+                $"The field '{path}' is the chosen guide card's figure and cannot be written directly; "
+                + "choose the card on the Valuation section.");
+        }
         if (AssessmentVocabulary.CaseOwnedPaths.Contains(path))
         {
             throw new InvalidOperationException(
@@ -362,8 +368,9 @@ public static class AssessmentPolicy
             AssessmentVocabulary.ImpactLocation, "Impact location", "Damage",
             "Record a damage on the Damage section; the impact location is derived from it.");
         // The report prints the retail, trade and Engineer's values side by
-        // side, so each is named until entered. Each is a box on Valuation,
-        // typed or filled from a guide card (operator, 26 September 2026).
+        // side, so each is named until entered. Retail and trade are the
+        // chosen guide card's (operator, 8 October 2026); the Engineer's
+        // Value is its own box on Valuation.
         RequireField(
             AssessmentVocabulary.ValueRetail, "Retail value", "Valuation",
             "Enter it on the Valuation section.");
@@ -470,6 +477,14 @@ public static class AssessmentPolicy
 
         return canonical;
     }
+
+    /// <summary>
+    /// A derived field's value as its own definition canonicalizes it: the
+    /// section that owns the derivation writes it, so it skips the field
+    /// gate's derived-path refusal but not the value checks.
+    /// </summary>
+    public static string? NormalizeDerivedField(string path, string? rawValue) =>
+        NormalizeValue(AssessmentVocabulary.Definitions[path], rawValue);
 
     private static string? NormalizeValue(AssessmentFieldDefinition definition, string? rawValue)
     {

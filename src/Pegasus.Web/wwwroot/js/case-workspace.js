@@ -2467,16 +2467,24 @@
 
 
 // --- valuation -----------------------------------------------------------------
-// --- Valuation: the calculator's preview, source rows and additions -----------
+// --- Valuation: the guide cards, the calculator's preview and additions --------
 // The figures are Core's arithmetic: every change posts the selection to the
 // PreviewValuation handler. The proposal it answers fills the Engineer's Value
 // box, which is the one place the figure stands, and the commercial VAT and
-// previous total loss amounts go to their cells' label lines (operator,
+// previous total loss amounts go beside their own controls (operator,
 // 6 October 2026). The calculator's controls and the Basis radios belong to
 // the Case form, so the Case's save records a changed calculation (one Save,
-// 23 September 2026). Choosing a source fills the Retail and Trade boxes in
-// place and moves the calculation under its row; the operator may overtype
-// any of the three boxes (operator, 26 September 2026).
+// 23 September 2026).
+//
+// A click anywhere on a guide card is the Engineer's decision to use it
+// (operator, 8 October 2026): its name, labels, figures, boxes and padding,
+// all but its own buttons and links. It chooses the card as the basis and
+// switches on the selection.Use field, so the Case Save records the
+// calculation against it and writes the report's Retail and Trade from it,
+// even when it is the card the page opened on. A card typed in the same edit
+// has no identity yet, so it is named to the Save by its source. A card with
+// no retail answers the click with its own sentence; a click into one of its
+// boxes is the Engineer about to type one.
 //
 // The preview shows what the Save will use (operator, 28 September 2026): it
 // posts the chosen card's retail as typed and the claimant's VAT position as
@@ -2488,12 +2496,6 @@
 // Value label are the Case as saved: each commit carries them forward and
 // they are redrawn then, with no reload. The word shows only while the box
 // holds the recorded calculation's figure.
-//
-// Use this value on a card is the visible decision to use that card's figure:
-// it chooses the card as the basis, fills the boxes, and switches on the
-// selection.Use field so the Case Save records the calculation even when it
-// is the one the page opened on. A card typed in the same edit has no
-// identity yet, so it is named to the Save by its source.
 (function () {
     'use strict';
 
@@ -2521,10 +2523,10 @@
             var section = calc.closest('.record-section') || document;
             var host = section.querySelector('[data-valuation-preview-host]');
             var basisName = section.querySelector('[data-valuation-basis-name]');
-            var open = section.querySelector('[data-valuation-open]');
             var savedInput = section.querySelector('[data-valuation-recorded-state]');
             var sourceInput = section.querySelector('[data-valuation-source-input]');
             var useInput = section.querySelector('[data-valuation-use-input]');
+            var ptlToggle = section.querySelector('[data-valuation-ptl-toggle]');
             var previewUrl = calc.getAttribute('data-preview-url');
             var timer = null;
             var inFlight = null;
@@ -2553,8 +2555,8 @@
                 if (on) { calc.setAttribute('aria-busy', 'true'); } else { calc.removeAttribute('aria-busy'); }
             }
 
-            // What each adjustment comes to, in its own cell's label line:
-            // Core's amounts from the preview, or nothing where there are none.
+            // What each adjustment comes to, beside its own control: Core's
+            // amounts from the preview, or nothing where there are none.
             function paintAmounts(proposal) {
                 ['vat', 'ptl'].forEach(function (name) {
                     var cell = section.querySelector('[data-valuation-amount="' + name + '"]');
@@ -2605,7 +2607,7 @@
             // The Engineer's Value box holds the last calculated figure until
             // the Engineer types over it. When a calculation cannot be worked
             // out or refreshed, that figure is out of date: the box goes back to
-            // the recorded value and any Use this value decision is withdrawn,
+            // the recorded value and the decision to use the card is withdrawn,
             // so nothing stale is saved as if it were current.
             var lastProposal = null;
             function invalidate() {
@@ -2672,28 +2674,23 @@
                 if (!previewUrl || !host) {
                     return;
                 }
-                // The lines on screen are for figures that have since changed.
+                // The amounts on screen are for figures that have since changed.
                 busy(true);
                 window.clearTimeout(timer);
                 timer = window.setTimeout(preview, 250);
             }
 
-            // The chosen source is drawn selected, named in the calculator's
-            // head, and opens: the calculation and the three values move to
-            // stand under its row.
+            // The chosen card is drawn selected with its one word, and named
+            // beside the Engineer's Value as the basis.
             function markChosen(card, name) {
                 section.querySelectorAll('[data-valuation-card]').forEach(function (other) {
                     other.classList.toggle('sel', other === card);
+                    var word = other.querySelector('[data-valuation-chosen-word]');
+                    if (word) { word.hidden = other !== card; }
                 });
-                if (open && card && open.previousElementSibling !== card) {
-                    card.after(open);
-                }
                 if (basisName) {
                     basisName.textContent = 'from ' + (name || 'guide') + ' retail';
                 }
-            }
-            function chooseBasis(radio) {
-                markChosen(radio.closest('[data-valuation-card]'), radio.getAttribute('data-source-name'));
             }
 
             // The chosen card's figures as it shows them: an entry card's own
@@ -2702,46 +2699,99 @@
                 var input = card.querySelector(box);
                 return input ? input.value : (card.getAttribute(recorded) || '');
             }
-            function fillFromCard(card) {
-                fill(section, '[data-valuation-value="retail"]', shown(card, '[data-valuation-retail]', 'data-retail'));
-                fill(section, '[data-valuation-value="trade"]', shown(card, '[data-valuation-trade]', 'data-trade'));
-            }
 
-            // Use this value is off until pressed, and pressing another card or
-            // choosing a basis by clicking a card puts the decision back to
-            // "not yet": only the button expresses it.
-            function setUseButton(button, on) {
-                button.setAttribute('aria-pressed', on ? 'true' : 'false');
-                var label = button.querySelector('span');
-                var text = calc.getAttribute(on ? 'data-text-using' : 'data-text-use');
-                if (label && text) { label.textContent = text; }
-            }
             function clearUse() {
                 if (useInput) { useInput.disabled = true; }
                 if (sourceInput) { sourceInput.disabled = true; sourceInput.value = ''; }
-                section.querySelectorAll('[data-valuation-use]').forEach(function (button) {
-                    setUseButton(button, false);
-                });
             }
 
             function paintAdditions() {
-                section.querySelectorAll('[data-valuation-add]').forEach(function (row) {
-                    var toggle = row.querySelector('[data-preset-toggle]');
+                section.querySelectorAll('[data-valuation-add], [data-valuation-vat-wrap]').forEach(function (row) {
+                    var toggle = row.querySelector('input[type="checkbox"]');
                     row.classList.toggle('on', !!(toggle && toggle.checked));
                 });
             }
 
+            // Previous total loss: the tick box offers −10 % and −20 %, the
+            // field's own radios. Ticking it starts at −10 %; unticking clears
+            // the percentage, so none is posted.
+            function paintPriorTotalLoss() {
+                if (!ptlToggle) { return; }
+                section.querySelectorAll('[data-valuation-ptl]').forEach(function (radio) {
+                    radio.disabled = !ptlToggle.checked;
+                });
+            }
+            if (ptlToggle) {
+                ptlToggle.addEventListener('change', function () {
+                    var radios = section.querySelectorAll('[data-valuation-ptl]');
+                    var picked = section.querySelector('[data-valuation-ptl]:checked');
+                    if (ptlToggle.checked && !picked && radios.length) {
+                        radios[0].checked = true;
+                        picked = radios[0];
+                    } else if (!ptlToggle.checked) {
+                        radios.forEach(function (radio) { radio.checked = false; });
+                        picked = radios[0];
+                    }
+                    paintPriorTotalLoss();
+                    if (picked) {
+                        // A change to the Case form: the frame commits it.
+                        picked.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                });
+            }
+
+            // Use a card: choose it as the basis and mark the decision for the
+            // Save. A card with no retail has no figure to use, so it says so
+            // on its own card instead.
+            function use(card) {
+                if (!useInput) {
+                    return;
+                }
+                var retail = parseFloat(shown(card, '[data-valuation-retail]', 'data-retail'));
+                var needs = card.querySelector('[data-valuation-needs-retail]');
+                if (!(retail > 0)) {
+                    if (needs) { needs.hidden = false; needs.setAttribute('role', 'status'); }
+                    return;
+                }
+                if (needs) { needs.hidden = true; }
+                if (card === chosenCard() && !useInput.disabled) {
+                    return;
+                }
+                clearUse();
+                var radio = card.querySelector('[data-valuation-basis]');
+                var title = card.querySelector('h3');
+                if (radio) {
+                    // A recorded card is chosen by its identity.
+                    radio.checked = true;
+                } else {
+                    // A card typed in this edit has no identity yet: the Save
+                    // is told its source, and no recorded card is the basis.
+                    section.querySelectorAll('[data-valuation-basis]').forEach(function (other) {
+                        other.checked = false;
+                    });
+                    if (sourceInput) {
+                        sourceInput.value = card.getAttribute('data-valuation-source-card') || '';
+                        sourceInput.disabled = false;
+                    }
+                }
+                markChosen(card, radio ? radio.getAttribute('data-source-name') : (title ? title.textContent : null));
+                useInput.disabled = false;
+                // The decision is a change to the Case form: the frame commits
+                // it, and the calculation follows the new basis.
+                useInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+
             section.addEventListener('change', function (event) {
                 var control = event.target;
+                if (control && control.matches && control.matches('[data-valuation-basis]') && control.checked) {
+                    // A Basis radio reached from the keyboard is the same decision.
+                    use(control.closest('[data-valuation-card]'));
+                    return;
+                }
                 if (!belongs(control)) {
                     return;
                 }
-                if (control.matches('[data-valuation-basis]') && control.checked) {
-                    clearUse();
-                    chooseBasis(control);
-                    fillFromCard(control.closest('[data-valuation-card]'));
-                }
-                if (control.matches('[data-preset-toggle]')) {
+                if (control.matches('[data-preset-toggle]') || control.matches('#f-valuation-vat')) {
                     paintAdditions();
                 }
                 schedule();
@@ -2750,113 +2800,59 @@
                 if (event.target === savedInput) { paintSaved(true); }
             });
             section.addEventListener('input', function (event) {
-                if (event.target && event.target.matches
-                    && event.target.matches('[data-valuation-value="engineer"]')) {
+                var typed = event.target;
+                if (typed && typed.matches && typed.matches('[data-valuation-value="engineer"]')) {
                     // Typed or filled: the recorded source's word stands only
                     // beside the recorded calculation's own figure.
                     paintSaved(false);
-                }
-                if (event.isTrusted && event.target && event.target.matches
-                    && event.target.matches('[data-valuation-value="engineer"]')) {
-                    // Typed over by the Engineer: that figure is their own, so
-                    // the decision to use the calculated one is withdrawn.
-                    lastProposal = null;
-                    clearUse();
+                    if (event.isTrusted) {
+                        // Typed over by the Engineer: that figure is their own,
+                        // so the decision to use the calculated one is withdrawn.
+                        lastProposal = null;
+                        clearUse();
+                    }
                     return;
                 }
-                if (belongs(event.target)) {
+                if (belongs(typed)) {
                     schedule();
                     return;
                 }
+                if (typed && typed.matches && typed.matches('[data-valuation-retail]')) {
+                    // A retail typed into a card answers its "enter the retail" sentence.
+                    var needs = typed.closest('[data-valuation-card]').querySelector('[data-valuation-needs-retail]');
+                    if (needs && parseFloat(typed.value) > 0) { needs.hidden = true; }
+                }
                 // A figure typed into the chosen card is the basis figure now.
-                var typed = event.target;
                 if (typed && typed.matches
-                    && (typed.matches('[data-valuation-retail]') || typed.matches('[data-valuation-trade]'))) {
-                    var card = typed.closest('[data-valuation-card]');
-                    if (card && card === chosenCard()) {
-                        fillFromCard(card);
-                        schedule();
-                    }
+                    && (typed.matches('[data-valuation-retail]') || typed.matches('[data-valuation-trade]'))
+                    && typed.closest('[data-valuation-card]') === chosenCard()) {
+                    schedule();
                 }
             });
             // Get valuation refilled the card that is already the basis.
-            section.addEventListener('pegasus:valuation-basis-refilled', function (event) {
-                var card = event.target && event.target.closest ? event.target.closest('[data-valuation-card]') : null;
-                if (card) {
-                    fillFromCard(card);
-                    schedule();
-                }
+            section.addEventListener('pegasus:valuation-basis-refilled', function () {
+                schedule();
             });
-            // A click anywhere on a card picks it as the basis; a click on one
-            // of an entry card's own controls is the operator typing, not choosing.
-            function selectCard(card) {
-                var radio = card.querySelector('[data-valuation-basis]');
-                if (!radio) {
-                    return;
-                }
-                radio.checked = true;
-                radio.dispatchEvent(new Event('change', { bubbles: true }));
-            }
+            // The whole card is the target; only its own buttons and links do
+            // something else. A click into a box of a card with no retail is
+            // the Engineer about to type one, so it only focuses the box.
             section.querySelectorAll('[data-valuation-card]').forEach(function (card) {
                 card.addEventListener('click', function (event) {
-                    var radio = card.querySelector('[data-valuation-basis]');
-                    if (!radio || event.target === radio || radio.checked
-                        || (event.target.closest && event.target.closest('input,button,select,label,a'))) {
+                    var target = event.target;
+                    if (!target.closest || target.closest('button, a')) {
                         return;
                     }
-                    selectCard(card);
+                    if (target.closest('input') && !(parseFloat(shown(card, '[data-valuation-retail]', 'data-retail')) > 0)) {
+                        return;
+                    }
+                    use(card);
                 });
                 card.addEventListener('keydown', function (event) {
                     if (event.target !== card || (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar')) {
                         return;
                     }
                     event.preventDefault();
-                    selectCard(card);
-                });
-            });
-
-            // Use this value: choose the card, fill the boxes from it, and
-            // mark the decision for the Save. A card with no retail has no
-            // figure to use, so it says so on its own card.
-            section.querySelectorAll('[data-valuation-use]').forEach(function (button) {
-                button.addEventListener('click', function (event) {
-                    event.preventDefault();
-                    var card = button.closest('[data-valuation-card]');
-                    if (!card || !useInput) {
-                        return;
-                    }
-                    var retail = parseFloat(shown(card, '[data-valuation-retail]', 'data-retail'));
-                    var notice = card.querySelector('[data-valuation-notice]');
-                    if (!(retail > 0)) {
-                        showNotice(notice, true, calc.getAttribute('data-text-use-needs-retail'));
-                        return;
-                    }
-                    showNotice(notice, false);
-                    clearUse();
-                    var radio = card.querySelector('[data-valuation-basis]');
-                    if (radio) {
-                        // A recorded card is chosen by its identity, as a click would.
-                        radio.checked = true;
-                        chooseBasis(radio);
-                    } else {
-                        // A card typed in this edit has no identity yet: the Save
-                        // is told its source, and no recorded card is the basis.
-                        section.querySelectorAll('[data-valuation-basis]').forEach(function (other) {
-                            other.checked = false;
-                        });
-                        if (sourceInput) {
-                            sourceInput.value = card.getAttribute('data-valuation-source-card') || '';
-                            sourceInput.disabled = false;
-                        }
-                        var name = card.querySelector('h3 > span');
-                        markChosen(card, name ? name.textContent : null);
-                    }
-                    useInput.disabled = false;
-                    setUseButton(button, true);
-                    fillFromCard(card);
-                    // The decision is a change to the Case form: the frame
-                    // commits it once the card is left.
-                    useInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    use(card);
                 });
             });
 
@@ -2873,22 +2869,20 @@
                         var registered = vatSelect.value === 'true';
                         addVat.disabled = registered;
                         if (registered) { addVat.checked = false; }
+                        paintAdditions();
                     }
                     schedule();
                 });
             }
 
             paintAdditions();
-            var checked = section.querySelector('[data-valuation-basis]:checked');
-            if (checked) {
-                chooseBasis(checked);
-            }
+            paintPriorTotalLoss();
         });
 
         // Get valuation (23 September 2026): the source's figures come back as
         // JSON and fill the card's boxes, which belong to the Case form, so no
         // form is submitted, the page is not redrawn and nothing unsaved is put
-        // at risk; the ribbon Save records the card. A source with no working
+        // at risk; the Case save records the card. A source with no working
         // provider, or a refused request, shows the card's own notice. A source
         // known to have no provider offers no button at all.
         root.querySelectorAll('[data-valuation-get]').forEach(function (button) {
@@ -2927,9 +2921,9 @@
                         fill(card, '[data-valuation-trade]', answer.trade);
                         fill(card, '[data-valuation-entry-month]', answer.guideMonth);
                         // When this card is already the basis, its new figures
-                        // are the basis figures: the Retail and Trade boxes take
-                        // them, and the calculation follows. The Engineer's Value
-                        // box is left as it stands until that calculation lands.
+                        // are the basis figures and the calculation follows. The
+                        // Engineer's Value box is left as it stands until that
+                        // calculation lands.
                         var basis = card.querySelector('[data-valuation-basis]');
                         if (basis && basis.checked) {
                             basis.dispatchEvent(new CustomEvent('pegasus:valuation-basis-refilled', { bubbles: true }));
@@ -2954,7 +2948,7 @@
     }
 
     // A fetched figure is typed into its box as if by hand: the input event
-    // marks the Case form as changed, so the ribbon Save records it.
+    // marks the Case form as changed, so the Case save records it.
     function fill(card, selector, value) {
         var box = card.querySelector(selector);
         if (!box || value === undefined || value === null) {
