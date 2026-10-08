@@ -31,5 +31,6 @@ by the actual change. A documentation edit alone does not require a .NET build.
   delivery evidence.
 
 `workspaces/` records retired source-import provenance; those imports are not
-active application projects. `corpus/` is local, ignored and immutable.
+active application projects. `corpus/` is local, ignored and immutable, apart
+from the append-only `corpus/holding/` that mailbox exports write to.
 Generated evaluation and build artifacts belong under ignored `artifacts/`.
