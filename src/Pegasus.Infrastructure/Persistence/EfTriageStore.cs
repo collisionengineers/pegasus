@@ -718,7 +718,7 @@ public sealed class EfTriageStore(
             operationKey,
             request.Reason.Trim(),
             requestHash);
-        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId);
+        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId, triage.Version);
         try
         {
             await context.SaveChangesAsync(cancellationToken);
@@ -793,7 +793,7 @@ public sealed class EfTriageStore(
             operationKey,
             request.Reason.Trim(),
             requestHash);
-        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId);
+        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId, triage.Version);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
@@ -1211,7 +1211,7 @@ public sealed class EfTriageStore(
         }
         triage.State = ToCode(TriageState.FindingRecorded);
         AppendHistory(context, triage, eventType, request.Actor, request.OperationKey.Trim(), request.Reason.Trim(), requestHash);
-        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId);
+        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId, triage.Version);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(triage);
@@ -1272,7 +1272,7 @@ public sealed class EfTriageStore(
         }
         mutation(triage);
         AppendHistory(context, triage, eventType, actor, operationKey, reason.Trim(), requestHash);
-        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId);
+        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId, triage.Version);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(triage);
@@ -1395,7 +1395,7 @@ public sealed class EfTriageStore(
             await FillFromCurrentFindingAsync(
                 context, workflow, triage.CaseId, operationKey, now, cancellationToken);
         }
-        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId);
+        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId, triage.Version);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }

@@ -35,12 +35,17 @@ public enum AssessmentFieldType
 /// </summary>
 public sealed record AssessmentImpact(IReadOnlyList<string> Areas, string Severity, string Note, DamageDisc? Disc = null);
 
+/// <summary>
+/// One assessment field. <paramref name="Format"/> describes the value a
+/// structured field accepts, for a caller with no editor to shape it.
+/// </summary>
 public sealed record AssessmentFieldDefinition(
     string Path,
     AssessmentFieldType Type,
     int MaximumLength,
     bool MustBePositive = false,
-    IReadOnlyList<string>? Codes = null);
+    IReadOnlyList<string>? Codes = null,
+    string? Format = null);
 
 public static class AssessmentVocabulary
 {
@@ -183,6 +188,18 @@ public static class AssessmentVocabulary
             ["heavy"] = ("Heavy", 4)
         };
 
+    /// <summary>The value <see cref="DamageImpacts"/> accepts, as its reader enforces it.</summary>
+    public static string DamageImpactsFormat { get; } =
+        "A JSON array of impacts, each an object with exactly these members: "
+        + "\"areas\", an array of unique area codes ("
+        + string.Join(", ", DamagePlanAreas) + "; or one of "
+        + string.Join(", ", DamageOtherAreas) + ", alone and recorded once); "
+        + "\"severity\", one of " + string.Join(", ", DamageSeverities.Keys) + "; "
+        + "\"note\", a string of up to 200 characters, empty when there is nothing to add; "
+        + "and optionally \"disc\", a position drawn on the plan as {\"x\",\"y\",\"r\"} "
+        + "with x and y from 0 to 1 and r from 0.0641 to 0.5, whose plan areas replace the areas given. "
+        + "Example: [{\"areas\":[\"left_front\"],\"severity\":\"light\",\"note\":\"\"}]";
+
     private static readonly string[] TyreCodes = ["ok", "worn", "damaged", "illegal"];
     private static readonly string[] BeltCodes = ["ok", "locked", "deployed", "not_fitted"];
 
@@ -211,7 +228,7 @@ public static class AssessmentVocabulary
             Codes: DamageSeverities.Keys.ToArray()),
         new(ImpactLocation, AssessmentFieldType.Enumerated, 20,
             Codes: [.. DamagePlanAreas, .. DamageOtherAreas, "multiple"]),
-        new(DamageImpacts, AssessmentFieldType.Json, 4000),
+        new(DamageImpacts, AssessmentFieldType.Json, 4000, Format: DamageImpactsFormat),
         new(DamageTyreRightFront, AssessmentFieldType.Enumerated, 20, Codes: TyreCodes),
         new(DamageTyreLeftFront, AssessmentFieldType.Enumerated, 20, Codes: TyreCodes),
         new(DamageTyreRightRear, AssessmentFieldType.Enumerated, 20, Codes: TyreCodes),

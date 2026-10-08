@@ -35,9 +35,11 @@ internal sealed record EditLeaseReleaseToolResult(
 /// Triage Case: the same server-owned lease staff editing claims, through the
 /// same Core ports, so nothing here takes over, forces or merges another
 /// holder's edit. A Case lease needs <c>automation.cases</c>, a Triage lease
-/// <c>automation.intake</c>, as the records' own tools do. A single write needs
-/// none of this: a write tool given no token holds the lease for that one
-/// command (<see cref="AutomationEditLease"/>).
+/// <c>automation.intake</c>, as the records' own tools do. The lease stands
+/// through every write made under it until <c>pegasus_edit_end</c> releases it
+/// (operator, 8 October 2026). A single write needs none of this: a write tool
+/// given no token holds the lease for that one command
+/// (<see cref="AutomationEditLease"/>).
 /// </summary>
 [McpServerToolType]
 internal sealed class EditLeaseMcpTools(
@@ -59,7 +61,7 @@ internal sealed class EditLeaseMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Claims the server-owned five-minute edit lease on one Case or Triage Case for multi-step work, using the same guard as staff editing. Fails closed when another editor holds the lease or the expected version is stale, unless takeOver is true: then, like a member of staff's Take over, it takes a lease a member of staff holds (the takeover is recorded in the record's history). A single write needs no lease call: every write tool takes the lease itself for that one command when editLeaseToken is omitted.")]
+    [Description("Claims the server-owned five-minute edit lease on one Case or Triage Case for multi-step work, using the same guard as staff editing. The token carries every write made under it: present it on each write until pegasus_edit_end releases it. Fails closed when another editor holds the lease or the expected version is stale, unless takeOver is true: then, like a member of staff's Take over, it takes a lease a member of staff holds (the takeover is recorded in the record's history). A single write needs no lease call: every write tool takes the lease itself for that one command when editLeaseToken is omitted.")]
     public async Task<EditLeaseToolResult> BeginAsync(
         [Description(RecordKindDescription)] string recordKind,
         [Description("The Case identifier, or the Triage Case identifier.")] Guid recordId,
@@ -165,7 +167,7 @@ internal sealed class EditLeaseMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Releases an edit lease claimed with pegasus_edit_begin, so the record is free for colleagues at once.")]
+    [Description("Releases an edit lease claimed with pegasus_edit_begin, so the record is free for colleagues at once. A lease that has already lapsed or been released answers released false.")]
     public async Task<EditLeaseReleaseToolResult> EndAsync(
         [Description(RecordKindDescription)] string recordKind,
         [Description("The Case identifier, or the Triage Case identifier.")] Guid recordId,
@@ -185,20 +187,29 @@ internal sealed class EditLeaseMcpTools(
             {
                 AutomationMcpErrors.RequireId(recordId, "record identifier");
                 var token = RequireToken(editLeaseToken);
-                if (kind == EditLeaseRecordKind.Case)
+                // A lease that is already gone leaves nothing to end.
+                var released = true;
+                try
                 {
-                    await releaseCase.ExecuteAsync(
-                        new(recordId, context.Actor, normalizedKey, token),
-                        cancellationToken);
+                    if (kind == EditLeaseRecordKind.Case)
+                    {
+                        await releaseCase.ExecuteAsync(
+                            new(recordId, context.Actor, normalizedKey, token),
+                            cancellationToken);
+                    }
+                    else
+                    {
+                        await editScopes.ReleaseAsync(
+                            new(EditScopeKind.Triage, recordId, context.Actor, normalizedKey, token),
+                            cancellationToken);
+                    }
                 }
-                else
+                catch (Exception exception) when (exception is CaseEditLeaseExpiredException or EditScopeExpiredException)
                 {
-                    await editScopes.ReleaseAsync(
-                        new(EditScopeKind.Triage, recordId, context.Actor, normalizedKey, token),
-                        cancellationToken);
+                    released = false;
                 }
                 return new EditLeaseReleaseToolResult(
-                    kind.ToString(), recordId, Released: true, normalizedKey,
+                    kind.ToString(), recordId, released, normalizedKey,
                     AutomationMcpAuditor.CorrelationId(context, normalizedKey));
             }),
             cancellationToken);

@@ -251,22 +251,13 @@ public sealed class AutomationIntakeParityIngressTests
             entry => entry.GetProperty("actor").GetString() == ClientId);
         version = cancelled.GetProperty("detail").GetProperty("record").GetProperty("version").GetInt64();
 
-        using var replacementBeginResponse = await PostMcpAsync(client, token,
-            ToolCallPayload(17, "pegasus_edit_begin", new
-            {
-                recordKind = "Triage",
-                recordId = triageId,
-                expectedVersion = version,
-                operationKey = "mcp:triage-edit-begin-after-cancel"
-            }));
-        var replacementLease = await ReadStructuredContentAsync(replacementBeginResponse);
-
+        // The cancel kept the Automation lease, so the token that made it ends it.
         using var endResponse = await PostMcpAsync(client, token,
             ToolCallPayload(18, "pegasus_edit_end", new
             {
                 recordKind = "Triage",
                 recordId = triageId,
-                editLeaseToken = replacementLease.GetProperty("editLeaseToken").GetString(),
+                editLeaseToken,
                 operationKey = "mcp:triage-edit-end"
             }));
         Assert.True((await ReadStructuredContentAsync(endResponse)).GetProperty("released").GetBoolean());

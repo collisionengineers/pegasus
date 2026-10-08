@@ -78,7 +78,10 @@ lease that lapsed, with nobody having claimed the Case since, carries on with
 the same token, as a staff lease does. An Automation write presented without a
 lease token claims the lease for that one command and releases it afterwards;
 the explicit Automation lease tools remain for multi-step work
-([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#edit-leases)).
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#edit-leases)). A write
+under an Automation lease keeps it, unlike a staff change: the Automation
+Actor's lease stands until it is released or lapses (operator, 8 October
+2026).
 
 **Leaving.** Leaving the Case by a link in Pegasus ends edit mode. A change
 not yet sent lands first ([FRD-16](frd-16-case-record-workspace.md#case-workspace)),

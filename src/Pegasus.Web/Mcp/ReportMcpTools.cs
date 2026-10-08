@@ -196,7 +196,7 @@ internal sealed class ReportMcpTools(
         [Description("record_approval: the stored generated artifact approved (pegasus_report_list).")] Guid? artifactId = null,
         [Description("link_sent_evidence: the retained report-Sent evidence to link; unlink_sent_evidence: the linked evidence, defaulting to the one linked now.")] Guid? evidenceId = null,
         [Description("Why (case history reason, at most 500 characters). Required for record_approval, link_sent_evidence and unlink_sent_evidence.")] string? reason = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);

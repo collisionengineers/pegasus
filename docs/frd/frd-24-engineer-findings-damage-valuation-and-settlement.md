@@ -162,7 +162,9 @@ market research is automation-only.
 
 Glass's is the one connected guide source
 ([ADR-0060](../adr/0060-glass-valuation-account-and-valuation-report.md)).
-Its Get valuation signs in with the Glass's valuation account, values the
+Staff or the Automation Actor press Get valuation
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md); operator, 8 October
+2026). Its Get valuation signs in with the Glass's valuation account, values the
 Case's accepted registration and mileage for the card's month, and fills the
 card with Retail Transacted as its retail and Glass's Trade as its trade.
 Each valuation also saves the vehicle to the account's Glass's stock list, as

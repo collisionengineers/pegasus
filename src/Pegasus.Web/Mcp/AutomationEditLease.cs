@@ -6,7 +6,8 @@ namespace Pegasus.Web.Mcp;
 /// <summary>
 /// The lease a write tool runs under. A caller that holds a lease from
 /// <c>pegasus_edit_begin</c> presents its token and the command runs under it
-/// unchanged. A caller that presents none gets the lease for that one command:
+/// unchanged; the lease stands after the write until the caller ends it
+/// (operator, 8 October 2026). A caller that presents none gets the lease for that one command:
 /// the same Core claim staff make, held while the command runs and released
 /// after it, so Claude Desktop makes one call per edit while the explicit
 /// lease tools remain for multi-step work (operator, 1 October 2026). The
@@ -89,9 +90,10 @@ internal sealed class AutomationEditLease(
     }
 
     /// <summary>
-    /// A release after the command is housekeeping: a Case mutation consumes
-    /// the lease it ran under, and a lease that lapsed meanwhile is already
-    /// free, so a refused release changes nothing about the command's result.
+    /// A release after the command is housekeeping: the Automation actor's
+    /// lease stands after its write and is ended here, and a lease that lapsed
+    /// meanwhile is already free, so a refused release changes nothing about
+    /// the command's result.
     /// </summary>
     private static async Task ReleaseQuietlyAsync(Func<Task> release)
     {

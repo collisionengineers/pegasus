@@ -46,8 +46,9 @@ internal static class AutomationMcpErrors
         catch (CaseEditLeaseConflictException exception)
         {
             throw new McpException(
-                "Refused: case edit authority is held by another actor. The case is at version "
-                + $"{exception.CaseVersion}; reload and reacquire rather than retrying.");
+                "Refused: case edit authority is already held. The case is at version "
+                + $"{exception.CaseVersion}; if this caller holds it from pegasus_edit_begin, present "
+                + "that editLeaseToken, otherwise reload and reacquire rather than retrying.");
         }
         catch (CaseVersionConflictException exception)
         {
@@ -61,7 +62,7 @@ internal static class AutomationMcpErrors
                 or InvalidOperationException
                 or InvalidDataException)
         {
-            throw new McpException(exception.Message);
+            throw new McpException(Refusal(exception));
         }
         catch (OperationCanceledException)
         {
@@ -72,6 +73,15 @@ internal static class AutomationMcpErrors
             throw new McpException("The automation action failed.");
         }
     }
+
+    /// <summary>
+    /// A refusal's own sentence. An argument refusal's parameter name is the
+    /// policy's internal variable, not one the caller sent, so it is left off.
+    /// </summary>
+    private static string Refusal(Exception exception) =>
+        exception is ArgumentException { ParamName: { } name } argument
+            ? argument.Message.Replace($" (Parameter '{name}')", string.Empty, StringComparison.Ordinal)
+            : exception.Message;
 
     /// <summary>
     /// Mutation tools take explicit caller idempotency keys prefixed
