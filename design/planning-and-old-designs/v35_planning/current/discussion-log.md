@@ -23,3 +23,11 @@ The operator:
 > What would it look like if we are missing images, claimant or Case details, the original report, that kinda thing?
 
 Added the Not ready state for a standalone Audit with its original report and images missing and 22 report blockers. The live aside names only the first Case requirement, and links "Original report missing" to Case details although it is cleared on Files. Added a strip switch that lists every Case requirement in A–C. Raised items J and K ([notes](v35-notes.md), section 9).
+
+## 8 October 2026: six designs for the worst case
+
+The operator:
+
+> redo the mockups with this in mind. go for 6 mockups now
+
+Rebuilt the mockup around the missing-everything Case, which it now opens on. A, B and C became designs 1, 2 and 3, and every design now lists every Case requirement (J) and sends Original report missing to Files (K). Added 4 (one row per section, naming what it is missing), 5 (the first thing to do in full, the rest one line each) and 6 (as 4, following the page, with marks on the section row). Raised items L, M and N ([notes](v35-notes.md), section 10).

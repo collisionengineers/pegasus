@@ -86,3 +86,37 @@ New items:
 - **K**. "Original report missing" links to Files, where Mark as original report is, rather than Case details. Confirm, or keep Case details.
 
 Self-check on 8 October 2026 after this round: `RESULT {"fail": [], "okCount": 1194}`, no console error, seven states. The captured frame still shows that Case's own claimant, claim reference and so on, so the sections disagree with this state's blockers.
+
+## 10. 8 October 2026, third round: six designs built for the worst case
+
+The operator asked for the mockups to be redone with the missing-everything Case in mind, six of them. The mockup now opens on that Case: the Not ready standalone Audit with two Case requirements and 22 report blockers. Designs are numbered 1–6 so they do not clash with the lettered items. A, B and C of rounds 1 and 2 are now 1, 2 and 3. Every design lists every Case requirement (item J) and sends Original report missing to Files (item K). Shots are `v35-shots/r3-NN-*.png`; the round 1 and 2 shots stay as the record.
+
+| Design | Idea | Rail height at 1580, missing everything | Review, 11 blockers | Shots |
+| --- | --- | --- | --- | --- |
+| Live today | First requirement only; amber card per blocker | 3,356px | 1,819px | r3-01, 11 |
+| 1 · Grouped by section | Requirements, then the blockers under the section that clears them; every item in full; the requirement is the link | 2,427px | 1,356px | r3-02, 12 |
+| 2 · One line each | Every item on one line with its section link; a line opens to source, reason and what clears it | 1,114px | 673px | r3-03, 08, 13 |
+| 3 · Its own card | Requirements in Next action; the blockers in a "Report not ready" card that alone scrolls, so Figures and Next action stay in view | 2,184px (card scrolls) | 1,215px | r3-04, 14 |
+| 4 · One row per section | One row per section: its name (the link) and the names of what it is missing; the row opens to every item in full | 897px | 618px | r3-05, 09, 15 |
+| 5 · First item in full | The first thing to do in full with a full-width button; everything else one line each, opening for detail | 1,207px | 673px | r3-06, 16 |
+| 6 · Follows the page | As 4, and the section row marks each section that clears a blocker with an amber dot; the aside opens the row of the section in view as the page scrolls, and scrolls itself to show it | 1,148px | 618px | r3-07, 10, 17 |
+
+Other states: AI draft, cancellation and the special blockers (r3-18 to 24); Create audit, where the step is said once (r3-25 to 31); the folded strip at 1440 (r3-32 to 38); one column at 760 (r3-39 to 45).
+
+Items, restated for the six designs. Letters A to K keep their meaning; designs named by number:
+
+- **A** (1–6). The step said once at full width. Unchanged.
+- **B** (1–6). Secondary step control, or primary. Unchanged.
+- **C** (1–6). No amber fill or bars; an amber glyph by each heading and an amber dot per item. Unchanged.
+- **D** (1, 3, 4, 6). The Source: and Why: captions go where an item shows in full. 2 and 5 keep them in the opened line.
+- **E** (1, 4, 6). The requirement is the link; no button per blocker.
+- **F** (2, 4, 5, 6). Source, reason and what clears it show only when a line or section row is opened. FRD-13 and FRD-16 would say so. Confirm, or show them always (1 or 3).
+- **G**, **H** (3). Unchanged.
+- **I**. Unchanged.
+- **J** (1–6). Every outstanding Case requirement is listed, now in every design.
+- **K** (1–6). Original report missing links to Files, now in every design.
+- **L** (5). The first thing to do is drawn in full with its control at full width: the step where there is one, else the first Case requirement, else the first report blocker. Confirm, or draw every item alike.
+- **M** (6). The section row marks with an amber dot each section that clears a report blocker; Damage and Valuation mark Vehicle. The aside opens the section in view and scrolls itself to it. This changes the section row (FRD-16). Confirm, or keep the section row as it is.
+- **N** (4, 6). A closed section row names what its section is missing, by name ("Vehicle registration · Vehicle make · …"). It is not a count, which FRD-13 rules out. Confirm.
+
+Self-check on 8 October 2026 after this round: `RESULT {"fail": [], "okCount": 2106}`, no console error: live and designs 1–6, seven states, three widths. Known limits as section 8; in addition the captured frame is an Inspection Case, so its section row has no Original report section.

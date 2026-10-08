@@ -4,15 +4,15 @@
     python check-rail-v35.py --no-shots checks only
 
 Loads the mockup in headless Chromium (Playwright) and asserts, for live and
-for each of A, B and C in every Case state: no script error; every report
+each of designs 1 to 6 in every Case state: no script error; every report
 blocker present in page order with its requirement, source, reason and what
-clears it (FRD-13), and no count of them; in A to C a step whose control
-says what the step says is that control once, not the words twice; every
-visible word is the application's own or a fixture's; nothing spills
-sideways at 1580, 1440 and 760; at 1580 the sticky aside fits the viewport,
-and in C the step stays in view however long the list. It then writes the
-screenshots and verification.json. This is evidence about the mockup, not
-the application.
+clears it, and no count of them (FRD-13); in 1 to 6 every outstanding Case
+requirement listed with its source (item J) and Original report missing
+linking to Files (item K); a step whose control says what the step says is
+that control once; every visible word is the application's own or a
+fixture's; nothing spills sideways at 1580, 1440 and 760; the sticky aside
+fits the viewport at 1580. It then writes the round-3 screenshots and
+verification.json. This is evidence about the mockup, not the application.
 
 Set PEGASUS_CHROME to a Chromium executable when Playwright's own browser
 does not match the installed driver.
@@ -29,17 +29,18 @@ from playwright.sync_api import sync_playwright
 CURRENT = Path(__file__).resolve().parent
 SHOTS = CURRENT / 'v35-shots'
 PAGE = CURRENT / 'pegasus_case_rail_v35.html'
-DESIGNS = ['live', 'a', 'b', 'c']
-STATES = ['review', 'engineer', 'near', 'ready', 'stale', 'audit', 'notready']
+DESIGNS = ['live', '1', '2', '3', '4', '5', '6']
+PROPOSALS = DESIGNS[1:]
+STATES = ['notready', 'review', 'engineer', 'near', 'ready', 'stale', 'audit']
 WIDTHS = [(1580, 1000), (1440, 900), (760, 1000)]
-# Every word the aside may show besides the fixtures' blocker text: the live
-# labels the aside already renders (CaseWorkspaceLabels, OperatorLabels).
+# Every word the aside may show besides the fixtures' text: the live labels
+# the aside already renders (CaseWorkspaceLabels, OperatorLabels).
 LABELS = {'Figures', 'Next action', 'Repair cost inc VAT', "Engineer's Value", 'Repair cost of value', 'Report not ready',
-          'Assign Engineer', 'Generate report', 'Create audit', 'Report', 'AI', 'Estimate draft ready', 'Review estimate',
-          'Cancellation received', 'Open message', 'Source:', 'Why:', 'Staff accounts & roles',
-          'A newer fact changed after this generation. Generate again before delivery.', '—', '·',
+          'Outstanding requirements', 'Assign Engineer', 'Generate report', 'Create audit', 'Report', 'AI',
+          'Estimate draft ready', 'Review estimate', 'Cancellation received', 'Open message', 'Source:', 'Why:',
+          'Staff accounts & roles', 'A newer fact changed after this generation. Generate again before delivery.', '—',
           'Case details', 'Claim', 'Inspection details', 'Vehicle', 'Damage', 'Valuation', 'Repair Spec', 'Decisions',
-          'Files', 'Notes', 'Original report', 'Outstanding requirements'}
+          'Files', 'Notes'}
 
 ok = []
 fail = []
@@ -58,6 +59,26 @@ def load(page, design, state, extra=''):
     page.wait_for_function(f"document.documentElement.dataset.ready === '{design}:{state}'")
 
 
+READ = """() => {
+    const aside = document.querySelector('aside[data-case-aside]');
+    const rect = aside.getBoundingClientRect();
+    const text = (e) => e.textContent.replace(/\\s+/g, ' ').trim();
+    const words = [];
+    const walk = document.createTreeWalker(aside, NodeFilter.SHOW_TEXT);
+    while (walk.nextNode()) { const t = walk.currentNode.textContent.replace(/\\s+/g, ' ').trim(); if (t) words.push(t); }
+    const next = aside.querySelector('[data-next-action]');
+    const nr = next ? next.getBoundingClientRect() : null;
+    return { errors: window.mockupErrors, words, text: text(aside),
+      blockers: [...aside.querySelectorAll('[data-report-blocker]')].map(text),
+      requirements: [...aside.querySelectorAll('[data-case-requirement]')].map(text),
+      nextText: next ? text(next) : '',
+      overflowX: rect.right > window.innerWidth + 1 || [...aside.querySelectorAll('*')].some(e => {
+        const s = getComputedStyle(e); return e.scrollWidth > e.clientWidth + 1 && s.overflowX !== 'visible' && s.overflowX !== 'hidden'; }),
+      bottom: rect.bottom, nextTop: nr ? nr.top : null, nextBottom: nr ? nr.bottom : null,
+      figures: !!aside.querySelector('[data-figures]') };
+}"""
+
+
 def main():
     shots = '--no-shots' not in sys.argv
     SHOTS.mkdir(exist_ok=True)
@@ -67,133 +88,120 @@ def main():
         console = []
         page.on('console', lambda m: console.append(m.text) if m.type == 'error' else None)
         page.on('pageerror', lambda e: console.append(str(e)))
-        load(page, 'live', 'review')
+        load(page, 'live', 'notready')
         presets = page.evaluate('window.v35.PRESETS')
-        page.evaluate("document.querySelectorAll('.rail-b-row').forEach(d => d.open = true)")
 
         for design in DESIGNS:
             for state in STATES:
                 tag = f'{design}/{state}'
                 preset = presets[state]
+                blockers = preset['blockers']
+                reqs = preset.get('requirements') or []
                 for width, height in WIDTHS:
                     page.set_viewport_size({'width': width, 'height': height})
                     load(page, design, state)
-                    r = page.evaluate("""() => {
-                        const aside = document.querySelector('aside[data-case-aside]');
-                        const rect = aside.getBoundingClientRect();
-                        const rows = [...aside.querySelectorAll('[data-report-blocker]')].map(li => li.textContent.replace(/\\s+/g, ' ').trim());
-                        const words = [];
-                        const walk = document.createTreeWalker(aside, NodeFilter.SHOW_TEXT);
-                        while (walk.nextNode()) { const t = walk.currentNode.textContent.replace(/\\s+/g, ' ').trim(); if (t) words.push(t); }
-                        const next = aside.querySelector('[data-next-action]');
-                        const step = aside.querySelector('[data-next-step]');
-                        const sr = step ? step.getBoundingClientRect() : null;
-                        return { errors: window.mockupErrors, rows, words, text: aside.textContent.replace(/\\s+/g, ' '),
-                          nextText: next ? next.textContent.replace(/\\s+/g, ' ') : '',
-                          overflowX: [aside, ...aside.querySelectorAll('*')].some(e => e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).overflowX !== 'visible' && getComputedStyle(e).overflowX !== 'hidden') || rect.right > window.innerWidth + 1,
-                          bottom: rect.bottom, stepBottom: sr ? sr.bottom : null, stepTop: sr ? sr.top : null,
-                          figures: !!aside.querySelector('[data-figures]') };
-                    }""")
+                    r = page.evaluate(READ)
                     at = f'{tag}@{width}'
                     check(f'{at} no script error', not r['errors'], r['errors'])
                     check(f'{at} Figures', r['figures'])
                     check(f'{at} no sideways spill', not r['overflowX'])
                     if width != 1580:
                         continue
-                    blockers = preset['blockers']
-                    check(f'{tag} one row per blocker', len(r['rows']) == len(blockers), f"{len(r['rows'])} != {len(blockers)}")
-                    for row, b in zip(r['rows'], blockers):
+                    check(f'{tag} one row per blocker', len(r['blockers']) == len(blockers), f"{len(r['blockers'])} != {len(blockers)}")
+                    for row, b in zip(r['blockers'], blockers):
                         for key in ['requirement', 'source', 'why', 'how']:
                             check(f"{tag} {b['requirement']} shows its {key}", b[key] in row, row[:80])
-                    check(f'{tag} no count of blockers', not re.search(r'\b\d+\s+(items?|blockers?|outstanding|more)\b', r['text'], re.I))
-                    allowed = LABELS | {b[k] for b in blockers for k in ['requirement', 'source', 'why', 'how']}
-                    reqs = preset.get('requirements') or []
-                    allowed |= {r[k] for r in reqs for k in ['title', 'source', 'why'] if r[k]}
-                    allowed |= {f"{r['source']} · {r['why']}" for r in reqs if r['why']}
-                    allowed |= {f"{b['source']} · {b['why']}" for b in blockers}
-                    stray = [w for w in r['words'] if w not in allowed and not re.fullmatch(r'£[\d,]+\.\d\d|\d+%', w)]
+                    if design != 'live' and reqs:
+                        check(f'{tag} every Case requirement', len(r['requirements']) == len(reqs), r['requirements'])
+                        for row, q in zip(r['requirements'], reqs):
+                            check(f"{tag} {q['title']} with its source", q['title'] in row and q['source'] in row, row)
+                    if design == 'live' and reqs:
+                        check(f'{tag} today names the first requirement only', reqs[0]['title'] in r['text'] and reqs[1]['title'] not in r['text'])
+                    check(f'{tag} no count', not re.search(r'\b\d+\s+(items?|blockers?|outstanding|more)\b', r['text'], re.I))
+                    allowed = set(LABELS)
+                    for b in blockers:
+                        allowed |= {b[k] for k in ['requirement', 'source', 'why', 'how']}
+                    for q in reqs:
+                        allowed |= {q[k] for k in ['title', 'source', 'why'] if q[k]}
+                    stray = [part for w in r['words'] for part in w.split(' · ') if part and part not in allowed and not re.fullmatch(r'£[\d,]+\.\d\d|\d+%', part)]
                     check(f'{tag} only application words', not stray, stray)
                     s = preset['step']
-                    if s:
-                        if design != 'live' and s['label'] == s['control']:
-                            check(f"{tag} step said once", r['nextText'].count(s['label']) == 1, r['nextText'])
-                        check(f"{tag} step present", s['label'] in r['text'])
+                    if s and design != 'live' and s['label'] == s['control']:
+                        check(f'{tag} step said once', r['nextText'].count(s['label']) == 1, r['nextText'])
                     check(f'{tag} sticky aside fits at 1580', r['bottom'] <= 1000 + 1, r['bottom'])
-                    if design == 'c' and r['stepBottom'] is not None:
-                        check(f'{tag} step in view', 0 <= r['stepTop'] and r['stepBottom'] <= 1000, r['stepBottom'])
+                    if design == '3' and r['nextBottom'] is not None:
+                        check(f'{tag} Next action in view', 0 <= r['nextTop'] and r['nextBottom'] <= 1000, r['nextBottom'])
 
-        # A blocker's control lands on its section; Files opens on Images.
         page.set_viewport_size({'width': 1580, 'height': 1000})
-        for design in ['a', 'b', 'c']:
-            load(page, design, 'review')
-            link = page.locator('aside [data-report-blocker="files"] a[data-section-tab="images"]')
-            check(f'{design} Overview image opens Files on Images', link.count() == 1)
+        for design in PROPOSALS:
+            load(page, design, 'notready')
+            check(f'{design} Original report missing opens Files (K)',
+                  page.locator('aside [data-case-requirement] [data-section-jump="files"], aside [data-case-requirement][data-section-jump="files"], aside [data-case-requirement] a.rail-row[data-section-jump="files"]').count() >= 1)
+            check(f'{design} Overview image opens Files on Images', page.locator('aside [data-report-blocker="files"] [data-section-tab="images"]').count() == 1)
             load(page, design, 'near')
             check(f'{design} VAT blocker claims Repair Spec', page.locator('aside [data-edit-focus="#estimate-vat-status"]').count() == 1)
-            check(f'{design} Accounts for an Administrator', page.locator('aside [data-blocker-accounts]').count() == 1)
+            check(f'{design} Accounts for an Administrator', page.locator('aside [data-blocker-accounts]').count() >= 1)
             load(page, design, 'near', '&role=user')
             check(f'{design} no Accounts link for a User', page.locator('aside [data-blocker-accounts]').count() == 0)
             load(page, design, 'review', '&tone=primary')
             check(f'{design} primary step', page.locator('aside [data-next-step].btn--primary').count() == 1)
-        # Item J: every outstanding Case requirement, each linking to Case details.
-        reqs = presets['notready']['requirements']
-        for design in ['a', 'b', 'c']:
-            load(page, design, 'notready', '&reqs=all')
-            rows = page.locator('aside [data-case-requirement]')
-            check(f'{design} every Case requirement', rows.count() == len(reqs), rows.count())
-            for i, r in enumerate(reqs):
-                text = rows.nth(i).text_content()
-                check(f"{design} {r['title']} with its source", r['title'] in text and r['source'] in text, text)
-            check(f'{design} requirements link to Case details', page.locator('aside [data-case-requirement] [data-section-jump="overview"], aside [data-case-requirement] a.rail-c-row[data-section-jump="overview"]').count() == len(reqs))
-            check(f'{design} no step line when listed', page.locator('aside [data-next-label]').count() == 0)
+
+        # 4 and 6: one row per section naming what it is missing.
+        for design in ['4', '6']:
             load(page, design, 'notready')
-            check(f'{design} first requirement only by default', page.locator('aside [data-case-requirement]').count() == 0 and reqs[0]['title'] in page.locator('aside').text_content())
+            sects = page.evaluate("[...document.querySelectorAll('aside .rail-sect')].map(d => [d.dataset.railGroup, d.querySelector('summary small').textContent])")
+            keys = []
+            for b in presets['notready']['blockers']:
+                if not keys or keys[-1] != b['section']:
+                    keys.append(b['section'])
+            check(f'{design} one row per section', [k for k, _ in sects] == keys, sects)
+            for key, names in sects:
+                for b in [b for b in presets['notready']['blockers'] if b['section'] == key]:
+                    check(f"{design} {key} row names {b['requirement']}", b['requirement'] in names)
+        # 6: the section row marks, and the aside follows the page.
+        load(page, '6', 'notready')
+        marks = page.evaluate("[...document.querySelectorAll('[data-section-link]')].filter(a => a.querySelector('.rail-nav-mark')).map(a => a.dataset.sectionLink)")
+        check('6 section row marks', marks == ['overview', 'claim', 'inspection', 'vehicle', 'estimate', 'settlement', 'files'], marks)
+        check('6 Case details open at the top', page.evaluate("document.querySelector('aside .rail-sect.is-here')?.dataset.railGroup") == 'overview')
+        page.evaluate("document.querySelector('#section-valuation').scrollIntoView({block: 'start', behavior: 'instant'}); window.v35.follow()")
+        check('6 Valuation open when in view', page.evaluate("[...document.querySelectorAll('aside .rail-sect[open]')].map(d => d.dataset.railGroup)") == ['valuation'])
+        # 5: the first thing in full.
+        load(page, '5', 'notready')
+        check('5 first requirement in full', 'Original report missing' in page.locator('aside .rail-first').text_content())
+        load(page, '5', 'engineer')
+        check('5 first blocker in full', 'Pre-incident condition' in page.locator('aside .rail-first').text_content())
         check('no console error', not console, console)
 
         if shots:
             n = 0
 
-            def shot(name, design, state, width=1580, height=1000, extra='', aside=False, scroll=0, before=None):
+            def shot(name, design, state, width=1580, height=1000, extra='', before=None):
                 nonlocal n
                 n += 1
                 page.set_viewport_size({'width': width, 'height': height})
                 load(page, design, state, extra)
                 if before:
                     page.evaluate(before)
-                if scroll:
-                    page.evaluate(f'window.scrollTo(0, {scroll})')
-                path = SHOTS / f'{n:02d}-{name}.png'
-                if aside:
-                    page.locator('aside[data-case-aside]').screenshot(path=str(path))
-                else:
-                    page.screenshot(path=str(path))
+                path = SHOTS / f'r3-{n:02d}-{name}.png'
+                page.screenshot(path=str(path))
                 return path.name
 
             names = []
             for d in DESIGNS:
+                names.append(shot(f'{d}-notready-1580', d, 'notready'))
+            names.append(shot('2-notready-open-1580', '2', 'notready', before="document.querySelectorAll('aside .rail-line').forEach((d,i)=>d.open=i<3)"))
+            names.append(shot('4-notready-open-1580', '4', 'notready', before="document.querySelector('aside .rail-sect[data-rail-group=\"vehicle\"]').open=true"))
+            names.append(shot('6-notready-valuation-1580', '6', 'notready', before="document.querySelector('#section-valuation').scrollIntoView({block:'start', behavior:'instant'}); window.v35.follow()"))
+            for d in DESIGNS:
                 names.append(shot(f'{d}-review-1580', d, 'review'))
             for d in DESIGNS:
-                names.append(shot(f'{d}-engineer-1580', d, 'engineer'))
-            for d in DESIGNS:
                 names.append(shot(f'{d}-near-1580', d, 'near'))
-            names.append(shot('b-near-open-1580', 'b', 'near', before="document.querySelectorAll('.rail-b-row').forEach((d,i)=>d.open=i<2)"))
-            for d in DESIGNS:
-                names.append(shot(f'{d}-stale-1580', d, 'stale'))
             for d in DESIGNS:
                 names.append(shot(f'{d}-audit-1580', d, 'audit'))
             for d in DESIGNS:
-                names.append(shot(f'{d}-review-1440', d, 'review', 1440, 900))
+                names.append(shot(f'{d}-notready-1440', d, 'notready', 1440, 900))
             for d in DESIGNS:
-                names.append(shot(f'{d}-review-760', d, 'review', 760, 1000))
-            for d in ['a', 'b', 'c']:
-                names.append(shot(f'{d}-review-primary-1580', d, 'review', extra='&tone=primary'))
-            for d in DESIGNS:
-                names.append(shot(f'{d}-notready-1580', d, 'notready'))
-            for d in ['a', 'b', 'c']:
-                names.append(shot(f'{d}-notready-all-1580', d, 'notready', extra='&reqs=all'))
-            names.append(shot('b-notready-all-open-1580', 'b', 'notready', extra='&reqs=all', before="document.querySelectorAll('[data-case-requirement]').forEach(d=>d.open=true)"))
-            for d in ['a', 'c']:
-                names.append(shot(f'{d}-notready-all-1440', d, 'notready', 1440, 900, extra='&reqs=all'))
+                names.append(shot(f'{d}-notready-760', d, 'notready', 760, 1000))
             print('shots', len(names))
         browser.close()
 

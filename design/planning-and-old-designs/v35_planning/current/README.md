@@ -1,18 +1,17 @@
 # v35 current: the Case aside's Next action
 
-**What this is.** An offline HTML mockup of the Case page's aside (Figures and Next action) as it is today and as three proposals, A, B and C, made at the operator's request on 8 October 2026. It is a temporary design review artifact: not application code, not design authority and not implementation evidence. It is removed or kept by the operator's instruction in the final Stage 2 pull request.
+**What this is.** An offline HTML mockup of the Case page's aside (Figures and Next action) as it is today and as six proposals, designs 1 to 6, made at the operator's request on 8 October 2026. It is a temporary design review artifact: not application code, not design authority and not implementation evidence. It is removed or kept by the operator's instruction in the final Stage 2 pull request.
 
 **How to open it.** Open [pegasus_case_rail_v35.html](pegasus_case_rail_v35.html) in a browser. No server or network is needed.
 
 **Mockup controls.** The dark panel at the bottom left is a demo control, not product UI. It holds:
 
-- Design: Live today, A, B or C
+- Design: Live today, or 1 grouped by section, 2 one line each, 3 Report not ready as its own card, 4 one row per section, 5 first item in full, 6 follows the page
 - Case state: Not ready with the original report, images and Case facts missing; Review with Assign Engineer and eleven blockers (the operator's screenshot); With Engineer with the same blockers; With Engineer with an AI draft, a cancellation and four blockers of the special kinds; Generate report; a stale generation; Create audit
-- Step control (A–C): secondary or primary button
+- Step control (1–6): secondary or primary button
 - Viewer: Administrator or User (the Accounts blocker links only for an Administrator)
-- Case requirements (A–C): the first only, as today, or every one (item J)
 
-Every choice is also reachable by query string, for example `?design=c&state=near&role=user`.
+The mockup opens on the Not ready Case. Every choice is also reachable by query string, for example `?design=4&state=near&role=user`.
 
 **What is real and what is drawn.** The Case page around the aside is the page the application rendered, captured for the v33 round and restyled with the live `site.css` and `case-workspace.css` from this checkout (`origin/dev` 6be875542). The ribbon's state chip and Engineer follow the chosen state. "Live today" redraws the aside exactly as `_CaseAside.cshtml` renders it. The proposals use the live classes and tokens; the only new styles are in `lib/rail-v35.css`. The blocker words are Core's own (`AssessmentPolicy`, `CaseReportReadiness`); the fixtures are synthetic.
 
@@ -24,10 +23,10 @@ Every choice is also reachable by query string, for example `?design=c&state=nea
 | [lib/](lib/rail-v35-runtime.js) | The states, the four aside drawings and the design CSS |
 | [check-rail-v35.py](check-rail-v35.py) | Self-check and screenshot capture (Playwright) |
 | [verification.json](verification.json) | The dated self-check record |
-| [v35-shots/](v35-shots/01-live-review-1580.png) | Screenshots |
+| [v35-shots/](v35-shots/r3-01-live-notready-1580.png) | Screenshots: `r3-*` for the six designs; the unprefixed ones are rounds 1 and 2 |
 | [v35-notes.md](v35-notes.md) | What changes, live rules mirrored, departures, the sign-off list, known limits |
 | [discussion-log.md](discussion-log.md) | The operator's brief and each round |
 
 ## Status
 
-Awaiting the operator's choice of design and the lettered items in [v35-notes.md](v35-notes.md), sections 6 and 9. Stage 2 has not started.
+Awaiting the operator's choice of design and the lettered items in [v35-notes.md](v35-notes.md), sections 6, 9 and 10. Stage 2 has not started.
