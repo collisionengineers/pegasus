@@ -80,7 +80,7 @@
                         <partial name="Shared/_StatusChip" model="@TriageCaseView.StateLabel(triage.State)" />
                         @if (finding.Length > 0)
                         {
-                            <span>@finding</span>
+                            <span class="linked-finding">@finding</span>
                         }
                     </div>
                 }
