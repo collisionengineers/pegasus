@@ -5,6 +5,7 @@ Read from the live source on 8 October 2026 (`origin/dev` acb2ffbd1). This is v3
 ## What the section does not show
 
 - A click on a row chooses it as the basis but does not tell the save that the Engineer decided to use it. Only **Use this value** does that. A click alone records a calculation only if the calculator differs from the one the page opened on.
+- A click on a row's labels or inside its boxes is ignored (`case-workspace.js`, `selectCard`: clicks on `input,button,select,label,a` are skipped), so only the gaps between them choose the row. A row with no retail ignores every click without saying why.
 - A row typed during this edit has no basis radio, so a click on it does nothing. Only Use this value can choose it (`selection.GuideSource`).
 - The Retail value and Trade value boxes are Case fields of their own. Choosing a row copies its figures into them, and either can then be overtyped, so the report can carry figures no source holds.
 - While editing, the first source with a retail is drawn as chosen before anyone chooses it (`DefaultBasis`).

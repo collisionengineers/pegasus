@@ -10,7 +10,9 @@
 #section-valuation .gcs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;min-width:0}
 #section-valuation .gc{display:grid;align-content:start;gap:6px;min-width:0;padding:10px 12px 11px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface)}
 #section-valuation .gc.sel{border-color:var(--red-dark);box-shadow:inset 0 0 0 1px var(--red-dark);background:#fff6f6}
-.case-record.is-editing #section-valuation .gc[tabindex="0"]{cursor:pointer}
+.case-record.is-editing #section-valuation .gc,.case-record.is-editing #section-valuation .gc label{cursor:pointer}
+.case-record.is-editing #section-valuation .gc input{cursor:text}
+.case-record.is-editing #section-valuation .gc.is-pending{cursor:default}
 .case-record.is-editing #section-valuation .gc[tabindex="0"]:hover{border-color:var(--line-strong)}
 .case-record.is-editing #section-valuation .gc.sel[tabindex="0"]:hover{border-color:var(--red-dark)}
 .case-record.is-editing #section-valuation .gc[tabindex="0"]:focus-visible{outline:2px solid var(--focus);outline-offset:1px}

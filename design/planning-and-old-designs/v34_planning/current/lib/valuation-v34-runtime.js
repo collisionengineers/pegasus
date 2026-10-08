@@ -26,6 +26,7 @@
     onReport: 'On the report', disclose: 'Disclose guide source', commentary: 'Valuation commentary',
     unrelated: 'Unrelated damage', reportSummary: 'Guide source not disclosed',
     exceeds: 'The valuation deductions exceed the value, so there is no figure to apply.',
+    needsRetail: 'Enter the retail value on this card to use it.',
     reportProblem: 'report a problem'
   };
   var SOURCES = [
@@ -99,7 +100,7 @@
     var s = {
       preset: name, mode: read ? 'read' : 'edit', cards: {}, ai: null, earlier: [], aiMonth: '2026-10',
       chosen: null, used: false, filled: false, sel: blankSelection(),
-      engineer: '', record: null, claimantVat: false, inspection: false, busy: null,
+      engineer: '', record: null, claimantVat: false, inspection: false, busy: null, notices: {},
       report: { disclose: false, commentary: false, unrelated: false }
     };
     SOURCES.forEach(function (source) { s.cards[source.slug] = { retail: '', trade: '', month: '' }; });
@@ -235,6 +236,7 @@
       + head
       + '<div class="gc-figs">' + figure(slug, 'retail', true) + figure(slug, 'trade', true) + guideMonth(slug, true) + '</div>'
       + (editing() && !source.connected && opt.manual === 'sentence' ? unavailable(source) : '')
+      + (editing() && S.notices[slug] ? '<div class="notice notice--info gc-note" role="status" data-valuation-needs-retail>' + esc(S.notices[slug]) + '</div>' : '')
       + '</div>';
   }
 
@@ -469,6 +471,13 @@
     if (parts[0] === 'card') {
       S.cards[parts[1]][parts[2]] = value;
       if (parts[1] === S.chosen && parts[2] !== 'month') { recalculate(); }
+      // Typing a retail answers the card's "enter the retail" notice.
+      // It is removed in place, so the box being typed in is not redrawn.
+      if (S.notices[parts[1]] && parts[2] === 'retail' && num(value) > 0) {
+        delete S.notices[parts[1]];
+        var notice = target.closest('[data-pick]').querySelector('[data-valuation-needs-retail]');
+        if (notice) { notice.remove(); }
+      }
       return 'patch';
     }
     if (parts[0] === 'ptl') { S.sel.ptl = value ? (S.sel.ptl || '10') : ''; recalculate(); return 'render'; }
@@ -488,8 +497,28 @@
     S.chosen = slug;
     S.used = true;
     recalculate();
-    render();
+    markChosen();
+    patch();
     scheduleCommit();
+  }
+  // The chosen card changes in place, so a box clicked to choose its card
+  // keeps its caret where the click put it.
+  function markChosen() {
+    var section = document.getElementById('section-valuation');
+    section.querySelectorAll('.gc[data-pick]').forEach(function (card) {
+      var on = card.getAttribute('data-pick') === shownBasis();
+      card.classList.toggle('sel', on);
+      if (card.hasAttribute('aria-pressed')) { card.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+      var word = card.querySelector('[data-valuation-chosen-word]');
+      if (word && !on) { word.remove(); }
+      if (!word && on) {
+        var head = card.querySelector('.gc-head');
+        var get = head.querySelector('.gc-get');
+        var holder = document.createElement('span');
+        holder.innerHTML = chosenWord();
+        head.insertBefore(holder.firstChild, get);
+      }
+    });
   }
 
   function act(name, slug) {
@@ -576,7 +605,9 @@
     var target = event.target;
     var path = target.getAttribute && target.getAttribute('data-bind');
     if (!path || target.type === 'checkbox') { return; }
-    if (bind(path, target) !== 'none') { patch(); scheduleCommit(); }
+    var todo = bind(path, target);
+    if (todo === 'render') { render(); }
+    if (todo !== 'none') { patch(); scheduleCommit(); }
   });
   host.addEventListener('change', function (event) {
     var target = event.target;
@@ -601,8 +632,19 @@
     var button = target.closest('[data-act]');
     if (button) { event.preventDefault(); act(button.getAttribute('data-act'), button.getAttribute('data-slug')); return; }
     var pick = target.closest('[data-pick]');
-    if (pick && editing() && !target.closest('input,button,select,label,a')) {
-      if (pick.getAttribute('data-pick') !== S.chosen) { choose(pick.getAttribute('data-pick')); }
+    // The whole card is the target: its name, labels, figures and boxes.
+    // Only its own buttons and links do something else. A guide card with
+    // no retail cannot be the basis, so it says why instead of ignoring the
+    // click; a click into its boxes is the Engineer about to type one.
+    if (pick && editing() && !target.closest('button,a')) {
+      var slug = pick.getAttribute('data-pick');
+      if (slug === S.chosen) { return; }
+      if (pickable(slug)) {
+        choose(slug);
+      } else if (S.cards[slug] && !target.closest('input')) {
+        S.notices[slug] = L.needsRetail;
+        render();
+      }
       return;
     }
     var link = target.closest('a[href]');

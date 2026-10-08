@@ -39,3 +39,17 @@ The answers are recorded as D1 to D5 in [how-it-should-work.md](../pages/case-re
 ## 8 October 2026: the mockup
 
 Built on `task/valuation-cards-v34` from `origin/dev` acb2ffbd1, by forking the v33 build (captured frame, live CSS, arithmetic and recording rule). The self-check passed. Stopped for sign-off.
+
+## 8 October 2026: round 1 feedback
+
+> Parts of the box are randomly not clickable for valuations
+
+**Cause.** The mockup had copied the live rule (`selectCard` in `case-workspace.js`): a click on a label ("Retail", "Trade", "Guide month") or inside a box is skipped, so only the gaps chose a card. A card with no retail, such as Super CAP, ignored every click without a word.
+
+**Changed.**
+- The whole card is the click target, except its Get valuation button and links.
+- Choosing a card updates it in place, so a box clicked to choose its card keeps its caret.
+- A guide card with no retail shows the existing approved sentence "Enter the retail value on this card to use it.", and typing a retail removes it.
+- The self-check gained the whole-card checks and now passes 671 (was 656).
+
+Recorded under item E, D9 and D9a. Stage 2 must change `selectCard` the same way.

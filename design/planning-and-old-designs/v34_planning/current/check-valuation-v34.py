@@ -252,6 +252,44 @@ def run_checks(page, errors, allowed):
     page.locator('#f-valuation-add-1').check()
     check('calculator change: box follows again', engineer(page) == '3500.00')
 
+    # The whole card is the target: name, labels, figures, boxes, empty space.
+    def chosen():
+        return page.locator('.gc.sel').get_attribute('data-pick')
+    load(page, 'fetched')
+    page.locator('[data-pick="brego"] label[for="f-valuation-brego-retail"]').click()
+    check('card: a click on a label chooses the card', chosen() == 'brego' and engineer(page) == '3050.00')
+    check('card: and lands in that box', page.evaluate('document.activeElement.id') == 'f-valuation-brego-retail')
+    page.evaluate("window.v34box = document.getElementById('f-valuation-glasses-trade')")
+    page.locator('#f-valuation-glasses-trade').click()
+    check('card: a click in a box chooses the card', chosen() == 'glasses' and engineer(page) == '2950.00')
+    check('card: and keeps the box focused', page.evaluate('document.activeElement.id') == 'f-valuation-glasses-trade')
+    check('card: the box is not redrawn, so its caret stays put',
+          page.evaluate('window.v34box.isConnected && document.activeElement === window.v34box'))
+    check('card: chosen word moves with it', page.locator('[data-valuation-chosen-word]').count() == 1
+          and page.locator('[data-pick="glasses"] [data-valuation-chosen-word]').count() == 1)
+    page.locator('[data-pick="cazana"] .gc-month').click(position={'x': 4, 'y': 4})
+    check('card: a click on the guide month line chooses the card', chosen() == 'cazana')
+    page.locator('[data-pick="cap"] .gc-head h3').click()
+    check('card: a click on the name chooses the card', chosen() == 'cap')
+    page.locator('[data-pick="ai"] .gc-meta').click()
+    check('card: a click on the research card\'s meta chooses it', chosen() == 'ai' and engineer(page) == '3195.00')
+    box = page.locator('[data-pick="brego"]').bounding_box()
+    page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] - 4)
+    check('card: a click on its padding chooses the card', chosen() == 'brego')
+    page.locator('[data-pick="super-cap"] .gc-head h3').click()
+    check('card: no retail says why, and is not chosen',
+          chosen() == 'brego' and page.locator('[data-pick="super-cap"] [data-valuation-needs-retail]').text_content() == 'Enter the retail value on this card to use it.')
+    page.locator('#f-valuation-super-cap-retail').click()
+    check('card: a click into an empty card\'s box only focuses it', chosen() == 'brego'
+          and page.evaluate('document.activeElement.id') == 'f-valuation-super-cap-retail')
+    page.keyboard.type('3300')
+    check('card: typing a retail clears the notice', page.locator('[data-valuation-needs-retail]').count() == 0)
+    page.locator('[data-pick="super-cap"] .gc-head h3').click()
+    check('card: then a click chooses it', chosen() == 'super-cap' and engineer(page) == '3300.00')
+    page.locator('[data-pick="glasses"] [data-valuation-get]').click()
+    check('card: Get valuation does not choose its card', chosen() == 'super-cap')
+    page.wait_for_selector('[data-pick="glasses"] [data-valuation-get]:has-text("Get valuation")')
+
     load(page, 'fetched')
     page.locator('[data-pick="glasses"] [data-valuation-get]').click()
     check('Get valuation: busy word', 'Looking up…' in section_text(page))
