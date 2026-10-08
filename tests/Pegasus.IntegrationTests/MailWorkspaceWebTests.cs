@@ -419,7 +419,8 @@ public sealed class MailWorkspaceWebTests
 
     private const int InboxListCommands = 24;
 
-    private const int InboxPreviewCommands = 11;
+    // 10 since ADR-0067: the preview no longer reads the row's current folder.
+    private const int InboxPreviewCommands = 10;
 
     [Fact]
     public async Task ExactMessageCanBeSearchedLinkedUnlinkedAndLinkedToAReplacement()
