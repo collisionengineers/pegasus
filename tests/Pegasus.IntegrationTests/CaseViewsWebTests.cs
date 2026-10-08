@@ -112,7 +112,7 @@ public sealed class CaseViewsWebTests
             card,
             StringComparison.Ordinal);
         Assert.Contains(
-            $"<span>{Pegasus.Web.Pages.Cases.TriageCaseView.RoadworthinessLabel(Pegasus.Core.Triage.RoadworthinessFinding.Roadworthy)}"
+            $"<span class=\"linked-finding\">{Pegasus.Web.Pages.Cases.TriageCaseView.RoadworthinessLabel(Pegasus.Core.Triage.RoadworthinessFinding.Roadworthy)}"
             + $" · {Pegasus.Web.Pages.Cases.TriageCaseView.AssessmentLabel(Pegasus.Core.Triage.AssessmentFinding.Repairable)}</span>",
             card,
             StringComparison.Ordinal);
