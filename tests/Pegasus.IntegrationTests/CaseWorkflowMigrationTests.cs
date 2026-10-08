@@ -455,7 +455,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20261007181000_InspectionAddressSettlerKind",
                 "20261007182000_StaffMailSendActorKind",
                 "20261007183000_GrantWorkerTriageFindings",
-                "20261007184000_RemoveEva"
+                "20261007184000_RemoveEva",
+                "20261008090000_SimplifyMailClassification"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }
