@@ -68,7 +68,7 @@ internal sealed class TriageMcpTools(
     private const string VersionDescription = "The Triage version the caller observed; a stale value fails closed.";
     private const string KeyDescription = "Caller idempotency key prefixed 'mcp:'.";
     private const string ReasonDescription = "Why, for the Triage history (at most 500 characters).";
-    private const string LeaseDescription = "Edit lease token from pegasus_edit_begin for multi-step work; omit it and the tool holds the Triage lease for this one command.";
+    private const string LeaseDescription = "Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the Triage lease for this one command.";
 
     [McpServerTool(Name = "pegasus_triage_list", Title = "List Triage work", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Lists a bounded page of Triage records through the protected Core continuation query. Each item carries the Triage Case id, its t. reference, state and version.")]

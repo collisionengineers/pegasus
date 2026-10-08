@@ -134,7 +134,8 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(CaseLifecycleState.ReportPreparation, handedOff.State);
             Assert.Equal(1, handedOff.Version);
         }
-        lease = await BeginEditAsync(client, token, caseId, 1, rpcId: 87);
+        // The hand-off kept the Automation lease, so its token carries on at the new version.
+        lease = (1, lease.LeaseToken);
         // Under a proven lease only a version the Case has not reached is
         // refused; an older one is system work having moved the Case.
         foreach (var arguments in new[]
@@ -158,9 +159,8 @@ public sealed class AutomationAssessmentIngressTests
             importedId = (await ReadStructuredContentAsync(response)).GetProperty("estimateId").GetGuid();
         }
         Assert.Equal(1, content.Reads);
-        var replayLease = await BeginEditAsync(client, token, caseId, 2, rpcId: 84);
         using (var response = await PostMcpAsync(client, token, ToolCallPayload(85, "pegasus_estimate_import",
-            Arguments(2, replayLease.LeaseToken, occurrenceId, hash, "mcp:canonical-import-replay"))))
+            Arguments(2, lease.LeaseToken, occurrenceId, hash, "mcp:canonical-import-replay"))))
             Assert.Equal(importedId, (await ReadStructuredContentAsync(response)).GetProperty("estimateId").GetGuid());
         Assert.Equal(1, content.Reads);
         await using var readScope = mcpFactory.Services.CreateAsyncScope();
@@ -424,7 +424,7 @@ public sealed class AutomationAssessmentIngressTests
 
         // Professional findings are casework the Automation actor records as
         // staff do (operator, 7 October 2026), attributed to it. The save
-        // above ended its lease, so this write holds one for itself.
+        // above kept its lease, so this write presents the same token.
         var findings = new Dictionary<string, string?>
         {
             [AssessmentVocabulary.Outcome] = "total_loss",
@@ -441,6 +441,7 @@ public sealed class AutomationAssessmentIngressTests
             {
                 caseId,
                 expectedVersion = lease.CaseVersion + 1,
+                editLeaseToken = lease.LeaseToken,
                 operationKey = "mcp:findings",
                 reason = "Automation recorded the findings.",
                 fields = findings
@@ -636,9 +637,9 @@ public sealed class AutomationAssessmentIngressTests
 
         // A null member is omitted from the structured content, so the
         // inspection date is recorded through the case-detail path before the
-        // read-back can carry it. The assessment save consumed the first
-        // lease, so the case-detail write claims its own.
-        var detailsLease = await BeginEditAsync(client, token, caseId, caseVersion + 1, rpcId: 60);
+        // read-back can carry it. The assessment save kept the lease, so the
+        // case-detail write presents the same token.
+        var detailsLease = (CaseVersion: caseVersion + 1, LeaseToken: leaseToken);
         using (var detailsResponse = await PostMcpAsync(
             client,
             token,
@@ -1087,7 +1088,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var document = await ReadJsonRpcAsync(response);
         Assert.Contains(
-            "case edit authority is held by another actor",
+            "case edit authority is already held",
             document.RootElement.ToString(),
             StringComparison.OrdinalIgnoreCase);
     }
@@ -1491,7 +1492,7 @@ public sealed class AutomationAssessmentIngressTests
         }
 
         // An Estimate job on this case may be cited without being taken. The
-        // save above ended its lease, so this one holds one for itself.
+        // save above kept its lease, so this one presents the same token.
         using (var response = await PostMcpAsync(
             client,
             token,
@@ -1502,6 +1503,7 @@ public sealed class AutomationAssessmentIngressTests
                 {
                     caseId,
                     expectedVersion = lease.CaseVersion + 1,
+                    editLeaseToken = lease.LeaseToken,
                     operationKey = "mcp:ingress-estimate-cited",
                     reason = "Automation drafted the estimate the job asked for.",
                     aiJobId = jobId,
@@ -1642,5 +1644,160 @@ public sealed class AutomationAssessmentIngressTests
             SELECT COUNT(*) FROM CaseRepairSpecifications
             WHERE Id = '{estimateId:D}' AND SourceRoute = N'Manual'
             """));
+    }
+
+    /// <summary>
+    /// One pegasus_edit_begin token carries every write of the work until
+    /// pegasus_edit_end (operator, 8 October 2026): the QDOS26082 run's
+    /// details, assessment and valuation writes under one lease, then its
+    /// end. Get valuation records the connected source's card as the
+    /// section's Save would, and ending a lease already gone answers
+    /// released false.
+    /// </summary>
+    [Fact]
+    public async Task AnEditBeginTokenCarriesEveryWriteUntilEditEnd()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        var provider = new ScriptedGuideValuationProvider(ValuationSource.Glasses, 12_500m, 10_250m);
+        using var mcpFactory = WithAutomationMcp(factory).WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            services.AddSingleton<IGuideValuationProvider>(provider)));
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+        var (version, leaseToken) = await BeginEditAsync(client, token, caseId, 0, 2);
+
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_case_update_details", new
+        {
+            caseId,
+            expectedVersion = version,
+            editLeaseToken = leaseToken,
+            operationKey = "mcp:one-lease-details",
+            reason = "Automation recorded the vehicle.",
+            vehicleRegistration = "AB12CDE",
+            vehicleMileage = 52_000,
+            vehicleMileageUnit = "miles"
+        })))
+        {
+            version = (await ReadStructuredContentAsync(response)).GetProperty("caseVersion").GetInt64();
+        }
+
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_assessment_update", new
+        {
+            caseId,
+            expectedVersion = version,
+            editLeaseToken = leaseToken,
+            operationKey = "mcp:one-lease-assessment",
+            reason = "Automation recorded the condition and damage.",
+            fields = new Dictionary<string, string?>
+            {
+                ["vehicle.condition"] = "average",
+                [AssessmentVocabulary.DamageImpacts] = "[{\"areas\":[\"left_front\"],\"severity\":\"light\",\"note\":\"\"}]"
+            }
+        })))
+        {
+            version = (await ReadStructuredContentAsync(response)).GetProperty("caseVersion").GetInt64();
+        }
+
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(5, "pegasus_valuation_get", new
+        {
+            caseId,
+            expectedVersion = version,
+            editLeaseToken = leaseToken,
+            operationKey = "mcp:one-lease-valuation",
+            source = "Glasses",
+            guideMonth = "2031-05",
+            reason = "Automation fetched the Glass's valuation."
+        })))
+        {
+            var fetched = await ReadStructuredContentAsync(response);
+            Assert.Equal("Recorded", fetched.GetProperty("outcome").GetString());
+            Assert.Equal(12_500m, fetched.GetProperty("retailValue").GetDecimal());
+            Assert.Equal(10_250m, fetched.GetProperty("tradeValue").GetDecimal());
+            Assert.Equal("2031-05", fetched.GetProperty("guideMonth").GetString());
+            var card = Assert.Single(fetched.GetProperty("valuations").EnumerateArray());
+            Assert.Equal("Glasses", card.GetProperty("source").GetString());
+            Assert.Equal(12_500m, card.GetProperty("retailValue").GetDecimal());
+            Assert.True(fetched.GetProperty("caseVersion").GetInt64() > version);
+        }
+        var request = Assert.Single(provider.Requests);
+        Assert.Equal(52_000L, request.Mileage);
+
+        // Every write kept the Automation lease, so the begin token ends it.
+        Assert.Equal(
+            "Automation",
+            await factory.Database.ScalarAsync<string>(
+                $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(6, "pegasus_edit_end", new
+        {
+            recordKind = "Case",
+            recordId = caseId,
+            editLeaseToken = leaseToken,
+            operationKey = "mcp:one-lease-end"
+        })))
+        {
+            Assert.True((await ReadStructuredContentAsync(response)).GetProperty("released").GetBoolean());
+        }
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseWorkflows WHERE CaseId = '{caseId:D}' AND EditLeaseHolderKind IS NULL"));
+
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(7, "pegasus_edit_end", new
+        {
+            recordKind = "Case",
+            recordId = caseId,
+            editLeaseToken = leaseToken,
+            operationKey = "mcp:one-lease-end-again"
+        })))
+        {
+            Assert.False((await ReadStructuredContentAsync(response)).GetProperty("released").GetBoolean());
+        }
+    }
+
+    /// <summary>
+    /// A source with no connected provider answers Unavailable with the card's
+    /// own sentence and records nothing; the one-command lease is released.
+    /// </summary>
+    [Fact]
+    public async Task ValuationGetRecordsNothingWhenTheSourceIsUnavailable()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_valuation_get", new
+        {
+            caseId,
+            expectedVersion = 0,
+            operationKey = "mcp:valuation-unavailable",
+            source = "Brego"
+        })))
+        {
+            var fetched = await ReadStructuredContentAsync(response);
+            Assert.Equal("Unavailable", fetched.GetProperty("outcome").GetString());
+            Assert.Equal(
+                Pegasus.Web.Presentation.CaseWorkspaceLabels.Valuation.Unavailable(ValuationSource.Brego),
+                fetched.GetProperty("message").GetString());
+            Assert.Empty(fetched.GetProperty("valuations").EnumerateArray());
+        }
+
+        Assert.Equal(0, await GetWorkflowVersionAsync(mcpFactory, caseId));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseWorkflows WHERE CaseId = '{caseId:D}' AND EditLeaseHolderKind IS NULL"));
+    }
+
+    /// <summary>A connected guide source that answers fixed figures and records what it was asked.</summary>
+    private sealed class ScriptedGuideValuationProvider(ValuationSource source, decimal retail, decimal trade)
+        : IGuideValuationProvider
+    {
+        public List<GuideValuationRequest> Requests { get; } = [];
+
+        public ValuationSource Source => source;
+
+        public Task<GuideValuationQuote> GetAsync(GuideValuationRequest request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.FromResult(new GuideValuationQuote(retail, trade, request.GuideMonth, request.Mileage));
+        }
     }
 }

@@ -27,6 +27,7 @@ public sealed class AutomationMcpIngressTests
         "pegasus_case_note_add",
         "pegasus_valuation_list",
         "pegasus_valuation_save",
+        "pegasus_valuation_get",
         "pegasus_vocabulary_get",
         "pegasus_directory_search",
         "pegasus_case_action",
@@ -472,7 +473,7 @@ public sealed class AutomationMcpIngressTests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             using var document = await ReadJsonRpcAsync(response);
             var body = document.RootElement.ToString();
-            Assert.Contains("held by another actor", body, StringComparison.Ordinal);
+            Assert.Contains("edit authority is already held", body, StringComparison.Ordinal);
             Assert.Contains("version 9", body, StringComparison.Ordinal);
             Assert.DoesNotContain(RecordingAutomationLeases.HeldToken, body, StringComparison.Ordinal);
         }
@@ -535,7 +536,7 @@ public sealed class AutomationMcpIngressTests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             using var document = await ReadJsonRpcAsync(response);
             var body = document.RootElement.ToString();
-            Assert.Contains("held by another actor", body, StringComparison.Ordinal);
+            Assert.Contains("edit authority is already held", body, StringComparison.Ordinal);
             Assert.Contains("version 11", body, StringComparison.Ordinal);
             Assert.DoesNotContain(new string('c', 64), body, StringComparison.Ordinal);
         }

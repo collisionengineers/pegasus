@@ -197,7 +197,7 @@ public sealed class EfLinkedCaseReplacementStore(
         original.ReplacementCase = replacementCase;
         CaseChaseState.Stop(original.DueWork);
         original.Version++;
-        ClearLease(original);
+        CaseMutationGuard.EndWriteLease(original);
 
         AddWorkflowEvent(
             context,
@@ -444,9 +444,6 @@ public sealed class EfLinkedCaseReplacementStore(
         string token,
         DateTimeOffset now) =>
         CaseMutationGuard.RequireLease(workflow, actor, token, now);
-
-    private static void ClearLease(CaseWorkflowEntity workflow) =>
-        CaseMutationGuard.ClearLease(workflow);
 
     private static bool IsTerminal(string state) => state is
         nameof(CaseLifecycleState.PostReportComplete) or
