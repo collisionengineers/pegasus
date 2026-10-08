@@ -48,16 +48,45 @@
 /* Linked cases: the finding wraps onto its own line rather than clipping in the 285px aside. */
 [data-case-linked-triage] .next-row{flex-wrap:wrap;justify-content:flex-start}
 [data-case-linked-triage] .linked-finding{flex-basis:100%}
-/* Next action (issue 899) stacks a stale generation's notice, its line and
-   the report blockers; a blocker's words wrap inside the 285px aside. */
+/* Next action (v35 design 8, operator, 8 October 2026) stacks the AI
+   drafts, Cancellation received, a stale generation's notice and its one
+   step. A Case requirement or report blocker as the step is drawn in full,
+   marked amber as incomplete; its control spans the card. */
 [data-next-action] .panel-body>*+*{margin-top:8px}
-.workspace-aside .blocker{overflow-wrap:anywhere}
+.next-step{display:grid;gap:3px;overflow-wrap:anywhere}
+.next-step--item{padding:10px 12px;border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:var(--radius)}
+.next-step strong{font-size:13.5px;font-weight:650}
+.next-step small{font-size:11px;line-height:1.4;color:var(--muted)}
+.next-step .next-step-how{color:var(--quiet)}
+.next-step-go{width:100%}
+.next-step>*+.next-step-go,.next-step>*+form,.next-step>*+.menu-gated{margin-top:6px}
+.next-step form,.next-step .menu-gated{display:block}
+/* Report not ready: everything outstanding, folded until opened. The
+   requirement is the link; an amber dot marks each item, never a fill. */
+.report-not-ready>.panel-head h2{display:flex;align-items:center;gap:6px}
+.report-not-ready>.panel-head h2 .icon{width:15px;height:15px;color:var(--amber);flex:none}
+.report-not-ready>.panel-head .panel-collapse{margin-left:auto}
+.report-not-ready .outstanding-block+.outstanding-block{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.report-not-ready h3{display:flex;align-items:center;gap:6px;margin:0 0 8px;font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.08em}
+.report-not-ready h3 .icon{width:13px;height:13px;color:var(--amber);flex:none}
+.report-not-ready .blocker-group+.blocker-group{margin-top:10px}
+.report-not-ready .blocker-group-head{padding:0 0 4px;border-bottom:1px solid var(--line);font-size:11.5px;font-weight:650;color:var(--muted)}
+.report-not-ready .blocker-list{gap:0}
+.report-not-ready .blocker{position:relative;padding:6px 0 6px 12px;border:0;background:none;overflow-wrap:anywhere}
+.report-not-ready .blocker+.blocker{border-top:1px dashed var(--line)}
+.report-not-ready .blocker::before{content:"";position:absolute;left:1px;top:12px;width:6px;height:6px;border-radius:50%;background:var(--amber)}
+.report-not-ready .blocker small{font-size:11px;color:var(--muted);margin-top:2px}
+.report-not-ready .blocker small.blocker-how{color:var(--quiet)}
+.blocker-name{display:inline;padding:0;border:0;background:none;font:inherit;font-size:12px;font-weight:650;color:var(--ink);text-align:left;cursor:pointer;text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:2px}
+.blocker-name:hover{text-decoration-color:currentColor}
+span.blocker-name{cursor:default;text-decoration:none}
+.report-not-ready form{display:inline}
 /* A long list stays reachable (operator, 28 September 2026): beside the
    sections the sticky aside is never taller than the space below the
-   sticky block and scrolls on its own; folded above them, the list scrolls
-   inside its panel so the sections stay near the top. */
+   sticky block and scrolls on its own; folded above them, the card's list
+   scrolls inside it so the sections stay near the top. */
 @media(min-width:1441px){.case-record .workspace-aside{max-height:calc(100vh - var(--utility-h) - var(--sticky-h,97px) - 32px);overflow-y:auto;overscroll-behavior:contain}}
-@media(max-width:1440px){.case-record [data-report-not-ready] .blocker-list{max-height:400px;overflow-y:auto;overscroll-behavior:contain}}
+@media(max-width:1440px){.case-record .report-not-ready>.panel-body{max-height:400px;overflow-y:auto;overscroll-behavior:contain}}
 
 /* Overview */
 /* Nested sections (v28 P26): Damage and Valuation read inside Vehicle, one rule apart. */

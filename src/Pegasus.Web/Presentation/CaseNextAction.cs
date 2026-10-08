@@ -122,10 +122,11 @@ public static class CaseNextAction
     {
         if (reportBlockers.Count > 0)
         {
-            // One line names the first blocker, linking to the section that
+            // The step is the first blocker, linking to the section that
             // clears it, and to Report when it has none. It never counts the
-            // rest: FRD-13 allows no summary. The Case page's aside lists
-            // every blocker in place of this line (issue 899).
+            // rest: FRD-13 allows no summary. The Case page's aside draws it
+            // in full and lists every blocker in its Report not ready card
+            // (operator, 8 October 2026).
             var first = reportBlockers[0];
             return new(first.Requirement, blockerSection(first) ?? "report", first);
         }

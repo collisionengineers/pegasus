@@ -41,3 +41,14 @@ The operator:
 > try some more designs
 
 Built designs 7 to 12, in which Next action holds exactly one step and the rest lives elsewhere: a dialog (7), a closed card (8), the sections themselves with marked fields (9), the Report section (10), a checklist of sections (11), and a bar across the page (12). Raised items O to U ([notes](v35-notes.md), section 11).
+
+## 8 October 2026: design 8
+
+The operator: "option 8". In answer to the four open questions, they chose:
+
+- a secondary step control (B);
+- the card lists everything outstanding, the step's item included;
+- the card is remembered per browser (Q);
+- the folder is kept (I).
+
+Every other item was confirmed as drawn ([notes](v35-notes.md), section 12), and Stage 2 began.

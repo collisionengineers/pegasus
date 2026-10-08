@@ -155,12 +155,15 @@ Files and Notes. Each is a foldable panel whose head carries its own Edit
 (entering the one page-wide edit session), one availability label when the
 state does not allow editing, and the fold chevron. The aside holds Figures
 and Next action and folds into a two-up strip above the sections below 1441px.
-While the report is not ready, Next action is the report's blocker list, and a
-stale generation's warning notice sits at its top; Report keeps only its head
-**Not ready** label, and no stale bar spans the page. Beside the sections the
-sticky aside is never taller than the space below the sticky block and
-scrolls on its own; folded above them, the blocker list scrolls inside its
-panel.
+Next action is one step, drawn in full with a full-width control when it is
+a requirement or a blocker, and a stale generation's warning notice sits at
+its top. Everything outstanding is the **Report not ready** card below it,
+folded until opened: the Case requirements, then the report's blockers under
+their sections' names, each requirement its own link and an amber dot, never
+an amber fill. Report keeps only its head **Not ready** label, and no stale
+bar spans the page. Beside the sections the sticky aside is never taller than
+the space below the sticky block and scrolls on its own; folded above them,
+the card's list scrolls inside it.
 
 Once an Inspection + Audit Case has its Audit, a **Views** card heads the
 aside, above Figures, in the context-card pattern: two rows, "Inspection ·
@@ -892,7 +895,7 @@ deleted in wave 5.
 | `sticky-block` (`[data-sticky-block]`) | The record's sticky block under the utility bar, measured at runtime into `--sticky-h` |
 | `ribbon`, `ribbon-facts`, `ribbon-item`, `ribbon-ref`, `ribbon-value`, `ribbon-chips`, `ribbon-actions` | The 56px identity ribbon: the reference as the page's `h1` (`ribbon-value`) under "Case workspace · registration", Claimant, Principal, Engineer; state, Case type and colleague-editing chips; then the edit controls and the one **Actions** menu |
 | `section-row`, `section-nav`, `section-link`, `section-tools`, `layout-switch` | The 40px section row: section links (the one in view carries `aria-current`), Refresh and the Scroll/Tabs switch |
-| `workspace`, `workspace-aside` | The record grid: sections beside a 285px aside (the Views card once an Audit exists, Figures, Next action) that folds above the sections below 1441px |
+| `workspace`, `workspace-aside` | The record grid: sections beside a 285px aside (the Views card once an Audit exists, Figures, Next action, Report not ready) that folds above the sections below 1441px |
 | `context-card` (`[data-case-views]`), `next-row` | The Views card: one row per view, the current one plain with `aria-current="page"`, the other a link |
 | `record-section`, `panel[data-collapse]`, `panel-collapse`, `is-collapsed`, `is-editing`, `is-locked` | One section panel, foldable and remembered per browser; the record's edit and read-only states |
 | `fg`, `fc`, `fv`, `fi`, `ro` | One-look cells: the same cells in both modes; the value (`fv`) is a greyed box that becomes its white control (`fi`) while editing; `ro` marks a cell rendered without a control, whose greyed value stays while the rest edits; no padlock |
@@ -907,7 +910,8 @@ deleted in wave 5.
 | `derived` | A value derived, never entered: impact location and severity, equity, the Incident narrative and the statement of truth read from their report owners, and a permitted ratio line where one is shown |
 | `report-image`, `cropper` | Image preparation on the Files tiles: In report on or off, the Overview and Close-up their tags decide, the report order, non-destructive crop |
 | `case-overview-grid`, `overview-facts`, `accident-card`, `checks-grid` | Overview and Vehicle sections |
-| `blocker-list`, `blocker`, `blocker-actions` | Outstanding requirements, and the report blockers in the aside's Next action; `blocker-actions` holds a blocker's link to the section that clears it |
+| `blocker-list`, `blocker`, `blocker-name` | Outstanding requirements, and the report blockers in the aside's Report not ready card, whose `blocker-name` is the requirement as its link to the section that clears it |
+| `next-step`, `next-step-go` | The Next action's one step and its full-width control |
 | `timeline`, `notes-list`, `note-entry` | History and Notes |
 | `document-list`, `document-row`, `gallery`, `viewer-stage` | Case Files |
 | `mail-preview`, `decision-card` | Inbox preview and message decision |
@@ -1054,7 +1058,7 @@ this section holds the cross-cutting rules every page is held to.
 | Field provenance | Every source-derived Case datum shows its current source tag; a staff value carries none. Origin and status remain distinct. |
 | Supporting detail navigation | Opening evidence or supporting detail preserves list/detail position, the current context, and every unsaved edit; returning never silently discards or replaces proposed values. |
 | State action | Permitted transition, prerequisite, consequence, required reason, recovery and history link; never generic Close. |
-| Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; on the Case record the aside's Next action lists each report blocker with a link to the section that clears it; no opaque aggregate blocker. |
+| Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; on the Case record the aside's Report not ready card lists each report blocker with a link to the section that clears it; no opaque aggregate blocker. |
 | Identity ribbon | Read-only Case/PO, registration, claimant, principal, state, with Engineer and Sign-off Engineer beside it; sticky on the single-scroll Case record. There is no separate Assessment ribbon. |
 | Inspection address | Principal-determined default; reasoned per-Case override; previous values selectable. |
 | Repair specifications | Each specification has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. Unknown repairer VAT does not block Use repair spec; it does block the report (27 September 2026). Totals compute once in Core. A saved version offers **Print Repair Spec** in read and edit modes. Read and edit are one layout (23 September 2026): a spec that cannot be changed shows the editor's header cells, grid columns and contract, discount and VAT bars with each value greyed in its control's place; only the tools are edit-only. |

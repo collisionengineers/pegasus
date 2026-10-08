@@ -1,6 +1,6 @@
 # v35 current: the Case aside's Next action
 
-**What this is.** An offline HTML mockup of the Case page's aside (Figures and Next action) as it is today and as twelve proposals, made at the operator's request on 8 October 2026. In designs 7 to 12 Next action holds one step and the rest lives elsewhere. It is a temporary design review artifact: not application code, not design authority and not implementation evidence. It is removed or kept by the operator's instruction in the final Stage 2 pull request.
+**What this is.** An offline HTML mockup of the Case page's aside (Figures and Next action) as it is today and as twelve proposals, made at the operator's request on 8 October 2026. In designs 7 to 12 Next action holds one step and the rest lives elsewhere. It is the record of a design review round: not application code, not design authority and not implementation evidence. The operator asked for it to be kept (item I).
 
 **How to open it.** Open [pegasus_case_rail_v35.html](pegasus_case_rail_v35.html) in a browser. No server or network is needed.
 
@@ -29,4 +29,4 @@ The mockup opens on the Not ready Case. Every choice is also reachable by query 
 
 ## Status
 
-Awaiting the operator's choice of design and the lettered items in [v35-notes.md](v35-notes.md), sections 6, 9, 10 and 11. Stage 2 has not started.
+The operator chose design 8 and settled every item on 8 October 2026 ([v35-notes.md](v35-notes.md), section 12), and Stage 2 implemented it. FRD-16 and FRD-13 own the behaviour from then on; this folder is kept as the record (item I).

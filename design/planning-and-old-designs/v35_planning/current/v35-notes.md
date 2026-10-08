@@ -160,3 +160,27 @@ Known limits added this round:
 
 - Files is a lazily loaded placeholder in the capture, so design 9 gives it a bare head and body.
 - The captured fields show that Case's own values, so design 9 marks fields that are filled in on this frame.
+
+## 12. 8 October 2026: design 8 approved, items settled
+
+The operator chose **design 8**: Next action is one step, and everything else is a Report not ready card of its own below it, folded until opened. Stage 2 followed the same day.
+
+Settled items:
+
+- *A: confirmed as drawn.* The step is said once, as a full-width control.
+- *B: secondary* (operator's answer). The step control is a secondary button.
+- *C: confirmed as drawn.* No amber fill. An amber glyph by the card's heading and an amber dot per item.
+- *D: confirmed as drawn.* The Source: and Why: captions go; source and reason share one line.
+- *E: confirmed as drawn.* The requirement is the link; there is no button per blocker.
+- *I: keep* (operator's answer). The folder stays as the record, marked historical.
+- *J: confirmed as drawn.* Every outstanding Case requirement is listed.
+- *K: confirmed as drawn.* Original report missing links to Files.
+- *O: confirmed.* Next action is one step, and the list is the Report not ready card's.
+- *Q: remembered per browser* (operator's answer). The card is folded until opened, through the existing fold cookie (`data-collapse-folded`).
+- *New, the card's contents: everything outstanding* (operator's answer). This includes the item the step already shows, so the card is the complete picture. It departs from the mockup, which left the step's item out of the card.
+- *Not chosen:* F, G, H, L, M, N, P, R, S, T, U (designs 2–7 and 9–12).
+
+Departures in the implementation, each a decision rather than a defect:
+
+- The card's inner "Outstanding requirements" and "Report not ready" headings appear only when both lists are present. The card's own heading names the one that is.
+- Only a requirement or blocker step carries the amber edge. A step such as Generate report is its words above its section's control, without amber, because amber means incomplete.

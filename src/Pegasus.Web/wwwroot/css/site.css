@@ -452,7 +452,6 @@ tbody tr:hover{background:#f3f6f7}
 .blocker{padding:9px 10px;border:1px solid var(--line);border-left:4px solid var(--amber);background:var(--amber-bg)}
 .blocker strong{display:block;font-size:11px}
 .blocker small{display:block;font-size:10px;color:#5f5445;margin-top:3px;line-height:1.4}
-.blocker-actions{margin-top:7px}
 .definition-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border:1px solid var(--line);background:#fff}
 .definition{padding:9px 11px;border-bottom:1px solid var(--line);min-width:0}
 .definition:nth-child(odd){border-right:1px solid var(--line)}
