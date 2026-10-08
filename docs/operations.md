@@ -4,6 +4,28 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 93 — 8 October 2026 (deployment live)
+
+Release 93 deployed [PR 1108](https://github.com/collisionengineers/pegasus/pull/1108). It merged three PRs into `dev`:
+
+- [PR 1103](https://github.com/collisionengineers/pegasus/pull/1103): the report files as `{REF}_report.pdf`; grid images print unframed at the column's full width and their own shape, two to a row, capped at 160 mm.
+- [PR 1104](https://github.com/collisionengineers/pegasus/pull/1104): the repo skill `pegasus-corpus-holding` copies mailbox mail into the append-only `corpus/holding/`.
+- [PR 1107](https://github.com/collisionengineers/pegasus/pull/1107): Get valuation fills the Glass's card's Trade box again. Release 92's card put both figure hooks on both boxes, so Glass's trade figure overwrote Retail and Trade stayed blank.
+
+The route was the normal App Service route with the migration identity unchanged, run from the Windows workstation, with no outage. Web and Worker are Running on the approved release, and full production smoke passed.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `6be8755424d8ccdc211c4a5987a9c155b3ae216d`. This is the merge of PR 1108 into `dev`; its tree equals the PR head `3fd5ab776` that CI tested. Promoted atomically to both `dev` and `main`; `main` was `ece2ede61`. Manifest schema 3 SHA-256 `8833599727220CD9BC4684157177F5981FBA99418D38CB20C84290E32A0CFE9E`. `web.zip` SHA-256 `5243E0CE64BAADE382C8F901760020C2F0C98AB2E2A86BB8397C86B3595CB594`, 107,207,968 bytes. `worker.zip` SHA-256 `68BD9EA9CC1427FA391243A20846195FDB88A91CC5E5538894EC72312C6C295D`. Windows `efbundle.exe` SHA-256 `38BADA8FA66A5ECAD10AD6FB6C6C56EA165DA817E35421DF8F505AB894BB3892` (built, not run). |
+| Review and verification | No PR had review feedback and no two PRs touched the same file; the train merged without conflicts and the lost-work audit passed (recorded in PR 1108's body). <br>**CI:** PR 1108 passed all 10 jobs at `3fd5ab776` (infrastructure skipped). The Local, Artifact and PreProvision gates passed. <br>**Operator approval (8 October 2026):** landing PR 1108 when CI was green; then `MERGE AUTH GRANTED` and the normal route on the exact manifest and targets. |
+| Schema and grants | Unchanged. The live head read `20261008090000_DropAutomationWorkflowEventTimeIndex` before release, equal to the manifest's migration identity; no bundle or bootstrap ran. |
+| Deployment | `azd provision` with Web `approved` and Worker `approved-live-worker` found no changes. B1 quota in `uksouth` read 3. `web.zip` was deployed with restart (deployment `e75add02-dfb1-4258-8d6d-24643c86c199` succeeded 14:02:52Z, package `20261008140232.zip`; the site took 206 s to start); the site answered the exact SHA at 14:06:39Z. `worker.zip` was deployed by config-zip (deployment `ef8545d5-709a-4669-97f1-21f923139235`). |
+| Production smoke | Passed at 14:09:02Z. The Worker activation smoke passed as `approved-live-worker`. Active Web package `20261008140232.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed: last completed poll `2026-10-08T14:05:00Z`; the active Graph subscription expires `2026-10-12T13:50:00Z`. |
+| Wipe | None. |
+| PR states | PRs 1103, 1104 and 1107 read Merged when PR 1108 landed. No GitHub issue was linked to any of them. |
+| Still owed | Live proofs of the changes themselves:<br>• PR 1107: run Get valuation and Save again on QDOS26086 and on any other Case valued since Release 92; their Retail likely holds Glass's trade figure.<br>• PR 1103: a generated report files as `{REF}_report.pdf`, and its image pages print portraits and landscapes at full column width, two to a row; no rendered PDF has been inspected.<br>• PR 1104: a first export into `corpus/holding/` under the operator's sign-in.<br>The Release 81 to 92 proofs remain owed. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-93-6be87554`; the build and deploy drivers and their logs at `artifacts/releases/release-93-driver`; the combination's audit and PR body at `../pegasus-worktrees/_merge-1103-1107-audit.md` and `_merge-1103-1107-body.md`. |
+
 ## Release 92 — 8 October 2026 (deployment live)
 
 Release 92 deployed [PR 1100](https://github.com/collisionengineers/pegasus/pull/1100). It merged five PRs into `dev`:
