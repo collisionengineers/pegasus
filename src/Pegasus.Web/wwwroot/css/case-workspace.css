@@ -98,8 +98,6 @@ span.blocker-name{cursor:default;text-decoration:none}
 .sub-panel.is-collapsed>*:not(h3){display:none}
 .sub-panel.is-collapsed>h3{margin-bottom:0}
 .sub-panel.is-collapsed>h3 .panel-collapse .icon{transform:rotate(-90deg)}
-.sub-panel.blockers{border-left:4px solid var(--amber);background:var(--amber-bg)}
-.sub-panel.blockers .blocker{background:#fff}
 .overview-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:10px}
 .accident{border:1px solid var(--line);padding:10px 12px;border-radius:var(--radius)}
 .notes-band .fg.g2{column-gap:14px}
