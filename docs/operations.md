@@ -4,6 +4,30 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 92 — 8 October 2026 (deployment live)
+
+Release 92 deployed [PR 1100](https://github.com/collisionengineers/pegasus/pull/1100). It merged five PRs into `dev`:
+
+- [PR 1095](https://github.com/collisionengineers/pegasus/pull/1095): the Linked cases finding no longer clips in the aside.
+- [PR 1096](https://github.com/collisionengineers/pegasus/pull/1096): the Work Centre's New cases lists new Cases only; the Automation workflow-event time index goes.
+- [PR 1097](https://github.com/collisionengineers/pegasus/pull/1097): reading the Valuation calculation lists only the applied value increases.
+- [PR 1098](https://github.com/collisionengineers/pegasus/pull/1098): MCP `pegasus_valuation_get` runs Get valuation for automation; an Automation edit lease lasts until `pegasus_edit_end`; `damage.impacts` publishes its format. 61 → 62 tools.
+- [PR 1099](https://github.com/collisionengineers/pegasus/pull/1099): Valuation as guide cards (v34); a click on a card uses it; the report's Retail and Trade follow the chosen card and are refused as typed fields.
+
+The route was the normal App Service route after an additive migration, run from the Windows workstation, with no outage. Web and Worker are Running on the approved release, and full production smoke passed.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `ece2ede61f8580885e58695b6ab29eabfaa002fb`. This is the merge of PR 1100 into `dev`; its tree equals the PR head `bf7cd18a0` that CI tested. Promoted atomically to both `dev` and `main`; `main` was `850a8c48e`. Manifest schema 3 SHA-256 `8D34304C5B7ECBBE015B57AF79D9A7A4D737212B07FAAEB20F140EC44B1A6C44`. `web.zip` SHA-256 `B755A6BCC453D2356031F66E38A7E2C5196383946DAAE61282A971CA15F06A06`, 107,206,695 bytes. `worker.zip` SHA-256 `76A766F315293425CFEB9610F436A0F1EBE9EFF5D483D400115D24CBC64794C5`. Windows `efbundle.exe` SHA-256 `A51A86DE97307A6126D5A50425302679D2508AD7CB25A3174CD2BFA71DD68715`. |
+| Review and verification | No PR had review feedback. The train conflicted only at PR 1099 against PR 1097, in three files; PR 1099 carries PR 1097's ruling, so PR 1099's side was kept hunk by hunk. Two fixes were needed on the integration branch: `f8ace1e4a` states PR 1099's Retail/Trade rule in PR 1098's `pegasus_valuation_get` text and FRD-10; `bf7cd18a0` fixes six SQL-shard failures that were red at PR 1099's own head, among them a connected guide card rendered `data-valuation-not-connected=""`, which would have kept Glass's "unavailable" notice standing after a Get valuation. The lost-work audit's FAIL and REVIEW lines each map to one of those, recorded in PR 1100's body. <br>**CI:** PR 1100 run 37768212249 passed all 12 jobs at `bf7cd18a0`. The Local, Artifact, PreDeploy, PreMigration and PreProvision gates passed. <br>**Operator approval (8 October 2026):** `MERGE AUTH GRANTED, MANIFEST APPROVED. proceed when CI passes` for landing PR 1100, the promotion and the additive route on the exact manifest and targets. |
+| Schema and grants | Additive. The deployed head was `20261007184000_RemoveEva`. The bundle applied `20261008090000_DropAutomationWorkflowEventTimeIndex` at 11:54:05Z; it drops `IX_CaseWorkflowEvents_ActorKind_OccurredAtUtc` only (present 1 before, 0 after), which no code names, so Release 91 kept serving beside it. Bootstrap verified 694 catalogued permission/denial rows and 484 effective runtime DML rows, unchanged. Live head `20261008090000_DropAutomationWorkflowEventTimeIndex`, verified 11:54:31Z. |
+| Deployment | `azd provision` with Web `approved` and Worker `approved-live-worker` found no changes. B1 quota in `uksouth` read 3. `web.zip` was deployed with restart (deployment `49c35dff-514d-4929-95f0-33a480b1f2ec` succeeded 11:55:51Z, package `20261008115518.zip`); the site answered the exact SHA at 12:00:11Z. `worker.zip` was deployed by config-zip (deployment `e1f903d6-ae84-4778-92ce-0a8791bf9f3f`). |
+| Production smoke | Passed at 12:02:47Z. The Worker activation smoke passed as `approved-live-worker`. Active Web package `20261008115518.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed: last completed poll `2026-10-08T12:00:00Z`; the active Graph subscription expires `2026-10-12T13:50:00Z`. |
+| Wipe | None. |
+| PR states | PRs 1095–1099 read Merged when PR 1100 landed. No GitHub issue was linked to any of them. Follow-up [issue 1105](https://github.com/collisionengineers/pegasus/issues/1105): the valuation refusal still says "Press Use this value again" after PR 1099 removed the button; its wording awaits the operator. |
+| Still owed | Live proofs of the changes themselves:<br>• PR 1095: a long Linked cases finding wraps in the aside.<br>• PR 1096: New cases lists new Cases and no Automation workflow events.<br>• PR 1097 and PR 1099: a signed-in walk of the Valuation section in both views, in Scroll and Tabs, with a real save: cards, a card click, Selected, Retail and Trade following the card, the two-column increases with Add 20 % VAT, the previous total loss switch, and Get valuation on Glass's hiding its notice on success.<br>• PR 1098: a live MCP walk from Claude Desktop: `edit_begin`, several writes under one token, `edit_end`; an impacts write in the published format; `pegasus_valuation_get` on a test Case with the figures matching the card and the Values Only PDF filed.<br>The Release 81 to 91 proofs remain owed. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-92-ece2ede6`; the build, migration and deploy drivers and their logs at `artifacts/releases/release-92-driver`; the combination's audit and PR body at `../pegasus-worktrees/merge-1095-1099-audit.md` and `merge-1095-1099-pr-body.md`. |
+
 ## Release 91 — 7 October 2026 (deployment live)
 
 Release 91 deployed [PR 1093](https://github.com/collisionengineers/pegasus/pull/1093). It merged nine PRs into `dev`:
