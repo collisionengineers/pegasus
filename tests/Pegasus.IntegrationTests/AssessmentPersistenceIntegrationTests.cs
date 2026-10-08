@@ -1785,7 +1785,10 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal("Confirmed", await harness.Database.ScalarAsync<string>(
             $"SELECT State FROM CaseReportGenerations WHERE Id = '{supersededId:D}'"));
         Assert.Equal(1, await StaleRowCountAsync(harness, caseId));
-        Assert.Equal(CaseReportStaleReasons.ValuationChanged, await LatestStaleReasonAsync(harness, caseId));
+        // The adoption writes the report's Retail and Trade from the basis
+        // card (operator, 8 October 2026), so the printed assessment facts
+        // change first and name the stale row.
+        Assert.Equal(CaseReportStaleReasons.AssessmentFactsChanged, await LatestStaleReasonAsync(harness, caseId));
 
         // Replay of the same operation returns before any mutation, so the
         // stale row count does not move.

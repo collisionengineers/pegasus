@@ -140,10 +140,23 @@
                            wording, 23 September 2026): standing where no provider is
                            connected, or shown by script with a refusal's own words.
                            It becomes an alert only when it shows. *@
-                        <div class="notice @(connected ? "notice--danger" : "notice--info") valuation-card-note" data-valuation-notice data-valuation-not-connected="@(connected ? null : "")" hidden="@(connected ? "hidden" : null)">
-                            <span data-valuation-unavailable>@ValuationLabels.UnavailableLead(source)<button type="button" class="link-button" data-dialog-open="problem-dialog">@ValuationLabels.ReportAProblem</button>.</span>
-                            <span data-valuation-refused hidden></span>
-                        </div>
+                        @* Two branches, not a conditional attribute: Razor writes
+                           data-valuation-not-connected="" for a null there, and the
+                           script would then keep a connected card's notice standing. *@
+                        if (connected)
+                        {
+                            <div class="notice notice--danger valuation-card-note" data-valuation-notice hidden>
+                                <span data-valuation-unavailable>@ValuationLabels.UnavailableLead(source)<button type="button" class="link-button" data-dialog-open="problem-dialog">@ValuationLabels.ReportAProblem</button>.</span>
+                                <span data-valuation-refused hidden></span>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="notice notice--info valuation-card-note" data-valuation-notice data-valuation-not-connected>
+                                <span data-valuation-unavailable>@ValuationLabels.UnavailableLead(source)<button type="button" class="link-button" data-dialog-open="problem-dialog">@ValuationLabels.ReportAProblem</button>.</span>
+                                <span data-valuation-refused hidden></span>
+                            </div>
+                        }
                         <div class="notice notice--info valuation-card-note" data-valuation-needs-retail hidden>@ValuationLabels.UseNeedsRetail</div>
                     }
                 </div>
