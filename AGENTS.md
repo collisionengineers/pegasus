@@ -57,6 +57,10 @@ and the [verification procedure](docs/runbook.md).
   reasoned reopening follow FRD-01.
 - `corpus/` is local, ignored and immutable: never upload, commit, rename or
   modify it. Use supplied domain evidence; generated evaluations go in artifacts.
+  The one exception is `corpus/holding/`, which the
+  [`pegasus-corpus-holding`](.agents/skills/pegasus-corpus-holding/SKILL.md)
+  skill appends mailbox copies to; promoting a file out of holding is a manual
+  operator step.
 - Read-only cloud inventory is permitted. External writes require authorization
   covering the actual operation and targets; tool availability is not a grant.
 - Local work does not mutate Outlook or Box except an explicitly approved
