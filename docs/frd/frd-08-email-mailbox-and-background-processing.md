@@ -162,11 +162,11 @@ the evidence, actor, time, policy version and later corrections.
 | `new-instruction-received/website-enquiry` | Website-origin evidence meeting the accepted independent fingerprints | route predicate or staff | Receiving work | Enquiries |
 | `non-client-related` | Internal, company, tool, service or software mail unrelated to client work | sender or route evidence or staff | Detailed: `non-client-related` | Other |
 | `in-progress-cases/cancellation` | Explicit cancellation; it wins over quoted old instructions | route predicate or staff | Detailed: `in-progress-cases/cancellation` | Cancellations |
-| `in-progress-cases/case-update` | Update on ongoing work, excluding a new instruction or a post-report challenge | staff | Detailed: `in-progress-cases/case-update` | Case updates |
-| `in-progress-cases/chasing-for-update` | Client or Principal asks for progress on ongoing work | staff | Detailed: `in-progress-cases/chasing-for-update` | Case updates |
+| `in-progress-cases/case-update` | Update on ongoing work, excluding a new instruction or a post-report challenge | route predicate or staff | Detailed: `in-progress-cases/case-update` | Case updates |
+| `in-progress-cases/chasing-for-update` | Client or Principal asks for progress on ongoing work | route predicate or staff | Detailed: `in-progress-cases/chasing-for-update` | Case updates |
 | `in-progress-cases/ongoing-correspondence` | Other ongoing correspondence once more specific subtypes are excluded | reasoned staff decision | Detailed: `in-progress-cases/ongoing-correspondence` | Case updates |
 | `post-report-emails/query` | Question about a delivered report | route or thread evidence or staff | Queries | Case queries |
-| `post-report-emails/dispute` | Challenge to a delivered report or finding | route or thread evidence or staff | Queries | Case queries |
+| `post-report-emails/dispute` | Challenge to a delivered report or finding | route predicate, thread evidence or staff | Queries | Case queries |
 | `post-report-emails/amendment-request` | Request to amend a delivered report | route or thread evidence or staff | Queries | Case queries |
 | `pre-instruction-emails/triage-request` | Accepted Triage request; a missing VRM stays Unidentified under FRD-03 | route predicate or staff | Triage | Pre-instructions |
 | `pre-instruction-emails/pre-formal-instruction-request` | Known pre-formal handling request, excluding Triage | staff | Detailed: `pre-instruction-emails/pre-formal-instruction-request` | Pre-instructions |

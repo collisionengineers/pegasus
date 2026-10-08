@@ -33,7 +33,7 @@ context, no desk noise) is owned by the Mail pages and
 
 Owner:
 `src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs`
-(`principal_mail_classification`, Version 2).
+(`principal_mail_classification`, Version 3).
 
 Built **only on operator-guaranteed generated tells**, matched
 case-sensitively (the casing is part of the tell — a human sentence mentioning
@@ -49,6 +49,17 @@ being chased, not a new instruction.
 | `subject.engineer-triage` | `Engineer Triage`, opening the subject past any forward or reply prefix | Subject |
 | `attachment.audit-report-notification` | `AUDIT REPORT NOTIFICATION` | An attached document's text |
 | `attachment.engineer-notification` | `ENGINEER NOTIFICATION` (with or without the `REPORT + AUDIT REPORT` marker) | An attached document's text |
+| `body.garage-allocation-notice` | `Please be advised that the garage allocated to this claim are shown below for your records:` | The current email body (→ `in-progress-cases/case-update`) |
+| `body.repairs-authorised-notice` | `We are now able to authorise repairs. Please can you arrange this with the garage below:` | The current email body (→ `in-progress-cases/case-update`; one candidate with the row above) |
+| `body.report-chase-notice` | `we note that we have heard nothing further from you since then.` | The current email body (→ `in-progress-cases/chasing-for-update`) |
+| `body.pav-dispute-letter` | `The client has confirmed that they do not agree with the figure for the pre-accident value of their vehicle.` | The current email body (→ `post-report-emails/dispute`) |
+
+The four body-notice tells (Version 3) are the fixed sentence of a letter Qdos's case
+system pastes into the email under its `Our Ref: / Dear Sirs / Our Client:` preamble.
+They were verified over the QDOS template registry of 8 October 2026 (the desk@ mailbox,
+twelve months): every example of each notice carries its sentence, no handrolled QDOS
+message does, and no two notices share one. A notice quoted under a later reply is not
+current content and does not fire.
 
 An Audit's automatic assessment (Version 2, #864) reads the second attached
 document for exactly one unnegated "repairable" or "total loss". When that
@@ -107,14 +118,14 @@ Version 5 behaviour:
 
 | Candidate shape | Required review |
 | --- | --- |
-| Final repair account or final audit request | Label current-content positives and report/attachment confusers. |
-| Report chase | Separate a chase from a new instruction and from quoted history. |
-| Post-inspection repair authorisation | Prove the sender-authored authorisation wording and case association. |
-| Pre-accident-value dispute | Separate a dispute from an amendment or ordinary query. |
+| Final repair account or final audit request | Label current-content positives and report/attachment confusers. The generated notice is known (`Repairs to the above vehicle are now complete and we have pleasure in enclosing the final repair account…`); its shared-taxonomy target awaits the operator. |
 | Repair, total-loss, or category amendment | Label each accepted shared-taxonomy outcome without a principal-specific vocabulary. |
 | Additional images, estimates, or updates | Separate current evidence from quoted or nested-message evidence. |
 | Third-party-insurer comments or query | Prove authorship, direction, and the applicable shared category. |
 | Automatic reply and reply-thread exclusion | Pin automatic-reply handling and exclude quoted/nested tells. |
+
+Report chase, post-inspection repair authorisation and the pre-accident-value dispute
+left this table in Version 3: they are the `body.*` predicates above.
 
 ## 3. Case type
 
