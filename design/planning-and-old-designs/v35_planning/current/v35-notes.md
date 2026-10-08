@@ -212,3 +212,5 @@ Seen and not changed: Case details' own Outstanding requirements panel still sho
 ## 14. 8 October 2026: the Case details duplicate removed
 
 The operator: "Yes, this duplication should be removed." Case details' Outstanding requirements panel and its "N outstanding" count are gone. The outstanding requirements now have one home: the aside's Next action and Report not ready card. FRD-16's Overview paragraph says so. Its `.sub-panel.blockers` styles had no other user and went too.
+
+CI then showed what the panel had been carrying: an Audit past Not ready that is still missing its original report showed Original report missing only there. The card therefore lists the Case's outstanding requirements in every state, as the panel did. Only Not ready and Held name one as Next action's step, the states where `CaseNextAction` makes it the step.

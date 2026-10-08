@@ -183,22 +183,26 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The Case requirements the Report not ready card lists beside the
-    /// blockers: every one outstanding while the Case is Not ready or Held,
-    /// the states whose Next action names them. The Inspection view states
-    /// the Inspection report's own step and lists none.
+    /// blockers: every one outstanding, in whatever state, since the card is
+    /// their one home on the Case page (operator, 8 October 2026); an Audit
+    /// still missing its original report says so past Not ready too. The
+    /// Inspection view states the Inspection report's own step and lists none.
     /// </summary>
     public IReadOnlyList<CaseRequirement> ReportNotReadyRequirements =>
-        !IsInspectionView && Case!.Workflow.State is CaseLifecycleState.NotReady or CaseLifecycleState.Held
-            ? OutstandingRequirements
-            : [];
+        IsInspectionView ? [] : OutstandingRequirements;
 
     /// <summary>
     /// The Case requirement the Next action's one step names, drawn in full
-    /// with a control to the section that clears it; null when the step is
-    /// not a requirement.
+    /// with a control to the section that clears it: the first outstanding
+    /// one while the Case is Not ready or Held, the states whose step it is
+    /// (<see cref="CaseNextAction"/>); null otherwise.
     /// </summary>
     public CaseRequirement? NextActionRequirement =>
-        NextAction is { Blocker: null } && ReportNotReadyRequirements is [var first, ..] ? first : null;
+        Case!.Workflow.State is CaseLifecycleState.NotReady or CaseLifecycleState.Held
+        && NextAction is { Blocker: null }
+        && ReportNotReadyRequirements is [var first, ..]
+            ? first
+            : null;
 
     /// <summary>
     /// The Next action's one step (operator, 8 October 2026): the AI draft

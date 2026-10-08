@@ -303,7 +303,7 @@ ready.
 Next action is one step (operator, 8 October 2026): the first outstanding Case requirement, else
 the state's step, else the report's first blocker, drawn in full with one full-width control. Do not
 list anything else in it. Everything outstanding is the **Report not ready** card below, folded
-until opened and remembered per browser (`data-collapse-folded`): the Case requirements, then every
+until opened and remembered per browser (`data-collapse-folded`): the Case requirements (in any state), then every
 report blocker under its section's name, the requirement as its link to the section that owns the
 fact rather than repeating it. A stale generation's warning notice sits at the top of Next action;
 there is no page-wide stale bar and no second stale notice in Report (operator, 28 September 2026).
