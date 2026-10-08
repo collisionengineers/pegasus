@@ -1,26 +1,24 @@
 @*
-    The calculation and the three values it ends in (v33 design D, operator,
-    6 October 2026), drawn once: under the chosen source's row, or after the
-    list when no source is chosen. The script moves it when another row is
-    chosen.
+    The calculation and the value it ends in (v34, operator, 8 October 2026),
+    drawn once below the guide cards: the value increases, with Add 20 % VAT
+    as one of them; the condition deduction and the previous total loss; then
+    the Engineer's Value with the basis the calculation starts from.
 
     The calculator's controls belong to the Case form (one Save, 23 September
     2026): the Case's save records the calculation against its basis when it
     differs from the one the page opened on (selection.Opening), or when the
-    Engineer pressed Use this value on a row (selection.Use, 28 September
-    2026; a row typed in the same edit is named by selection.GuideSource).
-    There is no Apply. The figures are Core's own arithmetic over what the
-    save will use, fetched by script from the PreviewValuation handler: the
-    proposal fills the Engineer's Value box, which is the one place the figure
-    stands, and the commercial VAT and previous total loss amounts show in
-    their own cells' label lines. There is no second total and no applied
-    block (6 October 2026).
+    Engineer clicked a card (selection.Use, 8 October 2026; a card typed in
+    the same edit is named by selection.GuideSource), and writes the report's
+    Retail and Trade from that card. There is no Apply. The figures are Core's
+    own arithmetic over what the save will use, fetched by script from the
+    PreviewValuation handler: the proposal fills the Engineer's Value box,
+    which is the one place the figure stands, and the commercial VAT and
+    previous total loss amounts show beside their own controls.
 
-    The Retail, Trade and Engineer's Value boxes are ordinary fields of the
-    Case form: typed, or filled in place by script when a row is chosen or the
-    calculation changes. While the Engineer's Value holds a recorded
-    calculation's figure, its label carries that calculation's source as one
-    word; a typed figure carries none.
+    The Engineer's Value box is an ordinary field of the Case form: typed, or
+    filled in place by script when a card is chosen or the calculation
+    changes. While it holds a recorded calculation's figure, its label carries
+    that calculation's source as one word; a typed figure carries none.
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using System.Globalization
@@ -49,11 +47,11 @@
     var lineForm = editable ? "case-edit-form" : null;
 
     // The value increases, one list in both modes (DetailsModel.ValuationIncreaseRows):
-    // every active preset, ticked where the recorded calculation applied it,
-    // then any applied increase that is not an active preset. Read mode leaves
-    // out the blank custom rows the calculator offers.
-    var shownIncreases = Model.ValuationIncreaseRows.Where(row => row.PresetId != Guid.Empty || row.Selected).ToArray();
-    var hasIncreases = editable || shownIncreases.Length > 0;
+    // every active preset, then Add 20 % VAT, then the custom rows the
+    // calculator offers. Read mode lists only what the recorded calculation applied.
+    var vatApplied = recorded is { Calculation.CommercialVatApplied: true };
+    var shownIncreases = Model.ValuationIncreaseRows.Where(row => row.Selected).ToArray();
+    var hasIncreases = editable || shownIncreases.Length > 0 || vatApplied;
 
     string Money(decimal value) => ValuationCalculationPolicy.FormatMoney(value);
 
@@ -64,169 +62,192 @@
         ? recorded.Calculation.ConditionDeduction.ToString("0.00", CultureInfo.InvariantCulture)
         : null;
 }
-<div class="valuation-open" data-valuation-open>
-    <div class="sub-panel calc-inputs" data-valuation-calc
-         data-valuation-form="@(editable ? "true" : null)"
-         data-preview-url="@(editable ? Url.Page("/Cases/Details", "PreviewValuation", new { id = caseId, view = Model.ViewRoute }) : null)"
-         data-text-use="@(editable ? ValuationLabels.UseThisValue : null)"
-         data-text-using="@(editable ? ValuationLabels.UsingThisValue : null)"
-         data-text-use-needs-retail="@(editable ? ValuationLabels.UseNeedsRetail : null)"
-         data-text-preview-failed="@(editable ? ValuationLabels.PreviewFailed : null)">
-        @if (editable)
-        {
-            @* The calculation the last commit recorded: a commit records
-               one that differs from it, or one the Engineer chose to use,
-               and the script carries the recorded one forward. Use this
-               value switches the two hidden fields on (a row typed in
-               this edit has no identity, so it is named by its source);
-               they post nothing until then. *@
-            <partial name="Cases/Shared/_CaseValuationOpening" model="Model" />
-            <input type="hidden" name="selection.GuideSource" value="" form="case-edit-form" disabled data-valuation-source-input />
-            <input type="hidden" name="selection.Use" value="true" form="case-edit-form" disabled data-valuation-use-input />
-        }
-        <h3>@ValuationLabels.Calculation <span class="rt" data-valuation-basis-name>@(basisName is null ? string.Empty : string.Format(CultureInfo.InvariantCulture, ValuationLabels.FromRetail, basisName))</span></h3>
-        <div class="fg g3">
-            <div class="fc @(editable ? null : "ro")">
+<div class="valuation-calc" data-valuation-calc
+     data-valuation-form="@(editable ? "true" : null)"
+     data-preview-url="@(editable ? Url.Page("/Cases/Details", "PreviewValuation", new { id = caseId, view = Model.ViewRoute }) : null)"
+     data-text-preview-failed="@(editable ? ValuationLabels.PreviewFailed : null)">
+    @if (editable)
+    {
+        @* The calculation the last commit recorded: a commit records one
+           that differs from it, or one the Engineer chose by clicking its
+           card, and the script carries the recorded one forward. A click
+           switches the two hidden fields on (a card typed in this edit has
+           no identity, so it is named by its source); they post nothing
+           until then. *@
+        <partial name="Cases/Shared/_CaseValuationOpening" model="Model" />
+        <input type="hidden" name="selection.GuideSource" value="" form="case-edit-form" disabled data-valuation-source-input />
+        <input type="hidden" name="selection.Use" value="true" form="case-edit-form" disabled data-valuation-use-input />
+    }
+    @if (hasIncreases)
+    {
+        <div class="sub-panel valuation-increases">
+            <h3 class="adds-head" data-valuation-adds-head>@ValuationLabels.ValueIncreases</h3>
+            <div class="adds" data-valuation-adds>
                 @if (editable)
                 {
-                    <label for="f-valuation-ptl">@ValuationLabels.PreviousTotalLoss<span class="calc-amount" data-valuation-amount="ptl">@(calculation is null ? null : ValuationLabels.PriorTotalLossAmount(calculation))</span></label>
-                }
-                else
-                {
-                    <span class="lbl">@ValuationLabels.PreviousTotalLoss<span class="calc-amount" data-valuation-amount="ptl">@(calculation is null ? null : ValuationLabels.PriorTotalLossAmount(calculation))</span></span>
-                }
-                <div class="fv" data-valuation-ptl-read>@(recordedPtl is null ? "None" : "−" + recordedPtl + " %")</div>
-                @if (editable)
-                {
-                    <select id="f-valuation-ptl" class="fi" name="selection.PriorTotalLossPercentage" form="@lineForm" data-valuation-input>
-                        <option value="" selected="@(recordedPtl is null ? "selected" : null)">None</option>
-                        <option value="10" selected="@(recordedPtl == "10" ? "selected" : null)">−10 %</option>
-                        <option value="20" selected="@(recordedPtl == "20" ? "selected" : null)">−20 %</option>
-                    </select>
-                }
-            </div>
-            <div class="fc @(editable ? null : "ro")">
-                @if (editable)
-                {
-                    <label for="f-valuation-deduction">@ValuationLabels.ConditionDeduction</label>
-                }
-                else
-                {
-                    <span class="lbl">@ValuationLabels.ConditionDeduction</span>
-                }
-                <div class="fv mono @(recordedDeduction is null ? "empty" : null)" data-valuation-deduction-read>@(recorded is { Calculation.ConditionDeduction: > 0m } ? Money(recorded.Calculation.ConditionDeduction) : "—")</div>
-                @if (editable)
-                {
-                    <input id="f-valuation-deduction" class="fi mono" type="number" min="0" step="0.01" placeholder="£" name="selection.ConditionDeduction" form="@lineForm" value="@recordedDeduction" data-valuation-input />
-                }
-            </div>
-            <div class="fc @(editable ? null : "ro")">
-                <span class="lbl">@ValuationLabels.CommercialVat<span class="calc-amount" data-valuation-amount="vat">@(calculation is null ? null : ValuationLabels.VatAmount(calculation))</span></span>
-                <div class="fv" data-valuation-vat-read>@(recorded is { Calculation.CommercialVatApplied: true } ? ValuationLabels.Applied : ValuationLabels.NotApplied)</div>
-                @if (editable)
-                {
-                    <label class="fi chk choice" data-valuation-vat-wrap>
-                        <input type="checkbox" name="selection.CommercialVat" value="true" form="@lineForm"
-                               checked="@(!claimantVat && recorded is { Calculation.CommercialVatApplied: true } ? "checked" : null)"
-                               disabled="@(claimantVat ? "disabled" : null)" data-valuation-input />
-                        <span>@ValuationLabels.AddVat</span>
-                        @if (claimantVat)
+                    @* The rows the calculation opens on (DetailsModel.ValuationIncreaseRows):
+                       every active preset, Add 20 % VAT, then the custom rows,
+                       where an applied increase that is not an active preset opens. *@
+                    var index = 0;
+                    var vatDrawn = false;
+                    foreach (var row in Model.ValuationIncreaseRows)
+                    {
+                        if (row.PresetId == Guid.Empty && !vatDrawn)
                         {
-                            <span class="src-tag src-tag--warn">@ValuationLabels.ClaimantVatRegistered</span>
+                            vatDrawn = true;
+                            VatRow(claimantVat, recorded, calculation, lineForm);
                         }
-                    </label>
+                        if (row.PresetId != Guid.Empty)
+                        {
+                            <div class="add @(row.Selected ? "on" : null)" data-valuation-add="@index">
+                                <input type="checkbox" name="selection.AdditionSelected" value="@index" form="@lineForm" id="f-valuation-add-@index" checked="@(row.Selected ? "checked" : null)" data-preset-toggle data-valuation-input aria-label="@row.Label" />
+                                <input type="hidden" name="selection.AdditionPresetId" value="@row.PresetId" form="@lineForm" />
+                                <input type="hidden" name="selection.AdditionPresetVersion" value="@row.PresetVersion" form="@lineForm" />
+                                <input type="hidden" name="selection.AdditionLabel" value="" form="@lineForm" />
+                                <label for="f-valuation-add-@index">@row.Label</label>
+                                <input class="amt" type="number" min="0" step="0.01" name="selection.AdditionAmount" form="@lineForm"
+                                       value="@row.Amount?.ToString("0.##", CultureInfo.InvariantCulture)" placeholder="£"
+                                       aria-label="@row.Label amount" data-valuation-input />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="add add--custom @(row.Selected ? "on" : null)" data-valuation-add="@index">
+                                <input type="checkbox" name="selection.AdditionSelected" value="@index" form="@lineForm" id="f-valuation-add-@index" checked="@(row.Selected ? "checked" : null)" data-preset-toggle data-valuation-input aria-label="@ValuationLabels.OtherAddition" />
+                                <input type="hidden" name="selection.AdditionPresetId" value="@Guid.Empty" form="@lineForm" />
+                                <input type="hidden" name="selection.AdditionPresetVersion" value="0" form="@lineForm" />
+                                <input type="text" name="selection.AdditionLabel" form="@lineForm" maxlength="@ValuationCalculationPolicy.MaximumAdditionLabelLength"
+                                       value="@row.Label" placeholder="@ValuationLabels.OtherAddition" aria-label="@ValuationLabels.OtherAddition" data-valuation-input />
+                                <input class="amt" type="number" min="0" step="0.01" name="selection.AdditionAmount" form="@lineForm" placeholder="£"
+                                       value="@row.Amount?.ToString("0.##", CultureInfo.InvariantCulture)"
+                                       aria-label="@ValuationLabels.OtherAddition amount" data-valuation-input />
+                            </div>
+                        }
+                        index++;
+                    }
+                    if (!vatDrawn)
+                    {
+                        VatRow(claimantVat, recorded, calculation, lineForm);
+                    }
+                }
+                else
+                {
+                    @* Read mode lists what the recorded calculation applied,
+                       each with a tick (a mark, not a control). *@
+                    foreach (var row in shownIncreases)
+                    {
+                        <div class="add on" data-valuation-applied-addition="true">
+                            <span class="add-check"><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span class="sr-only">@ValuationLabels.Applied</span></span>
+                            <span>@row.Label</span>
+                            <span class="amt">@Money(row.Amount ?? 0m)</span>
+                        </div>
+                    }
+                    if (vatApplied)
+                    {
+                        <div class="add on add--vat" data-valuation-applied-addition="true">
+                            <span class="add-check"><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span class="sr-only">@ValuationLabels.Applied</span></span>
+                            <span>@ValuationLabels.AddVat</span>
+                            <span class="amt" data-valuation-amount="vat">@ValuationLabels.VatAmount(recorded!.Calculation)</span>
+                        </div>
+                    }
                 }
             </div>
         </div>
-        <h3 class="adds-head @(hasIncreases ? null : "none")" data-valuation-adds-head>@ValuationLabels.ValueIncreases</h3>
-        <div class="adds" data-valuation-adds>
+    }
+    <div class="sub-panel valuation-deductions">
+        <div class="fc @(editable ? null : "ro")">
             @if (editable)
             {
-                @* The rows the calculation opens on (DetailsModel.ValuationIncreaseRows):
-                   every active preset, then the custom rows, where an
-                   applied increase that is not an active preset opens. *@
-                var index = 0;
-                foreach (var row in Model.ValuationIncreaseRows)
-                {
-                    if (row.PresetId != Guid.Empty)
-                    {
-                        <div class="add @(row.Selected ? "on" : null)" data-valuation-add="@index">
-                            <input type="checkbox" name="selection.AdditionSelected" value="@index" form="@lineForm" id="f-valuation-add-@index" checked="@(row.Selected ? "checked" : null)" data-preset-toggle data-valuation-input aria-label="@row.Label" />
-                            <input type="hidden" name="selection.AdditionPresetId" value="@row.PresetId" form="@lineForm" />
-                            <input type="hidden" name="selection.AdditionPresetVersion" value="@row.PresetVersion" form="@lineForm" />
-                            <input type="hidden" name="selection.AdditionLabel" value="" form="@lineForm" />
-                            <label for="f-valuation-add-@index">@row.Label</label>
-                            <input class="amt" type="number" min="0" step="0.01" name="selection.AdditionAmount" form="@lineForm"
-                                   value="@row.Amount?.ToString("0.##", CultureInfo.InvariantCulture)" placeholder="£"
-                                   aria-label="@row.Label amount" data-valuation-input />
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="add add--custom @(row.Selected ? "on" : null)" data-valuation-add="@index">
-                            <input type="checkbox" name="selection.AdditionSelected" value="@index" form="@lineForm" id="f-valuation-add-@index" checked="@(row.Selected ? "checked" : null)" data-preset-toggle data-valuation-input aria-label="@ValuationLabels.OtherAddition" />
-                            <input type="hidden" name="selection.AdditionPresetId" value="@Guid.Empty" form="@lineForm" />
-                            <input type="hidden" name="selection.AdditionPresetVersion" value="0" form="@lineForm" />
-                            <input type="text" name="selection.AdditionLabel" form="@lineForm" maxlength="@ValuationCalculationPolicy.MaximumAdditionLabelLength"
-                                   value="@row.Label" placeholder="@ValuationLabels.OtherAddition" aria-label="@ValuationLabels.OtherAddition" data-valuation-input />
-                            <input class="amt" type="number" min="0" step="0.01" name="selection.AdditionAmount" form="@lineForm" placeholder="£"
-                                   value="@row.Amount?.ToString("0.##", CultureInfo.InvariantCulture)"
-                                   aria-label="@ValuationLabels.OtherAddition amount" data-valuation-input />
-                        </div>
-                    }
-                    index++;
-                }
+                <label for="f-valuation-deduction">@ValuationLabels.ConditionDeduction</label>
             }
             else
             {
-                @* Read mode lists the same increases; a tick marks each one
-                   the recorded calculation applied (a mark, not a control). *@
-                foreach (var row in shownIncreases)
-                {
-                    <div class="add @(row.Selected ? "on" : null)" data-valuation-applied-addition="@(row.Selected ? "true" : null)">
-                        <span class="add-check" aria-hidden="@(row.Selected ? null : "true")">@if (row.Selected) {<svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span class="sr-only">@ValuationLabels.Applied</span>}</span>
-                        <span>@row.Label</span>
-                        <span class="amt">@Money(row.Amount ?? 0m)</span>
-                    </div>
-                }
+                <span class="lbl">@ValuationLabels.ConditionDeduction</span>
+            }
+            <div class="fv mono @(recordedDeduction is null ? "empty" : null)" data-valuation-deduction-read>@(recorded is { Calculation.ConditionDeduction: > 0m } ? Money(recorded.Calculation.ConditionDeduction) : "—")</div>
+            @if (editable)
+            {
+                <input id="f-valuation-deduction" class="fi mono" type="number" min="0" step="0.01" placeholder="£" name="selection.ConditionDeduction" form="@lineForm" value="@recordedDeduction" data-valuation-input />
             }
         </div>
-        @* What the calculation says when it has no figure: "None yet" only
-           while editing with no source chosen (FRD-24); the script puts a
-           refusal's own reason here. *@
-        <div data-valuation-preview-host>
-            @if (editable && calculation is null)
+        @* Previous total loss (item G): a tick box, then −10 % or −20 %. The
+           two percentages are the field's radios, so without script they are
+           the control; the script ties them to the tick box. Its amount stands
+           in the label line, as the commercial VAT's does on its row. *@
+        <div class="fc valuation-ptl @(editable ? null : "ro")">
+            <span class="lbl">@(editable ? null : ValuationLabels.PreviousTotalLoss)<span class="calc-amount" data-valuation-amount="ptl">@(calculation is null ? null : ValuationLabels.PriorTotalLossAmount(calculation))</span></span>
+            <div class="fv" data-valuation-ptl-read>@(recordedPtl is null ? "None" : "−" + recordedPtl + " %")</div>
+            @if (editable)
             {
-                <div class="muted" data-valuation-none>@ValuationLabels.NoneYet</div>
+                var ptl = recordedPtl;
+                <div class="fi chk valuation-ptl-row">
+                    <label class="choice"><input type="checkbox" id="f-valuation-ptl" checked="@(ptl is null ? null : "checked")" data-valuation-ptl-toggle /><span>@ValuationLabels.PreviousTotalLoss</span></label>
+                    <span class="case-layout-switch valuation-ptl-switch" role="radiogroup" aria-label="@ValuationLabels.PreviousTotalLoss">
+                        @foreach (var percentage in new[] { "10", "20" })
+                        {
+                            <label><input type="radio" name="selection.PriorTotalLossPercentage" value="@percentage" form="@lineForm" checked="@(ptl == percentage ? "checked" : null)" data-valuation-input data-valuation-ptl /><span>−@percentage %</span></label>
+                        }
+                    </span>
+                </div>
             }
         </div>
     </div>
-    @* The three values the report prints side by side. *@
-    <div class="fg g3" data-valuation-values>
-        @{ ValueCell(AssessmentVocabulary.ValueRetail, "retail");
-            ValueCell(AssessmentVocabulary.ValueTrade, "trade");
-            ValueCell(AssessmentVocabulary.ValueEngineer, "engineer"); }
+    @* The Engineer's Value: the one box, then the basis the calculation
+       starts from, or what it says when it has no figure: "None yet" only
+       while editing with no card chosen (FRD-24); the script puts a
+       refusal's own reason here. *@
+    <div class="valuation-value" data-valuation-values>
+        @{ ValueCell(); }
+        <div class="valuation-value-calc">
+            <span class="lbl">@ValuationLabels.Calculation</span>
+            <span data-valuation-basis-name>@(basisName is null ? string.Empty : string.Format(CultureInfo.InvariantCulture, ValuationLabels.FromRetail, basisName))</span>
+            <div data-valuation-preview-host>
+                @if (editable && calculation is null)
+                {
+                    <div class="muted" data-valuation-none>@ValuationLabels.NoneYet</div>
+                }
+            </div>
+        </div>
     </div>
 </div>
 
 @functions {
-    // One of the report's three values: a money box of the Case form while
-    // editing, the same cell greyed while reading. The hook names it for the
-    // script that fills it. The Engineer's Value carries the recorded
-    // calculation's source as its one word; the script shows and hides it as
-    // the box changes and as each save lands.
-    private void ValueCell(string path, string hook)
+    // Add 20 % VAT as a row of the value increases (item F), its amount where
+    // an increase's figure stands. A VAT-registered claimant never has the
+    // commercial addition, so the box is disabled with the reason beside it.
+    private void VatRow(bool claimantVat, AppliedValuation? recorded, ValuationCalculation? calculation, string? lineForm)
     {
+        var on = !claimantVat && recorded is { Calculation.CommercialVatApplied: true };
+        <div class="add add--vat @(on ? "on" : null)" data-valuation-vat-wrap>
+            <input type="checkbox" id="f-valuation-vat" name="selection.CommercialVat" value="true" form="@lineForm"
+                   checked="@(on ? "checked" : null)" disabled="@(claimantVat ? "disabled" : null)" data-valuation-input />
+            <label for="f-valuation-vat">@CaseWorkspaceLabels.Valuation.AddVat
+                @if (claimantVat)
+                {
+                    <span class="src-tag src-tag--warn">@CaseWorkspaceLabels.Valuation.ClaimantVatRegistered</span>
+                }
+            </label>
+            <span class="amt calc-amount" data-valuation-amount="vat">@(calculation is null ? null : CaseWorkspaceLabels.Valuation.VatAmount(calculation))</span>
+        </div>
+    }
+
+    // The Engineer's Value: a money box of the Case form while editing, the
+    // same cell greyed while reading. The hook names it for the script that
+    // fills it. It carries the recorded calculation's source as its one word;
+    // the script shows and hides it as the box changes and as each save lands.
+    private void ValueCell()
+    {
+        var path = AssessmentVocabulary.ValueEngineer;
         var editable = Model.SectionIsEditable("valuation") && Model.CanEditAssessmentField(path);
         var label = CaseWorkspaceLabels.Editors.Valuation[path];
         var tag = Model.AssessmentSourceTag(path);
-        var id = "f-valuation-value-" + hook;
-        var word = hook == "engineer" ? Model.RecordedBasisWord : null;
+        var id = "f-valuation-value-engineer";
+        var word = Model.RecordedBasisWord;
         var wordClass = Model.RecordedBasisIsResearch ? "src-tag src-tag--ai" : "src-tag";
         <div class="fc @(editable ? null : "ro")" data-field="@path">
             @if (editable)
             {
-                <label for="@id">@label@(tag?.Render())@if (hook == "engineer") {<span class="@wordClass" data-valuation-recorded-word hidden="@(word is null ? "hidden" : null)">@word</span>}</label>
+                <label for="@id">@label@(tag?.Render())<span class="@wordClass" data-valuation-recorded-word hidden="@(word is null ? "hidden" : null)">@word</span></label>
             }
             else
             {
@@ -236,7 +257,7 @@
             @if (editable)
             {
                 <input id="@id" class="fi mono" type="number" min="0" step="0.01" name="@CaseWorkspaceLabels.Editors.FormName(path)"
-                       form="case-edit-form" value="@Model.AssessmentEditorValue(path)" data-valuation-value="@hook" />
+                       form="case-edit-form" value="@Model.AssessmentEditorValue(path)" data-valuation-value="engineer" />
             }
         </div>
     }

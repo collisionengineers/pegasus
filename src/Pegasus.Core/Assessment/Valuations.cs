@@ -87,6 +87,21 @@ public static class ValuationPolicy
         _ => source.ToString(),
     };
 
+    /// <summary>
+    /// The report's Retail and Trade values: the figures of the guide card a
+    /// calculation is chosen against, as the save leaves that card (operator,
+    /// 8 October 2026). Nobody types them; a figure the card leaves blank is
+    /// blank on the report, which keeps it a report blocker.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string?> ReportValues(decimal? retail, decimal? trade) =>
+        new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [AssessmentVocabulary.ValueRetail] = AssessmentPolicy.NormalizeDerivedField(
+                AssessmentVocabulary.ValueRetail, retail?.ToString("0.00", CultureInfo.InvariantCulture)),
+            [AssessmentVocabulary.ValueTrade] = AssessmentPolicy.NormalizeDerivedField(
+                AssessmentVocabulary.ValueTrade, trade?.ToString("0.00", CultureInfo.InvariantCulture)),
+        };
+
     public static ValuationDetails ValidateDetails(ValuationDetails details)
     {
         ArgumentNullException.ThrowIfNull(details);

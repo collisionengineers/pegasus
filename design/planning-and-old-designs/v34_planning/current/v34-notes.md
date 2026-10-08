@@ -113,4 +113,40 @@ Settled by the operator on 8 October 2026. A and E were never open: they are wha
 
 ## 9. Decided, 8 October 2026
 
-The operator settled the list the same day (section 6). The strip's two switches were removed and the mockup now draws "Selected" and the approved sentence. Stage 2 (the Razor implementation) is planned against [how-it-should-work.md](../pages/case-record/valuation/how-it-should-work.md) and waits only for the operator's go-ahead.
+The operator settled the list the same day (section 6). The strip's two switches were removed and the mockup now draws "Selected" and the approved sentence. The operator gave the go-ahead for Stage 2 the same day; section 10 records it.
+
+## 10. Stage 2, 8 October 2026
+
+Implemented on `task/valuation-cards-v34` against D1–D14.
+
+- **Core.** The report's Retail and Trade join a new set, `AssessmentVocabulary.GuideCardDerivedPaths`. The one field gate, `AssessmentPolicy.NormalizeWritableField`, refuses them on every route: the Case save's free fields, the assessment save and `pegasus_assessment_update`. `ValuationPolicy.ReportValues` turns a card's figures into the two field values.
+- **Infrastructure.** A Case save that carries a chosen calculation writes Retail and Trade from the basis card, as that save leaves it (`EfValuationStore.ReportValuesAsync`). This happens before the fields are written, so it holds whether or not the calculation itself is recorded. `pegasus_valuation_save` goes through the same save.
+- **Web.**
+  - `_CaseValuation.cshtml` draws the cards.
+  - `_CaseValuationCalculation.cshtml` draws the increases (with Add 20 % VAT), the deductions (Previous total loss as a tick box plus two radios of the field, on the Scroll / Tabs switch's look) and the Engineer's Value panel.
+  - The valuation block of `case-workspace.js` makes the whole card the target. A click switches on `selection.Use`, and choosing updates the cards in place.
+  - `case-workspace.css` replaces the row rules with the card rules from `lib/valuation-v34.css`, using existing tokens. The chosen card's tint is the selected-metric tint already in `site.css`.
+  - The Use this value labels are gone and `Selected` is added.
+- **Docs.** FRD-16, FRD-24, FRD-10, ADR-0064, the design authority, and the case-workspace guardrails and their skill.
+
+Where the implementation differs from the mockup:
+
+- **The chosen card on opening.** As today, while editing the recorded basis, or else the first recorded card with a retail, is drawn Selected before anyone clicks (`DefaultBasis`). Retail and Trade are written only once a card is clicked or the calculation changes, so a Case nobody has chosen on keeps them blank. A click on that already-Selected card is the decision too.
+- **No card chosen.** Retail and Trade keep whatever they last held. On a new Case that is blank, as item I settled.
+- **Reading.** "On the report" keeps the live summary sentence, as drawn.
+
+**Conformance.**
+- `python check-valuation-implementation.py <captured pages>` printed `RESULT {"fail": [], "okCount": 66}`. It opens the Case pages the application rendered (seven states, made by the temporary test kept as `captured/capture-implementation-test.cs.txt`, never committed to the test project) with the application's own stylesheet and scripts.
+- What it checks:
+  - nothing spills sideways at 1580, 1440 and 760;
+  - there is no Use this value and no Retail or Trade box;
+  - a click on a label, a box or the padding chooses the card and marks the decision, and a clicked box keeps its focus;
+  - a card with no retail says why, and typing a retail answers it;
+  - a card typed in this edit is chosen by its source, and Enter works;
+  - VAT, −10 % and −20 % fill the box with their amounts, and unticking clears the percentage;
+  - a refusal restores the saved figure;
+  - a landed save moves the head and shows the source word, and typing over withdraws the decision;
+  - a recorded calculation opens with its tick box, percentage and amounts.
+- The screenshots are in `v34-conformance/`, beside the mockup's `v34-shots/` of the same state (`edit-fetched` and 01, `read-fetched` and 02, `edit-applied` and 03, `read-applied` and 04, `edit-pending` and 08, `edit-empty` and 10, `read-empty` and 11). The capture fixture runs a 2031 test clock, so guide months read May 2031.
+- **Tests.** Core, integration and Web tests were updated; CI holds the verdict. Locally only the temporary capture test ran, which built every project.
+- **What this is not.** The pages were opened from disk with requests stubbed. No real save ran, and no signed-in walk of a running Pegasus has been done.

@@ -432,8 +432,6 @@ public sealed class AutomationAssessmentIngressTests
             [AssessmentVocabulary.UnroadworthyReason] = "Structural damage to the offside sill.",
             [AssessmentVocabulary.SalvageCategory] = "S",
             [AssessmentVocabulary.SalvageValue] = "450",
-            [AssessmentVocabulary.ValueRetail] = "10000",
-            [AssessmentVocabulary.ValueTrade] = "9000",
             [AssessmentVocabulary.ValueEngineer] = "9500"
         };
         using (var response = await PostMcpAsync(client, token, ToolCallPayload(rpcId + 1,

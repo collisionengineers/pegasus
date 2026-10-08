@@ -104,11 +104,16 @@ public sealed class CaseValuationV26WebTests
                 StringComparison.Ordinal);
             Assert.Contains("data-dialog-open=\"problem-dialog\"", card, StringComparison.Ordinal);
             Assert.Contains(CaseWorkspaceLabels.Valuation.ReportAProblem, card, StringComparison.Ordinal);
-            // The visible decision to use the card's figure, off until pressed.
-            var use = ButtonTagByHook(card, "data-valuation-use");
-            Assert.Contains("type=\"button\"", use, StringComparison.Ordinal);
-            Assert.Contains("aria-pressed=\"false\"", use, StringComparison.Ordinal);
-            Assert.Contains(CaseWorkspaceLabels.Valuation.UseThisValue, card, StringComparison.Ordinal);
+            // A click on the card is the decision to use it (operator, 8 October
+            // 2026): no Use this value button, the whole card is the target, and a
+            // card with no retail answers with its own sentence, hidden until then.
+            Assert.DoesNotContain("data-valuation-use=", card, StringComparison.Ordinal);
+            Assert.DoesNotContain("data-valuation-use ", card, StringComparison.Ordinal);
+            Assert.Contains("tabindex=\"0\"", card, StringComparison.Ordinal);
+            Assert.Matches(
+                "data-valuation-needs-retail hidden[^>]*>" + Regex.Escape(CaseWorkspaceLabels.Valuation.UseNeedsRetail),
+                WebUtility.HtmlDecode(card));
+            Assert.Contains("data-valuation-chosen-word hidden", card, StringComparison.Ordinal);
         }
         Assert.DoesNotContain("data-valuation-save", html, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=SaveValuation", html, StringComparison.Ordinal);
@@ -613,14 +618,14 @@ public sealed class CaseValuationV26WebTests
     }
 
     /// <summary>
-    /// Choosing a card fills the Retail, Trade and Engineer's Value boxes in
-    /// place (operator, 26 September 2026): the card offers the figures it
-    /// shows, the boxes that open the section carry the hooks the script
-    /// fills, and the calculation answers its proposal as the figure the
-    /// Engineer's Value box takes.
+    /// The chosen card is the basis (operator, 8 October 2026): it offers the
+    /// figures it shows and says Selected, the Engineer's Value is the one box
+    /// and carries the hook the script fills, the report's Retail and Trade
+    /// have no box, the calculation stands once below every card, and it
+    /// answers its proposal as the figure the Engineer's Value box takes.
     /// </summary>
     [Fact]
-    public async Task ACardChosenAsTheBasisOffersTheFiguresTheThreeBoxesTake()
+    public async Task ACardChosenAsTheBasisOffersTheFiguresTheEngineersValueTakes()
     {
         var store = new RecordingCaseDetailsStore();
         var valuation = new RecordingValuationSection(store.CaseId);
@@ -635,25 +640,23 @@ public sealed class CaseValuationV26WebTests
         var card = EntryCard(html, "glasses");
         Assert.Contains("data-retail=\"12500.00\"", card, StringComparison.Ordinal);
         Assert.Contains("data-trade=\"10250.00\"", card, StringComparison.Ordinal);
-        foreach (var (path, hook) in new[]
-        {
-            (AssessmentVocabulary.ValueRetail, "retail"),
-            (AssessmentVocabulary.ValueTrade, "trade"),
-            (AssessmentVocabulary.ValueEngineer, "engineer"),
-        })
-        {
-            var box = InputTag(html, CaseWorkspaceLabels.Editors.FormName(path), $"data-valuation-value=\"{hook}\"");
-            Assert.Contains("form=\"case-edit-form\"", box, StringComparison.Ordinal);
-        }
-        var chosenRow = html.IndexOf("data-valuation-entry=\"glasses\"", StringComparison.Ordinal);
-        var openBlock = html.IndexOf("data-valuation-open", StringComparison.Ordinal);
+        Assert.Contains("class=\"valuation-card entry sel\"", card, StringComparison.Ordinal);
+        Assert.Matches("data-valuation-chosen-word>Selected<", card);
+        var box = InputTag(
+            html,
+            CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ValueEngineer),
+            "data-valuation-value=\"engineer\"");
+        Assert.Contains("form=\"case-edit-form\"", box, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-valuation-value=\"retail\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-valuation-value=\"trade\"", html, StringComparison.Ordinal);
+        var research = html.IndexOf("valuation-card--research", StringComparison.Ordinal);
         var calculator = html.IndexOf("data-valuation-calc", StringComparison.Ordinal);
-        var boxes = html.IndexOf("data-valuation-values", StringComparison.Ordinal);
-        var nextRow = html.IndexOf("data-valuation-entry=\"brego\"", StringComparison.Ordinal);
+        var value = html.IndexOf("data-valuation-values", StringComparison.Ordinal);
         Assert.True(
-            chosenRow < openBlock && openBlock < calculator && calculator < boxes && boxes < nextRow,
-            "The chosen source opens: its calculation, then the three boxes, stand under its row.");
-        Assert.Single(Regex.Matches(html, "data-valuation-open", RegexOptions.CultureInvariant));
+            html.IndexOf("data-valuation-entry=\"cazana\"", StringComparison.Ordinal) < research
+                && research < calculator && calculator < value,
+            "The calculation, then the Engineer's Value, stand once below every card.");
+        Assert.DoesNotContain("data-valuation-open", html, StringComparison.Ordinal);
         // One figure: no second total and no applied block.
         Assert.DoesNotContain("Proposed Engineer", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Applied Engineer", html, StringComparison.Ordinal);
@@ -708,8 +711,9 @@ public sealed class CaseValuationV26WebTests
         foreach (var (source, _) in GuideSources)
         {
             var card = EntryCard(html, source);
-            Assert.Contains("class=\"fc ro\"", card, StringComparison.Ordinal);
+            Assert.Contains("class=\"valuation-card-value", card, StringComparison.Ordinal);
             Assert.DoesNotContain("<input", card, StringComparison.Ordinal);
+            Assert.DoesNotContain("tabindex", card, StringComparison.Ordinal);
             Assert.DoesNotContain("data-valuation-get", card, StringComparison.Ordinal);
         }
         Assert.Contains(
@@ -726,9 +730,9 @@ public sealed class CaseValuationV26WebTests
 
     /// <summary>
     /// The calculator opens on the recorded calculation while the Engineer's
-    /// Value holds its figure, in both modes: read mode ticks the applied
-    /// increase among every preset, and editing starts from the same
-    /// selection rather than from blank. The Engineer's Value label carries
+    /// Value holds its figure, in both modes: read mode lists the applied
+    /// increase with its tick, and editing starts from the same selection
+    /// rather than from blank. The Engineer's Value label carries
     /// the recorded source as its one word, the section head reads the saved
     /// figure, and each adjustment's amount stands in its own cell.
     /// </summary>
@@ -743,7 +747,8 @@ public sealed class CaseValuationV26WebTests
         valuation.SetApplied(glasses, towBar, 175m);
 
         var read = await ReadValuationAsync(store, valuation);
-        Assert.Contains("Roof bars", read, StringComparison.Ordinal);
+        // Reading lists what the calculation applied, not every preset.
+        Assert.DoesNotContain("Roof bars", read, StringComparison.Ordinal);
         Assert.Single(Regex.Matches(read, "data-valuation-applied-addition=\"true\"", RegexOptions.CultureInvariant));
         var decoded = WebUtility.HtmlDecode(read);
         Assert.Matches("<span class=\"src-tag\" data-valuation-recorded-word>Glass's</span>", decoded);
@@ -753,17 +758,14 @@ public sealed class CaseValuationV26WebTests
         Assert.DoesNotContain("Proposed Engineer", decoded, StringComparison.Ordinal);
         Assert.DoesNotContain("Applied Engineer", decoded, StringComparison.Ordinal);
         Assert.DoesNotContain(CaseWorkspaceLabels.Valuation.NoneYet, decoded, StringComparison.Ordinal);
-        // Reading, the recorded source is the one that opens.
-        Assert.True(
-            decoded.IndexOf("data-valuation-entry=\"glasses\"", StringComparison.Ordinal)
-                < decoded.IndexOf("data-valuation-open", StringComparison.Ordinal)
-            && decoded.IndexOf("data-valuation-open", StringComparison.Ordinal)
-                < decoded.IndexOf("data-valuation-entry=\"brego\"", StringComparison.Ordinal),
-            "The recorded source opens while reading.");
+        // Reading, the recorded source is the one Selected.
+        Assert.Contains("class=\"valuation-card entry sel\"", EntryCard(decoded, "glasses"), StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(decoded, "data-valuation-chosen-word>Selected<", RegexOptions.CultureInvariant));
 
         using var workspace = await EnterEngineerEditModeAsync(store, valuation.Register);
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
-        Assert.Matches("<option value=\"10\" selected=\"selected\">", html);
+        Assert.Matches("<input type=\"checkbox\" id=\"f-valuation-ptl\" checked=\"checked\" data-valuation-ptl-toggle />", html);
+        Assert.Matches("name=\"selection.PriorTotalLossPercentage\" value=\"10\" form=\"case-edit-form\" checked=\"checked\"", html);
         Assert.Contains("value=\"250.00\" data-valuation-input", html, StringComparison.Ordinal);
         var towBarRow = Regex.Match(
             html,
@@ -794,20 +796,17 @@ public sealed class CaseValuationV26WebTests
         var read = WebUtility.HtmlDecode(await ReadValuationAsync(store, valuation));
         Assert.DoesNotContain("data-valuation-recorded-word", read, StringComparison.Ordinal);
         Assert.DoesNotContain("data-valuation-applied-addition=\"true\"", read, StringComparison.Ordinal);
-        Assert.DoesNotContain("class=\"valuation-source entry sel\"", read, StringComparison.Ordinal);
+        Assert.DoesNotContain("class=\"valuation-card entry sel\"", read, StringComparison.Ordinal);
         Assert.DoesNotContain("from Glass's retail", read, StringComparison.Ordinal);
         Assert.DoesNotContain(CaseWorkspaceLabels.Valuation.NoneYet, read, StringComparison.Ordinal);
         Assert.Matches("data-valuation-head>Engineer's Value £9,999.00<", read);
-        // With no source open, the calculation closes the list.
-        Assert.True(
-            read.IndexOf("data-valuation-entry=\"cazana\"", StringComparison.Ordinal)
-                < read.IndexOf("data-valuation-open", StringComparison.Ordinal),
-            "With no source chosen the calculation stands after the sources.");
+        Assert.DoesNotContain("data-valuation-chosen-word>", read, StringComparison.Ordinal);
 
         using var workspace = await EnterEngineerEditModeAsync(store, valuation.Register);
         var html = WebUtility.HtmlDecode(
             await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation"));
-        Assert.Matches("<option value=\"\" selected=\"selected\">None</option>", html);
+        Assert.Matches("<input type=\"checkbox\" id=\"f-valuation-ptl\" data-valuation-ptl-toggle />", html);
+        Assert.DoesNotMatch("PriorTotalLossPercentage\" value=\"(10|20)\" form=\"case-edit-form\" checked", html);
         Assert.DoesNotContain("<div class=\"add on\"", html, StringComparison.Ordinal);
         // The word's place is there for the script, and hidden.
         Assert.Matches("data-valuation-recorded-word hidden=\"hidden\"></span>", html);
@@ -1232,7 +1231,7 @@ public sealed class CaseValuationV26WebTests
         var hook = html.IndexOf($"data-valuation-entry=\"{source}\"", StringComparison.Ordinal);
         Assert.True(hook >= 0, $"The Valuation section must render the card for '{source}'.");
         var start = html.LastIndexOf("<div", hook, StringComparison.Ordinal);
-        var next = html.IndexOf("class=\"valuation-source ", hook, StringComparison.Ordinal);
+        var next = html.IndexOf("class=\"valuation-card ", hook, StringComparison.Ordinal);
         var calc = html.IndexOf("data-valuation-calc", hook, StringComparison.Ordinal);
         var end = new[] { next, calc }.Where(index => index > hook).DefaultIfEmpty(html.Length).Min();
         return html[start..end];

@@ -639,15 +639,16 @@ internal sealed class AssessmentMcpTools(
     /// <summary>
     /// Refuses a generic automation write of a path with no staff editor on
     /// the Case (FRD-10), the one rule only the Web can answer because it owns
-    /// the editor list. An unknown, case-owned, impact-derived or
-    /// lookup-derived path falls through to Core's NormalizeWritableField,
-    /// which names each.
+    /// the editor list. An unknown, case-owned, impact-derived,
+    /// lookup-derived or guide-card-derived path falls through to Core's
+    /// NormalizeWritableField, which names each.
     /// </summary>
     internal static void RequireGenericWrite(string path)
     {
         if (!AssessmentVocabulary.Definitions.ContainsKey(path)
             || AssessmentVocabulary.DerivedPaths.Contains(path)
-            || AssessmentVocabulary.LookupDerivedPaths.Contains(path))
+            || AssessmentVocabulary.LookupDerivedPaths.Contains(path)
+            || AssessmentVocabulary.GuideCardDerivedPaths.Contains(path))
         {
             return;
         }
@@ -668,9 +669,11 @@ internal sealed class AssessmentMcpTools(
             ? "Derived from damage.impacts."
             : AssessmentVocabulary.LookupDerivedPaths.Contains(path)
                 ? "Filled by the DVLA/DVSA vehicle lookup."
-                : !CaseWorkspaceLabels.Editors.HasStaffEditor(path)
-                    ? "No staff editor on the Case."
-                    : null;
+                : AssessmentVocabulary.GuideCardDerivedPaths.Contains(path)
+                    ? "The chosen guide card's figure: written by pegasus_valuation_save with a calculation."
+                    : !CaseWorkspaceLabels.Editors.HasStaffEditor(path)
+                        ? "No staff editor on the Case."
+                        : null;
 
     private async Task<RepairSpecificationVersion> FindEstimateAsync(
         Guid caseId, Guid estimateId, CancellationToken cancellationToken) =>

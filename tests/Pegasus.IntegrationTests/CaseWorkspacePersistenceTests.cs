@@ -1421,9 +1421,9 @@ public sealed class CaseWorkspacePersistenceTests
     /// A calculation in a Save that records a new guide month for the basis
     /// source is recorded against that new card, the one the page shows (one
     /// Save, 23 September 2026), names the Case version the save produced and
-    /// carries the Case's mileage. The Retail, Trade and Engineer's values are
-    /// the boxes the same save posts, filled from that card (operator, 26
-    /// September 2026), and are the saving Engineer's own.
+    /// carries the Case's mileage. The Engineer's Value is the box the same
+    /// save posts; the report's Retail and Trade are that card's figures
+    /// (operator, 8 October 2026). All three are the saving Engineer's own.
     /// </summary>
     [Fact]
     public async Task ACalculationIsRecordedAgainstTheBasisCardTheSameSaveRecorded()
@@ -1458,7 +1458,7 @@ public sealed class CaseWorkspacePersistenceTests
                 Valuation = new(
                     [GuideCard(ValuationSource.Glasses, may, 13_000m)],
                     new ValuationCalculationSelection(aprilCard.ValuationId, false, null, [], 0m),
-                    Values("13000", "12000", "13000"))
+                    EngineerValue("13000"))
             },
             CancellationToken.None);
 
@@ -1489,30 +1489,42 @@ public sealed class CaseWorkspacePersistenceTests
     }
 
     /// <summary>
-    /// The report's three values are typed boxes (operator, 26 September
-    /// 2026): with no mileage and no guide card they save, clear their three
-    /// blockers and record no calculation, and changing one stales the
-    /// current report.
+    /// The Engineer's Value is a typed box (operator, 26 September 2026): with
+    /// no mileage and no guide card it saves, clears its blocker and records
+    /// no calculation, and changing it stales the current report. The
+    /// report's Retail and Trade are the chosen card's figures (operator,
+    /// 8 October 2026): a save that types one is refused, and with no card
+    /// chosen both stay blockers.
     /// </summary>
     [Fact]
-    public async Task TypedValuesSaveWithoutAMileageAndClearTheirBlockers()
+    public async Task ATypedEngineersValueSavesWithoutAMileageAndRetailAndTradeAreNotTyped()
     {
         await using var harness = await Harness.CreateAsync();
         var initial = await harness.GetRequiredDataAsync();
         var engineer = Engineer(harness);
         var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-typed-1");
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() => harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "typed-retail-refused", engineer) with
+            {
+                Valuation = new([], AssessmentFields: new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    [AssessmentVocabulary.ValueRetail] = "12500",
+                })
+            },
+            CancellationToken.None));
+        Assert.Contains("chosen guide card", refusal.Message, StringComparison.Ordinal);
+
         var typed = await harness.WorkspaceStore.SaveAsync(
             Request(harness, initial.Version, lease.Token, "typed-save-1", engineer) with
             {
-                Valuation = new([], AssessmentFields: Values("12500", "11000", "12750"))
+                Valuation = new([], AssessmentFields: EngineerValue("12750"))
             },
             CancellationToken.None);
 
-        Assert.DoesNotContain(
-            AssessmentPolicy.EvaluatePostReviewReadiness(typed.Assessment),
-            item => item.Field is AssessmentVocabulary.ValueRetail
-                or AssessmentVocabulary.ValueTrade
-                or AssessmentVocabulary.ValueEngineer);
+        var blockers = AssessmentPolicy.EvaluatePostReviewReadiness(typed.Assessment);
+        Assert.DoesNotContain(blockers, item => item.Field == AssessmentVocabulary.ValueEngineer);
+        Assert.Contains(blockers, item => item.Field == AssessmentVocabulary.ValueRetail);
+        Assert.Contains(blockers, item => item.Field == AssessmentVocabulary.ValueTrade);
         Assert.Equal("12750.00", (await AssessmentFieldsAsync(harness))[AssessmentVocabulary.ValueEngineer].Value);
         var valuations = new EfValuationStore(harness.Factory);
         Assert.Empty(await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
@@ -1524,7 +1536,7 @@ public sealed class CaseWorkspacePersistenceTests
         await harness.WorkspaceStore.SaveAsync(
             Request(harness, typed.Version, again.Token, "typed-save-2", engineer) with
             {
-                Valuation = new([], AssessmentFields: Values("12500", "11000", "13000"))
+                Valuation = new([], AssessmentFields: EngineerValue("13000"))
             },
             CancellationToken.None);
 
@@ -1536,11 +1548,9 @@ public sealed class CaseWorkspacePersistenceTests
             expectedReason: CaseReportStaleReasons.AssessmentFactsChanged);
     }
 
-    private static Dictionary<string, string?> Values(string retail, string trade, string engineer) =>
+    private static Dictionary<string, string?> EngineerValue(string engineer) =>
         new(StringComparer.Ordinal)
         {
-            [AssessmentVocabulary.ValueRetail] = retail,
-            [AssessmentVocabulary.ValueTrade] = trade,
             [AssessmentVocabulary.ValueEngineer] = engineer,
         };
     /// <summary>
@@ -1725,7 +1735,7 @@ public sealed class CaseWorkspacePersistenceTests
                     {
                         GuideSource = ValuationSource.Glasses,
                     },
-                    Values("12500", "11500", "12500"))
+                    EngineerValue("12500"))
             },
             CancellationToken.None);
 
@@ -1743,7 +1753,8 @@ public sealed class CaseWorkspacePersistenceTests
     /// <summary>
     /// An Engineer's Value typed over the calculated figure is the Engineer's
     /// own: it is recorded as the staff member's value and the Save does not
-    /// attribute it to the guide card by recording the calculation.
+    /// attribute it to the guide card by recording the calculation. The
+    /// report's Retail and Trade still follow the chosen card.
     /// </summary>
     [Fact]
     public async Task AnEngineersValueTypedOverTheCalculationIsTheEngineersOwnAndNotRecordedAgainstTheCard()
@@ -1762,7 +1773,7 @@ public sealed class CaseWorkspacePersistenceTests
                     {
                         GuideSource = ValuationSource.Glasses,
                     },
-                    Values("12500", "11500", "14000"))
+                    EngineerValue("14000"))
             },
             CancellationToken.None);
 
@@ -1771,8 +1782,11 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.DoesNotContain(
             await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None),
             item => item.Details.Source == ValuationSource.EngineersValue);
-        var field = (await AssessmentFieldsAsync(harness))[AssessmentVocabulary.ValueEngineer];
+        var fields = await AssessmentFieldsAsync(harness);
+        var field = fields[AssessmentVocabulary.ValueEngineer];
         Assert.Equal("14000.00", field.Value);
+        Assert.Equal("12500.00", fields[AssessmentVocabulary.ValueRetail].Value);
+        Assert.Equal("11500.00", fields[AssessmentVocabulary.ValueTrade].Value);
         Assert.Equal(nameof(ActorKind.Staff), field.RecordedByKind);
         Assert.Equal(engineer.SubjectId, field.RecordedBy);
     }
@@ -1802,7 +1816,7 @@ public sealed class CaseWorkspacePersistenceTests
                         Use = true,
                     },
                     // The box still holds an earlier figure, not the calculated 12,500.
-                    Values("12500", "11500", "9000"))
+                    EngineerValue("9000"))
             },
             CancellationToken.None));
         Assert.Equal(ValuationCalculationPolicy.UseFigureChanged, refusal.Message);
@@ -1863,7 +1877,7 @@ public sealed class CaseWorkspacePersistenceTests
                 Valuation = new(
                     [GuideCard(ValuationSource.Glasses, april, 13_000m)],
                     selection,
-                    Values("13000", "12000", preview.Calculation.Proposal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)))
+                    EngineerValue(preview.Calculation.Proposal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)))
             },
             CancellationToken.None);
 
