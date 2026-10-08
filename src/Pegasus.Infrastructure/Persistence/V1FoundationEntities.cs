@@ -75,6 +75,28 @@ internal sealed class ValuationPresetEntity : IApplicationManagedConcurrencyToke
     public Guid ConcurrencyToken { get; set; }
 }
 
+/// <summary>A shared Case list column preset (MI-04). Removal is soft and frees the name.</summary>
+internal sealed class CaseListPresetEntity : IApplicationManagedConcurrencyToken
+{
+    public Guid Id { get; set; }
+    public required string Name { get; set; }
+
+    /// <summary>The preset's column keys as a JSON array, in catalogue order.</summary>
+    public required string ColumnKeysJson { get; set; }
+    public DateTimeOffset? RemovedAtUtc { get; set; }
+    public required string UpdatedBy { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+    public long Version { get; set; }
+    public Guid ConcurrencyToken { get; set; }
+}
+
+/// <summary>SQL Server's <c>JSON_VALUE</c>, so a report figure is read without loading its whole frozen snapshot.</summary>
+internal static class SqlJson
+{
+    public static string? Value(string json, string path) =>
+        throw new NotSupportedException("JSON_VALUE runs only in a database query.");
+}
+
 internal sealed class LabourRateCardEntity : IApplicationManagedConcurrencyToken
 {
     public Guid Id { get; set; }

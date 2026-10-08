@@ -16,6 +16,11 @@ public sealed class ReportsModel(
     GetMonthlyReportActivity monthlyActivity,
     ExportAdministrationReports export,
     IStaffAccountQueries staffAccounts,
+    GetCaseList getCaseList,
+    ExportCaseList exportCaseList,
+    ListCaseListPresets listCaseListPresets,
+    SaveCaseListPreset saveCaseListPreset,
+    RemoveCaseListPreset removeCaseListPreset,
     TimeProvider timeProvider) : AdministrationPageModel
 {
     public const string WorkbookMediaType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -60,15 +65,234 @@ public sealed class ReportsModel(
         string.Equals(Sort, column, StringComparison.OrdinalIgnoreCase) ? (Descending ? "descending" : "ascending") : null;
 
     /// <summary>MI-02's split column: the measure's own label with the work it counts, e.g. "Reports produced · Inspection".</summary>
-    public static string InspectionColumn(string measure) =>
-        $"{measure} · {OperatorLabels.CaseTypeName(CaseType.Inspection)}";
+    public static string InspectionColumn(string measure) => ReportColumnTitles.Inspection(measure);
 
     /// <summary>MI-02's split column: the measure's own label with the work it counts, e.g. "Agreed fees · Audit".</summary>
-    public static string AuditColumn(string measure) =>
-        $"{measure} · {OperatorLabels.CaseTypeName(CaseType.Audit)}";
+    public static string AuditColumn(string measure) => ReportColumnTitles.Audit(measure);
 
-    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken) =>
-        await LoadAsync(cancellationToken) ? Page() : Forbid();
+    /// <summary>The Case list preset whose columns the page ticks.</summary>
+    [BindProperty(SupportsGet = true, Name = "preset")] public Guid? PresetId { get; set; }
+
+    /// <summary>The shared Case list presets; <see langword="null"/> when they could not be read.</summary>
+    public IReadOnlyList<CaseListPreset>? CaseListPresets { get; private set; }
+
+    public CaseListPreset? SelectedPreset => CaseListPresets?.FirstOrDefault(preset => preset.Id == PresetId);
+
+    /// <summary>The Case list form as the page shows it: its defaults, the chosen preset's columns, or what was posted.</summary>
+    public CaseListInput CaseList { get; private set; } = new();
+
+    public string? CaseListError { get; private set; }
+
+    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(cancellationToken)) return Forbid();
+        await LoadCaseListAsync(null, cancellationToken);
+        return Page();
+    }
+
+    public Task<IActionResult> OnPostCaseListCsvAsync(CaseListInput input, CancellationToken cancellationToken) =>
+        DownloadCaseListAsync(
+            input,
+            (_, result) => File(
+                Encoding.UTF8.GetBytes(WorkbookSheetCsv.Write(CaseListTables.Build(result, OperatorCaseListLabels.Instance))),
+                "text/csv; charset=utf-8",
+                CaseListFileName(result, "csv")),
+            cancellationToken);
+
+    public Task<IActionResult> OnPostCaseListWorkbookAsync(CaseListInput input, CancellationToken cancellationToken) =>
+        DownloadCaseListAsync(
+            input,
+            (actor, result) => File(
+                exportCaseList.Execute(actor, result, OperatorCaseListLabels.Instance),
+                WorkbookMediaType,
+                CaseListFileName(result, "xlsx")),
+            cancellationToken);
+
+    public Task<IActionResult> OnPostCaseListPresetCreateAsync(CaseListInput input, CancellationToken cancellationToken) =>
+        RunPresetAsync(
+            input,
+            async actor =>
+            {
+                var preset = await saveCaseListPreset.ExecuteAsync(
+                    new(input.NewPresetId, input.PresetName ?? string.Empty, input.Columns, ExpectedVersion: 0, actor, input.OperationKey ?? string.Empty),
+                    cancellationToken);
+                return (OperatorLabels.CaseList.PresetCreated, (Guid?)preset.Id);
+            },
+            cancellationToken);
+
+    public Task<IActionResult> OnPostCaseListPresetSaveAsync(CaseListInput input, CancellationToken cancellationToken) =>
+        RunPresetAsync(
+            input,
+            async actor =>
+            {
+                var preset = await saveCaseListPreset.ExecuteAsync(
+                    new(input.PresetId ?? Guid.Empty, input.PresetName ?? string.Empty, input.Columns, input.ExpectedVersion, actor, input.OperationKey ?? string.Empty),
+                    cancellationToken);
+                return (OperatorLabels.CaseList.PresetSaved, (Guid?)preset.Id);
+            },
+            cancellationToken);
+
+    public Task<IActionResult> OnPostCaseListPresetRemoveAsync(CaseListInput input, CancellationToken cancellationToken) =>
+        RunPresetAsync(
+            input,
+            async actor =>
+            {
+                await removeCaseListPreset.ExecuteAsync(
+                    new(input.PresetId ?? Guid.Empty, input.ExpectedVersion, actor, input.OperationKey ?? string.Empty),
+                    cancellationToken);
+                return (OperatorLabels.CaseList.PresetRemoved, null);
+            },
+            cancellationToken);
+
+    /// <summary>
+    /// MI-04's downloads run only the Case list. A refusal answers a script's
+    /// fetch with its reason as text; without script the page shows it.
+    /// </summary>
+    private async Task<IActionResult> DownloadCaseListAsync(
+        CaseListInput input,
+        Func<ActionActor, CaseListResult, IActionResult> file,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        string message;
+        try
+        {
+            var result = await getCaseList.ExecuteAsync(
+                new(
+                    actor,
+                    input.AllTime ? null : input.ReceivedFrom,
+                    input.AllTime ? null : input.ReceivedTo,
+                    input.IncludeTriage,
+                    input.Columns),
+                cancellationToken);
+            return file(actor, result);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            message = OperatorLabels.CaseList.ChoosePeriod;
+        }
+        catch (ArgumentException)
+        {
+            message = OperatorLabels.CaseList.ChooseColumns;
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            message = OperatorLabels.CaseList.Unavailable;
+        }
+
+        if (IsScriptRequest)
+        {
+            return new ContentResult
+            {
+                StatusCode = StatusCodes.Status422UnprocessableEntity,
+                Content = message,
+                ContentType = "text/plain; charset=utf-8"
+            };
+        }
+
+        return await RedisplayAsync(input, message, cancellationToken);
+    }
+
+    private async Task<IActionResult> RunPresetAsync(
+        CaseListInput input,
+        Func<ActionActor, Task<(string Confirmation, Guid? PresetId)>> operation,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        if (!IsOperationKeyValid(input.OperationKey))
+        {
+            return await RedisplayAsync(input, OperatorLabels.CaseList.PresetExpired, cancellationToken);
+        }
+
+        string message;
+        try
+        {
+            var (confirmation, presetId) = await operation(actor);
+            TempData["Confirmation"] = confirmation;
+            return RedirectToPage(new { preset = presetId });
+        }
+        catch (CaseListPresetException exception)
+        {
+            message = exception.Error switch
+            {
+                CaseListPresetError.DuplicateName => OperatorLabels.CaseList.PresetDuplicateName,
+                CaseListPresetError.NotFound or CaseListPresetError.Removed => OperatorLabels.CaseList.PresetNotFound,
+                CaseListPresetError.VersionConflict => OperatorLabels.CaseList.PresetStale,
+                CaseListPresetError.OperationConflict => OperatorLabels.CaseList.PresetExpired,
+                _ => OperatorLabels.CaseList.PresetNotAccepted
+            };
+        }
+        catch (ArgumentException exception) when (exception.ParamName == "name")
+        {
+            message = OperatorLabels.CaseList.PresetNameRequired;
+        }
+        catch (ArgumentException exception) when (exception.ParamName == "keys")
+        {
+            message = OperatorLabels.CaseList.ChooseColumns;
+        }
+        catch (ArgumentException)
+        {
+            message = OperatorLabels.CaseList.PresetNotAccepted;
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+
+        return await RedisplayAsync(input, message, cancellationToken);
+    }
+
+    /// <summary>The page again, with the Case list form as posted and the reason it was refused.</summary>
+    private async Task<IActionResult> RedisplayAsync(CaseListInput input, string message, CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(cancellationToken)) return Forbid();
+        await LoadCaseListAsync(input, cancellationToken);
+        CaseListError = message;
+        return Page();
+    }
+
+    private async Task LoadCaseListAsync(CaseListInput? posted, CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return;
+        try
+        {
+            CaseListPresets = await listCaseListPresets.ExecuteAsync(actor, cancellationToken);
+        }
+        catch (Exception exception) when (
+            exception is not OperationCanceledException
+            && exception is not StaffAuthorizationException)
+        {
+            CaseListPresets = null;
+        }
+
+        if (posted is not null)
+        {
+            PresetId = posted.PresetId;
+            CaseList = posted with { OperationKey = NewOperationKey(), NewPresetId = Guid.NewGuid() };
+            return;
+        }
+
+        var today = LondonCalendar.DateAt(timeProvider.GetUtcNow());
+        var preset = SelectedPreset;
+        CaseList = new()
+        {
+            ReceivedFrom = today.AddDays(-31),
+            ReceivedTo = today,
+            Columns = [.. preset?.ColumnKeys ?? CaseListColumns.DefaultKeys],
+            PresetId = preset?.Id,
+            ExpectedVersion = preset?.Version ?? 0,
+            PresetName = preset?.Name,
+        };
+    }
+
+    private static string CaseListFileName(CaseListResult result, string extension) =>
+        result.ReceivedFrom is { } from && result.ReceivedTo is { } to
+            ? $"case-list-{from:yyyy-MM-dd}-{to:yyyy-MM-dd}.{extension}"
+            : $"case-list-all-time.{extension}";
 
     public async Task<IActionResult> OnGetCsvAsync(CancellationToken cancellationToken)
     {
@@ -212,8 +436,7 @@ public sealed class ReportsModel(
             "Principal",
             "Reports produced", InspectionColumn("Reports produced"), AuditColumn("Reports produced"),
             "Reports sent", InspectionColumn("Reports sent"), AuditColumn("Reports sent"),
-            "Agreed fees", InspectionColumn("Agreed fees"), AuditColumn("Agreed fees"),
-            "Report types");
+            "Agreed fees", InspectionColumn("Agreed fees"), AuditColumn("Agreed fees"));
         var builder = new StringBuilder(header).Append("\r\n");
         if (report is null) return builder.ToString();
         foreach (var row in report.Rows.Where(row => row.ReportsProduced > 0 || row.Sent > 0))
@@ -227,12 +450,7 @@ public sealed class ReportsModel(
                 .Append(row.AuditSent).Append(',')
                 .Append(row.AgreedFeeTotal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
                 .Append(row.InspectionAgreedFeeTotal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
-                .Append(row.AuditAgreedFeeTotal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
-                .Append(EngineerActivityReportCsv.EscapeField(string.Join(
-                    "; ",
-                    row.ArtifactTypes
-                        .Where(type => type.Generated > 0)
-                        .Select(type => $"{OperatorLabels.ReportKind(type.Kind)} {type.Generated}"))))
+                .Append(row.AuditAgreedFeeTotal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))
                 .Append("\r\n");
         }
 
@@ -266,4 +484,23 @@ public sealed class ReportsModel(
 
         return builder.ToString();
     }
+}
+
+/// <summary>
+/// The Case list form (MI-04): its period or All time, whether Triage Cases
+/// are in, the chosen columns, and the preset the Save and Remove actions
+/// address with its version and replay key.
+/// </summary>
+public sealed record CaseListInput
+{
+    public DateOnly? ReceivedFrom { get; init; }
+    public DateOnly? ReceivedTo { get; init; }
+    public bool AllTime { get; init; }
+    public bool IncludeTriage { get; init; }
+    public string[] Columns { get; init; } = [];
+    public Guid? PresetId { get; init; }
+    public long ExpectedVersion { get; init; }
+    public string? PresetName { get; init; }
+    public Guid NewPresetId { get; init; } = Guid.NewGuid();
+    public string? OperationKey { get; init; } = StaffPageModel.NewOperationKey();
 }
