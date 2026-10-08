@@ -8,21 +8,20 @@ namespace Pegasus.Core.Operations;
 /// the office took in and sent out today and this week. Each is a count of
 /// recorded facts; none is a workflow state.
 /// </summary>
-/// <param name="NewCasesToday">Cases created today, excluding Triage Cases, as the New cases list counts them.</param>
-/// <param name="SentToEngineerToday">Cases first sent to Engineer today: each Case counted once, on its first entry into With Engineer.</param>
-/// <param name="SentToEngineerThisWeek">The same events since Monday.</param>
-/// <param name="ReportsSentToday">Sent report e-mails today, as the Engineer activity report (MI-01) counts them.</param>
-/// <param name="ReportsSentThisWeek">The same since Monday.</param>
-/// <param name="CompletedThisWeek">Cases that entered Complete since Monday, including one reopened since.</param>
-/// <param name="EmailsReceivedToday">Mailbox receipts today; an upload is also a receipt and is not counted.</param>
+/// <param name="NewCases">Cases created, excluding Triage Cases, as the New cases list counts them.</param>
+/// <param name="SentToEngineer">Cases first sent to Engineer: each Case counted once, on its first entry into With Engineer.</param>
+/// <param name="ReportsSent">Sent report e-mails, as the Engineer activity report (MI-01) counts them.</param>
+/// <param name="Completed">Entries into Complete, including a Case reopened since.</param>
+/// <param name="EmailsReceived">Mailbox receipts; an upload is also a receipt and is not counted.</param>
 public sealed record WorkCentreActivityCounts(
-    int NewCasesToday,
-    int SentToEngineerToday,
-    int SentToEngineerThisWeek,
-    int ReportsSentToday,
-    int ReportsSentThisWeek,
-    int CompletedThisWeek,
-    int EmailsReceivedToday);
+    WorkCentreActivityFigure NewCases,
+    WorkCentreActivityFigure SentToEngineer,
+    WorkCentreActivityFigure ReportsSent,
+    WorkCentreActivityFigure Completed,
+    WorkCentreActivityFigure EmailsReceived);
+
+/// <summary>One figure's count today and since Monday.</summary>
+public sealed record WorkCentreActivityFigure(int Today, int ThisWeek);
 
 /// <summary>One read of the figures and the windows they cover.</summary>
 public sealed record WorkCentreActivity(
