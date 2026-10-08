@@ -289,9 +289,19 @@
             @if (editable)
             {
                 <label for="@id">@label</label>
-                <input id="@id" class="fi mono" type="number" min="0" step="0.01" placeholder="£" name="@name" form="case-edit-form"
-                       value="@value?.ToString("0.00", CultureInfo.InvariantCulture)"
-                       data-valuation-retail="@(kind == "retail" ? "" : null)" data-valuation-trade="@(kind == "trade" ? "" : null)" />
+                // A null data-* value still renders as ="", so each box names
+                // its own figure in a branch of its own: the script fills the
+                // first box that carries the attribute.
+                if (kind == "retail")
+                {
+                    <input id="@id" class="fi mono" type="number" min="0" step="0.01" placeholder="£" name="@name" form="case-edit-form"
+                           value="@value?.ToString("0.00", CultureInfo.InvariantCulture)" data-valuation-retail />
+                }
+                else
+                {
+                    <input id="@id" class="fi mono" type="number" min="0" step="0.01" placeholder="£" name="@name" form="case-edit-form"
+                           value="@value?.ToString("0.00", CultureInfo.InvariantCulture)" data-valuation-trade />
+                }
             }
             else
             {
