@@ -34,7 +34,7 @@ a durable technical choice. Use their existing directories and indexes. Put a
 rule in its existing canonical owner whenever possible; add a focused document
 only when it answers a distinct recurring question that lacks an owner.
 
-Operational procedures remain in the runbook. Existing release, wipe and Razor
+Operational procedures remain in the runbook. Existing release, wipe, corpus holding and Razor
 skills retain their defined scope; do not create skills for documentation sections. Engineering/configuration references may live under
 `docs/engineering/`; vendor evidence stays under `docs/external-component-documents/`.
 These locations do not create new product or workflow authority.
