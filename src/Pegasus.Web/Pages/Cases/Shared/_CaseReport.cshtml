@@ -74,7 +74,10 @@
             || !reportAlreadyConfirmed && draftCondition is null);
     var reportOperationKey = (feeNoteOutstanding ? reportArtifact : reportRetryArtifact)?.OperationKey
         ?? Model.GenerateReportOperationKey;
-    var feeNoteOperationKey = feeNoteArtifact?.OperationKey ?? Model.GenerateFeeNoteOperationKey;
+    // Only a retry of this generation's fee note reuses its key; a new
+    // generation's fee note is a new operation.
+    var feeNoteOperationKey = (feeNoteOutstanding ? feeNoteArtifact : null)?.OperationKey
+        ?? Model.GenerateFeeNoteOperationKey;
     // What the preview card opens: the stored report, and a separate fee
     // note once it is confirmed (the Fee tab's own rule).
     var cardReport = reportArtifact is { Filing: CaseReportArtifactFiling.Stored } ? reportArtifact : null;
