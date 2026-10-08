@@ -63,7 +63,7 @@ zero, so the next allocation is `QDOSyy001`.
   re-enter), mailbox configuration and Graph subscriptions,
   `Organizations*`/`Principals*`, `PrincipalDomain*`/
   `PrincipalReferences`, `WorkflowConfigurations`, `SendToAiControl`,
-  `SecurityEvents`, `ValuationPresets` and `EmailTemplates`
+  `SecurityEvents`, `ValuationPresets`, `EmailTemplates` and `CaseListPresets`
   (administrator-managed configuration), `ImageTags` (the image-tag
   vocabulary, whose built-in rows only a migration seeds),
   and the reference-sequence tables `CaseSequences`, `ImageIntakeSequences`
