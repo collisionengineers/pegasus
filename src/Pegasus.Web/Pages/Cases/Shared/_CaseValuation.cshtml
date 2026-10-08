@@ -130,7 +130,7 @@
                             else
                             {
                                 <span class="lbl">@ValuationLabels.GuideMonth</span>
-                                <span class="valuation-card-value @(recorded?.Details.GuideMonth is null ? "is-blank" : null)">@Month(recorded?.Details.GuideMonth)</span>
+                                <span class="valuation-card-value @(recorded?.Details.GuideMonth is null ? "is-blank" : null)">@(recorded?.Details.GuideMonth is { } guideMonth ? Month(guideMonth) : "—")</span>
                             }
                         </div>
                     </div>
@@ -227,7 +227,7 @@
                             else if (pending is null && valuation is not null)
                             {
                                 <span class="lbl">@ValuationLabels.GuideMonth</span>
-                                <span class="valuation-card-value @(valuation.Details.GuideMonth is null ? "is-blank" : null)">@Month(valuation.Details.GuideMonth)</span>
+                                <span class="valuation-card-value @(valuation.Details.GuideMonth is null ? "is-blank" : null)">@(valuation.Details.GuideMonth is { } researchMonth ? Month(researchMonth) : "—")</span>
                             }
                         </div>
                     </div>
