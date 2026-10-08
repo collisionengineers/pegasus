@@ -185,7 +185,7 @@ from the Audit's values, on the same Case. Each report is generated,
 approved and sent on its own: current, superseded and stale are decided for
 each separately, and an Audit edit never makes the Inspection report stale.
 The Audit report's reference is its Our Ref, its file name (for example
-`A_QDOS26001_assessment.pdf`) and its email subject, and its re-sends are
+`A_QDOS26001_report.pdf`) and its email subject, and its re-sends are
 counted among Audit sends only. It has its own fee note and fee, counted
 separately. Report image choices are shared, because they belong to the
 Case's files. Once the Audit exists, the Inspection report is generated,
@@ -264,8 +264,8 @@ separately addressable artifact in custody:
   has moved on since, or one that cannot be printed, fails the artifact closed
   rather than attaching a specification the report never priced;
 - the **images**, which are the images the report prints, alone, in the
-  report's own grid of six to a page with a Full page image on a page of its
-  own, in the report's page style. A Case whose report uses no image has no
+  report's own rows of two with a Full page image on a page of its own, in
+  the report's page style. A Case whose report uses no image has no
   pack to generate.
 
 A delivery attaches the documents the operator chose. Without a choice every
@@ -415,14 +415,15 @@ A fee-note preview shows the recorded fee and description without saving
 anything. Assign Engineer opens engineering work. The Case export
 ([FRD-07](frd-07-case-export.md)) never gates report readiness.
 
-The report prints its images six to a page, two across and three down, in
-the order the Engineer set (operator, 27 September 2026). The Overview prints
+The report prints its images two to a row, each unframed at the column's
+full width and its own shape, the rows flowing onto the next page and never
+split (operator, 8 October 2026), in the order the Engineer set (operator,
+27 September 2026). The Overview prints
 on page 1 only, beside the marked damage diagram, and Full page has no effect
 on it. The Close-up leads the image pages (operator, 7 October 2026). An
 image flagged Full page prints on a page of its own (v28 P41). An image
-prints whole in its frame after the Engineer's own crop and rotation: fitted
-inside it at its own shape and centred, so nothing of it is trimmed
-(operator, 7 October 2026). Every image
+prints whole after the Engineer's own crop and rotation, so nothing of it
+is trimmed (operator, 7 October 2026). Every image
 the Engineer includes prints, whatever their number or source file size,
 each as a print-resolution copy; the retained source is unchanged (operator,
 24 September 2026). The renderer opens one source image at a time, when it

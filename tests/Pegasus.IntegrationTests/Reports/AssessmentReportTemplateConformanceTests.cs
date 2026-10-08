@@ -40,7 +40,6 @@ public sealed class AssessmentReportTemplateConformanceTests(RenderedTemplateSam
     private const double HeaderRight = 190;
     private const double PageCentre = 105;
     private const double SlotWidth = 80.4;
-    private const double GridSlotHeight = 48;
     private const double LeadSlotHeight = 36;
 
     private const string Red = "#c80a32";
@@ -305,19 +304,21 @@ public sealed class AssessmentReportTemplateConformanceTests(RenderedTemplateSam
             (slots[1].Left + slots[1].Right) / 2 - 1,
             (slots[1].Left + slots[1].Right) / 2 + 1);
 
-        // The image page: six images, two across and three down, each slot 80.4 by 48 mm.
-        var grid = Slots(template[4], GridSlotHeight);
-        // Each image is centred in its slot, so a row's images share a middle, not a top.
+        // The image page: six images two across, each at the column's 80.4 mm
+        // width and its own shape (operator, 8 October 2026), so it departs
+        // from the template's fixed slots. A row's images share a middle.
         var images = report[4].Images
             .Where(image => image.Top > BodyTop)
             .OrderBy(image => Math.Round((image.Top + image.Bottom) / 2))
             .ThenBy(image => image.Left)
             .ToArray();
-        Assert.Equal(6, grid.Count);
         Assert.Equal(6, images.Length);
-        foreach (var (image, slot) in images.Zip(grid))
+        for (var index = 0; index < images.Length; index++)
         {
-            AssertFitsWhole(slot, image, name + " page 5 image");
+            var image = images[index];
+            Assert.InRange(image.Width, SlotWidth - Near, SlotWidth + Near);
+            var left = index % 2 == 0 ? BodyLeft : BodyRight - SlotWidth;
+            Assert.InRange(image.Left, left - Near, left + Near);
         }
         // No other page carries a photograph.
         Assert.All(
@@ -403,6 +404,11 @@ public sealed class AssessmentReportTemplateConformanceTests(RenderedTemplateSam
 
         for (var index = 0; index < template.Count; index++)
         {
+            // The image page's frames are gone (operator, 8 October 2026).
+            if (index == 4)
+            {
+                continue;
+            }
             var expected = Segments(template[index]);
             var printed = Segments(report[index]);
             var where = $"{name} page {index + 1}";

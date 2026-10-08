@@ -94,7 +94,7 @@ public sealed class ReportPhotoPreparationTests
 
     /// <summary>
     /// A slot keeps the whole image (operator, 7 October 2026): it is sized
-    /// to fit inside the slot, 1000 by 597 pixels, at its own shape, and
+    /// to fit inside the page-1 slot, 1000 by 448 pixels, at its own shape, and
     /// never enlarged.
     /// </summary>
     [Fact]
@@ -104,13 +104,13 @@ public sealed class ReportPhotoPreparationTests
         var portrait = Quadrants(1200, 1600, SKEncodedImageFormat.Png);
         var small = Quadrants(160, 120, SKEncodedImageFormat.Png);
 
-        using var fitted = Print(large, CaseAssetRotation.None, CaseAssetCrop.Full, ReportChrome.GridSlotHeight);
-        using var upright = Print(portrait, CaseAssetRotation.None, CaseAssetCrop.Full, ReportChrome.GridSlotHeight);
-        using var kept = Print(small, CaseAssetRotation.None, CaseAssetCrop.Full, ReportChrome.GridSlotHeight);
+        using var fitted = Print(large, CaseAssetRotation.None, CaseAssetCrop.Full, ReportChrome.LeadSlotHeight);
+        using var upright = Print(portrait, CaseAssetRotation.None, CaseAssetCrop.Full, ReportChrome.LeadSlotHeight);
+        using var kept = Print(small, CaseAssetRotation.None, CaseAssetCrop.Full, ReportChrome.LeadSlotHeight);
 
-        Assert.Equal((796, 597), (fitted.Width, fitted.Height));
+        Assert.Equal((597, 448), (fitted.Width, fitted.Height));
         AssertQuadrants(fitted, "R", "G", "B", "Y");
-        Assert.Equal((448, 597), (upright.Width, upright.Height));
+        Assert.Equal((336, 448), (upright.Width, upright.Height));
         AssertQuadrants(upright, "R", "G", "B", "Y");
         Assert.Equal((160, 120), (kept.Width, kept.Height));
     }
@@ -158,7 +158,7 @@ public sealed class ReportPhotoPreparationTests
         var rotation = Rotations[rotationIndex];
         var crop = new CaseAssetCrop((decimal)left, (decimal)top, (decimal)width, (decimal)height);
         var source = Pattern(1600, 1200);
-        float? slot = inSlot ? ReportChrome.GridSlotHeight : null;
+        float? slot = inSlot ? ReportChrome.LeadSlotHeight : null;
 
         using var printed = Print(source, rotation, crop, slot, scanlineFrom: long.MaxValue);
         using var reference = RotatedCopyPrint(source, rotation, crop, slot);
@@ -186,7 +186,7 @@ public sealed class ReportPhotoPreparationTests
         var rotation = Rotations[rotationIndex];
         var crop = new CaseAssetCrop((decimal)left, (decimal)top, (decimal)width, (decimal)height);
         var source = Pattern(1600, 1200);
-        float? slot = inSlot ? ReportChrome.GridSlotHeight : null;
+        float? slot = inSlot ? ReportChrome.LeadSlotHeight : null;
 
         using var whole = Print(source, rotation, crop, slot, scanlineFrom: long.MaxValue);
         using var scanned = Print(source, rotation, crop, slot, scanlineFrom: 0);
@@ -215,7 +215,7 @@ public sealed class ReportPhotoPreparationTests
 
     /// <summary>
     /// A PNG far past the whole-decode threshold is generated in memory and
-    /// prints at the slot's 597 pixels high, the same as a whole decode of it.
+    /// prints at the page-1 slot's 448 pixels high, the same as a whole decode of it.
     /// Nothing refuses it for its size.
     /// </summary>
     [Fact]
@@ -225,11 +225,11 @@ public sealed class ReportPhotoPreparationTests
         Assert.True(5000L * 4000 > ReportPhotoPreparation.ScanlineFromPixels);
         var crop = new CaseAssetCrop(0.05m, 0.05m, 0.9m, 0.9m);
 
-        using var scanned = Print(source, CaseAssetRotation.Clockwise90, crop, ReportChrome.GridSlotHeight);
+        using var scanned = Print(source, CaseAssetRotation.Clockwise90, crop, ReportChrome.LeadSlotHeight);
         using var whole = Print(
-            source, CaseAssetRotation.Clockwise90, crop, ReportChrome.GridSlotHeight, scanlineFrom: long.MaxValue);
+            source, CaseAssetRotation.Clockwise90, crop, ReportChrome.LeadSlotHeight, scanlineFrom: long.MaxValue);
 
-        Assert.Equal((478, 597), (scanned.Width, scanned.Height));
+        Assert.Equal((358, 448), (scanned.Width, scanned.Height));
         AssertSameShape(whole, scanned);
         AssertSimilar(whole, scanned, mean: 4);
         // Turned a quarter turn: blue, red over yellow, green.

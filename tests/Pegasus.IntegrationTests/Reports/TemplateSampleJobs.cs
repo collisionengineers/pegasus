@@ -183,8 +183,9 @@ internal static class TemplateSampleJobs
         ActorKind.Staff, "engineer-1", RecordedAtUtc);
 
     /// <summary>
-    /// Seven drawn photographs in the sizes a telephone takes them: the
-    /// Close-up, the Overview, and five supporting images in order.
+    /// Seven drawn landscape photographs in the sizes a telephone takes
+    /// them: the Close-up, the Overview, and five supporting images in order,
+    /// so the six image-page images fill the template's one image page.
     /// </summary>
     private static ReportImageEvidence[] Photographs()
     {
@@ -193,7 +194,7 @@ internal static class TemplateSampleJobs
             (CaseAssetReportRole.CloseUp, null, 1600, 1200),
             (CaseAssetReportRole.Overview, null, 1600, 1200),
             (CaseAssetReportRole.Supporting, 1, 1600, 900),
-            (CaseAssetReportRole.Supporting, 2, 1200, 1600),
+            (CaseAssetReportRole.Supporting, 2, 1600, 1200),
             (CaseAssetReportRole.Supporting, 3, 1600, 1200),
             (CaseAssetReportRole.Supporting, 4, 2000, 1125),
             (CaseAssetReportRole.Supporting, 5, 1600, 1200),
