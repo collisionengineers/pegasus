@@ -68,12 +68,12 @@ overall score, a percentage, or a summary such as "3 items outstanding". On
 the Case record each report blocker links to the section that clears it. A
 recorded value is never a blocker because of who recorded it: there is no
 per-field review, and Assign Engineer is the only review (operator, 25
-September 2026). Once the Case is With Engineer, while the report is not ready the
-Next action lists every report blocker, each linking to its section, and the
-Report section's head keeps the one **Not ready** availability label (in Not
-ready and Review the Next action names the outstanding requirement or Assign
-Engineer, which opens the Actions menu's dialog, and the report blockers
-follow it) ([FRD-16](frd-16-case-record-workspace.md#case-workspace),
+September 2026). While the report is not ready the aside's **Report not
+ready** card lists every report blocker, each linking to its section, and the
+Report section's head keeps the one **Not ready** availability label. The
+Next action is one step (operator, 8 October 2026): in Not ready the first
+outstanding requirement, in Review Assign Engineer, which opens the Actions
+menu's dialog, and With Engineer the first blocker ([FRD-16](frd-16-case-record-workspace.md#case-workspace),
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
 
 **Required items are configuration.** Instruction completeness and image

@@ -645,6 +645,10 @@ internal static partial class CaseWebTestSupport
     [GeneratedRegex("<section[^>]*data-next-action[^>]*>.*?</section>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
     internal static partial Regex NextActionRegex();
 
+    /// <summary>The aside's Report not ready card.</summary>
+    [GeneratedRegex("<section[^>]*data-report-not-ready[^>]*>.*?</section>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    internal static partial Regex ReportNotReadyRegex();
+
     internal static string Section(string html, string labelledBy)
     {
         var start = html.IndexOf($"aria-labelledby=\"{labelledBy}\"", StringComparison.Ordinal);

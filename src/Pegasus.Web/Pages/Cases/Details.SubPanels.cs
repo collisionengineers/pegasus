@@ -11,4 +11,12 @@ public sealed partial class DetailsModel
     /// the sections themselves.
     /// </summary>
     public SubPanelToggle SubPanel(string key) => new(key, CollapsedClass(key) is not null);
+
+    /// <summary>
+    /// The fold of a card folded until this browser opens it (its
+    /// <c>data-collapse-folded</c>): the same cookie names the key once the
+    /// card is opened, so the first paint, and every redraw, keeps it so.
+    /// </summary>
+    public SubPanelToggle FoldedUntilOpened(string key) =>
+        new(key, !Pegasus.Web.Presentation.ShellPreferences.PanelCollapsed(Request, key));
 }
