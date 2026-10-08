@@ -3176,6 +3176,9 @@ public sealed partial class DetailsModel(
             {
                 status = "ok",
                 readout = RepairSpecificationWording.ScaleReadout(result, percent),
+                // The spec as edited sets the slider's top (operator, 8 October 2026).
+                ceiling = Math.Max(1m, RepairSpecificationScaling.PercentOfValue(engineerValue!.Value, result.GrossBefore))
+                    .ToString("0.#", CultureInfo.InvariantCulture),
                 labourRate = Amount(result.Details.LabourRate),
                 lines = editor.LineRows.Select((row, index) => new
                 {
