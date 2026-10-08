@@ -48,11 +48,12 @@
         : (recorded is null ? null : (recordedBasis is null ? "Guide" : ValuationLabels.SourceLabel(recordedBasis.Details.Source)));
     var lineForm = editable ? "case-edit-form" : null;
 
-    // The value increases, one list in both modes (DetailsModel.ValuationIncreaseRows):
+    // The value increases (DetailsModel.ValuationIncreaseRows): editing offers
     // every active preset, ticked where the recorded calculation applied it,
-    // then any applied increase that is not an active preset. Read mode leaves
-    // out the blank custom rows the calculator offers.
-    var shownIncreases = Model.ValuationIncreaseRows.Where(row => row.PresetId != Guid.Empty || row.Selected).ToArray();
+    // then any applied increase that is not an active preset. Read mode lists
+    // only the increases the recorded calculation applied (operator,
+    // 8 October 2026).
+    var shownIncreases = Model.ValuationIncreaseRows.Where(row => row.Selected).ToArray();
     var hasIncreases = editable || shownIncreases.Length > 0;
 
     string Money(decimal value) => ValuationCalculationPolicy.FormatMoney(value);
@@ -179,8 +180,8 @@
             }
             else
             {
-                @* Read mode lists the same increases; a tick marks each one
-                   the recorded calculation applied (a mark, not a control). *@
+                @* Read mode lists the applied increases, each with a tick
+                   (a mark, not a control). *@
                 foreach (var row in shownIncreases)
                 {
                     <div class="add @(row.Selected ? "on" : null)" data-valuation-applied-addition="@(row.Selected ? "true" : null)">
