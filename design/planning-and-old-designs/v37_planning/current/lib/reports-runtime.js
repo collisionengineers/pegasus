@@ -182,17 +182,17 @@
   function engineerTable(rows) {
     var head = th(sortLink('mi01', 'person', 'Person', ui.sort, ui.dir), false, ariaSort(ui.sort, 'person', ui.dir))
       + th(sortLink('mi01', 'queries', 'Queries received', ui.sort, ui.dir), true, ariaSort(ui.sort, 'queries', ui.dir))
-      + th('Disputes', true) + th('Amendment requests', true)
+      + th('Amendment requests', true)
       + th(sortLink('mi01', 'reports', 'Reports sent', ui.sort, ui.dir), true, ariaSort(ui.sort, 'reports', ui.dir))
       + th('Audit reports sent', true) + th('Received to sent');
     var body;
-    if (rows === null) body = muted(7, 'Unavailable');
-    else if (!rows.length) body = muted(7, 'No engineer activity was recorded for this period.');
+    if (rows === null) body = muted(6, 'Unavailable');
+    else if (!rows.length) body = muted(6, 'No engineer activity was recorded for this period.');
     else {
       var mq = Math.max.apply(null, rows.map(function (r) { return r.queries; }));
       var ms = Math.max.apply(null, rows.map(function (r) { return r.sent; }));
       body = rows.map(function (r) {
-        return '<tr><td>' + esc(r.name) + '</td><td class="num">' + measureCell(r.queries, mq) + '</td><td class="num tabular">' + r.disputes + '</td><td class="num tabular">' + r.amendments + '</td><td class="num">' + measureCell(r.sent, ms) + '</td><td class="num tabular">' + r.audit + '</td><td>' + esc(r.toSent) + '</td></tr>';
+        return '<tr><td>' + esc(r.name) + '</td><td class="num">' + measureCell(r.queries, mq) + '</td><td class="num tabular">' + r.amendments + '</td><td class="num">' + measureCell(r.sent, ms) + '</td><td class="num tabular">' + r.audit + '</td><td>' + esc(r.toSent) + '</td></tr>';
       }).join('');
     }
     return table(head, body, { extra: ' data-engineer-activity' });

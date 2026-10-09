@@ -21,3 +21,14 @@ Chronological. The operator's words are quoted; the rest records what was explor
 **What was built.** Three designs (A Tidied sections, B Overview first, C Month ledger), Today from the same fixtures, the comparison page, the self-check and 50 screenshots. Ten strip switches cover the open choices and proposals.
 
 **Items raised.** A to S in [v37-notes.md](v37-notes.md), section 6. Five Stage 2 defect fixes are listed there unlettered.
+
+## Round 2: 9 October 2026
+
+**The operator's words.** "assume disputes and queries are the same - these must be rolled together both in our codebase, database, documentation, and the mockup design."
+
+**What changed.**
+
+- The mockup: Engineer activity has no Disputes column in A, B, C or Today, and the Case list catalogue has no Disputes column. The self-check bans "dispute" and "disputes" on the page and now counts 886.
+- The application, data and documentation: [PR #1146](https://github.com/collisionengineers/pegasus/pull/1146) removes the `dispute` mail subtype and the Disputes columns. A forward-only migration turns recorded disputes into queries and moves shared presets from Disputes to Queries. The PR also updates FRD-08, FRD-11, FRD-13, FRD-17, capabilities, the QDOS profile and CONTEXT.md.
+
+**Items raised.** None. The ruling is settled, so it is recorded in section 1 of the notes, not lettered.

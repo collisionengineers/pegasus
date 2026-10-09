@@ -1,9 +1,9 @@
 {
-  "checkedAtUtc": "2026-10-09T14:26:04Z",
+  "checkedAtUtc": "2026-10-09T17:36:55Z",
   "scope": "Offline v37 mockup self-check. Not application evidence.",
   "result": {
     "fail": [],
-    "okCount": 890
+    "okCount": 886
   },
   "screenshots": [
     "01-a-default-1580.png",

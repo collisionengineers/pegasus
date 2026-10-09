@@ -7,6 +7,7 @@ Built on 9 October 2026 from `origin/dev` 970ef9f10. These notes cover the offli
 - **The round itself.** A mockup of Administration › Management Reports that also considers "the features and functionality behind this", with proposals for them, in three alternative designs (operator, 9 October 2026).
 - **"A widget control" means a design switcher on the mockup strip.** The page gets no widget board and no customisation (operator's answer, 9 October 2026: "Design switcher in mockup").
 - **The page stays Administrator-only**, as today (operator's answer, 9 October 2026: "Administrators only (as today)").
+- **A dispute is a query.** "assume disputes and queries are the same - these must be rolled together both in our codebase, database, documentation, and the mockup design" (operator, 9 October 2026). Engineer activity and the Case list have no Disputes column in any design or on Today. The query counts already included disputes, so no total moves. The application, data and documentation change is [PR #1146](https://github.com/collisionengineers/pegasus/pull/1146).
 
 ## 2. What changes, and where it shows
 
@@ -29,7 +30,7 @@ Shot numbers refer to `v37-shots/` (listed on the [page README](../pages/adminis
 
 ## 3. Live rules the mockup mirrors
 
-- **Sections and words** are `Reports.cshtml` at 970ef9f10, word for word, including the two notes, the empty and Unavailable rows and the busy words (`OperatorLabels.Busy`). The Case list catalogue is `CaseListColumns.Build`, in order, with Core's "· Inspection" / "· Audit" titles.
+- **Sections and words** are `Reports.cshtml` at 970ef9f10 with PR #1146's change (no Disputes column), word for word, including the two notes, the empty and Unavailable rows and the busy words (`OperatorLabels.Busy`). The Case list catalogue is `CaseListColumns.Build`, in order, with Core's "· Inspection" / "· Audit" titles.
 - **Period** (`ReportsModel.LoadAsync`): To defaults to now and From to 31 days before; the inputs are minute-precision `datetime-local`. From after To raises "Choose a valid date range." in Engineer activity only; Reports by Principal, Turnaround and By month read as Unavailable.
 - **Engineer activity** (`EngineerActivityReport`): reports credited to the recorded sender, Staff actors only; queries to the Case's assigned Engineer. Meters scale to the period's largest. Sort: none until chosen; then `SortDirectionFor` (asc, then desc on a second click).
 - **Reports by Principal** (`PrincipalReportActivity`): every send counts, including Automation's, so the fixture's 110 against Engineer activity's 107 is the live difference (item J). Rows with nothing produced and nothing sent are hidden.
@@ -39,7 +40,7 @@ Shot numbers refer to `v37-shots/` (listed on the [page README](../pages/adminis
 
 ## 4. Frame rules
 
-- **The frame** is the live shell from `_Layout.cshtml` and the Administration frame from `_AdminNav.cshtml` (220px nav, Management Reports current). Shot 04 and `live-shots/live-reports-1440.png` match. `capture-live-v37.py` diffs headings, columns, labels, buttons, tile labels, MI labels and notes, and found no difference (9 October 2026).
+- **The frame** is the live shell from `_Layout.cshtml` and the Administration frame from `_AdminNav.cshtml` (220px nav, Management Reports current). Shot 04 and `live-shots/live-reports-1440.png` match. `capture-live-v37.py` diffs headings, columns, labels, buttons, tile labels, MI labels and notes, and found no difference (9 October 2026). That capture predates the disputes ruling, so it still shows the Disputes column that Today no longer draws.
 - **Components** are site.css and admin.css only: `panel`, `metric-strip` (`--3`, `--5`), `metric-meta`, `table--compact`, `admin-report-measure`, `form-grid--auto`, `data-auto-submit` selects. The mockup's own CSS adds the head-select layout, C's selected row and the month bars, from site.css tokens.
 - **Filters** are labelled selects, never pills (design README). B's tiles are `.metric` buttons with `aria-pressed`, as the Work Centre counts are.
 - **Colour.** Navy for meters and bars, red for the chosen row's edge and the pressed tile, no green anywhere (nothing here is a confirmed completion), Unavailable never drawn as 0.
@@ -87,13 +88,13 @@ Each item is open until the operator answers. The first answer of each is the pr
 
 ## 7. Self-check
 
-9 October 2026: `python check-management-reports-v37.py` printed `RESULT {"fail": [], "okCount": 890}`, with no script or console error and no external request. It ran with `PEGASUS_CHROME` pointing at Playwright's Chromium 1234. What it checks:
+9 October 2026, after the disputes ruling: `python check-management-reports-v37.py` printed `RESULT {"fail": [], "okCount": 886}`, with no script or console error and no external request. It ran with `PEGASUS_CHROME` pointing at Playwright's Chromium 1234. What it checks:
 - All four files render all 12 page states: one H1 "Management Reports", the Administration eyebrow, Management Reports current in the admin nav.
-- Every visible word is a live label, a fixture value, or a proposal word listed under its lettered item. No banned word appears and no green chip is drawn.
+- Every visible word is a live label, a fixture value, or a proposal word listed under its lettered item. No banned word appears ("dispute" and "disputes" among them) and no green chip is drawn.
 - A failed report shows Unavailable, never 0. An invalid period shows the error. Live keeps its false zero; the designs draw no report and no figure.
 - With every proposal on, A and C draw Queues, Cases by stage and Outcomes, the held figures leave Turnaround, and Previous period sits under at least three totals.
 - Nothing spills sideways at 1580, 1440 or 760 in any state.
-- Coverage: each design shows all seven Engineer activity columns, every Reports by Principal, By month and Turnaround fact, every period, Person and Case list control, and the five buttons. Design B is checked across all its reports.
+- Coverage: each design shows all six Engineer activity columns, every Reports by Principal, By month and Turnaround fact, every period, Person and Case list control, and the five buttons. Design B is checked across all its reports.
 - Flows:
   - no arrow before a sort; live's first click is smallest first, the designs' largest first, and only live draws its own arrow;
   - Person leaves one row; Person choices are 6 (proposal) or 7 (live);
@@ -115,7 +116,7 @@ Each item is open until the operator answers. The first answer of each is the pr
 - The month bars have no text alternative of their own; the Total row beneath carries the figures.
 - At 760 the head selects wrap under the heading, as live `panel-actions` do.
 - B does not remember the chosen report across a period change; live Razor would carry `report=` in the period form.
-- The live capture was taken from the visual host built from `dev` 37c4b96f5; `Reports.cshtml`, `admin.css` and the Administration nav are unchanged between that commit and 970ef9f10.
+- The live capture was taken from the visual host built from `dev` 37c4b96f5; `Reports.cshtml`, `admin.css` and the Administration nav are unchanged between that commit and 970ef9f10. It was taken before PR #1146, so `captured/` and `live-shots/` show a Disputes column; they are kept as the record of that day's page.
 
 ## 9. Not drawn: these need new recording
 

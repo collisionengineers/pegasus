@@ -7,6 +7,7 @@ Decided with the operator on 9 October 2026 (the brief and the two answers); the
 - **D1.** The round produces three alternative designs, switched on the mockup strip; the page itself gets no widget board or customisation (operator, 9 October 2026).
 - **D2.** The page stays Administrator-only (operator, 9 October 2026).
 - **D3.** The proposals may extend the reports behind the page, not only its layout (operator, 9 October 2026).
+- **D16.** A dispute is a query. No report counts disputes apart, and Engineer activity and the Case list have no Disputes column (operator, 9 October 2026; [PR #1146](https://github.com/collisionengineers/pegasus/pull/1146)).
 
 ## Proposed rules, shared by the three designs
 

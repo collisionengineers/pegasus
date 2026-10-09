@@ -78,11 +78,11 @@ export const people = [
 
 // MI-01 for 08 Sep 2026 09:41 – 09 Oct 2026 09:41. Days are ReportTurnaround's words.
 export const engineers = [
-  { name: 'alex', queries: 3, disputes: 1, amendments: 1, sent: 22, audit: 4, toSent: '6 days' },
-  { name: 'j.okafor', queries: 5, disputes: 2, amendments: 1, sent: 31, audit: 6, toSent: '5 days' },
-  { name: 'm.lewis', queries: 1, disputes: 0, amendments: 0, sent: 9, audit: 0, toSent: '8 days' },
-  { name: 'r.khan', queries: 4, disputes: 1, amendments: 2, sent: 27, audit: 5, toSent: '5 days' },
-  { name: 's.patel', queries: 2, disputes: 0, amendments: 1, sent: 18, audit: 3, toSent: '7 days' },
+  { name: 'alex', queries: 3, amendments: 1, sent: 22, audit: 4, toSent: '6 days' },
+  { name: 'j.okafor', queries: 5, amendments: 1, sent: 31, audit: 6, toSent: '5 days' },
+  { name: 'm.lewis', queries: 1, amendments: 0, sent: 9, audit: 0, toSent: '8 days' },
+  { name: 'r.khan', queries: 4, amendments: 2, sent: 27, audit: 5, toSent: '5 days' },
+  { name: 's.patel', queries: 2, amendments: 1, sent: 18, audit: 3, toSent: '7 days' },
 ];
 
 // MI-02 for the same period: [Inspection, Audit] pairs; totals are their sums.
@@ -161,11 +161,11 @@ export const ledger = {
 };
 // Engineer activity and turnaround for the six months (design C).
 export const engineersLedger = [
-  { name: 'alex', queries: 14, disputes: 4, amendments: 5, sent: 121, audit: 19, toSent: '6 days' },
-  { name: 'j.okafor', queries: 23, disputes: 8, amendments: 6, sent: 168, audit: 31, toSent: '5 days' },
-  { name: 'm.lewis', queries: 6, disputes: 1, amendments: 2, sent: 57, audit: 2, toSent: '8 days' },
-  { name: 'r.khan', queries: 19, disputes: 6, amendments: 7, sent: 149, audit: 24, toSent: '5 days' },
-  { name: 's.patel', queries: 11, disputes: 3, amendments: 4, sent: 99, audit: 13, toSent: '7 days' },
+  { name: 'alex', queries: 14, amendments: 5, sent: 121, audit: 19, toSent: '6 days' },
+  { name: 'j.okafor', queries: 23, amendments: 6, sent: 168, audit: 31, toSent: '5 days' },
+  { name: 'm.lewis', queries: 6, amendments: 2, sent: 57, audit: 2, toSent: '8 days' },
+  { name: 'r.khan', queries: 19, amendments: 7, sent: 149, audit: 24, toSent: '5 days' },
+  { name: 's.patel', queries: 11, amendments: 4, sent: 99, audit: 13, toSent: '7 days' },
 ];
 export const turnaroundLedger = [
   { code: 'ALPHA', held: 1, oldestHeld: '02 Oct 2026 14:20', produce: '4 days', ready: '3 days', send: '5 days' },
@@ -182,7 +182,7 @@ export const caseListGroups = [
   ['Engineers', [['engineer.assigned', 'Assigned engineer'], ['engineer.sign_off', 'Sign-off engineer'], ...sided('sent_by', 'Report sent by')]],
   ['Claim and vehicle', [['claim.number', 'Claim number'], ['claim.claimant_name', 'Claimant name'], ['claim.claimant_contact_number', 'Claimant contact number'], ['claim.claimant_address', 'Claimant address'], ['claim.incident_date', 'Incident date'], ['vehicle.registration', 'Registration'], ['vehicle.make', 'Make'], ['vehicle.model', 'Model'], ['vehicle.year', 'Year'], ['vehicle.mileage', 'Mileage'], ['inspection.date', 'Inspection date']]],
   ['Money', [...sided('agreed_fee', 'Agreed fee'), ...sided('engineers_value', 'Engineer\'s Value'), ...sided('retail_value', 'Retail value'), ...sided('trade_value', 'Trade value'), ...sided('repair_cost', 'Repair cost'), ...sided('salvage_value', 'Salvage value'), ...sided('recovery_charge', 'Recovery charge'), ...sided('storage_charge', 'Storage charge')]],
-  ['Parties and activity', [['party.repairer', 'Repairer'], ['party.claim_source', 'Claim source'], ['party.storage', 'Storage'], ['activity.images', 'Images'], ['activity.images_in_report', 'Images in report'], ['activity.documents', 'Documents'], ['activity.queries', 'Queries'], ['activity.disputes', 'Disputes'], ['activity.amendment_requests', 'Amendment requests'], ['activity.emails_sent', 'E-mails sent'], ['activity.chases', 'Chases'], ['activity.open_tasks', 'Open tasks'], ['activity.notes', 'Notes']]],
+  ['Parties and activity', [['party.repairer', 'Repairer'], ['party.claim_source', 'Claim source'], ['party.storage', 'Storage'], ['activity.images', 'Images'], ['activity.images_in_report', 'Images in report'], ['activity.documents', 'Documents'], ['activity.queries', 'Queries'], ['activity.amendment_requests', 'Amendment requests'], ['activity.emails_sent', 'E-mails sent'], ['activity.chases', 'Chases'], ['activity.open_tasks', 'Open tasks'], ['activity.notes', 'Notes']]],
 ];
 export const caseListPresets = [
   { id: '3f6c1b8e-2d4a-4c1e-9b7a-1a2b3c4d5e6f', name: 'Monthly invoicing', columns: ['case.reference', 'case.principal', 'case.type', 'case.received', 'sent.inspection', 'sent.audit', 'agreed_fee.inspection', 'agreed_fee.audit'] },

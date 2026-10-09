@@ -23,7 +23,7 @@ presets = ['default', 'empty', 'person', 'engineer-unavailable', 'principal-unav
 widths = [(1580, 1000), (1440, 900), (760, 1000)]
 fails, ok = [], [0]
 errors, external = [], []
-banned = ['intake', 'bounded', 'projection', 'lease', 'opaque', 'ingress', 'composed', 'artifact', 'durable', 'aggregate', 'caller', 'correlation identifier', 'bytes', 'mi-0']
+banned = ['intake', 'bounded', 'projection', 'lease', 'opaque', 'ingress', 'composed', 'artifact', 'durable', 'aggregate', 'caller', 'correlation identifier', 'bytes', 'mi-0', 'dispute', 'disputes']
 
 # Copy allow-list. Live: the words Reports.cshtml, _AdminNav, _PageHeader,
 # OperatorLabels (Admin, CaseList, Busy) and CaseListColumns put on the page
@@ -32,7 +32,7 @@ fixtures_text = (current / 'lib' / 'reports-fixtures.mjs').read_text(encoding='u
 column_titles = set(re.findall(r"\['[a-z_.]+', '([^']+)'\]", fixtures_text)) | {t.replace("\\'", "'") for t in re.findall(r"sided\('[a-z_]+', '((?:[^'\\]|\\.)+)'\)", fixtures_text)}
 live_words = {
     'Management Reports', 'Administration', 'Engineer activity', 'MI01', 'MI02', 'MI03', 'MI04', 'From', 'To', 'Person', 'All people', 'Apply',
-    'Download CSV', 'Download workbook', 'Downloading…', 'Downloaded', 'Queries received', 'Reports sent', 'Audit reports sent', 'Disputes',
+    'Download CSV', 'Download workbook', 'Downloading…', 'Downloaded', 'Queries received', 'Reports sent', 'Audit reports sent',
     'Amendment requests', 'Received to sent', 'Unavailable', 'No engineer activity was recorded for this period.', 'Reports by Principal',
     'Reports produced', 'Agreed fees', 'Principal', 'By month', 'Month', 'Fee notes produced', 'No reports were recorded for this period.',
     'Turnaround', 'Cases currently held', 'Currently held', 'Oldest held since', 'Time to produce', 'Time to ready', 'Time to send',
@@ -185,7 +185,7 @@ with sync_playwright() as p:
             page.set_viewport_size({'width': 1440, 'height': 900})
 
     # ---- coverage: every live control and fact has a place in each design ----
-    live_headers = ['Person', 'Queries received', 'Disputes', 'Amendment requests', 'Reports sent', 'Audit reports sent', 'Received to sent']
+    live_headers = ['Person', 'Queries received', 'Amendment requests', 'Reports sent', 'Audit reports sent', 'Received to sent']
     for design in designs:
         views = ['state=default&embed=1'] if design != 'b' else [f'report={r}&embed=1' for r in ('engineers', 'principals', 'months', 'turnaround', 'caselist')]
         seen = []

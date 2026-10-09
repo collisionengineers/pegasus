@@ -36,4 +36,4 @@ Every state is also reachable by query string:
 
 ## Status
 
-Stage 1 delivered on 9 October 2026; every lettered item is open. Stage 2 waits for the operator's answers and approval.
+Stage 1 delivered on 9 October 2026. The same day, the operator ruled that a dispute is a query; the mockup follows, and PR #1146 makes the application change. Every lettered item is open. Stage 2 waits for the operator's answers and approval.
