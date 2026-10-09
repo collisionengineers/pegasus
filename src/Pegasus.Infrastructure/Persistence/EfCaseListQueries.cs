@@ -309,7 +309,6 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
                 document?.InReport ?? 0,
                 document?.Documents ?? 0,
                 caseQueries.Count,
-                caseQueries.Count(subtype => subtype == MailCategory.DisputeSubtype),
                 caseQueries.Count(subtype => subtype == MailCategory.AmendmentRequestSubtype),
                 correspondence.GetValueOrDefault(caseId) + reportMail.GetValueOrDefault(caseId),
                 chases.GetValueOrDefault(caseId),

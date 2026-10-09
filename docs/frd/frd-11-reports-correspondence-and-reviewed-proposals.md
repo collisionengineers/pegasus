@@ -545,9 +545,9 @@ Report sent is the exact approved-mailbox Sent-item evidence in
 [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence).
 Report sent starts post-report work; it does not close the Case.
 
-Post-report queries, disputes, amendment requests and replies stay Case
-correspondence with source and reply-chain identity and permanent history.
-The Engineer answers them. The Completed → Query → Completed cycle is in
+Post-report queries (a dispute is a query), amendment requests and replies
+stay Case correspondence with source and reply-chain identity and permanent
+history. The Engineer answers them. The Completed → Query → Completed cycle is in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#completed-and-query). A
 mailbox adapter calls that shared transition; it never allocates a Case or a
 reference.

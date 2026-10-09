@@ -17,7 +17,6 @@ public sealed record EngineerActivityCounts(
     Guid EngineerId,
     int ReportsSent,
     int QueriesReceived,
-    int Disputes = 0,
     int AmendmentRequests = 0,
     int AuditReportsSent = 0,
     TimeSpan? AverageReceivedToSent = null);
@@ -35,7 +34,7 @@ public interface IEngineerActivityQueries
         CancellationToken cancellationToken);
 }
 
-/// <param name="Disputes">Post-report mail classified as a dispute; part of <paramref name="QueriesReceived"/>.</param>
+/// <param name="QueriesReceived">Post-report mail; a dispute is a query.</param>
 /// <param name="AmendmentRequests">Post-report mail classified as an amendment request; part of <paramref name="QueriesReceived"/>.</param>
 /// <param name="AuditReportsSent">Audit reports sent (<c>CaseWorkPolicy.IsAuditReport</c>: a standalone Audit Case's or an Inspection + Audit Case's Audit); part of <paramref name="ReportsSent"/> (MI-01's Audit uplift).</param>
 /// <param name="AverageReceivedToSent">Instruction received to report sent, averaged over the sends with a known origin; an Audit work's report counts from the Audit's creation.</param>
@@ -44,7 +43,6 @@ public sealed record EngineerActivityRow(
     string DisplayName,
     int ReportsSent,
     int QueriesReceived,
-    int Disputes = 0,
     int AmendmentRequests = 0,
     int AuditReportsSent = 0,
     TimeSpan? AverageReceivedToSent = null);
@@ -60,7 +58,7 @@ public sealed record EngineerActivityReport(
 /// </summary>
 public static class EngineerActivityReportCsv
 {
-    public const string Header = "Recorded send actor,Queries received for assigned Engineer,Disputes,Amendment requests,Reports sent by recorded actor,Audit reports sent,Received to sent";
+    public const string Header = "Recorded send actor,Queries received for assigned Engineer,Amendment requests,Reports sent by recorded actor,Audit reports sent,Received to sent";
 
     public static string ToCsv(IReadOnlyList<EngineerActivityRow> rows)
     {
@@ -72,7 +70,6 @@ public static class EngineerActivityReportCsv
             builder
                 .Append(EscapeField(row.DisplayName)).Append(',')
                 .Append(row.QueriesReceived).Append(',')
-                .Append(row.Disputes).Append(',')
                 .Append(row.AmendmentRequests).Append(',')
                 .Append(row.ReportsSent).Append(',')
                 .Append(row.AuditReportsSent).Append(',')
@@ -141,8 +138,6 @@ public sealed class GetEngineerActivityReport(
         if (counts.Any(item => item.EngineerId == Guid.Empty
             || item.ReportsSent < 0
             || item.QueriesReceived < 0
-            || item.Disputes < 0
-            || item.Disputes > item.QueriesReceived
             || item.AmendmentRequests < 0
             || item.AmendmentRequests > item.QueriesReceived
             || item.AuditReportsSent < 0
@@ -166,7 +161,6 @@ public sealed class GetEngineerActivityReport(
                 ActorDisplayNames.Resolve(ActorKind.Staff, item.EngineerId.ToString("D"), names),
                 item.ReportsSent,
                 item.QueriesReceived,
-                item.Disputes,
                 item.AmendmentRequests,
                 item.AuditReportsSent,
                 item.AverageReceivedToSent))
