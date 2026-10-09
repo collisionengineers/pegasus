@@ -277,6 +277,19 @@ public sealed class ReportRequirementOwnershipTests
         Assert.Equal(section, CaseWorkspaceLabels.Report.BlockerSection(item));
     }
 
+    [Fact]
+    public void BlockerFieldNamesTheCellAJumpOutlines()
+    {
+        var history = new AssessmentReadinessItem(
+            "Requirement", "Source", "Why outstanding", "How to resolve", AssessmentVocabulary.HistoryCheck);
+        var image = new AssessmentReadinessItem(
+            CaseReportReadiness.OverviewImageRequirement, "Source", "Why outstanding", "How to resolve");
+
+        Assert.Equal(AssessmentVocabulary.HistoryCheck, CaseWorkspaceLabels.Report.BlockerField(history));
+        Assert.Equal("signOffEngineerId", CaseWorkspaceLabels.Report.BlockerField(CaseReportReadiness.SignOffEngineerNotChosen));
+        Assert.Null(CaseWorkspaceLabels.Report.BlockerField(image));
+    }
+
     /// <summary>
     /// The aside lists the blockers in the order the Case page shows what
     /// clears them (operator, 2 October 2026): section by section down the

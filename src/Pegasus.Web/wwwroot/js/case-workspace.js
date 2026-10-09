@@ -204,7 +204,12 @@
         })) {
             return;
         }
-        scrollSectionIntoView(target);
+        var marked = target.querySelector('.is-jump-target');
+        if (marked) {
+            marked.scrollIntoView({ block: 'center' });
+        } else {
+            scrollSectionIntoView(target);
+        }
         pendingAnchor = null;
     }
     function scrollSectionIntoView(host) {
@@ -247,7 +252,30 @@
         }
         land(target);
     }
-    function jumpTo(key, focus, tab) {
+    // A jump to a report blocker outlines the cell recording its field
+    // (data-field, a space-separated list), unfolding any panel folded over
+    // it, and focuses its control while the record edits. The outline lasts
+    // until the next jump. Answers whether a control took focus.
+    function markField(host, field) {
+        record.querySelectorAll('.is-jump-target').forEach(function (cell) { cell.classList.remove('is-jump-target'); });
+        var cell = host && field ? host.querySelector('[data-field~="' + field + '"]') : null;
+        if (!cell) {
+            return false;
+        }
+        for (var panel = cell.closest('[data-collapse]'); panel; panel = panel.parentElement && panel.parentElement.closest('[data-collapse]')) {
+            var toggle = panel.classList.contains('is-collapsed') ? panel.querySelector('[data-collapse-toggle]') : null;
+            if (toggle) { toggle.click(); }
+        }
+        cell.classList.add('is-jump-target');
+        cell.scrollIntoView({ block: 'center' });
+        var control = cell.querySelector('.fi');
+        if (!control) {
+            return false;
+        }
+        try { control.focus({ preventScroll: true }); } catch (_) { control.focus(); }
+        return true;
+    }
+    function jumpTo(key, focus, tab, field) {
         var navigation = ++navigationVersion;
         var target = sectionFor(key);
         if (!target) {
@@ -256,19 +284,20 @@
         var predecessors = lazyBefore(target);
         pendingAnchor = predecessors.length ? { key: key, predecessors: predecessors } : null;
         if (target.hasAttribute('data-lazy')) {
+            markField(null);
             mount(target, function (host) {
                 if (navigation !== navigationVersion) { return; }
                 openSubTab(host, tab);
                 scrollSectionIntoView(host);
                 mountApproaching();
-                if (focus) { focusSection(host); }
+                if (!markField(host, field) && focus) { focusSection(host); }
             });
             return;
         }
         openSubTab(target, tab);
         scrollSectionIntoView(target);
         mountApproaching();
-        if (focus) { focusSection(target); }
+        if (!markField(target, field) && focus) { focusSection(target); }
     }
     function spy() {
         var hosts = sections();
@@ -312,7 +341,7 @@
             return;
         }
         event.preventDefault();
-        jumpTo(jump.getAttribute('data-section-jump'), true, jump.getAttribute('data-section-tab'));
+        jumpTo(jump.getAttribute('data-section-jump'), true, jump.getAttribute('data-section-tab'), jump.getAttribute('data-section-field'));
     });
 
     var ticking = false;

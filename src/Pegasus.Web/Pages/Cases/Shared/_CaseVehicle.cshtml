@@ -128,7 +128,7 @@
     </div>
     <div class="panel-body stack">
         <div class="fg g4" data-vehicle-facts>
-            <div class="fc @Ro(editFields)">
+            <div class="fc @Ro(editFields)" data-field="@CaseDataFieldNames.VehicleRegistration">
                 @{ Lbl(editFields, "edit-registration", VehicleLabels.Registration, OperatorLabels.SourceTag(registrationValue?.Source)); }
                 <div class="@ValueClass(registration) mono">@Value(registration)</div>
                 @if (editFields)
@@ -171,7 +171,7 @@
                        staff save re-stamps it as staff's. *@
                     var definition = AssessmentVocabulary.Definitions[path];
                     var controlId = "edit-" + path.Replace('.', '-').Replace('_', '-');
-                    <div class="fc @Ro(editFields)" data-vehicle-identity="@path">
+                    <div class="fc @Ro(editFields)" data-vehicle-identity="@path" data-field="@path">
                         @{ Lbl(editFields, controlId, label, OperatorLabels.SourceTag(recorded)); }
                         <div class="@ValueClass(raw) @(path == AssessmentVocabulary.VehicleVin ? "mono" : null)">@(string.IsNullOrWhiteSpace(raw) ? OperatorLabels.CaseWorkspace.AbsentValue : VehicleLabels.AssessmentValue(path, raw))</div>
                         @if (editFields && definition.Type == AssessmentFieldType.Enumerated)
@@ -194,7 +194,7 @@
                 }
                 else
                 {
-                    <div class="fc ro" data-vehicle-provenance-row="@path">
+                    <div class="fc ro" data-vehicle-provenance-row="@path" data-field="@path">
                         @{ Lbl(false, string.Empty, label, OperatorLabels.SourceTag(recorded)); }
                         <div class="@ValueClass(raw)">@(string.IsNullOrWhiteSpace(raw) ? OperatorLabels.CaseWorkspace.AbsentValue : VehicleLabels.AssessmentValue(path, raw))</div>
                     </div>
@@ -232,7 +232,7 @@
                         </select>
                     }
                 </div>
-                <div class="fc @Ro(canEditCondition)">
+                <div class="fc @Ro(canEditCondition)" data-field="@AssessmentVocabulary.VehicleCondition">
                     @{ Lbl(canEditCondition, "edit-vehicle-condition", VehicleLabels.PreIncidentCondition, Model.AssessmentSourceTag(AssessmentVocabulary.VehicleCondition)); }
                     <div class="@ValueClass(condition)">@(condition is null ? OperatorLabels.CaseWorkspace.AbsentValue : VehicleLabels.ConditionLabel(condition))</div>
                     @if (canEditCondition)
@@ -263,7 +263,7 @@
         @* The history check is prose about the vehicle rather than one of its
            facts, so it reads as its own area under the grid. *@
         <div class="sub-panel vehicle-history @Model.CollapsedClass("case.vehicle.history")" data-collapse="case.vehicle.history" data-vehicle-history><h3>@VehicleLabels.History <span class="rt">@OperatorLabels.CaseWorkspace.ExperianSeamCondition</span> <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.vehicle.history")" /></h3>
-            <div class="fc @Ro(canEditHistory)">
+            <div class="fc @Ro(canEditHistory)" data-field="@AssessmentVocabulary.HistoryCheck">
                 @{ Lbl(canEditHistory, "edit-vehicle-history", VehicleLabels.History, Model.AssessmentSourceTag(AssessmentVocabulary.HistoryCheck)); }
                 <div class="@ValueClass(Model.AssessmentEditorValue(AssessmentVocabulary.HistoryCheck)) multi">@Model.AssessmentValue(AssessmentVocabulary.HistoryCheck)</div>
                 @if (canEditHistory)
