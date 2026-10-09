@@ -408,7 +408,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
             Assert.Equal(hash, recoveredPending.Sha256, ignoreCase: true);
             Assert.Equal(content.LongLength, recoveredPending.ContentLength);
 
-            var restarted = new ReconcilePendingArtifactCustody(factory, store, intake);
+            var restarted = new ReconcilePendingArtifactCustody(factory, store, intake, PastInlineFilingGrace());
             var replay = await restarted.ExecuteAsync(10, CancellationToken.None);
 
             Assert.Equal(1, replay.Confirmed);
@@ -462,7 +462,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
         if (recover)
         {
             await Assert.ThrowsAsync<IOException>(() => custody.RetainAsync(request, default));
-            var result = await new ReconcilePendingArtifactCustody(factory, content, artifacts)
+            var result = await new ReconcilePendingArtifactCustody(factory, content, artifacts, PastInlineFilingGrace())
                 .ExecuteAsync(10, default);
             Assert.Equal(1, result.Confirmed);
         }
@@ -783,6 +783,41 @@ public sealed class CaseArtifactCustodyRecoveryTests
 
         Assert.Equal(2, result.Candidates);
         Assert.Equal(2, artifacts.ReadCount);
+    }
+
+    /// <summary>
+    /// A version recorded moments ago belongs to the request that recorded it,
+    /// which is filing it in Box under its fixed name. The sweep leaves it alone
+    /// until the inline-filing grace has passed, so the two never upload the
+    /// same name together (a.QDOS26101's Glass's return, 9 October 2026).
+    /// </summary>
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(119, false)]
+    [InlineData(120, true)]
+    [InlineData(600, true)]
+    public async Task ANewlyRecordedVersionIsLeftToItsRequestUntilTheGraceHasPassed(
+        int recordedSecondsAgo, bool offered)
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var clock = new FixedClock(new DateTimeOffset(2031, 5, 1, 12, 0, 0, TimeSpan.Zero));
+        await using (var db = await database.CreateContextAsync())
+        {
+            var versionId = AddPendingVersion(db, caseId, 1);
+            db.Set<DocumentVersionEntity>().Local.Single(value => value.Id == versionId).CreatedAtUtc =
+                clock.GetUtcNow().AddSeconds(-recordedSecondsAgo);
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var artifacts = new CountingArtifactStore();
+
+        var result = await new ReconcilePendingArtifactCustody(
+            factory, new SuccessfulContentStore(), artifacts, clock).ExecuteAsync(50, default);
+
+        Assert.Equal(offered ? 1 : 0, result.Candidates);
+        Assert.Equal(offered ? 1 : 0, artifacts.ReadCount);
     }
 
     /// <summary>
@@ -1112,7 +1147,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
         var publisher = new RecordingCachePublisher();
 
         var reconciled = await new ReconcilePendingArtifactCustody(
-                factory, content, artifacts, TimeProvider.System, publisher)
+                factory, content, artifacts, PastInlineFilingGrace(), publisher)
             .ExecuteAsync(10, default);
 
         Assert.Equal(1, reconciled.Confirmed);
@@ -1234,6 +1269,13 @@ public sealed class CaseArtifactCustodyRecoveryTests
         public override DateTimeOffset GetUtcNow() => utcNow;
     }
 
+    /// <summary>
+    /// A sweep clock past the inline-filing grace of a version recorded now, so
+    /// a test can reconcile what its request has just left pending.
+    /// </summary>
+    private static FixedClock PastInlineFilingGrace() =>
+        new(DateTimeOffset.UtcNow + PendingCustodyRetryPolicy.InlineFilingGrace + TimeSpan.FromSeconds(1));
+
     /// <summary>Fails the context creation with the given call number, and only that one.</summary>
     private sealed class ThrowingContextFactory(
         IDbContextFactory<PegasusDbContext> inner, int throwOnCall) : IDbContextFactory<PegasusDbContext>
@@ -1328,8 +1370,9 @@ public sealed class CaseArtifactCustodyRecoveryTests
 
     /// <summary>
     /// A content store whose write for the request lets the Worker's
-    /// reconciliation run to its end first, as the ten-second sweep did in
-    /// production. Each writer is answered with its own stored identities.
+    /// reconciliation run to its end first, as a sweep past the inline-filing
+    /// grace can while a slow write is still running. Each writer is answered
+    /// with its own stored identities.
     /// </summary>
     private sealed class ReconcilingContentStore(
         IDbContextFactory<PegasusDbContext> factory,
@@ -1350,7 +1393,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
             ManagedDocumentContentAddress address, Stream content, long contentLength,
             string expectedSha256, CancellationToken cancellationToken)
         {
-            Reconciled = await new ReconcilePendingArtifactCustody(factory, this, artifacts)
+            Reconciled = await new ReconcilePendingArtifactCustody(factory, this, artifacts, PastInlineFilingGrace())
                 .ExecuteAsync(10, cancellationToken);
             return new(DocumentContentWriteDisposition.Replay, "request-file", "request-version");
         }
