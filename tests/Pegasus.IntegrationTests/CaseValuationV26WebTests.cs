@@ -1179,7 +1179,6 @@ public sealed class CaseValuationV26WebTests
             GlassProviderFixture.EstimatorBase,
             GlassProviderFixture.CallbackBase,
             GlassProviderFixture.ProfileId,
-            SessionLifetime: TimeSpan.FromHours(8),
             ExportPollInterval: TimeSpan.FromMilliseconds(5),
             ExportTimeout: TimeSpan.FromMilliseconds(50),
             MaximumExportBytes: 16 * 1024 * 1024));

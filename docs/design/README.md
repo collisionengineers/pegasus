@@ -748,6 +748,15 @@ answers that it does not value a vehicle of that age. It shows in the
 Glass's card as an info notice, with no Report a problem, because nothing is
 broken; every other failure keeps the unavailable sentence.
 
+> The Case registration has changed since this Glass's estimate was started. Restore the original vehicle details to reopen it.
+
+> The Case registration has changed since this Glass's session started. The session still holds the account. Restore the original vehicle details to resume, or close the external session and confirm its closure before launching again.
+
+The operator approved both (9 October 2026, issue 1070) for **Glass's** on a
+spec's estimate, and on the staff member's own live session, after the Case
+registration changed. A corrected mileage, or any change on a placeholder,
+is not refused.
+
 Permanent consequences must be visible without hover or colour alone. Illustrative text must not fabricate operational input.
 
 These words are banned from operator-facing copy in
@@ -1145,6 +1154,8 @@ Use guidance only where the operator must understand a consequence:
 - "Unlinking this email cancels case <reference>."
 - "{Source} valuation is unavailable. Contact an administrator or report a problem."
 - "Glass's cannot value this vehicle because of its age: Glass's values cars and motorcycles up to 20 years old and light commercial vehicles up to 15."
+- "The Case registration has changed since this Glass's estimate was started. Restore the original vehicle details to reopen it."
+- "The Case registration has changed since this Glass's session started. The session still holds the account. Restore the original vehicle details to resume, or close the external session and confirm its closure before launching again."
 
 Illustrative text must not fabricate operational input. Loading, empty,
 stale/partial, retryable error, denied/unauthenticated, validation, conflict,

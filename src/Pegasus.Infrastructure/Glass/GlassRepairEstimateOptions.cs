@@ -21,7 +21,6 @@ public sealed record GlassRepairEstimateOptions(
     Uri EstimatorBaseUri,
     Uri CallbackBaseUri,
     string RepairProfileId,
-    TimeSpan SessionLifetime,
     TimeSpan ExportPollInterval,
     TimeSpan ExportTimeout,
     int MaximumExportBytes)
@@ -61,7 +60,6 @@ public sealed record GlassRepairEstimateOptions(
             RequireHttpsOrigin(read, "Glass:EstimatorBaseUri"),
             RequireHttpsOrigin(read, "Glass:CallbackBaseUri"),
             RequireProfile(read, "Glass:RepairProfileId"),
-            TimeSpan.FromHours(RequirePositive(read, "Glass:SessionHours", 8)),
             TimeSpan.FromSeconds(RequirePositive(read, "Glass:ExportPollSeconds", 2)),
             TimeSpan.FromSeconds(RequirePositive(read, "Glass:ExportTimeoutSeconds", 60)),
             // The export is read by GlassEstimateXmlParser, which refuses a
@@ -121,6 +119,8 @@ public sealed record GlassRepairEstimateOptions(
     /// The MVA repair profile a new estimate is started against. It is account
     /// configuration, not a vehicle or estimate identity, and a missing or
     /// changed profile stops the launch rather than silently choosing another.
+    /// Glass's keeps repair profiles for the organisation, so every staff
+    /// login offers the same one under the same id (operator, 9 October 2026).
     /// </summary>
     private static string RequireProfile(Func<string, string?> read, string key)
     {
