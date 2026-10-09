@@ -570,7 +570,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
     /// it for the inline-filing grace; ages every version past it so the sweep
     /// offers what intake left pending.
     /// </summary>
-    private static Task AgePastInlineFilingGraceAsync(PegasusDbContext db) =>
+    private static Task<int> AgePastInlineFilingGraceAsync(PegasusDbContext db) =>
         db.Set<DocumentVersionEntity>().ExecuteUpdateAsync(update => update.SetProperty(
             value => value.CreatedAtUtc, DateTimeOffset.UtcNow.AddHours(-1)));
 
