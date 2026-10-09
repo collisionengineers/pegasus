@@ -1713,7 +1713,7 @@ public sealed class CaseWorkspacePersistenceTests
     }
 
     /// <summary>
-    /// Use this value on a guide card typed in the same edit (operator, 28
+    /// Choosing a guide card typed in the same edit (operator, 28
     /// September 2026): the card has no identity yet, so the Save is told its
     /// source and records the calculation against the card it has just
     /// recorded, in the one Save.
@@ -1792,13 +1792,13 @@ public sealed class CaseWorkspacePersistenceTests
     }
 
     /// <summary>
-    /// Use this value is a decision, so a Save that carries it while the
+    /// Choosing a card is a decision, so a Save that carries it while the
     /// Engineer's Value box no longer holds the calculated figure (the preview
     /// had not landed, or the box was typed over) is refused with a message and
     /// writes nothing: it is never dropped silently.
     /// </summary>
     [Fact]
-    public async Task UseThisValueWithAnEngineersValueBoxThatDoesNotMatchTheCalculationIsRefused()
+    public async Task ChosenCardWithAnEngineersValueBoxThatDoesNotMatchTheCalculationIsRefused()
     {
         await using var harness = await Harness.CreateAsync();
         var initial = await harness.GetRequiredDataAsync();
