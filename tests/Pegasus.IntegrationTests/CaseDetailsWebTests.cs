@@ -160,7 +160,7 @@ public sealed class CaseDetailsWebTests
     }
 
     [Fact]
-    public async Task HiddenOriginalReportSectionFallsBackToOverviewInTabs()
+    public async Task HiddenOriginalReportSectionFallsBackToOverview()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore();
@@ -180,13 +180,11 @@ public sealed class CaseDetailsWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
-        client.DefaultRequestHeaders.Add("Cookie", "pegasus-case-layout=tabs");
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=original-report");
 
         Assert.Contains("data-section-current=\"overview\"", html, StringComparison.Ordinal);
         Assert.Equal("overview", CurrentSectionKey(html));
-        Assert.Contains("is-active", Section(html, "section-overview-title"), StringComparison.Ordinal);
         Assert.DoesNotContain("data-section-link=\"original-report\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"section-original-report\"", html, StringComparison.Ordinal);
     }
@@ -541,9 +539,8 @@ public sealed class CaseDetailsWebTests
         Assert.Equal(1, Occurrences(actions, "data-case-actions"));
         Assert.DoesNotContain("You are editing this case", html, StringComparison.Ordinal);
 
-        // The second row is the section nav, with its Scroll/Tabs switch.
+        // The second row is the section nav.
         Assert.Equal(1, Occurrences(html, "data-section-nav"));
-        Assert.Equal(1, Occurrences(html, "data-case-layout-switch"));
     }
 
     /// <summary>

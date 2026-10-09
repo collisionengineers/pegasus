@@ -34,7 +34,7 @@
     var computedReserve = Model.ComputedRepairReserve;
 }
 
-<section class="record-section panel @Model.CollapsedClass("case.settlement") @Model.ActiveTabClass("settlement") @(Model.IsEditing && !Model.SectionIsEditable("settlement") ? "is-locked" : null)" id="section-settlement" data-section="settlement" data-collapse="case.settlement" aria-labelledby="section-settlement-title"
+<section class="record-section panel @Model.CollapsedClass("case.settlement") @(Model.IsEditing && !Model.SectionIsEditable("settlement") ? "is-locked" : null)" id="section-settlement" data-section="settlement" data-collapse="case.settlement" aria-labelledby="section-settlement-title"
          data-settlement-repair-cost="@(repairCost?.ToString("0.##", CultureInfo.InvariantCulture))"
          data-settlement data-settlement-outcome="@outcome" data-settlement-editable="@(editing ? "true" : "false")">
     <div class="panel-head">

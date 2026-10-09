@@ -2051,7 +2051,7 @@
 })();
 
 // --- Layout preference cookies (Phase 5b) ------------------------------------
-// The server paints the rail width, the Case record's layout and folded panels
+// The server paints the rail width and folded panels
 // from first-party cookies, so nothing flashes open before this script runs
 // (the CSP allows no inline script). This is the one writer of those cookies:
 // Path=/, SameSite=Lax, Secure over HTTPS, readable by script by design; the

@@ -8,8 +8,8 @@ These are requirements, not a claim of deployment or operator acceptance.
 
 ## Evidence discipline
 
-Use the accepted interface requirements and current FRD-12 interactions. One
-Case record supports the refined Scroll/Tabs display choice. Native
+Use the accepted interface requirements and current FRD-12 interactions. The
+Case record is one scrolling page. Native
 engineering and reports are owned by Pegasus. Prototype behavior
 is reference evidence; it does not overrule current requirements.
 
@@ -149,8 +149,8 @@ and a colleague editing (chips that do not fit beside the facts take their own
 row under them; the reference and registration are never cut short); then Edit Case, or while editing the Editing badge,
 its status word (Saving…, Saved 14:02, or why the last change was not saved)
 and Done, and one **Actions** menu — and the 40px **section row** of
-section links, Refresh and the Scroll/Tabs switch. Scroll is the default in
-every state; a Tabs choice lasts for the browser session. The section row
+section links and Refresh. The page always scrolls; there is no Tabs layout
+(operator, 9 October 2026). The section row
 links Case details, Claim, Original report on Audit Cases, Inspection details,
 Vehicle (with Damage and Valuation inside), Repair Spec, Decisions, Report,
 Files and Notes. Each is a foldable panel whose head carries its own Edit
@@ -311,12 +311,10 @@ shared `.dismiss` × so it can be put away before it expires.
   record is one container — header, identity ribbon, action bar, sections as
   tabs — and the operator reaches its identity, its state, its available
   actions and its main content without scrolling.
-- The Case record has Scroll and Tabs display modes using the same section
-  hosts and one edit form. Scroll is the no-script fallback: its identity
-  ribbon, action bar and section navigation are sticky, sections below the
-  fold load lazily, and `?section=` reaches a section. Tabs hide inactive
-  sections without removing their loaded fields or a change not yet sent.
-  Retain the personal display preference and the single Case Notes timeline.
+- The Case record is one scrolling page of section hosts with one edit form:
+  its identity ribbon, action bar and section navigation are sticky, sections
+  below the fold load lazily, and `?section=` reaches a section. Retain the
+  single Case Notes timeline.
 - <a id="source-tags"></a>**Source tags.** Where a value came from is one
   visible word in a small `src-tag` pill in the cell's label line, the same in
   read and edit: Extracted · AI · E-mail · Lookup · Principal · Automatic ·
@@ -906,7 +904,7 @@ deleted in wave 5.
 | `record`, `record-head`, `record-accent`, `record-bar`, `record-body` | Single-record container |
 | `sticky-block` (`[data-sticky-block]`) | The record's sticky block under the utility bar, measured at runtime into `--sticky-h` |
 | `ribbon`, `ribbon-facts`, `ribbon-item`, `ribbon-ref`, `ribbon-registration`, `ribbon-value`, `ribbon-chips`, `ribbon-actions` | The 56px identity ribbon: the reference as the page's `h1` (`ribbon-value`) under "Case workspace", Registration, Claimant, Principal, Engineer; state, Case type and colleague-editing chips; then the edit controls and the one **Actions** menu |
-| `section-row`, `section-nav`, `section-link`, `section-tools`, `layout-switch` | The 40px section row: section links (the one in view carries `aria-current`), Refresh and the Scroll/Tabs switch |
+| `section-row`, `section-nav`, `section-link`, `section-tools` | The 40px section row: section links (the one in view carries `aria-current`) and Refresh |
 | `workspace`, `workspace-aside` | The record grid: sections beside a 285px aside (the Views card once an Audit exists, Figures, Next action, Report not ready) that folds above the sections below 1441px |
 | `context-card` (`[data-case-views]`), `next-row` | The Views card: one row per view, the current one plain with `aria-current="page"`, the other a link |
 | `record-section`, `panel[data-collapse]`, `panel-collapse`, `is-collapsed`, `is-editing`, `is-locked` | One section panel, foldable and remembered per browser; the record's edit and read-only states |

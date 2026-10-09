@@ -114,7 +114,7 @@
     string? Recorded(string path) => Model.AssessmentIsAbsent(path) ? null : Model.AssessmentEditorValue(path);
 }
 
-<section class="record-section record-section--nested panel @Model.CollapsedClass("case.damage") @Model.ActiveTabClass("damage") case-damage @(Model.IsEditing && !editable ? "is-locked" : null)" id="section-damage" data-section="damage" data-section-parent="vehicle" data-collapse="case.damage" aria-labelledby="section-damage-title"
+<section class="record-section record-section--nested panel @Model.CollapsedClass("case.damage") case-damage @(Model.IsEditing && !editable ? "is-locked" : null)" id="section-damage" data-section="damage" data-section-parent="vehicle" data-collapse="case.damage" aria-labelledby="section-damage-title"
          data-damage-editor data-damage-editable="@(editable ? "true" : "false")" data-damage-impacts="@rawImpacts"
          data-damage-areas="@areaTable" data-damage-severities="@severityTable" data-damage-multiple="@DamageLabels.Multiple"
          data-damage-absent="@OperatorLabels.CaseWorkspace.AbsentValue" data-damage-none="@DamageLabels.NoDamageRecorded"

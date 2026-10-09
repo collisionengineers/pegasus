@@ -639,10 +639,10 @@ public sealed class CaseRecordGapsV26WebTests
     }
 
     [Theory]
-    [InlineData("pegasus-rail=collapsed; pegasus-case-layout=tabs; pegasus-collapsed=case.report|case.notes", true)]
-    [InlineData("pegasus-rail=sideways; pegasus-case-layout=grid; pegasus-collapsed=CASE.REPORT|case report|case.report-with-a-key-far-longer-than-forty-chars", false)]
+    [InlineData("pegasus-rail=collapsed; pegasus-collapsed=case.report|case.notes", true)]
+    [InlineData("pegasus-rail=sideways; pegasus-collapsed=CASE.REPORT|case report|case.report-with-a-key-far-longer-than-forty-chars", false)]
     [InlineData(null, false)]
-    public async Task TheRailLayoutAndFoldedPanelsArePaintedFromTheirCookies(string? cookie, bool remembered)
+    public async Task TheRailAndFoldedPanelsArePaintedFromTheirCookies(string? cookie, bool remembered)
     {
         var store = new RecordingCaseDetailsStore();
         using var baseFactory = new IntakeWebApplicationFactory();
@@ -667,7 +667,6 @@ public sealed class CaseRecordGapsV26WebTests
 
         var shell = Regex.Match(html, "<div class=\"(?<classes>app-shell[^\"]*)\" data-app-shell>").Groups["classes"].Value;
         var toggle = Regex.Match(html, "<button[^>]*data-rail-toggle[^>]*>").Value;
-        var record = Regex.Match(html, "<article class=\"record case-record[^>]*>", RegexOptions.Singleline).Value;
         var overviewTag = Regex.Match(html, "<section class=\"[^\"]*\" id=\"section-overview\"").Value;
         // The Report section is never deferred, so its own markup (not a lazy
         // placeholder) carries the fold on a read-only visit.
@@ -677,8 +676,6 @@ public sealed class CaseRecordGapsV26WebTests
         {
             Assert.Contains("rail-collapsed", shell, StringComparison.Ordinal);
             Assert.Contains("aria-expanded=\"false\"", toggle, StringComparison.Ordinal);
-            Assert.Contains("data-layout=\"tabs\"", record, StringComparison.Ordinal);
-            Assert.Contains("is-active", overviewTag, StringComparison.Ordinal);
             Assert.Contains("is-collapsed", vehicleTag, StringComparison.Ordinal);
             Assert.Contains("aria-expanded=\"false\"", vehicleChevron, StringComparison.Ordinal);
             Assert.DoesNotContain("is-collapsed", overviewTag, StringComparison.Ordinal);
@@ -687,8 +684,6 @@ public sealed class CaseRecordGapsV26WebTests
         {
             Assert.DoesNotContain("rail-collapsed", shell, StringComparison.Ordinal);
             Assert.Contains("aria-expanded=\"true\"", toggle, StringComparison.Ordinal);
-            Assert.Contains("data-layout=\"scroll\"", record, StringComparison.Ordinal);
-            Assert.DoesNotContain("is-active", overviewTag, StringComparison.Ordinal);
             Assert.DoesNotContain("is-collapsed", vehicleTag, StringComparison.Ordinal);
             Assert.Contains("aria-expanded=\"true\"", vehicleChevron, StringComparison.Ordinal);
         }
