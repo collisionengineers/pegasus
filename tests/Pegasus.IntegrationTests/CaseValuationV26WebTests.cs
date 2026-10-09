@@ -1122,12 +1122,40 @@ public sealed class CaseValuationV26WebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var answer = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal("vehicle_age", answer.RootElement.GetProperty("status").GetString());
+        Assert.Equal("not_valued", answer.RootElement.GetProperty("status").GetString());
         Assert.Equal(
             "Glass's cannot value this vehicle because of its age: Glass's values cars and motorcycles up to 20 years old and light commercial vehicles up to 15.",
             answer.RootElement.GetProperty("message").GetString());
         Assert.Equal(0, mva.Count("GET /index/create-new-vehicle"));
         Assert.False(filing.Filed.Task.IsCompleted);
+        Assert.Empty(store.Saves);
+    }
+
+    /// <summary>
+    /// A registration Cazana holds no data for answers the card's own approved
+    /// sentence (operator, 9 October 2026), not "unavailable", and records nothing.
+    /// </summary>
+    [Fact]
+    public async Task ACazanaRegistrationWithNoDataAnswersItsOwnSentence()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ICaseDataQueries>(services, store);
+            services.AddSingleton<IGuideValuationProvider>(
+                new NotValuedGuideValuationProvider(ValuationSource.Cazana, GuideValuationNotValuedReason.NoVehicleData));
+        });
+
+        using var response = await PostGetValuationAsync(workspace, ValuationSource.Cazana, "2026-08", asJson: true);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var answer = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("not_valued", answer.RootElement.GetProperty("status").GetString());
+        Assert.Equal(
+            "Cazana cannot value this vehicle: it holds no data for its registration.",
+            answer.RootElement.GetProperty("message").GetString());
         Assert.Empty(store.Saves);
     }
 
@@ -1289,6 +1317,15 @@ public sealed class CaseValuationV26WebTests
             Requests.Add(request);
             return Task.FromResult(new GuideValuationQuote(retail, trade, request.GuideMonth, request.Mileage));
         }
+    }
+
+    private sealed class NotValuedGuideValuationProvider(ValuationSource source, GuideValuationNotValuedReason reason)
+        : IGuideValuationProvider
+    {
+        public ValuationSource Source => source;
+
+        public Task<GuideValuationQuote> GetAsync(GuideValuationRequest request, CancellationToken cancellationToken) =>
+            throw new GuideValuationNotValuedException(source, reason);
     }
 
     /// <summary>A preview that records what it was asked and answers a fixed calculation.</summary>

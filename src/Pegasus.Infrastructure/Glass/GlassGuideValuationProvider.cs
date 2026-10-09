@@ -70,7 +70,7 @@ public sealed partial class GlassGuideValuationProvider(
         catch (GlassMvaStageException exception) when (exception.FailureCode == GlassFailure.ValuationVehicleAge)
         {
             LogUnavailable(logger, request.CaseId, request.GuideMonth, exception.FailureCode, exception.Detail);
-            throw new GuideValuationVehicleAgeException(Source, exception);
+            throw new GuideValuationNotValuedException(Source, GuideValuationNotValuedReason.VehicleAge, exception);
         }
         catch (Exception exception) when (Unavailable(exception, cancellationToken))
         {

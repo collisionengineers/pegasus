@@ -108,3 +108,18 @@ repair estimate's `Glass:MarketValueAssessorBaseUri` and
 `Glass:RequestTimeoutSeconds`. Rotating the password is a new secret version
 and a configuration read-back, not a release. `DevelopmentOffline` composes no
 Glass's valuation, so its Glass's card says the source is unavailable.
+
+## Cazana valuation
+
+`Cazana:ApiKey` is the key Get valuation sends to Cazana's valuation API
+([ADR-0066](../adr/0066-cazana-valuation-through-a-key-vault-held-api-key.md)).
+It is a Production required setting, held in Key Vault as `cazana-api-key`
+and delivered to Web as `Cazana__ApiKey` through a versioned secret URI
+reference read through its own secret-scoped grant; the Worker does not
+receive it. The key is read on each valuation, never at startup, so an
+unresolved reference makes the Cazana card answer unavailable rather than
+stopping the host. It is sent only as a Bearer header. The Cazana origin
+(`https://api.cazana.com`) and a 30-second timeout are fixed in the adapter.
+Rotating the key is a new secret version and a configuration read-back, not
+a release. `DevelopmentOffline` composes no Cazana valuation, so its Cazana
+card says the source is unavailable.
