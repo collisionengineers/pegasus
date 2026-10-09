@@ -102,7 +102,7 @@ exclusion.
 | UI-17 | Case record: Scroll and Tabs modes over ten sections, and the Inspection and Audit views | [Case workspace](frd/frd-16-case-record-workspace.md#case-workspace) |
 | UI-18 | Awaiting instruction pre-Case queue | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
 | UI-19 | Service health is Administration-only | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
-| ENG-03 | Damage record: zones with severity and note, tyres, belts, diagram | [Damage record](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record) |
+| ENG-03 | Damage record: zones with severity and note, unrelated damage, diagram | [Damage record](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record) |
 | ENG-04 | Settlement fields with derived equity | [Settlement](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement) |
 | ENG-05 | Principal salvage matrix fills the Case salvage value | [Settlement](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement) |
 | AI-11 | Market Research AI job completed outside Pegasus | [AI Job List](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list) |

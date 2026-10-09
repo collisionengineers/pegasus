@@ -907,7 +907,6 @@ deleted in wave 5.
 | `gated`, `avail` | The dashed availability label, stated once per section head |
 | `damage-workbench`, `damage-marks`, `figures`, `figure` | The Damage plan and its bursts, and the aside figures |
 | `damage-diagram`, `dv-hit`, `dm`, `dm-guides` | The vehicle's drawing and the outline a press must start on, one burst per recorded damage over its unpainted disc (kept as drawn, unclipped), and the dashed band guides shown while editing |
-| `tyre-card` | Tyre and seat belt per corner, spare tyre, centre belt |
 | `valuation-card` | One valuation entry: source, date, time, guide month, retail, trade (and the mileage an Engineer's Value or AI entry carries) |
 | `outcome-option` | Settlement outcome choice |
 | `derived` | A value derived, never entered: impact location and severity, equity, the Incident narrative and the statement of truth read from their report owners, and a permitted ratio line where one is shown |

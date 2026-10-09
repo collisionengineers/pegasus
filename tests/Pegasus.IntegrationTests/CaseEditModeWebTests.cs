@@ -391,7 +391,7 @@ public sealed class CaseEditModeWebTests
 
         var fields = new (string Name, string Value)[]
         {
-            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SettlementExcess), "0"),
+            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.UnroadworthyReason), "Brake line severed"),
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SettlementClaimantVatRegistered), "false"),
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.HistoryCheck), ""),
             // The Vehicle section renders this select in every engineering edit form.
@@ -406,7 +406,7 @@ public sealed class CaseEditModeWebTests
         var saved = Assert.Single(store.Saves);
         AssertLeasedMutation(workspace, saved, DetailsModelOperationKey, "Correct recorded settlement");
         Assert.Null(saved.Overview);
-        Assert.Equal("0", saved.Settlement!.AssessmentFields![AssessmentVocabulary.SettlementExcess]);
+        Assert.Equal("Brake line severed", saved.Settlement!.AssessmentFields![AssessmentVocabulary.UnroadworthyReason]);
         Assert.Equal("false", saved.Settlement.AssessmentFields[AssessmentVocabulary.SettlementClaimantVatRegistered]);
         Assert.Null(saved.Vehicle!.AssessmentFields![AssessmentVocabulary.HistoryCheck]);
         Assert.Equal("good", saved.Vehicle.AssessmentFields[AssessmentVocabulary.VehicleCondition]);
@@ -435,10 +435,10 @@ public sealed class CaseEditModeWebTests
         store.State = state;
         using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
             workspace.MutationForm(DetailsModelOperationKey, "Correct recorded settlement",
-                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SettlementExcess), "0")));
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.UnroadworthyReason), "Brake line severed")));
         AssertPrg(response, store.CaseId);
         Assert.Empty(store.Saves);
-        Assert.Contains("Excess", ProposedValuesPanel(await workspace.GetWorkspaceAsync()), StringComparison.Ordinal);
+        Assert.Contains("Unroadworthy reason", ProposedValuesPanel(await workspace.GetWorkspaceAsync()), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -475,19 +475,19 @@ public sealed class CaseEditModeWebTests
                 ("operationKey", InputValue(initial, "operationKey"))));
         AssertPrg(claim, store.CaseId);
         var editing = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        var excessName = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SettlementExcess);
-        Assert.Contains($"name=\"{excessName}\"", editing, StringComparison.Ordinal);
+        var reasonName = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.UnroadworthyReason);
+        Assert.Contains($"name=\"{reasonName}\"", editing, StringComparison.Ordinal);
 
         using var response = await client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
             Form(AntiforgeryValue(editing),
                 ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
                 ("operationKey", DetailsModelOperationKey),
                 ("editLeaseToken", store.LeaseToken),
-                (excessName, "250")));
+                (reasonName, "Brake line severed")));
 
         AssertPrg(response, store.CaseId);
         var saved = Assert.Single(store.Saves);
-        Assert.Equal("250", saved.Settlement!.AssessmentFields![AssessmentVocabulary.SettlementExcess]);
+        Assert.Equal("Brake line severed", saved.Settlement!.AssessmentFields![AssessmentVocabulary.UnroadworthyReason]);
     }
 
     [Fact]
@@ -511,11 +511,11 @@ public sealed class CaseEditModeWebTests
             Substitute<ISaveCaseWorkspace>(services, store));
         using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
             workspace.MutationForm(DetailsModelOperationKey, "Correct recorded settlement",
-                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SettlementExcess), "0"),
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.UnroadworthyReason), "Brake line severed"),
                 (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.RateCard), "standard")));
         AssertPrg(response, store.CaseId);
         Assert.Empty(store.Saves);
-        Assert.Contains("Excess", ProposedValuesPanel(await workspace.GetWorkspaceAsync()), StringComparison.Ordinal);
+        Assert.Contains("Unroadworthy reason", ProposedValuesPanel(await workspace.GetWorkspaceAsync()), StringComparison.Ordinal);
     }
 
     [Fact]

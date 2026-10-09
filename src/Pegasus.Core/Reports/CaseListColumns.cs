@@ -147,7 +147,6 @@ public static class CaseListColumns
             CaseListFacts.ReportFigures, [], (work, _) => work.LatestReportRepairCost));
         columns.AddRange(Money("salvage_value", "Salvage value", AssessmentVocabulary.SalvageValue));
         columns.AddRange(Money("recovery_charge", "Recovery charge", AssessmentVocabulary.CostRecoveryCharge));
-        columns.AddRange(Money("storage_charge", "Storage charge", AssessmentVocabulary.CostStorageCharge));
 
         columns.Add(Claim("party.repairer", "Repairer", CaseDataFieldNames.RepairerName) with { Group = CaseListColumnGroup.PartiesAndActivity });
         columns.Add(Claim("party.claim_source", "Claim source", CaseDataFieldNames.ClaimSourceName) with { Group = CaseListColumnGroup.PartiesAndActivity });

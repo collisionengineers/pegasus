@@ -234,13 +234,6 @@ public static class AssessmentPolicy
     [
         AssessmentVocabulary.SalvageCategory,
         AssessmentVocabulary.SalvageValue,
-        AssessmentVocabulary.SettlementSalvageAt,
-        AssessmentVocabulary.SettlementSalvageAgent,
-        AssessmentVocabulary.SettlementSalvageAgentReference,
-        AssessmentVocabulary.SettlementSalvageMoved,
-        AssessmentVocabulary.SettlementSalvageOwnerRetains,
-        AssessmentVocabulary.SettlementSalvageValueAgreed,
-        AssessmentVocabulary.SettlementSalvageSettled,
     ];
 
     public static bool IsWritableState(CaseLifecycleState state) =>

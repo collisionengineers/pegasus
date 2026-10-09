@@ -602,13 +602,13 @@ Repair Spec carries the specification set and raw estimate import. See
 ### Decisions
 
 Decisions shows outcome, category, salvage value, roadworthiness with the
-unroadworthy reason and, only while the vehicle is recorded unroadworthy,
-whether temporary repairs are possible with their method and cost (operator,
-24 September 2026), excess, betterment, labour hours (read-only, from the
-Current repair spec), claimant VAT registered, reserve, repair duration and
-delays, report delay, storage per day and the recovery charge (recorded here
-since 9 October 2026), hire start and daily cost, diminution and salvage
-logistics. A recorded choice (outcome, category, roadworthiness) reads as the
+unroadworthy reason, the agreed contract sum, labour hours (read-only, from
+the Current repair spec), storage per day and the recovery charge (recorded
+here since 9 October 2026). The temporary repairs, excess, betterment,
+reserve, delays, hire, diminution and salvage logistics it once showed are
+no longer recorded (operator, 9 October 2026;
+[FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement)).
+A recorded choice (outcome, category, roadworthiness) reads as the
 greyed value box and edits as a select whose empty option is Not recorded
 (operator, 9 October 2026; the v28 radio group is gone). There is no figures
 strip: the aside's Figures card is the home of the repair cost, the Engineer's

@@ -3,35 +3,6 @@
 namespace Pegasus.Core.Assessment;
 
 /// <summary>
-/// The figures the Decisions section derives rather than asks for (v28 P30,
-/// ruled 20 September 2026). Nothing here is typed in: the Engineer types the
-/// reserve they want, and this says what the repair cost implies.
-/// </summary>
-public static class SettlementPolicy
-{
-    /// <summary>The step the repair reserve is rounded up to.</summary>
-    public const decimal ReserveStep = 50m;
-
-    /// <summary>
-    /// The repair reserve the Current repair specification implies: the
-    /// VAT-inclusive repair cost rounded up to the next £50. A Case whose
-    /// outcome is not Repairable, or which has no repair cost, implies none.
-    /// </summary>
-    public static decimal? ComputedRepairReserve(decimal? repairCostIncVat, string? outcome)
-    {
-        if (!string.Equals(outcome, "repairable", StringComparison.Ordinal))
-        {
-            return null;
-        }
-        if (repairCostIncVat is not { } cost || cost <= 0m)
-        {
-            return null;
-        }
-        return Math.Ceiling(cost / ReserveStep) * ReserveStep;
-    }
-}
-
-/// <summary>
 /// One wording an Engineer may insert into an unroadworthy reason (v28 P15).
 /// The bank is the firm's own: a wording saved on one of a Principal's Cases
 /// is offered on the rest. The wordings print on the assessment report, so

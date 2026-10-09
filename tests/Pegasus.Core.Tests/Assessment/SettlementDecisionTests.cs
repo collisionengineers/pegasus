@@ -4,37 +4,13 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Core.Tests.Assessment;
 
 /// <summary>
-/// What the Decisions section derives rather than asks for (v28 P30) and the
-/// firm's unroadworthy reason bank (v28 P15).
+/// The firm's unroadworthy reason bank (v28 P15).
 /// </summary>
 public sealed class SettlementDecisionTests
 {
     private static readonly ActionActor Engineer = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
     private static readonly ActionActor User = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
     private static readonly ActionActor Automation = ActionActor.Automation("pegasus-automation");
-
-    [Theory]
-    [InlineData("repairable", 916.00, 950.00)]
-    [InlineData("repairable", 950.00, 950.00)]
-    [InlineData("repairable", 950.01, 1000.00)]
-    public void TheComputedReserveIsTheRepairCostRoundedUpToTheNextFifty(string outcome, double cost, double expected) =>
-        Assert.Equal((decimal)expected, SettlementPolicy.ComputedRepairReserve((decimal)cost, outcome));
-
-    [Theory]
-    [InlineData("total_loss")]
-    [InlineData("cash_in_lieu")]
-    [InlineData("contract_repair")]
-    [InlineData(null)]
-    public void OnlyARepairableOutcomeImpliesARepairReserve(string? outcome) =>
-        Assert.Null(SettlementPolicy.ComputedRepairReserve(916m, outcome));
-
-    [Fact]
-    public void NoRepairCostImpliesNoReserve()
-    {
-        Assert.Null(SettlementPolicy.ComputedRepairReserve(null, "repairable"));
-        Assert.Null(SettlementPolicy.ComputedRepairReserve(0m, "repairable"));
-        Assert.Equal(50m, SettlementPolicy.ReserveStep);
-    }
 
     [Fact]
     public void ABankWordingIsTrimmedLowerCasedAndStrippedOfItsStop()
