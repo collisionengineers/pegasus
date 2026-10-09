@@ -8,6 +8,7 @@ using Pegasus.Core.CaseExport;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Assessment;
 using Pegasus.Infrastructure.Custody;
+using Pegasus.Infrastructure.Cazana;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.ThirdPartyReports;
@@ -518,7 +519,7 @@ public static class DependencyInjection
         services.AddScoped<IMarketResearchQueries, MarketResearchQueries>();
         services.AddScoped<IStartMarketResearch, StartMarketResearch>();
         // Guide providers register beside their adapter (Glass's through
-        // AddGlassGuideValuation); a host that composes none answers Get
+        // AddGlassGuideValuation, Cazana through AddCazanaGuideValuation); a host that composes none answers Get
         // valuation with the card's notice. A fetched valuation's report is
         // filed by the host's own scheduler, so the fetch use case is
         // registered beside that scheduler (Web), not here: the Worker has
@@ -904,6 +905,32 @@ public static class DependencyInjection
             provider.GetRequiredService<EfCaseArtifactCustody>());
         services.AddScoped<ReconcilePendingArtifactCustody>();
         services.AddScoped<ISettleFiledCaseReportArtifacts, EfSettleFiledCaseReportArtifacts>();
+        return services;
+    }
+
+    /// <summary>
+    /// Connects Cazana as a guide valuation source (ADR-0066). A host that
+    /// does not call this has no Cazana provider, so the Case's Cazana card
+    /// says it is unavailable and offers no Get valuation. The key comes
+    /// through a factory and is read on each valuation, because the platform
+    /// can hand over an unresolved Key Vault reference, which must not fail
+    /// the host at build.
+    /// </summary>
+    public static IServiceCollection AddCazanaGuideValuation(
+        this IServiceCollection services,
+        Func<IServiceProvider, CazanaApiKey> apiKeyFactory)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(apiKeyFactory);
+
+        services.AddHttpClient(
+            CazanaGuideValuationProvider.HttpClientName,
+            client => client.Timeout = TimeSpan.FromSeconds(30));
+        services.AddSingleton<IGuideValuationProvider>(provider => new CazanaGuideValuationProvider(
+            provider.GetRequiredService<IHttpClientFactory>(),
+            () => apiKeyFactory(provider),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ILogger<CazanaGuideValuationProvider>>()));
         return services;
     }
 

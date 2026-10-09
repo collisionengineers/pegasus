@@ -141,10 +141,11 @@ public static class ValuationPolicy
     }
 
     /// <summary>
-    /// The sources staff may type in. Collision Engineers reads the Glass's,
-    /// Brego, Super CAP, CAP and Cazana guides and records the figure by hand
-    /// (v28 P8 and P13, 18 September 2026): none of them has a live provider
-    /// here, and the guide is evidence rather than a call. AI market research
+    /// The sources staff may type in. Collision Engineers may record the
+    /// Glass's, Brego, Super CAP, CAP and Cazana guides by hand (v28 P8 and
+    /// P13, 18 September 2026), including the two Get valuation can fetch
+    /// (Glass's, ADR-0060; Cazana, ADR-0066): a fetched figure and a typed
+    /// one are the same record. AI market research
     /// is written only by the automation completion, so staff never record it.
     /// </summary>
     public static bool IsManuallyRecordable(ValuationSource source) =>

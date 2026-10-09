@@ -323,6 +323,14 @@ from where the Case mileage came from; it is not recorded separately.
 The `average` code is still a renderer sentence, but nothing derives it.
 Staff no longer record a separate mileage-source report field.
 
+**No MOT history.** Sometimes the latest lookup answers for the Case's current
+registration but DVSA holds no MOT test. It answers either with an empty
+history or with its "no MOT" not-found beside the DVLA record. This happens with
+a vehicle before its first MOT, and there is no odometer reading to fill. In
+that case, while the Case has no mileage, the Vehicle section's Mileage box
+reads "No MOT history" with the Lookup tag. A mileage entered later replaces
+it. The report code stays `tbc` (operator, 9 October 2026).
+
 **Evidence boundary.** The DVLA/DVSA production adapter and its composition
 exist. A returned field fills the Case only under the fill rule. Unavailable
 fields are stated, never inferred. Credentials, an exact deployed artifact,

@@ -4,6 +4,19 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Cazana API key — 9 October 2026 (not yet deployed)
+
+Prepared for connecting Cazana as a guide valuation source
+([ADR-0066](adr/0066-cazana-valuation-through-a-key-vault-held-api-key.md)).
+No release carries it yet; the next release's Bicep hands the Web App the
+reference.
+
+| Observation | Value |
+| --- | --- |
+| Key | Taken from Infisical (`dev` environment, `cazana_api_key`). A request without a VRM answered 400 `vrm or vin is required` on `https://api.cazana.com` with the key as a Bearer header, 403 on the UAT endpoint, and 401 without the key: it is a Production key. |
+| Secret and grant | Secret `cazana-api-key` (version `6db98eae…17c4`) created in `pegasusprodkv252ow37g`. The Web identity `pegasus-prod-web-id-252ow37gij` was granted Key Vault Secrets User at that secret's scope (assignment `5541b295…5bc2`). `CAZANA_API_KEY_SECRET_URI` was set in the workstation's `pegasus-prod` azd environment. |
+| Still owed | After the release: `Cazana__ApiKey` reads `Resolved`, and Get valuation on a test Case's Cazana card fills Retail and Trade. |
+
 ## Release 95 — 8 October 2026 (deployment live)
 
 Release 95 deployed [PR 1128](https://github.com/collisionengineers/pegasus/pull/1128). It merged four PRs into `dev`:

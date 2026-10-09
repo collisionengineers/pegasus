@@ -42,9 +42,14 @@
     var unitWord = string.IsNullOrWhiteSpace(unit) ? null
         : unit.Equals("km", StringComparison.OrdinalIgnoreCase) || unit.StartsWith("kilo", StringComparison.OrdinalIgnoreCase)
             ? "km" : "mi";
+    // With no figure, a lookup that found no MOT test says so rather than
+    // reading as one that never ran (9 October 2026).
+    var observation = section?.LatestVehicleObservation;
+    var noMotHistory = mileageValue is null
+        && Pegasus.Core.Vehicle.VehicleMileagePolicy.HasNoMotHistory(observation, registration);
     var mileageText = mileageValue is { } odometer
         ? unitWord is null ? odometer.Value.ToString("N0") : $"{odometer.Value:N0} {unitWord}"
-        : null;
+        : noMotHistory ? VehicleLabels.NoMotHistory : null;
     // Who told staff the figure is theirs to state. The pick is kept beside
     // the box whenever the box is editable, because the figure typed into it
     // may be the one it describes; every other provenance resolves itself.
@@ -62,7 +67,6 @@
     var canEditHistory = Model.CanEditAssessmentField(AssessmentVocabulary.HistoryCheck);
     // What the lookup itself did, so one that ran and found nothing is never
     // read as one that never ran (WP8).
-    var observation = section?.LatestVehicleObservation;
     var lookupLine = VehicleLabels.LookupLine(observation);
     // The lookup fills the current work: the Inspection view offers it once
     // the lookup names the work it was asked from.
@@ -204,8 +208,8 @@
                    is read from. The staff pick rides beside the box while it is
                    editable, and is ignored unless staff supplied the figure. *@
                 <div class="fc @Ro(editFields)">
-                    @{ Lbl(editFields, "edit-mileage", VehicleLabels.Mileage, OperatorLabels.SourceTag(mileageValue?.Source)); }
-                    <div class="@ValueClass(mileageText) mono" data-vehicle-mileage-read>@Value(mileageText)</div>
+                    @{ Lbl(editFields, "edit-mileage", VehicleLabels.Mileage, noMotHistory ? OperatorLabels.SourceTagWord.Lookup : OperatorLabels.SourceTag(mileageValue?.Source)); }
+                    <div class="@ValueClass(mileageText) @(noMotHistory ? null : "mono")" data-vehicle-mileage-read>@Value(mileageText)</div>
                     @if (editFields)
                     {
                         <input id="edit-mileage" class="fi mono" name="vehicleMileage" type="number" min="0" step="1" inputmode="numeric" form="case-edit-form" value="@mileageValue?.Value" />

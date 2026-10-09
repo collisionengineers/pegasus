@@ -739,8 +739,8 @@ public sealed partial class DetailsModel
     /// written here; the Case save records the card. A VIN the source names
     /// fills the Case's empty VIN as system work, and the edit session carries
     /// on as it was. The card's script asks for JSON — the figures, "unavailable" while
-    /// the source has no connected provider, "vehicle_age" when the source does
-    /// not value a vehicle of this age, or a refusal and its message — so
+    /// the source has no connected provider, "not_valued" and its sentence when
+    /// the source answers that it cannot value the vehicle, or a refusal and its message — so
     /// the page is never redrawn and nothing unsaved is put at risk. Any other
     /// caller is answered on the Valuation section.
     /// </summary>
@@ -810,13 +810,14 @@ public sealed partial class DetailsModel
             }
             TempData["CaseError"] = CaseWorkspaceLabels.Valuation.Unavailable(source);
         }
-        catch (GuideValuationVehicleAgeException)
+        catch (GuideValuationNotValuedException notValued)
         {
+            var message = CaseWorkspaceLabels.Valuation.NotValued(notValued.Reason);
             if (json)
             {
-                return new JsonResult(new { status = "vehicle_age", message = CaseWorkspaceLabels.Valuation.VehicleAgeNotValued });
+                return new JsonResult(new { status = "not_valued", message });
             }
-            TempData["CaseError"] = CaseWorkspaceLabels.Valuation.VehicleAgeNotValued;
+            TempData["CaseError"] = message;
         }
         catch (Exception exception) when (exception is ArgumentException
             or InvalidOperationException
