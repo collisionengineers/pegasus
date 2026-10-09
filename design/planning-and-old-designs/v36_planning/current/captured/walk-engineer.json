@@ -1,0 +1,95 @@
+{
+ "tag": "engineer",
+ "url": "https://localhost:5240/Cases/dc313ea9-5739-4ae0-bd8e-fe80c949ac3c",
+ "read": {
+  "shots": [
+   "engineer-read-1580.png",
+   "engineer-read-1440.png",
+   "engineer-read-760.png",
+   "engineer-read-sec-overview-1580.png",
+   "engineer-read-sec-claim-1580.png",
+   "engineer-read-sec-inspection-1580.png",
+   "engineer-read-sec-vehicle-1580.png",
+   "engineer-read-sec-damage-1580.png",
+   "engineer-read-sec-valuation-1580.png",
+   "engineer-read-sec-estimate-1580.png",
+   "engineer-read-sec-settlement-1580.png",
+   "engineer-read-sec-report-1580.png",
+   "engineer-read-sec-files-1580.png",
+   "engineer-read-sec-notes-1580.png"
+  ],
+  "menu": "engineer-read-menu-1580.png",
+  "menuItems": [
+   "Export case",
+   "Return to Review",
+   "Send chaser",
+   "Place on Hold",
+   "Correct principal",
+   "Close case"
+  ],
+  "dialogs": [
+   "engineer-read-dialog-versions-dialog-1580.png",
+   "engineer-read-dialog-case-hold-dialog-1580.png",
+   "engineer-read-dialog-case-return-review-dialog-1580.png",
+   "engineer-read-dialog-case-correct-principal-dialog-1580.png",
+   "engineer-read-dialog-case-close-dialog-1580.png"
+  ],
+  "tabs": [
+   "engineer-read-tabs-overview-1580.png",
+   "engineer-read-tabs-claim-1580.png",
+   "engineer-read-tabs-inspection-1580.png",
+   "engineer-read-tabs-vehicle-1580.png",
+   "engineer-read-tabs-estimate-1580.png",
+   "engineer-read-tabs-settlement-1580.png",
+   "engineer-read-tabs-report-1580.png",
+   "engineer-read-tabs-files-1580.png",
+   "engineer-read-tabs-notes-1580.png"
+  ]
+ },
+ "edit": {
+  "shots": [
+   "engineer-edit-1580.png",
+   "engineer-edit-1440.png",
+   "engineer-edit-760.png",
+   "engineer-edit-sec-overview-1580.png",
+   "engineer-edit-sec-claim-1580.png",
+   "engineer-edit-sec-inspection-1580.png",
+   "engineer-edit-sec-vehicle-1580.png",
+   "engineer-edit-sec-damage-1580.png",
+   "engineer-edit-sec-valuation-1580.png",
+   "engineer-edit-sec-estimate-1580.png",
+   "engineer-edit-sec-settlement-1580.png",
+   "engineer-edit-sec-report-1580.png",
+   "engineer-edit-sec-files-1580.png",
+   "engineer-edit-sec-notes-1580.png"
+  ],
+  "menu": "engineer-edit-menu-1580.png",
+  "menuItems": [
+   "Export case",
+   "Return to Review",
+   "Send chaser",
+   "Place on Hold",
+   "Correct principal",
+   "Close case"
+  ],
+  "dialogs": [
+   "engineer-edit-dialog-versions-dialog-1580.png",
+   "engineer-edit-dialog-case-hold-dialog-1580.png",
+   "engineer-edit-dialog-case-return-review-dialog-1580.png",
+   "engineer-edit-dialog-case-correct-principal-dialog-1580.png",
+   "engineer-edit-dialog-case-close-dialog-1580.png"
+  ],
+  "tabs": [
+   "engineer-edit-tabs-overview-1580.png",
+   "engineer-edit-tabs-claim-1580.png",
+   "engineer-edit-tabs-inspection-1580.png",
+   "engineer-edit-tabs-vehicle-1580.png",
+   "engineer-edit-tabs-estimate-1580.png",
+   "engineer-edit-tabs-settlement-1580.png",
+   "engineer-edit-tabs-report-1580.png",
+   "engineer-edit-tabs-files-1580.png",
+   "engineer-edit-tabs-notes-1580.png"
+  ]
+ },
+ "errors": []
+}

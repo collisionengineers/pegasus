@@ -1,0 +1,50 @@
+{
+ "tag": "notready",
+ "url": "https://localhost:5240/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1",
+ "read": {
+  "shots": [
+   "notready-read-1580.png",
+   "notready-read-1440.png",
+   "notready-read-760.png",
+   "notready-read-sec-overview-1580.png",
+   "notready-read-sec-claim-1580.png",
+   "notready-read-sec-original-report-1580.png",
+   "notready-read-sec-inspection-1580.png",
+   "notready-read-sec-vehicle-1580.png",
+   "notready-read-sec-damage-1580.png",
+   "notready-read-sec-valuation-1580.png",
+   "notready-read-sec-estimate-1580.png",
+   "notready-read-sec-settlement-1580.png",
+   "notready-read-sec-report-1580.png",
+   "notready-read-sec-files-1580.png",
+   "notready-read-sec-notes-1580.png"
+  ],
+  "menu": "notready-read-menu-1580.png",
+  "menuItems": [
+   "Export case",
+   "Send chaser",
+   "Place on Hold",
+   "Correct principal",
+   "Close case"
+  ],
+  "dialogs": [
+   "notready-read-dialog-case-hold-dialog-1580.png",
+   "notready-read-dialog-case-correct-principal-dialog-1580.png",
+   "notready-read-dialog-case-close-dialog-1580.png"
+  ],
+  "tabs": [
+   "notready-read-tabs-overview-1580.png",
+   "notready-read-tabs-claim-1580.png",
+   "notready-read-tabs-original-report-1580.png",
+   "notready-read-tabs-inspection-1580.png",
+   "notready-read-tabs-vehicle-1580.png",
+   "notready-read-tabs-estimate-1580.png",
+   "notready-read-tabs-settlement-1580.png",
+   "notready-read-tabs-report-1580.png",
+   "notready-read-tabs-files-1580.png",
+   "notready-read-tabs-notes-1580.png"
+  ]
+ },
+ "edit": {},
+ "errors": []
+}

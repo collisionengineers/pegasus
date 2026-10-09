@@ -1,0 +1,49 @@
+{
+ "tag": "inspaudit",
+ "url": "https://localhost:5240/Cases/F53E8A21-4363-4A48-B7D7-03F531BBFB76",
+ "read": {
+  "shots": [
+   "inspaudit-read-1580.png",
+   "inspaudit-read-1440.png",
+   "inspaudit-read-760.png",
+   "inspaudit-read-sec-overview-1580.png",
+   "inspaudit-read-sec-claim-1580.png",
+   "inspaudit-read-sec-inspection-1580.png",
+   "inspaudit-read-sec-vehicle-1580.png",
+   "inspaudit-read-sec-damage-1580.png",
+   "inspaudit-read-sec-valuation-1580.png",
+   "inspaudit-read-sec-estimate-1580.png",
+   "inspaudit-read-sec-settlement-1580.png",
+   "inspaudit-read-sec-report-1580.png",
+   "inspaudit-read-sec-files-1580.png",
+   "inspaudit-read-sec-notes-1580.png"
+  ],
+  "menu": "inspaudit-read-menu-1580.png",
+  "menuItems": [
+   "Export case",
+   "Send chaser",
+   "Place on Hold",
+   "Correct principal",
+   "Create audit",
+   "Close case"
+  ],
+  "dialogs": [
+   "inspaudit-read-dialog-case-hold-dialog-1580.png",
+   "inspaudit-read-dialog-case-correct-principal-dialog-1580.png",
+   "inspaudit-read-dialog-case-close-dialog-1580.png"
+  ],
+  "tabs": [
+   "inspaudit-read-tabs-overview-1580.png",
+   "inspaudit-read-tabs-claim-1580.png",
+   "inspaudit-read-tabs-inspection-1580.png",
+   "inspaudit-read-tabs-vehicle-1580.png",
+   "inspaudit-read-tabs-estimate-1580.png",
+   "inspaudit-read-tabs-settlement-1580.png",
+   "inspaudit-read-tabs-report-1580.png",
+   "inspaudit-read-tabs-files-1580.png",
+   "inspaudit-read-tabs-notes-1580.png"
+  ]
+ },
+ "edit": {},
+ "errors": []
+}

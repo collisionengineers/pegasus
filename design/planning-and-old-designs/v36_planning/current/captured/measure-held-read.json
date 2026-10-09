@@ -1,0 +1,6625 @@
+{
+ "1580": {
+  "url": "https://localhost:5240/Cases/dc313ea9-5739-4ae0-bd8e-fe80c949ac3c",
+  "editing": false,
+  "layout": "scroll",
+  "stickyH": "97px",
+  "sticky": {
+   "x": 239,
+   "y": 67,
+   "w": 1322,
+   "h": 97
+  },
+  "ribbon": {
+   "x": 239,
+   "y": 67,
+   "w": 1322,
+   "h": 56
+  },
+  "row": {
+   "x": 239,
+   "y": 123,
+   "w": 1322,
+   "h": 40
+  },
+  "nav": {
+   "x": 239,
+   "y": 123,
+   "w": 1119,
+   "h": 40
+  },
+  "navOverflow": 0,
+  "navLinks": [
+   {
+    "t": "Case details",
+    "x": 249,
+    "y": 123,
+    "w": 118,
+    "h": 40,
+    "current": "true"
+   },
+   {
+    "t": "Claim",
+    "x": 369,
+    "y": 123,
+    "w": 76,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Inspection details",
+    "x": 447,
+    "y": 123,
+    "w": 151,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Vehicle",
+    "x": 600,
+    "y": 123,
+    "w": 86,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Repair Spec",
+    "x": 688,
+    "y": 123,
+    "w": 116,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Decisions",
+    "x": 805,
+    "y": 123,
+    "w": 101,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Report",
+    "x": 909,
+    "y": 123,
+    "w": 82,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Files",
+    "x": 992,
+    "y": 123,
+    "w": 69,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Notes",
+    "x": 1063,
+    "y": 123,
+    "w": 77,
+    "h": 40,
+    "current": "false"
+   }
+  ],
+  "ribbonItems": [
+   {
+    "label": "Case workspace",
+    "value": "QDOS31001",
+    "x": 239,
+    "y": 67,
+    "w": 241,
+    "h": 55
+   },
+   {
+    "label": "Registration",
+    "value": "AB12CDE",
+    "x": 480,
+    "y": 67,
+    "w": 100,
+    "h": 55
+   },
+   {
+    "label": "Claimant",
+    "value": "Jane Example",
+    "x": 579,
+    "y": 67,
+    "w": 197,
+    "h": 55
+   },
+   {
+    "label": "Principal",
+    "value": "QDOS",
+    "x": 776,
+    "y": 67,
+    "w": 197,
+    "h": 55
+   },
+   {
+    "label": "Engineer",
+    "value": "development-offline-administrator",
+    "x": 973,
+    "y": 67,
+    "w": 197,
+    "h": 55
+   }
+  ],
+  "chips": [
+   {
+    "t": "Held",
+    "x": 1181,
+    "y": 83,
+    "w": 53,
+    "h": 24
+   },
+   {
+    "t": "Repairable",
+    "x": 1240,
+    "y": 83,
+    "w": 84,
+    "h": 24
+   }
+  ],
+  "chipsBox": {
+   "x": 1170,
+   "y": 67,
+   "w": 166,
+   "h": 55
+  },
+  "actions": [
+   {
+    "tag": "button",
+    "t": "Edit Case",
+    "x": 1345,
+    "y": 77,
+    "w": 107,
+    "h": 36
+   },
+   {
+    "tag": "details",
+    "t": "Actions Export case Send chaser Release ",
+    "x": 1458,
+    "y": 77,
+    "w": 93,
+    "h": 36
+   },
+   {
+    "tag": "button",
+    "t": "Export case",
+    "x": 1348,
+    "y": 124,
+    "w": 196,
+    "h": 36
+   }
+  ],
+  "aside": {
+   "x": 1264,
+   "y": 176,
+   "w": 285,
+   "h": 275
+  },
+  "asideScroll": {
+   "sh": 275,
+   "ch": 275,
+   "top": "155px",
+   "maxH": "823px"
+  },
+  "asideCards": [
+   {
+    "t": "Figures",
+    "x": 1264,
+    "y": 176,
+    "w": 285,
+    "h": 137,
+    "head": {
+     "x": 1265,
+     "y": 177,
+     "w": 283,
+     "h": 42
+    }
+   },
+   {
+    "t": "Next action",
+    "x": 1264,
+    "y": 323,
+    "w": 285,
+    "h": 129,
+    "head": {
+     "x": 1265,
+     "y": 324,
+     "w": 283,
+     "h": 42
+    }
+   }
+  ],
+  "sections": [
+   {
+    "key": "overview",
+    "lazy": false,
+    "x": 251,
+    "y": 176,
+    "w": 1003,
+    "h": 872,
+    "head": {
+     "x": 252,
+     "y": 177,
+     "w": 1001,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1209,
+      "y": 186,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": "Case",
+      "x": 264,
+      "y": 240,
+      "w": 507,
+      "h": 373,
+      "head": {
+       "x": 277,
+       "y": 251,
+       "w": 481,
+       "h": 32
+      }
+     },
+     {
+      "t": "Principal",
+      "x": 781,
+      "y": 240,
+      "w": 460,
+      "h": 373,
+      "head": {
+       "x": 794,
+       "y": 251,
+       "w": 434,
+       "h": 32
+      }
+     },
+     {
+      "t": "Case contact",
+      "x": 264,
+      "y": 625,
+      "w": 977,
+      "h": 119,
+      "head": {
+       "x": 277,
+       "y": 636,
+       "w": 951,
+       "h": 32
+      }
+     },
+     {
+      "t": "Notes",
+      "x": 264,
+      "y": 756,
+      "w": 977,
+      "h": 152,
+      "head": {
+       "x": 277,
+       "y": 767,
+       "w": 951,
+       "h": 32
+      }
+     }
+    ],
+    "cells": [
+     {
+      "label": "Case type",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 309,
+      "w": 233,
+      "h": 36,
+      "value": "Inspection"
+     },
+     {
+      "label": "Our ref",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 524,
+      "y": 309,
+      "w": 233,
+      "h": 36,
+      "value": "QDOS31001"
+     },
+     {
+      "label": "Claim referenceExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 376,
+      "w": 233,
+      "h": 36,
+      "value": "QDOS-123"
+     },
+     {
+      "label": "Incident dateExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 524,
+      "y": 376,
+      "w": 233,
+      "h": 36,
+      "value": "1 Apr 2031"
+     },
+     {
+      "label": "Received",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 440,
+      "w": 233,
+      "h": 36,
+      "value": "11 Aug 2031 10:15"
+     },
+     {
+      "label": "Due",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 524,
+      "y": 440,
+      "w": 233,
+      "h": 36,
+      "value": "20 May 2031"
+     },
+     {
+      "label": "Matter line",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 504,
+      "w": 233,
+      "h": 52,
+      "value": "Road Traffic Accident: Jane Ex"
+     },
+     {
+      "label": "Sign-off Engineer",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 524,
+      "y": 504,
+      "w": 233,
+      "h": 36,
+      "value": "Unassigned"
+     },
+     {
+      "label": "Principal",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 794,
+      "y": 309,
+      "w": 434,
+      "h": 36,
+      "value": "QDOS"
+     },
+     {
+      "label": "Claim source",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 794,
+      "y": 373,
+      "w": 434,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Claim source contact name",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 794,
+      "y": 438,
+      "w": 434,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Claim source contact phone",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 794,
+      "y": 502,
+      "w": 434,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Claim source contact e-mail",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 794,
+      "y": 566,
+      "w": 434,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Contact nameExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 697,
+      "w": 308,
+      "h": 36,
+      "value": "Case handler"
+     },
+     {
+      "label": "Contact e-mailExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 599,
+      "y": 697,
+      "w": 308,
+      "h": 36,
+      "value": "handler@example.test"
+     },
+     {
+      "label": "Contact phoneExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 920,
+      "y": 697,
+      "w": 308,
+      "h": 36,
+      "value": "020 7946 0123"
+     },
+     {
+      "label": "Principal notes \u00b7 this Case",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 825,
+      "w": 469,
+      "h": 72,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Claim source notes \u00b7 this Case",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 760,
+      "y": 825,
+      "w": 469,
+      "h": 72,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Accident circumstancesExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 952,
+      "w": 469,
+      "h": 72,
+      "value": "Rear-end impact at a roundabou"
+     },
+     {
+      "label": "Notes from client",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 760,
+      "y": 949,
+      "w": 469,
+      "h": 72,
+      "value": "Not recorded"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "claim",
+    "lazy": false,
+    "x": 251,
+    "y": 1058,
+    "w": 1003,
+    "h": 276,
+    "head": {
+     "x": 252,
+     "y": 1059,
+     "w": 1001,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1209,
+      "y": 1068,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": "Claimant",
+      "x": 264,
+      "y": 1122,
+      "w": 977,
+      "h": 199,
+      "head": {
+       "x": 277,
+       "y": 1133,
+       "w": 951,
+       "h": 32
+      }
+     }
+    ],
+    "cells": [
+     {
+      "label": "ClaimantExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 1194,
+      "w": 227,
+      "h": 36,
+      "value": "Jane Example"
+     },
+     {
+      "label": "ContactExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 518,
+      "y": 1194,
+      "w": 227,
+      "h": 36,
+      "value": "07700 900123"
+     },
+     {
+      "label": "AddressExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 760,
+      "y": 1194,
+      "w": 227,
+      "h": 52,
+      "value": "12 Example Street, Leeds, LS1 "
+     },
+     {
+      "label": "Claimant VAT statusExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1001,
+      "y": 1194,
+      "w": 227,
+      "h": 36,
+      "value": "VAT registered"
+     },
+     {
+      "label": "Claimant VAT registered",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 1274,
+      "w": 227,
+      "h": 36,
+      "value": "Not recorded"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "inspection",
+    "lazy": false,
+    "x": 251,
+    "y": 1344,
+    "w": 1003,
+    "h": 390,
+    "head": {
+     "x": 252,
+     "y": 1345,
+     "w": 1001,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1209,
+      "y": 1354,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": "Repairer",
+      "x": 264,
+      "y": 1476,
+      "w": 977,
+      "h": 116,
+      "head": {
+       "x": 277,
+       "y": 1487,
+       "w": 951,
+       "h": 32
+      }
+     },
+     {
+      "t": "Storage",
+      "x": 264,
+      "y": 1605,
+      "w": 977,
+      "h": 116,
+      "head": {
+       "x": 277,
+       "y": 1616,
+       "w": 951,
+       "h": 32
+      }
+     }
+    ],
+    "cells": [
+     {
+      "label": "Inspection type",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 1426,
+      "w": 234,
+      "h": 36,
+      "value": "Image Based Assessment"
+     },
+     {
+      "label": "Inspection dateExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 512,
+      "y": 1428,
+      "w": 234,
+      "h": 36,
+      "value": "20 May 2031"
+     },
+     {
+      "label": "Inspect at",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 760,
+      "y": 1426,
+      "w": 234,
+      "h": 36,
+      "value": "Image Based Assessment"
+     },
+     {
+      "label": "Inspection addressPrincipal",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1007,
+      "y": 1428,
+      "w": 234,
+      "h": 36,
+      "value": "Image Based Assessment"
+     },
+     {
+      "label": "Repairer contact",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 1546,
+      "w": 227,
+      "h": 36,
+      "value": "Not linked"
+     },
+     {
+      "label": "Repairer",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 518,
+      "y": 1546,
+      "w": 227,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Address",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 760,
+      "y": 1546,
+      "w": 469,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Storage location",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 1674,
+      "w": 469,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Storage per day",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 760,
+      "y": 1674,
+      "w": 227,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Recovery charge",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1001,
+      "y": 1674,
+      "w": 227,
+      "h": 36,
+      "value": "Not recorded"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "vehicle",
+    "lazy": false,
+    "x": 251,
+    "y": 1744,
+    "w": 1003,
+    "h": 621,
+    "head": {
+     "x": 252,
+     "y": 1745,
+     "w": 1001,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "span",
+      "t": "Experian is not connected",
+      "x": 970,
+      "y": 1759,
+      "w": 167,
+      "h": 21
+     },
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1209,
+      "y": 1754,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": "Mileage & condition",
+      "x": 264,
+      "y": 2069,
+      "w": 977,
+      "h": 119,
+      "head": {
+       "x": 277,
+       "y": 2080,
+       "w": 951,
+       "h": 32
+      }
+     },
+     {
+      "t": "Vehicle history Experian is not connected",
+      "x": 264,
+      "y": 2200,
+      "w": 977,
+      "h": 152,
+      "head": {
+       "x": 277,
+       "y": 2211,
+       "w": 951,
+       "h": 32
+      }
+     }
+    ],
+    "cells": [
+     {
+      "label": "RegistrationExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 1829,
+      "w": 234,
+      "h": 36,
+      "value": "AB12CDE"
+     },
+     {
+      "label": "Make",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 512,
+      "y": 1826,
+      "w": 234,
+      "h": 36,
+      "value": "Ford"
+     },
+     {
+      "label": "ModelExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 760,
+      "y": 1829,
+      "w": 234,
+      "h": 36,
+      "value": "Focus"
+     },
+     {
+      "label": "Year",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1007,
+      "y": 1826,
+      "w": 234,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "VIN",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 1893,
+      "w": 234,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Vehicle type",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 512,
+      "y": 1893,
+      "w": 234,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Body type",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 760,
+      "y": 1893,
+      "w": 234,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Engine",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1007,
+      "y": 1893,
+      "w": 234,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Fuel",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 1957,
+      "w": 234,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Colour",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 512,
+      "y": 1957,
+      "w": 234,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Transmission",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 760,
+      "y": 1957,
+      "w": 234,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Tax expiry",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1007,
+      "y": 1957,
+      "w": 234,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "MOT expiry",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 2021,
+      "w": 234,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "MileageExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 2141,
+      "w": 227,
+      "h": 36,
+      "value": "42,000 mi"
+     },
+     {
+      "label": "Mileage source",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 518,
+      "y": 2138,
+      "w": 227,
+      "h": 36,
+      "value": "Extracted"
+     },
+     {
+      "label": "Pre-incident condition",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 760,
+      "y": 2138,
+      "w": 227,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Odometer unit",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1001,
+      "y": 2138,
+      "w": 227,
+      "h": 36,
+      "value": "Miles"
+     },
+     {
+      "label": "Vehicle history",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 2269,
+      "w": 951,
+      "h": 72,
+      "value": "Not recorded"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "damage",
+    "lazy": false,
+    "x": 251,
+    "y": 2371,
+    "w": 1003,
+    "h": 683,
+    "head": {
+     "x": 252,
+     "y": 2371,
+     "w": 1001,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1209,
+      "y": 2380,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": "Tyres & seat belts",
+      "x": 578,
+      "y": 2525,
+      "w": 663,
+      "h": 290,
+      "head": {
+       "x": 591,
+       "y": 2536,
+       "w": 637,
+       "h": 13
+      }
+     }
+    ],
+    "cells": [
+     {
+      "label": "Impact location",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 578,
+      "y": 2452,
+      "w": 212,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Impact severity",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 804,
+      "y": 2452,
+      "w": 212,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Recorded areas",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1029,
+      "y": 2452,
+      "w": 212,
+      "h": 36,
+      "value": "0"
+     },
+     {
+      "label": "Right-front tyre",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 591,
+      "y": 2575,
+      "w": 149,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Left-front tyre",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 754,
+      "y": 2575,
+      "w": 149,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Right-rear tyre",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 917,
+      "y": 2575,
+      "w": 149,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Left-rear tyre",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1079,
+      "y": 2575,
+      "w": 149,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Right-front belt",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 591,
+      "y": 2639,
+      "w": 149,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Left-front belt",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 754,
+      "y": 2639,
+      "w": 149,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Right-rear belt",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 917,
+      "y": 2639,
+      "w": 149,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Left-rear belt",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1079,
+      "y": 2639,
+      "w": 149,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Spare tyre",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 591,
+      "y": 2703,
+      "w": 149,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Centre belt",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 754,
+      "y": 2703,
+      "w": 149,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Material transfer",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 917,
+      "y": 2703,
+      "w": 312,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Airbags deployed",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 591,
+      "y": 2768,
+      "w": 149,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Unrelated damage",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 578,
+      "y": 2841,
+      "w": 494,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Unrelated-damage deduction",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1086,
+      "y": 2841,
+      "w": 155,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Incident narrative",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 578,
+      "y": 2905,
+      "w": 663,
+      "h": 36,
+      "value": "Not recorded"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "valuation",
+    "lazy": false,
+    "x": 251,
+    "y": 3060,
+    "w": 1003,
+    "h": 590,
+    "head": {
+     "x": 252,
+     "y": 3060,
+     "w": 1001,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1209,
+      "y": 3069,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": null,
+      "x": 264,
+      "y": 3435,
+      "w": 977,
+      "h": 76,
+      "head": null
+     }
+    ],
+    "cells": [
+     {
+      "label": "Condition deduction",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 3464,
+      "w": 220,
+      "h": 36,
+      "value": "\u2014"
+     },
+     {
+      "label": "Previous total loss",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 521,
+      "y": 3464,
+      "w": 707,
+      "h": 36,
+      "value": "None"
+     },
+     {
+      "label": "Engineer's Value",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 279,
+      "y": 3554,
+      "w": 260,
+      "h": 40,
+      "value": "\u2014"
+     },
+     {
+      "label": "On the report",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 375,
+      "y": 3619,
+      "w": 161,
+      "h": 18,
+      "value": "Guide source not disclosed"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "estimate",
+    "lazy": false,
+    "x": 251,
+    "y": 3660,
+    "w": 1003,
+    "h": 800,
+    "head": {
+     "x": 252,
+     "y": 3661,
+     "w": 1001,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "details",
+      "t": "More Versions (0) Compare",
+      "x": 1029,
+      "y": 3670,
+      "w": 65,
+      "h": 32
+     },
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1101,
+      "y": 3670,
+      "w": 36,
+      "h": 32
+     },
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1209,
+      "y": 3670,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [],
+    "cells": [
+     {
+      "label": "Repair spec name",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 3839,
+      "w": 234,
+      "h": 36,
+      "value": "New repair spec"
+     },
+     {
+      "label": "Labour rate (\u00a3/h)",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 512,
+      "y": 3839,
+      "w": 132,
+      "h": 52,
+      "value": "Keep entered rate"
+     },
+     {
+      "label": "Regional uplift",
+      "ro": true,
+      "kind": null,
+      "value": null
+     },
+     {
+      "label": "Other costs (\u00a3)",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1007,
+      "y": 3839,
+      "w": 234,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "VAT %",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 3919,
+      "w": 234,
+      "h": 36,
+      "value": "20 %"
+     },
+     {
+      "label": "Repairer VAT status",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 512,
+      "y": 3919,
+      "w": 234,
+      "h": 36,
+      "value": "Unknown"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "a",
+      "type": null,
+      "t": "Versions (0)",
+      "h": 36,
+      "w": 196,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Compare",
+      "h": 36,
+      "w": 196,
+      "disabled": true
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Expand estimate",
+      "h": 32,
+      "w": 36,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "settlement",
+    "lazy": false,
+    "x": 251,
+    "y": 4469,
+    "w": 1003,
+    "h": 682,
+    "head": {
+     "x": 252,
+     "y": 4470,
+     "w": 1001,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1209,
+      "y": 4479,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": "Costs, hire & delays",
+      "x": 264,
+      "y": 4922,
+      "w": 977,
+      "h": 216,
+      "head": {
+       "x": 277,
+       "y": 4933,
+       "w": 951,
+       "h": 32
+      }
+     },
+     {
+      "t": "Salvage",
+      "x": 0,
+      "y": 0,
+      "w": 0,
+      "h": 0,
+      "head": {
+       "x": 0,
+       "y": 0,
+       "w": 0,
+       "h": 0
+      }
+     }
+    ],
+    "cells": [
+     {
+      "label": "Outcome",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 446,
+      "y": 4659,
+      "w": 1,
+      "h": 36,
+      "value": "Repairable"
+     },
+     {
+      "label": "Engineer's Value",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 447,
+      "y": 4707,
+      "w": 781,
+      "h": 36,
+      "value": "\u2014 Valuation"
+     },
+     {
+      "label": "Salvage",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 447,
+      "y": 4754,
+      "w": 781,
+      "h": 36,
+      "value": "Not applicable"
+     },
+     {
+      "label": "Roadworthiness",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 446,
+      "y": 4800,
+      "w": 1,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Excess",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 4874,
+      "w": 234,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Betterment",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 512,
+      "y": 4874,
+      "w": 234,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Agreed contract sum",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 760,
+      "y": 4874,
+      "w": 234,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Repair reserve (computed)",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 4991,
+      "w": 227,
+      "h": 36,
+      "value": "Not applicable"
+     },
+     {
+      "label": "Reserve",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 518,
+      "y": 4991,
+      "w": 227,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Diminution",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 760,
+      "y": 4991,
+      "w": 227,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Hire start",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1001,
+      "y": 4991,
+      "w": 227,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Hire daily cost",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 5056,
+      "w": 227,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Repair delays",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 518,
+      "y": 5056,
+      "w": 227,
+      "h": 72,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Report delay",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 760,
+      "y": 5056,
+      "w": 227,
+      "h": 72,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Storage charge",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1001,
+      "y": 5056,
+      "w": 227,
+      "h": 36,
+      "value": "Not recorded"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "report",
+    "lazy": false,
+    "x": 251,
+    "y": 5162,
+    "w": 1003,
+    "h": 653,
+    "head": {
+     "x": 252,
+     "y": 5163,
+     "w": 1001,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1209,
+      "y": 5172,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [],
+    "cells": [
+     {
+      "label": "Report date",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 5395,
+      "w": 234,
+      "h": 36,
+      "value": "\u2014"
+     },
+     {
+      "label": "Engineer's comments",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 512,
+      "y": 5395,
+      "w": 729,
+      "h": 72,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Valuation commentary",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 5495,
+      "w": 977,
+      "h": 72,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Statement of truth",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 5595,
+      "w": 977,
+      "h": 207,
+      "value": "I declare that I understand my"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Report",
+      "h": 28,
+      "w": 66,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Fee",
+      "h": 28,
+      "w": 48,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "files",
+    "lazy": false,
+    "x": 251,
+    "y": 5825,
+    "w": 1003,
+    "h": 143,
+    "head": {
+     "x": 252,
+     "y": 5826,
+     "w": 1001,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "a",
+      "t": "Add evidence",
+      "x": 1090,
+      "y": 5835,
+      "w": 113,
+      "h": 32
+     },
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1209,
+      "y": 5835,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [],
+    "cells": [],
+    "controls": [
+     {
+      "tag": "a",
+      "type": null,
+      "t": "Add evidence",
+      "h": 32,
+      "w": 113,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Documents \u00b7 0",
+      "h": 36,
+      "w": 101,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Images \u00b7 4",
+      "h": 36,
+      "w": 79,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Correspondence \u00b7 0",
+      "h": 36,
+      "w": 130,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "notes",
+    "lazy": false,
+    "x": 251,
+    "y": 5978,
+    "w": 1003,
+    "h": 411,
+    "head": {
+     "x": 252,
+     "y": 5979,
+     "w": 1001,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1209,
+      "y": 5988,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [],
+    "cells": [],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "textarea",
+      "type": "textarea",
+      "t": "note",
+      "h": 64,
+      "w": 977,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Add Case note",
+      "h": 36,
+      "w": 138,
+      "disabled": false
+     }
+    ]
+   }
+  ],
+  "heights": {
+   "18": {
+    "div.fv": 1,
+    "span.status.status--plain": 1
+   },
+   "24": {
+    "span.status.status--amber": 2,
+    "span.status.status--blue": 1,
+    "button": 2
+   },
+   "28": {
+    "button.report-tab": 2
+   },
+   "32": {
+    "button.rail-collapse": 1,
+    "button.icon-button": 2,
+    "button.btn.btn--small": 11,
+    "button.icon-button.panel-collapse": 21,
+    "a.btn.btn--small": 1
+   },
+   "36": {
+    "input": 1,
+    "a.btn.btn--primary": 1,
+    "button.btn.btn--dark": 1,
+    "button.btn": 4,
+    "a.btn": 2,
+    "button.btn.btn--danger": 1,
+    "div.fv": 26,
+    "div.fv.mono": 17,
+    "div.fv.empty": 36,
+    "div.fv.derived": 4,
+    "div.fv.sr-only": 1,
+    "button.tab": 3,
+    "button.btn.btn--primary": 1,
+    "a.btn.next-step-go": 1
+   },
+   "40": {
+    "a.section-link": 9,
+    "div.fv.mono": 1
+   },
+   "52": {
+    "div.fv.derived": 1,
+    "div.fv": 2,
+    "div.fv.mono": 1
+   },
+   "64": {
+    "textarea": 1
+   },
+   "72": {
+    "div.fv.empty": 4,
+    "div.fv.multi": 5
+   },
+   "207": {
+    "div.fv.derived": 1
+   }
+  },
+  "dialogs": [
+   {
+    "id": "versions-dialog",
+    "title": "Repair Spec versions",
+    "hidden": true
+   },
+   {
+    "id": "case-release-hold-dialog",
+    "title": "Release Hold",
+    "hidden": true
+   },
+   {
+    "id": "case-correct-principal-dialog",
+    "title": "Correct principal",
+    "hidden": true
+   },
+   {
+    "id": "case-close-dialog",
+    "title": "Close case",
+    "hidden": true
+   },
+   {
+    "id": "",
+    "title": "Account",
+    "hidden": true
+   },
+   {
+    "id": "",
+    "title": "Notifications",
+    "hidden": true
+   },
+   {
+    "id": "",
+    "title": "Search Pegasus",
+    "hidden": true
+   },
+   {
+    "id": "",
+    "title": "Report a problem",
+    "hidden": true
+   }
+  ],
+  "menuItems": [
+   {
+    "t": "Export case",
+    "disabled": false,
+    "gated": false
+   },
+   {
+    "t": "Send chaser",
+    "disabled": null,
+    "gated": false
+   },
+   {
+    "t": "Release Hold",
+    "disabled": false,
+    "gated": false
+   },
+   {
+    "t": "Correct principal",
+    "disabled": false,
+    "gated": false
+   },
+   {
+    "t": "Close case",
+    "disabled": false,
+    "gated": false
+   }
+  ],
+  "notices": [],
+  "docHeight": 6452
+ },
+ "1440": {
+  "url": "https://localhost:5240/Cases/dc313ea9-5739-4ae0-bd8e-fe80c949ac3c",
+  "editing": false,
+  "layout": "scroll",
+  "stickyH": "97px",
+  "sticky": {
+   "x": 239,
+   "y": 67,
+   "w": 1182,
+   "h": 97
+  },
+  "ribbon": {
+   "x": 239,
+   "y": 67,
+   "w": 1182,
+   "h": 56
+  },
+  "row": {
+   "x": 239,
+   "y": 123,
+   "w": 1182,
+   "h": 40
+  },
+  "nav": {
+   "x": 239,
+   "y": 123,
+   "w": 979,
+   "h": 40
+  },
+  "navOverflow": 0,
+  "navLinks": [
+   {
+    "t": "Case details",
+    "x": 249,
+    "y": 123,
+    "w": 118,
+    "h": 40,
+    "current": "true"
+   },
+   {
+    "t": "Claim",
+    "x": 369,
+    "y": 123,
+    "w": 76,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Inspection details",
+    "x": 447,
+    "y": 123,
+    "w": 151,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Vehicle",
+    "x": 600,
+    "y": 123,
+    "w": 86,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Repair Spec",
+    "x": 688,
+    "y": 123,
+    "w": 116,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Decisions",
+    "x": 805,
+    "y": 123,
+    "w": 101,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Report",
+    "x": 909,
+    "y": 123,
+    "w": 82,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Files",
+    "x": 992,
+    "y": 123,
+    "w": 69,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Notes",
+    "x": 1063,
+    "y": 123,
+    "w": 77,
+    "h": 40,
+    "current": "false"
+   }
+  ],
+  "ribbonItems": [
+   {
+    "label": "Case workspace",
+    "value": "QDOS31001",
+    "x": 239,
+    "y": 67,
+    "w": 201,
+    "h": 55
+   },
+   {
+    "label": "Registration",
+    "value": "AB12CDE",
+    "x": 440,
+    "y": 67,
+    "w": 100,
+    "h": 55
+   },
+   {
+    "label": "Claimant",
+    "value": "Jane Example",
+    "x": 539,
+    "y": 67,
+    "w": 164,
+    "h": 55
+   },
+   {
+    "label": "Principal",
+    "value": "QDOS",
+    "x": 703,
+    "y": 67,
+    "w": 164,
+    "h": 55
+   },
+   {
+    "label": "Engineer",
+    "value": "development-offline-administrator",
+    "x": 866,
+    "y": 67,
+    "w": 164,
+    "h": 55
+   }
+  ],
+  "chips": [
+   {
+    "t": "Held",
+    "x": 1041,
+    "y": 83,
+    "w": 53,
+    "h": 24
+   },
+   {
+    "t": "Repairable",
+    "x": 1100,
+    "y": 83,
+    "w": 84,
+    "h": 24
+   }
+  ],
+  "chipsBox": {
+   "x": 1030,
+   "y": 67,
+   "w": 166,
+   "h": 55
+  },
+  "actions": [
+   {
+    "tag": "button",
+    "t": "Edit Case",
+    "x": 1205,
+    "y": 77,
+    "w": 107,
+    "h": 36
+   },
+   {
+    "tag": "details",
+    "t": "Actions Export case Send chaser Release ",
+    "x": 1318,
+    "y": 77,
+    "w": 93,
+    "h": 36
+   },
+   {
+    "tag": "button",
+    "t": "Export case",
+    "x": 1208,
+    "y": 124,
+    "w": 196,
+    "h": 36
+   }
+  ],
+  "aside": {
+   "x": 251,
+   "y": 176,
+   "w": 1158,
+   "h": 137
+  },
+  "asideScroll": {
+   "sh": 137,
+   "ch": 137,
+   "top": "155px",
+   "maxH": "none"
+  },
+  "asideCards": [
+   {
+    "t": "Figures",
+    "x": 251,
+    "y": 176,
+    "w": 574,
+    "h": 137,
+    "head": {
+     "x": 252,
+     "y": 177,
+     "w": 572,
+     "h": 42
+    }
+   },
+   {
+    "t": "Next action",
+    "x": 835,
+    "y": 176,
+    "w": 574,
+    "h": 137,
+    "head": {
+     "x": 836,
+     "y": 177,
+     "w": 572,
+     "h": 42
+    }
+   }
+  ],
+  "sections": [
+   {
+    "key": "overview",
+    "lazy": false,
+    "x": 251,
+    "y": 323,
+    "w": 1158,
+    "h": 872,
+    "head": {
+     "x": 252,
+     "y": 324,
+     "w": 1156,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1364,
+      "y": 333,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": "Case",
+      "x": 264,
+      "y": 387,
+      "w": 588,
+      "h": 373,
+      "head": {
+       "x": 277,
+       "y": 398,
+       "w": 562,
+       "h": 32
+      }
+     },
+     {
+      "t": "Principal",
+      "x": 862,
+      "y": 387,
+      "w": 534,
+      "h": 373,
+      "head": {
+       "x": 875,
+       "y": 398,
+       "w": 508,
+       "h": 32
+      }
+     },
+     {
+      "t": "Case contact",
+      "x": 264,
+      "y": 772,
+      "w": 1132,
+      "h": 119,
+      "head": {
+       "x": 277,
+       "y": 783,
+       "w": 1106,
+       "h": 32
+      }
+     },
+     {
+      "t": "Notes",
+      "x": 264,
+      "y": 903,
+      "w": 1132,
+      "h": 152,
+      "head": {
+       "x": 277,
+       "y": 914,
+       "w": 1106,
+       "h": 32
+      }
+     }
+    ],
+    "cells": [
+     {
+      "label": "Case type",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 456,
+      "w": 274,
+      "h": 36,
+      "value": "Inspection"
+     },
+     {
+      "label": "Our ref",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 565,
+      "y": 456,
+      "w": 274,
+      "h": 36,
+      "value": "QDOS31001"
+     },
+     {
+      "label": "Claim referenceExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 523,
+      "w": 274,
+      "h": 36,
+      "value": "QDOS-123"
+     },
+     {
+      "label": "Incident dateExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 565,
+      "y": 523,
+      "w": 274,
+      "h": 36,
+      "value": "1 Apr 2031"
+     },
+     {
+      "label": "Received",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 587,
+      "w": 274,
+      "h": 36,
+      "value": "11 Aug 2031 10:15"
+     },
+     {
+      "label": "Due",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 565,
+      "y": 587,
+      "w": 274,
+      "h": 36,
+      "value": "20 May 2031"
+     },
+     {
+      "label": "Matter line",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 651,
+      "w": 274,
+      "h": 52,
+      "value": "Road Traffic Accident: Jane Ex"
+     },
+     {
+      "label": "Sign-off Engineer",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 565,
+      "y": 651,
+      "w": 274,
+      "h": 36,
+      "value": "Unassigned"
+     },
+     {
+      "label": "Principal",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 875,
+      "y": 456,
+      "w": 508,
+      "h": 36,
+      "value": "QDOS"
+     },
+     {
+      "label": "Claim source",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 875,
+      "y": 520,
+      "w": 508,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Claim source contact name",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 875,
+      "y": 585,
+      "w": 508,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Claim source contact phone",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 875,
+      "y": 649,
+      "w": 508,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Claim source contact e-mail",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 875,
+      "y": 713,
+      "w": 508,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Contact nameExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 844,
+      "w": 359,
+      "h": 36,
+      "value": "Case handler"
+     },
+     {
+      "label": "Contact e-mailExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 650,
+      "y": 844,
+      "w": 359,
+      "h": 36,
+      "value": "handler@example.test"
+     },
+     {
+      "label": "Contact phoneExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1024,
+      "y": 844,
+      "w": 359,
+      "h": 36,
+      "value": "020 7946 0123"
+     },
+     {
+      "label": "Principal notes \u00b7 this Case",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 972,
+      "w": 546,
+      "h": 72,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Claim source notes \u00b7 this Case",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 837,
+      "y": 972,
+      "w": 546,
+      "h": 72,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Accident circumstancesExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 1099,
+      "w": 546,
+      "h": 72,
+      "value": "Rear-end impact at a roundabou"
+     },
+     {
+      "label": "Notes from client",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 837,
+      "y": 1096,
+      "w": 546,
+      "h": 72,
+      "value": "Not recorded"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "claim",
+    "lazy": false,
+    "x": 251,
+    "y": 1205,
+    "w": 1158,
+    "h": 260,
+    "head": {
+     "x": 252,
+     "y": 1206,
+     "w": 1156,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1364,
+      "y": 1215,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": "Claimant",
+      "x": 264,
+      "y": 1269,
+      "w": 1132,
+      "h": 183,
+      "head": {
+       "x": 277,
+       "y": 1280,
+       "w": 1106,
+       "h": 32
+      }
+     }
+    ],
+    "cells": [
+     {
+      "label": "ClaimantExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 1341,
+      "w": 266,
+      "h": 36,
+      "value": "Jane Example"
+     },
+     {
+      "label": "ContactExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 557,
+      "y": 1341,
+      "w": 266,
+      "h": 36,
+      "value": "07700 900123"
+     },
+     {
+      "label": "AddressExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 837,
+      "y": 1341,
+      "w": 266,
+      "h": 36,
+      "value": "12 Example Street, Leeds, LS1 "
+     },
+     {
+      "label": "Claimant VAT statusExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1117,
+      "y": 1341,
+      "w": 266,
+      "h": 36,
+      "value": "VAT registered"
+     },
+     {
+      "label": "Claimant VAT registered",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 1405,
+      "w": 266,
+      "h": 36,
+      "value": "Not recorded"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "inspection",
+    "lazy": false,
+    "x": 251,
+    "y": 1475,
+    "w": 1158,
+    "h": 390,
+    "head": {
+     "x": 252,
+     "y": 1476,
+     "w": 1156,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1364,
+      "y": 1485,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": "Repairer",
+      "x": 264,
+      "y": 1607,
+      "w": 1132,
+      "h": 116,
+      "head": {
+       "x": 277,
+       "y": 1618,
+       "w": 1106,
+       "h": 32
+      }
+     },
+     {
+      "t": "Storage",
+      "x": 264,
+      "y": 1736,
+      "w": 1132,
+      "h": 116,
+      "head": {
+       "x": 277,
+       "y": 1747,
+       "w": 1106,
+       "h": 32
+      }
+     }
+    ],
+    "cells": [
+     {
+      "label": "Inspection type",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 1557,
+      "w": 273,
+      "h": 36,
+      "value": "Image Based Assessment"
+     },
+     {
+      "label": "Inspection dateExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 551,
+      "y": 1559,
+      "w": 273,
+      "h": 36,
+      "value": "20 May 2031"
+     },
+     {
+      "label": "Inspect at",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 837,
+      "y": 1557,
+      "w": 273,
+      "h": 36,
+      "value": "Image Based Assessment"
+     },
+     {
+      "label": "Inspection addressPrincipal",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1124,
+      "y": 1559,
+      "w": 273,
+      "h": 36,
+      "value": "Image Based Assessment"
+     },
+     {
+      "label": "Repairer contact",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 1677,
+      "w": 266,
+      "h": 36,
+      "value": "Not linked"
+     },
+     {
+      "label": "Repairer",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 557,
+      "y": 1677,
+      "w": 266,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Address",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 837,
+      "y": 1677,
+      "w": 546,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Storage location",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 1805,
+      "w": 546,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Storage per day",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 837,
+      "y": 1805,
+      "w": 266,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Recovery charge",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1117,
+      "y": 1805,
+      "w": 266,
+      "h": 36,
+      "value": "Not recorded"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "vehicle",
+    "lazy": false,
+    "x": 251,
+    "y": 1875,
+    "w": 1158,
+    "h": 621,
+    "head": {
+     "x": 252,
+     "y": 1876,
+     "w": 1156,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "span",
+      "t": "Experian is not connected",
+      "x": 1125,
+      "y": 1890,
+      "w": 167,
+      "h": 21
+     },
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1364,
+      "y": 1885,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": "Mileage & condition",
+      "x": 264,
+      "y": 2200,
+      "w": 1132,
+      "h": 119,
+      "head": {
+       "x": 277,
+       "y": 2211,
+       "w": 1106,
+       "h": 32
+      }
+     },
+     {
+      "t": "Vehicle history Experian is not connected",
+      "x": 264,
+      "y": 2331,
+      "w": 1132,
+      "h": 152,
+      "head": {
+       "x": 277,
+       "y": 2342,
+       "w": 1106,
+       "h": 32
+      }
+     }
+    ],
+    "cells": [
+     {
+      "label": "RegistrationExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 1960,
+      "w": 273,
+      "h": 36,
+      "value": "AB12CDE"
+     },
+     {
+      "label": "Make",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 551,
+      "y": 1957,
+      "w": 273,
+      "h": 36,
+      "value": "Ford"
+     },
+     {
+      "label": "ModelExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 837,
+      "y": 1960,
+      "w": 273,
+      "h": 36,
+      "value": "Focus"
+     },
+     {
+      "label": "Year",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1124,
+      "y": 1957,
+      "w": 273,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "VIN",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 2024,
+      "w": 273,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Vehicle type",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 551,
+      "y": 2024,
+      "w": 273,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Body type",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 837,
+      "y": 2024,
+      "w": 273,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Engine",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1124,
+      "y": 2024,
+      "w": 273,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Fuel",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 2088,
+      "w": 273,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Colour",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 551,
+      "y": 2088,
+      "w": 273,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Transmission",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 837,
+      "y": 2088,
+      "w": 273,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Tax expiry",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1124,
+      "y": 2088,
+      "w": 273,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "MOT expiry",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 2152,
+      "w": 273,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "MileageExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 2272,
+      "w": 266,
+      "h": 36,
+      "value": "42,000 mi"
+     },
+     {
+      "label": "Mileage source",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 557,
+      "y": 2270,
+      "w": 266,
+      "h": 36,
+      "value": "Extracted"
+     },
+     {
+      "label": "Pre-incident condition",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 837,
+      "y": 2270,
+      "w": 266,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Odometer unit",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1117,
+      "y": 2270,
+      "w": 266,
+      "h": 36,
+      "value": "Miles"
+     },
+     {
+      "label": "Vehicle history",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 2400,
+      "w": 1106,
+      "h": 72,
+      "value": "Not recorded"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "damage",
+    "lazy": false,
+    "x": 251,
+    "y": 2502,
+    "w": 1158,
+    "h": 683,
+    "head": {
+     "x": 252,
+     "y": 2502,
+     "w": 1156,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1364,
+      "y": 2511,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": "Tyres & seat belts",
+      "x": 578,
+      "y": 2656,
+      "w": 818,
+      "h": 290,
+      "head": {
+       "x": 591,
+       "y": 2667,
+       "w": 792,
+       "h": 13
+      }
+     }
+    ],
+    "cells": [
+     {
+      "label": "Impact location",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 578,
+      "y": 2584,
+      "w": 263,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Impact severity",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 855,
+      "y": 2584,
+      "w": 263,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Recorded areas",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1133,
+      "y": 2584,
+      "w": 263,
+      "h": 36,
+      "value": "0"
+     },
+     {
+      "label": "Right-front tyre",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 591,
+      "y": 2706,
+      "w": 188,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Left-front tyre",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 793,
+      "y": 2706,
+      "w": 188,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Right-rear tyre",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 994,
+      "y": 2706,
+      "w": 188,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Left-rear tyre",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1196,
+      "y": 2706,
+      "w": 188,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Right-front belt",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 591,
+      "y": 2770,
+      "w": 188,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Left-front belt",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 793,
+      "y": 2770,
+      "w": 188,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Right-rear belt",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 994,
+      "y": 2770,
+      "w": 188,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Left-rear belt",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1196,
+      "y": 2770,
+      "w": 188,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Spare tyre",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 591,
+      "y": 2834,
+      "w": 188,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Centre belt",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 793,
+      "y": 2834,
+      "w": 188,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Material transfer",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 994,
+      "y": 2834,
+      "w": 389,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Airbags deployed",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 591,
+      "y": 2899,
+      "w": 188,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Unrelated damage",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 578,
+      "y": 2972,
+      "w": 610,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Unrelated-damage deduction",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1202,
+      "y": 2972,
+      "w": 194,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Incident narrative",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 578,
+      "y": 3036,
+      "w": 818,
+      "h": 36,
+      "value": "Not recorded"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "valuation",
+    "lazy": false,
+    "x": 251,
+    "y": 3191,
+    "w": 1158,
+    "h": 590,
+    "head": {
+     "x": 252,
+     "y": 3191,
+     "w": 1156,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1364,
+      "y": 3200,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": null,
+      "x": 264,
+      "y": 3566,
+      "w": 1132,
+      "h": 76,
+      "head": null
+     }
+    ],
+    "cells": [
+     {
+      "label": "Condition deduction",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 3595,
+      "w": 220,
+      "h": 36,
+      "value": "\u2014"
+     },
+     {
+      "label": "Previous total loss",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 521,
+      "y": 3595,
+      "w": 862,
+      "h": 36,
+      "value": "None"
+     },
+     {
+      "label": "Engineer's Value",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 279,
+      "y": 3685,
+      "w": 260,
+      "h": 40,
+      "value": "\u2014"
+     },
+     {
+      "label": "On the report",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 375,
+      "y": 3750,
+      "w": 161,
+      "h": 18,
+      "value": "Guide source not disclosed"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "estimate",
+    "lazy": false,
+    "x": 251,
+    "y": 3791,
+    "w": 1158,
+    "h": 800,
+    "head": {
+     "x": 252,
+     "y": 3792,
+     "w": 1156,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "details",
+      "t": "More Versions (0) Compare",
+      "x": 1184,
+      "y": 3801,
+      "w": 65,
+      "h": 32
+     },
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1256,
+      "y": 3801,
+      "w": 36,
+      "h": 32
+     },
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1364,
+      "y": 3801,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [],
+    "cells": [
+     {
+      "label": "Repair spec name",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 3970,
+      "w": 273,
+      "h": 36,
+      "value": "New repair spec"
+     },
+     {
+      "label": "Labour rate (\u00a3/h)",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 551,
+      "y": 3970,
+      "w": 171,
+      "h": 52,
+      "value": "Keep entered rate"
+     },
+     {
+      "label": "Regional uplift",
+      "ro": true,
+      "kind": null,
+      "value": null
+     },
+     {
+      "label": "Other costs (\u00a3)",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1124,
+      "y": 3970,
+      "w": 273,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "VAT %",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 4050,
+      "w": 273,
+      "h": 36,
+      "value": "20 %"
+     },
+     {
+      "label": "Repairer VAT status",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 551,
+      "y": 4050,
+      "w": 273,
+      "h": 36,
+      "value": "Unknown"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "a",
+      "type": null,
+      "t": "Versions (0)",
+      "h": 36,
+      "w": 196,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Compare",
+      "h": 36,
+      "w": 196,
+      "disabled": true
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Expand estimate",
+      "h": 32,
+      "w": 36,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "settlement",
+    "lazy": false,
+    "x": 251,
+    "y": 4601,
+    "w": 1158,
+    "h": 682,
+    "head": {
+     "x": 252,
+     "y": 4602,
+     "w": 1156,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1364,
+      "y": 4611,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": "Costs, hire & delays",
+      "x": 264,
+      "y": 5053,
+      "w": 1132,
+      "h": 216,
+      "head": {
+       "x": 277,
+       "y": 5064,
+       "w": 1106,
+       "h": 32
+      }
+     },
+     {
+      "t": "Salvage",
+      "x": 0,
+      "y": 0,
+      "w": 0,
+      "h": 0,
+      "head": {
+       "x": 0,
+       "y": 0,
+       "w": 0,
+       "h": 0
+      }
+     }
+    ],
+    "cells": [
+     {
+      "label": "Outcome",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 446,
+      "y": 4790,
+      "w": 1,
+      "h": 36,
+      "value": "Repairable"
+     },
+     {
+      "label": "Engineer's Value",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 447,
+      "y": 4838,
+      "w": 936,
+      "h": 36,
+      "value": "\u2014 Valuation"
+     },
+     {
+      "label": "Salvage",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 447,
+      "y": 4885,
+      "w": 936,
+      "h": 36,
+      "value": "Not applicable"
+     },
+     {
+      "label": "Roadworthiness",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 446,
+      "y": 4931,
+      "w": 1,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Excess",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 5005,
+      "w": 273,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Betterment",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 551,
+      "y": 5005,
+      "w": 273,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Agreed contract sum",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 837,
+      "y": 5005,
+      "w": 273,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Repair reserve (computed)",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 5123,
+      "w": 266,
+      "h": 36,
+      "value": "Not applicable"
+     },
+     {
+      "label": "Reserve",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 557,
+      "y": 5123,
+      "w": 266,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Diminution",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 837,
+      "y": 5123,
+      "w": 266,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Hire start",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1117,
+      "y": 5123,
+      "w": 266,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Hire daily cost",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 277,
+      "y": 5187,
+      "w": 266,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Repair delays",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 557,
+      "y": 5187,
+      "w": 266,
+      "h": 72,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Report delay",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 837,
+      "y": 5187,
+      "w": 266,
+      "h": 72,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Storage charge",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 1117,
+      "y": 5187,
+      "w": 266,
+      "h": 36,
+      "value": "Not recorded"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "report",
+    "lazy": false,
+    "x": 251,
+    "y": 5293,
+    "w": 1158,
+    "h": 653,
+    "head": {
+     "x": 252,
+     "y": 5294,
+     "w": 1156,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1364,
+      "y": 5303,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [],
+    "cells": [
+     {
+      "label": "Report date",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 5526,
+      "w": 273,
+      "h": 36,
+      "value": "\u2014"
+     },
+     {
+      "label": "Engineer's comments",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 551,
+      "y": 5526,
+      "w": 846,
+      "h": 72,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Valuation commentary",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 5626,
+      "w": 1132,
+      "h": 72,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Statement of truth",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 264,
+      "y": 5726,
+      "w": 1132,
+      "h": 207,
+      "value": "I declare that I understand my"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Report",
+      "h": 28,
+      "w": 66,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Fee",
+      "h": 28,
+      "w": 48,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "files",
+    "lazy": false,
+    "x": 251,
+    "y": 5956,
+    "w": 1158,
+    "h": 143,
+    "head": {
+     "x": 252,
+     "y": 5957,
+     "w": 1156,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "a",
+      "t": "Add evidence",
+      "x": 1245,
+      "y": 5966,
+      "w": 113,
+      "h": 32
+     },
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1364,
+      "y": 5966,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [],
+    "cells": [],
+    "controls": [
+     {
+      "tag": "a",
+      "type": null,
+      "t": "Add evidence",
+      "h": 32,
+      "w": 113,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Documents \u00b7 0",
+      "h": 36,
+      "w": 101,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Images \u00b7 4",
+      "h": 36,
+      "w": 79,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Correspondence \u00b7 0",
+      "h": 36,
+      "w": 130,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "notes",
+    "lazy": false,
+    "x": 251,
+    "y": 6109,
+    "w": 1158,
+    "h": 393,
+    "head": {
+     "x": 252,
+     "y": 6110,
+     "w": 1156,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 1364,
+      "y": 6119,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [],
+    "cells": [],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "textarea",
+      "type": "textarea",
+      "t": "note",
+      "h": 64,
+      "w": 1132,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Add Case note",
+      "h": 36,
+      "w": 138,
+      "disabled": false
+     }
+    ]
+   }
+  ],
+  "heights": {
+   "18": {
+    "div.fv": 1,
+    "span.status.status--plain": 1
+   },
+   "24": {
+    "span.status.status--amber": 2,
+    "span.status.status--blue": 1,
+    "button": 2
+   },
+   "28": {
+    "button.report-tab": 2
+   },
+   "32": {
+    "button.rail-collapse": 1,
+    "button.icon-button": 2,
+    "button.btn.btn--small": 11,
+    "button.icon-button.panel-collapse": 21,
+    "a.btn.btn--small": 1
+   },
+   "36": {
+    "input": 1,
+    "a.btn.btn--primary": 1,
+    "button.btn.btn--dark": 1,
+    "button.btn": 4,
+    "a.btn": 2,
+    "button.btn.btn--danger": 1,
+    "div.fv": 27,
+    "div.fv.mono": 17,
+    "div.fv.empty": 36,
+    "div.fv.derived": 4,
+    "div.fv.sr-only": 1,
+    "button.tab": 3,
+    "button.btn.btn--primary": 1,
+    "a.btn.next-step-go": 1
+   },
+   "40": {
+    "a.section-link": 9,
+    "div.fv.mono": 1
+   },
+   "52": {
+    "div.fv.derived": 1,
+    "div.fv": 1,
+    "div.fv.mono": 1
+   },
+   "64": {
+    "textarea": 1
+   },
+   "72": {
+    "div.fv.empty": 4,
+    "div.fv.multi": 5
+   },
+   "207": {
+    "div.fv.derived": 1
+   }
+  },
+  "dialogs": [
+   {
+    "id": "versions-dialog",
+    "title": "Repair Spec versions",
+    "hidden": true
+   },
+   {
+    "id": "case-release-hold-dialog",
+    "title": "Release Hold",
+    "hidden": true
+   },
+   {
+    "id": "case-correct-principal-dialog",
+    "title": "Correct principal",
+    "hidden": true
+   },
+   {
+    "id": "case-close-dialog",
+    "title": "Close case",
+    "hidden": true
+   },
+   {
+    "id": "",
+    "title": "Account",
+    "hidden": true
+   },
+   {
+    "id": "",
+    "title": "Notifications",
+    "hidden": true
+   },
+   {
+    "id": "",
+    "title": "Search Pegasus",
+    "hidden": true
+   },
+   {
+    "id": "",
+    "title": "Report a problem",
+    "hidden": true
+   }
+  ],
+  "menuItems": [
+   {
+    "t": "Export case",
+    "disabled": false,
+    "gated": false
+   },
+   {
+    "t": "Send chaser",
+    "disabled": null,
+    "gated": false
+   },
+   {
+    "t": "Release Hold",
+    "disabled": false,
+    "gated": false
+   },
+   {
+    "t": "Correct principal",
+    "disabled": false,
+    "gated": false
+   },
+   {
+    "t": "Close case",
+    "disabled": false,
+    "gated": false
+   }
+  ],
+  "notices": [],
+  "docHeight": 6565
+ },
+ "760": {
+  "url": "https://localhost:5240/Cases/dc313ea9-5739-4ae0-bd8e-fe80c949ac3c",
+  "editing": false,
+  "layout": "scroll",
+  "stickyH": "249px",
+  "sticky": {
+   "x": 13,
+   "y": 226,
+   "w": 734,
+   "h": 249
+  },
+  "ribbon": {
+   "x": 13,
+   "y": 226,
+   "w": 734,
+   "h": 208
+  },
+  "row": {
+   "x": 13,
+   "y": 434,
+   "w": 734,
+   "h": 40
+  },
+  "nav": {
+   "x": 13,
+   "y": 434,
+   "w": 531,
+   "h": 40
+  },
+  "navOverflow": 380,
+  "navLinks": [
+   {
+    "t": "Case details",
+    "x": 23,
+    "y": 434,
+    "w": 118,
+    "h": 40,
+    "current": "true"
+   },
+   {
+    "t": "Claim",
+    "x": 143,
+    "y": 434,
+    "w": 76,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Inspection details",
+    "x": 221,
+    "y": 434,
+    "w": 151,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Vehicle",
+    "x": 374,
+    "y": 434,
+    "w": 86,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Repair Spec",
+    "x": 462,
+    "y": 434,
+    "w": 116,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Decisions",
+    "x": 579,
+    "y": 434,
+    "w": 101,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Report",
+    "x": 683,
+    "y": 434,
+    "w": 82,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Files",
+    "x": 766,
+    "y": 434,
+    "w": 69,
+    "h": 40,
+    "current": "false"
+   },
+   {
+    "t": "Notes",
+    "x": 837,
+    "y": 434,
+    "w": 77,
+    "h": 40,
+    "current": "false"
+   }
+  ],
+  "ribbonItems": [
+   {
+    "label": "Case workspace",
+    "value": "QDOS31001",
+    "x": 13,
+    "y": 226,
+    "w": 367,
+    "h": 46
+   },
+   {
+    "label": "Registration",
+    "value": "AB12CDE",
+    "x": 380,
+    "y": 226,
+    "w": 367,
+    "h": 46
+   },
+   {
+    "label": "Claimant",
+    "value": "Jane Example",
+    "x": 13,
+    "y": 272,
+    "w": 367,
+    "h": 42
+   },
+   {
+    "label": "Principal",
+    "value": "QDOS",
+    "x": 380,
+    "y": 272,
+    "w": 367,
+    "h": 42
+   },
+   {
+    "label": "Engineer",
+    "value": "development-offline-administrator",
+    "x": 13,
+    "y": 314,
+    "w": 734,
+    "h": 42
+   }
+  ],
+  "chips": [
+   {
+    "t": "Held",
+    "x": 24,
+    "y": 360,
+    "w": 53,
+    "h": 24
+   },
+   {
+    "t": "Repairable",
+    "x": 83,
+    "y": 360,
+    "w": 84,
+    "h": 24
+   }
+  ],
+  "chipsBox": {
+   "x": 13,
+   "y": 356,
+   "w": 734,
+   "h": 32
+  },
+  "actions": [
+   {
+    "tag": "button",
+    "t": "Edit Case",
+    "x": 531,
+    "y": 393,
+    "w": 107,
+    "h": 36
+   },
+   {
+    "tag": "details",
+    "t": "Actions Export case Send chaser Release ",
+    "x": 644,
+    "y": 393,
+    "w": 93,
+    "h": 36
+   },
+   {
+    "tag": "button",
+    "t": "Export case",
+    "x": 534,
+    "y": 440,
+    "w": 196,
+    "h": 36
+   }
+  ],
+  "aside": {
+   "x": 23,
+   "y": 485,
+   "w": 714,
+   "h": 275
+  },
+  "asideScroll": {
+   "sh": 275,
+   "ch": 275,
+   "top": "355px",
+   "maxH": "none"
+  },
+  "asideCards": [
+   {
+    "t": "Figures",
+    "x": 23,
+    "y": 485,
+    "w": 714,
+    "h": 137,
+    "head": {
+     "x": 24,
+     "y": 486,
+     "w": 712,
+     "h": 42
+    }
+   },
+   {
+    "t": "Next action",
+    "x": 23,
+    "y": 631,
+    "w": 714,
+    "h": 129,
+    "head": {
+     "x": 24,
+     "y": 632,
+     "w": 712,
+     "h": 42
+    }
+   }
+  ],
+  "sections": [
+   {
+    "key": "overview",
+    "lazy": false,
+    "x": 23,
+    "y": 770,
+    "w": 714,
+    "h": 1787,
+    "head": {
+     "x": 24,
+     "y": 771,
+     "w": 712,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 692,
+      "y": 780,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": "Case",
+      "x": 36,
+      "y": 834,
+      "w": 688,
+      "h": 571,
+      "head": {
+       "x": 49,
+       "y": 845,
+       "w": 662,
+       "h": 32
+      }
+     },
+     {
+      "t": "Principal",
+      "x": 36,
+      "y": 1415,
+      "w": 688,
+      "h": 373,
+      "head": {
+       "x": 49,
+       "y": 1426,
+       "w": 662,
+       "h": 32
+      }
+     },
+     {
+      "t": "Case contact",
+      "x": 36,
+      "y": 1800,
+      "w": 688,
+      "h": 252,
+      "head": {
+       "x": 49,
+       "y": 1811,
+       "w": 662,
+       "h": 32
+      }
+     },
+     {
+      "t": "Notes",
+      "x": 36,
+      "y": 2064,
+      "w": 688,
+      "h": 252,
+      "head": {
+       "x": 49,
+       "y": 2075,
+       "w": 662,
+       "h": 32
+      }
+     }
+    ],
+    "cells": [
+     {
+      "label": "Case type",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 903,
+      "w": 662,
+      "h": 36,
+      "value": "Inspection"
+     },
+     {
+      "label": "Our ref",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 967,
+      "w": 662,
+      "h": 36,
+      "value": "QDOS31001"
+     },
+     {
+      "label": "Claim referenceExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 1034,
+      "w": 662,
+      "h": 36,
+      "value": "QDOS-123"
+     },
+     {
+      "label": "Incident dateExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 1101,
+      "w": 662,
+      "h": 36,
+      "value": "1 Apr 2031"
+     },
+     {
+      "label": "Received",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 1165,
+      "w": 662,
+      "h": 36,
+      "value": "11 Aug 2031 10:15"
+     },
+     {
+      "label": "Due",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 1229,
+      "w": 662,
+      "h": 36,
+      "value": "20 May 2031"
+     },
+     {
+      "label": "Matter line",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 1294,
+      "w": 662,
+      "h": 36,
+      "value": "Road Traffic Accident: Jane Ex"
+     },
+     {
+      "label": "Sign-off Engineer",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 1358,
+      "w": 662,
+      "h": 36,
+      "value": "Unassigned"
+     },
+     {
+      "label": "Principal",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 1484,
+      "w": 662,
+      "h": 36,
+      "value": "QDOS"
+     },
+     {
+      "label": "Claim source",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 1548,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Claim source contact name",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 1613,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Claim source contact phone",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 1677,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Claim source contact e-mail",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 1741,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Contact nameExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 1872,
+      "w": 662,
+      "h": 36,
+      "value": "Case handler"
+     },
+     {
+      "label": "Contact e-mailExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 1938,
+      "w": 662,
+      "h": 36,
+      "value": "handler@example.test"
+     },
+     {
+      "label": "Contact phoneExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 2005,
+      "w": 662,
+      "h": 36,
+      "value": "020 7946 0123"
+     },
+     {
+      "label": "Principal notes \u00b7 this Case",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 2133,
+      "w": 662,
+      "h": 72,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Claim source notes \u00b7 this Case",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 2234,
+      "w": 662,
+      "h": 72,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Accident circumstancesExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 2360,
+      "w": 662,
+      "h": 72,
+      "value": "Rear-end impact at a roundabou"
+     },
+     {
+      "label": "Notes from client",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 2461,
+      "w": 662,
+      "h": 72,
+      "value": "Not recorded"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "claim",
+    "lazy": false,
+    "x": 23,
+    "y": 2567,
+    "w": 714,
+    "h": 460,
+    "head": {
+     "x": 24,
+     "y": 2568,
+     "w": 712,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 692,
+      "y": 2577,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": "Claimant",
+      "x": 36,
+      "y": 2631,
+      "w": 688,
+      "h": 383,
+      "head": {
+       "x": 49,
+       "y": 2642,
+       "w": 662,
+       "h": 32
+      }
+     }
+    ],
+    "cells": [
+     {
+      "label": "ClaimantExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 2702,
+      "w": 662,
+      "h": 36,
+      "value": "Jane Example"
+     },
+     {
+      "label": "ContactExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 2769,
+      "w": 662,
+      "h": 36,
+      "value": "07700 900123"
+     },
+     {
+      "label": "AddressExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 2836,
+      "w": 662,
+      "h": 36,
+      "value": "12 Example Street, Leeds, LS1 "
+     },
+     {
+      "label": "Claimant VAT statusExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 2903,
+      "w": 662,
+      "h": 36,
+      "value": "VAT registered"
+     },
+     {
+      "label": "Claimant VAT registered",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 2967,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "inspection",
+    "lazy": false,
+    "x": 23,
+    "y": 3037,
+    "w": 714,
+    "h": 842,
+    "head": {
+     "x": 24,
+     "y": 3038,
+     "w": 712,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 692,
+      "y": 3047,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": "Repairer",
+      "x": 36,
+      "y": 3365,
+      "w": 688,
+      "h": 245,
+      "head": {
+       "x": 49,
+       "y": 3376,
+       "w": 662,
+       "h": 32
+      }
+     },
+     {
+      "t": "Storage",
+      "x": 36,
+      "y": 3622,
+      "w": 688,
+      "h": 245,
+      "head": {
+       "x": 49,
+       "y": 3633,
+       "w": 662,
+       "h": 32
+      }
+     }
+    ],
+    "cells": [
+     {
+      "label": "Inspection type",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 3119,
+      "w": 688,
+      "h": 36,
+      "value": "Image Based Assessment"
+     },
+     {
+      "label": "Inspection dateExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 3186,
+      "w": 688,
+      "h": 36,
+      "value": "20 May 2031"
+     },
+     {
+      "label": "Inspect at",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 3250,
+      "w": 688,
+      "h": 36,
+      "value": "Image Based Assessment"
+     },
+     {
+      "label": "Inspection addressPrincipal",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 3317,
+      "w": 688,
+      "h": 36,
+      "value": "Image Based Assessment"
+     },
+     {
+      "label": "Repairer contact",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 3434,
+      "w": 662,
+      "h": 36,
+      "value": "Not linked"
+     },
+     {
+      "label": "Repairer",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 3498,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Address",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 3563,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Storage location",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 3691,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Storage per day",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 3755,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Recovery charge",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 3819,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "vehicle",
+    "lazy": false,
+    "x": 23,
+    "y": 3889,
+    "w": 714,
+    "h": 1422,
+    "head": {
+     "x": 24,
+     "y": 3890,
+     "w": 712,
+     "h": 78
+    },
+    "headControls": [
+     {
+      "tag": "span",
+      "t": "Experian is not connected",
+      "x": 557,
+      "y": 3899,
+      "w": 167,
+      "h": 21
+     },
+     {
+      "tag": "button",
+      "t": "",
+      "x": 692,
+      "y": 3926,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": "Mileage & condition",
+      "x": 36,
+      "y": 4822,
+      "w": 688,
+      "h": 311,
+      "head": {
+       "x": 49,
+       "y": 4833,
+       "w": 662,
+       "h": 32
+      }
+     },
+     {
+      "t": "Vehicle history Experian is not connected",
+      "x": 36,
+      "y": 5146,
+      "w": 688,
+      "h": 152,
+      "head": {
+       "x": 49,
+       "y": 5157,
+       "w": 662,
+       "h": 32
+      }
+     }
+    ],
+    "cells": [
+     {
+      "label": "RegistrationExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 4001,
+      "w": 688,
+      "h": 36,
+      "value": "AB12CDE"
+     },
+     {
+      "label": "Make",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 4065,
+      "w": 688,
+      "h": 36,
+      "value": "Ford"
+     },
+     {
+      "label": "ModelExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 4132,
+      "w": 688,
+      "h": 36,
+      "value": "Focus"
+     },
+     {
+      "label": "Year",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 4196,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "VIN",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 4261,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Vehicle type",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 4325,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Body type",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 4389,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Engine",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 4453,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Fuel",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 4518,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Colour",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 4582,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Transmission",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 4646,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Tax expiry",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 4710,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "MOT expiry",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 4774,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "MileageExtracted",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 4894,
+      "w": 662,
+      "h": 36,
+      "value": "42,000 mi"
+     },
+     {
+      "label": "Mileage source",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 4958,
+      "w": 662,
+      "h": 36,
+      "value": "Extracted"
+     },
+     {
+      "label": "Pre-incident condition",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 5023,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Odometer unit",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 5087,
+      "w": 662,
+      "h": 36,
+      "value": "Miles"
+     },
+     {
+      "label": "Vehicle history",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 5215,
+      "w": 662,
+      "h": 72,
+      "value": "Not recorded"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "damage",
+    "lazy": false,
+    "x": 23,
+    "y": 5317,
+    "w": 714,
+    "h": 1946,
+    "head": {
+     "x": 24,
+     "y": 5317,
+     "w": 712,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 692,
+      "y": 5326,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": "Tyres & seat belts",
+      "x": 36,
+      "y": 6255,
+      "w": 688,
+      "h": 804,
+      "head": {
+       "x": 49,
+       "y": 6266,
+       "w": 662,
+       "h": 13
+      }
+     }
+    ],
+    "cells": [
+     {
+      "label": "Impact location",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 6055,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Impact severity",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 6119,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Recorded areas",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 6183,
+      "w": 688,
+      "h": 36,
+      "value": "0"
+     },
+     {
+      "label": "Right-front tyre",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 6306,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Left-front tyre",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 6370,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Right-rear tyre",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 6434,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Left-rear tyre",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 6498,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Right-front belt",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 6563,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Left-front belt",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 6627,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Right-rear belt",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 6691,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Left-rear belt",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 6755,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Spare tyre",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 6820,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Centre belt",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 6884,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Material transfer",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 6948,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Airbags deployed",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 7012,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Unrelated damage",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 7085,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Unrelated-damage deduction",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 7150,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Incident narrative",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 7214,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "valuation",
+    "lazy": false,
+    "x": 23,
+    "y": 7269,
+    "w": 714,
+    "h": 1276,
+    "head": {
+     "x": 24,
+     "y": 7269,
+     "w": 712,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 692,
+      "y": 7278,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": null,
+      "x": 36,
+      "y": 8264,
+      "w": 688,
+      "h": 142,
+      "head": null
+     }
+    ],
+    "cells": [
+     {
+      "label": "Condition deduction",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 8293,
+      "w": 662,
+      "h": 36,
+      "value": "\u2014"
+     },
+     {
+      "label": "Previous total loss",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 8359,
+      "w": 662,
+      "h": 36,
+      "value": "None"
+     },
+     {
+      "label": "Engineer's Value",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 51,
+      "y": 8450,
+      "w": 658,
+      "h": 40,
+      "value": "\u2014"
+     },
+     {
+      "label": "On the report",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 147,
+      "y": 8515,
+      "w": 161,
+      "h": 18,
+      "value": "Guide source not disclosed"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "estimate",
+    "lazy": false,
+    "x": 23,
+    "y": 8555,
+    "w": 714,
+    "h": 1276,
+    "head": {
+     "x": 24,
+     "y": 8556,
+     "w": 712,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "details",
+      "t": "More Versions (0) Compare",
+      "x": 512,
+      "y": 8565,
+      "w": 65,
+      "h": 32
+     },
+     {
+      "tag": "button",
+      "t": "",
+      "x": 584,
+      "y": 8565,
+      "w": 36,
+      "h": 32
+     },
+     {
+      "tag": "button",
+      "t": "",
+      "x": 692,
+      "y": 8565,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [],
+    "cells": [
+     {
+      "label": "Repair spec name",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 8752,
+      "w": 688,
+      "h": 36,
+      "value": "New repair spec"
+     },
+     {
+      "label": "Labour rate (\u00a3/h)",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 8816,
+      "w": 586,
+      "h": 52,
+      "value": "Keep entered rate"
+     },
+     {
+      "label": "Regional uplift",
+      "ro": true,
+      "kind": null,
+      "value": null
+     },
+     {
+      "label": "Other costs (\u00a3)",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 8960,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "VAT %",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 9025,
+      "w": 688,
+      "h": 36,
+      "value": "20 %"
+     },
+     {
+      "label": "Repairer VAT status",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 9089,
+      "w": 688,
+      "h": 36,
+      "value": "Unknown"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "a",
+      "type": null,
+      "t": "Versions (0)",
+      "h": 36,
+      "w": 196,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Compare",
+      "h": 36,
+      "w": 196,
+      "disabled": true
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Expand estimate",
+      "h": 32,
+      "w": 36,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "settlement",
+    "lazy": false,
+    "x": 23,
+    "y": 9841,
+    "w": 714,
+    "h": 1493,
+    "head": {
+     "x": 24,
+     "y": 9842,
+     "w": 712,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 692,
+      "y": 9851,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [
+     {
+      "t": "Costs, hire & delays",
+      "x": 36,
+      "y": 10683,
+      "w": 688,
+      "h": 638,
+      "head": {
+       "x": 49,
+       "y": 10694,
+       "w": 662,
+       "h": 32
+      }
+     },
+     {
+      "t": "Salvage",
+      "x": 0,
+      "y": 0,
+      "w": 0,
+      "h": 0,
+      "head": {
+       "x": 0,
+       "y": 0,
+       "w": 0,
+       "h": 0
+      }
+     }
+    ],
+    "cells": [
+     {
+      "label": "Outcome",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 48,
+      "y": 10204,
+      "w": 1,
+      "h": 36,
+      "value": "Repairable"
+     },
+     {
+      "label": "Engineer's Value",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 10281,
+      "w": 662,
+      "h": 36,
+      "value": "\u2014 Valuation"
+     },
+     {
+      "label": "Salvage",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 10357,
+      "w": 662,
+      "h": 36,
+      "value": "Not applicable"
+     },
+     {
+      "label": "Roadworthiness",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 48,
+      "y": 10433,
+      "w": 1,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Excess",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 10507,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Betterment",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 10571,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Agreed contract sum",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 10635,
+      "w": 688,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Repair reserve (computed)",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 10752,
+      "w": 662,
+      "h": 36,
+      "value": "Not applicable"
+     },
+     {
+      "label": "Reserve",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 10817,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Diminution",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 10881,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Hire start",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 10945,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Hire daily cost",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 11009,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Repair delays",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 11074,
+      "w": 662,
+      "h": 72,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Report delay",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 11174,
+      "w": 662,
+      "h": 72,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Storage charge",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 49,
+      "y": 11274,
+      "w": 662,
+      "h": 36,
+      "value": "Not recorded"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "report",
+    "lazy": false,
+    "x": 23,
+    "y": 11344,
+    "w": 714,
+    "h": 770,
+    "head": {
+     "x": 24,
+     "y": 11345,
+     "w": 712,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 692,
+      "y": 11354,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [],
+    "cells": [
+     {
+      "label": "Report date",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 11577,
+      "w": 688,
+      "h": 36,
+      "value": "\u2014"
+     },
+     {
+      "label": "Engineer's comments",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 11641,
+      "w": 688,
+      "h": 72,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Valuation commentary",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 11742,
+      "w": 688,
+      "h": 72,
+      "value": "Not recorded"
+     },
+     {
+      "label": "Statement of truth",
+      "ro": true,
+      "kind": "div.fv",
+      "x": 36,
+      "y": 11842,
+      "w": 688,
+      "h": 259,
+      "value": "I declare that I understand my"
+     }
+    ],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Edit",
+      "h": 32,
+      "w": 60,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Report",
+      "h": 28,
+      "w": 66,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Fee",
+      "h": 28,
+      "w": 48,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "files",
+    "lazy": false,
+    "x": 23,
+    "y": 12124,
+    "w": 714,
+    "h": 143,
+    "head": {
+     "x": 24,
+     "y": 12125,
+     "w": 712,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "a",
+      "t": "Add evidence",
+      "x": 573,
+      "y": 12134,
+      "w": 113,
+      "h": 32
+     },
+     {
+      "tag": "button",
+      "t": "",
+      "x": 692,
+      "y": 12134,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [],
+    "cells": [],
+    "controls": [
+     {
+      "tag": "a",
+      "type": null,
+      "t": "Add evidence",
+      "h": 32,
+      "w": 113,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Documents \u00b7 0",
+      "h": 36,
+      "w": 101,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Images \u00b7 4",
+      "h": 36,
+      "w": 79,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Correspondence \u00b7 0",
+      "h": 36,
+      "w": 130,
+      "disabled": false
+     }
+    ]
+   },
+   {
+    "key": "notes",
+    "lazy": false,
+    "x": 23,
+    "y": 12277,
+    "w": 714,
+    "h": 513,
+    "head": {
+     "x": 24,
+     "y": 12278,
+     "w": 712,
+     "h": 51
+    },
+    "headControls": [
+     {
+      "tag": "button",
+      "t": "",
+      "x": 692,
+      "y": 12287,
+      "w": 32,
+      "h": 32
+     }
+    ],
+    "subPanels": [],
+    "cells": [],
+    "controls": [
+     {
+      "tag": "button",
+      "type": "button",
+      "t": "Collapse section",
+      "h": 32,
+      "w": 32,
+      "disabled": false
+     },
+     {
+      "tag": "textarea",
+      "type": "textarea",
+      "t": "note",
+      "h": 64,
+      "w": 688,
+      "disabled": false
+     },
+     {
+      "tag": "button",
+      "type": "submit",
+      "t": "Add Case note",
+      "h": 36,
+      "w": 138,
+      "disabled": false
+     }
+    ]
+   }
+  ],
+  "heights": {
+   "18": {
+    "div.fv": 1,
+    "span.status.status--plain": 1
+   },
+   "24": {
+    "span.status.status--amber": 2,
+    "span.status.status--blue": 1,
+    "button": 2
+   },
+   "28": {
+    "button.report-tab": 2
+   },
+   "32": {
+    "button.icon-button": 1,
+    "button.icon-button.utility-account": 1,
+    "button.btn.btn--small": 11,
+    "button.icon-button.panel-collapse": 21,
+    "a.btn.btn--small": 1
+   },
+   "36": {
+    "input": 1,
+    "a.btn.btn--primary": 1,
+    "button.btn.btn--dark": 1,
+    "button.btn": 4,
+    "a.btn": 2,
+    "button.btn.btn--danger": 1,
+    "div.fv": 27,
+    "div.fv.mono": 17,
+    "div.fv.derived": 5,
+    "div.fv.empty": 36,
+    "div.fv.sr-only": 1,
+    "button.tab": 3,
+    "button.btn.btn--primary": 1,
+    "a.btn.next-step-go": 1
+   },
+   "40": {
+    "a.section-link": 9,
+    "div.fv.mono": 1
+   },
+   "52": {
+    "div.fv": 1,
+    "div.fv.mono": 1
+   },
+   "64": {
+    "textarea": 1
+   },
+   "72": {
+    "div.fv.empty": 4,
+    "div.fv.multi": 5
+   },
+   "259": {
+    "div.fv.derived": 1
+   }
+  },
+  "dialogs": [
+   {
+    "id": "versions-dialog",
+    "title": "Repair Spec versions",
+    "hidden": true
+   },
+   {
+    "id": "case-release-hold-dialog",
+    "title": "Release Hold",
+    "hidden": true
+   },
+   {
+    "id": "case-correct-principal-dialog",
+    "title": "Correct principal",
+    "hidden": true
+   },
+   {
+    "id": "case-close-dialog",
+    "title": "Close case",
+    "hidden": true
+   },
+   {
+    "id": "",
+    "title": "Account",
+    "hidden": true
+   },
+   {
+    "id": "",
+    "title": "Notifications",
+    "hidden": true
+   },
+   {
+    "id": "",
+    "title": "Search Pegasus",
+    "hidden": true
+   },
+   {
+    "id": "",
+    "title": "Report a problem",
+    "hidden": true
+   }
+  ],
+  "menuItems": [
+   {
+    "t": "Export case",
+    "disabled": false,
+    "gated": false
+   },
+   {
+    "t": "Send chaser",
+    "disabled": null,
+    "gated": false
+   },
+   {
+    "t": "Release Hold",
+    "disabled": false,
+    "gated": false
+   },
+   {
+    "t": "Correct principal",
+    "disabled": false,
+    "gated": false
+   },
+   {
+    "t": "Close case",
+    "disabled": false,
+    "gated": false
+   }
+  ],
+  "notices": [],
+  "docHeight": 12851
+ }
+}

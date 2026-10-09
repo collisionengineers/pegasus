@@ -1,0 +1,51 @@
+{
+ "tag": "viewsinsp",
+ "url": "https://localhost:5240/Cases/F53E8A21-4363-4A48-B7D7-03F531BBFB76?view=inspection",
+ "read": {
+  "shots": [
+   "viewsinsp-read-1580.png",
+   "viewsinsp-read-1440.png",
+   "viewsinsp-read-760.png",
+   "viewsinsp-read-sec-overview-1580.png",
+   "viewsinsp-read-sec-claim-1580.png",
+   "viewsinsp-read-sec-inspection-1580.png",
+   "viewsinsp-read-sec-vehicle-1580.png",
+   "viewsinsp-read-sec-damage-1580.png",
+   "viewsinsp-read-sec-valuation-1580.png",
+   "viewsinsp-read-sec-estimate-1580.png",
+   "viewsinsp-read-sec-settlement-1580.png",
+   "viewsinsp-read-sec-report-1580.png",
+   "viewsinsp-read-sec-files-1580.png",
+   "viewsinsp-read-sec-notes-1580.png"
+  ],
+  "menu": "viewsinsp-read-menu-1580.png",
+  "menuItems": [
+   "Export case",
+   "Return to Review",
+   "Send chaser",
+   "Place on Hold",
+   "Correct principal",
+   "Create audit",
+   "Close case"
+  ],
+  "dialogs": [
+   "viewsinsp-read-dialog-case-hold-dialog-1580.png",
+   "viewsinsp-read-dialog-case-return-review-dialog-1580.png",
+   "viewsinsp-read-dialog-case-correct-principal-dialog-1580.png",
+   "viewsinsp-read-dialog-case-close-dialog-1580.png"
+  ],
+  "tabs": [
+   "viewsinsp-read-tabs-overview-1580.png",
+   "viewsinsp-read-tabs-claim-1580.png",
+   "viewsinsp-read-tabs-inspection-1580.png",
+   "viewsinsp-read-tabs-vehicle-1580.png",
+   "viewsinsp-read-tabs-estimate-1580.png",
+   "viewsinsp-read-tabs-settlement-1580.png",
+   "viewsinsp-read-tabs-report-1580.png",
+   "viewsinsp-read-tabs-files-1580.png",
+   "viewsinsp-read-tabs-notes-1580.png"
+  ]
+ },
+ "edit": {},
+ "errors": []
+}
