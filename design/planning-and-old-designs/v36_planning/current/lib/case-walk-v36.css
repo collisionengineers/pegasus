@@ -89,7 +89,15 @@ body.v36-strip-hidden .v36-strip{display:none}
 .v36-f28 input,.v36-f28 select{background:var(--surface-2);border-color:var(--line);color:var(--ink);pointer-events:none}
 /* f32 · the line grid: figures and their headers right-aligned on one baseline, the part number left. */
 .v36-f32 th.v36-num,.v36-f32 td.v36-num{text-align:right}
-.v36-f32 td.v36-num input,.v36-f32 td.v36-num .gv{text-align:right;width:100%;font-variant-numeric:tabular-nums}
+/* Header text and figure share one right edge: th 6px padding + 4px, the td's 4px + the box's 6px. */
+#section-estimate .grid th.v36-num{padding-right:10px}
+/* A number input reserves its spin buttons at the right even when they are hidden, which is where today's figures sit 20px short of the edge and clip. */
+.v36-f32 td.v36-num input::-webkit-inner-spin-button,.v36-f32 td.v36-num input::-webkit-outer-spin-button{-webkit-appearance:none;appearance:none;margin:0}
+.v36-f32 td.v36-num input[type=number]{-moz-appearance:textfield;appearance:textfield}
+.v36-f32 td.v36-num input,.v36-f32 td.v36-num .gv{display:block;width:100%;box-sizing:border-box;text-align:right;padding-right:6px;font-variant-numeric:tabular-nums;font-family:var(--mono)}
+.v36-f32 td.v36-num .gv{justify-content:flex-end}
+.v36-f32 th.col-part,.v36-f32 td.v36-part{padding-left:10px}
+.v36-f32 td.v36-part input,.v36-f32 td.v36-part .gv{padding-left:6px}
 .v36-f32 td.v36-part,.v36-f32 td.v36-part input,.v36-f32 td.v36-part .gv{text-align:left}
 .v36-f32 .v36-money{display:inline-flex;align-items:center;gap:2px;width:100%}
 .v36-f32 .v36-money::before{content:"£";color:var(--muted);font-size:12px}
