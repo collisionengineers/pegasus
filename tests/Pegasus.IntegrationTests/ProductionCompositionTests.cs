@@ -487,7 +487,7 @@ public sealed class ProductionCompositionTests
     }
 
     [Fact]
-    public void ProductionWebComposesGlassCallbackUrlSanitizationAndGlassValuation()
+    public void ProductionWebComposesGlassCallbackUrlSanitizationAndTheGuideValuationSources()
     {
         using var factory = new ConfiguredWebApplicationFactory(
             "Production",
@@ -500,9 +500,11 @@ public sealed class ProductionCompositionTests
         Assert.Contains(
             factory.Services.GetServices<ITelemetryInitializer>(),
             initializer => initializer is GlassCallbackTelemetryInitializer);
-        // The same host connects Glass's as a guide valuation source (ADR-0060).
-        Assert.IsType<GlassGuideValuationProvider>(
-            Assert.Single(factory.Services.GetServices<IGuideValuationProvider>()));
+        // The same host connects Glass's (ADR-0060) and Cazana (ADR-0066) as
+        // guide valuation sources, one provider each.
+        Assert.Equal(
+            [ValuationSource.Glasses, ValuationSource.Cazana],
+            factory.Services.GetServices<IGuideValuationProvider>().Select(provider => provider.Source));
     }
 
     [Fact]

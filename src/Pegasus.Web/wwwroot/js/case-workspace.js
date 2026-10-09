@@ -2931,9 +2931,10 @@
                         done = true;
                         return;
                     }
-                    // A source that does not value a vehicle of this age says
-                    // so as information: nothing is broken (operator, 2 October 2026).
-                    if (answer && answer.status === 'vehicle_age') {
+                    // A source that cannot value the vehicle (its age, or no
+                    // data for its registration) says so as information:
+                    // nothing is broken (operator, 2 and 9 October 2026).
+                    if (answer && answer.status === 'not_valued') {
                         showNotice(notice, true, answer.message, 'info');
                         return;
                     }

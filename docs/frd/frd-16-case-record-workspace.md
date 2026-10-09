@@ -493,9 +493,9 @@ text while reading and as inputs in the same place while editing; any box may
 be blank and is saved as entered. While editing, the boxes belong to the Case
 form, and a connected source's card has **Get valuation**, which asks the
 provider for the Case's accepted registration and mileage in that month and
-fills the boxes in place, without redrawing the page. Glass's is the connected
-source; its valuation's PDF report is filed on the Case's Documents after the
-figures have answered and appears there on the next load
+fills the boxes in place, without redrawing the page. Glass's and Cazana are
+the connected sources; a Glass's valuation's PDF report is filed on the Case's
+Documents after the figures have answered and appears there on the next load
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
 A source with no connected provider shows "{Source} valuation is
 unavailable. Contact an administrator or report a problem." on its card from

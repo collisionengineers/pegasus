@@ -98,6 +98,8 @@ function New-ValidPreProvisionEnvironment {
             'https://pegasusprodkv252ow37g.vault.azure.net/secrets/glass-valuation-username/version-one'
         GLASS_VALUATION_PASSWORD_SECRET_URI =
             'https://pegasusprodkv252ow37g.vault.azure.net/secrets/glass-valuation-password/version-one'
+        CAZANA_API_KEY_SECRET_URI =
+            'https://pegasusprodkv252ow37g.vault.azure.net/secrets/cazana-api-key/version-one'
         AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS =
             'https://pegasusprodkv252ow37g.vault.azure.net/secrets/signing-current/version-one,' +
             'https://pegasusprodkv252ow37g.vault.azure.net/secrets/signing-retained/version-two'
@@ -300,7 +302,7 @@ try {
 
     foreach ($key in 'BOX_HOLDING_FOLDER_ID', 'GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
         'GITHUB_PROBLEM_REPORT_REPOSITORY', 'GLASS_VALUATION_USERNAME_SECRET_URI',
-        'GLASS_VALUATION_PASSWORD_SECRET_URI', 'AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS',
+        'GLASS_VALUATION_PASSWORD_SECRET_URI', 'CAZANA_API_KEY_SECRET_URI', 'AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS',
         'AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS') {
         foreach ($value in @($null, '', '   ')) {
             $environment = New-ValidPreProvisionEnvironment
@@ -314,7 +316,7 @@ try {
     }
 
     foreach ($key in 'GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
-        'GLASS_VALUATION_USERNAME_SECRET_URI', 'GLASS_VALUATION_PASSWORD_SECRET_URI') {
+        'GLASS_VALUATION_USERNAME_SECRET_URI', 'GLASS_VALUATION_PASSWORD_SECRET_URI', 'CAZANA_API_KEY_SECRET_URI') {
         foreach ($value in @(
             'http://pegasusprodkv252ow37g.vault.azure.net/secrets/a-secret/version-one',
             'https://pegasusprodkv252ow37g.vault.azure.net/secrets/a-secret',

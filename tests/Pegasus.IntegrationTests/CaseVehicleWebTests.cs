@@ -244,6 +244,35 @@ public sealed class CaseVehicleWebTests
     }
 
     /// <summary>
+    /// 9 October 2026 (a.QDOS26092): a vehicle before its first MOT has no
+    /// odometer reading for the lookup to fill, and the empty box says why
+    /// rather than reading as a lookup that never ran. A figure staff enter
+    /// replaces it.
+    /// </summary>
+    [Fact]
+    public async Task AnEmptyMileageWithNoMotHistorySaysSo()
+    {
+        var store = new RecordingCaseDetailsStore { VehicleLookupEvidence = NoMotHistoryEvidence() };
+        var entered = await ReadOnlyVehicleSectionAsync(store);
+        var data = await store.GetAsync(store.CaseId, CaseWorkSelector.Current, CancellationToken.None)
+            ?? throw new InvalidOperationException("The vehicle fixture did not return case data.");
+        store.DataOverride = data with
+        {
+            Vehicle = data.Vehicle with { Mileage = new(null, null, null), MileageUnit = new(null, null, null) }
+        };
+
+        var empty = await ReadOnlyVehicleSectionAsync(store);
+
+        Assert.Contains(CaseWorkspaceLabels.Vehicle.NoMotHistory, MileageCell(empty), StringComparison.Ordinal);
+        Assert.Contains(
+            "<span class=\"lbl\">Mileage<span class=\"src-tag src-tag--lookup\" data-provenance-word=\"Lookup\">Lookup</span></span>",
+            empty,
+            StringComparison.Ordinal);
+        Assert.Contains("42,000 mi", MileageCell(entered), StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Vehicle.NoMotHistory, entered, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// A lookup fills the fields the case left empty, so the values themselves
     /// are the lookup's answer and each says so.
     /// </summary>
@@ -605,6 +634,27 @@ public sealed class CaseVehicleWebTests
             null,
             recordedAtUtc);
         return new(caseId, null, notFound, [notFound]);
+    }
+
+    /// <summary>DVSA's answer for a vehicle that has not had its first MOT.</summary>
+    private static CaseVehicleEvidence NoMotHistoryEvidence()
+    {
+        var caseId = Guid.NewGuid();
+        var recordedAtUtc = new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero);
+        VehicleLookupObservation answered = new(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            caseId,
+            1,
+            VehicleLookupOutcome.Current,
+            "AB12CDE",
+            new("dvla-ves+dvsa-mot-history", "1", "response-1", recordedAtUtc, null, null),
+            new("Ford", "Transit", 2030, null, "Diesel"),
+            [],
+            null,
+            null,
+            recordedAtUtc);
+        return new(caseId, null, answered, [answered]);
     }
 
     /// <summary>The v26 Experian seam: the head's `.gated` pill and its text.</summary>

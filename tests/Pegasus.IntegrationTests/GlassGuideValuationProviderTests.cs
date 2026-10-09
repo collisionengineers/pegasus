@@ -258,10 +258,11 @@ public sealed class GlassGuideValuationProviderTests
         var harness = Harness.Create();
         harness.Mva.Set("GET /three-phase-vehicle/get-values", new(HttpStatusCode.OK, ValuationVehicleAge));
 
-        var refused = await Assert.ThrowsAsync<GuideValuationVehicleAgeException>(() =>
+        var refused = await Assert.ThrowsAsync<GuideValuationNotValuedException>(() =>
             harness.Provider.GetAsync(Request(), default));
 
         Assert.Equal(ValuationSource.Glasses, refused.ValuationSource);
+        Assert.Equal(GuideValuationNotValuedReason.VehicleAge, refused.Reason);
         Assert.Equal(0, harness.Mva.Count("GET /index/create-new-vehicle"));
         Assert.Contains(harness.Logger.Messages, message =>
             message.Contains("glass.valuation.vehicle_age success=False errormsg=present", StringComparison.Ordinal));
