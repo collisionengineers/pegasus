@@ -332,12 +332,12 @@ public sealed partial class DetailsModel
 
         /// <summary>
         /// The basis when its card is not recorded yet, so it has no identity:
-        /// a guide card typed in this edit. Posted only by Use this value.
+        /// a guide card typed in this edit. Posted only when that card is chosen.
         /// </summary>
         public ValuationSource? GuideSource { get; set; }
 
         /// <summary>
-        /// The Engineer pressed Use this value: the Save records the
+        /// The Engineer chose a card: the Save records the
         /// calculation against its basis card even when the calculation is the
         /// one the page opened on. Absent on every other save.
         /// </summary>
@@ -433,7 +433,7 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The calculation this save records against its basis card: the posted
-    /// one, when the Engineer pressed Use this value (operator, 28 September
+    /// one, when the Engineer chose its card (operator, 28 September
     /// 2026: an unchanged default figure can be used too), or when what the
     /// calculator shows changed since the page opened (operator, 23 September
     /// 2026) — a different basis card, the basis card's retail or trade, or

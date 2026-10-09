@@ -539,7 +539,10 @@ and the next save records the calculation against it even when it is
 unchanged, including for a card typed in the same edit, and writes the
 report's Retail and Trade from it. A card with no retail answers the click
 with "Enter the retail value on this card to use it."; a click into one of its
-boxes only focuses the box. A save also records a calculation that changed
+boxes only focuses the box. A save after a card was chosen, while the
+Engineer's Value no longer holds that card's calculated figure, is refused
+with "The Engineer's Value no longer matches the figure you chose to use."
+(operator, 9 October 2026). A save also records a calculation that changed
 since the last save — a different basis card, the basis card's retail or
 trade, or any of its controls — and writes Retail and Trade from that card.
 Any other save records no calculation and leaves Retail and Trade as they

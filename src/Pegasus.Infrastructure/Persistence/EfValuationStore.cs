@@ -43,8 +43,8 @@ public sealed class EfValuationStore(
     /// without the Case edit lease) therefore fails that check.
     /// Null when the Engineer typed a different figure over the Engineer's
     /// Value box: that figure is the Engineer's own, so it is not recorded as
-    /// this card's calculation. When Use this value was pressed the same
-    /// mismatch is refused instead.
+    /// this card's calculation. When the card was chosen the same mismatch
+    /// is refused instead.
     /// </summary>
     internal static async Task<AppliedValuation?> AdoptAsync(
         PegasusDbContext context,
