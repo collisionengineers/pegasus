@@ -1,0 +1,42 @@
+/* v37 Management Reports mockup. Only what the live site.css and admin.css do
+   not already draw: the mockup strip, the period bar's layout, the Principal
+   ledger's selected row and the month bars (item I). Values are site.css tokens. */
+
+/* The mockup strip (v32's, renamed). Demo control, not product UI. */
+.rp-mock { position: fixed; left: 14px; bottom: 14px; z-index: 2000; width: 320px; max-width: calc(100vw - 28px); background: var(--nav); color: var(--nav-text); border-radius: 6px; box-shadow: 0 12px 30px rgba(0,0,0,.35); font-size: 11px; }
+.rp-mock summary { padding: 10px 14px; cursor: pointer; font-weight: 650; list-style: none; }
+.rp-mock summary::-webkit-details-marker { display: none; }
+.rp-mock-body { padding: 0 14px 14px; display: grid; gap: 9px; max-height: 70vh; overflow: auto; }
+.rp-mock nav { display: flex; gap: 6px; flex-wrap: wrap; }
+.rp-mock nav a { display: inline-grid; place-items: center; min-width: 30px; height: 28px; padding: 0 8px; border: 1px solid rgba(255,255,255,.3); border-radius: 3px; color: inherit; text-decoration: none; font-weight: 650; }
+.rp-mock nav a[aria-current="page"] { background: var(--red); border-color: var(--red); }
+.rp-mock label { display: grid; gap: 4px; font-weight: 600; color: var(--nav-muted); }
+.rp-mock select { min-height: 30px; border: 1px solid rgba(255,255,255,.3); border-radius: 3px; background: var(--nav-2); color: var(--nav-text); padding: 0 8px; font-size: 11px; }
+.rp-mock p { margin: 0; color: var(--nav-muted); line-height: 1.5; }
+.rp-mock a.plain { color: var(--nav-text); text-decoration: underline; }
+.rp-mock[hidden] { display: none; }
+
+/* The shared period bar (items B, H): the live filter grid, under the title. */
+.rp-period .panel-body { padding: 12px; }
+.rp-period .validation-summary { margin-top: 12px; }
+
+/* A select in a panel head (Person, Work, Measure): label beside control. */
+.rp-head-field { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.rp-head-field select { width: auto; min-height: 30px; padding: 3px 8px; }
+
+/* Design B: the tiles choose the report; the chosen one is pressed (site.css). */
+.rp-overview .metric { cursor: pointer; font: inherit; }
+.rp-report-choice { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
+.rp-report-choice .field { min-width: 240px; }
+
+/* Design C: the ledger, then the chosen Principal under it. */
+.rp-ledger-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gap); }
+.rp-ledger-layout > * { min-width: 0; }
+.rp-ledger tbody tr[aria-selected="true"] td { background: var(--surface-3); }
+.rp-ledger tbody tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 var(--red); }
+.rp-pick { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.rp-ledger tfoot td, .rp-ledger tfoot th { font-weight: 700; border-top: 1px solid var(--line-strong); }
+
+/* Item I: one navy bar per month, its figure beside it; the figure is the text. */
+.rp-bars td { vertical-align: bottom; height: 64px; padding-top: 8px; padding-bottom: 4px; }
+.rp-bar { display: block; margin-left: auto; width: 18px; background: var(--navy); border-radius: 2px 2px 0 0; }
