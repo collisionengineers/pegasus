@@ -974,6 +974,12 @@ the `CorrelationId` of its `ArtifactCustodyReconciliationAttempt` row in
 before the next try (`PendingCustodyRetryPolicy` in Core). A retained outcome,
 such as a Case with no folder yet, never waits.
 
+The sweep skips a version recorded in the last two minutes. That version still
+belongs to the request that recorded it, which is uploading it to Box. If the
+sweep uploaded it too, Box would refuse one of the two uploads with
+`name_temporarily_reserved`. That happened to a.QDOS26101's Glass's return on
+9 October 2026.
+
 ## Web start
 
 Web binds its port before any remote read. The data-protection key ring, the
