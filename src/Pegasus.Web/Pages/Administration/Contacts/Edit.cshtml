@@ -38,8 +38,8 @@
                 @* Record notes (13 September): stored once on the organisation, shown read-only on every Case of this Principal or from this Claim source. *@
                 <div class="field" data-notes-on-every-case><label asp-for="NotesOnEveryCase">Notes on every Case</label><textarea asp-for="NotesOnEveryCase" rows="4" maxlength="@ContactDirectoryPolicy.MaximumNotesOnEveryCaseLength"></textarea><span asp-validation-for="NotesOnEveryCase"></span></div>
             </section>
-            <section class="contact-section" aria-labelledby="linked-principals-title">
-                <h3 id="linked-principals-title">Linked principals</h3><p class="hint">Choose the role this contact has for each principal. Principal contacts cannot link to themselves.</p>
+            <section class="contact-section" data-linked-principals hidden="@(!Model.Roles.Any(role => role != ContactRole.Principal))" aria-labelledby="linked-principals-title">
+                <h3 id="linked-principals-title">Linked principals</h3>
                 @foreach (var role in Enum.GetValues<ContactRole>().Where(role => role != ContactRole.Principal)) { var selected = Model.Roles.Contains(role); <div class="stack" data-principal-associations="@role" hidden="@(!selected)"><strong>@EditModel.RoleLabel(role)</strong>@foreach (var principal in Model.PrincipalChoices) { var key = $"{role}:{principal.Principal.Id:D}"; <label class="choice"><input type="checkbox" name="PrincipalAssociationKeys" value="@key" @(Model.PrincipalAssociationKeys.Contains(key) ? "checked" : null) data-principal-association-input disabled="@(!selected)" /> <span>@principal.Name (@principal.Principal.Code)</span></label> }</div> }
             </section>
             <label class="choice"><input asp-for="Active" /> <span>Active</span></label>
