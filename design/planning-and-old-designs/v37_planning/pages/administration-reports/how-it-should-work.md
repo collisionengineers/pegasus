@@ -1,6 +1,6 @@
 # Management Reports: how it should work
 
-Decided with the operator on 9 October 2026 (the brief and the two answers); the rest is open until Stage 1 sign-off. The lettered items are in [v37-notes.md](../../current/v37-notes.md).
+Decided with the operator on 9 October 2026 (the brief, the two answers, the dispute ruling and the choice of A); the rest is open until Stage 1 sign-off. The lettered items are in [v37-notes.md](../../current/v37-notes.md).
 
 ## Rules the operator has already settled
 
@@ -26,9 +26,9 @@ Decided with the operator on 9 October 2026 (the brief and the two answers); the
 - **D13.** Outcomes and Audit agreement for the period. *Open: item O.*
 - **D14.** Previous period under each total, and Period presets. *Open: items G and H.*
 
-## Per design
+## Decided 9 October 2026
 
-- **D15.** A keeps the four sections in order. B draws five period tiles and one report at a time. C reads whole months in a Principal × month ledger with the chosen Principal under it. *Open: items A, Q, R and I.*
+- **D15.** Design A, with no Disputes column (D16): the four sections in today's order, each tidied as A draws it. B's tiles and one-report view and C's month ledger and bars are not taken (operator: "opt for a modified version of design A on the basis of these changes"; items A, Q, R and I).
 
 ## Where this lands
 

@@ -18,9 +18,9 @@ Every state is also reachable by query string:
 
 | File | Holds |
 | --- | --- |
-| [pegasus_management_reports_designs_v37.html](pegasus_management_reports_designs_v37.html) | Comparison page: the three designs, what they share, and the recommendation |
-| [pegasus_management_reports_a_v37.html](pegasus_management_reports_a_v37.html) | A · Tidied sections |
-| [pegasus_management_reports_b_v37.html](pegasus_management_reports_b_v37.html) | B · Overview first (recommended) |
+| [pegasus_management_reports_designs_v37.html](pegasus_management_reports_designs_v37.html) | Comparison page: the three designs, what they share, and the chosen design |
+| [pegasus_management_reports_a_v37.html](pegasus_management_reports_a_v37.html) | A · Tidied sections (chosen) |
+| [pegasus_management_reports_b_v37.html](pegasus_management_reports_b_v37.html) | B · Overview first |
 | [pegasus_management_reports_c_v37.html](pegasus_management_reports_c_v37.html) | C · Month ledger |
 | [pegasus_management_reports_live_v37.html](pegasus_management_reports_live_v37.html) | Today: `Reports.cshtml` at 970ef9f10 drawn from the same fixtures |
 | [build-management-reports-v37.mjs](build-management-reports-v37.mjs) | `node build-management-reports-v37.mjs` rebuilds all five files from `lib/` and the live shell, CSS and sprite in this checkout |
@@ -36,4 +36,4 @@ Every state is also reachable by query string:
 
 ## Status
 
-Stage 1 delivered on 9 October 2026. The same day, the operator ruled that a dispute is a query; the mockup follows, and PR #1146 makes the application change. Every lettered item is open. Stage 2 waits for the operator's answers and approval.
+Stage 1 delivered on 9 October 2026. The same day, the operator ruled that a dispute is a query; the mockup follows, and PR #1146 makes the application change. The operator then chose Design A (item A). Items I, Q and R are closed with B and C; the rest are open. Stage 2 waits for the operator's answers and approval.

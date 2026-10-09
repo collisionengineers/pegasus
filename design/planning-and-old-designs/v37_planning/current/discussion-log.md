@@ -32,3 +32,11 @@ Chronological. The operator's words are quoted; the rest records what was explor
 - The application, data and documentation: [PR #1146](https://github.com/collisionengineers/pegasus/pull/1146) removes the `dispute` mail subtype and the Disputes columns. A forward-only migration turns recorded disputes into queries and moves shared presets from Disputes to Queries. The PR also updates FRD-08, FRD-11, FRD-13, FRD-17, capabilities, the QDOS profile and CONTEXT.md.
 
 **Items raised.** None. The ruling is settled, so it is recorded in section 1 of the notes, not lettered.
+
+## Round 3: 9 October 2026
+
+**The operator's words.** "opt for a modified version of design A on the basis of these changes"
+
+**What changed.** Item A is settled: Design A, as modified by Round 2's ruling (no Disputes column). The comparison page marks A as chosen instead of recommending B. Items I, Q and R apply only to B or C, so they are closed. B and C stay in the folder as the record.
+
+**Still open.** B, B2, C, D, E, F, G, H, J, K, L, M, N, O, P and S. Stage 2 waits for them.

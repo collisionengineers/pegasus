@@ -8,6 +8,7 @@ Built on 9 October 2026 from `origin/dev` 970ef9f10. These notes cover the offli
 - **"A widget control" means a design switcher on the mockup strip.** The page gets no widget board and no customisation (operator's answer, 9 October 2026: "Design switcher in mockup").
 - **The page stays Administrator-only**, as today (operator's answer, 9 October 2026: "Administrators only (as today)").
 - **A dispute is a query.** "assume disputes and queries are the same - these must be rolled together both in our codebase, database, documentation, and the mockup design" (operator, 9 October 2026). Engineer activity and the Case list have no Disputes column in any design or on Today. The query counts already included disputes, so no total moves. The application, data and documentation change is [PR #1146](https://github.com/collisionengineers/pegasus/pull/1146).
+- **Design A is chosen** (operator, 9 October 2026: "opt for a modified version of design A on the basis of these changes"). The modification is the dispute ruling above. B and C stay in the folder as the record; items I, Q and R close with them (section 6).
 
 ## 2. What changes, and where it shows
 
@@ -56,9 +57,9 @@ Shot numbers refer to `v37-shots/` (listed on the [page README](../pages/adminis
 
 ## 6. Sign-off list
 
-Each item is open until the operator answers. The first answer of each is the proposal; "keep" means today's behaviour.
+Each item is open until the operator answers. The first answer of each is the proposal; "keep" means today's behaviour. Settled or closed: A, I, Q, R. Open: B, B2, C, D, E, F, G, H, J, K, L, M, N, O, P, S.
 
-- **A.** Choose a design: A Tidied sections, B Overview first (recommended), or C Month ledger. *Confirm B, or choose another, or name the pieces to combine.*
+- **A.** Choose a design: A Tidied sections, B Overview first (recommended), or C Month ledger. *Confirm B, or choose another, or name the pieces to combine.* **Decided 9 October 2026: A**, "a modified version of design A on the basis of these changes", that is, A with no Disputes column. B was not taken.
 - **B.** One period bar under the title for every report, Person on Engineer activity's head, Download workbook as the page action. This moves controls placed on the live page and changes FRD-17's description of the filter. *Confirm, or keep the filter inside Engineer activity.*
 - **B2.** From after To shows "Choose a valid date range." in the period bar and draws no report (the Case list stays). *Confirm, or draw every report as Unavailable instead.* Either way the false zero goes, because FRD-17 already forbids it.
 - **C.** The Engineer activity and Case list notes are not drawn. The design README allows no explanatory copy, but they are today's words and the Case list note is the only place N/A and blank are told apart. *Confirm, or keep either.* (Strip switch "Explanatory notes".)
@@ -67,7 +68,7 @@ Each item is open until the operator answers. The first answer of each is the pr
 - **F.** A Cases by stage report (Now): open Cases per Principal in Not ready, Review, With Engineer, Held and Query, with a Total row. New words: "Cases by stage", "Total". *Confirm, or leave out.*
 - **G.** "Previous period N" under each total: the same report for the same length of time just before. *Confirm, or leave out.*
 - **H.** A Period choice before From and To: This month, Last month, This quarter, Last 12 months, Custom (in C: Last 6 months, This year, Last 12 months, Custom). *Confirm, or keep From and To only.*
-- **I.** C's month bars: one navy bar per month under the ledger, the month total written beneath. The design README has no rule for a chart, and this would be the page's first beyond the meter. *Confirm, or draw the totals only.* (Strip switch "Month bars".)
+- **I.** C's month bars: one navy bar per month under the ledger, the month total written beneath. The design README has no rule for a chart, and this would be the page's first beyond the meter. *Confirm, or draw the totals only.* (Strip switch "Month bars".) **Closed 9 October 2026:** C was not chosen.
 - **J.** "Reports sent" counts three ways: Engineer activity counts Staff sends only (107 in the fixtures), Reports by Principal counts every send including Automation (110), and FRD-15 says the Work Centre's figure "agrees with MI-01" while counting every send. *Choose: keep both definitions; or count Automation sends in Engineer activity as their own row; or align the Work Centre and FRD-15 to say which they match.* Not drawn as a change.
 - **K.** One way to write a turnaround: the page writes "6 days", the Engineer activity CSV `6.00:00:00`, the workbook `[h]:mm`; the Engineer activity CSV headings ("Recorded send actor", "Queries received for assigned Engineer", "Reports sent by recorded actor") differ from the page and workbook. *Confirm the page's words and headings everywhere, or keep.* Not drawn.
 - **L.** A failed report refuses only its own CSV; the workbook still refuses unless every report read. By month gets its own Download CSV. *Confirm, or keep one failure blocking every download.*
@@ -75,8 +76,8 @@ Each item is open until the operator answers. The first answer of each is the pr
 - **N.** Person lists the people with activity in the period. *Confirm, or keep every enabled account.* (Strip switch.)
 - **O.** An Outcomes report: reports produced in the period by outcome (Repairable, Total loss, Cash in lieu, Contract repair) and the Audits' Agrees / Differs with the original, per Principal. The words are Core's. *Confirm, or leave out.* (Strip switch.)
 - **P.** Reports by Principal sorts by Principal, Reports produced, Reports sent and Agreed fees and has meters, as Engineer activity does; a count's first click sorts largest first. *Confirm, or keep today's order (smallest first) and Engineer activity alone sorted.*
-- **Q.** Design B only: the five tiles (Reports produced, Reports sent, Agreed fees, Queries received, Cases currently held) and the report each opens; the Report choice. New word: "Report". *Confirm, or name other figures.*
-- **R.** Design C only: whole London months replace From and To; the ledger shows one Measure (new word) with a Total column and row; choosing a Principal opens its months and turnaround; the By month table folds into the ledger and the chosen Principal. *Confirm, or name what to change.*
+- **Q.** Design B only: the five tiles (Reports produced, Reports sent, Agreed fees, Queries received, Cases currently held) and the report each opens; the Report choice. New word: "Report". *Confirm, or name other figures.* **Closed 9 October 2026:** B was not chosen.
+- **R.** Design C only: whole London months replace From and To; the ledger shows one Measure (new word) with a Total column and row; choosing a Principal opens its months and turnaround; the By month table folds into the ledger and the chosen Principal. *Confirm, or name what to change.* **Closed 9 October 2026:** C was not chosen.
 - **S.** This folder. *Keep it as the record of the round, or remove it in the Stage 2 pull request.*
 
 **Not lettered: Stage 2 fixes unless the operator says otherwise.** Each is a defect against today's page or FRD-17, not a new rule:
@@ -131,8 +132,8 @@ Listed so the operator can decide whether to raise them; none is proposed in thi
 
 ## 10. Stage 2 sketch (not started)
 
-To be confirmed against the chosen design and the settled items. Hand-over is [razor-html-mockup-conversion](../../../../.agents/skills/razor-html-mockup-conversion/SKILL.md).
-- `Pages/Administration/Reports.cshtml(.cs)`: the period bar, the Person head select, the workbook page action, per-report CSV availability, the sort fixes, and `work=` / `workm=` (and `report=` for B, months and `measure=` / `principal=` for C).
+Design A is chosen; the rest waits for the open items. Hand-over is [razor-html-mockup-conversion](../../../../.agents/skills/razor-html-mockup-conversion/SKILL.md).
+- `Pages/Administration/Reports.cshtml(.cs)`: the period bar, the Person head select, the workbook page action, per-report CSV availability, the sort fixes, and `work=` / `workm=`. Design A keeps the four sections in today's order.
 - Core: Fee notes produced by work in `MonthlyReportActivity` (item D). Queues from `PrincipalReportActivity`'s Triage figures plus the Unidentified count (E). Open Cases by stage per Principal (F). Outcomes from the first confirmed report snapshots (O). A second run of the same reads for the previous period (G).
 - FRD-17 §Management Reports rewritten for the settled items; FRD-15 L59 if item J changes the Work Centre's sentence; `capabilities.md` MI rows if new reports are added.
 - Tests: `AdministrationReportsWebTests` (the adjacent split headers pinned on the page change under item D; the workbook sheet names stay), `AdministrationReportTablesTests` if item K changes the CSV, and Core and persistence tests for every new read. CI runs them.

@@ -17,6 +17,7 @@ export const designs = [
     description: 'The page keeps its four sections in their order. The period moves out of Engineer activity into one bar under the title that governs every section, and Person sits on the one section it filters. Inspection and Audit become one Work choice per table, so the 10- and 12-column tables drop to four and six. Every section has its own Download CSV in its head; Download workbook moves to the page head.',
     benefit: 'Nothing is lost or moved far: an Administrator who knows today’s page finds every figure where it was. It is the smallest Stage 2.',
     tradeoff: 'Still one long page: Turnaround and the Case list sit below two wide sections, and the headline figures are spread across three tile rows.',
+    chosen: true,
   },
   {
     id: 'b', name: 'Overview first',
@@ -24,7 +25,6 @@ export const designs = [
     description: 'Five tiles give the period at a glance. A tile, or the Report choice beside it, opens one report below: Engineer activity, Reports by Principal, By month, Turnaround or the Case list. The period bar and Download workbook are shared; each report has its own Download CSV.',
     benefit: 'The page fits one screen at 1440; the figure you came for is one click away, and the tiles are the totals every report agrees on.',
     tradeoff: 'Only one report is visible at a time, so comparing Turnaround against Reports by Principal needs two views or the workbook.',
-    recommendation: true,
   },
   {
     id: 'c', name: 'Month ledger',
