@@ -20,8 +20,16 @@ public sealed class TasksModel(
     ILinkReportEvidence linkReportEvidence,
     IUnlinkReportEvidence unlinkReportEvidence,
     TimeProvider timeProvider,
+    ICaseWorkflowQueries workflows,
+    IAcquireCaseEditLease acquireLease,
     ILogger<TasksModel> logger) : CaseMutationPageModel(logger)
 {
+    /// <summary>
+    /// Linking report evidence inside the edit session keeps it (operator,
+    /// 9 October 2026).
+    /// </summary>
+    protected override (ICaseWorkflowQueries Workflows, IAcquireCaseEditLease Leases)? LeaseReclaim => (workflows, acquireLease);
+
     public IActionResult OnGet() => NotFound();
 
     // These retired task actions must refuse direct posts as well as disappear
