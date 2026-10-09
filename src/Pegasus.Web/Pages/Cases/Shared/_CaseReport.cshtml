@@ -141,7 +141,7 @@
     string FeeMoney(decimal value) => "£" + value.ToString("N2", culture);
 }
 
-<section class="record-section panel @Model.CollapsedClass("case.report") @Model.ActiveTabClass("report") @(Model.IsEditing && !Model.SectionIsEditable("report") ? "is-locked" : null)" id="section-report" data-section="report" data-collapse="case.report" aria-labelledby="section-report-title" data-report>
+<section class="record-section panel @Model.CollapsedClass("case.report") @(Model.IsEditing && !Model.SectionIsEditable("report") ? "is-locked" : null)" id="section-report" data-section="report" data-collapse="case.report" aria-labelledby="section-report-title" data-report>
     <div class="panel-head">
         <h2 id="section-report-title">@EngineerLabels.Report</h2>
         <div class="panel-actions">

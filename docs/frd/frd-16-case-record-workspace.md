@@ -4,8 +4,8 @@
 
 ## Short version
 
-- A Case is one page at `/Cases/{id}` with ten sections. You scroll it, or
-  switch to tabs. Every section can always be read.
+- A Case is one scrolling page at `/Cases/{id}` with ten sections. Every
+  section can always be read.
 - Editing is one page-wide session over one lease. Edit Case and, while
   editing, Done sit in the ribbon. Every change is saved as it is made: a
   cell as it is left, a composite editor when it is left or after a short
@@ -61,12 +61,10 @@ page is open (operator, 6 October 2026). The rule is in
 [FRD-14](frd-14-record-edit-leases.md#take-over).
 
 **The section row** sits under the ribbon. It lists the section links, marks
-the current section as you scroll, and carries **Refresh** and the
-Scroll/Tabs switch. Scroll is the default in every state. A Tabs choice
-lasts for the browser session and is painted by the server, as is each
-section's folded state, which is remembered per browser. `?section=` jumps to
-a section. Sections below the fold load lazily. Tabs hide inactive sections
-without discarding loaded values. Scroll is the no-script fallback.
+the current section as you scroll, and carries **Refresh**. The page always
+scrolls; there is no Tabs layout (operator, 9 October 2026). Each section's
+folded state is remembered per browser and painted by the server.
+`?section=` jumps to a section. Sections below the fold load lazily.
 
 Every editable section head has its own **Edit**, which starts the one
 page-wide edit session without moving the page. When the state does not
@@ -116,7 +114,7 @@ from the top, then by where the field that clears each sits within its
 section, so working down the list moves down the page; a blocker no Case
 section clears comes last, under Accounts where it opens Accounts. The
 Cases list's Current work names the same first row.
-The card shows beside every section and in both modes; a long list scrolls
+The card shows beside every section; a long list scrolls
 within the aside rather than pushing the sections down.
 When a newer fact has made the current generation stale, the Next action
 carries the dismissable warning "A newer fact changed after this generation.
@@ -252,8 +250,7 @@ first), and "Audit · a.{Case/PO}" with the Case's state chip. The current view
 reads plain and the other is a link. `?view=audit` and `?view=inspection`
 address the two views; the Audit view
 is the default, and a write returns to it. The ribbon is unchanged: its
-heading stays the Case/PO. The Scroll/Tabs switch is unchanged and works in
-both views.
+heading stays the Case/PO.
 
 **The Audit view** is the Case as it is worked: every section reads and
 edits the Audit's values, and the Actions menu, Next action and the report

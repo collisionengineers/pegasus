@@ -20,7 +20,7 @@
     var labels = CaseWorkspaceLabels.Editors.OriginalReport;
 }
 
-<section class="record-section panel @Model.CollapsedClass("case.original-report") @Model.ActiveTabClass("original-report") @(Model.IsEditing && !Model.SectionIsEditable("original-report") ? "is-locked" : null)" id="section-original-report" data-section="original-report" data-collapse="case.original-report" aria-labelledby="section-original-report-title">
+<section class="record-section panel @Model.CollapsedClass("case.original-report") @(Model.IsEditing && !Model.SectionIsEditable("original-report") ? "is-locked" : null)" id="section-original-report" data-section="original-report" data-collapse="case.original-report" aria-labelledby="section-original-report-title">
     <div class="panel-head">
         <h2 id="section-original-report-title">@Frame.OriginalReport</h2>
         <div class="panel-actions"><partial name="Cases/Shared/_CaseSectionHeadTools" model="headTools" /></div>

@@ -568,7 +568,7 @@
     }
 }
 
-<section class="record-section panel @Model.CollapsedClass("case.estimate") @Model.ActiveTabClass("estimate") @(Model.IsEditing && !Model.SectionIsEditable("estimate") ? "is-locked" : null)" id="section-estimate" data-section="estimate" data-collapse="case.estimate" aria-labelledby="section-estimate-title" data-estimate-section data-estimate-drop-target>
+<section class="record-section panel @Model.CollapsedClass("case.estimate") @(Model.IsEditing && !Model.SectionIsEditable("estimate") ? "is-locked" : null)" id="section-estimate" data-section="estimate" data-collapse="case.estimate" aria-labelledby="section-estimate-title" data-estimate-section data-estimate-drop-target>
     @if (editing)
     {
         @* The lines' identities as the last commit left them, which the

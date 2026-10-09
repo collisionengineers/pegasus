@@ -37,7 +37,7 @@
     var vatTag = Model.AssessmentSourceTag(vatPath);
 }
 
-<section class="record-section panel @Model.CollapsedClass("case.claim") @Model.ActiveTabClass("claim") @(Model.IsEditing && !Model.SectionIsEditable("claim") ? "is-locked" : null)" id="section-claim" data-section="claim" data-collapse="case.claim" aria-labelledby="section-claim-title">
+<section class="record-section panel @Model.CollapsedClass("case.claim") @(Model.IsEditing && !Model.SectionIsEditable("claim") ? "is-locked" : null)" id="section-claim" data-section="claim" data-collapse="case.claim" aria-labelledby="section-claim-title">
     <div class="panel-head">
         <h2 id="section-claim-title">@Frame.Claim</h2>
         <div class="panel-actions"><partial name="Cases/Shared/_CaseSectionHeadTools" model="headTools" /></div>
