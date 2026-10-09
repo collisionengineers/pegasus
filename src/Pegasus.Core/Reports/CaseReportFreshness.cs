@@ -77,11 +77,10 @@ public static class CaseReportFreshness
 
     // The assessment facts the report prints: the ones its snapshot carries
     // (operator, 27 September 2026), and the vehicle's type, which picks the
-    // drawing the damage is marked on (28 September 2026). Tyres, belts,
-    // airbags, temporary repairs, the vehicle's colour, body, transmission and
-    // expiry dates, and the settlement facts beyond the agreed contract sum
-    // are recorded on the Case and printed nowhere, so changing one leaves a
-    // report current.
+    // drawing the damage is marked on (28 September 2026). The vehicle's
+    // colour, body, transmission and expiry dates, the claimant's VAT answer,
+    // storage per day and the recovery charge are recorded on the Case and
+    // printed nowhere, so changing one leaves a report current.
     private static readonly IReadOnlySet<string> PrintedAssessmentPaths = new HashSet<string>(
         StringComparer.Ordinal)
     {

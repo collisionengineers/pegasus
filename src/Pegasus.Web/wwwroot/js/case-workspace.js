@@ -4189,8 +4189,6 @@
 
             var outcome = control(section.querySelector('[data-decision="assessment.outcome"]'));
             var legal = control(section.querySelector('[data-decision="assessment.legal_status"]'));
-            var reserveRead = section.querySelector('[data-settlement-computed-reserve-value]');
-            var repairCost = parseFloat(section.getAttribute('data-settlement-repair-cost')) || 0;
             // The Decisions choices are selects; the v28 P29 radio group is gone (v36 item J).
             bindSalvageShare(section);
             bindSalvageMatrix(section);
@@ -4206,22 +4204,9 @@
                     element.hidden = on;
                 });
             }
-            function syncReserve(outcomeValue) {
-                if (!reserveRead) {
-                    return;
-                }
-                var reserve = outcomeValue === 'repairable' && repairCost > 0
-                    ? Math.ceil(repairCost / 50) * 50 : null;
-                reserveRead.textContent = reserve === null
-                    ? reserveRead.getAttribute('data-not-applicable')
-                    : '£' + reserve.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                        + ' (' + reserveRead.getAttribute('data-rounded-up') + ')';
-                reserveRead.classList.toggle('empty', reserve === null);
-            }
             function sync() {
                 if (outcome) {
                     show('total-loss', outcome.value === 'total_loss');
-                    syncReserve(outcome.value);
                 }
                 if (legal) {
                     show('unroadworthy', legal.value === 'unroadworthy');

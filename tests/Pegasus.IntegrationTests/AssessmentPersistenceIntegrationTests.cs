@@ -445,7 +445,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 {
                     ["vehicle.condition"] = "good",
                     ["damage.unrelated"] = "Kerbed nearside wheel",
-                    ["settlement.excess"] = "250.00"
                     // The findings and the valuation values are deliberately
                     // absent: a finding is recorded only by staff, and the
                     // Engineer's Value and its retail and trade are staff
