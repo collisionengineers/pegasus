@@ -1256,12 +1256,14 @@
         }
     }
 
-    // A document action posts at once and the sections stay as the operator
-    // has them. Only what the action changed is drawn again: the image's tile
-    // (or every tag picker, for a new tag), the notices and the aside. A tag
-    // moves the Case version and the edit lease, so the new pair is carried
-    // into every form that held the old one, the Save form included: the
-    // next commit still carries the Case's authority.
+    // A document action posts at once. What the action changed is drawn
+    // again: the image's tile (or every tag picker, for a new tag), the
+    // notices and the aside. A tag or In report can clear a report blocker,
+    // so the other sections then follow it as they follow a save, Files and
+    // Notes staying as loaded. A tag moves the Case version and the edit
+    // lease, so the new pair is carried into every form that held the old
+    // one, the Save form included: the next commit still carries the Case's
+    // authority.
     function submitDocumentAction(form, submitter) {
         var body = new FormData(form, submitter && submitter.name ? submitter : undefined);
         var previousLease = body.get('editLeaseToken');
@@ -1298,6 +1300,9 @@
             if (tileId) {
                 if (changesTile) { redrawImageTile(parsed, tileId, toReport); } else { redrawTagPickers(parsed, tileId); }
             }
+            // The Report's head and every section reading the image follow
+            // once nothing waits, as after a save.
+            if (changesTile && incoming.getAttribute('data-case-editing') === 'true') { redrawWanted = true; }
             announceNotices();
             done = true;
         }).catch(function (error) {
@@ -1561,8 +1566,8 @@
             if (next !== form) { idle(form); }
             busy(next, button);
             // A document action (tag, untag, new tag, In report) while editing
-            // is not an edit of the Case: it posts at once and redraws only
-            // its own tile, so the sections stay as the operator has them.
+            // is not an edit of the Case: it posts at once and redraws its own
+            // tile, and the other sections follow it as they follow a save.
             if (next.hasAttribute('data-document-action') && record.getAttribute('data-case-editing') === 'true') {
                 submitDocumentAction(next, button);
                 return;
