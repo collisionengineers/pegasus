@@ -800,7 +800,6 @@ approved design:
 | Seam | Control |
 | --- | --- |
 | Experian | Vehicle checks → Run Experian check |
-| Cazana | Valuation source |
 
 **Narrowed 2026-09-01.** An excluded capability is absent, never drawn as
 a disabled control. The direct Audatex service-launch control is removed on
@@ -832,11 +831,13 @@ the section as one line.
 There is no separate Add valuation
 dialog. This does not
 remove the Estimate section's selected configured-staff-account Glass's
-repair-estimate launch. Glass's is the one connected guide source, so only its
-card offers Get valuation; the other guide cards are filled in by hand
+repair-estimate launch. Glass's and Cazana are the connected guide sources, so
+only their cards offer Get valuation; the other guide cards are filled in by hand
 ([FRD-24](../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md)). Glass's and Audatex file
 import stays in scope through the Estimate section's direct Import button and
-temporary section-scoped drop overlay; Cazana remains the disabled seam.
+temporary section-scoped drop overlay. Cazana is connected (9 October 2026,
+[ADR-0066](../adr/0066-cazana-valuation-through-a-key-vault-held-api-key.md)),
+so it is no longer a disabled seam.
 
 Every other uncomposed capability stays absent: no inert card, no
 "Unavailable" placeholder, no unlinked route. A disabled seam carries its

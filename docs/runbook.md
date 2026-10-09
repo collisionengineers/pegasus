@@ -775,19 +775,23 @@ The approved release operator supplies these deployment inputs:
 | `GLASS_REPAIR_PROFILE_ID` | Numeric MVA repair-estimate profile the account starts a new estimate against; `4063` for the current account. No default. |
 | `GLASS_VALUATION_USERNAME_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-valuation-username`, the Glass's valuation account name ([ADR-0060](adr/0060-glass-valuation-account-and-valuation-report.md)). No default. |
 | `GLASS_VALUATION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-valuation-password`, that account's password. No default. |
+| `CAZANA_API_KEY_SECRET_URI` | Exact versioned Key Vault secret URI of `cazana-api-key`, the Cazana API key ([ADR-0066](adr/0066-cazana-valuation-through-a-key-vault-held-api-key.md)). No default. |
 
 Bicep supplies the configured vault origin and indexed certificate URI settings
 to the Web App, and derives `Glass__CallbackBaseUri` from the Web App's own
 hostname. These are references, never PFX bytes or passwords in the repository.
-The Web host lists the four `Glass:*` keys and the two
-`Glass:ValuationAccount:*` keys among its Production required settings, so a
+The Web host lists the four `Glass:*` keys, the two
+`Glass:ValuationAccount:*` keys and `Cazana:ApiKey` among its Production
+required settings, so a
 Web App deployed without them stops at startup naming the key; the migration
 host is built the same way and must be handed the same values.
 Initial certificate creation is a separately authorized operator action; no
 secret is seeded. The Glass's valuation account is the one Glass's login held
 in deployment configuration: the release operator creates its two secrets in
 the deployment vault and grants the Web identity secret-read access at each
-secret's scope, and Bicep hands the Web App Key Vault references to them. Each
+secret's scope, and Bicep hands the Web App Key Vault references to them. The
+Cazana API key is held the same way: one secret, `cazana-api-key`, with the
+Web identity granted secret-read access at that secret's scope. Each
 staff member's own Glass's account name and password, used for the repair
 estimate, are entered by an Administrator on that staff account's Glass's page
 and are held protected per staff account, never in deployment configuration.

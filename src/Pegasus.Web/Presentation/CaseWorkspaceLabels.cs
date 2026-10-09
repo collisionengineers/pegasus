@@ -779,6 +779,22 @@ public static class CaseWorkspaceLabels
         /// </summary>
         public const string VehicleAgeNotValued =
             "Glass's cannot value this vehicle because of its age: Glass's values cars and motorcycles up to 20 years old and light commercial vehicles up to 15.";
+
+        /// <summary>
+        /// Get valuation when Cazana answers that it holds no data for the
+        /// registration (operator-approved wording, 9 October 2026), shown as
+        /// information like <see cref="VehicleAgeNotValued"/>.
+        /// </summary>
+        public const string NoVehicleDataNotValued =
+            "Cazana cannot value this vehicle: it holds no data for its registration.";
+
+        /// <summary>The card's information sentence for a provider that cannot value the vehicle.</summary>
+        public static string NotValued(GuideValuationNotValuedReason reason) => reason switch
+        {
+            GuideValuationNotValuedReason.VehicleAge => VehicleAgeNotValued,
+            GuideValuationNotValuedReason.NoVehicleData => NoVehicleDataNotValued,
+            _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, "The reason is not recognised."),
+        };
         public const string AbsentGuideMonth = "Not recorded";
 
         // v26: the calculator (v25 decision 8) and the per-source Get valuation row.

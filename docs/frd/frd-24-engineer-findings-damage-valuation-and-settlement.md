@@ -9,8 +9,8 @@
 - A damage entry records the areas it covers, a severity and a note. Impact
   location and severity are derived by `Pegasus.Core`, never typed in.
 - Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources.
-  Glass's is connected: Get valuation fetches its figures and files its PDF
-  report on the Case.
+  Glass's and Cazana are connected: Get valuation fetches their figures, and
+  files Glass's PDF report on the Case.
   The Engineer's Value is a box on Valuation, typed or filled by the
   calculation. A click on a guide card is the Engineer's decision to use that
   card: the Save records the calculation against it and writes the report's
@@ -161,8 +161,9 @@ calculation starts from retail; there is no Basis control beside the figures
 ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). AI market research
 is automation-only.
 
-Glass's is the one connected guide source
-([ADR-0060](../adr/0060-glass-valuation-account-and-valuation-report.md)).
+Glass's and Cazana are the connected guide sources
+([ADR-0060](../adr/0060-glass-valuation-account-and-valuation-report.md),
+[ADR-0066](../adr/0066-cazana-valuation-through-a-key-vault-held-api-key.md)).
 Staff or the Automation Actor press Get valuation
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md); operator, 8 October
 2026). Its Get valuation signs in with the Glass's valuation account, values the
@@ -174,8 +175,17 @@ vehicle's "Vehicle Valuation Report – Glass's Values Only" PDF on the Case's
 Documents as `Glass's valuation {registration} {yyyy-MM}.pdf` (operator, 1
 October 2026), only when the report's own text names the Case registration
 (operator, 5 October 2026). Whatever stops a Glass's valuation, the card shows its notice.
-Brego, Super CAP, CAP and Cazana have no connected provider; connecting one
-needs its own accepted decision.
+Cazana's Get valuation values the Case's accepted registration at its accepted
+mileage and fills the card with Cazana's retail and trade (operator, 9 October
+2026). Cazana values on a day: a card in the current month is valued today,
+an earlier month on its last day, and a later month today, filling the card
+with the current month. Cazana files no report and fills no VIN. When Cazana
+holds no data for the registration, its card shows an info notice instead,
+`Cazana cannot value this vehicle: it holds no data for its registration.`
+(operator, 9 October 2026); whatever else stops a Cazana valuation, the card
+shows its notice.
+Brego, Super CAP and CAP have no connected provider; connecting one needs its
+own accepted decision.
 
 Every entry keeps its date and time, and the retail and trade values and
 guide month it was given; a guide card may hold any of them blank. An
@@ -385,6 +395,8 @@ circular readiness gate is acceptable.
   shows the same notice and fills nothing.
 - A Glass's valuation whose report cannot be fetched or filed keeps the
   figures it answered; the Case simply has no report for it.
+- A Cazana valuation for a month after the current one is valued today and
+  fills the card with the current month; no future date is asked for.
 - A calculation that cannot be worked out never shows as an empty state: it
   shows why, and the Engineer's draft is kept.
 - Research evidence and an AI valuation proposal never become the Engineer's
@@ -412,8 +424,12 @@ the salvage matrix handed to the Case only while it edits. Integration tests
 cover Glass's Get valuation against the scripted provider — its figures, month,
 mileage and stock save, every failure answering the notice and a vehicle
 too old to value answering its own sentence — and its report
-filed on the Case without touching the open edit session. Live
-Glass's evidence is a separate tier
+filed on the Case without touching the open edit session. Integration tests
+cover Cazana's Get valuation against a scripted API — its figures, the date
+each month is valued on, the mileage in whole miles, the key sent only as a
+Bearer header, every failure answering the notice and a registration with no
+data answering its own sentence. Live Glass's and Cazana evidence is a
+separate tier
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links

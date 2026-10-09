@@ -428,6 +428,7 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["Glass:RepairProfileId"] = "4063",
             ["Glass:ValuationAccount:Username"] = "valuation-test",
             ["Glass:ValuationAccount:Password"] = "synthetic-password",
+            ["Cazana:ApiKey"] = "synthetic-cazana-key",
             ["GitHub:ProblemReports:Token"] = "inert-test-token",
             ["GitHub:ProblemReports:Repository"] = "example/private-problem-reports",
             // The startup warm-up reads in the background; a test host skips

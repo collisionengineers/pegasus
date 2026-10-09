@@ -79,17 +79,29 @@ public sealed class GuideValuationProviderUnavailableException(
     Exception? innerException = null)
     : InvalidOperationException($"No valuation provider could answer for {source}.", innerException);
 
+/// <summary>Why a source's provider answered that it cannot value the vehicle.</summary>
+public enum GuideValuationNotValuedReason
+{
+    /// <summary>Glass's does not value a vehicle of this age (operator, 2 October 2026).</summary>
+    VehicleAge,
+
+    /// <summary>Cazana holds no data for the registration (operator, 9 October 2026).</summary>
+    NoVehicleData,
+}
+
 /// <summary>
-/// The source's provider answered that it does not value a vehicle of this
-/// age. Nothing is broken, so the card says that rather than "unavailable"
-/// (operator, 2 October 2026).
+/// The source's provider answered that it cannot value this vehicle. Nothing
+/// is broken, so the card says why rather than "unavailable".
 /// </summary>
-public sealed class GuideValuationVehicleAgeException(
+public sealed class GuideValuationNotValuedException(
     ValuationSource source,
+    GuideValuationNotValuedReason reason,
     Exception? innerException = null)
-    : InvalidOperationException($"{source} does not value a vehicle of this age.", innerException)
+    : InvalidOperationException($"{source} cannot value this vehicle ({reason}).", innerException)
 {
     public ValuationSource ValuationSource { get; } = source;
+
+    public GuideValuationNotValuedReason Reason { get; } = reason;
 }
 
 public sealed record FetchGuideValuationRequest(

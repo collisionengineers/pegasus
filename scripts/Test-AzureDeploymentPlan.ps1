@@ -313,6 +313,7 @@ if ($Mode -eq 'PreProvision') {
         'GITHUB_PROBLEM_REPORT_REPOSITORY',
         'GLASS_VALUATION_USERNAME_SECRET_URI',
         'GLASS_VALUATION_PASSWORD_SECRET_URI',
+        'CAZANA_API_KEY_SECRET_URI',
         'AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS',
         'AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS'
     )
@@ -326,7 +327,8 @@ if ($Mode -eq 'PreProvision') {
     # platform can never resolve; the feature behind it then fails for ever.
     foreach ($key in @('GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
         'GLASS_VALUATION_USERNAME_SECRET_URI',
-        'GLASS_VALUATION_PASSWORD_SECRET_URI')) {
+        'GLASS_VALUATION_PASSWORD_SECRET_URI',
+        'CAZANA_API_KEY_SECRET_URI')) {
         $secretUri = $null
         if (-not [Uri]::TryCreate([string]$environmentValues[$key], [UriKind]::Absolute, [ref]$secretUri) -or
             $secretUri.Scheme -ne 'https' -or
