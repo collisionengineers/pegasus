@@ -59,6 +59,7 @@ proposal_words = {
     'G': set(),
     'H': {'This month', 'Last month', 'This quarter', 'Last 12 months', 'Custom', 'Last 6 months', 'This year'},
     'O': {'Outcomes', 'Repairable', 'Total loss', 'Cash in lieu', 'Contract repair', 'Agrees', 'Differs'},
+    'J': {'Automation'},
     'A-B': {'Report'},
     'A-C': {'Measure', 'Total'},
 }
@@ -158,13 +159,15 @@ with sync_playwright() as p:
             else:
                 check(f'{tag}: period bar first', page.locator('#rp-root [data-period-form]').count() == 1)
                 check(f'{tag}: workbook in the page head', page.locator('.page-actions [data-download="workbook"]').count() == 1)
-                check(f'{tag}: no explanatory note by default', page.locator('.admin-report-note').count() == 0)
+                check(f'{tag}: only the Case list note by default (item C)', page.locator('.admin-report-note').count() == (1 if 'caselist' in sections else 0) and page.locator('[data-section="mi01"] .admin-report-note').count() == 0)
                 check(f'{tag}: no MI label by default', 'MI01' not in texts and 'MI02' not in texts)
             # Unavailable is never a zero.
             for section, flag in (('mi01', 'engineer-unavailable'), ('mi02', 'principal-unavailable'), ('mi03', 'principal-unavailable')):
                 if preset == flag and section in sections:
                     values = page.locator(f'[data-section="{section}"] .metric-value').all_inner_texts()
-                    check(f'{tag}: {section} shows Unavailable, not 0', values and all(v == 'Unavailable' for v in values))
+                    # With Queues on, Turnaround has no tile: its table row says Unavailable.
+                    shown = page.locator(f'[data-section="{section}"] tbody').first.inner_text()
+                    check(f'{tag}: {section} shows Unavailable, not 0', all(v == 'Unavailable' for v in values) and 'Unavailable' in shown)
             if preset == 'invalid':
                 check(f'{tag}: the period error is shown', 'Choose a valid date range.' in texts)
                 if design == 'live':
@@ -187,7 +190,7 @@ with sync_playwright() as p:
     # ---- coverage: every live control and fact has a place in each design ----
     live_headers = ['Person', 'Queries received', 'Amendment requests', 'Reports sent', 'Audit reports sent', 'Received to sent']
     for design in designs:
-        views = ['state=default&embed=1'] if design != 'b' else [f'report={r}&embed=1' for r in ('engineers', 'principals', 'months', 'turnaround', 'caselist')]
+        views = ['state=default&embed=1'] if design != 'b' else [f'report={r}&embed=1' for r in ('engineers', 'principals', 'months', 'turnaround', 'queues', 'caselist')]
         seen = []
         for v in views:
             load(design, v)
@@ -241,7 +244,9 @@ with sync_playwright() as p:
     # Totals agree with their rows.
     check('a: Reports produced total 112', page.locator('[data-section="mi02"] .metric-value').first.inner_text() == '112')
     check('a: Agreed fees total £19,835.00', page.locator('[data-section="mi02"] .metric-value').nth(2).inner_text() == '£19,835.00')
-    check('a: MI-01 Reports sent 107 against MI-02 110 (item J)', page.locator('[data-section="mi01"] .metric-value').nth(1).inner_text() == '107' and page.locator('[data-section="mi02"] .metric-value').nth(1).inner_text() == '110')
+    check('a: MI-01 Reports sent agrees with MI-02 at 110, Automation its own row (item J)', page.locator('[data-section="mi01"] .metric-value').nth(1).inner_text() == '110' and page.locator('[data-section="mi02"] .metric-value').nth(1).inner_text() == '110' and page.locator('[data-engineer-activity] tbody tr', has_text='Automation').count() == 1)
+    load('live', 'embed=1')
+    check('live: MI-01 Reports sent 107, Automation left out', page.locator('[data-section="mi01"] .metric-value').nth(1).inner_text() == '107' and page.locator('[data-engineer-activity] tbody tr', has_text='Automation').count() == 0)
     # B: a tile opens its report and is pressed.
     load('b', 'embed=1')
     check('b: Engineer activity by default', page.evaluate(SECTIONS) == ['mi01'])

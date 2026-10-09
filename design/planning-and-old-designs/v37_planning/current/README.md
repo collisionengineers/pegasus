@@ -7,7 +7,7 @@
 **Mockup controls.** The dark panel at the bottom left is a demo control, not product UI. It holds:
 - the design switcher: A, B, C and Today;
 - the 12 page states;
-- the ten open choices and proposals as switches. Inspection and Audit is item D, Explanatory notes C, MI labels M, Person choices N, Queues now E, Cases by stage F, Previous period G, Period choice H, Month bars I, and Outcomes O.
+- the ten choices and proposals as switches, each defaulting to its decision. Inspection and Audit is item D, Explanatory notes C, MI labels M, Person choices N, Queues now E, Cases by stage F, Previous period G, Period choice H, Month bars I, and Outcomes O.
 
 Every state is also reachable by query string:
 - `state=`, and `opt=` with values such as `work:columns`, `notes:keep`, `queues:on`;
@@ -36,4 +36,4 @@ Every state is also reachable by query string:
 
 ## Status
 
-Stage 1 delivered on 9 October 2026. The same day, the operator ruled that a dispute is a query; the mockup follows, and PR #1146 makes the application change. The operator then chose Design A (item A). Items I, Q and R are closed with B and C; the rest are open. Stage 2 waits for the operator's answers and approval.
+Stage 1 delivered on 9 October 2026. The same day, the operator ruled that a dispute is a query; the mockup follows, and PR #1146 makes the application change. The operator then chose Design A and settled every lettered item; A's default view is the decided page. Stage 2 waits for the operator's approval.

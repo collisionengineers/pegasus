@@ -40,3 +40,17 @@ Chronological. The operator's words are quoted; the rest records what was explor
 **What changed.** Item A is settled: Design A, as modified by Round 2's ruling (no Disputes column). The comparison page marks A as chosen instead of recommending B. Items I, Q and R apply only to B or C, so they are closed. B and C stay in the folder as the record.
 
 **Still open.** B, B2, C, D, E, F, G, H, J, K, L, M, N, O, P and S. Stage 2 waits for them.
+
+## Round 4: 9 October 2026
+
+**The operator's words.** Asked "what answers", they were given each open item with a recommendation, and replied: "b - yes", "b2 - agree", "c - agree", "d - yes", "L - yes", "i agree with all other findings and reccomemdations".
+
+**What changed.** Every item is settled ([notes](v37-notes.md), section 6). Design A now draws the decided page by default:
+- the Case list note only;
+- Queues, Previous period, Period presets and Outcomes on;
+- Cases by stage off;
+- an Automation row in Engineer activity, so Reports sent reads 110 in both reports.
+
+The self-check counts 887 with no failure. The Stage 2 plan is in section 10.
+
+**Waiting for.** The operator's approval to start Stage 2.

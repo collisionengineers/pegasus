@@ -54,16 +54,16 @@ export const presets = [
 // Undecided choices, each a strip switch and an opt= key (letters in v37-notes.md).
 // The first value is the proposal's; "live" marks today's behaviour.
 export const options = [
-  { key: 'work', item: 'D', label: 'Inspection and Audit (item D)', values: [['select', 'One Work choice per table'], ['columns', 'Three columns each (live)']] },
-  { key: 'notes', item: 'C', label: 'Explanatory notes (item C)', values: [['drop', 'Not drawn'], ['keep', 'Kept (live)']] },
-  { key: 'badges', item: 'M', label: 'MI01–MI04 labels (item M)', values: [['drop', 'Not drawn'], ['keep', 'Kept (live)']] },
-  { key: 'person', item: 'N', label: 'Person choices (item N)', values: [['active', 'People with activity in the period'], ['all', 'Every enabled account (live)']] },
-  { key: 'queues', item: 'E', label: 'Queues now (item E)', values: [['off', 'Off'], ['on', 'On']] },
-  { key: 'pipeline', item: 'F', label: 'Cases by stage (item F)', values: [['off', 'Off'], ['on', 'On']] },
-  { key: 'compare', item: 'G', label: 'Previous period (item G)', values: [['off', 'Off'], ['on', 'On']] },
-  { key: 'periods', item: 'H', label: 'Period choice (item H)', values: [['off', 'From and To only'], ['on', 'Period presets']] },
-  { key: 'bars', item: 'I', label: 'Month bars (item I)', values: [['on', 'Drawn'], ['off', 'Not drawn']] },
-  { key: 'outcomes', item: 'O', label: 'Outcomes (item O)', values: [['off', 'Off'], ['on', 'On']] },
+  { key: 'work', item: 'D', label: 'Inspection and Audit (item D, decided)', values: [['select', 'One Work choice per table'], ['columns', 'Three columns each (live)']] },
+  { key: 'notes', item: 'C', label: 'Explanatory notes (item C, decided)', values: [['caselist', 'Case list note only'], ['drop', 'Not drawn'], ['keep', 'Both kept (live)']] },
+  { key: 'badges', item: 'M', label: 'MI01–MI04 labels (item M, decided)', values: [['drop', 'Not drawn'], ['keep', 'Kept (live)']] },
+  { key: 'person', item: 'N', label: 'Person choices (item N, decided)', values: [['active', 'People with activity in the period'], ['all', 'Every enabled account (live)']] },
+  { key: 'queues', item: 'E', label: 'Queues now (item E, decided)', values: [['on', 'On'], ['off', 'Off']] },
+  { key: 'pipeline', item: 'F', label: 'Cases by stage (item F, left out)', values: [['off', 'Off'], ['on', 'On']] },
+  { key: 'compare', item: 'G', label: 'Previous period (item G, decided)', values: [['on', 'On'], ['off', 'Off']] },
+  { key: 'periods', item: 'H', label: 'Period choice (item H, decided)', values: [['on', 'Period presets'], ['off', 'From and To only']] },
+  { key: 'bars', item: 'I', label: 'Month bars (item I, closed with C)', values: [['on', 'Drawn'], ['off', 'Not drawn']] },
+  { key: 'outcomes', item: 'O', label: 'Outcomes (item O, decided)', values: [['on', 'On'], ['off', 'Off']] },
 ];
 
 // The Person select: enabled accounts by UserName (live lists every role).
@@ -84,6 +84,11 @@ export const engineers = [
   { name: 'r.khan', queries: 4, amendments: 2, sent: 27, audit: 5, toSent: '5 days' },
   { name: 's.patel', queries: 2, amendments: 1, sent: 18, audit: 3, toSent: '7 days' },
 ];
+
+// Item J (decided): Automation's sends are their own Engineer activity row in
+// the designs, so Reports sent agrees with Reports by Principal (110). Today
+// leaves them out (107). The name is ActorDisplayNames.Automation.
+export const automation = { name: 'Automation', queries: 0, amendments: 0, sent: 3, audit: 0, toSent: '4 days' };
 
 // MI-02 for the same period: [Inspection, Audit] pairs; totals are their sums.
 // Reports sent counts three Automation sends that MI-01 leaves out (110 vs 107).
@@ -147,7 +152,7 @@ export const outcomes = [
 ];
 
 // Item G: the 31 days before the period.
-export const previous = { produced: 104, sent: 101, fees: 18420, queries: 19, engineerSent: 99, audit: 15 };
+export const previous = { produced: 104, sent: 101, fees: 18420, queries: 19, engineerSent: 101, audit: 15 };
 // Item G for design C: the six whole months before May 2026.
 export const previousLedger = { produced: 471, sent: 466, fees: 81345, queries: 66, engineerSent: 571, audit: 82 };
 

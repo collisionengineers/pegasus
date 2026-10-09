@@ -52,7 +52,9 @@
   var pair = function (p, work) { return work === 'inspection' ? p[0] : work === 'audit' ? p[1] : p[0] + p[1]; };
   var dash = function (v) { return v == null ? '—' : v; };
   var badge = function (code) { return live || opt.badges === 'keep' ? '<span class="meta">' + code + '</span>' : ''; };
+  // Item C: Engineer activity's note goes; the Case list's stays (decided).
   var notes = function () { return live || opt.notes === 'keep'; };
+  var caseNotes = function () { return live || opt.notes !== 'drop'; };
   var sideTitle = function (measure, side) { return measure + ' · ' + side; };
 
   // ---------- the sections' data, by page state ----------
@@ -69,6 +71,7 @@
     if (unavailable.engineers) return null;
     if (empty || (invalid && live)) return [];
     var rows = (D === 'c' ? C.engineersLedger : C.engineers).slice();
+    if (!live && D !== 'c') rows.push(C.automation); // item J
     if (ui.person) rows = rows.filter(function (r) { return r.name === personName(ui.person); });
     var key = { person: 'name', queries: 'queries', reports: 'sent' }[ui.sort] || 'name';
     rows.sort(function (a, b) {
@@ -369,7 +372,7 @@
       + '<button class="btn" type="submit" data-case-action="create">Save as new preset</button>'
       + (caseList.presetId ? '<button class="btn" type="submit" data-case-action="save">Save preset</button><button class="btn btn--danger" type="submit" data-case-action="remove">Remove preset</button>' : '')
       + '</div></div>';
-    var body = (notes() ? '<p class="muted admin-report-note">One row per Case received in the period, open or closed. N/A means the column does not apply to that Case type; a blank cell means nothing is recorded yet.</p>' : '')
+    var body = (caseNotes() ? '<p class="muted admin-report-note">One row per Case received in the period, open or closed. N/A means the column does not apply to that Case type; a blank cell means nothing is recorded yet.</p>' : '')
       + (caseList.error ? '<div class="notice notice--danger" role="alert">' + esc(caseList.error) + '</div>' : '')
       + presetPicker
       + '<form method="post" class="stack" aria-label="Case list" data-case-list-form>'

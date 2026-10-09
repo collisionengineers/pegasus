@@ -57,7 +57,7 @@ Shot numbers refer to `v37-shots/` (listed on the [page README](../pages/adminis
 
 ## 6. Sign-off list
 
-Each item is open until the operator answers. The first answer of each is the proposal; "keep" means today's behaviour. Settled or closed: A, I, Q, R. Open: B, B2, C, D, E, F, G, H, J, K, L, M, N, O, P, S.
+Every item is settled (9 October 2026); the decisions are in the table after the list. The first answer of each item was the proposal; "keep" means today's behaviour.
 
 - **A.** Choose a design: A Tidied sections, B Overview first (recommended), or C Month ledger. *Confirm B, or choose another, or name the pieces to combine.* **Decided 9 October 2026: A**, "a modified version of design A on the basis of these changes", that is, A with no Disputes column. B was not taken.
 - **B.** One period bar under the title for every report, Person on Engineer activity's head, Download workbook as the page action. This moves controls placed on the live page and changes FRD-17's description of the filter. *Confirm, or keep the filter inside Engineer activity.*
@@ -80,6 +80,30 @@ Each item is open until the operator answers. The first answer of each is the pr
 - **R.** Design C only: whole London months replace From and To; the ledger shows one Measure (new word) with a Total column and row; choosing a Principal opens its months and turnaround; the By month table folds into the ledger and the chosen Principal. *Confirm, or name what to change.* **Closed 9 October 2026:** C was not chosen.
 - **S.** This folder. *Keep it as the record of the round, or remove it in the Stage 2 pull request.*
 
+**Decided 9 October 2026.** The operator: "b - yes", "b2 - agree", "c - agree", "d - yes", "L - yes", "i agree with all other findings and reccomemdations". The recommendations agreed to were the ones put to the operator that day:
+
+| Item | Decision | In the mockup (Design A) |
+| --- | --- | --- |
+| A | Design A, with no Disputes column | Chosen on the comparison page |
+| B | One period bar for every report; Person on Engineer activity; Download workbook in the page head | Drawn |
+| B2 | From after To: the error in the period bar, no report drawn | Drawn (`state=invalid`) |
+| C | Engineer activity's note goes; the Case list's N/A note stays | Default "Case list note only" |
+| D | One Work choice per table; the CSV and workbook keep every column | Drawn |
+| E | Queues report (now) | On by default |
+| F | Cases by stage: left out (the Cases list already counts stages) | Off by default |
+| G | Previous period under each total | On by default |
+| H | Period presets | On by default |
+| I | Closed with C | — |
+| J | Automation's sends are their own Engineer activity row, so Reports sent agrees with Reports by Principal (110 in the fixtures) | Automation row drawn |
+| K | The page's words and its "6 days" style in the CSV and workbook too | Not drawn (exports only) |
+| L | A failed report refuses only its own CSV; By month gets its own CSV | Drawn |
+| M | No MI01–MI04 labels | Drawn |
+| N | Person lists the people with activity in the period | Drawn |
+| O | Outcomes report with Audit agreement | On by default |
+| P | Reports by Principal sorts and has meters; a count's first click sorts largest first, one arrow | Drawn |
+| Q, R | Closed with B and C | — |
+| S | Keep this folder as the record of the round | — |
+
 **Not lettered: Stage 2 fixes unless the operator says otherwise.** Each is a defect against today's page or FRD-17, not a new rule:
 - the false zero on an invalid period (finding 8; FRD-17 L204–208);
 - the doubled sort arrow (finding 13: the page writes ↑ and site.css adds another), confirmed on the running page (`live-shots/live-reports-sorted-head-1440.png`);
@@ -89,7 +113,7 @@ Each item is open until the operator answers. The first answer of each is the pr
 
 ## 7. Self-check
 
-9 October 2026, after the disputes ruling: `python check-management-reports-v37.py` printed `RESULT {"fail": [], "okCount": 886}`, with no script or console error and no external request. It ran with `PEGASUS_CHROME` pointing at Playwright's Chromium 1234. What it checks:
+9 October 2026, with every item decided: `python check-management-reports-v37.py` printed `RESULT {"fail": [], "okCount": 887}`, with no script or console error and no external request. It ran with `PEGASUS_CHROME` pointing at Playwright's Chromium 1234. What it checks:
 - All four files render all 12 page states: one H1 "Management Reports", the Administration eyebrow, Management Reports current in the admin nav.
 - Every visible word is a live label, a fixture value, or a proposal word listed under its lettered item. No banned word appears ("dispute" and "disputes" among them) and no green chip is drawn.
 - A failed report shows Unavailable, never 0. An invalid period shows the error. Live keeps its false zero; the designs draw no report and no figure.
@@ -100,7 +124,7 @@ Each item is open until the operator answers. The first answer of each is the pr
   - no arrow before a sort; live's first click is smallest first, the designs' largest first, and only live draws its own arrow;
   - Person leaves one row; Person choices are 6 (proposal) or 7 (live);
   - Work Audit shows QDOS's 13; the columns switch restores ten columns;
-  - the totals agree with their rows (112, £19,835.00; 107 against 110);
+  - the totals agree with their rows (112, £19,835.00); Reports sent is 110 in both reports with the Automation row, and 107 on Today;
   - B's tiles and Report choice open their report, and the tile is pressed;
   - C's Principal choice, Measure, six-month total (444) and bars switch;
   - downloads go busy, then done; live blocks every CSV on one failure, the designs only the failed report's;
@@ -130,10 +154,12 @@ Listed so the operator can decide whether to raise them; none is proposed in thi
 - Structured reasons for hold, cancellation, rejection, reopening and created in error. All are free text, so a "why" breakdown would not be reliable.
 - Whether an AI proposal was accepted, edited or rejected as a job outcome.
 
-## 10. Stage 2 sketch (not started)
+## 10. Stage 2 plan (waiting for approval to start)
 
-Design A is chosen; the rest waits for the open items. Hand-over is [razor-html-mockup-conversion](../../../../.agents/skills/razor-html-mockup-conversion/SKILL.md).
-- `Pages/Administration/Reports.cshtml(.cs)`: the period bar, the Person head select, the workbook page action, per-report CSV availability, the sort fixes, and `work=` / `workm=`. Design A keeps the four sections in today's order.
-- Core: Fee notes produced by work in `MonthlyReportActivity` (item D). Queues from `PrincipalReportActivity`'s Triage figures plus the Unidentified count (E). Open Cases by stage per Principal (F). Outcomes from the first confirmed report snapshots (O). A second run of the same reads for the previous period (G).
-- FRD-17 §Management Reports rewritten for the settled items; FRD-15 L59 if item J changes the Work Centre's sentence; `capabilities.md` MI rows if new reports are added.
-- Tests: `AdministrationReportsWebTests` (the adjacent split headers pinned on the page change under item D; the workbook sheet names stay), `AdministrationReportTablesTests` if item K changes the CSV, and Core and persistence tests for every new read. CI runs them.
+Design A with every item decided. Hand-over is [razor-html-mockup-conversion](../../../../.agents/skills/razor-html-mockup-conversion/SKILL.md). Builds on PR #1146 (no Disputes).
+- `Pages/Administration/Reports.cshtml(.cs)`: the period bar with Period presets (B, H), the Person head select listing people with activity (N), the workbook page action, per-report CSV availability and a By month CSV (L), the period error in the bar with no report drawn (B2), the Work choice (`work=` / `workm=`, D), Reports by Principal sorting and meters (P), the Engineer activity note and MI labels removed (C, M), the Queues and Outcomes sections (E, O), and Previous period under each total (G). The four sections stay in today's order.
+- Core: Fee notes produced by work in `MonthlyReportActivity` (D). Automation's sends as their own Engineer activity row (J). Queues from `PrincipalReportActivity`'s Triage figures plus the Unidentified count (E). Outcomes from the first confirmed report snapshots (O). A second run of the same reads for the previous period (G). The page's words and "6 days" durations in the CSVs and workbook (K).
+- Defect fixes: the invalid-period false zero, the doubled sort arrow, Apply and presets forgetting the period and sort, the dead hooks, FRD-17's "ten" and "twelve areas".
+- Docs: FRD-17 §Management Reports rewritten for the decisions; FRD-15 L59 (the Work Centre's Reports sent now agrees with MI-01, Automation row included); `capabilities.md` MI rows for Queues and Outcomes.
+- Tests: `AdministrationReportsWebTests` (the split headers pinned on the page change under D), `AdministrationReportTablesTests` and `EngineerActivityReportTests` for K's headings and durations and J's row, and Core and persistence tests for every new read. CI runs them.
+- This folder stays (S).
