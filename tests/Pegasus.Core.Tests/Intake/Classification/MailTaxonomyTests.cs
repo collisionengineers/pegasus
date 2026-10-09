@@ -44,7 +44,7 @@ public sealed class MailTaxonomyTests
     [InlineData(ReceivedMailFamily.NewInstructionReceived, new[] { "audit", "diminution", "inspection", "new-client", "website-enquiry" })]
     [InlineData(ReceivedMailFamily.NonClientRelated, new string[0])]
     [InlineData(ReceivedMailFamily.InProgressCases, new[] { "cancellation", "case-update", "chasing-for-update", "ongoing-correspondence" })]
-    [InlineData(ReceivedMailFamily.PostReportEmails, new[] { "query", "dispute", "amendment-request" })]
+    [InlineData(ReceivedMailFamily.PostReportEmails, new[] { "query", "amendment-request" })]
     [InlineData(ReceivedMailFamily.PreInstructionEmails, new[] { "triage-request", "pre-formal-instruction-request", "images-received" })]
     [InlineData(ReceivedMailFamily.InternalCc, new string[0])]
     public void ConfirmedSubtypesMatchTheSettledTables(ReceivedMailFamily family, string[] expected)

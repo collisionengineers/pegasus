@@ -156,7 +156,6 @@ public static class CaseListColumns
         columns.Add(Activity("activity.images_in_report", "Images in report", activity => activity.ImagesInReport));
         columns.Add(Activity("activity.documents", "Documents", activity => activity.Documents));
         columns.Add(Activity("activity.queries", "Queries", activity => activity.Queries));
-        columns.Add(Activity("activity.disputes", "Disputes", activity => activity.Disputes));
         columns.Add(Activity("activity.amendment_requests", "Amendment requests", activity => activity.AmendmentRequests));
         columns.Add(Activity("activity.emails_sent", "E-mails sent", activity => activity.EmailsSent));
         columns.Add(Activity("activity.chases", "Chases", activity => activity.Chases));

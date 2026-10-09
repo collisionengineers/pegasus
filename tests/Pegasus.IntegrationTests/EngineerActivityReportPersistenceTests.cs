@@ -64,8 +64,8 @@ public sealed class EngineerActivityReportPersistenceTests
     }
 
     /// <summary>
-    /// MI-01's query types, Audit uplift and the Engineer's own turnaround: a
-    /// dispute and an amendment request are counted inside the queries; a
+    /// MI-01's query types, Audit uplift and the Engineer's own turnaround: an
+    /// amendment request is counted inside the queries; a
     /// report sent on an Audit Case counts as an Audit report; the send's
     /// generation names the Case whose origin receipt gives the turnaround.
     /// </summary>
@@ -96,7 +96,7 @@ public sealed class EngineerActivityReportPersistenceTests
             context.Set<StaffMailSendOperationEntity>().AddRange(inspectionSend, auditSend, inspectionAndAuditSend);
             context.IntakeReceipts.AddRange(
                 Query(From.AddDays(1), "post-report-emails", inspection, active: true, subtype: "query"),
-                Query(From.AddDays(2), "post-report-emails", inspection, active: true, subtype: "dispute"),
+                Query(From.AddDays(2), "post-report-emails", inspection, active: true, subtype: "query"),
                 Query(From.AddDays(3), "post-report-emails", audit, active: true, subtype: "amendment-request"));
             await context.SaveChangesAsync();
         }
@@ -108,7 +108,6 @@ public sealed class EngineerActivityReportPersistenceTests
         Assert.Equal(3, row.ReportsSent);
         Assert.Equal(1, row.AuditReportsSent);
         Assert.Equal(3, row.QueriesReceived);
-        Assert.Equal(1, row.Disputes);
         Assert.Equal(1, row.AmendmentRequests);
         // All Cases were received at From; sent two, three and four days later.
         Assert.Equal(TimeSpan.FromDays(3), row.AverageReceivedToSent);

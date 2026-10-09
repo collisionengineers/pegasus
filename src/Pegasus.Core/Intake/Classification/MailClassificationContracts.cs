@@ -49,7 +49,7 @@ public static class MailTaxonomy
             [ReceivedMailFamily.InProgressCases] =
                 [MailCategory.CancellationSubtype, "case-update", "chasing-for-update", "ongoing-correspondence"],
             [ReceivedMailFamily.PostReportEmails] =
-                ["query", MailCategory.DisputeSubtype, MailCategory.AmendmentRequestSubtype],
+                [MailCategory.QuerySubtype, MailCategory.AmendmentRequestSubtype],
             [ReceivedMailFamily.PreInstructionEmails] =
                 [MailCategory.TriageRequestSubtype, "pre-formal-instruction-request", MailCategory.ImagesReceivedSubtype],
             [ReceivedMailFamily.InternalCc] = []
@@ -113,8 +113,11 @@ public sealed record MailCategory
     public const string CancellationSubtype = "cancellation";
     public const string ImagesReceivedSubtype = "images-received";
 
-    /// <summary>Post-report mail disputing the report: one of MI-01's and the Case list's queries.</summary>
-    public const string DisputeSubtype = "dispute";
+    /// <summary>
+    /// Post-report mail questioning or disputing the report. A dispute is a
+    /// query: there is no separate dispute subtype (operator, 9 October 2026).
+    /// </summary>
+    public const string QuerySubtype = "query";
 
     /// <summary>Post-report mail asking for the report to be amended: one of MI-01's and the Case list's queries.</summary>
     public const string AmendmentRequestSubtype = "amendment-request";

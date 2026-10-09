@@ -110,7 +110,7 @@ Version 5 behaviour:
 | Final repair account or final audit request | Label current-content positives and report/attachment confusers. |
 | Report chase | Separate a chase from a new instruction and from quoted history. |
 | Post-inspection repair authorisation | Prove the sender-authored authorisation wording and case association. |
-| Pre-accident-value dispute | Separate a dispute from an amendment or ordinary query. |
+| Pre-accident-value dispute | Separate the dispute, which is a query, from an amendment. |
 | Repair, total-loss, or category amendment | Label each accepted shared-taxonomy outcome without a principal-specific vocabulary. |
 | Additional images, estimates, or updates | Separate current evidence from quoted or nested-message evidence. |
 | Third-party-insurer comments or query | Prove authorship, direction, and the applicable shared category. |

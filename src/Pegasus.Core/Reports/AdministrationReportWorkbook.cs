@@ -70,7 +70,6 @@ public static class AdministrationReportTables
                 [
                     new("Person", WorkbookColumnKind.Text),
                     new("Queries received", WorkbookColumnKind.Count),
-                    new("Disputes", WorkbookColumnKind.Count),
                     new("Amendment requests", WorkbookColumnKind.Count),
                     new("Reports sent", WorkbookColumnKind.Count),
                     new("Audit reports sent", WorkbookColumnKind.Count),
@@ -78,7 +77,7 @@ public static class AdministrationReportTables
                 ],
                 engineerReport.Rows.Select(row => (IReadOnlyList<object?>)
                 [
-                    row.DisplayName, row.QueriesReceived, row.Disputes, row.AmendmentRequests,
+                    row.DisplayName, row.QueriesReceived, row.AmendmentRequests,
                     row.ReportsSent, row.AuditReportsSent, row.AverageReceivedToSent
                 ]).ToArray(),
                 Totals: true)

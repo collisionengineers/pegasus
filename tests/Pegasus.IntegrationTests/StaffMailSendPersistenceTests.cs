@@ -1598,7 +1598,7 @@ public sealed class StaffMailSendPersistenceTests
                 Outcome = "classified",
                 Direction = "received",
                 Family = "post-report-emails",
-                Subtype = "dispute",
+                Subtype = "query",
                 IsReplyContext = false,
                 AmbiguousCandidatesJson = "{\"version\":1,\"data\":[]}",
                 PredicatesJson = "{\"version\":1,\"data\":[]}",
