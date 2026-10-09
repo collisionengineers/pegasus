@@ -135,9 +135,9 @@ public sealed class GlassRepairEstimateGatewayTests
             Assert.Equal(creates, harness.Mva.Count("GET /index/create-new-vehicle"));
             Assert.Equal(starts, harness.Mva.Count("POST /ere/start-ere"));
             restarted.Clock.Offset = TimeSpan.FromHours(9);
-            var expired = await restarted.ResumeAsync(
+            var later = await restarted.ResumeAsync(
                 new(harness.Engineer, resumed.Id, resumed.Version, Harness.CaseVersion, Harness.LeaseToken), CancellationToken.None);
-            Assert.Equal(GlassRepairEstimateSessionState.Unknown, expired.State);
+            Assert.Equal(GlassRepairEstimateSessionState.Unknown, later.State);
             await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(() =>
                 restarted.LaunchAsync(operationKey: "must-not-duplicate"));
         }
@@ -327,8 +327,8 @@ public sealed class GlassRepairEstimateGatewayTests
         var restarted = Restarted(harness, database.NewStore());
         var resumed = await restarted.ResumeAsync(new(harness.Engineer, unknown.Id, unknown.Version, Harness.CaseVersion, Harness.LeaseToken), default);
         restarted.Clock.Offset = TimeSpan.FromHours(9);
-        var expired = await restarted.ResumeAsync(new(harness.Engineer, resumed.Id, resumed.Version, Harness.CaseVersion, Harness.LeaseToken), default);
-        Assert.Equal(GlassRepairEstimateSessionState.Unknown, expired.State);
+        var later = await restarted.ResumeAsync(new(harness.Engineer, resumed.Id, resumed.Version, Harness.CaseVersion, Harness.LeaseToken), default);
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, later.State);
         Assert.NotNull(await database.ActiveAccountKeyAsync(unknown.Id));
         var refusal = await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(() => restarted.LaunchAsync(operationKey: "no-second-write"));
         Assert.Equal(GlassRepairEstimateSessionConflict.ActiveAccount, refusal.Conflict);
@@ -1442,18 +1442,23 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(GlassRepairEstimateSessionConflict.Version, conflict.Conflict);
     }
 
+    /// <summary>
+    /// A session has no lifetime (operator, 9 October 2026; issue 1067): a
+    /// saved return a day after the launch is relayed and imported as any
+    /// other.
+    /// </summary>
     [Fact]
-    public async Task ACallbackAfterTheSessionExpiredIsRefusedAndTheSessionSaysSo()
+    public async Task ASavedReturnDaysAfterLaunchIsImported()
     {
         var harness = Harness.Create();
         var session = await harness.LaunchAsync();
         harness.Clock.Offset = TimeSpan.FromHours(24);
 
-        var settled = await harness.CompleteAsync(session);
+        var completed = await harness.CompleteAsync(session);
 
-        Assert.Equal(GlassRepairEstimateSessionState.Expired, settled.State);
-        Assert.Equal(GlassFailure.CallbackExpired, settled.FailureCode);
-        Assert.Empty(harness.Import.Requests);
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+        Assert.Single(harness.Import.Requests);
     }
 
     [Fact]
@@ -2019,17 +2024,12 @@ public sealed class GlassRepairEstimateGatewayTests
     }
 
     [Theory]
-    [InlineData("Prepared", true)]
-    [InlineData("Prepared", false)]
-    [InlineData("Launching", true)]
-    [InlineData("Launching", false)]
-    [InlineData("Active", true)]
-    [InlineData("Active", false)]
-    [InlineData("AwaitingImport", true)]
-    [InlineData("AwaitingImport", false)]
-    [InlineData("Unknown", true)]
-    [InlineData("Unknown", false)]
-    public async Task ResumeRefusesChangedCaseVehicleBeforeAnyProviderWorkAndKeepsTheHold(string state, bool registrationChanged)
+    [InlineData("Prepared")]
+    [InlineData("Launching")]
+    [InlineData("Active")]
+    [InlineData("AwaitingImport")]
+    [InlineData("Unknown")]
+    public async Task ResumeRefusesAChangedCaseRegistrationBeforeAnyProviderWorkAndKeepsTheHold(string state)
     {
         var harness = Harness.Create();
         GlassRepairEstimateSession session;
@@ -2061,17 +2061,39 @@ public sealed class GlassRepairEstimateGatewayTests
         }
         Assert.Equal(Enum.Parse<GlassRepairEstimateSessionState>(state), session.State);
         var beforeResume = (await harness.Store.GetAsync(session.Id, default))!;
-        harness.CaseAuthority.Facts = new(registrationChanged ? "XY99ZZZ" : Registration,
-            registrationChanged ? MileageMiles : MileageMiles + 1);
+        harness.CaseAuthority.Facts = new("XY99ZZZ", MileageMiles);
         var requests = harness.Mva.Requests.Count;
         var imports = harness.Import.Requests.Count;
         var refused = await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => harness.ResumeAsync(
             new(harness.Engineer, session.Id, session.Version, Harness.CaseVersion, Harness.LeaseToken), default));
-        Assert.Contains("registration or mileage has changed", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("registration has changed", refused.Message, StringComparison.Ordinal);
         Assert.Equal(requests, harness.Mva.Requests.Count);
         Assert.Equal(imports, harness.Import.Requests.Count);
         Assert.Equal(beforeResume, await harness.Store.GetAsync(session.Id, default));
         Assert.True(GlassRepairEstimateSessionPolicy.OccupiesAccount(session.State));
+    }
+
+    /// <summary>
+    /// A corrected Case mileage does not stop the staff member's own live
+    /// session: it continues on the stock vehicle, proved and imported
+    /// against the mileage that vehicle was made with (operator, 9 October
+    /// 2026; issue 1070).
+    /// </summary>
+    [Fact]
+    public async Task AResumeAfterAMileageCorrectionContinuesOnTheRecordedVehicle()
+    {
+        var harness = Harness.Create();
+        var session = await harness.LaunchAsync();
+        harness.CaseAuthority.Facts = new(Registration, MileageMiles + 1);
+
+        var resumed = await harness.ResumeAsync(
+            new(harness.Engineer, session.Id, session.Version, Harness.CaseVersion, Harness.LeaseToken),
+            CancellationToken.None);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Active, resumed.State);
+        Assert.Equal(1, harness.Mva.Count("GET /index/create-new-vehicle"));
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, (await harness.CompleteAsync(resumed)).State);
+        Assert.Equal(MileageMiles, Assert.Single(harness.Import.Requests).GlassEstimate!.MileageMiles);
     }
 
     [Theory]
@@ -2148,9 +2170,9 @@ public sealed class GlassRepairEstimateGatewayTests
     /// says which flag the control showed, never a value.
     /// </summary>
     [Theory]
-    [InlineData("other-profile", "option")]
-    [InlineData("nothing-selected", "option")]
-    [InlineData("two-selected", "option")]
+    [InlineData("other-profile", "not-selected")]
+    [InlineData("nothing-selected", "not-selected")]
+    [InlineData("two-selected", "not-selected")]
     [InlineData("enabled", "enabled")]
     [InlineData("absent", "absent")]
     [InlineData("two-controls", "multiple")]
@@ -2179,8 +2201,11 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(GlassRepairEstimateSessionState.Unknown, resumed.State);
         Assert.Equal(GlassFailure.DetailsProfile, resumed.FailureCode);
         var settledLine = Assert.Single(logger.Messages, message => message.Contains("settled Unknown", StringComparison.Ordinal));
-        Assert.Contains($"glass.details.profile profile={flag}", settledLine, StringComparison.Ordinal);
-        Assert.DoesNotContain("profile=9999", settledLine, StringComparison.Ordinal);
+        Assert.Contains(
+            $"glass.details.profile profile={flag} required={GlassProviderFixture.ProfileId}",
+            settledLine,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("9999", settledLine, StringComparison.Ordinal);
         Assert.Equal(1, harness.Mva.Count("POST /ere/start-ere"));
         Assert.Equal(1, harness.Mva.Count("GET /index/get-selected-vehicle-count"));
     }
@@ -2206,6 +2231,71 @@ public sealed class GlassRepairEstimateGatewayTests
             logger.Messages,
             message => message.Contains("settled Failed at glass.details.profile profile=disabled", StringComparison.Ordinal));
         Assert.Equal(0, harness.Mva.Count("POST /ere/start-ere"));
+    }
+
+    /// <summary>
+    /// Glass's keeps repair profiles for the organisation, so every login
+    /// should offer the configured one (operator, 9 October 2026). A login
+    /// that does not is refused before anything is selected or started, and
+    /// the host log says the profile is the cause and which one was required,
+    /// never what the login offered (issue 1069).
+    /// </summary>
+    [Fact]
+    public async Task ALaunchOnALoginThatDoesNotOfferTheConfiguredProfileIsRefusedNamingIt()
+    {
+        var logger = new CapturingLogger();
+        var harness = Harness.Create(logger: logger);
+        harness.Mva.Set("GET /index/vehicle-details-value/", new(
+            HttpStatusCode.OK, GlassProviderFixture.VehicleDetail(profile: "9999")));
+
+        var session = await harness.LaunchAsync();
+
+        Assert.Equal(GlassRepairEstimateSessionState.Failed, session.State);
+        Assert.Equal(GlassFailure.DetailsProfile, session.FailureCode);
+        Assert.Contains(logger.Messages, message => message.Contains(
+            $"settled Failed at glass.details.profile profile=not-offered required={GlassProviderFixture.ProfileId}",
+            StringComparison.Ordinal));
+        Assert.DoesNotContain(logger.Messages, message => message.Contains("9999", StringComparison.Ordinal));
+        Assert.Equal(0, harness.Mva.Count("GET /index/get-selected-vehicle-count"));
+        Assert.Equal(0, harness.Mva.Count("POST /ere/start-ere"));
+    }
+
+    /// <summary>
+    /// A start whose answer was lost is proved as not started and, only when
+    /// the control is locked, as started. An unlocked control that lacks the
+    /// configured profile is refused as not offered, not relabelled
+    /// <c>enabled</c> by the second reading (issue 1069).
+    /// </summary>
+    [Fact]
+    public async Task ARestartedStartOnALoginWithoutTheProfileKeepsTheNotOfferedFlag()
+    {
+        using var cancelled = new CancellationTokenSource();
+        var harness = Harness.Create(transport: inner => new InterruptedProvider(inner, "/ere/start-ere", cancelled));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => harness.LaunchAsync(
+            operationKey: "interrupted-launch", cancellationToken: cancelled.Token));
+        var held = Assert.Single(harness.Store.Sessions.Values).Session;
+        var starts = harness.Mva.Count("POST /ere/start-ere");
+        harness.Mva.Set("GET /index/vehicle-details-value/", new(
+            HttpStatusCode.OK, GlassProviderFixture.VehicleDetail(profile: "9999")));
+        var logger = new CapturingLogger();
+        var restarted = Harness.Create(
+            store: harness.Store,
+            caseId: harness.CaseId,
+            engineerId: harness.EngineerId,
+            otherEngineerId: harness.OtherEngineerId,
+            protection: harness.Protection,
+            provider: harness.Mva,
+            logger: logger);
+
+        var resumed = await restarted.ResumeAsync(
+            new(harness.Engineer, held.Id, held.Version, Harness.CaseVersion, Harness.LeaseToken), CancellationToken.None);
+
+        Assert.Equal(GlassFailure.DetailsProfile, resumed.FailureCode);
+        Assert.Contains(logger.Messages, message => message.Contains(
+            $"glass.details.profile profile=not-offered required={GlassProviderFixture.ProfileId}",
+            StringComparison.Ordinal));
+        Assert.DoesNotContain(logger.Messages, message => message.Contains("profile=enabled", StringComparison.Ordinal));
+        Assert.Equal(starts, harness.Mva.Count("POST /ere/start-ere"));
     }
 
     /// <summary>
@@ -2533,23 +2623,86 @@ public sealed class GlassRepairEstimateGatewayTests
     }
 
     /// <summary>
-    /// The estimate stands on the vehicle it was started for: a Case whose
-    /// registration or mileage has changed since is refused before Glass's is
-    /// contacted and before any session is recorded.
+    /// The estimate stands on the vehicle it was started for, which Glass's
+    /// holds under its registration: a Case whose registration has changed
+    /// since is refused before Glass's is contacted and before any session is
+    /// recorded.
     /// </summary>
     [Fact]
-    public async Task AReopenIsRefusedBeforeProviderWorkWhenTheCaseVehicleHasChanged()
+    public async Task AReopenIsRefusedBeforeProviderWorkWhenTheCaseRegistrationHasChanged()
     {
         var harness = Harness.Create();
         await harness.CompleteAsync(await harness.LaunchAsync());
         var requests = harness.Mva.Requests.Count;
-        harness.CaseAuthority.Facts = new(Registration, MileageMiles + 1);
+        harness.CaseAuthority.Facts = new("XY99ZZZ", MileageMiles);
 
-        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => harness.LaunchAsync(
+        var refused = await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => harness.LaunchAsync(
             operationKey: "glass-launch-2", specificationId: harness.Import.EstimateId));
 
+        Assert.Contains("registration has changed", refused.Message, StringComparison.Ordinal);
         Assert.Equal(requests, harness.Mva.Requests.Count);
         Assert.Single(harness.Store.Sessions);
+    }
+
+    /// <summary>
+    /// A corrected Case mileage reopens the spec's estimate on its stock
+    /// vehicle, which is proved and whose export is read against the mileage
+    /// it was made with; the return updates the same spec and keeps its link
+    /// (operator, 9 October 2026; issue 1070).
+    /// </summary>
+    [Fact]
+    public async Task AReopenAfterAMileageCorrectionOpensTheOriginalEstimate()
+    {
+        var harness = Harness.Create();
+        await harness.CompleteAsync(await harness.LaunchAsync());
+        var made = Assert.Single(harness.Import.Requests);
+        harness.CaseAuthority.Facts = new(Registration, MileageMiles + 1);
+
+        var reopened = await harness.LaunchAsync(
+            operationKey: "glass-launch-2", specificationId: harness.Import.EstimateId);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Active, reopened.State);
+        Assert.Equal(VehicleId, reopened.ProviderVehicleId);
+        Assert.Equal(1, harness.Mva.Count("GET /index/create-new-vehicle"));
+        Assert.Equal(
+            "0",
+            QueryOf(harness.Mva.Requests.Last(request => request.Path == "/ere/start-ere").Body!)["ere_id"]);
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, (await harness.CompleteAsync(reopened)).State);
+        var updated = harness.Import.Requests[^1];
+        Assert.Equal(harness.Import.EstimateId, updated.EstimateId);
+        Assert.Equal(made.GlassEstimate, updated.GlassEstimate);
+    }
+
+    /// <summary>
+    /// A placeholder holds no registration or mileage at Glass's, so a Case
+    /// whose plate is corrected afterwards reopens it, and its return may
+    /// name the corrected plate (operator, 9 October 2026; issue 1070).
+    /// </summary>
+    [Fact]
+    public async Task APlaceholderReopensAfterThePlateIsCorrected()
+    {
+        var harness = Harness.Create();
+        ScriptUnknownPlate(harness.Mva);
+        harness.Mva.Set("GET /ndp_download/", new(
+            HttpStatusCode.OK,
+            GlassEstimateXmlParserTests.GlassExport.BuildXml(registration: "", mileage: "0", typeNumber: "987654321"),
+            ContentType: "application/xml"));
+        await harness.CompleteAsync(await harness.LaunchAsync());
+        Assert.True(Assert.Single(harness.Import.Requests).GlassEstimate!.Placeholder);
+        harness.CaseAuthority.Facts = new("XY99ZZZ", MileageMiles + 1);
+        harness.Mva.Set("GET /ndp_download/", new(
+            HttpStatusCode.OK,
+            GlassEstimateXmlParserTests.GlassExport.BuildXml(registration: "XY99 ZZZ", mileage: "0", typeNumber: "987654321"),
+            ContentType: "application/xml"));
+
+        var reopened = await harness.LaunchAsync(
+            operationKey: "glass-launch-2", specificationId: harness.Import.EstimateId);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Active, reopened.State);
+        Assert.Equal(PlaceholderVehicleId, reopened.ProviderVehicleId);
+        Assert.Equal(1, harness.Mva.Count(PlaceholderInsert));
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, (await harness.CompleteAsync(reopened)).State);
+        Assert.Equal(harness.Import.EstimateId, harness.Import.Requests[^1].EstimateId);
     }
 
     /// <summary>
@@ -2790,8 +2943,8 @@ public sealed class GlassRepairEstimateGatewayTests
 
     /// <summary>
     /// A clock that starts at a fixed moment and then runs, so a bounded poll
-    /// finishes, while <see cref="Offset"/> jumps it forward for the expiry
-    /// checks.
+    /// finishes, while <see cref="Offset"/> jumps it forward to show that
+    /// nothing depends on a session's age.
     /// </summary>
     internal sealed class TestClock(DateTimeOffset start) : TimeProvider
     {
@@ -2804,32 +2957,32 @@ public sealed class GlassRepairEstimateGatewayTests
     }
 
     /// <summary>
-    /// An open calculation past its lifetime is not re-opened: the resume
-    /// settles it Expired and the estimator address is no longer given out,
-    /// the same rule the provider's late return meets.
+    /// Pressing Glass's a day after the launch continues the staff member's
+    /// own session as it does within the hour: the estimate is reopened on the
+    /// recorded vehicle and nothing is made (operator, 9 October 2026; issue
+    /// 1067).
     /// </summary>
     [Fact]
-    public async Task ResumingAnExpiredSessionSettlesItInsteadOfReopeningTheProvider()
+    public async Task PressingGlassDaysLaterContinuesTheOwnSession()
     {
         var harness = Harness.Create();
         var session = await harness.LaunchAsync();
+        var creates = harness.Mva.Count("GET /index/create-new-vehicle");
         var launches = harness.Mva.Count("POST /ere/start-ere");
         harness.Clock.Offset = TimeSpan.FromHours(24);
 
-        Assert.Null(await harness.Gateway.GetEstimatorUrlAsync(harness.Engineer, session.Id, CancellationToken.None));
-        var expired = await harness.ResumeAsync(
+        Assert.NotNull(await harness.Gateway.GetEstimatorUrlAsync(harness.Engineer, session.Id, CancellationToken.None));
+        var resumed = await harness.ResumeAsync(
             new GlassRepairEstimateResumeRequest(harness.Engineer, session.Id, session.Version, Harness.CaseVersion, Harness.LeaseToken),
             CancellationToken.None);
 
-        Assert.Equal(GlassRepairEstimateSessionState.Expired, expired.State);
-        Assert.Equal(GlassFailure.CallbackExpired, expired.FailureCode);
-        Assert.Equal(launches, harness.Mva.Count("POST /ere/start-ere"));
-        Assert.Null(harness.Store.Material(session.Id).Session.CallbackConsumedAtUtc);
-        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() =>
-            harness.ResumeAsync(
-                new GlassRepairEstimateResumeRequest(
-                    harness.Engineer, expired.Id, expired.Version, Harness.CaseVersion, Harness.LeaseToken),
-                CancellationToken.None));
+        Assert.Equal(GlassRepairEstimateSessionState.Active, resumed.State);
+        Assert.Equal(creates, harness.Mva.Count("GET /index/create-new-vehicle"));
+        Assert.Equal(launches + 1, harness.Mva.Count("POST /ere/start-ere"));
+        Assert.Equal(
+            "0",
+            QueryOf(harness.Mva.Requests.Last(request => request.Path == "/ere/start-ere").Body!)["ere_id"]);
+        Assert.NotNull(await harness.Gateway.GetEstimatorUrlAsync(harness.Engineer, session.Id, CancellationToken.None));
     }
 
     // -------------------------------------------------------- callback claim
@@ -3620,7 +3773,6 @@ public sealed class GlassRepairEstimateGatewayTests
                 EstimatorBase,
                 CallbackBase,
                 ProfileId,
-                SessionLifetime: TimeSpan.FromHours(8),
                 ExportPollInterval: TimeSpan.FromMilliseconds(5),
                 ExportTimeout: TimeSpan.FromMilliseconds(50),
                 maximumExportBytes);
