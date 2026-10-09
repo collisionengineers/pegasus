@@ -48,10 +48,14 @@ public sealed class CaseImagesWindowWebTests
         Assert.DoesNotContain("data-evidence-preparation-occurrence=\"" + fixture.OverviewOccurrenceId.ToString("D"), html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-image-in-report", html, StringComparison.Ordinal);
         Assert.DoesNotContain("tag-picker", html, StringComparison.Ordinal);
-        // The report's order: the Close-up first, then the Overview.
+        // The report's order: the Overview holds place 1 by its tag, then the
+        // Close-up (operator, 7 October 2026), then the Supporting images.
+        Assert.True(
+            html.IndexOf(fixture.OverviewOccurrenceId.ToString("D"), StringComparison.Ordinal)
+            < html.IndexOf(fixture.CloseUpOccurrenceId.ToString("D"), StringComparison.Ordinal));
         Assert.True(
             html.IndexOf(fixture.CloseUpOccurrenceId.ToString("D"), StringComparison.Ordinal)
-            < html.IndexOf(fixture.OverviewOccurrenceId.ToString("D"), StringComparison.Ordinal));
+            < html.IndexOf(fixture.FirstSupportingOccurrenceId.ToString("D"), StringComparison.Ordinal));
 
         // The same viewer, standalone: no Pop out of its own, and it opens on
         // the image the address names.
@@ -126,7 +130,7 @@ public sealed class CaseImagesWindowWebTests
 
         // The viewer's own Pop out: a link to the window that the script
         // points at the image in view; hidden until one is.
-        Assert.Contains("data-case-viewer hidden", html, StringComparison.Ordinal);
+        Assert.Matches("data-case-viewer\s+hidden", html);
         Assert.DoesNotContain("data-viewer-standalone=\"true\"", html, StringComparison.Ordinal);
         Assert.Contains(
             $"<a class=\"btn btn--small\" href=\"/Cases/{store.CaseId:D}/Images\" target=\"_blank\" rel=\"noopener\" data-viewer-popout data-images-popout hidden>",
