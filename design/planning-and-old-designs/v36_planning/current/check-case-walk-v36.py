@@ -163,6 +163,15 @@ def main():
                 check(f'choice {opt} {mode} no Not recorded segment', r['notRecordedSegments'] == 0)
                 if opt == 'select' and mode == 'edit':
                     check('choice select edit draws selects', page.locator('.decisions .dec select.fi').count() >= 2)
+        for opt in ['indent', 'marker', 'indent-marker']:
+            for mode in ['read', 'edit']:
+                r = load(f'design=proposal&state=engineer&mode={mode}&section=estimate&opt=incl:{opt}')
+                check(f'incl {opt} {mode} draws three included rows', page.locator('#section-estimate tr[data-v36-included]').count() == 3)
+                notes = page.locator('#section-estimate .v36-incl-note').count()
+                check(f'incl {opt} {mode} marker rows', notes == (3 if 'marker' in opt else 0), notes)
+                check(f'incl {opt} {mode} no dash left on an included row', page.locator('#section-estimate tr[data-v36-included] .gv:text-is("\u2014")').count() == 0)
+        r = load('design=today&state=engineer&mode=read&section=estimate')
+        check('today draws the included rows as empty Other rows', page.locator('#section-estimate tr[data-v36-included]').count() == 3 and page.locator('#section-estimate tr[data-v36-included] .gv:text-is("\u2014")').count() >= 15)
         # f28 keeps read and edit the same height for Valuation.
         hr = load('design=proposal&state=engineer&mode=read&section=valuation')
         h_read = page.evaluate("document.querySelector('#section-valuation').getBoundingClientRect().height")
@@ -235,6 +244,10 @@ def main():
                     shot(f'choice-{opt}-{mode}', f'design=proposal&state=engineer&mode={mode}&section=settlement&opt=choice:{opt}')
             for opt in ['aligned', 'prefix']:
                 shot(f'grid-{opt}', f'design=proposal&state=engineer&mode=edit&section=estimate&opt=grid:{opt}')
+            shot('incl-today-edit', 'design=today&state=engineer&mode=edit&section=estimate')
+            for opt in ['indent', 'marker', 'indent-marker']:
+                for mode in ['read', 'edit']:
+                    shot(f'incl-{opt}-{mode}', f'design=proposal&state=engineer&mode={mode}&section=estimate&opt=incl:{opt}')
             shot('diff-engineer-edit', 'design=proposal&state=engineer&mode=edit&diff=1')
             shot('split-engineer-read', 'design=proposal&state=engineer&split=1')
             shot('ruler-engineer-edit-valuation', 'design=today&state=engineer&mode=edit&section=valuation&ruler=1')

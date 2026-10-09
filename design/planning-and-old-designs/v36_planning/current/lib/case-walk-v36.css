@@ -120,3 +120,7 @@ body.v36-strip-hidden .v36-strip{display:none}
 .v36-empty-line h3{font-size:13.5px;font-weight:400;margin:0}
 /* f53 · below 980px only the section row stays sticky. */
 @media (max-width:980px){.sticky-block.v36-f53{position:static}.sticky-block.v36-f53 .section-row{position:sticky;top:var(--utility-h);background:var(--surface);z-index:20;border-bottom:1px solid var(--line)}}
+/* f60 · Glass's included operations: an indent under the row they belong to, or the line's own note across the figure columns. */
+#section-estimate .grid td.v36-incl-indent{padding-left:30px;position:relative}
+#section-estimate .grid td.v36-incl-indent::before{content:"";position:absolute;left:12px;top:-2px;height:50%;width:9px;border-left:1px solid var(--line-strong);border-bottom:1px solid var(--line-strong)}
+#section-estimate .grid td.v36-incl-note{font-size:11.5px;color:var(--muted);text-align:left;padding-left:10px;font-variant-numeric:normal}

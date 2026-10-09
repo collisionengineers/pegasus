@@ -75,6 +75,7 @@ Tiers: **a** is alignment inside the existing contract (listed, not lettered); *
 | f32 | Figure columns and their headers do not share an alignment, Hours shows 0.700000 and clips, "Unit £" and "Material £" read as symbols (operator, 9 October). Cause: each figure is a number input that reserves its spin buttons at the right even though they are hidden, so the text sits 20px short of the header's edge and long values clip; the header pads 6px, the box 4 + 6 | Spin buttons removed from the grid inputs, header and box on one right edge, two decimals, Part no. left; "Unit (£)" and "Material (£)", or "Unit" and "Material" with a £ prefix in the cell | b (X) | `x-estimate-line-edit-1580.png`, the operator's screenshot |
 | f33 | Compare is a disabled button with fewer than two specs (`_CaseEstimate.cshtml:662`); Remove scaling is disabled when unscaled (`:401`) | Absent, not disabled | b (Y) | `x-estimate-line-edit-1580.png` |
 | f46 | Five empty-state treatments: Notes icon under the global `.empty` 36px padding, the Repair Spec dashed box, Damage's plain line, the cell box, the hatched lazy placeholder | One: a muted sentence in a 36px row | a | `engineer-read-sec-valuation-1580.png`, `x-notes-read-1580.png` |
+| f60 | A Glass's included operation lands as an Other line with neither hours nor a price (FRD-25, 29 September 2026) and its note "Included in row N; no separate charge." on the line, which the grid never shows, so a Glass's spec reads as rows of unexplained empty figures (operator, 9 October, from the a.QDOS26093 examination; three such lines are added to the captured spec as a fixture) | The row reads as included: **indent** under the row it belongs to, the line's note as a textual **marker** across the figure columns, or **both**; reading, an included row carries no figure boxes | b (AC) | `v36-shots` incl-*, `GlassEstimateXmlParser.cs:446`, `_CaseEstimate.cshtml` (no use of the line's Justification) |
 | f55 | The origin line prints an account id: "Populated 06 May 2031 11:30 by d47fbbae-…" | The person's name | a | `x-estimate-line-edit-1580.png` |
 
 ### Decisions
@@ -183,18 +184,19 @@ Each is "Confirm, or …". Letters are stable; settled items keep their letter w
 - **Y** (f33). Compare and Remove scaling are absent until they can act, not disabled. Confirm, or keep.
 - **Z** (f40). Send report shows in read mode too, its controls greyed, and the attached "Report" tick is a value, not a disabled control. Confirm, or keep it edit-only.
 - **AA**. This folder is removed in the Stage 2 pull request. Confirm, or keep it as the record.
+- **AC** (f60). A Glass's included operation reads as included: **indent**, **marker** (the line's own note across the figures) or **both**. Choose one, or keep the empty row. The words are the line's stored note; no new copy.
 - **AB** (f59). The blocker "how" sentence goes from every row of Next action and Report not ready (operator's item, raised on the Repair Spec one). Confirm for every row, or only the Repair Spec one. FRD-13 says each blocker shows how it is resolved; it would say the control is the how.
 
 Tier a findings (f01, f02, f03, f06, f07, f08, f10, f12, f14, f19, f20, f21, f23, f24, f27, f29, f36, f38, f43, f45, f46, f55 and the cross-cutting list) are listed for information; say if any should not go to Stage 2.
 
 ## 7. Self-check
 
-`python check-case-walk-v36.py` on 9 October 2026: `RESULT {"fail": [], "okCount": 1013}`, no console error, 134 screenshots ([verification.json](verification.json)). It covers today and the proposal in seven states, read and edit where the state has an edit frame, Scroll and Tabs, at 1580, 1440 and 760; each finding alone and switched off; the operator's variants; the dialogs, the viewer and the widgets. It also records the evidence for f01 (today clips the row at 1440 on the Audit Case and at 760), f14 (today's Address input clips its text) and f28 (today Valuation grows by 148px on Edit; the proposal within 48px, the remainder being the AI research card's head control). This is evidence about the mockup, not the application.
+`python check-case-walk-v36.py` on 9 October 2026: `RESULT {"fail": [], "okCount": 1035}`, no console error, 141 screenshots ([verification.json](verification.json)). It covers today and the proposal in seven states, read and edit where the state has an edit frame, Scroll and Tabs, at 1580, 1440 and 760; each finding alone and switched off; the operator's variants; the dialogs, the viewer and the widgets. It also records the evidence for f01 (today clips the row at 1440 on the Audit Case and at 760), f14 (today's Address input clips its text) and f28 (today Valuation grows by 148px on Edit; the proposal within 48px, the remainder being the AI research card's head control). This is evidence about the mockup, not the application.
 
 ## 8. Known limits
 
 - The frames are captured pages with their scripts removed: a section link scrolls, a fold toggles, a dialog opens and closes, the viewer opens on the first image; nothing saves, no menu item acts, Get valuation does nothing.
-- Two fixture departures: Glass's is drawn as a connected card for the Get valuation variants (the host has no provider), and the Held step's review date is the fixture's.
+- Three fixture departures: Glass's is drawn as a connected card for the Get valuation variants (the host has no provider); the Held step's review date is the fixture's; and three Glass's included operations are added under the captured spec's first line, with that line relabelled "imported · GL", in Today and the proposal alike, so f60 can be seen.
 - The With Engineer frames were recaptured after a Repairable outcome and one spec line were added on the walk, so they hold figures the earlier `live-shots/engineer-*` do not.
 - Tabs layout is emulated by the live classes (`data-layout="tabs"`, `is-active`), not by `case-workspace.js`.
 - The Work Centre and Cases list frames exist only for the busy-state stand-in.

@@ -106,6 +106,38 @@
     return root;
   }
 
+  // Fixture (9 October 2026): the captured spec was typed by hand, so three of
+  // Glass's included operations are added under its first line, as the XML
+  // import lands them (FRD-25, 29 September 2026): an Other line with neither
+  // hours nor a price, its note "Included in row 1; no separate charge." kept
+  // on the line and never shown. The first line is relabelled as imported.
+  function includedFixture(root) {
+    const table = root.querySelector('#section-estimate table');
+    const first = table && table.querySelector('tbody tr[data-estimate-line]');
+    if (!first) return;
+    const tag = first.querySelector('.src-tag'); if (tag) tag.textContent = 'imported \u00b7 GL';
+    const names = ['Bonnet \u00b7 remove and refit', 'Bonnet \u00b7 disconnect and reconnect', 'Headlamp \u00b7 remove and refit (L)'];
+    let after = first;
+    names.forEach((desc, i) => {
+      const tr = first.cloneNode(true);
+      tr.dataset.v36Included = 'Included in row 1; no separate charge.';
+      const sel = tr.querySelector('select'); if (sel) for (const o of sel.options) o.selected = o.value === 'Other';
+      const tds = [...tr.children];
+      const opGv = tds[0].querySelector('.gv'); if (opGv) opGv.textContent = 'Other';
+      const d = tr.querySelector('input[name="lineDescription"]'); if (d) d.value = desc; else { const g = tds[1].querySelector('.gv'); if (g) g.textContent = desc; }
+      for (let c = 2; c <= 7; c++) {
+        const inp = tds[c].querySelector('input'); if (inp) { inp.value = ''; inp.classList.remove('viol'); inp.removeAttribute('title'); }
+        const g = tds[c].querySelector('.gv'); if (g) { g.textContent = '\u2014'; g.classList.remove('viol'); g.removeAttribute('title'); }
+      }
+      tr.querySelectorAll('[id]').forEach((e) => { e.id = `${e.id}-incl${i}`; });
+      tr.querySelectorAll('label[for]').forEach((l) => { l.htmlFor = `${l.htmlFor}-incl${i}`; });
+      const hid = tr.querySelector('input[name="lineId"]'); if (hid) hid.value = `v36-included-${i}`;
+      after.after(tr); after = tr;
+    });
+    const meta = root.querySelector('#section-estimate [data-estimate-meta]');
+    if (meta) meta.textContent = meta.textContent.replace('1 line', '4 lines');
+  }
+
   function busy(root) {
     const targets = [
       ...root.querySelectorAll('[data-next-action] .next-step-go, [data-add-evidence], .wc-row a.btn, .wc-row button.btn, [data-quick-detail] a.btn, .quick-detail a.btn, a.btn.btn--dark'),
@@ -145,6 +177,7 @@
     const root = document.importNode(tpl.content, true);
     container.append(root);
     prepare(container);
+    if (state.page === 'case') includedFixture(container);
     // A variable finding's proposal default is its first alternative.
     const effective = { ...opts };
     if (design === 'proposal') for (const f of F) if (f.variable && effective[f.variable] === undefined) effective[f.variable] = f.options[1];

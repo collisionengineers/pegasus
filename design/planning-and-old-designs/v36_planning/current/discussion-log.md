@@ -30,6 +30,8 @@ While the round was being planned the operator added three remarks, each with a 
 
 (the blocker's "how" sentence in Next action and the Report not ready card; finding f59, item AB)
 
+The operator then pointed to another session's examination of Case a.QDOS26093, where Glass's had returned "Other" lines with no price or details. That session had found they are operations Glass's marks as included in another row's labour, landed as no-charge Other lines per the FRD-25 ruling of 29 September 2026, each with the note "Included in row N; no separate charge." stored on the line and never shown, so the grid reads them as unexplained dash rows. The operator asked this round to "factor in different view modes for this e.g. an indent, a textual marker etc" (finding f60, item AC).
+
 Asked how to treat findings that are behaviours a static mockup cannot show, the operator chose: list them in the notes with a Stage 2 scope letter, and draw the ones with a visible state as strip toggles in the mockup.
 
 ### What was explored

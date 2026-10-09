@@ -437,5 +437,28 @@
     return changed;
   });
 
+  // Glass's included operations (operator, 9 October 2026, from the
+  // a.QDOS26093 examination): the import lands each as an Other line with
+  // neither hours nor a price and its note on the line, which the grid never
+  // shows, so they read as unexplained empty rows.
+  add('f60', 'Repair Spec', 'b', 'An included operation reads as included: indent under its row / the note as a textual marker across the figures / both (operator, 9 October 2026)', (root, ctx) => {
+    const variant = ctx.opts.incl || 'today';
+    if (variant === 'today') return false;
+    const rows = root.querySelectorAll('#section-estimate tr[data-v36-included]');
+    if (!rows.length) return false;
+    for (const tr of rows) {
+      mark(tr, 'f60');
+      const tds = [...tr.children];
+      // Reading, an included row carries no figure boxes at all; editing, its boxes stay blank.
+      for (let c = 2; c <= 7; c++) { const g = tds[c].querySelector('.gv'); if (g && /^[\u2014\u2013-]$/.test(text(g))) g.remove(); }
+      if (variant === 'indent' || variant === 'indent-marker') tds[1].classList.add('v36-incl-indent');
+      if (variant === 'marker' || variant === 'indent-marker') {
+        const note = document.createElement('td'); note.colSpan = 5; note.className = 'v36-incl-note'; note.textContent = tr.dataset.v36Included;
+        tds[3].replaceWith(note); for (let c = 4; c <= 7; c++) tds[c].remove();
+      }
+    }
+    return true;
+  }, { variable: 'incl', options: ['today', 'indent', 'marker', 'indent-marker'] });
+
   window.v36Findings = F;
 })();

@@ -3290,6 +3290,10 @@ body.v36-strip-hidden .v36-strip{display:none}
 .v36-empty-line h3{font-size:13.5px;font-weight:400;margin:0}
 /* f53 · below 980px only the section row stays sticky. */
 @media (max-width:980px){.sticky-block.v36-f53{position:static}.sticky-block.v36-f53 .section-row{position:sticky;top:var(--utility-h);background:var(--surface);z-index:20;border-bottom:1px solid var(--line)}}
+/* f60 · Glass's included operations: an indent under the row they belong to, or the line's own note across the figure columns. */
+#section-estimate .grid td.v36-incl-indent{padding-left:30px;position:relative}
+#section-estimate .grid td.v36-incl-indent::before{content:"";position:absolute;left:12px;top:-2px;height:50%;width:9px;border-left:1px solid var(--line-strong);border-bottom:1px solid var(--line-strong)}
+#section-estimate .grid td.v36-incl-note{font-size:11.5px;color:var(--muted);text-align:left;padding-left:10px;font-variant-numeric:normal}
 </style></head><body><div id="v36-frame"></div>
 <template id="frame-engineer-read">
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -25711,6 +25715,29 @@ We appreciate your instructions and enclose our fee note for your kind attention
     return changed;
   });
 
+  // Glass's included operations (operator, 9 October 2026, from the
+  // a.QDOS26093 examination): the import lands each as an Other line with
+  // neither hours nor a price and its note on the line, which the grid never
+  // shows, so they read as unexplained empty rows.
+  add('f60', 'Repair Spec', 'b', 'An included operation reads as included: indent under its row / the note as a textual marker across the figures / both (operator, 9 October 2026)', (root, ctx) => {
+    const variant = ctx.opts.incl || 'today';
+    if (variant === 'today') return false;
+    const rows = root.querySelectorAll('#section-estimate tr[data-v36-included]');
+    if (!rows.length) return false;
+    for (const tr of rows) {
+      mark(tr, 'f60');
+      const tds = [...tr.children];
+      // Reading, an included row carries no figure boxes at all; editing, its boxes stay blank.
+      for (let c = 2; c <= 7; c++) { const g = tds[c].querySelector('.gv'); if (g && /^[\u2014\u2013-]$/.test(text(g))) g.remove(); }
+      if (variant === 'indent' || variant === 'indent-marker') tds[1].classList.add('v36-incl-indent');
+      if (variant === 'marker' || variant === 'indent-marker') {
+        const note = document.createElement('td'); note.colSpan = 5; note.className = 'v36-incl-note'; note.textContent = tr.dataset.v36Included;
+        tds[3].replaceWith(note); for (let c = 4; c <= 7; c++) tds[c].remove();
+      }
+    }
+    return true;
+  }, { variable: 'incl', options: ['today', 'indent', 'marker', 'indent-marker'] });
+
   window.v36Findings = F;
 })();
 </script><script>// v36 mockup only: draws the captured Case page frames as today and as the
@@ -25821,6 +25848,38 @@ We appreciate your instructions and enclose our fee note for your kind attention
     return root;
   }
 
+  // Fixture (9 October 2026): the captured spec was typed by hand, so three of
+  // Glass's included operations are added under its first line, as the XML
+  // import lands them (FRD-25, 29 September 2026): an Other line with neither
+  // hours nor a price, its note "Included in row 1; no separate charge." kept
+  // on the line and never shown. The first line is relabelled as imported.
+  function includedFixture(root) {
+    const table = root.querySelector('#section-estimate table');
+    const first = table && table.querySelector('tbody tr[data-estimate-line]');
+    if (!first) return;
+    const tag = first.querySelector('.src-tag'); if (tag) tag.textContent = 'imported \u00b7 GL';
+    const names = ['Bonnet \u00b7 remove and refit', 'Bonnet \u00b7 disconnect and reconnect', 'Headlamp \u00b7 remove and refit (L)'];
+    let after = first;
+    names.forEach((desc, i) => {
+      const tr = first.cloneNode(true);
+      tr.dataset.v36Included = 'Included in row 1; no separate charge.';
+      const sel = tr.querySelector('select'); if (sel) for (const o of sel.options) o.selected = o.value === 'Other';
+      const tds = [...tr.children];
+      const opGv = tds[0].querySelector('.gv'); if (opGv) opGv.textContent = 'Other';
+      const d = tr.querySelector('input[name="lineDescription"]'); if (d) d.value = desc; else { const g = tds[1].querySelector('.gv'); if (g) g.textContent = desc; }
+      for (let c = 2; c <= 7; c++) {
+        const inp = tds[c].querySelector('input'); if (inp) { inp.value = ''; inp.classList.remove('viol'); inp.removeAttribute('title'); }
+        const g = tds[c].querySelector('.gv'); if (g) { g.textContent = '\u2014'; g.classList.remove('viol'); g.removeAttribute('title'); }
+      }
+      tr.querySelectorAll('[id]').forEach((e) => { e.id = `${e.id}-incl${i}`; });
+      tr.querySelectorAll('label[for]').forEach((l) => { l.htmlFor = `${l.htmlFor}-incl${i}`; });
+      const hid = tr.querySelector('input[name="lineId"]'); if (hid) hid.value = `v36-included-${i}`;
+      after.after(tr); after = tr;
+    });
+    const meta = root.querySelector('#section-estimate [data-estimate-meta]');
+    if (meta) meta.textContent = meta.textContent.replace('1 line', '4 lines');
+  }
+
   function busy(root) {
     const targets = [
       ...root.querySelectorAll('[data-next-action] .next-step-go, [data-add-evidence], .wc-row a.btn, .wc-row button.btn, [data-quick-detail] a.btn, .quick-detail a.btn, a.btn.btn--dark'),
@@ -25860,6 +25919,7 @@ We appreciate your instructions and enclose our fee note for your kind attention
     const root = document.importNode(tpl.content, true);
     container.append(root);
     prepare(container);
+    if (state.page === 'case') includedFixture(container);
     // A variable finding's proposal default is its first alternative.
     const effective = { ...opts };
     if (design === 'proposal') for (const f of F) if (f.variable && effective[f.variable] === undefined) effective[f.variable] = f.options[1];
