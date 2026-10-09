@@ -34,4 +34,6 @@ Every choice is also a query string, for example `?design=proposal&state=enginee
 
 ## Status
 
-Stage 1, decided on 9 October 2026 ([v36-notes.md](v36-notes.md) section 9): indent-marker for included operations, select for recorded choices, Get valuation centred at the card's foot, everything else as drawn. Items C, X and AA were settled on the same day ("AI Proposal ready" / "Review AI Proposal"; "Unit (£)" / "Material (£)"; the folder kept as the record). Every item is settled and Stage 2 follows.
+Stage 1, decided on 9 October 2026 ([v36-notes.md](v36-notes.md) section 9): indent-marker for included operations, select for recorded choices, Get valuation centred at the card's foot, everything else as drawn. Items C, X and AA were settled on the same day ("AI Proposal ready" / "Review AI Proposal"; "Unit (£)" / "Material (£)"; the folder kept as the record). Every item is settled.
+
+Stage 2 delivered on 9 October 2026 on the live Case page, with FRD-16, FRD-13 and FRD-25 carrying the decisions. Two parts stayed open, recorded in the notes: item T's catch-up double redraw and first-save recording of untouched defaults, and item W's label for a locked Engineer section, which needs operator-approved copy. Item O landed narrowed: the sub-panel keeps the edit geometry but lists only the applied increases (8 October 2026 ruling).

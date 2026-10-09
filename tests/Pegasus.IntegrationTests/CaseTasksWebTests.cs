@@ -133,13 +133,16 @@ public sealed class CaseTasksWebTests
         var storage = page.IndexOf("value=\"StorageLocation\"", StringComparison.Ordinal);
         var previous = page.IndexOf("value=\"PreviousAddress\"", StringComparison.Ordinal);
         var manual = page.IndexOf("value=\"ManualEntry\"", StringComparison.Ordinal);
-        Assert.True(imageBased >= 0 && imageBased < claimant && claimant < repairer && repairer < storage
-            && storage < previous && previous < manual);
-        var repairerOption = WebUtility.HtmlDecode(
-            page[repairer..page.IndexOf("</option>", repairer, StringComparison.Ordinal)]);
-        // A choice the Case can take is offered plainly; one it cannot is absent,
-        // never disabled with a suffix (v36 item H, 9 October 2026).
-        Assert.DoesNotContain("disabled", repairerOption, StringComparison.Ordinal);
+        // A choice the Case can take is offered plainly, in the resolution's
+        // order; one it cannot take (this Case records no claimant or repairer
+        // address) is absent, never disabled with a suffix (v36 item H,
+        // 9 October 2026).
+        Assert.True(imageBased >= 0 && imageBased < storage && storage < previous && previous < manual);
+        Assert.Equal(-1, claimant);
+        Assert.Equal(-1, repairer);
+        var storageOption = WebUtility.HtmlDecode(
+            page[storage..page.IndexOf("</option>", storage, StringComparison.Ordinal)]);
+        Assert.DoesNotContain("disabled", storageOption, StringComparison.Ordinal);
         Assert.DoesNotContain(" · not recorded", page, StringComparison.Ordinal);
     }
 

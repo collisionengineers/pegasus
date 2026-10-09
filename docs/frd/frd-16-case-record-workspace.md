@@ -508,9 +508,10 @@ unavailable. Contact an administrator or report a problem." on its card from
 the start, as one quiet line under its figures rather than a notice box
 (operator, 9 October 2026), and offers no Get valuation (28 September 2026,
 kept 8 October 2026); a connected source that cannot answer shows the same
-sentence as its notice when pressed. Reading draws the Value increases, the
-deductions and the Calculation line in the same geometry as editing, greyed,
-so entering edit grows nothing (operator, 9 October 2026).
+sentence as its notice when pressed. Reading keeps the Value increases
+sub-panel, the deductions and the Calculation line in the same geometry as
+editing, greyed, so entering edit grows nothing (operator, 9 October 2026);
+the sub-panel still lists only what the calculation applied (8 October 2026).
 A card has no Save of its own (23 September 2026): each save records
 every card whose figures changed, a card left blank or unchanged records
 nothing, and the same source and month replaces the earlier card; a typed

@@ -312,14 +312,22 @@ public sealed partial class AssessmentReportDraftWebTests
 
         var html = await EnterEditModeAsync(client, caseId);
 
-        Assert.Contains("checked=\"checked\"", AttachChoice(html, CaseReportArtifactKind.AssessmentReport), StringComparison.Ordinal);
+        // The report is always attached: a ticked value with its hidden field,
+        // not a disabled control (v36 item Z, 9 October 2026).
+        var report = AttachChoice(html, CaseReportArtifactKind.AssessmentReport);
+        Assert.StartsWith("<span class=\"choice is-static\"", report, StringComparison.Ordinal);
+        Assert.Contains("data-on=\"true\"", report, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<input type=\"hidden\" name=\"attach\" value=\"{CaseReportArtifactKind.AssessmentReport}\" />",
+            html,
+            StringComparison.Ordinal);
         Assert.Contains("checked=\"checked\"", AttachChoice(html, CaseReportArtifactKind.FeeNote), StringComparison.Ordinal);
         Assert.DoesNotContain("checked", AttachChoice(html, CaseReportArtifactKind.RepairSpecification), StringComparison.Ordinal);
         Assert.DoesNotContain("data-generate-report", html, StringComparison.Ordinal);
     }
 
     private static string AttachChoice(string html, CaseReportArtifactKind kind) =>
-        Regex.Match(html, $"<input[^>]*data-report-attach-choice=\"{kind}\"[^>]*>").Value is { Length: > 0 } input
+        Regex.Match(html, $"<(?:input|span)[^>]*data-report-attach-choice=\"{kind}\"[^>]*>").Value is { Length: > 0 } input
             ? input
             : throw new Xunit.Sdk.XunitException($"No Attach choice for {kind}.");
 

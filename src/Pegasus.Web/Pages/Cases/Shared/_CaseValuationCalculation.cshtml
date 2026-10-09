@@ -50,10 +50,11 @@
     // every active preset, then Add 20 % VAT, then the custom rows the
     // calculator offers. Read mode lists only what the recorded calculation applied.
     var vatApplied = recorded is { Calculation.CommercialVatApplied: true };
-    // Reading draws the same rows as editing, greyed, with a mark on each applied
-    // one, so entering edit grows nothing (v36 item O, 9 October 2026); a blank
-    // custom row has nothing to read and is left out.
-    var readRows = Model.ValuationIncreaseRows.Where(row => row.PresetId != Guid.Empty || row.Selected).ToArray();
+    // Reading keeps the sub-panel and the Calculation line in the edit geometry,
+    // greyed, so entering edit grows nothing (v36 item O, 9 October 2026), and
+    // lists only what the calculation applied: an unticked preset with an amount
+    // reads as part of the figure (operator, 8 October 2026).
+    var readRows = Model.ValuationIncreaseRows.Where(row => row.Selected).ToArray();
 
     string Money(decimal value) => ValuationCalculationPolicy.FormatMoney(value);
 
@@ -133,10 +134,9 @@
                 }
                 else
                 {
-                    @* Read mode draws every row the calculation opens on, greyed,
-                       with a tick (a mark, not a control) on each one the
-                       recorded calculation applied. *@
-                    var readVatDrawn = false;
+                    @* Read mode lists what the recorded calculation applied, each
+                       with a tick (a mark, not a control), in the rows' edit order. *@
+                    var readVatDrawn = !vatApplied;
                     foreach (var row in readRows)
                     {
                         if (row.PresetId == Guid.Empty && !readVatDrawn)
@@ -144,8 +144,8 @@
                             readVatDrawn = true;
                             ReadVatRow(vatApplied, recorded);
                         }
-                        <div class="add @(row.Selected ? "on" : "is-static")" data-valuation-applied-addition="@(row.Selected ? "true" : "false")">
-                            <span class="add-check">@if (row.Selected) {<svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span class="sr-only">@ValuationLabels.Applied</span>}</span>
+                        <div class="add on" data-valuation-applied-addition="true">
+                            <span class="add-check"><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span class="sr-only">@ValuationLabels.Applied</span></span>
                             <span>@row.Label</span>
                             <span class="amt">@(row.Amount is { } amount ? Money(amount) : "—")</span>
                         </div>
