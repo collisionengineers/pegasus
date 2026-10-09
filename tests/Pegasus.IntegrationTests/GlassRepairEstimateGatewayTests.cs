@@ -309,7 +309,7 @@ public sealed class GlassRepairEstimateGatewayTests
     [InlineData("GET /index/create-new-vehicle", GlassFailure.VehicleRequest)]
     [InlineData("POST /ere/start-ere", GlassFailure.StartRequest)]
     [Trait("Category", "SqlServer")]
-    public async Task OversizedWriteResponsesRemainUnknownAndReservedAfterRestartAndExpiry(string path, string failureCode)
+    public async Task OversizedWriteResponsesRemainUnknownAndReservedAcrossRestartAndLaterPresses(string path, string failureCode)
     {
         await using var database = await GlassRepairEstimatePersistenceTests.Harness.CreateAsync();
         var harness = Harness.Create(store: database.NewStore(), caseId: database.CaseId,
@@ -334,8 +334,9 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(GlassRepairEstimateSessionConflict.ActiveAccount, refusal.Conflict);
         Assert.Equal(creates, harness.Mva.Count("GET /index/create-new-vehicle"));
         // A start that went unanswered is asked again on the vehicle the
-        // session recorded; a vehicle that was never recorded is not.
-        Assert.Equal(starts * 2, harness.Mva.Count("POST /ere/start-ere"));
+        // session recorded at every press, however much later, since a
+        // session has no lifetime; a vehicle that was never recorded is not.
+        Assert.Equal(starts * 3, harness.Mva.Count("POST /ere/start-ere"));
         Assert.Equal(1, await database.SessionCountAsync());
     }
 
