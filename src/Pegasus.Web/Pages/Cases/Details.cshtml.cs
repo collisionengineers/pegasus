@@ -742,10 +742,6 @@ public sealed partial class DetailsModel(
             EngineerValue,
             SalvageValueFigure);
 
-    /// <summary>The repair reserve the Current repair specification implies (v28 P30), or null.</summary>
-    public decimal? ComputedRepairReserve =>
-        SettlementPolicy.ComputedRepairReserve(RepairCostIncVat, RecordedOutcome);
-
     /// <summary>The selected specification's frozen versions, oldest first (v28 P43).</summary>
     public IReadOnlyList<RepairSpecificationSnapshot> SelectedEstimateSnapshots { get; private set; } = [];
 

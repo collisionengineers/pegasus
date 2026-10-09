@@ -460,6 +460,7 @@ public sealed class CaseWorkflowMigrationTests
                 "20261008174505_CaseListPresets",
                 "20261009100000_MergeDisputesIntoQueries",
                 "20261009120000_DropGlassSessionExpiry",
+                "20261009120000_RemoveUnprintedAssessmentFields",
                 "20261009120000_WorkCentreActivityIndexes"
             ],
             await context.Database.GetPendingMigrationsAsync());

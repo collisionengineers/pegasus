@@ -129,26 +129,8 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.SalvageValue] = "Salvage value",
             [AssessmentVocabulary.LegalStatus] = "Roadworthiness",
             [AssessmentVocabulary.UnroadworthyReason] = "Unroadworthy reason",
-            [AssessmentVocabulary.VehicleTemporaryRepairsPossible] = "Temporary repairs possible",
-            [AssessmentVocabulary.VehicleTemporaryRepairMethod] = "Temporary repair method",
-            [AssessmentVocabulary.VehicleTemporaryRepairCost] = "Temporary repair cost",
-            [AssessmentVocabulary.SettlementExcess] = "Excess",
-            [AssessmentVocabulary.SettlementBetterment] = "Betterment",
             [AssessmentVocabulary.SettlementClaimantVatRegistered] = "Claimant VAT registered",
-            [AssessmentVocabulary.SettlementReserve] = "Reserve",
-            [AssessmentVocabulary.SettlementRepairDelays] = "Repair delays",
-            [AssessmentVocabulary.SettlementReportDelay] = "Report delay",
-            [AssessmentVocabulary.SettlementHireStart] = "Hire start",
-            [AssessmentVocabulary.SettlementHireDailyCost] = "Hire daily cost",
-            [AssessmentVocabulary.SettlementDiminution] = "Diminution",
             [AssessmentVocabulary.SettlementContractSum] = "Agreed contract sum",
-            [AssessmentVocabulary.SettlementSalvageAt] = "Salvage location",
-            [AssessmentVocabulary.SettlementSalvageAgent] = "Salvage agent",
-            [AssessmentVocabulary.SettlementSalvageAgentReference] = "Salvage agent reference",
-            [AssessmentVocabulary.SettlementSalvageMoved] = "Salvage moved",
-            [AssessmentVocabulary.SettlementSalvageOwnerRetains] = "Owner retains salvage",
-            [AssessmentVocabulary.SettlementSalvageValueAgreed] = "Salvage value agreed",
-            [AssessmentVocabulary.SettlementSalvageSettled] = "Salvage settled"
         };
 
         /// <summary>
@@ -184,20 +166,7 @@ public static class CaseWorkspaceLabels
 
         public static IReadOnlyDictionary<string, string> Damage { get; } = new Dictionary<string, string>
         {
-            [AssessmentVocabulary.DamageTyreRightFront] = "Right-front tyre",
-            [AssessmentVocabulary.DamageTyreLeftFront] = "Left-front tyre",
-            [AssessmentVocabulary.DamageTyreRightRear] = "Right-rear tyre",
-            [AssessmentVocabulary.DamageTyreLeftRear] = "Left-rear tyre",
-            [AssessmentVocabulary.DamageBeltRightFront] = "Right-front belt",
-            [AssessmentVocabulary.DamageBeltLeftFront] = "Left-front belt",
-            [AssessmentVocabulary.DamageBeltRightRear] = "Right-rear belt",
-            [AssessmentVocabulary.DamageBeltLeftRear] = "Left-rear belt",
-            [AssessmentVocabulary.DamageSpareTyre] = "Spare tyre",
-            [AssessmentVocabulary.DamageCentreBelt] = "Centre belt",
             [AssessmentVocabulary.DamageUnrelated] = "Unrelated damage",
-            [AssessmentVocabulary.DamageUnrelatedDeduction] = "Unrelated-damage deduction",
-            [AssessmentVocabulary.DamageMaterialTransfer] = "Material transfer",
-            [AssessmentVocabulary.VehicleAirbagsDeployed] = "Airbags deployed"
         };
 
         /// <summary>
@@ -313,7 +282,6 @@ public static class CaseWorkspaceLabels
         public const string Note = "Note";
         public const string NoNote = "No note";
         public const string Remove = "Remove";
-        public const string TyresAndBelts = "Tyres & seat belts";
         public const string Multiple = "Multiple";
         public const string OtherAreas = "Other vehicle areas";
 
@@ -361,12 +329,8 @@ public static class CaseWorkspaceLabels
         public const string ExceedsEngineersValue = "Exceeds Engineer's Value";
         public const string FromCurrentEstimate = "From current repair spec";
         public const string SetInValuationMeta = "Set in Valuation";
-        public const string CostsHireDelays = "Costs, hire & delays";
         public const string Salvage = "Salvage";
-        public const string StorageCharge = "Storage charge";
         public const string NotApplicable = "Not applicable";
-        public const string ComputedRepairReserve = "Repair reserve (computed)";
-        public const string RoundedUpToFifty = "repair cost rounded up to the next \u00a350";
         public const string SalvageShare = "Salvage value as a percentage of the Engineer\u2019s Value";
         public const string ReasonBank = "Reason bank";
         public const string SaveWordingToTheBank = "Save this wording to the bank";

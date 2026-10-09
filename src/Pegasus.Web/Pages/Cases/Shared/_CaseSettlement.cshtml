@@ -1,14 +1,13 @@
 @*
-    Decisions (v26 § Settlement, renamed by v28 P26). The figures strip, then
-    the Decisions strip with its radio groups (v28 P29: the select stays the
-    posted control and the buttons drive it, so the live show-and-hide rules
-    still fire), the salvage share slider (P14), the firm's unroadworthy
-    reason bank (P15), the temporary repair rows for an unroadworthy vehicle,
-    the computed repair reserve (P30) and the "Salvage · Not applicable" line
-    (P29) while the outcome is not a total loss. Then the settlement money,
-    the costs/hire/delays sub-panel and the seven salvage fields. One geometry
-    for read and edit: every editable value is a .fc cell whose control joins
-    the record's one Save form.
+    Decisions (v26 § Settlement, renamed by v28 P26). The Decisions strip
+    with its selects (v36 item J), the salvage share slider (P14), the firm's
+    unroadworthy reason bank (P15) and the "Salvage · Not applicable" line
+    (P29) while the outcome is not a total loss; then the agreed contract
+    sum, labour hours, storage per day and the recovery charge. The facts no
+    document printed (the salvage logistics, excess, betterment, the costs,
+    hire and delays, temporary repairs) are gone (operator, 9 October 2026).
+    One geometry for read and edit: every editable value is a .fc cell whose
+    control joins the record's one Save form.
 *@
 @using System.Globalization
 @using System.Text.Json
@@ -22,20 +21,14 @@
     var editing = Model.SectionIsEditable("settlement");
     var labels = CaseWorkspaceLabels.Editors.Settlement;
     var engineerValue = Model.EngineerValue;
-    var repairCost = Model.RepairCostIncVat;
-    var salvage = Model.SalvageValueFigure;
     var isTotalLoss = Model.IsTotalLoss;
     var isUnroadworthy = Model.IsUnroadworthy;
     var outcome = Model.RecordedOutcome;
-    var equity = engineerValue is { } ev ? ev - (salvage ?? 0m) : (decimal?)null;
 
     string Money(decimal? value) => value is { } figure ? Pegasus.Web.Pages.Cases.DetailsModel.FormatPounds(figure) : "—";
-
-    var computedReserve = Model.ComputedRepairReserve;
 }
 
 <section class="record-section panel @Model.CollapsedClass("case.settlement") @(Model.IsEditing && !Model.SectionIsEditable("settlement") ? "is-locked" : null)" id="section-settlement" data-section="settlement" data-collapse="case.settlement" aria-labelledby="section-settlement-title"
-         data-settlement-repair-cost="@(repairCost?.ToString("0.##", CultureInfo.InvariantCulture))"
          data-settlement data-settlement-outcome="@outcome" data-settlement-editable="@(editing ? "true" : "false")">
     <div class="panel-head">
         <h2 id="section-settlement-title">@EngineerLabels.Settlement</h2>
@@ -46,7 +39,7 @@
     <div class="panel-body stack">
         @* No figures strip: the aside's Figures card is the home of the repair
            cost, the Engineer's Value and their ratio (v36 item I, 9 October
-           2026). Labour hours reads as a cell beside Excess below. *@
+           2026). Labour hours reads as a cell beside the contract sum below. *@
 
         <div class="decisions" data-decisions>
             <div class="dec-head">
@@ -95,19 +88,10 @@
                     </div>
                 }
             </div>
-            @* Temporary repairs are the unroadworthy vehicle's: they follow the reason and
-               show only while Roadworthiness is Unroadworthy, as the salvage rows show
-               only on a total loss (operator, 24 September 2026). *@
-            @{ await DecisionRow(AssessmentVocabulary.VehicleTemporaryRepairsPossible, labels[AssessmentVocabulary.VehicleTemporaryRepairsPossible], !isUnroadworthy, "unroadworthy");
-                await DecisionRow(AssessmentVocabulary.VehicleTemporaryRepairMethod, labels[AssessmentVocabulary.VehicleTemporaryRepairMethod], !isUnroadworthy, "unroadworthy");
-                await DecisionRow(AssessmentVocabulary.VehicleTemporaryRepairCost, labels[AssessmentVocabulary.VehicleTemporaryRepairCost], !isUnroadworthy, "unroadworthy");
-            }
         </div>
 
         <div class="fg g4">
-            @{ await Field(AssessmentVocabulary.SettlementExcess, labels[AssessmentVocabulary.SettlementExcess]);
-                await Field(AssessmentVocabulary.SettlementBetterment, labels[AssessmentVocabulary.SettlementBetterment]);
-                @* The agreed contract sum (v28 P35) is a decision, recorded
+            @{ @* The agreed contract sum (v28 P35) is a decision, recorded
                    here; the Repair Spec bar ties to this one control. *@
                 await Field(AssessmentVocabulary.SettlementContractSum, labels[AssessmentVocabulary.SettlementContractSum]);
             }
@@ -115,46 +99,12 @@
                 <span class="lbl">@SettlementLabels.LabourHours</span>
                 <div class="fv mono derived @(Model.LabourHours is null ? "empty" : null)">@(Model.LabourHours is { } hours ? hours.ToString("0.00", CultureInfo.InvariantCulture) : OperatorLabels.CaseWorkspace.AbsentValue)</div>
             </div>
-        </div>
-
-        <div class="sub-panel @Model.CollapsedClass("case.settlement.costs")" data-collapse="case.settlement.costs"><h3>@SettlementLabels.CostsHireDelays <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.settlement.costs")" /></h3>
-            <div class="fg g4">
-                <div class="fc ro" data-settlement-computed-reserve>
-                    <span class="lbl">@SettlementLabels.ComputedRepairReserve</span>
-                    <div class="fv mono derived @(computedReserve is null ? "empty" : null)"
-                         data-settlement-computed-reserve-value
-                         data-not-applicable="@SettlementLabels.NotApplicable"
-                         data-rounded-up="@SettlementLabels.RoundedUpToFifty">@(computedReserve is { } reserve ? Money(reserve) + " (" + SettlementLabels.RoundedUpToFifty + ")" : SettlementLabels.NotApplicable)</div>
-                </div>
-                @{ await Field(AssessmentVocabulary.SettlementReserve, labels[AssessmentVocabulary.SettlementReserve]);
-                    await Field(AssessmentVocabulary.SettlementDiminution, labels[AssessmentVocabulary.SettlementDiminution]);
-                    await Field(AssessmentVocabulary.SettlementHireStart, labels[AssessmentVocabulary.SettlementHireStart]);
-                    await Field(AssessmentVocabulary.SettlementHireDailyCost, labels[AssessmentVocabulary.SettlementHireDailyCost]);
-                }
-                <div class="fc ro"><span class="lbl">@SettlementLabels.StorageCharge</span><div class="fv mono derived @(Model.AssessmentIsAbsent(AssessmentVocabulary.CostStorageCharge) ? "empty" : null)">@Model.AssessmentDisplay(AssessmentVocabulary.CostStorageCharge)</div></div>
-                @* Storage per day and the recovery charge are Engineer figures and
-                   live with the other costs (v36 item G, 9 October 2026); Inspection
-                   details keeps the storage location alone. The two multi-line
-                   delays take a row of their own (f36). *@
-                @{ await MoneyCell(AssessmentVocabulary.SettlementStoragePerDay, "storagePerDay", "edit-storage-per-day", CaseWorkspaceLabels.Inspection.StoragePerDay);
-                    await MoneyCell(AssessmentVocabulary.CostRecoveryCharge, "recoveryCharge", "edit-recovery-charge", EngineerLabels.RecoveryCharge);
-                    await Field(AssessmentVocabulary.SettlementRepairDelays, labels[AssessmentVocabulary.SettlementRepairDelays], extraClass: "span2");
-                    await Field(AssessmentVocabulary.SettlementReportDelay, labels[AssessmentVocabulary.SettlementReportDelay], extraClass: "span2");
-                }
-            </div>
-        </div>
-
-        <div class="sub-panel @Model.CollapsedClass("case.settlement.salvage")" data-shown-when="total-loss" hidden="@(isTotalLoss ? null : "hidden")" data-collapse="case.settlement.salvage"><h3>@SettlementLabels.Salvage <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.settlement.salvage")" /></h3>
-            <div class="fg g4">
-                @{ await Field(AssessmentVocabulary.SettlementSalvageAt, labels[AssessmentVocabulary.SettlementSalvageAt]);
-                    await Field(AssessmentVocabulary.SettlementSalvageAgent, labels[AssessmentVocabulary.SettlementSalvageAgent]);
-                    await Field(AssessmentVocabulary.SettlementSalvageAgentReference, labels[AssessmentVocabulary.SettlementSalvageAgentReference]);
-                    await Field(AssessmentVocabulary.SettlementSalvageMoved, labels[AssessmentVocabulary.SettlementSalvageMoved]);
-                    await Field(AssessmentVocabulary.SettlementSalvageOwnerRetains, labels[AssessmentVocabulary.SettlementSalvageOwnerRetains]);
-                    await Field(AssessmentVocabulary.SettlementSalvageValueAgreed, labels[AssessmentVocabulary.SettlementSalvageValueAgreed]);
-                    await Field(AssessmentVocabulary.SettlementSalvageSettled, labels[AssessmentVocabulary.SettlementSalvageSettled]);
-                }
-            </div>
+            @* Storage per day and the recovery charge are Engineer figures recorded
+               in Decisions (v36 item G, 9 October 2026); Inspection details keeps
+               the storage location alone. *@
+            @{ await MoneyCell(AssessmentVocabulary.SettlementStoragePerDay, "storagePerDay", "edit-storage-per-day", CaseWorkspaceLabels.Inspection.StoragePerDay);
+                await MoneyCell(AssessmentVocabulary.CostRecoveryCharge, "recoveryCharge", "edit-recovery-charge", EngineerLabels.RecoveryCharge);
+            }
         </div>
     </div>
 </section>

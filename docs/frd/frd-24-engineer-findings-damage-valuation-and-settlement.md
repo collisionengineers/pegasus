@@ -120,20 +120,18 @@ with no number and not clipped, so it may spill past the vehicle's outline;
 the burst is only its picture, and the disc alone decides the areas. The
 workspace and the report draw alike.
 
-The record also carries tyres and seat belts per corner, the spare tyre, the
-centre belt, which airbags deployed in the Engineer's words (for example
-`None` or `Driver and passenger front`, recorded under Tyres & seat belts),
-unrelated damage with its deduction, and paint or material transfer.
-`impact_location` and `impact_severity` are derived from the areas by
-`Pegasus.Core`, never typed in: one distinct area reads as itself, more read
-Multiple.
+The record also carries the unrelated damage. `impact_location` and
+`impact_severity` are derived from the areas by `Pegasus.Core`, never typed
+in: one distinct area reads as itself, more read Multiple.
 
 The report prints the marked diagram, which is the Case page's own plan, and
-no damage or tyre table (operator, 27 September 2026). Tyres, seat belts,
-airbags, the unrelated-damage deduction and paint or material transfer are
-recorded on the Case and not printed. Unrelated damage prints as its own
-paragraph when its switch is on
+no damage or tyre table (operator, 27 September 2026). Unrelated damage
+prints as its own paragraph when its switch is on
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-wording-blocks)).
+The tyres and seat belts per corner, the spare tyre, the centre belt, the
+airbags deployed, the unrelated-damage deduction and paint or material
+transfer are no longer recorded (operator, 9 October 2026): no document
+printed them, and the v27 Case dashboard mockup carries none of them.
 
 ### Valuation sources
 
@@ -280,11 +278,14 @@ revaluation-history scope needs its own accepted contract.
 ### Settlement
 
 The settlement fields are outcome, category, salvage value, roadworthiness
-and the unroadworthy reason, for an unroadworthy vehicle whether temporary
-repairs are possible with their method and cost, excess, betterment,
-claimant VAT registered, reserve, equity (derived), repair delays, report
-delay, storage per day, recovery, hire start and daily cost, diminution, and
-salvage logistics. Equity is derived, never typed in.
+and the unroadworthy reason, the agreed contract sum, claimant VAT
+registered, storage per day and recovery. Equity is derived, never typed in.
+Temporary repairs, excess, betterment, reserve, repair delays, report delay,
+hire start and daily cost, diminution, the lump storage charge and the
+salvage logistics (location, agent, agent reference, moved, owner retains,
+value agreed, settled) are no longer recorded (operator, 9 October 2026): no
+document printed them, and the v27 Case dashboard mockup carries none of
+them.
 Financial ratio lines are allowed, not required; the "no percentage" rule in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review) applies
 only to completeness. Outcome meanings are owned by
@@ -303,14 +304,11 @@ control, so a browser without script picks the same value from it. Salvage
 value carries a slider reading the share of the Engineer's Value, with 5,
 10, 15, 20 and 25 % snaps: the amount and the share are one fact and the
 last touch wins. While the outcome is not a total loss the salvage rows are
-absent and a "Salvage · Not applicable" line stands in their place. While
-Roadworthiness is Unroadworthy, Temporary repairs possible (Yes or No),
-Temporary repair method and Temporary repair cost follow the unroadworthy
-reason; otherwise they are absent (operator, 24 September 2026). They are
-recorded on the Case and not printed on the report (operator, 27 September
-2026). Beside the typed reserve, a computed **Repair reserve** reads the
-Current repair specification's VAT-inclusive cost rounded up to the next £50
-on a Repairable outcome, and Not applicable otherwise; it is never written.
+absent and a "Salvage · Not applicable" line stands in their place. Below
+the strip stand the agreed contract sum, labour hours (read-only, from the
+Current repair spec), storage per day and the recovery charge; there is no
+Costs, hire & delays sub-panel, no Salvage sub-panel and no computed repair
+reserve (operator, 9 October 2026).
 
 **The salvage matrix (operator, 29 September 2026).** When the Case's
 Principal has a salvage matrix
@@ -336,8 +334,7 @@ print on the assessment report, so they are report wording. Nothing deletes
 a wording.
 
 Settlement saves with the Case's single workspace Save. Storage per day and
-recovery use the existing typed Inspection members; a lump storage charge is
-a separate fact. The repair total is read from the Current repair
+recovery use the existing typed Inspection members. The repair total is read from the Current repair
 specification; repair days are no longer recorded (v28 P32). Equity
 uses the report's existing calculation over accepted inputs and is absent
 when those inputs are incomplete, never a made-up zero.
@@ -418,8 +415,7 @@ a staff member holds the edit lease. Web tests cover the guide cards in both
 modes, the chosen card's Selected word, no Retail or Trade box, and the
 calculation standing once below every card. Core tests cover the
 salvage matrix's rules, band lookup, rounding and when a value follows the
-matrix. Web tests cover Airbags deployed and
-the temporary repair rows in read and edit and through the Case Save, and
+matrix. Web tests cover
 the salvage matrix handed to the Case only while it edits. Integration tests
 cover Glass's Get valuation against the scripted provider — its figures, month,
 mileage and stock save, every failure answering the notice and a vehicle

@@ -97,7 +97,9 @@ Important ownership decisions:
 - Case details contains the Notes band/current overview facts, not a second Notes timeline.
 - Claim contains claimant and claim facts; Original report belongs only to Audit Cases.
 - Inspection owns inspection and storage-location details; Storage per day and Recovery charge are
-  Engineer figures recorded in Decisions' Costs, hire & delays (operator, 9 October 2026).
+  Engineer figures recorded in Decisions (operator, 9 October 2026). Decisions has no Costs, hire &
+  delays or Salvage sub-panel, and no temporary repair rows: the facts no document printed are no
+  longer recorded (operator, 9 October 2026).
 - Vehicle owns one accepted mileage field with provenance rows, not multiple competing mileage boxes.
 - Damage owns the Plan damage clicker and engineering damage facts.
 - Valuation owns the guide cards, the valuation calculation, the Engineer's Value box and the On the report content switches.
