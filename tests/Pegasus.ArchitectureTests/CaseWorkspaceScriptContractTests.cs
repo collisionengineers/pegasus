@@ -130,6 +130,25 @@ public sealed class CaseWorkspaceScriptContractTests
     }
 
     /// <summary>
+    /// A tag or In report can clear the last report blocker, so the Report's head
+    /// offers Generate report with no reload (operator, 9 October 2026): a landed
+    /// tile-changing document action asks for the same redraw a landed save does.
+    /// </summary>
+    [Fact]
+    public void ALandedDocumentActionRedrawsTheSectionsAsASaveDoes()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        var action = FunctionBody(script, "function submitDocumentAction(form, submitter) {", "    ");
+        Assert.Contains(
+            "if (changesTile && incoming.getAttribute('data-case-editing') === 'true') { redrawWanted = true; }",
+            action,
+            StringComparison.Ordinal);
+        Assert.Contains("settleQueue();", action, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Choosing a repair spec keeps the page where it is (operator, 1 October 2026).
     /// A spec tab, New repair spec and Compare's From and To redraw only the Repair
     /// Spec section and the dialogs drawn after it, never navigating to the page top
