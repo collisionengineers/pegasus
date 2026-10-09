@@ -12,7 +12,7 @@
 - Mode: Read or Edit, where the state has an edit frame; Layout: Scroll or Tabs; Section: land on a section
 - Widgets: Diff (outline and number every region the proposal changed, with a legend), Split (Today and Proposal side by side at half size), Ruler (outline every control by its height: 36 green, 32 blue, 40 grey, 22–30 red), Busy (the pressed state of the navigating link buttons), Flicker (the ribbon and aside drawn twice after a save), Landing (where a Workflow action returns the reader: top, or the section)
 - Dialog by name; the viewer on image 1
-- One switch per finding, grouped by surface, with its tier (a: alignment inside the contract; b: lettered for sign-off; c: behaviour), and the operator's three items as choices: Get valuation (today, head-link, foot, inline), "Not recorded" (today, box, segments-none, select), the spec grid (today, aligned, prefix)
+- One switch per finding, grouped by surface, with its tier (a: alignment inside the contract; b: lettered for sign-off; c: behaviour), and the operator's three items as choices: Get valuation (today, foot, head-link, inline), "Not recorded" (today, box, segments-none, select), the spec grid (today, aligned, prefix)
 
 Every choice is also a query string, for example `?design=proposal&state=engineer&mode=edit&section=valuation&opt=getval:foot&diff=1`.
 

@@ -147,10 +147,16 @@ def main():
                 r = load(f"design=proposal&state={hit[0]}&mode={hit[1]}&opt={f['id']}:off")
                 check(f"{f['id']} switches off", f['id'] not in r['applied'] and f['id'] not in r['changed'])
         # Operator variants.
-        for opt in ['head-link', 'foot', 'inline']:
+        for opt in ['foot', 'head-link', 'inline']:
             r = load(f'design=proposal&state=engineer&mode=edit&opt=getval:{opt}')
             n = page.locator('[data-valuation-card="glasses"] :is(.btn, .link-button):has-text("Get valuation")').count()
             check(f'getval {opt} draws one Get valuation on Glass\'s', n == 1, n)
+            check(f'getval {opt} moves the AI card button too', page.locator('.valuation-card-head .btn:has-text("Get valuation")').count() == 0)
+        r = load('design=proposal&state=engineer&mode=edit')
+        check('proposal default moves Get valuation out of the head', page.locator('.valuation-card-head .btn:has-text("Get valuation")').count() == 0 and page.locator('.v36-getval-foot').count() >= 1)
+        check('proposal drops the blocker how line', page.locator('[data-next-action] .next-step-how').count() == 0)
+        r = load('design=today&state=engineer&mode=edit')
+        check('today keeps the blocker how line', page.locator('[data-next-action] .next-step-how').count() == 1)
         for opt in ['box', 'segments-none', 'select']:
             for mode in ['read', 'edit']:
                 r = load(f'design=proposal&state=engineer&mode={mode}&opt=choice:{opt}')
@@ -222,7 +228,7 @@ def main():
                 shot(f'{design}-notready-read-original-report', f'design={design}&state=notready&section=original-report')
                 shot(f'{design}-engineer-read-tabs-vehicle', f'design={design}&state=engineer&layout=tabs&section=vehicle')
                 shot(f'{design}-engineer-read-1440-strip', f'design={design}&state=engineer', 1440, 900)
-            for opt in ['head-link', 'foot', 'inline']:
+            for opt in ['foot', 'head-link', 'inline']:
                 shot(f'getval-{opt}', f'design=proposal&state=engineer&mode=edit&section=valuation&opt=getval:{opt}')
             for opt in ['box', 'segments-none', 'select']:
                 for mode in ['read', 'edit']:

@@ -145,7 +145,10 @@
     const root = document.importNode(tpl.content, true);
     container.append(root);
     prepare(container);
-    const ctx = { state: state.state, mode: hasEdit(state.state) ? state.mode : 'read', opts, design };
+    // A variable finding's proposal default is its first alternative.
+    const effective = { ...opts };
+    if (design === 'proposal') for (const f of F) if (f.variable && effective[f.variable] === undefined) effective[f.variable] = f.options[1];
+    const ctx = { state: state.state, mode: hasEdit(state.state) ? state.mode : 'read', opts: effective, design };
     const applied = [];
     if (state.page === 'case') {
       for (const f of F) {

@@ -27,6 +27,7 @@ Tiers: **a** is alignment inside the existing contract (listed, not lettered); *
 | f07 | Below 1441 the folded strip stretches Figures to Next action's height and leaves Report not ready at half width | Cards keep their own height; Report not ready spans the strip | a | `engineer-read-1440.png`, `notready-read-1440.png` |
 | f08 | Aside heads are 42px beside 51px section heads | 51px | a | `measure-engineer-read.json` (`asideCards`) |
 | f09 | On a Held Case the step reads the word "Held" with a Case details button | The step names the review date and offers Release Hold | b (D) | `held-read-1580.png` |
+| f59 | Every blocker row carries a "how" sentence from Core ("Import an estimate, bring one back from Glass's or add a new repair spec on the Repair Spec section; Use repair spec switches to an existing one.", "Record it on the Vehicle section."): narration (operator, 9 October) | The sentence goes from Next action and the Report not ready card; the requirement, "source · why" and the control remain | b (AB) | `engineer-read-1580.png`, `_CaseAside.cshtml:187,326` |
 
 ### Case details and Claim
 
@@ -61,7 +62,7 @@ Tiers: **a** is alignment inside the existing contract (listed, not lettered); *
 
 | # | Today | Proposal | Tier | Evidence |
 | --- | --- | --- | --- | --- |
-| f25 | Get valuation at the right of the card head over a column of narrow right-aligned boxes (operator, 9 October) | head-link, foot or inline, the operator's choice | b (M) | `engineer-edit-sec-valuation-1580.png` (AI card), the operator's screenshot |
+| f25 | Get valuation at the right of the card head over a column of narrow right-aligned boxes (operator, 9 October) | foot (the proposal's default), head-link or inline, the operator's choice; the AI market research card's head button moves the same way | b (M) | `engineer-edit-sec-valuation-1580.png` (AI card), the operator's screenshot |
 | f26 | Every unconnected card repeats a blue notice "{Source} valuation is unavailable. Contact an administrator or report a problem." while editing: five on one screen | One quiet line under the figures, the approved words | b (N) | `engineer-edit-sec-valuation-1580.png` |
 | f27 | Card boxes are 28px beside 36px cells (sixteen on the ladder) | 32px, the small-control step | a | `measure-engineer-edit.json` (`heights`) |
 | f28 | Reading omits Value increases and the Calculation line (`_CaseValuationCalculation.cshtml:54,81,202`): the section is 590px reading and 913px editing, so Edit grows it by 323px | Reading draws the edit geometry greyed | b (O) | `measure-engineer-read.json` / `-edit.json` (`sections.valuation.h`) |
@@ -167,7 +168,7 @@ Each is "Confirm, or …". Letters are stable; settled items keep their letter w
 - **J** (f34). "Not recorded" is the box's absent word, never a chosen segment: **box**, **segments-none** or **select**. Choose one, or keep today's segment.
 - **K** (f18). Experian is not connected is said once, on the Vehicle history sub-panel. Confirm, or keep the head pill.
 - **L** (f22). The Recorded areas count box goes. Confirm, or keep.
-- **M** (f25). Get valuation: **head-link**, **foot** or **inline**. Choose one, or keep the head as it is.
+- **M** (f25). Get valuation: **foot** (drawn by default), **head-link** or **inline**, on every card that has it. Choose one, or keep the head as it is.
 - **N** (f26). The unconnected-card sentence reads as one quiet line, the approved words unchanged. Confirm, or keep the notice box.
 - **O** (f28). Reading draws Value increases and the deductions in the edit geometry, greyed. Confirm, or keep them edit-only.
 - **P** (f39). The Statement of truth folds under a sub-panel head. Confirm, or keep it open; or say it leaves the page (a Report-content decision).
@@ -182,12 +183,13 @@ Each is "Confirm, or …". Letters are stable; settled items keep their letter w
 - **Y** (f33). Compare and Remove scaling are absent until they can act, not disabled. Confirm, or keep.
 - **Z** (f40). Send report shows in read mode too, its controls greyed, and the attached "Report" tick is a value, not a disabled control. Confirm, or keep it edit-only.
 - **AA**. This folder is removed in the Stage 2 pull request. Confirm, or keep it as the record.
+- **AB** (f59). The blocker "how" sentence goes from every row of Next action and Report not ready (operator's item, raised on the Repair Spec one). Confirm for every row, or only the Repair Spec one. FRD-13 says each blocker shows how it is resolved; it would say the control is the how.
 
 Tier a findings (f01, f02, f03, f06, f07, f08, f10, f12, f14, f19, f20, f21, f23, f24, f27, f29, f36, f38, f43, f45, f46, f55 and the cross-cutting list) are listed for information; say if any should not go to Stage 2.
 
 ## 7. Self-check
 
-`python check-case-walk-v36.py` on 9 October 2026: `RESULT {"fail": [], "okCount": 1005}`, no console error, 134 screenshots ([verification.json](verification.json)). It covers today and the proposal in seven states, read and edit where the state has an edit frame, Scroll and Tabs, at 1580, 1440 and 760; each finding alone and switched off; the operator's variants; the dialogs, the viewer and the widgets. It also records the evidence for f01 (today clips the row at 1440 on the Audit Case and at 760), f14 (today's Address input clips its text) and f28 (today Valuation grows by 148px on Edit; the proposal within 48px, the remainder being the AI research card's head control). This is evidence about the mockup, not the application.
+`python check-case-walk-v36.py` on 9 October 2026: `RESULT {"fail": [], "okCount": 1013}`, no console error, 134 screenshots ([verification.json](verification.json)). It covers today and the proposal in seven states, read and edit where the state has an edit frame, Scroll and Tabs, at 1580, 1440 and 760; each finding alone and switched off; the operator's variants; the dialogs, the viewer and the widgets. It also records the evidence for f01 (today clips the row at 1440 on the Audit Case and at 760), f14 (today's Address input clips its text) and f28 (today Valuation grows by 148px on Edit; the proposal within 48px, the remainder being the AI research card's head control). This is evidence about the mockup, not the application.
 
 ## 8. Known limits
 

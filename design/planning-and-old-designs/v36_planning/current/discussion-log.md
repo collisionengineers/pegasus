@@ -26,6 +26,10 @@ While the round was being planned the operator added three remarks, each with a 
 
 (the Repair Spec line grid: a Glass's-imported line whose figures and headers do not share an alignment, Hours clipped at "0.700(", and the "Unit £" header)
 
+> on the right hand case rail: "Import an estimate, bring one back from Glass's or add a new repair spec on the Repair Spec section; Use repair spec switches to an existing one." remove this text - UI narration / unnapproved copy
+
+(the blocker's "how" sentence in Next action and the Report not ready card; finding f59, item AB)
+
 Asked how to treat findings that are behaviours a static mockup cannot show, the operator chose: list them in the notes with a Stage 2 scope letter, and draw the ones with a visible state as strip toggles in the mockup.
 
 ### What was explored

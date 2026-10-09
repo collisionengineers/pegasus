@@ -41,6 +41,8 @@ Proposed on 9 October 2026; not yet decided. Each rule is one sentence the FRD c
 - D17. Add Case note is a secondary button; a screen shows one red primary. (item Q)
 - D18. The Repair Spec origin line names the person, never an account id. (tier a, no rule change, noted for Stage 2)
 
+- D26. A blocker row on the aside states the requirement, its source and reason, and its control; it carries no sentence saying how to resolve it. (item AB)
+
 ## Behaviour (Stage 2 scope)
 
 - D19. Navigating link buttons (Assign Engineer, Open Triage, Open full Case, Review source, the Next action control, Add evidence, Send chaser, Open report) show the established busy state while the next page loads. (item R)

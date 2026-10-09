@@ -1,7 +1,7 @@
 {
   "date": "2026-10-09",
   "fail": [],
-  "okCount": 1005,
+  "okCount": 1013,
   "shots": [
     "01-today-engineer-read-1580.png",
     "02-today-engineer-read-1440.png",
@@ -107,8 +107,8 @@
     "102-proposal-notready-read-original-report.png",
     "103-proposal-engineer-read-tabs-vehicle.png",
     "104-proposal-engineer-read-1440-strip.png",
-    "105-getval-head-link.png",
-    "106-getval-foot.png",
+    "105-getval-foot.png",
+    "106-getval-head-link.png",
     "107-getval-inline.png",
     "108-choice-box-read.png",
     "109-choice-box-edit.png",

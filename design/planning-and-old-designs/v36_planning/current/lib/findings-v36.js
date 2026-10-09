@@ -182,32 +182,37 @@
   // ---- Valuation -------------------------------------------------------------------
   // f25: the operator's item. Glass's is drawn as a connected card (a fixture
   // departure: the host has no provider), and Get valuation takes the chosen place.
-  add('f25', 'Valuation', 'b', 'Get valuation: head-small / foot / inline (operator, 9 October 2026)', (root, ctx) => {
+  add('f25', 'Valuation', 'b', 'Get valuation: foot / head-link / inline (operator, 9 October 2026)', (root, ctx) => {
     const variant = ctx.opts.getval || 'today';
-    if (ctx.mode !== 'edit') return false;
-    const card = root.querySelector('[data-valuation-card="glasses"]');
-    if (!card) return false;
-    card.querySelector('[data-valuation-not-connected]')?.remove();
-    let btn = card.querySelector('.valuation-card-head .btn');
-    if (!btn) {
-      btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn btn--small';
-      btn.innerHTML = '<span>Get valuation</span>';
-      card.querySelector('.valuation-card-head').append(btn);
+    if (ctx.mode !== 'edit' || variant === 'today') return false;
+    // Glass's is drawn as a connected card (a fixture departure: the host has
+    // no provider); the AI market research card already has the head button.
+    const glasses = root.querySelector('[data-valuation-card="glasses"]');
+    if (glasses && !glasses.querySelector('.valuation-card-head .btn')) {
+      glasses.querySelector('[data-valuation-not-connected]')?.remove();
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn--small'; b.innerHTML = '<span>Get valuation</span>';
+      glasses.querySelector('.valuation-card-head').append(b);
     }
-    mark(card, 'f25');
-    if (variant === 'head-link') {
-      // The head keeps the action as a text link beside the title, not a boxed button over the figures.
-      const link = document.createElement('button'); link.type = 'button'; link.className = 'link-button v36-getval-link'; link.textContent = 'Get valuation';
-      btn.replaceWith(link);
-    } else if (variant === 'foot') { btn.classList.add('v36-getval-foot'); card.querySelector('.valuation-card-figs').after(btn); }
-    else if (variant === 'inline') {
-      // A fourth figure row: the button sits in the box column under Guide month, at the boxes' width.
-      const row = document.createElement('div'); row.className = 'valuation-card-fig v36-getval-inline';
-      const lbl = document.createElement('span'); lbl.className = 'lbl'; lbl.textContent = '';
-      row.append(lbl, btn); card.querySelector('.valuation-card-figs').append(row);
+    let changed = false;
+    for (const card of root.querySelectorAll('.valuation-card')) {
+      const btn = card.querySelector('.valuation-card-head .btn');
+      if (!btn || !/Get valuation/.test(text(btn))) continue;
+      const figs = card.querySelector('.valuation-card-figs');
+      mark(card, 'f25'); changed = true;
+      if (variant === 'head-link') {
+        // The head keeps the action as a text link beside the title, not a boxed button over the figures.
+        const link = document.createElement('button'); link.type = 'button'; link.className = 'link-button v36-getval-link'; link.textContent = 'Get valuation';
+        btn.replaceWith(link);
+      } else if (variant === 'foot') { btn.classList.add('v36-getval-foot'); (figs || card).after ? (figs ? figs.after(btn) : card.append(btn)) : card.append(btn); }
+      else if (variant === 'inline' && figs) {
+        // A fourth figure row: the button sits in the box column under the month, at the boxes' width.
+        const row = document.createElement('div'); row.className = 'valuation-card-fig v36-getval-inline';
+        const lbl = document.createElement('span'); lbl.className = 'lbl'; lbl.textContent = '';
+        row.append(lbl, btn); figs.append(row);
+      }
     }
-    return true;
-  }, { variable: 'getval', options: ['today', 'head-link', 'foot', 'inline'] });
+    return changed;
+  }, { variable: 'getval', options: ['today', 'foot', 'head-link', 'inline'] });
   add('f26', 'Valuation', 'b', 'An unconnected card states the approved sentence as one quiet line, not a blue notice box five times', (root, ctx) => {
     let changed = false;
     for (const note of root.querySelectorAll('.valuation-card-note[data-valuation-not-connected]')) {
@@ -411,6 +416,18 @@
         el.textContent = el.textContent.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i, text(root.querySelector('.ribbon .ribbon-item:last-child .ribbon-value')) || 'the Engineer');
         mark(el, 'f55'); changed = true;
       }
+    }
+    return changed;
+  });
+
+  // The operator (9 October 2026): the blocker's "how" sentence on the aside
+  // ("Import an estimate, bring one back from Glass's or add a new repair
+  // spec on the Repair Spec section; Use repair spec switches to an existing
+  // one.") is narration. The requirement's own control already says where.
+  add('f59', 'Aside · Next action', 'b', 'The blocker rows drop the "how" sentence (narration); the requirement, its source and reason, and its control remain', (root) => {
+    let changed = false;
+    for (const how of root.querySelectorAll('[data-next-action] .next-step-how, [data-report-not-ready] .blocker-how')) {
+      mark(how.parentElement, 'f59'); how.remove(); changed = true;
     }
     return changed;
   });
