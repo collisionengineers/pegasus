@@ -9,7 +9,7 @@ namespace Pegasus.IntegrationTests;
 /// reports are case-linked Sent evidence on the Engineer's cases, queries are
 /// post-report mailbox receipts associated with them (D12), both bounded by
 /// the half-open period, and an association the operator reversed no longer
-/// counts.
+/// counts. Automation's report sends are a row of their own.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class EngineerActivityReportPersistenceTests
@@ -38,7 +38,9 @@ public sealed class EngineerActivityReportPersistenceTests
                 SentOperation(engineerB, To.AddSeconds(-1)),
                 SentOperation(engineerA, To),
                 SentOperation(engineerA, From.AddSeconds(-1)),
-                SentOperation("not-a-staff-id", From.AddDays(5)));
+                SentOperation("not-a-staff-id", From.AddDays(5)),
+                // Item J: Automation's send is its own row, so the total is every send.
+                SentOperation("connector", From.AddDays(6), Pegasus.Core.Identity.ActorKind.Automation));
             context.IntakeReceipts.AddRange(
                 Query(From.AddDays(1), "post-report-emails", caseA, active: true),
                 Query(From.AddDays(2), "post-report-emails", caseA, active: true),
@@ -53,14 +55,13 @@ public sealed class EngineerActivityReportPersistenceTests
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IEngineerActivityQueries>();
 
-        var all = await queries.GetAsync(From, To, null, CancellationToken.None);
-        var onlyB = await queries.GetAsync(From, To, engineerB, CancellationToken.None);
+        var all = await queries.GetAsync(From, To, CancellationToken.None);
 
         Assert.Equal(
             new[] { new EngineerActivityCounts(engineerA, 1, 2), new EngineerActivityCounts(engineerB, 2, 1) }
-                .OrderBy(item => item.EngineerId),
+                .OrderBy(item => item.EngineerId)
+                .Append(new EngineerActivityCounts(Guid.Empty, 1, 0) { SenderKind = Pegasus.Core.Identity.ActorKind.Automation }),
             all);
-        Assert.Equal([new EngineerActivityCounts(engineerB, 2, 1)], onlyB);
     }
 
     /// <summary>
@@ -103,7 +104,7 @@ public sealed class EngineerActivityReportPersistenceTests
 
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IEngineerActivityQueries>();
-        var row = Assert.Single(await queries.GetAsync(From, To, engineer, CancellationToken.None));
+        var row = Assert.Single(await queries.GetAsync(From, To, CancellationToken.None));
 
         Assert.Equal(3, row.ReportsSent);
         Assert.Equal(1, row.AuditReportsSent);
@@ -150,7 +151,7 @@ public sealed class EngineerActivityReportPersistenceTests
 
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IEngineerActivityQueries>();
-        var row = Assert.Single(await queries.GetAsync(From, To, engineer, CancellationToken.None));
+        var row = Assert.Single(await queries.GetAsync(From, To, CancellationToken.None));
 
         Assert.Equal(2, row.ReportsSent);
         Assert.Equal(1, row.AuditReportsSent);
@@ -186,15 +187,19 @@ public sealed class EngineerActivityReportPersistenceTests
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IEngineerActivityQueries>();
 
-        Assert.Empty(await queries.GetAsync(From, To, null, CancellationToken.None));
+        Assert.Empty(await queries.GetAsync(From, To, CancellationToken.None));
     }
 
-    private static StaffMailSendOperationEntity SentOperation(object actor, DateTimeOffset sentAtUtc)
+    private static StaffMailSendOperationEntity SentOperation(
+        object actor,
+        DateTimeOffset sentAtUtc,
+        Pegasus.Core.Identity.ActorKind kind = Pegasus.Core.Identity.ActorKind.Staff)
     {
         var id = Guid.NewGuid();
         return new()
         {
             Id = id,
+            ActorKind = kind,
             ActorSubjectId = actor.ToString()!,
             MailboxId = Guid.NewGuid(),
             MailboxGeneration = 1,
