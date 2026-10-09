@@ -156,7 +156,7 @@ public sealed class AdministrationReportsWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("<span class=\"metric-value\">Unavailable</span>", html, StringComparison.Ordinal);
-        Assert.Contains("<td colspan=\"7\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
+        Assert.Contains("<td colspan=\"6\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
 
         using var workbookResponse = await client.GetAsync($"{Page}?handler=Workbook");
 
