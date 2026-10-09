@@ -196,8 +196,8 @@
             <div class="damage-facts">
                 @* No count of recorded areas: the list under these says what is recorded (v36 item L, 9 October 2026). *@
                 <div class="fg g2">
-                    <div class="fc ro"><span class="lbl">@EngineerLabels.ImpactLocation</span><div class="fv derived" data-damage-location>@locationText</div></div>
-                    <div class="fc ro"><span class="lbl">@EngineerLabels.ImpactSeverity</span><div class="fv derived" data-damage-severity>@severityText</div></div>
+                    <div class="fc ro" data-field="@AssessmentVocabulary.ImpactLocation"><span class="lbl">@EngineerLabels.ImpactLocation</span><div class="fv derived" data-damage-location>@locationText</div></div>
+                    <div class="fc ro" data-field="@AssessmentVocabulary.ImpactSeverity"><span class="lbl">@EngineerLabels.ImpactSeverity</span><div class="fv derived" data-damage-severity>@severityText</div></div>
                 </div>
                 <ul class="impact-list" data-damage-impact-list aria-label="@DamageLabels.RecordedAreas">
                     @if (impacts.Count == 0)
@@ -287,7 +287,7 @@
                         var mayEditDeduction = Model.CanEditAssessmentField(AssessmentVocabulary.DamageUnrelatedDeduction);
                     }
                     @* Unrelated damage and its deduction share one row at half width each, so the deduction label is never cut (v36 f21). *@
-                    <div class="fc span2 @(mayEditUnrelated ? null : "ro")">
+                    <div class="fc span2 @(mayEditUnrelated ? null : "ro")" data-field="@AssessmentVocabulary.DamageUnrelated">
                         @{ Lbl(mayEditUnrelated, "edit-" + AssessmentVocabulary.DamageUnrelated, damageFields[AssessmentVocabulary.DamageUnrelated]); }
                         <div class="fv @(unrelatedRead == OperatorLabels.CaseWorkspace.AbsentValue ? "empty" : null)">@unrelatedRead</div>
                         @if (mayEditUnrelated)

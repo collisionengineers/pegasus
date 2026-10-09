@@ -195,7 +195,8 @@
                             <a class="@StepButton" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
                                asp-route-section="@firstSection" asp-route-view="@Model.ViewRoute" asp-fragment="section-@firstSection"
                                data-section-jump="@firstSection"
-                               data-section-tab="@CaseWorkspaceLabels.Report.BlockerTab(first)">@SectionLabel(firstSection)</a>
+                               data-section-tab="@CaseWorkspaceLabels.Report.BlockerTab(first)"
+                               data-section-field="@CaseWorkspaceLabels.Report.BlockerField(first)">@SectionLabel(firstSection)</a>
                         }
                         else if (Model.BlockerOpensAccounts(first))
                         {
@@ -326,7 +327,8 @@
                                                 <a class="@BlockerLink" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
                                                    asp-route-section="@blockerSection" asp-route-view="@Model.ViewRoute" asp-fragment="section-@blockerSection"
                                                    data-section-jump="@blockerSection"
-                                                   data-section-tab="@CaseWorkspaceLabels.Report.BlockerTab(reason)">@reason.Requirement</a>
+                                                   data-section-tab="@CaseWorkspaceLabels.Report.BlockerTab(reason)"
+                                                   data-section-field="@CaseWorkspaceLabels.Report.BlockerField(reason)">@reason.Requirement</a>
                                             }
                                             else if (Model.BlockerOpensAccounts(reason))
                                             {

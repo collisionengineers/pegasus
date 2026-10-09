@@ -723,3 +723,8 @@ body.has-viewer{overflow:hidden}
 #section-report .choice.is-static[data-on="true"]{color:var(--ink)}
 #section-report .choice.is-static .tick{display:inline-grid;place-items:center;width:15px;height:15px;flex:none;border:1px solid var(--line-strong);border-radius:2px;background:var(--surface-2)}
 #section-report .choice.is-static .tick .icon{width:11px;height:11px}
+/* A Next action or Report not ready jump outlines the cell recording the blocker's field, in the amber of incomplete. */
+.case-record .is-jump-target{outline:2px solid var(--amber-line);outline-offset:3px;border-radius:var(--radius)}
+@media (forced-colors: active) {
+    .case-record .is-jump-target{outline-color:Highlight}
+}
