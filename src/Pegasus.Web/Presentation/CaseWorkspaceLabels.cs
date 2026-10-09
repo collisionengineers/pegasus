@@ -35,8 +35,6 @@ public static class CaseWorkspaceLabels
         public const string Saved = "Saved";
         public const string Actions = "Actions";
         public const string More = "More";
-        public const string Scroll = "Scroll";
-        public const string Tabs = "Tabs";
         public const string CollapseSection = "Collapse section";
         public const string ExpandSection = "Expand section";
         public const string TakeOver = "Take over";

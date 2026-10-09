@@ -183,16 +183,6 @@ public sealed partial class DetailsModel(
         Pegasus.Web.Presentation.ShellPreferences.PanelCollapsed(Request, collapseKey) ? "is-collapsed" : null;
 
     /// <summary>
-    /// "is-active" on the addressed section when this browser's layout is
-    /// Tabs, so a Tabs first paint shows that section rather than none.
-    /// </summary>
-    public string? ActiveTabClass(string sectionKey) =>
-        Pegasus.Web.Presentation.ShellPreferences.CaseLayout(Request) == "tabs"
-        && string.Equals(sectionKey, Section, StringComparison.Ordinal)
-            ? "is-active"
-            : null;
-
-    /// <summary>
     /// The associated Vehicle images records whose photographs are still the
     /// record's own. Once a record's merge files them they are Case images,
     /// drawn once as tiles, and the record has no group here.
