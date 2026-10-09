@@ -120,6 +120,7 @@ public sealed class LocalIntakeAccessTests
     [InlineData("Glass:RepairProfileId")]
     [InlineData("Glass:ValuationAccount:Username")]
     [InlineData("Glass:ValuationAccount:Password")]
+    [InlineData("Cazana:ApiKey")]
     [InlineData("GitHub:ProblemReports:Token")]
     [InlineData("GitHub:ProblemReports:Repository")]
     public void ProductionFailsClosedWithoutTheExternalConfigurationItComposes(string missingKey)
@@ -152,6 +153,7 @@ public sealed class LocalIntakeAccessTests
             ["Glass:RepairProfileId"] = "4063",
             ["Glass:ValuationAccount:Username"] = "valuation-test",
             ["Glass:ValuationAccount:Password"] = "synthetic-password",
+            ["Cazana:ApiKey"] = "synthetic-cazana-key",
             ["GitHub:ProblemReports:Token"] = "inert-test-token",
             ["GitHub:ProblemReports:Repository"] = "example/private-problem-reports"
         };

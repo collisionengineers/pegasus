@@ -42,6 +42,26 @@ public static class VehicleMileagePolicy
             ? (long)Math.Round(value / KilometresPerMile, MidpointRounding.AwayFromZero)
             : value;
 
+    /// <summary>
+    /// The lookup answered for the Case's current registration and DVSA holds no
+    /// MOT test, so there is no odometer reading to give (operator, 9 October
+    /// 2026: a vehicle before its first MOT). DVSA answers that either as an
+    /// empty history or as its "no MOT" not-found beside the DVLA record.
+    /// </summary>
+    public static bool HasNoMotHistory(VehicleLookupObservation? observation, string? registration) =>
+        observation is
+        {
+            Outcome: VehicleLookupOutcome.Current or VehicleLookupOutcome.Stale or VehicleLookupOutcome.Partial,
+            MotTests.Count: 0,
+            Mileage: null
+        }
+        && (observation.Failure is null || observation.Failure.Code == VehicleLookupFailure.DvsaNotFound)
+        && registration is not null
+        && string.Equals(
+            observation.Registration,
+            new string(registration.ToUpperInvariant().Where(char.IsAsciiLetterOrDigit).ToArray()),
+            StringComparison.Ordinal);
+
     public static VehicleMileageCalculation? Calculate(
         IReadOnlyList<MotTestObservation> observations)
     {

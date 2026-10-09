@@ -156,9 +156,10 @@ does; a card for the same source and guide month replaces the earlier one.
 `pegasus_valuation_get` presses a guide card's **Get valuation** and records
 that card with the figures, as the section's Save would (operator, 8 October
 2026): Pegasus asks the source's connected provider with its own valuation
-account, files the provider's report and fills an empty VIN, exactly as for
-staff. An unavailable source, or a vehicle the source does not value, records
-nothing. Adopting a basis card, which writes the report's Retail and Trade,
+credential and, where the provider offers them, files its report and fills an
+empty VIN, exactly as for staff. An unavailable source, a vehicle the source
+does not value (`VehicleAge`) or a registration it holds no data for
+(`NoVehicleData`) records nothing. Adopting a basis card, which writes the report's Retail and Trade,
 stays with `pegasus_valuation_save`; the Engineer's Value stays with
 `pegasus_assessment_update`.
 
