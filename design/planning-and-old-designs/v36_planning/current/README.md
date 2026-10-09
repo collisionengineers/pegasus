@@ -34,4 +34,4 @@ Every choice is also a query string, for example `?design=proposal&state=enginee
 
 ## Status
 
-Stage 1. Awaiting the operator's decisions on the lettered items in [v36-notes.md](v36-notes.md) section 6, including the three items the operator raised on 9 October 2026 (Get valuation placement, "Not recorded" as a radio, busy states on the arrow link buttons) and the Repair Spec grid alignment. Stage 2 does not start until every letter is settled.
+Stage 1, decided on 9 October 2026 ([v36-notes.md](v36-notes.md) section 9): indent-marker for included operations, select for recorded choices, Get valuation centred at the card's foot, everything else as drawn. Items C, X and AA were settled on the same day ("AI Proposal ready" / "Review AI Proposal"; "Unit (£)" / "Material (£)"; the folder kept as the record). Every item is settled and Stage 2 follows.

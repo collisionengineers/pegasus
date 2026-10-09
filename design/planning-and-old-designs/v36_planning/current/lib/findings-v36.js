@@ -312,7 +312,7 @@
 
   // ---- Decisions -----------------------------------------------------------------------
   add('f34', 'Decisions', 'b', '"Not recorded" is a value, not a chosen segment: box / segments-none / select (operator, 9 October 2026)', (root, ctx) => {
-    const variant = ctx.opts.choice || 'box';
+    const variant = ctx.opts.choice || 'select';
     let changed = false;
     for (const dec of root.querySelectorAll('.decisions .dec')) {
       const live = dec.querySelector('.radiorow:not(.is-static)');
@@ -345,7 +345,7 @@
       changed = true;
     }
     return changed;
-  }, { variable: 'choice', options: ['today', 'box', 'segments-none', 'select'] });
+  }, { variable: 'choice', options: ['today', 'select', 'box', 'segments-none'] });
   add('f35', 'Decisions', 'b', 'The metric strip goes (Figures is the home); Labour hours becomes a cell beside Excess', (root) => {
     const strip = root.querySelector('[data-settlement-figures]');
     if (!strip) return false;
@@ -458,7 +458,7 @@
       }
     }
     return true;
-  }, { variable: 'incl', options: ['today', 'indent', 'marker', 'indent-marker'] });
+  }, { variable: 'incl', options: ['today', 'indent-marker', 'indent', 'marker'] });
 
   window.v36Findings = F;
 })();

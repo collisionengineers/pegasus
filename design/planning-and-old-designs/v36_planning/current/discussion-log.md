@@ -34,6 +34,10 @@ The operator then pointed to another session's examination of Case a.QDOS26093, 
 
 Asked how to treat findings that are behaviours a static mockup cannot show, the operator chose: list them in the notes with a Stage 2 scope letter, and draw the ones with a visible state as strip toggles in the mockup.
 
+## 9 October 2026: decisions
+
+The operator: "Choices: 1. Indent-marker for the repair spec 2. Select for f34 decision 3. 'Get Value' - Foot, but centered on the foot of the box. All others are to be implemented unless there are open decisions which I have not addressed." Asked the three unaddressed items, the operator chose "Unit (£)" / "Material (£)" (X), "AI Proposal ready" / "Review AI Proposal" (C) and keeping the folder (AA). Recorded in the notes, section 9; nothing is open.
+
 ### What was explored
 
 - The live Case page sources on `origin/dev` 37c4b96f5 (`Details.cshtml`, every `_Case*.cshtml` partial, `case-workspace.css`, `case-workspace.js`, `site.css`, `site.js`), the design authority, the Case-workspace guardrails and FRD-16.

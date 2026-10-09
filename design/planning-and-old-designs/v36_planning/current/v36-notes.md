@@ -157,37 +157,37 @@ Tiers: **a** is alignment inside the existing contract (listed, not lettered); *
 
 Each is "Confirm, or …". Letters are stable; settled items keep their letter with the date and outcome in italics.
 
-- **A** (f04). "{Name} is editing" is said once, on the ribbon; section heads drop the label. Confirm, or keep it on every head.
-- **B** (f53). Below 980px only the section row stays sticky. Confirm, or keep the whole block sticky.
-- **C** (f05). The aside's "Estimate draft ready" / "Review estimate" name the AI Proposal by its reserved term; the import words and the Send to AI dialog keep "estimate". Confirm the words, or keep them.
-- **D** (f09, f58). The Held step reads "Held · review on {date}" and offers Release Hold. Confirm, or keep Case details.
-- **E** (f13). Case details drops Case type, Our ref and Principal (the ribbon's facts). Confirm, or keep the greyed copies.
-- **F** (f15). Claimant VAT status and Claimant VAT registered stay two facts. Confirm, or ask for one fact (an FRD-16 question).
-- **G** (f16). Storage per day and Recovery charge move to Decisions' Costs, hire & delays. Confirm, or keep them under Inspection's Storage with a label.
-- **H** (f17). Inspect at omits unavailable choices rather than disabling them with " · not recorded". Confirm, or keep.
-- **I** (f35). Decisions' metric strip goes; Labour hours becomes a cell beside Excess. Confirm, or keep the strip.
-- **J** (f34). "Not recorded" is the box's absent word, never a chosen segment: **box**, **segments-none** or **select**. Choose one, or keep today's segment.
-- **K** (f18). Experian is not connected is said once, on the Vehicle history sub-panel. Confirm, or keep the head pill.
-- **L** (f22). The Recorded areas count box goes. Confirm, or keep.
-- **M** (f25). Get valuation: **foot** (drawn by default), **head-link** or **inline**, on every card that has it. Choose one, or keep the head as it is.
-- **N** (f26). The unconnected-card sentence reads as one quiet line, the approved words unchanged. Confirm, or keep the notice box.
-- **O** (f28). Reading draws Value increases and the deductions in the edit geometry, greyed. Confirm, or keep them edit-only.
-- **P** (f39). The Statement of truth folds under a sub-panel head. Confirm, or keep it open; or say it leaves the page (a Report-content decision).
-- **Q** (f42). Add Case note is a secondary button. Confirm, or keep it red.
-- **R** (f50). Navigating link buttons get the established busy state (operator's item). Confirm the list of buttons.
-- **S** (f51). Workflow and Closure actions return to the section they were taken from, with their notice. Confirm, or keep the top.
-- **T** (f52). One redraw per save, re-anchored, focus kept; the first save records only what changed. Confirm as Stage 2 scope.
-- **U** (f54). Instant Tabs switching and jumps; the Scroll/Tabs choice lasts a year. Confirm as Stage 2 scope.
-- **V** (f56). Menu closes on dialog open; crop toast above the viewer with its words brought up to date; Damage list not rebuilt while dragging. Confirm as Stage 2 scope.
-- **W** (f57). Section Edit only where the viewer can edit; a locked section says why once. Confirm as Stage 2 scope.
-- **X** (f32). The spec grid aligns its figures; the money headers read **"Unit (£)" / "Material (£)"** or **"Unit" / "Material" with a £ prefix in the cell**. Choose one.
-- **Y** (f33). Compare and Remove scaling are absent until they can act, not disabled. Confirm, or keep.
-- **Z** (f40). Send report shows in read mode too, its controls greyed, and the attached "Report" tick is a value, not a disabled control. Confirm, or keep it edit-only.
-- **AA**. This folder is removed in the Stage 2 pull request. Confirm, or keep it as the record.
-- **AC** (f60). A Glass's included operation reads as included: **indent**, **marker** (the line's own note across the figures) or **both**. Choose one, or keep the empty row. The words are the line's stored note; no new copy.
-- **AB** (f59). The blocker "how" sentence goes from every row of Next action and Report not ready (operator's item, raised on the Repair Spec one). Confirm for every row, or only the Repair Spec one. FRD-13 says each blocker shows how it is resolved; it would say the control is the how.
+- **A** (f04). "{Name} is editing" is said once, on the ribbon; section heads drop the label. Confirm, or keep it on every head. *Settled 9 October 2026: confirmed as drawn.*
+- **B** (f53). Below 980px only the section row stays sticky. Confirm, or keep the whole block sticky. *Settled 9 October 2026: confirmed as drawn.*
+- **C** (f05). The aside's "Estimate draft ready" / "Review estimate" name the AI Proposal by its reserved term; the import words and the Send to AI dialog keep "estimate". Confirm the words, or keep them. *Settled 9 October 2026: **"AI Proposal ready" / "Review AI Proposal"**.*
+- **D** (f09, f58). The Held step reads "Held · review on {date}" and offers Release Hold. Confirm, or keep Case details. *Settled 9 October 2026: confirmed as drawn.*
+- **E** (f13). Case details drops Case type, Our ref and Principal (the ribbon's facts). Confirm, or keep the greyed copies. *Settled 9 October 2026: confirmed as drawn.*
+- **F** (f15). Claimant VAT status and Claimant VAT registered stay two facts. Confirm, or ask for one fact (an FRD-16 question). *Settled 9 October 2026: two facts stay.*
+- **G** (f16). Storage per day and Recovery charge move to Decisions' Costs, hire & delays. Confirm, or keep them under Inspection's Storage with a label. *Settled 9 October 2026: confirmed as drawn.*
+- **H** (f17). Inspect at omits unavailable choices rather than disabling them with " · not recorded". Confirm, or keep. *Settled 9 October 2026: confirmed.*
+- **I** (f35). Decisions' metric strip goes; Labour hours becomes a cell beside Excess. Confirm, or keep the strip. *Settled 9 October 2026: confirmed as drawn.*
+- **J** (f34). "Not recorded" is the box's absent word, never a chosen segment: **box**, **segments-none** or **select**. Choose one, or keep today's segment. *Settled 9 October 2026: **select**.*
+- **K** (f18). Experian is not connected is said once, on the Vehicle history sub-panel. Confirm, or keep the head pill. *Settled 9 October 2026: confirmed as drawn.*
+- **L** (f22). The Recorded areas count box goes. Confirm, or keep. *Settled 9 October 2026: confirmed as drawn.*
+- **M** (f25). Get valuation: **foot** (drawn by default), **head-link** or **inline**, on every card that has it. Choose one, or keep the head as it is. *Settled 9 October 2026: **foot, centred at the foot of the card**.*
+- **N** (f26). The unconnected-card sentence reads as one quiet line, the approved words unchanged. Confirm, or keep the notice box. *Settled 9 October 2026: confirmed as drawn.*
+- **O** (f28). Reading draws Value increases and the deductions in the edit geometry, greyed. Confirm, or keep them edit-only. *Settled 9 October 2026: confirmed as drawn.*
+- **P** (f39). The Statement of truth folds under a sub-panel head. Confirm, or keep it open; or say it leaves the page (a Report-content decision). *Settled 9 October 2026: confirmed as drawn (folded).*
+- **Q** (f42). Add Case note is a secondary button. Confirm, or keep it red. *Settled 9 October 2026: confirmed as drawn.*
+- **R** (f50). Navigating link buttons get the established busy state (operator's item). Confirm the list of buttons. *Settled 9 October 2026: confirmed, Stage 2 scope.*
+- **S** (f51). Workflow and Closure actions return to the section they were taken from, with their notice. Confirm, or keep the top. *Settled 9 October 2026: confirmed, Stage 2 scope.*
+- **T** (f52). One redraw per save, re-anchored, focus kept; the first save records only what changed. Confirm as Stage 2 scope. *Settled 9 October 2026: confirmed, Stage 2 scope.*
+- **U** (f54). Instant Tabs switching and jumps; the Scroll/Tabs choice lasts a year. Confirm as Stage 2 scope. *Settled 9 October 2026: confirmed, Stage 2 scope.*
+- **V** (f56). Menu closes on dialog open; crop toast above the viewer with its words brought up to date; Damage list not rebuilt while dragging. Confirm as Stage 2 scope. *Settled 9 October 2026: confirmed, Stage 2 scope.*
+- **W** (f57). Section Edit only where the viewer can edit; a locked section says why once. Confirm as Stage 2 scope. *Settled 9 October 2026: confirmed, Stage 2 scope.*
+- **X** (f32). The spec grid aligns its figures; the money headers read **"Unit (£)" / "Material (£)"** or **"Unit" / "Material" with a £ prefix in the cell**. Choose one. *Settled 9 October 2026: **"Unit (£)" / "Material (£)"**.*
+- **Y** (f33). Compare and Remove scaling are absent until they can act, not disabled. Confirm, or keep. *Settled 9 October 2026: confirmed.*
+- **Z** (f40). Send report shows in read mode too, its controls greyed, and the attached "Report" tick is a value, not a disabled control. Confirm, or keep it edit-only. *Settled 9 October 2026: confirmed.*
+- **AA**. This folder is removed in the Stage 2 pull request. Confirm, or keep it as the record. *Settled 9 October 2026: **keep as the record**.*
+- **AC** (f60). A Glass's included operation reads as included: **indent**, **marker** (the line's own note across the figures) or **both**. Choose one, or keep the empty row. The words are the line's stored note; no new copy. *Settled 9 October 2026: **indent-marker**.*
+- **AB** (f59). The blocker "how" sentence goes from every row of Next action and Report not ready (operator's item, raised on the Repair Spec one). Confirm for every row, or only the Repair Spec one. FRD-13 says each blocker shows how it is resolved; it would say the control is the how. *Settled 9 October 2026: confirmed for every row.*
 
-Tier a findings (f01, f02, f03, f06, f07, f08, f10, f12, f14, f19, f20, f21, f23, f24, f27, f29, f36, f38, f43, f45, f46, f55 and the cross-cutting list) are listed for information; say if any should not go to Stage 2.
+Tier a findings (f01, f02, f03, f06, f07, f08, f10, f12, f14, f19, f20, f21, f23, f24, f27, f29, f36, f38, f43, f45, f46, f55 and the cross-cutting list) are listed for information. *9 October 2026: all go to Stage 2 (operator: "All others are to be implemented").*
 
 ## 7. Self-check
 
@@ -201,3 +201,22 @@ Tier a findings (f01, f02, f03, f06, f07, f08, f10, f12, f14, f19, f20, f21, f23
 - Tabs layout is emulated by the live classes (`data-layout="tabs"`, `is-active`), not by `case-workspace.js`.
 - The Work Centre and Cases list frames exist only for the busy-state stand-in.
 - The behaviour findings are from reading `case-workspace.js` and `site.js` and from the edit-session pass (`captured/extra.json`); the redraw timings were not instrumented.
+
+## 9. 9 October 2026: the operator's decisions
+
+The operator: "Choices: 1. Indent-marker for the repair spec. 2. Select for f34 decision. 3. 'Get Value' - Foot, but centered on the foot of the box. All others are to be implemented unless there are open decisions which I have not addressed."
+
+Settled:
+
+- **AC** (f60): **indent-marker**. An included operation is indented under its row and carries its stored note across the figure columns.
+- **J** (f34): **select**. A recorded choice reads as the greyed value box and edits as a select whose empty option is "Not recorded".
+- **M** (f25): **foot, centred**. Get valuation is a small button centred at the foot of the card, on every card that has it.
+- Every other lettered item is confirmed as drawn or listed (A, B, D, E, G, H, I, K, L, N, O, P, Q, Y, Z, AB; R to W as Stage 2 scope); F keeps the two VAT facts. Every tier a finding goes to Stage 2.
+
+Asked the three the operator had not addressed, the operator answered:
+
+- **C** (f05): the AI Proposal row reads **"AI Proposal ready"** with a **"Review AI Proposal"** button.
+- **X** (f32): the money headers read **"Unit (£)"** and **"Material (£)"**.
+- **AA**: this folder is **kept as the record**, marked historical in the Stage 2 pull request.
+
+Every lettered item is settled. The mockup's defaults draw the decided variants (indent-marker, select, foot centred, bracketed headers). Stage 2 follows under the razor-html-mockup-conversion skill.

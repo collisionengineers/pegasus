@@ -157,13 +157,13 @@ def main():
         check('proposal drops the blocker how line', page.locator('[data-next-action] .next-step-how').count() == 0)
         r = load('design=today&state=engineer&mode=edit')
         check('today keeps the blocker how line', page.locator('[data-next-action] .next-step-how').count() == 1)
-        for opt in ['box', 'segments-none', 'select']:
+        for opt in ['select', 'box', 'segments-none']:
             for mode in ['read', 'edit']:
                 r = load(f'design=proposal&state=engineer&mode={mode}&opt=choice:{opt}')
                 check(f'choice {opt} {mode} no Not recorded segment', r['notRecordedSegments'] == 0)
                 if opt == 'select' and mode == 'edit':
                     check('choice select edit draws selects', page.locator('.decisions .dec select.fi').count() >= 2)
-        for opt in ['indent', 'marker', 'indent-marker']:
+        for opt in ['indent-marker', 'indent', 'marker']:
             for mode in ['read', 'edit']:
                 r = load(f'design=proposal&state=engineer&mode={mode}&section=estimate&opt=incl:{opt}')
                 check(f'incl {opt} {mode} draws three included rows', page.locator('#section-estimate tr[data-v36-included]').count() == 3)
@@ -239,13 +239,13 @@ def main():
                 shot(f'{design}-engineer-read-1440-strip', f'design={design}&state=engineer', 1440, 900)
             for opt in ['foot', 'head-link', 'inline']:
                 shot(f'getval-{opt}', f'design=proposal&state=engineer&mode=edit&section=valuation&opt=getval:{opt}')
-            for opt in ['box', 'segments-none', 'select']:
+            for opt in ['select', 'box', 'segments-none']:
                 for mode in ['read', 'edit']:
                     shot(f'choice-{opt}-{mode}', f'design=proposal&state=engineer&mode={mode}&section=settlement&opt=choice:{opt}')
             for opt in ['aligned', 'prefix']:
                 shot(f'grid-{opt}', f'design=proposal&state=engineer&mode=edit&section=estimate&opt=grid:{opt}')
             shot('incl-today-edit', 'design=today&state=engineer&mode=edit&section=estimate')
-            for opt in ['indent', 'marker', 'indent-marker']:
+            for opt in ['indent-marker', 'indent', 'marker']:
                 for mode in ['read', 'edit']:
                     shot(f'incl-{opt}-{mode}', f'design=proposal&state=engineer&mode={mode}&section=estimate&opt=incl:{opt}')
             shot('diff-engineer-edit', 'design=proposal&state=engineer&mode=edit&diff=1')

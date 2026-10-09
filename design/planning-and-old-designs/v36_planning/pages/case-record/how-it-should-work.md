@@ -1,6 +1,6 @@
 # Case record: how it should work
 
-Proposed on 9 October 2026; not yet decided. Each rule is one sentence the FRD can carry once the operator settles its lettered item in the [notes](../../current/v36-notes.md). Alignment-only findings (tier a) change no rule and are not listed here.
+Proposed on 9 October 2026; decided the same day (see the closing section). Each rule is one sentence the FRD can carry once the operator settles its lettered item in the [notes](../../current/v36-notes.md). Alignment-only findings (tier a) change no rule and are not listed here.
 
 ## Ribbon and section row
 
@@ -56,3 +56,7 @@ Proposed on 9 October 2026; not yet decided. Each rule is one sentence the FRD c
 
 Open: whether Report keeps the five-paragraph Statement of truth on the page at all once the report prints it (D16 folds it; removing it is a Report-content decision).
 Open: the empty value word across the page ("Not recorded", "—", "none", "Not applicable"); the walk lists them and proposes no change.
+
+## Decided 9 October 2026
+
+The operator settled every rule above as drawn, with these choices: D10 is the **select** form (a recorded choice reads as the greyed value box and edits as a select whose empty option is "Not recorded"); D13 is **foot, centred** (Get valuation a small button centred at the foot of every card that has it); D27 is **indent-marker** (an included operation indented under its row with its stored note across the figure columns). D6 keeps the two VAT facts. D3's words are "AI Proposal ready" / "Review AI Proposal" (item C); D25's headers are "Unit (£)" and "Material (£)" (item X); the folder is kept as the record (item AA). Nothing is open.

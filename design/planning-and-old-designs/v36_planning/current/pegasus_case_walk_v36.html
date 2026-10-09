@@ -3246,7 +3246,7 @@ body.v36-strip-hidden .v36-strip{display:none}
 .v36-f23 [data-damage-reset]{margin-left:auto}
 /* f25 · Get valuation variants. */
 .v36-getval-link{font-size:12.5px;align-self:center;margin-left:auto}
-.v36-getval-footrow{display:flex;justify-content:flex-end;margin-top:8px}
+.v36-getval-footrow{display:flex;justify-content:center;margin-top:8px}
 .v36-getval-foot{min-height:28px;padding:0 10px;font-size:12px}
 .v36-getval-inline > .btn{width:100%;justify-content:center}
 /* f26 · an unconnected card states the approved sentence as one quiet line, not a notice box. */
@@ -25590,7 +25590,7 @@ We appreciate your instructions and enclose our fee note for your kind attention
 
   // ---- Decisions -----------------------------------------------------------------------
   add('f34', 'Decisions', 'b', '"Not recorded" is a value, not a chosen segment: box / segments-none / select (operator, 9 October 2026)', (root, ctx) => {
-    const variant = ctx.opts.choice || 'box';
+    const variant = ctx.opts.choice || 'select';
     let changed = false;
     for (const dec of root.querySelectorAll('.decisions .dec')) {
       const live = dec.querySelector('.radiorow:not(.is-static)');
@@ -25623,7 +25623,7 @@ We appreciate your instructions and enclose our fee note for your kind attention
       changed = true;
     }
     return changed;
-  }, { variable: 'choice', options: ['today', 'box', 'segments-none', 'select'] });
+  }, { variable: 'choice', options: ['today', 'select', 'box', 'segments-none'] });
   add('f35', 'Decisions', 'b', 'The metric strip goes (Figures is the home); Labour hours becomes a cell beside Excess', (root) => {
     const strip = root.querySelector('[data-settlement-figures]');
     if (!strip) return false;
@@ -25736,7 +25736,7 @@ We appreciate your instructions and enclose our fee note for your kind attention
       }
     }
     return true;
-  }, { variable: 'incl', options: ['today', 'indent', 'marker', 'indent-marker'] });
+  }, { variable: 'incl', options: ['today', 'indent-marker', 'indent', 'marker'] });
 
   window.v36Findings = F;
 })();
