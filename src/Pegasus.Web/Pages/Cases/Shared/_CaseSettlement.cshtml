@@ -21,11 +21,9 @@
     var editing = Model.SectionIsEditable("settlement");
     var labels = CaseWorkspaceLabels.Editors.Settlement;
     var engineerValue = Model.EngineerValue;
-    var salvage = Model.SalvageValueFigure;
     var isTotalLoss = Model.IsTotalLoss;
     var isUnroadworthy = Model.IsUnroadworthy;
     var outcome = Model.RecordedOutcome;
-    var equity = engineerValue is { } ev ? ev - (salvage ?? 0m) : (decimal?)null;
 
     string Money(decimal? value) => value is { } figure ? Pegasus.Web.Pages.Cases.DetailsModel.FormatPounds(figure) : "—";
 }
