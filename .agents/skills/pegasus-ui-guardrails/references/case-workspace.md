@@ -97,7 +97,8 @@ Important ownership decisions:
 
 - Case details contains the Notes band/current overview facts, not a second Notes timeline.
 - Claim contains claimant and claim facts; Original report belongs only to Audit Cases.
-- Inspection owns inspection/storage-location details and storage money inputs.
+- Inspection owns inspection and storage-location details; Storage per day and Recovery charge are
+  Engineer figures recorded in Decisions' Costs, hire & delays (operator, 9 October 2026).
 - Vehicle owns one accepted mileage field with provenance rows, not multiple competing mileage boxes.
 - Damage owns the Plan damage clicker and engineering damage facts.
 - Valuation owns the guide cards, the valuation calculation, the Engineer's Value box and the On the report content switches.
@@ -192,7 +193,8 @@ read and edit, containing:
 - retail value;
 - trade value;
 - guide month;
-- Get valuation in the card's head (while editing, only when the source has a connected provider).
+- Get valuation as a small button centred at the card's foot (while editing, only when the source
+  has a connected provider; operator, 9 October 2026).
 
 The figures are text while reading and inputs of the Case form in the same place while editing. A
 card has no mileage box (operator, 24 September 2026): the Case's own accepted mileage is used by

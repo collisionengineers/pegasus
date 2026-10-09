@@ -442,9 +442,7 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
         List<string> notes = [];
         if (included)
         {
-            notes.Add(parent is { } row
-                ? string.Create(CultureInfo.InvariantCulture, $"Included in row {row}; no separate charge.")
-                : "Included; no separate charge.");
+            notes.Add(IncludedOperations.Note(parent is { } row ? string.Create(CultureInfo.InvariantCulture, $"row {row}") : null));
         }
         if (paint && Marked(position.Element("PaintMatExtraAppl")))
         {

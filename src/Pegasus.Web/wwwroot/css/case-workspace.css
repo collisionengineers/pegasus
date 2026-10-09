@@ -670,3 +670,56 @@ body.has-viewer{overflow:hidden}
 .notes-timeline .nb b{color:var(--ink)}
 .notes-timeline .note.sys .nb{color:var(--muted)}
 @media(max-width:760px){.notes-timeline .note{grid-template-columns:1fr}}
+
+/* ---- v36 sharpening (operator, 9 October 2026) ----------------------------- */
+/* f01 · the section row never clips: no icons below 1500px, tighter links, and it wraps below 980px. */
+@media (max-width:1500px){.case-record .section-link .icon{display:none}.case-record .section-link{padding:0 7px}}
+@media (max-width:980px){.case-record .section-nav{flex-wrap:wrap;overflow:visible}.case-record .section-link{min-height:36px}}
+/* f02 · the Saving / Saved word: body size, sans, a fixed cell so Done never moves. */
+.case-record .lease-line{font-family:inherit;font-size:12px;min-width:96px;text-align:right}
+/* f03 · Principal is a code: natural width, so Claimant and Engineer get the room. */
+@media (min-width:1101px){.case-record .ribbon .ribbon-item.ribbon-principal{flex:0 0 auto}}
+/* f53 · below 980px only the section row stays sticky; the ribbon scrolls with the page. */
+@media (max-width:980px){.case-record .sticky-block{position:static}.case-record .sticky-block .section-row{position:sticky;top:var(--utility-h);background:var(--surface);z-index:20;border-bottom:1px solid var(--line)}}
+/* f06 · an absent figure is one glyph in one weight. */
+.figures dd.absent{font-weight:400;color:var(--muted)}
+/* f07 · the folded strip: cards keep their own height; Report not ready spans the strip. */
+@media (max-width:1440px){.case-record .workspace-aside{align-items:start}.case-record .workspace-aside>.report-not-ready{grid-column:1/-1}}
+/* f08 · aside card heads share the section head height. */
+.case-record .workspace-aside>.panel>.panel-head{min-height:51px}
+/* f23 · Reset sits with the area chips under the plan. */
+#section-damage .damage-extra{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#section-damage .damage-extra [data-damage-reset]{margin-left:auto}
+/* f25 · Get valuation: a small button centred at the card's foot. */
+.valuation-card-foot{display:flex;justify-content:center;margin-top:8px}
+/* f26 · an unconnected card states the approved sentence as one quiet line, not a notice box. */
+.valuation-card-note[data-valuation-not-connected]{background:none;border:0;padding:4px 0 0;font-size:11.5px;color:var(--muted)}
+.valuation-card-note[data-valuation-not-connected] .icon{display:none}
+/* f27 · card boxes on the 32px small-control step, not 28px. */
+.valuation-card-fig{min-height:32px}
+.valuation-card-fig .fi,.valuation-card-fig input{min-height:32px;height:32px}
+/* f28 · reading, a value increase that was not applied reads greyed with an empty mark. */
+.valuation-increases .add.is-static{color:var(--muted)}
+.valuation-increases .add.is-static .add-check{visibility:hidden}
+/* f32 · the line grid: figures and their headers on one right edge, two decimals; a number
+   input's hidden spin buttons no longer hold the figure short of the edge. */
+#section-estimate .grid th.num{padding-right:10px}
+#section-estimate .grid td.num input,#section-estimate .grid td.num .gv{display:block;width:100%;box-sizing:border-box;text-align:right;padding-right:6px;font-variant-numeric:tabular-nums}
+#section-estimate .grid td.num .gv{display:flex;justify-content:flex-end}
+#section-estimate .grid td.num input::-webkit-inner-spin-button,#section-estimate .grid td.num input::-webkit-outer-spin-button{-webkit-appearance:none;appearance:none;margin:0}
+#section-estimate .grid td.num input[type=number]{-moz-appearance:textfield;appearance:textfield}
+/* f60 · a Glass's included operation: indented under the row it belongs to, its stored note across the figure columns. */
+#section-estimate .grid td.incl-indent{padding-left:30px;position:relative}
+#section-estimate .grid td.incl-indent::before{content:"";position:absolute;left:12px;top:-2px;height:50%;width:9px;border-left:1px solid var(--line-strong);border-bottom:1px solid var(--line-strong)}
+#section-estimate .grid td.incl-note{font-size:11.5px;color:var(--muted);text-align:left;padding-left:10px}
+/* f43 · a read-mode tile keeps the edit panel's height, so Edit moves nothing. */
+.image-tile-status{min-height:74px;display:flex;align-items:flex-start;padding-top:8px}
+/* f45 · a timeline entry is one line: when, who, what. */
+.notes-timeline .note .nb b{display:inline;font-weight:650}
+/* f46 · one empty state: a muted sentence in a 36px row; no dashed box, no icon. */
+.empty-line,#section-estimate .estimate-empty{padding:6px 9px;min-height:36px;display:flex;align-items:center;color:var(--muted);font-size:13.5px;border:0;background:none;text-align:left;margin:0}
+/* f40 · reading, the delivery cells draw greyed with static ticks, as the estimate's bars do. */
+#section-report .choice.is-static{cursor:default;color:var(--muted);display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500}
+#section-report .choice.is-static[data-on="true"]{color:var(--ink)}
+#section-report .choice.is-static .tick{display:inline-grid;place-items:center;width:15px;height:15px;flex:none;border:1px solid var(--line-strong);border-radius:2px;background:var(--surface-2)}
+#section-report .choice.is-static .tick .icon{width:11px;height:11px}

@@ -137,8 +137,10 @@ public sealed class CaseTasksWebTests
             && storage < previous && previous < manual);
         var repairerOption = WebUtility.HtmlDecode(
             page[repairer..page.IndexOf("</option>", repairer, StringComparison.Ordinal)]);
-        Assert.Contains("disabled", repairerOption, StringComparison.Ordinal);
-        Assert.Contains("Repairer location · not recorded", repairerOption, StringComparison.Ordinal);
+        // A choice the Case can take is offered plainly; one it cannot is absent,
+        // never disabled with a suffix (v36 item H, 9 October 2026).
+        Assert.DoesNotContain("disabled", repairerOption, StringComparison.Ordinal);
+        Assert.DoesNotContain(" · not recorded", page, StringComparison.Ordinal);
     }
 
     /// <summary>

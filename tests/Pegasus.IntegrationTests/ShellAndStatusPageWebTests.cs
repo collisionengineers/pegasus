@@ -324,7 +324,7 @@ public sealed class ShellAndStatusPageWebTests
         Assert.Contains("<span class=\"bell-count\" aria-hidden=\"true\">2</span>", html, StringComparison.Ordinal);
         // The middle dot is HTML-encoded by Razor; the count and word are what matter.
         Assert.Contains(" 2 unread\"", html, StringComparison.Ordinal);
-        Assert.Contains(">Estimate draft ready<", html, StringComparison.Ordinal);
+        Assert.Contains(">AI Proposal ready<", html, StringComparison.Ordinal);
         Assert.Contains(">Assigned to you<", html, StringComparison.Ordinal);
         Assert.Contains(">Query received<", html, StringComparison.Ordinal);
         Assert.Contains("MA59BDY", html, StringComparison.Ordinal);
@@ -336,7 +336,7 @@ public sealed class ShellAndStatusPageWebTests
         Assert.DoesNotContain("Claude", html, StringComparison.Ordinal);
         // The list is the store's order: newest first, exactly as returned.
         Assert.True(
-            html.IndexOf("Estimate draft ready", StringComparison.Ordinal)
+            html.IndexOf("AI Proposal ready", StringComparison.Ordinal)
                 < html.IndexOf("Assigned to you", StringComparison.Ordinal),
             "The bell must keep the store's newest-first order.");
     }
