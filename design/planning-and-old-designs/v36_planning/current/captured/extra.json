@@ -1,0 +1,95 @@
+{
+ "errors": [],
+ "workCentreButtons": [
+  {
+   "tag": "BUTTON",
+   "t": "Refresh",
+   "cls": "btn btn--small",
+   "busy": false
+  },
+  {
+   "tag": "A",
+   "t": "Create Case",
+   "cls": "btn btn--primary",
+   "busy": false
+  },
+  {
+   "tag": "A",
+   "t": "Review source",
+   "cls": "btn btn--dark btn--small",
+   "busy": false
+  },
+  {
+   "tag": "BUTTON",
+   "t": "",
+   "cls": "btn btn--small btn--icon",
+   "busy": true
+  },
+  {
+   "tag": "A",
+   "t": "Review source",
+   "cls": "btn btn--dark btn--small",
+   "busy": false
+  },
+  {
+   "tag": "BUTTON",
+   "t": "",
+   "cls": "btn btn--small btn--icon",
+   "busy": true
+  },
+  {
+   "tag": "A",
+   "t": "Review source",
+   "cls": "btn btn--dark btn--small",
+   "busy": false
+  },
+  {
+   "tag": "BUTTON",
+   "t": "",
+   "cls": "btn btn--small btn--icon",
+   "busy": true
+  },
+  {
+   "tag": "A",
+   "t": "Open Triage",
+   "cls": "btn btn--dark btn--small",
+   "busy": false
+  },
+  {
+   "tag": "BUTTON",
+   "t": "",
+   "cls": "btn btn--small btn--icon",
+   "busy": true
+  }
+ ],
+ "casesButtons": [
+  {
+   "tag": "A",
+   "t": "New case",
+   "cls": "btn btn--primary",
+   "busy": false
+  },
+  {
+   "tag": "BUTTON",
+   "t": "Refresh",
+   "cls": "btn btn--small",
+   "busy": false
+  }
+ ],
+ "sectionEditEntry": {
+  "before": {
+   "y": 1572,
+   "top": 171.8125,
+   "h": 621.40625
+  },
+  "after": {
+   "y": 1556,
+   "top": 172.03125,
+   "h": 638.96875
+  }
+ },
+ "statusWhileSaving": "Saving\u2026",
+ "statusAfterSave": "Saved 10:04",
+ "focusAfterSave": "edit-model",
+ "scrollAfterSave": 1556
+}

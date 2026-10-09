@@ -1,0 +1,51 @@
+{
+ "tag": "review",
+ "url": "https://localhost:5240/Cases/dc313ea9-5739-4ae0-bd8e-fe80c949ac3c",
+ "read": {
+  "shots": [
+   "review-read-1580.png",
+   "review-read-1440.png",
+   "review-read-760.png",
+   "review-read-sec-overview-1580.png",
+   "review-read-sec-claim-1580.png",
+   "review-read-sec-inspection-1580.png",
+   "review-read-sec-vehicle-1580.png",
+   "review-read-sec-damage-1580.png",
+   "review-read-sec-valuation-1580.png",
+   "review-read-sec-estimate-1580.png",
+   "review-read-sec-settlement-1580.png",
+   "review-read-sec-report-1580.png",
+   "review-read-sec-files-1580.png",
+   "review-read-sec-notes-1580.png"
+  ],
+  "menu": "review-read-menu-1580.png",
+  "menuItems": [
+   "Assign Engineer",
+   "Export case",
+   "Send chaser",
+   "Place on Hold",
+   "Correct principal",
+   "Close case"
+  ],
+  "dialogs": [
+   "review-read-dialog-versions-dialog-1580.png",
+   "review-read-dialog-case-hold-dialog-1580.png",
+   "review-read-dialog-case-correct-principal-dialog-1580.png",
+   "review-read-dialog-case-close-dialog-1580.png",
+   "review-read-dialog-case-handoff-dialog-1580.png"
+  ],
+  "tabs": [
+   "review-read-tabs-overview-1580.png",
+   "review-read-tabs-claim-1580.png",
+   "review-read-tabs-inspection-1580.png",
+   "review-read-tabs-vehicle-1580.png",
+   "review-read-tabs-estimate-1580.png",
+   "review-read-tabs-settlement-1580.png",
+   "review-read-tabs-report-1580.png",
+   "review-read-tabs-files-1580.png",
+   "review-read-tabs-notes-1580.png"
+  ]
+ },
+ "edit": {},
+ "errors": []
+}

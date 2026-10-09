@@ -91,8 +91,9 @@ public sealed class CaseDamageAndViewerWebTests
         Assert.DoesNotContain("aria-pressed", damage, StringComparison.Ordinal);
         Assert.DoesNotContain("<button type=\"button\" class=\"btn btn--small", damage, StringComparison.Ordinal);
 
-        // The recorded areas, numbered in recorded order, and the derived cells.
-        Assert.Contains(">Recorded areas<", damage, StringComparison.Ordinal);
+        // The recorded areas, numbered in recorded order, and the derived cells;
+        // no count box (v36 item L, 9 October 2026).
+        Assert.DoesNotContain("data-damage-count", damage, StringComparison.Ordinal);
         var first = Row(damage, "0");
         var second = Row(damage, "1");
         var third = Row(damage, "2");
@@ -107,7 +108,6 @@ public sealed class CaseDamageAndViewerWebTests
         Assert.DoesNotContain("impact-row--areas", damage, StringComparison.Ordinal);
         Assert.Contains(">Multiple &#xB7; LH Side, RH Side, Rear, LH Rear, Underside<", Cell(damage, "data-damage-location"), StringComparison.Ordinal);
         Assert.Contains(">Heavy<", Cell(damage, "data-damage-severity"), StringComparison.Ordinal);
-        Assert.Contains(">3<", Cell(damage, "data-damage-count"), StringComparison.Ordinal);
 
         // Read mode: the one hidden JSON field the Save reads is not rendered
         // while nothing edits, and neither is Reset.

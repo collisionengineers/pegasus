@@ -1,0 +1,126 @@
+/* v36 mockup only: the strip, the widgets and the proposal's own rules.
+   Every proposal rule reuses the live tokens; nothing here is product CSS. */
+
+/* ---- mockup strip ------------------------------------------------------- */
+.v36-strip{position:fixed;left:12px;bottom:12px;z-index:5000;width:340px;max-height:min(70vh,760px);overflow:auto;background:#1f2326;color:#e8eaec;border-radius:6px;box-shadow:0 8px 28px rgba(0,0,0,.4);font:12px/1.4 "Inter Variable",Inter,system-ui,sans-serif}
+.v36-strip summary{cursor:pointer;padding:9px 12px;font-weight:700;list-style:none;display:flex;justify-content:space-between;gap:8px}
+.v36-strip summary::-webkit-details-marker{display:none}
+.v36-strip summary small{font-weight:400;opacity:.7}
+.v36-strip .v36-body{padding:4px 12px 12px;display:grid;gap:8px}
+.v36-strip .v36-row{display:grid;gap:3px}
+.v36-strip .v36-row > b{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;opacity:.65}
+.v36-strip .v36-seg{display:flex;flex-wrap:wrap;gap:4px}
+.v36-strip .v36-seg button{background:#2c3135;color:#e8eaec;border:1px solid #3b4146;border-radius:3px;padding:3px 8px;font:inherit;cursor:pointer}
+.v36-strip .v36-seg button[aria-pressed="true"]{background:#d2343a;border-color:#d2343a;color:#fff}
+.v36-strip .v36-seg button[disabled]{opacity:.35;cursor:not-allowed}
+.v36-strip select{background:#2c3135;color:#e8eaec;border:1px solid #3b4146;border-radius:3px;padding:3px 6px;font:inherit;width:100%}
+.v36-strip .v36-findings{display:grid;gap:2px;max-height:260px;overflow:auto;border-top:1px solid #3b4146;padding-top:6px}
+.v36-strip .v36-findings label{display:grid;grid-template-columns:auto 34px 1fr;gap:6px;align-items:start;cursor:pointer;padding:2px 0}
+.v36-strip .v36-findings label small{opacity:.6}
+.v36-strip .v36-findings .v36-group{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;opacity:.65;margin-top:6px}
+.v36-strip .v36-findings .v36-tier{display:inline-block;min-width:14px;text-align:center;border-radius:2px;background:#3b4146;font-size:10px;padding:0 3px}
+.v36-strip .v36-findings .v36-tier[data-tier="b"]{background:#8a5a00}
+.v36-strip .v36-findings .v36-tier[data-tier="c"]{background:#2b4b7a}
+.v36-strip .v36-link{color:#9ec5ff}
+.v36-strip .v36-note{opacity:.7}
+body.v36-strip-hidden .v36-strip{display:none}
+
+/* ---- widgets ------------------------------------------------------------- */
+/* Diff: every region the proposal changed is outlined and numbered. */
+.v36-diff [data-v36-change]{outline:2px dashed var(--red);outline-offset:2px;position:relative}
+.v36-diff [data-v36-change]::before{content:attr(data-v36-change);position:absolute;top:-10px;left:-4px;z-index:9;background:var(--red);color:#fff;font:700 10px/1 "Inter Variable",Inter,sans-serif;padding:3px 5px;border-radius:3px;letter-spacing:.04em;pointer-events:none}
+.v36-diff .v36-legend{position:fixed;right:12px;bottom:12px;z-index:5000;background:#1f2326;color:#e8eaec;padding:8px 10px;border-radius:6px;font:11.5px/1.4 "Inter Variable",Inter,sans-serif;max-width:360px;max-height:50vh;overflow:auto}
+.v36-diff .v36-legend b{display:inline-block;min-width:28px;color:#ff8f93}
+/* Ruler: control heights by colour so the ladder reads at a glance. */
+.v36-ruler [data-v36-h]{outline:2px solid transparent;outline-offset:-2px}
+.v36-ruler [data-v36-h="36"]{outline-color:rgba(26,140,80,.75)}
+.v36-ruler [data-v36-h="32"]{outline-color:rgba(28,96,186,.75)}
+.v36-ruler [data-v36-h="40"]{outline-color:rgba(100,100,100,.6)}
+.v36-ruler [data-v36-h="24"],.v36-ruler [data-v36-h="28"],.v36-ruler [data-v36-h="30"],.v36-ruler [data-v36-h="22"]{outline-color:rgba(210,52,58,.85)}
+.v36-ruler .v36-ruler-key{position:fixed;right:12px;top:60px;z-index:5000;background:#1f2326;color:#e8eaec;padding:8px 10px;border-radius:6px;font:11.5px/1.5 "Inter Variable",Inter,sans-serif}
+.v36-ruler .v36-ruler-key i{display:inline-block;width:12px;height:12px;margin-right:6px;vertical-align:-2px;border:2px solid}
+/* Split: today and the proposal side by side at half zoom, one scroll. */
+.v36-split #v36-frame{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:#5a6166}
+.v36-split .v36-pane{zoom:.5;background:var(--bg,#f3f4f5);position:relative}
+.v36-split .v36-pane::before{content:attr(data-v36-pane);position:sticky;top:0;z-index:50;display:block;background:#1f2326;color:#fff;font:700 24px/1.2 "Inter Variable",Inter,sans-serif;padding:8px 16px}
+/* Busy stand-in: the pressed state of a navigating link button, drawn as
+   site.js draws a busy submit (aria-busy, the label, the spinner). */
+.v36-busy-demo{position:relative;pointer-events:none;opacity:.85}
+.v36-busy-demo .v36-spin{display:inline-block;width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:v36spin .8s linear infinite;flex:none}
+@keyframes v36spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.v36-busy-demo .v36-spin{animation:none}}
+/* Flicker stand-in: the ribbon and aside redrawn twice after one save. */
+.v36-flicker [data-case-ribbon-facts],.v36-flicker [data-case-ribbon-actions],.v36-flicker [data-case-aside]{animation:v36flash 2.4s steps(1) 2}
+@keyframes v36flash{0%{outline:3px solid var(--amber);outline-offset:-3px}20%{outline:none}50%{outline:3px solid var(--amber);outline-offset:-3px}70%{outline:none}100%{outline:none}}
+/* Landing stand-in: where a Workflow action returns the reader. */
+.v36-landing-mark{outline:3px solid var(--navy);outline-offset:4px}
+
+/* ---- proposal rules (one per finding, named by its number) ---------------- */
+/* f01 · the section row never clips: no icons below 1500px, tighter links, and the row wraps below 980px. */
+@media (max-width:1500px){.v36-f01 .section-link .icon{display:none}.v36-f01 .section-link{padding:0 7px}}
+@media (max-width:980px){.v36-f01{flex-wrap:wrap;overflow:visible}.v36-f01 .section-link{min-height:36px}}
+/* f02 · the status word: body size, sans, a fixed cell so Done never moves. */
+.v36-f02{font-family:inherit!important;font-size:12px!important;min-width:96px;text-align:right;color:var(--muted)}
+/* f03 · Principal is a code: natural width, so Claimant and Engineer get the room. */
+@media (min-width:1101px){.case-record .ribbon .ribbon-item.v36-f03{flex:0 0 auto}}
+/* f06 · an absent figure is one glyph in one weight. */
+.figures dd.v36-absent{font-weight:400;color:var(--muted)}
+/* f07 · the folded strip: cards keep their own height; the card spans the strip. */
+@media (max-width:1440px){.workspace-aside.v36-f07{align-items:start}.workspace-aside.v36-f07 > .report-not-ready{grid-column:1/-1}}
+/* f08 · aside heads share the section head height. */
+.workspace-aside.v36-f08 > .panel > .panel-head{min-height:51px}
+/* f09 · the Held step names the review date and offers Release Hold. */
+.v36-f09 .next-step-go{width:100%}
+/* f23 · Reset sits with the area chips under the plan. */
+.v36-f23{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.v36-f23 [data-damage-reset]{margin-left:auto}
+/* f25 · Get valuation variants. */
+.v36-getval-link{font-size:12.5px;align-self:center;margin-left:auto}
+.v36-getval-footrow{display:flex;justify-content:center;margin-top:8px}
+.v36-getval-foot{min-height:28px;padding:0 10px;font-size:12px}
+.v36-getval-inline > .btn{width:100%;justify-content:center}
+/* f26 · an unconnected card states the approved sentence as one quiet line, not a notice box. */
+.valuation-card-note.v36-quiet{background:none;border:0;padding:4px 0 0;font-size:11.5px;color:var(--muted)}
+.valuation-card-note.v36-quiet .icon{display:none}
+/* f27 · card boxes on the 32px small-control step, not 28px. */
+.valuation-cards.v36-f27 .valuation-card-fig{min-height:32px}
+.valuation-cards.v36-f27 .valuation-card-fig .fi,.valuation-cards.v36-f27 .valuation-card-fig input{min-height:32px;height:32px}
+/* f28 · reading shows the same increases and deductions geometry as editing, greyed. */
+.v36-f28 input,.v36-f28 select{background:var(--surface-2);border-color:var(--line);color:var(--ink);pointer-events:none}
+/* f32 · the line grid: figures and their headers right-aligned on one baseline, the part number left. */
+.v36-f32 th.v36-num,.v36-f32 td.v36-num{text-align:right}
+/* Header text and figure share one right edge: th 6px padding + 4px, the td's 4px + the box's 6px. */
+#section-estimate .grid th.v36-num{padding-right:10px}
+/* A number input reserves its spin buttons at the right even when they are hidden, which is where today's figures sit 20px short of the edge and clip. */
+.v36-f32 td.v36-num input::-webkit-inner-spin-button,.v36-f32 td.v36-num input::-webkit-outer-spin-button{-webkit-appearance:none;appearance:none;margin:0}
+.v36-f32 td.v36-num input[type=number]{-moz-appearance:textfield;appearance:textfield}
+.v36-f32 td.v36-num input,.v36-f32 td.v36-num .gv{display:block;width:100%;box-sizing:border-box;text-align:right;padding-right:6px;font-variant-numeric:tabular-nums;font-family:var(--mono)}
+.v36-f32 td.v36-num .gv{justify-content:flex-end}
+.v36-f32 th.col-part,.v36-f32 td.v36-part{padding-left:10px}
+.v36-f32 td.v36-part input,.v36-f32 td.v36-part .gv{padding-left:6px}
+.v36-f32 td.v36-part,.v36-f32 td.v36-part input,.v36-f32 td.v36-part .gv{text-align:left}
+.v36-f32 .v36-money{display:inline-flex;align-items:center;gap:2px;width:100%}
+.v36-f32 .v36-money::before{content:"£";color:var(--muted);font-size:12px}
+/* f34 · choice variants: the unset state is the greyed box; segments are the edit control only. */
+.v36-choice-box .radiorow.is-static{display:none}
+.case-record .decisions .v36-choice-value,.case-record.is-editing .decisions .v36-choice-value{display:flex}
+.v36-choice-none{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.v36-choice-none .v36-choice-value{flex:0 0 auto;min-width:140px}
+/* f39 · the Statement of truth folds under its own sub-panel head. */
+.v36-f39.is-collapsed > .fg{display:none}
+/* f43 · a read-mode tile keeps the edit panel's height, so Edit moves nothing. */
+.image-tile-status.v36-f43{min-height:74px;display:flex;align-items:flex-start;padding-top:8px}
+/* f45 · a timeline entry is one line: when, who, what. */
+.v36-f45 .note-entry,.v36-f45 > div{display:grid;grid-template-columns:130px 1fr;gap:12px;align-items:start}
+.v36-f45 .note-actor{display:inline;font-weight:650}
+.v36-f45 .note-actor + *{display:inline}
+/* f46 · one empty state: a muted sentence in a 36px row, no dashed box, no icon. */
+.v36-empty-line{padding:6px 9px;min-height:36px;display:flex;align-items:center;color:var(--muted);font-size:13.5px;border:0;background:none;text-align:left}
+.v36-empty-line .icon{display:none}
+.v36-empty-line h3{font-size:13.5px;font-weight:400;margin:0}
+/* f53 · below 980px only the section row stays sticky. */
+@media (max-width:980px){.sticky-block.v36-f53{position:static}.sticky-block.v36-f53 .section-row{position:sticky;top:var(--utility-h);background:var(--surface);z-index:20;border-bottom:1px solid var(--line)}}
+/* f60 · Glass's included operations: an indent under the row they belong to, or the line's own note across the figure columns. */
+#section-estimate .grid td.v36-incl-indent{padding-left:30px;position:relative}
+#section-estimate .grid td.v36-incl-indent::before{content:"";position:absolute;left:12px;top:-2px;height:50%;width:9px;border-left:1px solid var(--line-strong);border-bottom:1px solid var(--line-strong)}
+#section-estimate .grid td.v36-incl-note{font-size:11.5px;color:var(--muted);text-align:left;padding-left:10px;font-variant-numeric:normal}

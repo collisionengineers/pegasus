@@ -602,7 +602,7 @@ internal static class GlassEstimatePdfParser
             // amount; every other row's printed material is row materials.
             var priced = row.Operation is "RP" or "EC";
             List<string> notes = [.. row.Notes];
-            if (row.Parent is { } parent) notes.Insert(0, $"Included in {parent.Section} row {parent.Position}; no separate charge.");
+            if (row.Parent is { } parent) notes.Insert(0, IncludedOperations.Note($"{parent.Section} row {parent.Position}"));
             if (row.Operation is { } operation) notes.Insert(0, $"Printed {(paint ? "paint level" : "operation")}: {operation}.");
             if (InHours(row.Overlap) is { } overlap) notes.Add(FormattableString.Invariant($"Printed overlap: {overlap:0.00} h (net hours retained)."));
             if (row.Labour is { } labour) notes.Add(FormattableString.Invariant($"Printed labour: {labour:0.00} GBP."));

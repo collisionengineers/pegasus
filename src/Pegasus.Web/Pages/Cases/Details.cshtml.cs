@@ -401,6 +401,48 @@ public sealed partial class DetailsModel(
 
     public IReadOnlyList<RepairSpecificationVersion> Estimates { get; private set; } = [];
 
+    /// <summary>
+    /// The staff names behind each spec version's recorded account, so the
+    /// origin line names the person and never an account id (v36 f55,
+    /// 9 October 2026).
+    /// </summary>
+    public IReadOnlyDictionary<string, string> SpecAuthorNames { get; private set; } =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Who recorded a spec version, as the page names people: the resolved
+    /// account's name; the Automation Actor as AI; an account no longer
+    /// resolvable as the shared "another member of staff" wording.
+    /// </summary>
+    public string SpecAuthorName(string createdBy)
+    {
+        if (SpecAuthorNames.TryGetValue(createdBy, out var name))
+        {
+            return name;
+        }
+        return Guid.TryParse(createdBy, out _) ? "Another member of staff" : "AI";
+    }
+
+    private async Task<IReadOnlyDictionary<string, string>> ResolveSpecAuthorNamesAsync(
+        IReadOnlyList<RepairSpecificationVersion> versions,
+        CancellationToken cancellationToken)
+    {
+        var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var createdBy in versions.Select(version => version.CreatedBy).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!Guid.TryParse(createdBy, out var accountId))
+            {
+                continue;
+            }
+            var account = await staffAccountQueries.GetAsync(accountId, cancellationToken);
+            if (account is not null && !string.IsNullOrWhiteSpace(account.UserName))
+            {
+                names[createdBy] = account.UserName;
+            }
+        }
+        return names;
+    }
+
     public RepairSpecificationVersion? SelectedEstimate { get; private set; }
 
     public bool EditingNewEstimate { get; private set; }
@@ -1076,6 +1118,7 @@ public sealed partial class DetailsModel(
         await reads.WhenAllAsync();
 
         Estimates = await estimates;
+        SpecAuthorNames = await ResolveSpecAuthorNamesAsync(Estimates, cancellationToken);
         LabourRateCards = await cards;
         ApplyEstimateSelection(estimate);
         var saved = await savedReasons;
@@ -1273,10 +1316,12 @@ public sealed partial class DetailsModel(
                 line.Description,
                 line.PartNumber,
                 line.Quantity?.ToString(CultureInfo.InvariantCulture),
-                line.WorkUnits?.ToString(CultureInfo.InvariantCulture),
-                line.PaintWorkUnits?.ToString(CultureInfo.InvariantCulture),
-                line.Price?.ToString("0.##", CultureInfo.InvariantCulture),
-                line.Materials?.ToString("0.##", CultureInfo.InvariantCulture),
+                // Two decimals in every figure box (v36 item X, 9 October 2026): a
+                // stored 0.700000 no longer clips the box.
+                line.WorkUnits?.ToString("0.00", CultureInfo.InvariantCulture),
+                line.PaintWorkUnits?.ToString("0.00", CultureInfo.InvariantCulture),
+                line.Price?.ToString("0.00", CultureInfo.InvariantCulture),
+                line.Materials?.ToString("0.00", CultureInfo.InvariantCulture),
                 line.Id))
             .ToList();
     }
