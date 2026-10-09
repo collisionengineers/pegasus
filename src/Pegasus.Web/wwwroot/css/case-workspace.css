@@ -247,8 +247,8 @@ span.blocker-name{cursor:default;text-decoration:none}
 #section-valuation .add--vat label{display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px}
 #section-valuation .add--vat .calc-amount{float:none;justify-self:end;margin:0}
 #section-valuation .valuation-deductions{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);gap:12px 24px;align-items:start}
-/* Previous total loss: the tick box, then −10 % / −20 % on the Scroll / Tabs
-   switch's own look; a percentage is a radio of the field. */
+/* Previous total loss: the tick box, then −10 % / −20 % on the
+   case-layout-switch look; a percentage is a radio of the field. */
 #section-valuation .valuation-ptl>.lbl{min-height:13px}
 #section-valuation .fc .fi.valuation-ptl-row{border:0;padding:0;background:transparent;align-items:center;flex-wrap:wrap;gap:8px 12px}
 #section-valuation .valuation-ptl-row .choice{min-height:var(--control)}
