@@ -295,7 +295,9 @@ public sealed partial class AssessmentReportDraftWebTests
             if (key is null)
             {
                 Assert.DoesNotContain("data-section-jump", row, StringComparison.Ordinal);
-                Assert.Contains("in Accounts", row, StringComparison.Ordinal);
+                // The link is the how; the row carries no sentence on resolving
+                // it (v36 item AB, 9 October 2026).
+                Assert.DoesNotContain(reason.HowToResolve, row, StringComparison.Ordinal);
                 var accounts = AccountsLinkRegex().Match(row);
                 Assert.True(accounts.Success, "An Administrator's Sign-off blocker links to Accounts.");
                 Assert.Contains("href=\"/Administration/Accounts\"", accounts.Value, StringComparison.Ordinal);
@@ -335,7 +337,7 @@ public sealed partial class AssessmentReportDraftWebTests
         var engineerRow = BlockerRow(
             BlockerList(WebUtility.HtmlDecode(await GetHtmlAsync(engineer, $"/Cases/{caseId:D}?section=report"))),
             CaseReportReadiness.SignatoryRequirement);
-        Assert.Contains("in Accounts", engineerRow, StringComparison.Ordinal);
+        Assert.Contains(CaseReportReadiness.SignatoryRequirement, engineerRow, StringComparison.Ordinal);
         Assert.False(
             engineerRow.Contains("href=", StringComparison.Ordinal),
             $"An Engineer's Sign-off blocker links nowhere: {engineerRow}");
@@ -346,7 +348,8 @@ public sealed partial class AssessmentReportDraftWebTests
         var first = CaseWorkspaceLabels.Report.InPageOrder(readiness.Reasons)[0];
         Assert.Single(Regex.Matches(panel, "data-next-label"));
         Assert.Contains($"<strong data-next-label>{first.Requirement}</strong>", panel, StringComparison.Ordinal);
-        Assert.Contains(first.HowToResolve, panel, StringComparison.Ordinal);
+        // The step's control is the how; no sentence repeats it (v36 item AB).
+        Assert.DoesNotContain(first.HowToResolve, panel, StringComparison.Ordinal);
         var report = CaseWebTestSupport.Section(html, "section-report-title");
         Assert.Contains("data-report-gate", report, StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-not-ready", report, StringComparison.Ordinal);
@@ -436,7 +439,9 @@ public sealed partial class AssessmentReportDraftWebTests
         var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
 
         var row = BlockerRow(BlockerList(html), CaseReportReadiness.SignatoryRequirement);
-        Assert.Contains("Choose the Sign-off Engineer on Case details.", row, StringComparison.Ordinal);
+        // The link to Case details is the how; the row carries no sentence
+        // (v36 item AB, 9 October 2026).
+        Assert.DoesNotContain("Choose the Sign-off Engineer on Case details.", row, StringComparison.Ordinal);
         AssertBlockerLinks(row, caseId, "overview", CaseReportReadiness.SignatoryRequirement);
         Assert.DoesNotContain("data-blocker-accounts", row, StringComparison.Ordinal);
     }

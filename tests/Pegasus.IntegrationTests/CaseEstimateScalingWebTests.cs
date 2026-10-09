@@ -148,6 +148,7 @@ public sealed class CaseEstimateScalingWebTests
         // The scale form is not an editor: it clears no draft of the Case's.
         Assert.DoesNotContain("data-editor-commit=\"{", afterApply, StringComparison.Ordinal);
         Assert.NotEqual(leaseToken, AssessmentEstimateImportWebTests.InputValue(afterApply, "editLeaseToken"));
+        Assert.Contains("data-scale-remove", afterApply, StringComparison.Ordinal);
         Assert.DoesNotContain("data-scale-remove disabled=\"disabled\"", afterApply, StringComparison.Ordinal);
         Assert.Contains("id=\"remove-scaling-form\"", afterApply, StringComparison.Ordinal);
 
@@ -164,7 +165,10 @@ public sealed class CaseEstimateScalingWebTests
 
         var afterRemoval = await AssessmentEstimateImportWebTests.EnterEditModeAsync(
             client, caseId, $"?section=estimate&estimate={draft.SpecificationId:D}");
-        Assert.Contains("data-scale-remove disabled=\"disabled\"", afterRemoval, StringComparison.Ordinal);
+        // An unscaled spec offers no removal: the control is absent, never
+        // disabled (v36 item Y, 9 October 2026).
+        Assert.DoesNotContain("data-scale-remove", afterRemoval, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"remove-scaling-form\"", afterRemoval, StringComparison.Ordinal);
     }
 
     /// <summary>
