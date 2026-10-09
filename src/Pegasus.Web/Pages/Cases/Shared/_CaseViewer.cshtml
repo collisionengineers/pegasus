@@ -21,7 +21,7 @@
 @using Pegasus.Web.Presentation
 @using ViewerLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Viewer
 @using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages
-<div class="case-viewer" data-case-viewer data-viewer-standalone="@(Model.Standalone ? "true" : null)" hidden role="dialog" aria-modal="true" aria-label="@ViewerLabels.Title" tabindex="-1">
+<div class="case-viewer" data-case-viewer data-viewer-standalone="@(Model.Standalone ? "true" : "false")" hidden role="dialog" aria-modal="true" aria-label="@ViewerLabels.Title" tabindex="-1">
     <div class="case-viewer-top">
         <div class="case-viewer-title">
             <b data-viewer-name></b>
