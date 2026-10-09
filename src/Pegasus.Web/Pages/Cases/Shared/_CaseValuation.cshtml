@@ -69,7 +69,8 @@
         </div>
     </div>
     <div class="panel-body stack">
-        <div class="valuation-cards" data-valuation-cards>
+        @* The report's Retail and Trade come from the chosen card, so a jump to either lands on the cards. *@
+        <div class="valuation-cards" data-valuation-cards data-field="@AssessmentVocabulary.ValueRetail @AssessmentVocabulary.ValueTrade">
             @for (var index = 0; index < guideSources.Length; index++)
             {
                 var source = guideSources[index];

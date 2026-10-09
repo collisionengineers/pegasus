@@ -441,6 +441,15 @@ public static class CaseWorkspaceLabels
         };
 
         /// <summary>
+        /// The field cell inside <see cref="BlockerSection"/> a jump to the
+        /// blocker outlines, as its data-field: the field the blocker names,
+        /// else the Sign-off Engineer's cell for its blocker; null when the
+        /// blocker names no one cell.
+        /// </summary>
+        public static string? BlockerField(AssessmentReadinessItem item) =>
+            item.Field ?? (item == CaseReportReadiness.SignOffEngineerNotChosen ? "signOffEngineerId" : null);
+
+        /// <summary>
         /// The control on the Repair Spec section that clears a repairer VAT
         /// blocker, as a selector: its Repairer VAT status for an unknown
         /// status, Reset to repairer status for a hand-picked set of costs.
