@@ -123,14 +123,12 @@
 
         <div class="overview-grid">
             <div class="sub-panel @Model.CollapsedClass("case.overview.case")" data-collapse="case.overview.case"><h3>Case <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.overview.case")" /></h3>
+                @* Case type, Our ref and Principal are the ribbon's facts and are not repeated here (v36 item E, 9 October 2026). *@
                 <div class="fg g2">
-                    <div class="fc ro"><span class="lbl">@Frame.CaseType</span><div class="fv">@OperatorLabels.CaseTypeName(summary.CaseType)</div></div>
-                    <div class="fc ro"><span class="lbl">@Frame.OurRef</span><div class="fv mono">@workflow.Identity.Reference</div></div>
                     <div class="fc @Ro()">@{ Lbl("f-claim-reference", Frame.ClaimReference, claimNumberValue?.Source); }<div class="@ValueClass(claimNumber) mono">@Value(claimNumber)</div>@if (mayEdit){<input id="f-claim-reference" class="fi mono" name="claimNumber" form="case-edit-form" maxlength="200" value="@claimNumber" />}</div>
                     <div class="fc @Ro()">@{ Lbl("f-incident-date", Frame.IncidentDate, incidentDateValue?.Source); }<div class="@ValueClass(incidentDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))">@Value(incidentDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))</div>@if (mayEdit){<input id="f-incident-date" class="fi" name="incidentDate" form="case-edit-form" type="date" value="@incidentDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
                     <div class="fc ro"><span class="lbl">@Frame.Received</span><div class="fv">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</div></div>
                     <div class="fc @Ro()">@{ Lbl("f-due-by", Frame.Due); }<div class="@ValueClass(dueBy?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))">@Value(dueBy?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))</div>@if (mayEdit){<input id="f-due-by" class="fi" name="dueBy" form="case-edit-form" type="date" value="@dueBy?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
-                    <div class="fc ro"><span class="lbl">@Frame.MatterLine</span><div class="fv derived @(matterLine.Length == 0 ? "empty" : null)" data-matter-line>@(matterLine.Length == 0 ? OperatorLabels.CaseWorkspace.AbsentValue : matterLine)</div></div>
                     @* The Sign-off Engineer (v28 P38): decided with the Case, not the report. *@
                     @{ var signOffEditable = Model.SectionIsEditable("report") && data is not null; }
                     <div class="fc @(signOffEditable ? null : "ro")" data-field="signOffEngineerId">
@@ -139,7 +137,7 @@
                             <label for="f-sign-off-engineer">@CaseWorkspaceLabels.Report.SignOffEngineer</label>
                             <div class="fv">@Model.SignOffEngineerDisplayName</div>
                             <select id="f-sign-off-engineer" class="fi" name="signOffEngineerId" form="case-edit-form">
-                                <option value="" disabled selected="@(Model.SelectedSignOffEngineerId is null)"></option>
+                                <option value="" selected="@(Model.SelectedSignOffEngineerId is null)">@OperatorLabels.CaseWorkspace.Unassigned</option>
                                 @foreach (var engineer in Model.EligibleSignOffEngineers)
                                 {
                                     <option value="@engineer.StaffId" selected="@(engineer.StaffId == Model.SelectedSignOffEngineerId)">@engineer.PrintedName</option>
@@ -157,11 +155,12 @@
                         @* Inherited scope: the mailbox address and the authoritative time, never the retained identifiers. *@
                         <div class="fc ro"><span class="lbl">@Frame.ReportSent</span><div class="fv">@sentEvidence.MailboxIdentity · @OperatorLabels.OfficeTime(sentEvidence.SentAtUtc)</div></div>
                     }
+                    @* The matter line spans the sub-panel's foot so it reads on one line (v36 f10). *@
+                    <div class="fc ro span2"><span class="lbl">@Frame.MatterLine</span><div class="fv derived @(matterLine.Length == 0 ? "empty" : null)" data-matter-line>@(matterLine.Length == 0 ? OperatorLabels.CaseWorkspace.AbsentValue : matterLine)</div></div>
                 </div>
             </div>
             <div class="sub-panel @Model.CollapsedClass("case.overview.principal")" data-collapse="case.overview.principal"><h3>Principal <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.overview.principal")" /></h3>
                 <div class="fg">
-                    <div class="fc ro"><span class="lbl">@OperatorLabels.CaseWorkspace.RibbonPrincipal</span><div class="fv">@workflow.Identity.PrincipalCode</div></div>
                     @* The claim source is chosen from the active Claim source
                        records while editing; each option carries the record's
                        notes and contact so the notes band and the contact

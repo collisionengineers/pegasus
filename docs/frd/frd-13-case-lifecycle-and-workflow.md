@@ -63,7 +63,8 @@ Case's Actions-menu lifecycle acts as staff do
 
 **Blockers are specific.** Each unmet requirement is one named blocker. The
 screen shows exactly which field or material is missing, where it should come
-from, why it is required, and what would clear it. Pegasus never shows an
+from and why it is required; its control is what clears it, with no sentence
+saying how (operator, 9 October 2026). Pegasus never shows an
 overall score, a percentage, or a summary such as "3 items outstanding". On
 the Case record each report blocker links to the section that clears it. A
 recorded value is never a blocker because of who recorded it: there is no

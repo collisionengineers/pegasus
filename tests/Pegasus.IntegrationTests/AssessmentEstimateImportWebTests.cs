@@ -1669,8 +1669,8 @@ public sealed partial class AssessmentEstimateImportWebTests
             $"/Cases/{caseId:D}?section=estimate&estimate={draft.SpecificationId:D}&dialog=compare-estimates");
 
         Assert.DoesNotContain("compare-estimates-dialog", html, StringComparison.Ordinal);
-        // v28 P9: Compare stays findable under More, greyed out until a second spec exists.
-        Assert.Contains("disabled data-estimate-compare", html, StringComparison.Ordinal);
+        // v36 item Y (9 October 2026): with one spec Compare is absent, never disabled.
+        Assert.DoesNotContain("data-estimate-compare", html, StringComparison.Ordinal);
         Assert.DoesNotContain("dialog=compare-estimates", html, StringComparison.Ordinal);
     }
 

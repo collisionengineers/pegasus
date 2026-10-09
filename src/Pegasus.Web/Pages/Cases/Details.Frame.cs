@@ -106,9 +106,11 @@ public sealed partial class DetailsModel
         {
             return null;
         }
-        if (ColleagueIsEditing && EditAuthorityHolder is { } holder)
+        // A colleague's lease is said once, on the ribbon chip beside Take
+        // over (v36 item A, 9 October 2026); the section heads repeat nothing.
+        if (ColleagueIsEditing)
         {
-            return $"{EditModeDisplay.HolderName(holder)} is editing";
+            return null;
         }
         if (!IsEditing || SectionIsEditable(key))
         {
@@ -135,7 +137,11 @@ public sealed partial class DetailsModel
         && CurrentEditLease is null
         && !IsPostReportReadOnly
         && CurrentWorkflow?.Archive is null
-        && key is not ("files" or "notes");
+        && key is not ("files" or "notes")
+        // An Engineer section offers Edit only where this viewer's session
+        // would edit it (v36 item W, 9 October 2026): claiming the lease from
+        // a section that then locks helps no one.
+        && (!EngineerSectionKeys.Contains(key) || (AssessmentCanOpen && !AssessmentIsReadOnly));
 
     /// <summary>The state chip's text, with the hold's review date when one is set.</summary>
     public string StateChipText

@@ -80,15 +80,18 @@
     // (AssessmentVocabulary.LookupDerivedPaths): read-only, tagged Lookup, always
     // drawn and "Not recorded" until a lookup answers, so an answer never
     // reflows the grid.
+    // The editable facts first, the lookup-only facts last (v36 f19, 9 October
+    // 2026), so editing shows white boxes together and greyed boxes together,
+    // and the lone cell of the thirteen is a lookup cell.
     (string Path, string Label)[] vehicleRows =
     [
         (AssessmentVocabulary.VehicleVin, VehicleLabels.Vin),
         (AssessmentVocabulary.VehicleType, VehicleLabels.VehicleType),
         (AssessmentVocabulary.VehicleBody, VehicleLabels.BodyType),
+        (AssessmentVocabulary.VehicleTransmission, VehicleLabels.Transmission),
         (AssessmentVocabulary.VehicleEngineCc, VehicleLabels.EngineCc),
         (AssessmentVocabulary.VehicleFuel, VehicleLabels.Fuel),
         (AssessmentVocabulary.VehicleColour, VehicleLabels.Colour),
-        (AssessmentVocabulary.VehicleTransmission, VehicleLabels.Transmission),
         (AssessmentVocabulary.VehicleTaxExpiry, VehicleLabels.TaxExpiry),
         (AssessmentVocabulary.VehicleMotExpiry, VehicleLabels.MotExpiry)
     ];
@@ -115,10 +118,7 @@
                     </button>
                 </form>
             }
-            <span class="gated" data-vehicle-experian-seam>
-                <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
-                <span>@OperatorLabels.CaseWorkspace.ExperianSeamCondition</span>
-            </span>
+            @* The Experian seam is stated once, on the Vehicle history sub-panel (v36 item K, 9 October 2026). *@
             <partial name="Cases/Shared/_CaseSectionHeadTools" model="headTools" />
         </div>
     </div>
@@ -173,7 +173,7 @@
                         @if (editFields && definition.Type == AssessmentFieldType.Enumerated)
                         {
                             <select id="@controlId" class="fi" name="@CaseWorkspaceLabels.Editors.FormName(path)" form="case-edit-form">
-                                <option value="" selected="@(raw is null)"></option>
+                                <option value="" selected="@(raw is null)">@OperatorLabels.CaseWorkspace.AbsentValue</option>
                                 @foreach (var code in definition.Codes ?? [])
                                 {
                                     <option value="@code" selected="@(raw == code)">@VehicleLabels.AssessmentValue(path, code)</option>
@@ -234,7 +234,7 @@
                     @if (canEditCondition)
                     {
                         <select id="edit-vehicle-condition" class="fi" name="@CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.VehicleCondition)" form="case-edit-form">
-                            <option value="" selected="@(condition is null ? "selected" : null)"></option>
+                            <option value="" selected="@(condition is null ? "selected" : null)">@OperatorLabels.CaseWorkspace.AbsentValue</option>
                             @foreach (var code in conditionCodes)
                             {
                                 <option value="@code" selected="@(condition == code ? "selected" : null)">@VehicleLabels.ConditionLabel(code)</option>

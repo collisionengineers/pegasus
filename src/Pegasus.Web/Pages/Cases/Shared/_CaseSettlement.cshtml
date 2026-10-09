@@ -44,24 +44,9 @@
         </div>
     </div>
     <div class="panel-body stack">
-        @* The figures the decision produces, from the Engineer's Value, the
-           recorded salvage value and the Current estimate's printed total. *@
-        <div class="metric-strip" data-settlement-figures>
-            @if (isTotalLoss)
-            {
-                <div class="metric"><span class="metric-label">@SettlementLabels.EngineersValue</span><span class="metric-value">@Money(engineerValue)</span>@if (engineerValue is null){<span class="metric-meta">@SettlementLabels.SetInValuationMeta</span>}</div>
-                <div class="metric"><span class="metric-label">@SettlementLabels.SalvageValue</span><span class="metric-value">@Money(salvage)</span></div>
-                <div class="metric"><span class="metric-label">@SettlementLabels.Equity</span><span class="metric-value red">@Money(equity)</span><span class="metric-meta">@SettlementLabels.EquityMeta</span></div>
-                <div class="metric"><span class="metric-label">@SettlementLabels.RepairCostIncVat</span><span class="metric-value">@Money(repairCost)</span><span class="metric-meta">@(repairCost is { } cost && engineerValue is { } value && cost > value ? SettlementLabels.ExceedsEngineersValue : SettlementLabels.FromCurrentEstimate)</span></div>
-            }
-            else
-            {
-                <div class="metric"><span class="metric-label">@SettlementLabels.EngineersValue</span><span class="metric-value">@Money(engineerValue)</span>@if (engineerValue is null){<span class="metric-meta">@SettlementLabels.SetInValuationMeta</span>}</div>
-                <div class="metric"><span class="metric-label">@SettlementLabels.LabourHours</span><span class="metric-value">@(Model.LabourHours is { } hours ? hours.ToString("0.00", CultureInfo.InvariantCulture) : "—")</span></div>
-                <div class="metric"><span class="metric-label">@(outcome == "cash_in_lieu" ? SettlementLabels.CashInLieu : SettlementLabels.RepairCostIncVat)</span><span class="metric-value red">@Money(repairCost)</span><span class="metric-meta">@SettlementLabels.FromCurrentEstimate</span></div>
-                <div class="metric"><span class="metric-label">@SettlementLabels.RepairCostOfValue</span><span class="metric-value">@(repairCost is { } c && engineerValue is { } v && v > 0 ? $"{Math.Round(c / v * 100)}%" : "—")</span></div>
-            }
-        </div>
+        @* No figures strip: the aside's Figures card is the home of the repair
+           cost, the Engineer's Value and their ratio (v36 item I, 9 October
+           2026). Labour hours reads as a cell beside Excess below. *@
 
         <div class="decisions" data-decisions>
             <div class="dec-head">
@@ -126,6 +111,10 @@
                    here; the Repair Spec bar ties to this one control. *@
                 await Field(AssessmentVocabulary.SettlementContractSum, labels[AssessmentVocabulary.SettlementContractSum]);
             }
+            <div class="fc ro" data-settlement-labour-hours>
+                <span class="lbl">@SettlementLabels.LabourHours</span>
+                <div class="fv mono derived @(Model.LabourHours is null ? "empty" : null)">@(Model.LabourHours is { } hours ? hours.ToString("0.00", CultureInfo.InvariantCulture) : OperatorLabels.CaseWorkspace.AbsentValue)</div>
+            </div>
         </div>
 
         <div class="sub-panel @Model.CollapsedClass("case.settlement.costs")" data-collapse="case.settlement.costs"><h3>@SettlementLabels.CostsHireDelays <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.settlement.costs")" /></h3>
@@ -141,10 +130,17 @@
                     await Field(AssessmentVocabulary.SettlementDiminution, labels[AssessmentVocabulary.SettlementDiminution]);
                     await Field(AssessmentVocabulary.SettlementHireStart, labels[AssessmentVocabulary.SettlementHireStart]);
                     await Field(AssessmentVocabulary.SettlementHireDailyCost, labels[AssessmentVocabulary.SettlementHireDailyCost]);
-                    await Field(AssessmentVocabulary.SettlementRepairDelays, labels[AssessmentVocabulary.SettlementRepairDelays]);
-                    await Field(AssessmentVocabulary.SettlementReportDelay, labels[AssessmentVocabulary.SettlementReportDelay]);
                 }
                 <div class="fc ro"><span class="lbl">@SettlementLabels.StorageCharge</span><div class="fv mono derived @(Model.AssessmentIsAbsent(AssessmentVocabulary.CostStorageCharge) ? "empty" : null)">@Model.AssessmentDisplay(AssessmentVocabulary.CostStorageCharge)</div></div>
+                @* Storage per day and the recovery charge are Engineer figures and
+                   live with the other costs (v36 item G, 9 October 2026); Inspection
+                   details keeps the storage location alone. The two multi-line
+                   delays take a row of their own (f36). *@
+                @{ await MoneyCell(AssessmentVocabulary.SettlementStoragePerDay, "storagePerDay", "edit-storage-per-day", CaseWorkspaceLabels.Inspection.StoragePerDay);
+                    await MoneyCell(AssessmentVocabulary.CostRecoveryCharge, "recoveryCharge", "edit-recovery-charge", EngineerLabels.RecoveryCharge);
+                    await Field(AssessmentVocabulary.SettlementRepairDelays, labels[AssessmentVocabulary.SettlementRepairDelays], extraClass: "span2");
+                    await Field(AssessmentVocabulary.SettlementReportDelay, labels[AssessmentVocabulary.SettlementReportDelay], extraClass: "span2");
+                }
             </div>
         </div>
 
@@ -164,17 +160,43 @@
 </section>
 
 @functions {
+    // Storage per day and the recovery charge keep the posted names the Save
+    // handler binds (storagePerDay, recoveryCharge) now that they live here.
+    private async Task MoneyCell(string path, string name, string id, string label)
+    {
+        var editable = Model.CanEditEngineering;
+        var value = Model.AssessmentEditorValue(path);
+        var absent = Model.AssessmentIsAbsent(path);
+        var tag = Model.AssessmentSourceTag(path);
+        <div class="fc @(editable ? null : "ro")" data-field="@path">
+            @if (editable)
+            {
+                <label for="@id">@label@(tag?.Render())</label>
+            }
+            else
+            {
+                <span class="lbl">@label@(tag?.Render())</span>
+            }
+            <div class="fv mono @(absent ? "empty" : null)">@Model.AssessmentDisplay(path)</div>
+            @if (editable)
+            {
+                <input type="number" step="0.01" min="0" id="@id" class="fi mono" name="@name" form="case-edit-form" value="@value" />
+            }
+        </div>
+        await Task.CompletedTask;
+    }
+
     // One decision row: the label column and the cell itself. The strip hides
     // the cell's own label, so the row carries its value's source tag in the
-    // label column.
+    // label column. A recorded choice reads as the greyed value box and edits
+    // as a select whose empty option is "Not recorded" (v36 item J, 9 October
+    // 2026); the v28 P29 radio group is gone.
     private async Task DecisionRow(string path, string label, bool hidden, string? shownWhen = null, bool share = false)
     {
-        var definition = AssessmentVocabulary.Definitions[path];
         var editable = Model.SectionIsEditable("settlement") && Model.CanEditAssessmentField(path);
-        var radios = definition.Type == AssessmentFieldType.Enumerated;
         <div class="dec" data-decision="@path" data-shown-when="@shownWhen" hidden="@(hidden ? "hidden" : null)">
             <span class="dl">@label @(Model.AssessmentSourceTag(path)?.Render())</span>
-            @{ await Field(path, label, radios: radios); }
+            @{ await Field(path, label); }
             @if (share)
             {
                 var engineerValueForShare = Model.EngineerValue;
@@ -224,7 +246,7 @@
     // One assessment cell on the vocabulary's own type: a Yes/No select for a
     // flag, the codes for an enumeration, a money/number/date input, a text
     // input or textarea. The control renders only while the field edits.
-    private async Task Field(string path, string label, bool multi = false, string? extraClass = null, bool radios = false)
+    private async Task Field(string path, string label, bool multi = false, string? extraClass = null)
     {
         var definition = AssessmentVocabulary.Definitions[path];
         var editable = Model.SectionIsEditable("settlement") && Model.CanEditAssessmentField(path);
@@ -244,13 +266,13 @@
             {
                 <span class="lbl">@label@(tag?.Render())</span>
             }
-            <div class="fv @(mono ? "mono" : null) @(isMulti ? "multi" : null) @(absent ? "empty" : null) @(radios && !editable ? "sr-only" : null)">@Model.AssessmentDisplay(path)</div>
+            <div class="fv @(mono ? "mono" : null) @(isMulti ? "multi" : null) @(absent ? "empty" : null)">@Model.AssessmentDisplay(path)</div>
             @if (editable)
             {
                 if (definition.Type == AssessmentFieldType.Flag)
                 {
                     <select id="@id" class="fi" name="@name" form="case-edit-form">
-                        <option value="" selected="@(value is null)"></option>
+                        <option value="" selected="@(value is null)">@OperatorLabels.CaseWorkspace.AbsentValue</option>
                         <option value="true" selected="@(value == "true")">Yes</option>
                         <option value="false" selected="@(value == "false")">No</option>
                     </select>
@@ -258,7 +280,7 @@
                 else if (definition.Type == AssessmentFieldType.Enumerated)
                 {
                     <select id="@id" class="fi" name="@name" form="case-edit-form">
-                        <option value="" selected="@(value is null)"></option>
+                        <option value="" selected="@(value is null)">@OperatorLabels.CaseWorkspace.AbsentValue</option>
                         @foreach (var code in definition.Codes ?? [])
                         {
                             <option value="@code" selected="@(value == code)">@Pegasus.Web.Pages.Cases.DetailsModel.CodeWords(code)</option>
@@ -276,33 +298,6 @@
                            step="@(definition.Type == AssessmentFieldType.Money ? "0.01" : definition.Type == AssessmentFieldType.WholeNumber ? "1" : null)"
                            maxlength="@(definition.Type == AssessmentFieldType.Text ? definition.MaximumLength : null)" />
                 }
-            }
-            @if (radios && editable)
-            {
-                @* P29: the codes as a radio group, in the cell beside the
-                   label. The select above stays the posted control; script
-                   shows this group and hides the select, so without script
-                   the select is what the operator uses. *@
-                <div class="radiorow" role="radiogroup" aria-label="@label" data-decision-radios="@path" hidden>
-                    <button type="button" class="pick-radio" role="radio" aria-checked="@(value is null ? "true" : "false")" tabindex="@(value is null ? "0" : "-1")" data-radio-value=""><span class="dot"></span>@OperatorLabels.CaseWorkspace.AbsentValue</button>
-                    @foreach (var code in definition.Codes ?? [])
-                    {
-                        <button type="button" class="pick-radio" role="radio" aria-checked="@(value == code ? "true" : "false")" tabindex="@(value == code ? "0" : "-1")" data-radio-value="@code"><span class="dot"></span>@Pegasus.Web.Pages.Cases.DetailsModel.CodeWords(code)</button>
-                    }
-                </div>
-            }
-            else if (radios)
-            {
-                @* Reading, the same group draws greyed and still: the choice
-                   reads where it is made (23 September 2026). The value box
-                   above carries the words for assistive technology. *@
-                <div class="radiorow is-static" aria-hidden="true" data-decision-radios-read="@path">
-                    <span class="pick-radio" data-on="@(value is null ? "true" : "false")"><span class="dot"></span>@OperatorLabels.CaseWorkspace.AbsentValue</span>
-                    @foreach (var code in definition.Codes ?? [])
-                    {
-                        <span class="pick-radio" data-on="@(value == code ? "true" : "false")"><span class="dot"></span>@Pegasus.Web.Pages.Cases.DetailsModel.CodeWords(code)</span>
-                    }
-                </div>
             }
         </div>
     }

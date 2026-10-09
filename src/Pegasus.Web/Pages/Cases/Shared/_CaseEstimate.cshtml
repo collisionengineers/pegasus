@@ -100,7 +100,7 @@
     var specPercentText = specPercent.ToString("0.#", CultureInfo.InvariantCulture);
     var others = Model.Estimates.Where(item => item.SpecificationId != estimate?.SpecificationId).ToArray();
     string VersionOrigin(RepairSpecificationVersion version) =>
-        $"Populated {OperatorLabels.OfficeTime(version.CreatedAtUtc)} by {version.CreatedBy}, {RepairSpecificationRouteWords.Of(version.Source.Route)} · {EstimateLabels.LinesCount(version.Lines.Count)} · {EngineerLabels.LabourRate.ToLowerInvariant()} {Money(version.Details.HourlyRate)}/h";
+        $"Populated {OperatorLabels.OfficeTime(version.CreatedAtUtc)} by {Model.SpecAuthorName(version.CreatedBy)}, {RepairSpecificationRouteWords.Of(version.Source.Route)} · {EstimateLabels.LinesCount(version.Lines.Count)} · {EngineerLabels.LabourRate.ToLowerInvariant()} {Money(version.Details.HourlyRate)}/h";
 
     string StateTone(RepairSpecificationState state, bool isCurrent) =>
         isCurrent ? "status--green"
@@ -286,10 +286,12 @@
                         {
                             var row = Model.EditorLines[index];
                             var lineNumber = index + 1;
-                            var origin = row.ExistingLineId is { } lineId && lineOrigins.TryGetValue(lineId, out var recordedLine)
-                                ? LineSource(recordedLine)
-                                : EstimateLabels.SourceManual;
-                            <tr data-estimate-line>
+                            var recordedLine = row.ExistingLineId is { } lineId && lineOrigins.TryGetValue(lineId, out var recorded) ? recorded : null;
+                            var origin = recordedLine is not null ? LineSource(recordedLine) : EstimateLabels.SourceManual;
+                            // A Glass's included operation reads as included (v36 item AC):
+                            // indented under its row, its note across the figure columns.
+                            var included = recordedLine is not null && IncludedOperations.IsIncluded(recordedLine.Type, recordedLine.WorkUnits, recordedLine.Price, recordedLine.Justification);
+                            <tr data-estimate-line data-estimate-included="@(included ? "true" : null)">
                                 <td>
                                     <input type="hidden" name="lineId" value="@row.ExistingLineId" form="case-edit-form" />
                                     <label class="sr-only" for="line-operation-@index">@EngineerLabels.LineField(EngineerLabels.Operation, lineNumber)</label>
@@ -300,13 +302,21 @@
                                         }
                                     </select>
                                 </td>
-                                <td><label class="sr-only" for="line-description-@index">@EngineerLabels.LineField(EngineerLabels.Description, lineNumber)</label><input id="line-description-@index" name="lineDescription" form="case-edit-form" value="@row.Description" /></td>
+                                <td class="@(included ? "incl-indent" : null)"><label class="sr-only" for="line-description-@index">@EngineerLabels.LineField(EngineerLabels.Description, lineNumber)</label><input id="line-description-@index" name="lineDescription" form="case-edit-form" value="@row.Description" /></td>
                                 <td><label class="sr-only" for="line-part-@index">@EngineerLabels.LineField(EngineerLabels.PartNumber, lineNumber)</label><input id="line-part-@index" class="mono" name="linePartNumber" form="case-edit-form" value="@row.PartNumber" /></td>
+                                @if (included)
+                                {
+                                    @* The posted arrays stay aligned: the figures post blank from hidden fields. *@
+                                    <td colspan="5" class="incl-note">@IncludedOperations.Sentence(recordedLine!.Justification!)<input type="hidden" name="lineQuantity" value="" form="case-edit-form" /><input type="hidden" name="linePartPounds" value="" form="case-edit-form" /><input type="hidden" name="lineLabourHours" value="" form="case-edit-form" /><input type="hidden" name="linePaintHours" value="" form="case-edit-form" /><input type="hidden" name="lineMaterials" value="" form="case-edit-form" /></td>
+                                }
+                                else
+                                {
                                 <td><label class="sr-only" for="line-quantity-@index">@EngineerLabels.LineField(EngineerLabels.Quantity, lineNumber)</label><input id="line-quantity-@index" class="num" name="lineQuantity" form="case-edit-form" type="number" min="1" step="1" inputmode="numeric" value="@row.Quantity" /></td>
                                 <td><label class="sr-only" for="line-pounds-@index">@EngineerLabels.LineField(EngineerLabels.PartAmount, lineNumber)</label><input id="line-pounds-@index" class="num @OffPatternClass(lineNumber, "linePartPounds")" name="linePartPounds" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" value="@row.PartPounds" title="@OffPatternLabel(lineNumber, "linePartPounds")" /></td>
                                 <td><label class="sr-only" for="line-labour-@index">@EngineerLabels.LineField(EngineerLabels.LabourHours, lineNumber)</label><input id="line-labour-@index" class="num @OffPatternClass(lineNumber, "lineLabourHours")" name="lineLabourHours" form="case-edit-form" type="number" min="0" step="0.1" inputmode="decimal" value="@row.LabourHours" title="@OffPatternLabel(lineNumber, "lineLabourHours")" /></td>
                                 <td><label class="sr-only" for="line-paint-@index">@EngineerLabels.LineField(EngineerLabels.PaintHours, lineNumber)</label><input id="line-paint-@index" class="num @OffPatternClass(lineNumber, "linePaintHours")" name="linePaintHours" form="case-edit-form" type="number" min="0" step="0.1" inputmode="decimal" value="@row.PaintHours" title="@OffPatternLabel(lineNumber, "linePaintHours")" /></td>
                                 <td><label class="sr-only" for="line-materials-@index">@EngineerLabels.LineField(EngineerLabels.MaterialPounds, lineNumber)</label><input id="line-materials-@index" class="num" name="lineMaterials" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" value="@row.Materials" /></td>
+                                }
                                 <td><span class="src-tag @(origin == EstimateLabels.SourceAmended ? "src-tag--ai" : null)">@origin</span></td>
                                 <td><button type="submit" class="del" name="removeLine" value="@index" form="case-edit-form" formaction="@editLineAction" aria-label="@EngineerLabels.RemoveLine(lineNumber)">×</button></td>
                             </tr>
@@ -323,15 +333,24 @@
                             var line = readLines[index];
                             var lineNumber = index + 1;
                             var source = LineSource(line);
-                            <tr data-estimate-line>
+                            var included = IncludedOperations.IsIncluded(line.Type, line.WorkUnits, line.Price, line.Justification);
+                            <tr data-estimate-line data-estimate-included="@(included ? "true" : null)">
                                 <td><span class="gv">@OperationWord(OperationOf(line.Type))</span></td>
-                                <td><span class="gv">@(line.Description ?? string.Empty)</span></td>
+                                <td class="@(included ? "incl-indent" : null)"><span class="gv">@(line.Description ?? string.Empty)</span></td>
+                                @if (included)
+                                {
+                                    <td></td>
+                                    <td colspan="5" class="incl-note">@IncludedOperations.Sentence(line.Justification!)</td>
+                                }
+                                else
+                                {
                                 <td><span class="gv mono">@(line.PartNumber ?? "—")</span></td>
                                 <td class="num"><span class="gv">@(line.Quantity?.ToString(CultureInfo.InvariantCulture) ?? "—")</span></td>
                                 <td class="num"><span class="gv @OffPatternClass(lineNumber, "linePartPounds")" title="@OffPatternLabel(lineNumber, "linePartPounds")">@(line.Price is { } price ? Money(price) : line.Unpriced ? EngineerLabels.ToBeConfirmed : "—")</span></td>
                                 <td class="num"><span class="gv @OffPatternClass(lineNumber, "lineLabourHours")" title="@OffPatternLabel(lineNumber, "lineLabourHours")">@(line.WorkUnits is { } workUnits ? workUnits.ToString("0.0", CultureInfo.InvariantCulture) : "—")</span></td>
                                 <td class="num"><span class="gv @OffPatternClass(lineNumber, "linePaintHours")" title="@OffPatternLabel(lineNumber, "linePaintHours")">@(line.PaintWorkUnits is { } paintUnits ? paintUnits.ToString("0.0", CultureInfo.InvariantCulture) : "—")</span></td>
                                 <td class="num"><span class="gv">@(line.Materials is { } lineMaterials ? Money(lineMaterials) : "—")</span></td>
+                                }
                                 <td><span class="src-tag @(source == EstimateLabels.SourceAmended ? "src-tag--ai" : null)">@source</span></td>
                                 <td></td>
                             </tr>
@@ -398,7 +417,11 @@
                     {
                         <button type="submit" data-busy-label="@OperatorLabels.Busy.Applying" class="btn btn--small btn--primary" form="case-estimate-scale-form" data-scale-apply><span>@EstimateLabels.Apply</span></button>
                     }
-                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Removing" class="btn btn--small" form="remove-scaling-form" data-scale-remove disabled="@(scaled ? null : "disabled")"><span>@EstimateLabels.RemoveScaling</span></button>
+                    @* Absent until there is scaling to remove, never disabled (v36 item Y, 9 October 2026). *@
+                    @if (scaled)
+                    {
+                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Removing" class="btn btn--small" form="remove-scaling-form" data-scale-remove><span>@EstimateLabels.RemoveScaling</span></button>
+                    }
                 </div>
             }
             else if (scaled)
@@ -657,13 +680,7 @@
                                 <span>@EngineerLabels.Compare</span>
                             </a>
                         }
-                        else
-                        {
-                            <button type="button" class="btn" disabled data-estimate-compare>
-                                <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
-                                <span>@EngineerLabels.Compare</span>
-                            </button>
-                        }
+                        @* With one spec there is nothing to compare: the item is absent, never disabled (v36 item Y). *@
                     </div>
                 </details>
             }

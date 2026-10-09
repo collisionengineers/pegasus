@@ -646,7 +646,22 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     }
 
     protected RedirectToPageResult RedirectToDetails(Guid id) =>
-        RedirectToPage("/Cases/Details", new { id, view = ReturnView });
+        RedirectToPage("/Cases/Details", new { id, view = ReturnView, section = ReturnSection });
+
+    /// <summary>
+    /// The section a request returns to: the one the form posted from
+    /// (its <c>section</c> field, as the Case's own forms carry), else none,
+    /// the top (v36 item S, 9 October 2026: a Workflow or Closure action no
+    /// longer lands the reader at the top of the record).
+    /// </summary>
+    protected string? ReturnSection
+    {
+        get
+        {
+            var posted = Request.HasFormContentType ? Request.Form["section"].ToString() : string.Empty;
+            return string.IsNullOrWhiteSpace(posted) || string.Equals(posted, "overview", StringComparison.OrdinalIgnoreCase) ? null : posted;
+        }
+    }
 
     /// <summary>
     /// The view of the Case record a request returns to: the Inspection view

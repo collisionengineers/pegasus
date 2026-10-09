@@ -242,6 +242,38 @@ public static class EstimateOperations
 }
 
 /// <summary>
+/// Glass's included operations (FRD-25, operator, 29 September 2026): an
+/// operation Glass's marks as included in another row's labour lands as an
+/// Other line with neither hours nor a price, noted as included in its row.
+/// The note is the line's Justification; this is the one place that writes
+/// it and the one place that recognises it, so the grid can draw the line as
+/// included (v36 item AC, 9 October 2026).
+/// </summary>
+public static class IncludedOperations
+{
+    public const string NotePrefix = "Included";
+
+    /// <summary>The note for an included operation: where it is included, when the source says.</summary>
+    public static string Note(string? includedIn) =>
+        includedIn is null ? "Included; no separate charge." : $"Included in {includedIn}; no separate charge.";
+
+    /// <summary>Whether a line is an included operation: an Other line with no charge whose note says so.</summary>
+    public static bool IsIncluded(string type, decimal? workUnits, decimal? price, string? justification) =>
+        EstimateOperations.FromLineType(type) == EstimateOperation.Other
+        && workUnits is null
+        && price is null
+        && justification is not null
+        && justification.StartsWith(NotePrefix, StringComparison.Ordinal);
+
+    /// <summary>The note's own sentence, without the annotations that may follow it.</summary>
+    public static string Sentence(string justification)
+    {
+        var end = justification.IndexOf('.', StringComparison.Ordinal);
+        return end < 0 ? justification : justification[..(end + 1)];
+    }
+}
+
+/// <summary>
 /// One estimate line's values as they stood when the line was imported, so
 /// an amendment never erases what the source document said.
 /// </summary>
