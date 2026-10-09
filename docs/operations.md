@@ -4,6 +4,28 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 96 — 9 October 2026 (deployment live)
+
+Release 96 deployed [PR 1132](https://github.com/collisionengineers/pegasus/pull/1132). It merged two PRs into `dev`:
+
+- [PR 1130](https://github.com/collisionengineers/pegasus/pull/1130): Cazana is connected as a guide valuation source through a Key Vault-held API key (ADR-0066).
+- [PR 1131](https://github.com/collisionengineers/pegasus/pull/1131): the mileage box reads "No MOT history" when the lookup found no MOT test.
+
+The route was the normal App Service route with the migration identity unchanged, run from the Windows workstation. Web and Worker are Running on the approved release, and full production smoke passed. The Web App was out of service for about eight minutes while it started the new package (see Deployment).
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `14e9f727290dcc69fe0675e73303835f4dd52bee`. This is the merge of PR 1132 into `dev`; its tree equals the PR head `0c04c5f88` that CI tested. Promoted atomically to both `dev` and `main`; `main` was `9e85b82fa`. Manifest schema 3 SHA-256 `FED63F62A5E36FD27F84F943B85064C3DF0EAADC6C54FA3A6C5CD87CB964F35B`. `web.zip` SHA-256 `1914A1BD12293DD2ECC9AB7565B2F8C7A11524D09665F7815AD5B2FBC61D0942`, 107,530,747 bytes. `worker.zip` SHA-256 `5F639A4C14AC07535DD777DDECF73832733E95978E45AF8AF6E9FD07A9E8ABF9`. Windows `efbundle.exe` SHA-256 `E59FD31A20E3929C03E6501CBE8B96AE0E91E005AA64B72860B6DE1002C54E5D` (built, not run). |
+| Review and verification | Neither PR had review feedback. They share `CaseWorkspaceLabels.cs`, which merged without conflict; the lost-work audit passed (recorded in PR 1132's body). <br>**CI:** PR 1132 run 37907845950 passed all 11 jobs at `0c04c5f88`. The Local, Artifact, PreDeploy and PreProvision gates passed. <br>**Operator approval (9 October 2026):** the combination, its merge and the release, with all merge and deployment authority granted in the request. |
+| Schema and grants | Unchanged. The manifest's migration identity `20261008174505_CaseListPresets` equals the head Release 94 applied; the range adds no migration. No bundle or bootstrap ran. |
+| Configuration | `Cazana__ApiKey` is a Key Vault reference to `cazana-api-key` version `6db98eae219f4ff197b6a9989af117c4` in `pegasusprodkv252ow37g`, read back `Resolved` through the Web App's user-assigned identity, which holds Key Vault Secrets User on that secret alone. The secret, its grant and `CAZANA_API_KEY_SECRET_URI` in the azd environment were in place before the release. |
+| Deployment | `azd provision` (deployment `pegasus-prod-1791538059`) with Web `approved` and Worker `approved-live-worker` succeeded in 1 minute 33 seconds, 09:27:31–09:29:05Z. B1 quota in `uksouth` read 3. `web.zip` was deployed with restart; OneDeploy `ff6475fd-b02e-4a39-bc2e-b1e04fdb57df` succeeded at 09:30:36Z with package `20261009092930.zip`. The first container start logged a transient SQL login failure (`SqlException`, TCP Provider error 35) at 09:30:46Z, terminated at 09:31:24Z and failed the startup probe after 231 s. The platform restarted it, the warm-up probe passed and the site started at 09:37:51Z. The CLI's tracker had already reported "site failed to start within 10 mins" at 619 s, so the driver stopped. A direct read-back showed `/health/live`, `/health/ready` and `/health/warm` 200 and `/diagnostics/version` reporting the exact release, and the route resumed at 09:42:20Z as in Release 71. `worker.zip` was deployed by config-zip (deployment `2ef56952-3e70-45d0-b5b2-157c4d7e5717`, succeeded 09:42:58Z). Web outage: at most 09:29:38–09:37:51Z (8 minutes 13 seconds). The Worker was not stopped. |
+| Production smoke | Passed at 09:45:04Z. The Worker activation smoke passed as `approved-live-worker`. Active Web package `20261009092930.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed: last completed poll `2026-10-09T09:40:00Z`; the active Graph subscription expires `2026-10-12T13:50:00Z`. |
+| Wipe | None. |
+| PR states | PRs 1130, 1131 and 1132 read Merged. No GitHub issue was linked to either constituent. |
+| Still owed | Live proofs of the changes themselves:<br>• PR 1130: Get valuation from Cazana fills a test Case, and a registration Cazana holds no data for shows the information sentence.<br>• PR 1131: a vehicle with no MOT test shows "No MOT history" in the mileage box.<br>The Release 81 to 95 proofs remain owed. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-96-14e9f727`; the build, deploy and resume drivers and their logs at `artifacts/releases/release-96-driver`. |
+
 ## Cazana API key — 9 October 2026 (not yet deployed)
 
 Prepared for connecting Cazana as a guide valuation source
