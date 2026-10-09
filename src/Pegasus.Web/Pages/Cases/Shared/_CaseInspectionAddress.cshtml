@@ -79,11 +79,11 @@
     </div>
     <div class="panel-body stack">
         <div class="fg g4">
-            <div class="fc ro" data-inspection-type>
+            <div class="fc ro" data-inspection-type data-field="@Pegasus.Core.Cases.CaseDataFieldNames.InspectionMode">
                 <span class="lbl">@InspectionLabels.InspectionType</span>
                 <div class="@ValueClass(modeLabel)">@Value(modeLabel)</div>
             </div>
-            <div class="fc @Ro(mayEdit)">
+            <div class="fc @Ro(mayEdit)" data-field="@Pegasus.Core.Cases.CaseDataFieldNames.InspectionDate">
                 @{ Lbl("f-inspection-date", InspectionLabels.InspectionDate, OperatorLabels.SourceTag(inspectionDateValue?.Source)); }
                 <div class="@ValueClass(inspectionDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))">@Value(inspectionDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))</div>
                 @if (mayEdit)
@@ -107,7 +107,7 @@
                     </select>
                 }
             </div>
-            <div class="fc @Ro(mayEdit)" data-inspection-address-field data-inspection-address>
+            <div class="fc @Ro(mayEdit)" data-inspection-address-field data-inspection-address data-field="@Pegasus.Core.Cases.CaseDataFieldNames.InspectionAddress">
                 @{ Lbl("inspection-address", OperatorLabels.CaseWorkspace.InspectionAddressPanel, OperatorLabels.SourceTag(recorded?.Source)); }
                 <div class="@ValueClass(recorded?.Value)" data-inspection-address-read>@(recorded is null ? OperatorLabels.CaseWorkspace.NotRecorded : recorded.Value)</div>
                 @if (mayEdit)

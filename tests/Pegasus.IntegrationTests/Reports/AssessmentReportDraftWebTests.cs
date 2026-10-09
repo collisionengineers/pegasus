@@ -319,6 +319,11 @@ public sealed partial class AssessmentReportDraftWebTests
                     // The anchor tag helper writes a null tab as an empty one.
                     Assert.DoesNotMatch("data-section-tab=\"[^\"]", row);
                 }
+                // The jump outlines the cell recording the blocker's field.
+                if (CaseWorkspaceLabels.Report.BlockerField(reason) is { } field)
+                {
+                    Assert.Contains($"data-section-field=\"{field}\"", row, StringComparison.Ordinal);
+                }
             }
         }
 

@@ -109,6 +109,12 @@ Where a tab inside that section clears it, the link opens that tab too
 (operator, 1 October 2026): a missing Overview or report image
 source opens Files on **Images**, and the agreed fee or its description
 lines open Report on **Fee**.
+Where the blocker names one field, the Next action control and the card's
+link also outline that field's cell in amber, unfolding any fold over it, and
+focus its control while the Case is in edit; the outline stays until the
+next jump (operator, 9 October 2026). The Sign-off Engineer blocker outlines
+the Sign-off Engineer cell, and the report's Retail and Trade outline the
+Valuation guide cards.
 The rows run in page order (operator, 2 October 2026): section by section
 from the top, then by where the field that clears each sits within its
 section, so working down the list moves down the page; a blocker no Case
