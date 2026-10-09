@@ -626,34 +626,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Single(await workspace.EstimatesAsync());
     }
 
-    [Fact]
-    public async Task AnExpiredCallbackReturnsToTheCaseWithoutImportingOrClaimingSuccess()
-    {
-        await using var workspace = await Workspace.CreateAsync();
-        await workspace.ClaimLeaseAsync();
-        var correlation = await workspace.LaunchAndReadCorrelationAsync();
-        await workspace.ExpireSessionAsync();
-
-        using var returned = await workspace.ReturnAsync(correlation);
-
-        await AssertHandsBackToTheEstimateSectionAsync(returned, workspace.CaseId);
-        var session = Assert.Single(await workspace.SessionsAsync());
-        Assert.Equal(GlassRepairEstimateSessionState.Expired, session.State);
-        Assert.Equal(GlassFailure.CallbackExpired, session.FailureCode);
-        Assert.NotNull(session.CallbackConsumedAtUtc);
-        Assert.Empty(await workspace.EstimatesAsync());
-        Assert.Empty(await workspace.RetainedMediaTypesAsync());
-        var html = WebUtility.HtmlDecode(await workspace.CaseHtmlAsync());
-        Assert.Contains(
-            Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.NotImported,
-            html,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.Imported,
-            html,
-            StringComparison.Ordinal);
-    }
-
     /// <summary>
     /// A repeated return reads back what the first one produced: the same
     /// session, and no second Draft.
@@ -1363,20 +1335,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
             await context.SaveChangesAsync();
         }
 
-        public async Task ExpireSessionAsync()
-        {
-            await using var scope = factory.Services.CreateAsyncScope();
-            await using var context = await scope.ServiceProvider
-                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
-                .CreateDbContextAsync();
-            var changed = await context.Set<GlassRepairEstimateSessionEntity>()
-                .Where(item => item.CaseId == CaseId)
-                .ExecuteUpdateAsync(setters => setters.SetProperty(
-                    item => item.ExpiresAtUtc,
-                    DateTimeOffset.UnixEpoch));
-            Assert.Equal(1, changed);
-        }
-
         /// <summary>
         /// Another staff member takes the Case into edit mode, as the Case
         /// row records a live lease.
@@ -1628,7 +1586,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
                         Version: 0,
                         OperationKey: Guid.NewGuid().ToString("N"),
                         FixedUtcNow,
-                        FixedUtcNow.AddHours(8),
                         ProviderVehicleId: null,
                         ProviderEstimateId: null,
                         FailureCode: null),
@@ -1670,7 +1627,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
                         Version: 0,
                         OperationKey: Guid.NewGuid().ToString("N"),
                         FixedUtcNow,
-                        FixedUtcNow.AddHours(8),
                         ProviderVehicleId: null,
                         ProviderEstimateId: null,
                         FailureCode: null),

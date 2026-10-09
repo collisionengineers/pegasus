@@ -79,9 +79,12 @@ history and other readers of a spec do not carry it.
 - One stock vehicle and one repair spec per estimate, however many times it
   is opened. A second Glass's spec on a Case comes from launching on a spec
   that belongs to no estimate.
-- Reopening no longer depends on a session's eight-hour lifetime, on the
-  credential generation it was launched with, or on which staff member
-  launched it.
+- Reopening does not depend on a session's age (a session has no lifetime;
+  operator, 9 October 2026), on the credential generation it was launched
+  with, or on which staff member launched it.
+- A changed Case registration refuses a reopen; a corrected mileage reopens on
+  the mileage the stock vehicle was made with, and a placeholder reopens
+  whatever the Case now records (operator, 9 October 2026).
 - A different staff member reopens under a different Glass's login. Whether
   every login can open another's stock record is not shown by the captures
   and is to be confirmed live.
@@ -91,5 +94,7 @@ history and other readers of a spec do not carry it.
   real one stays unproven
   ([ADR-0062](0062-glass-placeholder-vehicle-for-unknown-plates.md)).
 - Specs made before this record carry no vehicle and start a new estimate.
-- The repair profile remains one deployment setting. Changing it makes
-  existing estimates fail their profile proof.
+- The repair profile remains one deployment setting: Glass's keeps repair
+  profiles for the organisation, so every staff login offers the same one
+  under the same id (operator, 9 October 2026). Changing it makes existing
+  estimates fail their profile proof.
