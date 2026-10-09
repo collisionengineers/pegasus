@@ -670,6 +670,8 @@ public static class CaseWorkspaceLabels
         public const string MotExpiry = "MOT expiry";
         public const string MileageAndCondition = "Mileage & condition";
         public const string Mileage = "Mileage";
+        /// <summary>9 October 2026: the mileage box when the lookup found no MOT test to read a mileage from.</summary>
+        public const string NoMotHistory = "No MOT history";
         public const string MileageSourceLabel = "Mileage source";
         public const string PreIncidentCondition = "Pre-incident condition";
         public const string OdometerUnit = "Odometer unit";
