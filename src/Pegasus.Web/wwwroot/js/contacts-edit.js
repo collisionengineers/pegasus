@@ -60,6 +60,7 @@
         var roleInputs = contactEditor.querySelectorAll('[data-contact-role]');
         var principalFields = contactEditor.querySelector('[data-principal-fields]');
         var caseGuidance = contactEditor.querySelector('[data-case-guidance]');
+        var linkedPrincipals = contactEditor.querySelector('[data-linked-principals]');
 
         var hasRole = function (role) {
             var input = contactEditor.querySelector('[data-contact-role="' + role + '"]');
@@ -88,6 +89,10 @@
                     input.disabled = !isSelected;
                 });
             });
+
+            if (linkedPrincipals) {
+                linkedPrincipals.hidden = !linkedPrincipals.querySelector('[data-principal-associations]:not([hidden])');
+            }
         };
 
         roleInputs.forEach(function (input) {
