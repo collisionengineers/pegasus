@@ -3034,6 +3034,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("CaseId", "OperationKey")
                         .IsUnique();
 
+                    b.HasIndex("EventType", "OccurredAtUtc");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("EventType", "OccurredAtUtc"), new[] { "CaseId" });
+
                     b.ToTable("CaseWorkflowEvents", (string)null);
                 });
 
@@ -5094,6 +5098,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("SourceChannel", "ProcessedAtUtc", "Id")
                         .IsDescending(false, true, false);
 
+                    b.HasIndex("SourceChannel", "ReceivedAtUtc");
+
                     b.ToTable("IntakeReceipts", (string)null);
                 });
 
@@ -6857,6 +6863,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ActorSubjectId", "MailboxId", "OperationKey")
                         .IsUnique();
+
+                    b.HasIndex("Purpose", "State", "ObservedSentAtUtc");
 
                     b.ToTable("StaffMailSendOperations", null, t =>
                         {

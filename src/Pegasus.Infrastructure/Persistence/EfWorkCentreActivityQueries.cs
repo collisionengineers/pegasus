@@ -20,7 +20,8 @@ internal sealed class EfWorkCentreActivityQueries(IDbContextFactory<PegasusDbCon
     /// <summary>
     /// The workflow events that put a Case into Complete: Complete itself, a
     /// reply to a post-report query, and a query withdrawn by correction or
-    /// unlink. A Case reopened later still counts for the week it completed.
+    /// unlink. A Case reopened later still counts for the week it completed,
+    /// and a Case that enters Complete more than once counts once.
     /// </summary>
     private static readonly string[] CompletionEvents =
     [
@@ -48,14 +49,17 @@ internal sealed class EfWorkCentreActivityQueries(IDbContextFactory<PegasusDbCon
 
         // First sent to Engineer is a Case's first entry into With Engineer,
         // counted once per Case (item E): a later return to the Engineer is
-        // not a second send.
+        // not a second send. Only this week's sends are read; a Case with an
+        // earlier send was first sent before the week began.
+        var sends = context.CaseWorkflowEvents
+            .AsNoTracking()
+            .Where(item => item.EventType == FirstSentToEngineerEvent);
         var sentToEngineer = await CountAsync(
-            context.CaseWorkflowEvents
-                .AsNoTracking()
-                .Where(item => item.EventType == FirstSentToEngineerEvent)
+            sends
+                .Where(item => item.OccurredAtUtc >= weekStartUtc
+                    && !sends.Any(earlier => earlier.CaseId == item.CaseId && earlier.OccurredAtUtc < weekStartUtc))
                 .GroupBy(item => item.CaseId)
-                .Select(group => group.Min(item => item.OccurredAtUtc))
-                .Where(instant => instant >= weekStartUtc),
+                .Select(group => group.Min(item => item.OccurredAtUtc)),
             dayStartUtc,
             cancellationToken);
 
@@ -71,11 +75,14 @@ internal sealed class EfWorkCentreActivityQueries(IDbContextFactory<PegasusDbCon
             dayStartUtc,
             cancellationToken);
 
+        // Completed counts Cases, each once (item H): a Case's latest entry
+        // this week is today exactly when any of its entries is.
         var completed = await CountAsync(
             context.CaseWorkflowEvents
                 .AsNoTracking()
                 .Where(item => item.OccurredAtUtc >= weekStartUtc && CompletionEvents.Contains(item.EventType))
-                .Select(item => item.OccurredAtUtc),
+                .GroupBy(item => item.CaseId)
+                .Select(group => group.Max(item => item.OccurredAtUtc)),
             dayStartUtc,
             cancellationToken);
 

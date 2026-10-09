@@ -68,6 +68,10 @@ internal static class CaseWorkflowModelConfiguration
             entity.Property(item => item.ActorRolesJson).HasMaxLength(500).IsRequired();
             entity.Property(item => item.Reason).HasMaxLength(AddCaseNote.MaximumLength);
             entity.HasIndex(item => new { item.CaseId, item.OperationKey }).IsUnique();
+            // The Work Centre's Activity figures read sends to Engineer and
+            // completions by event type and time from this index alone.
+            entity.HasIndex(item => new { item.EventType, item.OccurredAtUtc })
+                .IncludeProperties(item => new { item.CaseId });
             // A report or estimate-document preview, a report download, an
             // edit lease taken over from a colleague, a market research
             // result filed while the Case is being edited, or a correspondence
