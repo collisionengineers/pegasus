@@ -289,6 +289,9 @@ Files is the Case evidence home.
 Preserve:
 
 - image tiles and full-screen viewer;
+- Pop out (operator, 9 October 2026): the Files head's and the viewer's buttons open the
+  Case's images in their own window, `/Cases/{id}/Images`, which is the read-mode tiles under
+  the same viewer and holds no lease: no Crop, Tag or In report there, and no Pop out of its own;
 - tag picker using the shared menu convention;
 - crop on the viewer stage;
 - original Download semantics;

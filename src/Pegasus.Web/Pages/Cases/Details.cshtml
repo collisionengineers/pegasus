@@ -174,5 +174,5 @@
     </div>
 </article>
 
-<div data-case-viewer-host><partial name="Cases/Shared/_CaseViewer" model="Model" /></div>
+<div data-case-viewer-host><partial name="Cases/Shared/_CaseViewer" model="@(new Pegasus.Web.Pages.Cases.CaseViewerView(Model.CurrentWorkflow!.CaseId, false))" /></div>
 <div data-case-dialogs><partial name="Cases/Shared/_CaseDialogs" model="Model" /></div>
