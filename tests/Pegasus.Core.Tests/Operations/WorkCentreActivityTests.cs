@@ -46,14 +46,11 @@ public sealed class WorkCentreActivityTests
         var read = new GetWorkCentreActivity(store);
         var asOf = new DateTimeOffset(2026, 10, 7, 8, 41, 0, TimeSpan.Zero);
 
-        var activity = await read.ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), asOf, CancellationToken.None);
+        var counts = await read.ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), asOf, CancellationToken.None);
 
         Assert.Equal(new DateTimeOffset(2026, 10, 6, 23, 0, 0, TimeSpan.Zero), store.DayStartUtc);
         Assert.Equal(new DateTimeOffset(2026, 10, 4, 23, 0, 0, TimeSpan.Zero), store.WeekStartUtc);
-        Assert.Equal(store.Counts, activity.Counts);
-        Assert.Equal(asOf, activity.AsOfUtc);
-        Assert.Equal(store.DayStartUtc, activity.DayStartUtc);
-        Assert.Equal(store.WeekStartUtc, activity.WeekStartUtc);
+        Assert.Equal(store.Counts, counts);
     }
 
     [Fact]
