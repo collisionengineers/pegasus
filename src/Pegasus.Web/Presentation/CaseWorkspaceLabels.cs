@@ -1219,6 +1219,7 @@ public static class CaseWorkspaceLabels
         public const string BoxConfirmed = "Box · confirmed";
         public const string BoxAuditConfirmed = "Box audit · confirmed";
         public const string OpenInBox = "Open in Box";
+        public const string PopOut = "Pop out";
         public const string View = "View";
         public const string ImportEstimate = "Import as repair spec";
         public const string Remove = "Remove";
@@ -1243,6 +1244,7 @@ public static class CaseWorkspaceLabels
         public const string Zoom = "Zoom";
         public const string Download = "Download";
         public const string InReport = "In report";
+        public const string PopOut = "Pop out";
         public const string Close = "Close";
         public const string Previous = "Previous";
         public const string Next = "Next";

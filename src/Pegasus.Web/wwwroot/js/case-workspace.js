@@ -4744,6 +4744,11 @@
         var aspect = host.querySelector('[data-viewer-aspect]');
         var strip = host.querySelector('[data-viewer-strip]');
         var downloadDefault = downloadLabel ? downloadLabel.textContent : 'Download';
+        // Pop out (operator, 9 October 2026): the images window, opened on
+        // the image in view. The window has no Pop out of its own.
+        var popout = host.querySelector('[data-viewer-popout]');
+        var popoutBase = popout ? popout.getAttribute('href') || '' : '';
+        var standalone = host.getAttribute('data-viewer-standalone') === 'true';
 
         var state = { open: false, items: [], index: 0, rotation: 0, zoom: false, invoker: null, crop: null, kind: '' };
         // The crop editor's working copy: rotation and the selection in the
@@ -4762,6 +4767,7 @@
                 thumb: trigger.getAttribute('data-thumb') || (img ? img.getAttribute('src') : '') || '',
                 tag: trigger.getAttribute('data-tag') || '',
                 occurrence: id,
+                occurrenceId: trigger.getAttribute('data-evidence-occurrence') || '',
                 excluded: trigger.classList.contains('off'),
                 downloadLabel: extra && extra.downloadLabel ? extra.downloadLabel : downloadDefault,
                 element: trigger
@@ -4840,6 +4846,10 @@
             zoomButton.hidden = kind !== 'image';
             if (zoomLabel) { zoomLabel.textContent = state.zoom ? 'Fit' : 'Zoom'; }
             cropButton.hidden = kind !== 'image' || !value;
+            if (popout) {
+                popout.hidden = kind !== 'image' || !item.occurrenceId;
+                if (item.occurrenceId) { popout.setAttribute('href', popoutBase + '?image=' + encodeURIComponent(item.occurrenceId)); }
+            }
             inReportWrap.hidden = kind !== 'image' || !value;
             if (value) { inReport.checked = value.inReport; }
             viewTools.hidden = !!state.crop;
@@ -5183,6 +5193,7 @@
 
         return {
             get open() { return state.open; },
+            get standalone() { return standalone; },
             current: current,
             render: render,
             open: open,
@@ -5211,6 +5222,26 @@
             }
         };
     }
+    // The images window: one named window per Case, so Pop out pressed again
+    // brings it forward on the chosen image rather than opening another. A
+    // blocked pop-up is not opened here; the link's own target="_blank" runs.
+    function openImagesWindow(href) {
+        var name = 'pegasus-images-' + new URL(href, window.location.href).pathname;
+        var opened = null;
+        try { opened = window.open(href, name, 'popup=yes,width=1280,height=900'); } catch (_) { opened = null; }
+        if (opened) { try { opened.focus(); } catch (_) { /* a window that cannot be focused is still open */ } }
+        return !!opened;
+    }
+    document.addEventListener('click', function (event) {
+        var link = event.target.closest('a[data-images-popout]');
+        if (!link || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey) { return; }
+        if (!openImagesWindow(link.href)) { return; }
+        event.preventDefault();
+        // From the viewer, the window is now the viewing surface: the Case
+        // form comes back on screen here.
+        if (viewer && viewer.open && link.hasAttribute('data-viewer-popout')) { viewer.close(); }
+    });
+
     function bindViewer(root) {
         var host = root.matches && root.matches('[data-case-viewer]')
             ? root
@@ -5223,6 +5254,13 @@
                 openDocument: function (options) { viewer.openDocument(options); },
                 close: function () { viewer.close(); }
             };
+            if (viewer.standalone) {
+                // The images window opens on the image Pop out was pressed
+                // on, else the first; Close brings the tiles back.
+                var start = document.querySelector('[data-evidence-set] [data-evidence-item][data-evidence-start="true"]')
+                    || document.querySelector('[data-evidence-set] [data-evidence-item]');
+                if (start) { viewer.open(start); }
+            }
         }
         all(root, '[data-evidence-item]').forEach(function (trigger) {
             if (trigger.dataset.caseViewerBound === 'true') { return; }
