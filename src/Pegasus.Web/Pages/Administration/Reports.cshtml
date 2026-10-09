@@ -1,209 +1,413 @@
 @page
 @model Pegasus.Web.Pages.Administration.ReportsModel
+@using Pegasus.Core.Reports
 @{
     ViewData["Title"] = OperatorLabels.Admin.Reports;
     ViewData["Eyebrow"] = "Administration";
     ViewData["AdminArea"] = "reports";
-    var from = Model.From?.ToString("yyyy-MM-ddTHH:mm");
-    var to = Model.To?.ToString("yyyy-MM-ddTHH:mm");
     var invariant = System.Globalization.CultureInfo.InvariantCulture;
     string Money(decimal value) => value.ToString("£#,##0.00", invariant);
 }
 @section Styles {
     <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
 }
-<partial name="Shared/_PageHeader" />
+@functions {
+    // A count against the largest beside it, in navy; the number is the fact.
+    static Microsoft.AspNetCore.Html.IHtmlContent Measure(int value, int max) =>
+        new Microsoft.AspNetCore.Html.HtmlString(
+            $"<span class=\"admin-report-measure\"><meter min=\"0\" max=\"{Math.Max(max, 1)}\" value=\"{value}\" aria-hidden=\"true\"></meter><span class=\"tabular\">{value}</span></span>");
+}
+@{
+    // The page's state rides every form as hidden fields, less the fields the form itself sets.
+    void Hidden(params string[] except)
+    {
+        foreach (var (key, value) in Model.State().Where(item => !except.Contains(item.Key)))
+        {
+            <input type="hidden" name="@key" value="@value" />
+        }
+    }
+
+    void Download(string handler, string label = "Download CSV", string icon = "icon-download", string css = "btn btn--small")
+    {
+        <a class="@css" href="@Url.Page("/Administration/Reports", handler, Model.State())" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="#@icon" /></svg><span>@label</span></a>
+    }
+
+    void Metric(string label, string value, string? previous)
+    {
+        <div class="metric"><span class="metric-label">@label</span><span class="metric-value">@value</span>@if (previous is not null) { <span class="metric-meta">Previous period @previous</span> }</div>
+    }
+
+    void SortHeader(string label, string column, bool numeric, bool principal)
+    {
+        var aria = principal ? Model.PrincipalAriaSort(column) : Model.AriaSort(column);
+        var state = principal
+            ? Model.State(("msort", column), ("mdir", Model.PrincipalSortDirectionFor(column)))
+            : Model.State(("sort", column), ("dir", Model.SortDirectionFor(column)));
+        <th scope="col" class="@(numeric ? "num" : null)" aria-sort="@aria"><a class="admin-report-sort" href="@Url.Page("/Administration/Reports", null, state)">@label</a></th>
+    }
+
+    async Task WorkChoice(string name, string current)
+    {
+        <form method="get" class="admin-report-head-field" data-auto-submit>
+            @{ Hidden(name); }
+            <label for="report-@name">Work</label>
+            <select id="report-@name" name="@name">
+                @foreach (var (value, label) in ReportsModel.Works)
+                {
+                    <option value="@value" selected="@(value == current)">@label</option>
+                }
+            </select>
+            <noscript><button type="submit" class="btn btn--small">Apply</button></noscript>
+        </form>
+    }
+}
+<header class="page-header">
+    <div class="page-title">
+        <p class="eyebrow">Administration</p>
+        <h1>@OperatorLabels.Admin.Reports</h1>
+    </div>
+    @if (!Model.PeriodInvalid)
+    {
+        <div class="page-actions">@{ Download("Workbook", "Download workbook", "icon-file-spreadsheet", "btn"); }</div>
+    }
+</header>
 <div class="admin-layout">
     <partial name="Shared/_AdminNav" />
     <div class="stack">
-        <section class="panel" aria-labelledby="mi01-title">
-            <div class="panel-head"><h2 id="mi01-title">Engineer activity</h2><span class="meta">MI01</span></div>
+        <form method="get" class="panel admin-report-period" aria-label="Period">
             <div class="panel-body">
-                <p class="muted admin-report-note">Queries received are credited to the Engineer assigned to the Case. Reports sent are credited to the staff member recorded as the sender.</p>
-                <form method="get" class="form-grid form-grid--auto admin-report-filter" aria-label="Engineer activity filters">
-                    @* Minutes are the smallest unit this report is bounded by; the default
-                       tag-helper format writes seconds and milliseconds into the value,
-                       which the picker then shows. The CSV link below already formats to
-                       minutes, so the two agree. *@
-                    <div class="field"><label for="report-from">From</label><input id="report-from" asp-for="From" asp-format="{0:yyyy-MM-ddTHH:mm}" name="from" type="datetime-local" step="60" /></div>
-                    <div class="field"><label for="report-to">To</label><input id="report-to" asp-for="To" asp-format="{0:yyyy-MM-ddTHH:mm}" name="to" type="datetime-local" step="60" /></div>
-                    <div class="field"><label for="report-engineer">Person</label><select id="report-engineer" asp-for="EngineerId" name="engineerId"><option value="">All people</option>@foreach (var person in Model.People) { <option value="@person.Id">@person.UserName</option> }</select></div>
-                    <div class="cluster">
-                        <button class="btn btn--dark" type="submit">Apply</button>
-                        <a class="btn" asp-page="/Administration/Reports" asp-page-handler="Csv" asp-route-from="@from" asp-route-to="@to" asp-route-engineerId="@Model.EngineerId" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Download CSV</span></a>
-                        <a class="btn" asp-page="/Administration/Reports" asp-page-handler="Workbook" asp-route-from="@from" asp-route-to="@to" asp-route-engineerId="@Model.EngineerId" data-report-workbook data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="#icon-file-spreadsheet" /></svg><span>Download workbook</span></a>
+                @{ Hidden("period", "from", "to"); }
+                <div class="form-grid form-grid--auto admin-report-filter">
+                    <div class="field">
+                        <label for="report-period">Period</label>
+                        <select id="report-period" name="period" data-period-preset>
+                            @foreach (var (value, _, label) in ReportsModel.Periods)
+                            {
+                                <option value="@value" selected="@(value == Model.PeriodValue)">@label</option>
+                            }
+                        </select>
                     </div>
-                </form>
-                <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
-                <div class="metric-strip metric-strip--3 section-gap" aria-label="Engineer activity totals">
-                    <div class="metric"><span class="metric-label">Queries received</span><span class="metric-value">@(Model.EngineerActivityUnavailable ? "Unavailable" : Model.EngineerResult.Rows.Sum(row => row.QueriesReceived).ToString())</span></div>
-                    <div class="metric"><span class="metric-label">Reports sent</span><span class="metric-value">@(Model.EngineerActivityUnavailable ? "Unavailable" : Model.EngineerResult.Rows.Sum(row => row.ReportsSent).ToString())</span></div>
-                    <div class="metric"><span class="metric-label">Audit reports sent</span><span class="metric-value">@(Model.EngineerActivityUnavailable ? "Unavailable" : Model.EngineerResult.Rows.Sum(row => row.AuditReportsSent).ToString())</span></div>
+                    @* Minutes are the smallest unit a report is bounded by; the default
+                       tag-helper format writes seconds and milliseconds into the value,
+                       which the picker then shows. *@
+                    <div class="field"><label for="report-from">From</label><input id="report-from" asp-for="From" asp-format="{0:yyyy-MM-ddTHH:mm}" name="from" type="datetime-local" step="60" data-period-custom /></div>
+                    <div class="field"><label for="report-to">To</label><input id="report-to" asp-for="To" asp-format="{0:yyyy-MM-ddTHH:mm}" name="to" type="datetime-local" step="60" data-period-custom /></div>
+                    <div class="cluster"><button class="btn btn--dark" type="submit">Apply</button></div>
                 </div>
-                <div class="table-wrap section-gap">
-                    <table class="table table--compact" data-engineer-activity>
-                        <thead>
-                            <tr>
-                                <th scope="col" aria-sort="@Model.AriaSort("person")"><a class="admin-report-sort" data-sort-toggle asp-page="/Administration/Reports" asp-route-from="@from" asp-route-to="@to" asp-route-engineerId="@Model.EngineerId" asp-route-sort="person" asp-route-dir="@Model.SortDirectionFor("person")">Person <span data-sort-arrow>@Model.SortArrow("person")</span></a></th>
-                                <th scope="col" class="num" aria-sort="@Model.AriaSort("queries")"><a class="admin-report-sort" data-sort-toggle asp-page="/Administration/Reports" asp-route-from="@from" asp-route-to="@to" asp-route-engineerId="@Model.EngineerId" asp-route-sort="queries" asp-route-dir="@Model.SortDirectionFor("queries")">Queries received <span data-sort-arrow>@Model.SortArrow("queries")</span></a></th>
-                                <th scope="col" class="num">Amendment requests</th>
-                                <th scope="col" class="num" aria-sort="@Model.AriaSort("reports")"><a class="admin-report-sort" data-sort-toggle asp-page="/Administration/Reports" asp-route-from="@from" asp-route-to="@to" asp-route-engineerId="@Model.EngineerId" asp-route-sort="reports" asp-route-dir="@Model.SortDirectionFor("reports")">Reports sent <span data-sort-arrow>@Model.SortArrow("reports")</span></a></th>
-                                <th scope="col" class="num">Audit reports sent</th>
-                                <th scope="col">Received to sent</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        @if (Model.EngineerActivityUnavailable)
-                        {
-                            <tr><td colspan="6" class="muted">Unavailable</td></tr>
-                        }
-                        else
-                        {
-                            @foreach (var row in Model.EngineerResult.Rows)
-                            {
-                                <tr>
-                                    <td>@row.DisplayName</td>
-                                    <td class="num"><span class="admin-report-measure"><meter min="0" max="@Math.Max(Model.MostQueriesReceived, 1)" value="@row.QueriesReceived" aria-hidden="true"></meter><span class="tabular">@row.QueriesReceived</span></span></td>
-                                    <td class="num tabular">@row.AmendmentRequests</td>
-                                    <td class="num"><span class="admin-report-measure"><meter min="0" max="@Math.Max(Model.MostReportsSent, 1)" value="@row.ReportsSent" aria-hidden="true"></meter><span class="tabular">@row.ReportsSent</span></span></td>
-                                    <td class="num tabular">@row.AuditReportsSent</td>
-                                    <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToSent, "—")</td>
-                                </tr>
-                            }
-                            @if (Model.EngineerResult.Rows.Count == 0) { <tr><td colspan="6" class="muted">No engineer activity was recorded for this period.</td></tr> }
-                        }
-                        </tbody>
-                    </table>
-                </div>
+                @if (Model.PeriodInvalid)
+                {
+                    <div class="validation-summary validation-summary-errors" role="alert"><ul><li>Choose a valid date range.</li></ul></div>
+                }
             </div>
-        </section>
+        </form>
 
-        <section class="panel" aria-labelledby="mi02-title">
-            <div class="panel-head">
-                <h2 id="mi02-title">Reports by Principal</h2>
-                <span class="meta">MI02</span>
-                <div class="panel-actions">
-                    <a class="btn btn--small" asp-page="/Administration/Reports" asp-page-handler="PrincipalCsv" asp-route-from="@from" asp-route-to="@to" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Download CSV</span></a>
+        @if (!Model.PeriodInvalid)
+        {
+            var engineerRows = Model.EngineerResult.Rows;
+            var previousEngineer = Model.PreviousEngineer?.Rows;
+            <section class="panel" aria-labelledby="mi01-title">
+                <div class="panel-head">
+                    <h2 id="mi01-title">Engineer activity</h2>
+                    <div class="panel-actions">
+                        <form method="get" class="admin-report-head-field" data-auto-submit>
+                            @{ Hidden("engineerId"); }
+                            <label for="report-engineer">Person</label>
+                            <select id="report-engineer" name="engineerId">
+                                <option value="">All people</option>
+                                @foreach (var person in Model.People)
+                                {
+                                    <option value="@person.Id.ToString("D")" selected="@(person.Id == Model.EngineerId)">@person.Name</option>
+                                }
+                            </select>
+                            <noscript><button type="submit" class="btn btn--small">Apply</button></noscript>
+                        </form>
+                        @{ Download("Csv"); }
+                    </div>
                 </div>
-            </div>
-            <div class="panel-body">
-                <div class="metric-strip metric-strip--3" aria-label="Reports by Principal totals">
-                    <div class="metric"><span class="metric-label">Reports produced</span><span class="metric-value">@(Model.PrincipalActivity is { } mi02Totals ? mi02Totals.Rows.Sum(row => row.ReportsProduced).ToString() : "Unavailable")</span></div>
-                    <div class="metric"><span class="metric-label">Reports sent</span><span class="metric-value">@(Model.PrincipalActivity is { } mi02SentTotals ? mi02SentTotals.Rows.Sum(row => row.Sent).ToString() : "Unavailable")</span></div>
-                    <div class="metric"><span class="metric-label">Agreed fees</span><span class="metric-value">@(Model.PrincipalActivity is { } mi02FeeTotals ? Money(mi02FeeTotals.Rows.Sum(row => row.AgreedFeeTotal)) : "Unavailable")</span></div>
-                </div>
-                <div class="table-wrap section-gap">
-                    <table class="table table--compact">
-                        <thead><tr><th scope="col">Principal</th><th scope="col" class="num">Reports produced</th><th scope="col" class="num">@ReportsModel.InspectionColumn("Reports produced")</th><th scope="col" class="num">@ReportsModel.AuditColumn("Reports produced")</th><th scope="col" class="num">Reports sent</th><th scope="col" class="num">@ReportsModel.InspectionColumn("Reports sent")</th><th scope="col" class="num">@ReportsModel.AuditColumn("Reports sent")</th><th scope="col" class="num">Agreed fees</th><th scope="col" class="num">@ReportsModel.InspectionColumn("Agreed fees")</th><th scope="col" class="num">@ReportsModel.AuditColumn("Agreed fees")</th></tr></thead>
-                        <tbody>
-                        @if (Model.PrincipalActivity is { } mi02)
-                        {
-                            var mi02Rows = mi02.Rows.Where(row => row.ReportsProduced > 0 || row.Sent > 0).ToArray();
-                            @foreach (var row in mi02Rows)
-                            {
+                <div class="panel-body">
+                    <div class="metric-strip metric-strip--3" aria-label="Engineer activity totals">
+                        @{
+                            var unavailable = Model.EngineerActivityUnavailable;
+                            Metric("Queries received", unavailable ? "Unavailable" : engineerRows.Sum(row => row.QueriesReceived).ToString(invariant), unavailable ? null : previousEngineer?.Sum(row => row.QueriesReceived).ToString(invariant));
+                            Metric("Reports sent", unavailable ? "Unavailable" : engineerRows.Sum(row => row.ReportsSent).ToString(invariant), unavailable ? null : previousEngineer?.Sum(row => row.ReportsSent).ToString(invariant));
+                            Metric("Audit reports sent", unavailable ? "Unavailable" : engineerRows.Sum(row => row.AuditReportsSent).ToString(invariant), unavailable ? null : previousEngineer?.Sum(row => row.AuditReportsSent).ToString(invariant));
+                        }
+                    </div>
+                    <div class="table-wrap section-gap">
+                        <table class="table table--compact">
+                            <thead>
                                 <tr>
-                                    <td class="mono">@row.PrincipalCode</td>
-                                    <td class="num tabular">@row.ReportsProduced</td>
-                                    <td class="num tabular">@row.InspectionReportsProduced</td>
-                                    <td class="num tabular">@row.AuditReportsProduced</td>
-                                    <td class="num tabular">@row.Sent</td>
-                                    <td class="num tabular">@row.InspectionSent</td>
-                                    <td class="num tabular">@row.AuditSent</td>
-                                    <td class="num tabular">@Money(row.AgreedFeeTotal)</td>
-                                    <td class="num tabular">@Money(row.InspectionAgreedFeeTotal)</td>
-                                    <td class="num tabular">@Money(row.AuditAgreedFeeTotal)</td>
+                                    @{ SortHeader("Person", "person", numeric: false, principal: false); }
+                                    @{ SortHeader("Queries received", "queries", numeric: true, principal: false); }
+                                    <th scope="col" class="num">Amendment requests</th>
+                                    @{ SortHeader("Reports sent", "reports", numeric: true, principal: false); }
+                                    <th scope="col" class="num">Audit reports sent</th>
+                                    <th scope="col">Received to sent</th>
                                 </tr>
-                            }
-                            @if (mi02Rows.Length == 0) { <tr><td colspan="10" class="muted">No reports were recorded for this period.</td></tr> }
-                        }
-                        else
-                        {
-                            <tr><td colspan="10" class="muted">Unavailable</td></tr>
-                        }
-                        </tbody>
-                    </table>
-                </div>
-                <h3 id="mi02-months-title" class="section-gap">By month</h3>
-                <div class="table-wrap">
-                    <table class="table table--compact" aria-labelledby="mi02-months-title" data-reports-by-month>
-                        <thead><tr><th scope="col">Month</th><th scope="col">Principal</th><th scope="col" class="num">Reports produced</th><th scope="col" class="num">@ReportsModel.InspectionColumn("Reports produced")</th><th scope="col" class="num">@ReportsModel.AuditColumn("Reports produced")</th><th scope="col" class="num">Fee notes produced</th><th scope="col" class="num">Reports sent</th><th scope="col" class="num">@ReportsModel.InspectionColumn("Reports sent")</th><th scope="col" class="num">@ReportsModel.AuditColumn("Reports sent")</th><th scope="col" class="num">Agreed fees</th><th scope="col" class="num">@ReportsModel.InspectionColumn("Agreed fees")</th><th scope="col" class="num">@ReportsModel.AuditColumn("Agreed fees")</th></tr></thead>
-                        <tbody>
-                        @if (Model.Monthly is { } months)
-                        {
-                            @foreach (var row in months)
+                            </thead>
+                            <tbody>
+                            @if (Model.EngineerActivityUnavailable)
                             {
-                                <tr>
-                                    <td>@row.MonthLabel</td>
-                                    <td class="mono">@row.PrincipalCode</td>
-                                    <td class="num tabular">@row.ReportsGenerated</td>
-                                    <td class="num tabular">@row.InspectionReportsGenerated</td>
-                                    <td class="num tabular">@row.AuditReportsGenerated</td>
-                                    <td class="num tabular">@row.FeeNotesGenerated</td>
-                                    <td class="num tabular">@row.Sent</td>
-                                    <td class="num tabular">@row.InspectionSent</td>
-                                    <td class="num tabular">@row.AuditSent</td>
-                                    <td class="num tabular">@Money(row.AgreedFeeTotal)</td>
-                                    <td class="num tabular">@Money(row.InspectionAgreedFeeTotal)</td>
-                                    <td class="num tabular">@Money(row.AuditAgreedFeeTotal)</td>
-                                </tr>
+                                <tr><td colspan="6" class="muted">Unavailable</td></tr>
                             }
-                            @if (months.Count == 0) { <tr><td colspan="12" class="muted">No reports were recorded for this period.</td></tr> }
-                        }
-                        else
-                        {
-                            <tr><td colspan="12" class="muted">Unavailable</td></tr>
-                        }
-                        </tbody>
-                    </table>
+                            else if (engineerRows.Count == 0)
+                            {
+                                <tr><td colspan="6" class="muted">No engineer activity was recorded for this period.</td></tr>
+                            }
+                            else
+                            {
+                                var mostQueries = engineerRows.Max(row => row.QueriesReceived);
+                                var mostSent = engineerRows.Max(row => row.ReportsSent);
+                                @foreach (var row in engineerRows)
+                                {
+                                    <tr>
+                                        <td>@row.DisplayName</td>
+                                        <td class="num">@Measure(row.QueriesReceived, mostQueries)</td>
+                                        <td class="num tabular">@row.AmendmentRequests</td>
+                                        <td class="num">@Measure(row.ReportsSent, mostSent)</td>
+                                        <td class="num tabular">@row.AuditReportsSent</td>
+                                        <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToSent, "—")</td>
+                                    </tr>
+                                }
+                            }
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
-        </section>
+            </section>
 
-        <section class="panel" aria-labelledby="mi03-title">
-            <div class="panel-head">
-                <h2 id="mi03-title">Turnaround</h2>
-                <span class="meta">MI03</span>
-                <div class="panel-actions">
-                    <a class="btn btn--small" asp-page="/Administration/Reports" asp-page-handler="TurnaroundCsv" asp-route-from="@from" asp-route-to="@to" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Download CSV</span></a>
+            var principal = Model.PrincipalActivity;
+            var previousPrincipal = Model.PreviousPrincipal?.Rows;
+            var principalRows = Model.PrincipalRows;
+            <section class="panel" aria-labelledby="mi02-title">
+                <div class="panel-head">
+                    <h2 id="mi02-title">Reports by Principal</h2>
+                    <div class="panel-actions">
+                        @{ await WorkChoice("work", Model.WorkValue); }
+                        @{ Download("PrincipalCsv"); }
+                    </div>
                 </div>
-            </div>
-            <div class="panel-body">
-                <div class="metric-strip" aria-label="Turnaround totals">
-                    <div class="metric"><span class="metric-label">Cases currently held</span><span class="metric-value">@(Model.PrincipalActivity is { } mi03Totals ? mi03Totals.Rows.Sum(row => row.CurrentHeldCases).ToString() : "Unavailable")</span></div>
-                </div>
-                <div class="table-wrap section-gap">
-                    <table class="table table--compact">
-                        <thead><tr><th scope="col">Principal</th><th scope="col" class="num">Currently held</th><th scope="col">Oldest held since</th><th scope="col">Time to produce</th><th scope="col">Time to ready</th><th scope="col">Time to send</th></tr></thead>
-                        <tbody>
-                        @if (Model.PrincipalActivity is { } mi03)
-                        {
-                            var mi03Rows = mi03.Rows.Where(row =>
-                                row.CurrentHeldCases > 0
-                                || row.AverageReceivedToGeneration.HasValue
-                                || row.AverageReceivedToReady.HasValue
-                                || row.AverageReceivedToSent.HasValue).ToArray();
-                            @foreach (var row in mi03Rows)
-                            {
+                <div class="panel-body">
+                    <div class="metric-strip metric-strip--3" aria-label="Reports by Principal totals">
+                        @{
+                            Metric("Reports produced", principal is null ? "Unavailable" : principal.Rows.Sum(row => row.ReportsProduced).ToString(invariant), principal is null ? null : previousPrincipal?.Sum(row => row.ReportsProduced).ToString(invariant));
+                            Metric("Reports sent", principal is null ? "Unavailable" : principal.Rows.Sum(row => row.Sent).ToString(invariant), principal is null ? null : previousPrincipal?.Sum(row => row.Sent).ToString(invariant));
+                            Metric("Agreed fees", principal is null ? "Unavailable" : Money(principal.Rows.Sum(row => row.AgreedFeeTotal)), principal is null || previousPrincipal is null ? null : Money(previousPrincipal.Sum(row => row.AgreedFeeTotal)));
+                        }
+                    </div>
+                    <div class="table-wrap section-gap">
+                        <table class="table table--compact">
+                            <thead>
                                 <tr>
-                                    <td class="mono">@row.PrincipalCode</td>
-                                    <td class="num tabular">@row.CurrentHeldCases</td>
-                                    <td>@OperatorLabels.OfficeTime(row.OldestHeldAtUtc, "—")</td>
-                                    <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToGeneration, "—")</td>
-                                    <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToReady, "—")</td>
-                                    <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToSent, "—")</td>
+                                    @{ SortHeader("Principal", "code", numeric: false, principal: true); }
+                                    @{ SortHeader("Reports produced", "produced", numeric: true, principal: true); }
+                                    @{ SortHeader("Reports sent", "sent", numeric: true, principal: true); }
+                                    @{ SortHeader("Agreed fees", "fees", numeric: true, principal: true); }
                                 </tr>
+                            </thead>
+                            <tbody>
+                            @if (principal is null)
+                            {
+                                <tr><td colspan="4" class="muted">Unavailable</td></tr>
                             }
-                            @if (mi03Rows.Length == 0) { <tr><td colspan="6" class="muted">No holding or turnaround activity was recorded for this period.</td></tr> }
-                        }
-                        else
-                        {
-                            <tr><td colspan="6" class="muted">Unavailable</td></tr>
-                        }
-                        </tbody>
-                    </table>
+                            else if (principalRows.Count == 0)
+                            {
+                                <tr><td colspan="4" class="muted">No reports were recorded for this period.</td></tr>
+                            }
+                            else
+                            {
+                                var mostProduced = principalRows.Max(Model.Produced);
+                                var mostPrincipalSent = principalRows.Max(Model.Sent);
+                                @foreach (var row in principalRows)
+                                {
+                                    <tr>
+                                        <td class="mono">@row.PrincipalCode</td>
+                                        <td class="num">@Measure(Model.Produced(row), mostProduced)</td>
+                                        <td class="num">@Measure(Model.Sent(row), mostPrincipalSent)</td>
+                                        <td class="num tabular">@Money(Model.Fees(row))</td>
+                                    </tr>
+                                }
+                            }
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
-        </section>
+            </section>
+
+            <section class="panel" aria-labelledby="months-title">
+                <div class="panel-head">
+                    <h2 id="months-title">By month</h2>
+                    <div class="panel-actions">
+                        @{ await WorkChoice("workm", Model.MonthWorkValue); }
+                        @{ Download("MonthsCsv"); }
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div class="table-wrap">
+                        <table class="table table--compact" aria-labelledby="months-title" data-reports-by-month>
+                            <thead><tr><th scope="col">Month</th><th scope="col">Principal</th><th scope="col" class="num">Reports produced</th><th scope="col" class="num">Fee notes produced</th><th scope="col" class="num">Reports sent</th><th scope="col" class="num">Agreed fees</th></tr></thead>
+                            <tbody>
+                            @if (Model.Monthly is not { } months)
+                            {
+                                <tr><td colspan="6" class="muted">Unavailable</td></tr>
+                            }
+                            else if (months.Count == 0)
+                            {
+                                <tr><td colspan="6" class="muted">No reports were recorded for this period.</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var row in months)
+                                {
+                                    var figures = Model.MonthFigures(row);
+                                    <tr>
+                                        <td>@row.MonthLabel</td>
+                                        <td class="mono">@row.PrincipalCode</td>
+                                        <td class="num tabular">@figures.Produced</td>
+                                        <td class="num tabular">@figures.FeeNotes</td>
+                                        <td class="num tabular">@figures.Sent</td>
+                                        <td class="num tabular">@Money(figures.Fees)</td>
+                                    </tr>
+                                }
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel" aria-labelledby="outcomes-title">
+                <div class="panel-head">
+                    <h2 id="outcomes-title">Outcomes</h2>
+                    <div class="panel-actions">@{ Download("OutcomesCsv"); }</div>
+                </div>
+                <div class="panel-body">
+                    <div class="table-wrap">
+                        <table class="table table--compact">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Principal</th>
+                                    @foreach (var outcome in GetReportOutcomes.Order)
+                                    {
+                                        <th scope="col" class="num">@CaseReportDeliveryNaming.OutcomeWords(outcome)</th>
+                                    }
+                                    <th scope="col" class="num">@CaseListPolicy.Agrees</th>
+                                    <th scope="col" class="num">@CaseListPolicy.Differs</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @if (Model.Outcomes is not { } outcomes)
+                            {
+                                <tr><td colspan="7" class="muted">Unavailable</td></tr>
+                            }
+                            else if (outcomes.Rows.Count == 0)
+                            {
+                                <tr><td colspan="7" class="muted">No reports were recorded for this period.</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var row in outcomes.Rows)
+                                {
+                                    <tr>
+                                        <td class="mono">@row.PrincipalCode</td>
+                                        <td class="num tabular">@row.Repairable</td>
+                                        <td class="num tabular">@row.TotalLoss</td>
+                                        <td class="num tabular">@row.CashInLieu</td>
+                                        <td class="num tabular">@row.ContractRepair</td>
+                                        <td class="num tabular">@row.Agrees</td>
+                                        <td class="num tabular">@row.Differs</td>
+                                    </tr>
+                                }
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel" aria-labelledby="mi03-title">
+                <div class="panel-head">
+                    <h2 id="mi03-title">Turnaround</h2>
+                    <div class="panel-actions">@{ Download("TurnaroundCsv"); }</div>
+                </div>
+                <div class="panel-body">
+                    <div class="table-wrap">
+                        <table class="table table--compact">
+                            <thead><tr><th scope="col">Principal</th><th scope="col">Time to produce</th><th scope="col">Time to ready</th><th scope="col">Time to send</th></tr></thead>
+                            <tbody>
+                            @if (principal is null)
+                            {
+                                <tr><td colspan="4" class="muted">Unavailable</td></tr>
+                            }
+                            else
+                            {
+                                var turnaroundRows = AdministrationReportTables.TurnaroundRows(principal).ToArray();
+                                @foreach (var row in turnaroundRows)
+                                {
+                                    <tr>
+                                        <td class="mono">@row.PrincipalCode</td>
+                                        <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToGeneration, "—")</td>
+                                        <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToReady, "—")</td>
+                                        <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToSent, "—")</td>
+                                    </tr>
+                                }
+                                @if (turnaroundRows.Length == 0) { <tr><td colspan="4" class="muted">No holding or turnaround activity was recorded for this period.</td></tr> }
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            var queueRows = principal is null ? Array.Empty<PrincipalReportActivity>() : AdministrationReportTables.QueueRows(principal).ToArray();
+            <section class="panel" aria-labelledby="queues-title">
+                <div class="panel-head">
+                    <h2 id="queues-title">Queues</h2>
+                    <span class="meta">Now</span>
+                    <div class="panel-actions">@{ Download("QueuesCsv"); }</div>
+                </div>
+                <div class="panel-body">
+                    <div class="metric-strip metric-strip--3" aria-label="Queues totals">
+                        @{
+                            Metric("Cases currently held", principal is null ? "Unavailable" : principal.Rows.Sum(row => row.CurrentHeldCases).ToString(invariant), null);
+                            Metric("Triages", principal is null ? "Unavailable" : principal.Rows.Sum(row => row.CurrentTriage).ToString(invariant), null);
+                        }
+                        <div class="metric">
+                            <span class="metric-label">Unidentified</span>
+                            <span class="metric-value">@(Model.Unidentified is { } unidentified ? unidentified.Count.ToString(invariant) : "Unavailable")</span>
+                            @if (Model.Unidentified is { OldestReceivedAtUtc: { } oldestUnidentified })
+                            {
+                                <span class="metric-meta">Oldest since @OperatorLabels.OfficeTime(oldestUnidentified)</span>
+                            }
+                        </div>
+                    </div>
+                    @if (principal is null)
+                    {
+                        <div class="table-wrap section-gap"><table class="table table--compact"><thead><tr><th scope="col">Principal</th><th scope="col" class="num">Currently held</th><th scope="col">Oldest held since</th><th scope="col" class="num">Triages</th><th scope="col">Oldest Triage since</th></tr></thead><tbody><tr><td colspan="5" class="muted">Unavailable</td></tr></tbody></table></div>
+                    }
+                    else if (queueRows.Length > 0)
+                    {
+                        <div class="table-wrap section-gap">
+                            <table class="table table--compact">
+                                <thead><tr><th scope="col">Principal</th><th scope="col" class="num">Currently held</th><th scope="col">Oldest held since</th><th scope="col" class="num">Triages</th><th scope="col">Oldest Triage since</th></tr></thead>
+                                <tbody>
+                                @foreach (var row in queueRows)
+                                {
+                                    <tr>
+                                        <td class="mono">@row.PrincipalCode</td>
+                                        <td class="num tabular">@row.CurrentHeldCases</td>
+                                        <td>@OperatorLabels.OfficeTime(row.OldestHeldAtUtc, "—")</td>
+                                        <td class="num tabular">@row.CurrentTriage</td>
+                                        <td>@OperatorLabels.OfficeTime(row.OldestCurrentTriageCreatedAtUtc, "—")</td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
 
         @{
             var caseList = Model.CaseList;
@@ -211,7 +415,7 @@
             var selectedPreset = Model.SelectedPreset;
         }
         <section class="panel" aria-labelledby="mi04-title" data-case-list>
-            <div class="panel-head"><h2 id="mi04-title">@OperatorLabels.CaseList.Title</h2><span class="meta">MI04</span></div>
+            <div class="panel-head"><h2 id="mi04-title">@OperatorLabels.CaseList.Title</h2></div>
             <div class="panel-body stack">
                 <p class="muted admin-report-note">@OperatorLabels.CaseList.Note</p>
                 @if (Model.CaseListError is { } caseListError)
@@ -221,6 +425,7 @@
                 @if (Model.CaseListPresets is { } presets)
                 {
                     <form method="get" class="form-grid form-grid--auto admin-report-filter" aria-label="@OperatorLabels.CaseList.Preset">
+                        @{ Hidden("preset"); }
                         <div class="field">
                             <label for="case-list-preset">@OperatorLabels.CaseList.Preset</label>
                             <select id="case-list-preset" name="preset">
@@ -249,7 +454,7 @@
                         <label class="choice"><input type="checkbox" name="AllTime" value="true" checked="@caseList.AllTime" /> @OperatorLabels.CaseList.AllTime</label>
                         <label class="choice"><input type="checkbox" name="IncludeTriage" value="true" checked="@caseList.IncludeTriage" /> @OperatorLabels.CaseList.IncludeTriage</label>
                     </div>
-                    @foreach (var group in Pegasus.Core.Reports.CaseListColumns.All.GroupBy(column => column.Group))
+                    @foreach (var group in CaseListColumns.All.GroupBy(column => column.Group))
                     {
                         <fieldset class="stack">
                             <legend>@OperatorLabels.CaseList.Group(group.Key)</legend>
@@ -268,7 +473,7 @@
                     @if (Model.CaseListPresets is not null)
                     {
                         <div class="form-grid form-grid--auto admin-report-filter">
-                            <div class="field"><label for="case-list-preset-name">@OperatorLabels.CaseList.PresetName</label><input id="case-list-preset-name" name="PresetName" maxlength="@Pegasus.Core.Reports.CaseListPresetPolicy.MaximumNameLength" value="@caseList.PresetName" /></div>
+                            <div class="field"><label for="case-list-preset-name">@OperatorLabels.CaseList.PresetName</label><input id="case-list-preset-name" name="PresetName" maxlength="@CaseListPresetPolicy.MaximumNameLength" value="@caseList.PresetName" /></div>
                             <div class="button-row">
                                 <button class="btn" type="submit" asp-page-handler="CaseListPresetCreate" data-busy-label="@OperatorLabels.Busy.Saving">@OperatorLabels.CaseList.SaveAsNewPreset</button>
                                 @if (caseList.PresetId is not null)

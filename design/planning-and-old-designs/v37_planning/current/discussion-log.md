@@ -54,3 +54,9 @@ Chronological. The operator's words are quoted; the rest records what was explor
 The self-check counts 887 with no failure. The Stage 2 plan is in section 10.
 
 **Waiting for.** The operator's approval to start Stage 2.
+
+## Round 5: 9 October 2026
+
+**The operator's words.** The operator invoked `/razor-html-mockup-conversion`, approving Stage 2.
+
+**What was built.** Design A with every decided item, on `task/management-reports-stage2`. The work spans Core, Infrastructure and Web, FRD-17, FRD-15, the capabilities list (MI-05 Queues, MI-06 Outcomes) and the architecture map, as [notes](v37-notes.md) section 10 lists. The routed page was shot in Design A's states and checked against the promised behaviours: 28 checks, none failing.

@@ -19,10 +19,10 @@ public sealed class EngineerActivityReportTests
             new(knownId, 2, 7, 4, 2, TimeSpan.FromHours(6))]);
         var useCase = new GetEngineerActivityReport(queries, new Accounts(knownId, "engineer.one"));
 
-        var report = await useCase.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None);
+        var report = await useCase.ExecuteAsync(Administrator(), From, To, CancellationToken.None);
 
         Assert.Equal((From, To), (report.FromUtc, report.ToUtc));
-        Assert.Equal((From, To, (Guid?)null), queries.Request);
+        Assert.Equal((From, To), queries.Request);
         Assert.Collection(
             report.Rows,
             row => Assert.Equal(
@@ -31,17 +31,30 @@ public sealed class EngineerActivityReportTests
             row => Assert.Equal(new EngineerActivityRow(goneId, ActorDisplayNames.FormerStaff, 4, 1), row));
     }
 
+    /// <summary>
+    /// Item J: Automation's sends are a row of their own, named as every
+    /// surface names Automation, so the report's Reports sent is every send.
+    /// Person narrows to one staff member and the Automation row leaves.
+    /// </summary>
     [Fact]
-    public async Task ReportPassesTheEngineerFilterThrough()
+    public async Task AutomationIsItsOwnRowAndPersonNarrowsToOneStaffMember()
     {
         var engineerId = Guid.NewGuid();
-        var queries = new Counts([]);
-        var useCase = new GetEngineerActivityReport(queries, new Accounts(engineerId, "engineer.one"));
+        var useCase = new GetEngineerActivityReport(
+            new Counts([
+                new(engineerId, 5, 2),
+                new(Guid.Empty, 3, 0, AuditReportsSent: 1) { SenderKind = ActorKind.Automation }]),
+            new Accounts(engineerId, "engineer.one"));
 
-        var report = await useCase.ExecuteAsync(Administrator(), From, To, engineerId, CancellationToken.None);
+        var report = await useCase.ExecuteAsync(Administrator(), From, To, CancellationToken.None);
 
-        Assert.Empty(report.Rows);
-        Assert.Equal(engineerId, queries.Request!.Value.EngineerId);
+        Assert.Equal(8, report.Rows.Sum(row => row.ReportsSent));
+        var automation = Assert.Single(report.Rows, row => row.SenderKind == ActorKind.Automation);
+        Assert.Equal(ActorDisplayNames.Automation, automation.DisplayName);
+        Assert.Equal([engineerId], report.People.Select(row => row.EngineerId));
+        Assert.Equal([engineerId], report.For(engineerId).Rows.Select(row => row.EngineerId));
+        Assert.Same(report, report.For(null));
+        Assert.Empty(report.For(Guid.NewGuid()).Rows);
     }
 
     [Fact]
@@ -52,9 +65,9 @@ public sealed class EngineerActivityReportTests
         var engineer = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            useCase.ExecuteAsync(engineer, From, To, null, CancellationToken.None));
+            useCase.ExecuteAsync(engineer, From, To, CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            useCase.ExecuteAsync(ActionActor.Automation("connector"), From, To, null, CancellationToken.None));
+            useCase.ExecuteAsync(ActionActor.Automation("connector"), From, To, CancellationToken.None));
 
         Assert.Null(queries.Request);
     }
@@ -66,11 +79,9 @@ public sealed class EngineerActivityReportTests
         var useCase = new GetEngineerActivityReport(queries, new Accounts(Guid.NewGuid(), "x"));
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            useCase.ExecuteAsync(Administrator(), To, From, null, CancellationToken.None));
+            useCase.ExecuteAsync(Administrator(), To, From, CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            useCase.ExecuteAsync(Administrator(), From, From.AddDays(367), null, CancellationToken.None));
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            useCase.ExecuteAsync(Administrator(), From, To, Guid.Empty, CancellationToken.None));
+            useCase.ExecuteAsync(Administrator(), From, From.AddDays(367), CancellationToken.None));
 
         Assert.Null(queries.Request);
     }
@@ -79,61 +90,26 @@ public sealed class EngineerActivityReportTests
     public async Task ReportRefusesDuplicateNegativeOrContradictoryRowsFromTheAdapter()
     {
         var id = Guid.NewGuid();
-        var duplicate = new GetEngineerActivityReport(
-            new Counts([new(id, 1, 1), new(id, 2, 2)]),
-            new Accounts(id, "engineer.one"));
-        var negative = new GetEngineerActivityReport(
-            new Counts([new(id, -1, 0)]),
-            new Accounts(id, "engineer.one"));
-        var negativeAmendments = new GetEngineerActivityReport(
-            new Counts([new(id, 1, 1, AmendmentRequests: -1)]),
-            new Accounts(id, "engineer.one"));
-        var excessiveAmendments = new GetEngineerActivityReport(
-            new Counts([new(id, 1, 1, AmendmentRequests: 2)]),
-            new Accounts(id, "engineer.one"));
-        var excessiveAuditReports = new GetEngineerActivityReport(
-            new Counts([new(id, 1, 1, AuditReportsSent: 2)]),
-            new Accounts(id, "engineer.one"));
-        var negativeTurnaround = new GetEngineerActivityReport(
-            new Counts([new(id, 1, 1, AverageReceivedToSent: TimeSpan.FromHours(-1))]),
-            new Accounts(id, "engineer.one"));
-
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            duplicate.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None));
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            negative.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None));
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            negativeAmendments.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None));
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            excessiveAmendments.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None));
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            excessiveAuditReports.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None));
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            negativeTurnaround.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None));
-    }
-
-    [Fact]
-    public void CsvHasTheTableColumnsAndQuotesOnlyWhatNeedsIt()
-    {
-        var csv = EngineerActivityReportCsv.ToCsv(
+        IReadOnlyList<IReadOnlyList<EngineerActivityCounts>> invalid =
         [
-            new(Guid.NewGuid(), "engineer.one", 3, 5),
-            new(Guid.NewGuid(), "Smith, \"J\"", 0, 1)
-        ]);
+            [new(id, 1, 1), new(id, 2, 2)],
+            [new(id, -1, 0)],
+            [new(id, 1, 1, AmendmentRequests: -1)],
+            [new(id, 1, 1, AmendmentRequests: 2)],
+            [new(id, 1, 1, AuditReportsSent: 2)],
+            [new(id, 1, 1, AverageReceivedToSent: TimeSpan.FromHours(-1))],
+            [new(Guid.Empty, 1, 0)],
+            [new(id, 1, 0) { SenderKind = ActorKind.Automation }],
+            [new(Guid.Empty, 1, 1) { SenderKind = ActorKind.Automation }],
+            [new(Guid.Empty, 1, 0) { SenderKind = ActorKind.Automation }, new(Guid.Empty, 2, 0) { SenderKind = ActorKind.Automation }]
+        ];
 
-        Assert.Equal(
-            "Recorded send actor,Queries received for assigned Engineer,Amendment requests,Reports sent by recorded actor,Audit reports sent,Received to sent\r\n"
-            + "engineer.one,5,0,3,0,\r\n"
-            + "\"Smith, \"\"J\"\"\",1,0,0,0,\r\n",
-            csv);
-        Assert.Equal("Recorded send actor,Queries received for assigned Engineer,Amendment requests,Reports sent by recorded actor,Audit reports sent,Received to sent\r\n", EngineerActivityReportCsv.ToCsv([]));
-    }
-
-    [Fact]
-    public void CsvMakesFormulaLookingNamesLiteral()
-    {
-        var csv = EngineerActivityReportCsv.ToCsv([new(Guid.NewGuid(), "=SUM(A1:A2)", 0, 0)]);
-        Assert.Contains("'=SUM(A1:A2),0,0,0,0,\r\n", csv, StringComparison.Ordinal);
+        foreach (var rows in invalid)
+        {
+            await Assert.ThrowsAsync<InvalidDataException>(() =>
+                new GetEngineerActivityReport(new Counts(rows), new Accounts(id, "engineer.one"))
+                    .ExecuteAsync(Administrator(), From, To, CancellationToken.None));
+        }
     }
 
     private static ActionActor Administrator() =>
@@ -141,15 +117,14 @@ public sealed class EngineerActivityReportTests
 
     private sealed class Counts(IReadOnlyList<EngineerActivityCounts> rows) : IEngineerActivityQueries
     {
-        public (DateTimeOffset FromUtc, DateTimeOffset ToUtc, Guid? EngineerId)? Request { get; private set; }
+        public (DateTimeOffset FromUtc, DateTimeOffset ToUtc)? Request { get; private set; }
 
         public Task<IReadOnlyList<EngineerActivityCounts>> GetAsync(
             DateTimeOffset fromUtc,
             DateTimeOffset toUtc,
-            Guid? engineerId,
             CancellationToken cancellationToken)
         {
-            Request = (fromUtc, toUtc, engineerId);
+            Request = (fromUtc, toUtc);
             return Task.FromResult(rows);
         }
     }

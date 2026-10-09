@@ -2339,17 +2339,17 @@ window.pegasusPreferences = (function () {
     });
 })();
 
-// --- Sort toggles ------------------------------------------------------------
-// The server sorts; the toggle is a link or a form button whose arrow glyph
-// swaps on activation so the direction reads before the page returns.
+// --- Report period ------------------------------------------------------------
+// Typing a From or To makes the period Custom, so Apply keeps the dates typed
+// rather than the preset's (Management Reports, item H).
 (function () {
     'use strict';
-    document.querySelectorAll('[data-sort-toggle]').forEach(function (toggle) {
-        toggle.addEventListener('click', function () {
-            var label = toggle.querySelector('[data-sort-arrow]') || toggle;
-            label.textContent = label.textContent.indexOf('↓') >= 0
-                ? label.textContent.replace('↓', '↑')
-                : label.textContent.replace('↑', '↓');
+    document.querySelectorAll('[data-period-custom]').forEach(function (input) {
+        input.addEventListener('input', function () {
+            var preset = input.form && input.form.querySelector('[data-period-preset]');
+            if (preset) {
+                preset.value = 'custom';
+            }
         });
     });
 })();
