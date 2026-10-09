@@ -76,6 +76,8 @@ param glassRepairProfileId string
 param glassValuationUsernameSecretUri string
 @description('Versioned Key Vault secret URI containing the Glass valuation account password (ADR-0060).')
 param glassValuationPasswordSecretUri string
+@description('Versioned Key Vault secret URI containing the Cazana API key (ADR-0066).')
+param cazanaApiKeySecretUri string
 @description('Versioned Key Vault secret URI containing the DVSA API key.')
 param dvsaApiKeySecretUri string
 @description('Approved DVSA OAuth token endpoint.')
@@ -128,6 +130,7 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     glassRepairProfileId: glassRepairProfileId
     glassValuationUsernameSecretUri: glassValuationUsernameSecretUri
     glassValuationPasswordSecretUri: glassValuationPasswordSecretUri
+    cazanaApiKeySecretUri: cazanaApiKeySecretUri
     dvsaApiKeySecretUri: dvsaApiKeySecretUri
     dvsaTokenUri: dvsaTokenUri
     dvsaScope: dvsaScope
