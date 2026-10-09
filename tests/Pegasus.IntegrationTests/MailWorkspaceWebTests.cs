@@ -181,20 +181,14 @@ public sealed class MailWorkspaceWebTests
     /// <summary>
     /// C08: the workspace contract says mailbox/folder/search/queue/unread/
     /// sort/page are URL and retained-query state only — opening, previewing,
-    /// filtering or changing the unread scope never reaches Outlook or writes
-    /// a classification correction. <see cref="RecordingFolderMover"/> stands
-    /// in for the one Graph-facing port the pages can reach
-    /// (<see cref="MoveRetainedMailFolder"/>'s underlying mover) and
-    /// <see cref="RecordingClassificationStore"/> for
-    /// <see cref="CorrectRetainedMailClassification"/>'s store; both are
-    /// asserted at zero after every read action below. The explicit staff
-    /// <c>OnPostMoveToRecommendedFolderAsync</c> stays a write and is proved
-    /// elsewhere (<see cref="AuthenticatedStaffConfirmsTheServerDerivedFolderWithoutPostingTransportIdentity"/>).
+    /// filtering or changing the unread scope never writes a classification
+    /// correction. <see cref="RecordingClassificationStore"/> stands in for
+    /// <see cref="CorrectRetainedMailClassification"/>'s store and is asserted
+    /// at zero after every read action below.
     /// </summary>
     [Fact]
     public async Task OpenPreviewFilterUnreadAndSortNeverWriteThroughTheRetainedMailPorts()
     {
-        var mover = new RecordingFolderMover();
         var classificationStore = new RecordingClassificationStore();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var ids = await SeedAsync(baseFactory, FirstMailboxId, FirstMailboxAddress, count: 3);
@@ -214,8 +208,6 @@ public sealed class MailWorkspaceWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IRetainedMailFolderMover>();
-                services.AddSingleton<IRetainedMailFolderMover>(mover);
                 services.RemoveAll<IRetainedMailClassificationStore>();
                 services.AddScoped<IRetainedMailClassificationStore>(_ => classificationStore);
             }));
@@ -225,8 +217,8 @@ public sealed class MailWorkspaceWebTests
         // preview a row, then open and return from the full message —
         // carrying the exact same query string a real navigation would.
         // "queue" has no "all" sentinel: TryParseQueue accepts only an
-        // AggregateViews key (e.g. "receiving-work") or a "classification:"
-        // one, and treats anything else — "all" included — as invalid,
+        // AggregateViews key (e.g. "receiving-work") or a "family:" one, and
+        // treats anything else — "all" included — as invalid,
         // returning NotFound. The unfiltered scope is the absent parameter,
         // not a literal "all"; a real queue key exercises the same
         // round-trip without hitting that 404.
@@ -300,7 +292,6 @@ public sealed class MailWorkspaceWebTests
         // renders (the message tabs use the same asp-route-* set).
         Assert.Contains($"mailbox={FirstMailboxId}", messageHtml, StringComparison.Ordinal);
 
-        Assert.Equal(0, mover.MoveCalls);
         Assert.Equal(0, classificationStore.CorrectionCalls);
     }
 
@@ -407,7 +398,8 @@ public sealed class MailWorkspaceWebTests
         // the receipt's classification decision for the classification dossier too,
         // rather than reading that decision a second time. The other two commands that
         // join it are the summary mapping (the row's own label) and the intake read (the
-        // receipt aggregate).
+        // receipt aggregate). Removing the Outlook folder recommendation (ADR-0067) took
+        // its approved-mailbox and latest-move reads with it: 27.
         Assert.True(
             messageCommands == InboxMessageCommands,
             $"The Inbox message page sent {messageCommands} SQL commands; it is pinned at {InboxMessageCommands}."
@@ -423,11 +415,12 @@ public sealed class MailWorkspaceWebTests
             + Environment.NewLine + previewDescription);
     }
 
-    private const int InboxMessageCommands = 29;
+    private const int InboxMessageCommands = 27;
 
     private const int InboxListCommands = 24;
 
-    private const int InboxPreviewCommands = 11;
+    // 10 since ADR-0067: the preview no longer reads the row's current folder.
+    private const int InboxPreviewCommands = 10;
 
     [Fact]
     public async Task ExactMessageCanBeSearchedLinkedUnlinkedAndLinkedToAReplacement()
@@ -1183,7 +1176,7 @@ public sealed class MailWorkspaceWebTests
         // "Unread" word is not a scope.
         Assert.DoesNotContain("<span>Unread</span>", html, StringComparison.Ordinal);
         Assert.Contains(">Receiving work</span>", html, StringComparison.Ordinal);
-        Assert.Contains(">Case updates</span>", html, StringComparison.Ordinal);
+        Assert.Contains(">Queries</span>", html, StringComparison.Ordinal);
         Assert.Contains(">Pre-instructions</span>", html, StringComparison.Ordinal);
         Assert.Contains(">Unidentified</span>", html, StringComparison.Ordinal);
         Assert.Contains(">Sent Items</span>", html, StringComparison.Ordinal);
@@ -1591,7 +1584,7 @@ public sealed class MailWorkspaceWebTests
             MailClassificationResult.Classified(
                 MailCategory.Received(ReceivedMailFamily.PostReportEmails, "query"), [], "fixture", "test", 1),
             MailClassificationResult.Classified(
-                MailCategory.Other(MailDirection.Received, "supplier-newsletter", "No known class fits."), [], "fixture", "test", 1),
+                MailCategory.Received(ReceivedMailFamily.Billing, "remittance"), [], "fixture", "test", 1),
             MailClassificationResult.Unclassified([], "fixture", "test", 1),
             MailClassificationResult.Classified(
                 MailCategory.Received(ReceivedMailFamily.PreInstructionEmails, "triage-request"), [], "fixture", "test", 1),
@@ -1626,10 +1619,10 @@ public sealed class MailWorkspaceWebTests
         foreach (var (key, included, excluded) in new[]
         {
             ("queries", "Message 1 from instructions", "Message 0 from instructions"),
-            ("other", "Message 2 from instructions", "Message 1 from instructions"),
+            ("family:Billing", "Message 2 from instructions", "Message 1 from instructions"),
             ("unidentified", "Message 3 from instructions", "Message 4 from instructions"),
             ("triage", "Message 4 from instructions", "Message 3 from instructions"),
-            ("classification:received:General:autoreply", "Message 5 from instructions", "Message 0 from instructions")
+            ("family:General", "Message 5 from instructions", "Message 0 from instructions")
         })
         {
             var html = await GetHtmlAsync(client, $"/Inbox?queue={Uri.EscapeDataString(key)}");
@@ -1653,7 +1646,7 @@ public sealed class MailWorkspaceWebTests
 
         var emptyView = await GetHtmlAsync(
             client,
-            "/Inbox?queue=classification%3Asent%3AReportSent");
+            "/Inbox?queue=family%3AInternalCc");
         Assert.DoesNotContain("No retained mail is currently in", emptyView, StringComparison.Ordinal);
     }
 
@@ -1663,7 +1656,6 @@ public sealed class MailWorkspaceWebTests
     public async Task InvalidMailViewContextStopsEveryExactMessagePostBeforeMutation(
         bool deletedItemsContext)
     {
-        var mover = new RecordingFolderMover();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         _ = await SeedAsync(baseFactory, FirstMailboxId, FirstMailboxAddress, count: 3);
         for (var index = 0; index < 3; index++)
@@ -1673,11 +1665,6 @@ public sealed class MailWorkspaceWebTests
                 FirstMailboxId,
                 $"{FirstMailboxId}-{index}");
         }
-        await ConfigureFolderBindingAsync(
-            baseFactory,
-            FirstMailboxId,
-            MailLogicalFolderType.Instructions,
-            "outlook-folder-instructions");
         var linkMessageId = await MessageIdAsync(baseFactory, FirstMailboxId, FirstMailboxId + "-0");
         var unlinkMessageId = await MessageIdAsync(baseFactory, FirstMailboxId, FirstMailboxId + "-1");
         var actionMessageId = await MessageIdAsync(baseFactory, FirstMailboxId, FirstMailboxId + "-2");
@@ -1694,13 +1681,7 @@ public sealed class MailWorkspaceWebTests
             unlinkReceiptId,
             "MAIL-CONTEXT-UNLINK",
             nameof(CaseLifecycleState.Review));
-        using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<IRetainedMailFolderMover>();
-                services.AddSingleton<IRetainedMailFolderMover>(mover);
-            }));
-        using var client = CreateClient(factory);
+        using var client = CreateClient(baseFactory);
 
         string Forge(string action)
         {
@@ -1780,15 +1761,6 @@ public sealed class MailWorkspaceWebTests
             Forge(AssociationAction(correctionForm, "CorrectClassification")),
             correctionFields);
 
-        var moveForm = AssociationForm(actionPage, "MoveToRecommendedFolder");
-        var moveFields = HiddenFields(moveForm);
-        moveFields["Reason"] = "Confirmed after reviewing the message.";
-        await PostNotFoundAsync(
-            client,
-            Forge(AssociationAction(moveForm, "MoveToRecommendedFolder")),
-            moveFields);
-
-        Assert.Equal(0, mover.MoveCalls);
         await using var scope = baseFactory.Services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
@@ -1878,26 +1850,6 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
-    public async Task MessageDetailShowsUnavailableFolderRecommendationBeforeClassificationExists()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
-
-        // An unavailable recommendation renders nothing: the Decision card
-        // shows only populated rows, and no folder prose reaches the page.
-        Assert.Contains("<h2 class=\"decision-head\">Decision</h2>", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Folder recommendation", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Recommended Outlook folder", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(">Folder</span>", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("no current classification decision", html, StringComparison.Ordinal);
-        // Sign-out, Report a problem and the record's Dismiss.
-        Assert.Equal(3, CountOccurrences(html, "method=\"post\""));
-    }
-
-    [Fact]
     public async Task MessageDetailExplainsTheVersionedDecisionAndOffersExactMessageCorrection()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -1916,8 +1868,6 @@ public sealed class MailWorkspaceWebTests
         Assert.DoesNotContain("shared-mail-policy", html, StringComparison.Ordinal);
         Assert.DoesNotContain("sender-domain", html, StringComparison.Ordinal);
         Assert.DoesNotContain("mail_operational_destination", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Recommended Outlook folder", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("absent or ambiguous", html, StringComparison.Ordinal);
         // The correction is a dialog on the card, posting the exact decision
         // version it corrects.
         Assert.Contains(">Save correction</button>", html, StringComparison.Ordinal);
@@ -1932,7 +1882,7 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
-    public async Task LinkedUnclassifiedMessageShowsTheCaseDestinationWhileAnUnlinkedMessageRemainsUnidentified()
+    public async Task LinkedMessageTakesTheCaseStateClassificationWhileAnUnlinkedMessageRemainsUnidentified()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
@@ -1962,8 +1912,11 @@ public sealed class MailWorkspaceWebTests
         // A fresh viewer checks the persisted message destination independently.
         using var viewer = CreateClient(factory);
         var linked = await GetHtmlAsync(viewer, $"/Inbox/{linkedMessageId:D}");
+        // FRD-08 case-state classification: linked to a Review Case, the
+        // unclassified message becomes in-progress ongoing correspondence.
         Assert.Contains("<span>Classification</span>", linked, StringComparison.Ordinal);
-        Assert.Contains("<strong>Unclassified</strong>", linked, StringComparison.Ordinal);
+        Assert.Contains("Ongoing correspondence</strong>", linked, StringComparison.Ordinal);
+        Assert.DoesNotContain("<strong>Unclassified</strong>", linked, StringComparison.Ordinal);
         Assert.Contains("<span>Destination</span>", linked, StringComparison.Ordinal);
         Assert.Contains(
             $"<a href=\"/Cases/{caseId:D}\">MAIL-DESTINATION</a>",
@@ -1979,11 +1932,11 @@ public sealed class MailWorkspaceWebTests
         var linkedRowEnd = previewPage.IndexOf("</div>", linkedRowStart, StringComparison.Ordinal);
         Assert.True(linkedRowEnd > linkedRowStart, "The linked message row was not complete.");
         var linkedRow = previewPage[linkedRowStart..linkedRowEnd];
-        Assert.Contains("Unclassified", linkedRow, StringComparison.Ordinal);
-        Assert.DoesNotMatch("Unclassified\\s*·\\s*Unidentified", linkedRow);
+        Assert.Contains("Ongoing correspondence", linkedRow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unidentified", linkedRow, StringComparison.Ordinal);
 
         var preview = Between(previewPage, "<aside id=\"mail-quick-preview\"", "</aside>");
-        Assert.Contains("data-mail-preview-classification>Unclassified</dd>", preview, StringComparison.Ordinal);
+        Assert.Contains("Ongoing correspondence</dd>", preview, StringComparison.Ordinal);
         // An instruction Case: the Case cell names its Case/PO and the pane offers Open Case.
         Assert.Contains("<dt>Case</dt>", preview, StringComparison.Ordinal);
         Assert.Contains("data-mail-preview-association>MAIL-DESTINATION</dd>", preview, StringComparison.Ordinal);
@@ -2017,163 +1970,7 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
-    public async Task MessageDetailShowsTheCurrentMailboxConfiguredFolderRecommendation()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
-        await StoreClassifiedInstructionAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
-        await ConfigureFolderBindingAsync(
-            factory,
-            FirstMailboxId,
-            MailLogicalFolderType.Instructions,
-            "outlook-folder-instructions");
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
-
-        Assert.Contains("<span>Folder</span>", html, StringComparison.Ordinal);
-        Assert.Contains("Instructions — not moved", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("mail_logical_folder", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("outlook-folder-instructions", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Move to Instructions", html, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task AuthenticatedStaffConfirmsTheServerDerivedFolderWithoutPostingTransportIdentity()
-    {
-        var mover = new RecordingFolderMover();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        var ids = await SeedAsync(baseFactory, FirstMailboxId, FirstMailboxAddress, count: 1);
-        await StoreClassifiedInstructionAsync(baseFactory, FirstMailboxId, FirstMailboxId + "-0");
-        await ConfigureFolderBindingAsync(
-            baseFactory,
-            FirstMailboxId,
-            MailLogicalFolderType.Instructions,
-            "outlook-folder-instructions");
-        using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<IRetainedMailFolderMover>();
-                services.AddSingleton<IRetainedMailFolderMover>(mover);
-            }));
-        using var client = CreateClient(factory);
-
-        var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}?queue=receiving-work");
-
-        Assert.Contains(">Move to Instructions</button>", html, StringComparison.Ordinal);
-        Assert.Contains("id=\"moveFolderDialog\"", html, StringComparison.Ordinal);
-        Assert.Contains("<dt>From</dt><dd>Inbox</dd>", html, StringComparison.Ordinal);
-        Assert.Contains("<dt>To</dt><dd>Instructions</dd>", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("outlook-folder-instructions", html, StringComparison.Ordinal);
-        Assert.Equal(0, mover.MoveCalls);
-        var action = Regex.Match(
-            html,
-            "<form method=\"post\" action=\"([^\"]*handler=MoveToRecommendedFolder[^\"]*)\"",
-            RegexOptions.IgnoreCase).Groups[1].Value;
-        Assert.NotEmpty(action);
-        action = WebUtility.HtmlDecode(action);
-        using var response = await client.PostAsync(
-            action,
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = AntiforgeryToken(html),
-                ["Reason"] = "Confirmed after reviewing the message."
-            }));
-
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Contains("queue=receiving-work", response.Headers.Location!.ToString(), StringComparison.Ordinal);
-        Assert.Equal(1, mover.MoveCalls);
-        Assert.Equal(FirstMailboxId, mover.Coordinates!.MailboxId);
-        Assert.Equal("inbox", mover.Coordinates.SourceFolderId);
-        Assert.Equal("outlook-folder-instructions", mover.Coordinates.DestinationFolderId);
-        await using var scope = baseFactory.Services.CreateAsyncScope();
-        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
-        Assert.Empty((await queries.ListAsync(
-            new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None)).Items);
-        // MAIL-010: the notice that narrated this is gone. The assertion below
-        // is the one that proved it — a message moved out of the Inbox is still
-        // found by search — so it now stands alone.
-        var searchHtml = await GetHtmlAsync(client, "/Inbox?search=estimate");
-        Assert.Contains($"Message 0 from {FirstMailboxId}", searchHtml, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData("outlook-folder-instructions", "Message moved to the recommended Outlook folder.", false, false)]
-    [InlineData("inbox", "The message was not moved. You can retry with a new confirmation.", false, true)]
-    [InlineData("unresolved-folder", "The move result is uncertain. Retry this same confirmation to check its current location.", true, false)]
-    public async Task AuthenticatedUncertainMoveReusesTheSameConfirmationForExactRecovery(
-        string recoveredParent,
-        string expectedNotice,
-        bool remainsUncertain,
-        bool showsSuggestedMove)
-    {
-        var mover = new SequenceRecoveryFolderMover(recoveredParent);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        var ids = await SeedAsync(baseFactory, FirstMailboxId, FirstMailboxAddress, count: 1);
-        await StoreClassifiedInstructionAsync(baseFactory, FirstMailboxId, FirstMailboxId + "-0");
-        await ConfigureFolderBindingAsync(
-            baseFactory,
-            FirstMailboxId,
-            MailLogicalFolderType.Instructions,
-            "outlook-folder-instructions");
-        using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<IRetainedMailFolderMover>();
-                services.AddSingleton<IRetainedMailFolderMover>(mover);
-            }));
-        using var client = CreateClient(factory);
-
-        var initial = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}?queue=receiving-work");
-        var confirmationAction = WebUtility.HtmlDecode(Regex.Match(
-            initial,
-            "<form method=\"post\" action=\"([^\"]*handler=MoveToRecommendedFolder[^\"]*)\"",
-            RegexOptions.IgnoreCase).Groups[1].Value);
-        using var confirmation = await client.PostAsync(
-            confirmationAction,
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = AntiforgeryToken(initial),
-                ["Reason"] = "Confirmed after reviewing the message."
-            }));
-        Assert.Equal(HttpStatusCode.Redirect, confirmation.StatusCode);
-        Assert.Contains("queue=receiving-work", confirmation.Headers.Location!.ToString(), StringComparison.Ordinal);
-
-        var uncertain = await GetHtmlAsync(client, confirmation.Headers.Location!.ToString());
-        Assert.Contains("Check move status", uncertain, StringComparison.Ordinal);
-        Assert.Contains("Unconfirmed", uncertain, StringComparison.Ordinal);
-        Assert.DoesNotContain("moveFolderDialog", uncertain, StringComparison.Ordinal);
-        Assert.Contains("value=\"Confirmed after reviewing the message.\"", uncertain, StringComparison.Ordinal);
-        Assert.DoesNotContain("outlook-folder-instructions", uncertain, StringComparison.Ordinal);
-        var recoveryAction = WebUtility.HtmlDecode(Regex.Match(
-            uncertain,
-            "<form method=\"post\" action=\"([^\"]*handler=MoveToRecommendedFolder[^\"]*)\"",
-            RegexOptions.IgnoreCase).Groups[1].Value);
-        Assert.Contains("queue=receiving-work", recoveryAction, StringComparison.Ordinal);
-        using var recovery = await client.PostAsync(
-            recoveryAction,
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = AntiforgeryToken(uncertain),
-                ["ExpectedClassificationVersion"] = HiddenValue(uncertain, "ExpectedClassificationVersion"),
-                ["ExpectedRecommendationPolicyKey"] = HiddenValue(uncertain, "ExpectedRecommendationPolicyKey"),
-                ["ExpectedRecommendationPolicyVersion"] = HiddenValue(uncertain, "ExpectedRecommendationPolicyVersion"),
-                ["ExpectedMailboxVersion"] = HiddenValue(uncertain, "ExpectedMailboxVersion"),
-                ["MoveOperationKey"] = HiddenValue(uncertain, "MoveOperationKey"),
-                ["Reason"] = HiddenValue(uncertain, "Reason")
-            }));
-        Assert.Equal(HttpStatusCode.Redirect, recovery.StatusCode);
-        Assert.Contains("queue=receiving-work", recovery.Headers.Location!.ToString(), StringComparison.Ordinal);
-        var final = await GetHtmlAsync(client, recovery.Headers.Location!.ToString());
-
-        Assert.Contains(expectedNotice, final, StringComparison.Ordinal);
-        Assert.Equal(1, mover.MoveCalls);
-        Assert.Equal(remainsUncertain, final.Contains("Check move status", StringComparison.Ordinal));
-        Assert.Equal(showsSuggestedMove, final.Contains("moveFolderDialog", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task CraftedOrOversizedCorrectionsFailClosedWithoutHistoryWrites()
+    public async Task CraftedCorrectionsFailClosedWithoutHistoryWrites()
     {
         using var factory = new IntakeWebApplicationFactory();
         var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
@@ -2183,19 +1980,7 @@ public sealed class MailWorkspaceWebTests
         var attempts = new[]
         {
             new Dictionary<string, string> { ["ClassificationKey"] = "received:999" },
-            new Dictionary<string, string> { ["ClassificationKey"] = "sent:999" },
-            new Dictionary<string, string>
-            {
-                ["ClassificationKey"] = "other-received",
-                ["OtherClassificationName"] = new string('n', MailCategory.OtherNameMaxLength + 1),
-                ["OtherClassificationReasoning"] = "No existing category fits."
-            },
-            new Dictionary<string, string>
-            {
-                ["ClassificationKey"] = "other-received",
-                ["OtherClassificationName"] = "New category",
-                ["OtherClassificationReasoning"] = new string('r', MailCategory.OtherReasoningMaxLength + 1)
-            }
+            new Dictionary<string, string> { ["ClassificationKey"] = "received:General:not-a-subtype" }
         };
 
         foreach (var attempt in attempts)
@@ -2207,7 +1992,7 @@ public sealed class MailWorkspaceWebTests
             using var response = await client.PostAsync(route, new FormUrlEncodedContent(attempt));
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Contains(
-                "Choose a valid classification and complete any Other details.",
+                "Choose a valid classification.",
                 await response.Content.ReadAsStringAsync(),
                 StringComparison.Ordinal);
         }
@@ -2229,12 +2014,9 @@ public sealed class MailWorkspaceWebTests
         var route = $"/Inbox/{ids[0]:D}?handler=CorrectClassification";
 
         var page = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
-        // An Inbox message is received mail: the picker offers no Sent family
-        // and asks for the case type a New instruction names.
+        // The picker offers the received classifications and asks for the
+        // case type a New instruction names.
         Assert.Contains("value=\"received:NewInstructionReceived:inspection\"", page, StringComparison.Ordinal);
-        Assert.Contains("value=\"other-received\"", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("value=\"sent:", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("value=\"other-sent\"", page, StringComparison.Ordinal);
         Assert.Contains("data-work-type-field", page, StringComparison.Ordinal);
 
         // A New instruction without a case type is refused before the command.
@@ -2881,16 +2663,6 @@ public sealed class MailWorkspaceWebTests
         return WebUtility.HtmlDecode(match.Groups[1].Value);
     }
 
-    private static string HiddenValue(string html, string name)
-    {
-        var match = Regex.Match(
-            html,
-            $"<input[^>]*name=\"{Regex.Escape(name)}\"[^>]*value=\"([^\"]*)\"",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        Assert.True(match.Success, $"The hidden input '{name}' was not rendered.");
-        return WebUtility.HtmlDecode(match.Groups[1].Value);
-    }
-
     private static async Task<Guid[]> SeedAsync(
         IntakeWebApplicationFactory factory,
         string mailboxId,
@@ -3007,32 +2779,6 @@ public sealed class MailWorkspaceWebTests
                     [new("original@qdosassist.co.uk", "inline forward")],
                     new("original@qdosassist.co.uk", "inline forward"))),
             CancellationToken.None);
-    }
-
-    private static async Task ConfigureFolderBindingAsync(
-        IntakeWebApplicationFactory factory,
-        string mailboxIdentity,
-        MailLogicalFolderType folderType,
-        string folderIdentity)
-    {
-        await using var scope = factory.Services.CreateAsyncScope();
-        var contextFactory = scope.ServiceProvider
-            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        await using var context = await contextFactory.CreateDbContextAsync();
-        var mailbox = await context.ApprovedMailboxes
-            .Include(item => item.FolderBindings)
-            .SingleAsync(item => item.Address == FirstMailboxAddress);
-        mailbox.MailboxIdentity = mailboxIdentity;
-        mailbox.InboxFolderIdentity = "inbox-folder";
-        mailbox.SentFolderIdentity = "sent-folder";
-        mailbox.Version++;
-        mailbox.FolderBindings.Add(new()
-        {
-            ApprovedMailboxId = mailbox.Id,
-            FolderType = folderType.ToString(),
-            FolderIdentity = folderIdentity
-        });
-        await context.SaveChangesAsync();
     }
 
     private static async Task StoreClassificationAsync(
@@ -3155,25 +2901,6 @@ public sealed class MailWorkspaceWebTests
         public override DateTimeOffset GetUtcNow() => now;
     }
 
-    private sealed class RecordingFolderMover : IRetainedMailFolderMover
-    {
-        public bool IsAvailable => true;
-        public int MoveCalls { get; private set; }
-        public RetainedMailFolderMoveCoordinates? Coordinates { get; private set; }
-        private bool moved;
-
-        public Task MoveAsync(RetainedMailFolderMoveCoordinates coordinates, CancellationToken cancellationToken)
-        {
-            MoveCalls++;
-            Coordinates = coordinates;
-            moved = true;
-            return Task.CompletedTask;
-        }
-
-        public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
-            Task.FromResult<string?>(moved ? Coordinates?.DestinationFolderId : "inbox");
-    }
-
     /// <summary>
     /// C08: <see cref="CorrectRetainedMailClassification"/>'s store, recorded
     /// rather than backed by real persistence — no read/open/preview/filter
@@ -3202,23 +2929,6 @@ public sealed class MailWorkspaceWebTests
             throw new InvalidOperationException(
                 "A read-only mail workspace action attempted to write a classification correction.");
         }
-    }
-
-    private sealed class SequenceRecoveryFolderMover(string recoveredParent) : IRetainedMailFolderMover
-    {
-        private readonly Queue<string> parents = new(["inbox", "unresolved-folder", recoveredParent]);
-
-        public bool IsAvailable => true;
-        public int MoveCalls { get; private set; }
-
-        public Task MoveAsync(RetainedMailFolderMoveCoordinates coordinates, CancellationToken cancellationToken)
-        {
-            MoveCalls++;
-            throw new InvalidOperationException("The provider response was interrupted.");
-        }
-
-        public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
-            Task.FromResult<string?>(parents.Count == 0 ? recoveredParent : parents.Dequeue());
     }
 
     private static async Task StoreSearchProjectionAsync(

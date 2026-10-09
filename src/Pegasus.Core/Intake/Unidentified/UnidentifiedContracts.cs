@@ -14,7 +14,6 @@ public enum UnidentifiedReasonCode
     UnsupportedContent,
     NoUsableIdentification,
     ConflictingIdentification,
-    AmbiguousOwnershipOrDestination,
     TechnicalProcessingFailure,
 
     /// <summary>

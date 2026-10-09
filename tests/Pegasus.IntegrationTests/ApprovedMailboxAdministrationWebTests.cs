@@ -32,7 +32,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
 
     [Theory]
     [InlineData("Update")]
-    [InlineData("ResolveFolders")]
     [InlineData("SaveCategory")]
     public async Task NonAdministratorCannotPostMailSettingsHandlers(string handler)
     {
@@ -77,10 +76,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Contains("Mailbox settings", editing, StringComparison.Ordinal);
         Assert.DoesNotContain("HeartbeatMailboxEdit", editing, StringComparison.Ordinal);
         Assert.DoesNotContain("LeaseToken", editing, StringComparison.Ordinal);
-        // The seeded mailbox has no verified external identity. The dialog
-        // therefore cannot offer a refresh that is only valid for a bound
-        // mailbox; the bound-mailbox refresh path is covered below.
-        Assert.DoesNotContain("?handler=ResolveFolders", editing, StringComparison.Ordinal);
         Assert.Contains("?handler=Update", editing, StringComparison.Ordinal);
     }
 
@@ -681,62 +676,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Contains("New instructions and Triage mail (Inbox)", page, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task AdministratorRefreshesOnlyServerResolvedLogicalFolderBindings()
-    {
-        var resolver = new SequencedResolver(
-            Resolution(new(MailLogicalFolderType.Instructions, "instructions-id")),
-            Resolution(new(MailLogicalFolderType.Billing, "billing-id")));
-        using var factory = new IntakeWebApplicationFactory(
-            "Development",
-            true,
-            approvedMailboxIdentityResolver: resolver);
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        var page = await GetPageAsync(client);
-        var mailboxId = NewMailboxId(page);
-        var created = await PostAsync(client, new()
-        {
-            ["MailboxForm.MailboxId"] = mailboxId,
-            ["MailboxForm.ExpectedVersion"] = "0",
-            ["MailboxForm.OperationKey"] = OperationKey(page),
-            ["MailboxForm.Address"] = NewAddress,
-            ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
-            ["MailboxForm.SelectedState"] = "Approved",
-            ["MailboxForm.VerifiedEncodedMessageSizeLimit"] = "10485760",
-            ["__RequestVerificationToken"] = AntiforgeryToken(page)
-        });
-        Assert.Equal(HttpStatusCode.Found, created.StatusCode);
-
-        var configured = await GetPageAsync(client);
-        Assert.DoesNotContain("instructions-id", configured, StringComparison.Ordinal);
-        var editing = await OpenMailboxEditAsync(client, mailboxId, 1, configured);
-        Assert.Contains("?handler=ResolveFolders", editing, StringComparison.Ordinal);
-        AssertFolderBinding(editing, "Instructions", "Configured");
-        AssertFolderBinding(editing, "Billing", "Not configured");
-        var refreshed = await client.PostAsync(
-            "/Administration/Mailboxes?handler=ResolveFolders",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["MailboxForm.MailboxId"] = mailboxId,
-                ["MailboxForm.ExpectedVersion"] = "1",
-                ["MailboxForm.OperationKey"] = MailboxOperationKey(editing, mailboxId),
-                ["MailboxForm.Address"] = NewAddress,
-                ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
-                ["MailboxForm.SelectedState"] = "Approved",
-                ["MailboxForm.VerifiedEncodedMessageSizeLimit"] = "10485760",
-                ["__RequestVerificationToken"] = AntiforgeryToken(editing)
-            }));
-
-        Assert.Equal(HttpStatusCode.Found, refreshed.StatusCode);
-        var reloaded = await GetPageAsync(client);
-        Assert.DoesNotContain("billing-id", reloaded, StringComparison.Ordinal);
-        var refreshedEditing = await OpenMailboxEditAsync(client, mailboxId, 2, reloaded);
-        AssertFolderBinding(refreshedEditing, "Instructions", "Not configured");
-        AssertFolderBinding(refreshedEditing, "Billing", "Configured");
-        Assert.Contains("value=\"10485760\"", refreshedEditing, StringComparison.Ordinal);
-    }
-
     /// <summary>Opening Settings loads the selected mailbox without changing it or the default-sender dialog.</summary>
     [Fact]
     public async Task OpeningMailboxSettingsDoesNotMutateTheMailboxOrDefaultSenderDialog()
@@ -764,19 +703,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             .Select(item => item.Version)
             .SingleAsync());
     }
-
-    /// <summary>
-    /// Asserts that one logical folder is paired with one binding state in the
-    /// per-mailbox settings dialog. The page renders every folder in
-    /// <c>MailLogicalFolders.All</c> unconditionally, so two independent
-    /// substring checks on a &lt;dt&gt; and a &lt;dd&gt; cannot tell a bound
-    /// folder from an unbound one; only the contiguous pair can.
-    /// </summary>
-    private static void AssertFolderBinding(string html, string folderLabel, string state) =>
-        Assert.Contains(
-            $"<dt>{folderLabel}</dt><dd>{state}</dd>",
-            BetweenTagsWhitespaceRegex().Replace(html, "><"),
-            StringComparison.Ordinal);
 
     private static async Task<string> GetPageAsync(HttpClient client)
     {
@@ -928,13 +854,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
 
         public override DateTimeOffset GetUtcNow() => UtcNow;
     }
-
-    private static ApprovedMailboxIdentityResolution Resolution(
-        ApprovedMailboxFolderBinding binding) => new(
-        "resolved-mailbox-id",
-        "resolved-inbox-id",
-        "resolved-sent-id",
-        [binding]);
 
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex AntiforgeryTagRegex();

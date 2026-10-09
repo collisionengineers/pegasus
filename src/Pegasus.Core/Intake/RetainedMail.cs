@@ -38,7 +38,7 @@ public sealed record MailWorkspaceScope(
     MailFolderScope Folder,
     string? SearchTerm = null,
     MailOperationalDestination? Destination = null,
-    MailCategory? DetailedClassification = null,
+    ReceivedMailFamily? Family = null,
     bool UnreadOnly = false,
     bool OldestFirst = false,
     bool DismissedOnly = false);
@@ -74,7 +74,6 @@ public sealed record RetainedMailSummary(
     string? CaseReference,
     IntakeAllocationState? AllocationState = null,
     IReadOnlyList<RetainedMailSearchMatch>? SearchMatches = null,
-    MailLogicalFolderType? CurrentFolderType = null,
     MailClassificationResult? Classification = null,
     MailOperationalDestinationResult? OperationalDestination = null)
 {
@@ -136,31 +135,6 @@ public sealed record RetainedMailThreadEntry(
     string? Subject,
     DateTimeOffset ReceivedAtUtc);
 
-/// <summary>
-/// The current read-only Outlook-folder recommendation for one retained message.
-/// A missing <see cref="FolderType"/> is an honest unavailable result, not a
-/// destination the caller may fill in. A later move command must re-read the exact
-/// current binding rather than carry an opaque identity forward from this view.
-/// </summary>
-public sealed record RetainedMailFolderRecommendation(
-    MailLogicalFolderType? FolderType,
-    string PolicyKey,
-    int PolicyVersion,
-    string Reason,
-    int? MailboxVersion = null,
-    bool CanMove = false)
-{
-    public bool IsAvailable => FolderType is not null;
-}
-
-/// <summary>
-/// The optional advisory to start the separate confirmed folder-move workflow.
-/// It carries no command, transport identity or durable operation state.
-/// </summary>
-public sealed record RetainedMailSuggestedMove(
-    MailLogicalFolderType FolderType,
-    string Reason);
-
 public sealed record RetainedMailDetail(
     RetainedMailSummary Summary,
     IReadOnlyList<string> ToAddresses,
@@ -175,16 +149,13 @@ public sealed record RetainedMailDetail(
     string ImmutableMessageId,
     string? InternetMessageId,
     string? ConversationId,
-    MailClassificationDossier? Classification = null,
-    RetainedMailFolderRecommendation? FolderRecommendation = null,
-    RetainedMailFolderMoveResult? LatestFolderMove = null,
-    RetainedMailSuggestedMove? SuggestedMove = null);
+    MailClassificationDossier? Classification = null);
 
 /// <summary>
 /// What the Inbox preview pane renders of one message: its summary, the
 /// attachments it counts by kind, the classification decision it names and the
-/// folder scope it was retained under. The thread, body, recipients, folder
-/// recommendation and latest move belong to the full message and are not read.
+/// folder scope it was retained under. The thread, body and recipients belong to
+/// the full message and are not read.
 /// </summary>
 public sealed record RetainedMailPreview(
     RetainedMailSummary Summary,
@@ -219,12 +190,6 @@ public sealed record MailClassificationDossier(
 {
     /// <summary>The operator-facing name for <see cref="CurrentActor"/>.</summary>
     public string CurrentActorDisplayName { get; init; } = ActorDisplayNames.UnknownStaff;
-
-    /// <summary>
-    /// The direction of the message this classification belongs to, from its
-    /// folder: a correction may only name a category of that direction.
-    /// </summary>
-    public MailDirection MessageDirection { get; init; } = MailDirection.Received;
 }
 
 public sealed record CorrectMailClassificationRequest(
@@ -233,17 +198,6 @@ public sealed record CorrectMailClassificationRequest(
     MailCategory Category,
     string Reason,
     CaseType? CaseType = null);
-
-/// <summary>
-/// The direction a retained message's classification must have: a message read
-/// from Sent is sent mail; everything else, including an uploaded or deleted
-/// item, is received mail.
-/// </summary>
-public static class RetainedMailDirection
-{
-    public static MailDirection Of(MailFolderScope folder) =>
-        folder == MailFolderScope.Sent ? MailDirection.Sent : MailDirection.Received;
-}
 
 /// <summary>
 /// What one correction did: the dossier it produced, the Case the message is
@@ -393,12 +347,6 @@ public sealed class CorrectRetainedMailClassification(
         {
             throw new MailClassificationConcurrencyException();
         }
-        if (request.Category.Direction != current.MessageDirection)
-        {
-            throw new ArgumentException(
-                $"A {Word(current.MessageDirection)} message takes only a {Word(current.MessageDirection)} classification.",
-                nameof(request));
-        }
 
         var sameCategory = current.Current.Category == request.Category;
         var after = MailClassificationResult.Classified(
@@ -466,9 +414,6 @@ public sealed class CorrectRetainedMailClassification(
                 nameof(request), "A Triage is not a case type a New instruction can carry.")
         };
     }
-
-    private static string Word(MailDirection direction) =>
-        direction == MailDirection.Sent ? "sent" : "received";
 }
 
 /// <summary>
@@ -650,26 +595,21 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
                 nameof(scope),
                 "The mail folder scope is not recognized.");
         }
-        if (scope.Destination is not null && scope.DetailedClassification is not null)
+        if (scope.Destination is not null && scope.Family is not null)
         {
             throw new ArgumentException(
-                "Choose either an operational destination or one detailed classification.",
+                "Choose either an operational destination or one classification family.",
                 nameof(scope));
         }
         if (scope.Destination is { } destination)
         {
             _ = MailOperationalDestinationPolicy.Query(destination);
         }
-        if (scope.DetailedClassification is { } detailedClassification)
+        if (scope.Family is { } family && !Enum.IsDefined(family))
         {
-            detailedClassification.ValidateCanonical();
-            if (MailOperationalDestinationPolicy.Map(detailedClassification).Destination
-                != MailOperationalDestination.DetailedClassification)
-            {
-                throw new ArgumentException(
-                    "The selected classification does not have its own detailed mail view.",
-                    nameof(scope));
-            }
+            throw new ArgumentOutOfRangeException(
+                nameof(scope),
+                "The classification family is not recognized.");
         }
         var searchTerm = NormalizeSearchTerm(scope.SearchTerm, nameof(scope));
         if (scope.MailboxId == Guid.Empty)
@@ -710,20 +650,12 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
 
 public sealed class GetRetainedMail(
     IRetainedMailQueries queries,
-    IStaffAccountQueries staffAccountQueries,
-    IApprovedMailboxStore approvedMailboxStore,
-    IRetainedMailFolderMoveStore? folderMoveStore = null,
-    IRetainedMailFolderMover? folderMover = null)
+    IStaffAccountQueries staffAccountQueries)
 {
     private readonly IRetainedMailQueries queries =
         queries ?? throw new ArgumentNullException(nameof(queries));
     private readonly IStaffAccountQueries staffAccountQueries =
         staffAccountQueries ?? throw new ArgumentNullException(nameof(staffAccountQueries));
-    private readonly IApprovedMailboxStore approvedMailboxStore =
-        approvedMailboxStore ?? throw new ArgumentNullException(nameof(approvedMailboxStore));
-    private readonly IRetainedMailFolderMoveStore folderMoveStore =
-        folderMoveStore ?? EmptyRetainedMailFolderMoveStore.Instance;
-    private readonly IRetainedMailFolderMover? folderMover = folderMover;
 
     public async Task<RetainedMailDetail?> ExecuteAsync(
         ActionActor actor,
@@ -752,7 +684,7 @@ public sealed class GetRetainedMail(
             messageId,
             cancellationToken,
             normalizedSearchTerm);
-        return await CompleteAsync(detail, messageId, cancellationToken);
+        return await CompleteAsync(detail, cancellationToken);
     }
 
     public async Task<RetainedMailDetail?> ExecuteByOriginReceiptAsync(
@@ -769,7 +701,7 @@ public sealed class GetRetainedMail(
         }
 
         var detail = await queries.GetByOriginReceiptAsync(originReceiptId, cancellationToken);
-        return await CompleteAsync(detail, detail?.Summary.Id ?? Guid.Empty, cancellationToken);
+        return await CompleteAsync(detail, cancellationToken);
     }
 
     /// <summary>
@@ -794,7 +726,6 @@ public sealed class GetRetainedMail(
 
     private async Task<RetainedMailDetail?> CompleteAsync(
         RetainedMailDetail? detail,
-        Guid messageId,
         CancellationToken cancellationToken)
     {
         if (detail is null)
@@ -802,17 +733,6 @@ public sealed class GetRetainedMail(
             return null;
         }
 
-        var recommendation = await RecommendFolderAsync(detail, cancellationToken);
-        var latestMove = await folderMoveStore.GetLatestAsync(messageId, cancellationToken);
-        detail = detail with
-        {
-            FolderRecommendation = recommendation,
-            LatestFolderMove = latestMove,
-            SuggestedMove = recommendation is { CanMove: true, FolderType: { } folderType }
-                && latestMove?.Outcome is not RetainedMailFolderMoveOutcome.Uncertain
-                ? new(folderType, recommendation.Reason)
-                : null
-        };
         if (detail.Classification is not { } dossier)
         {
             return detail;
@@ -840,62 +760,6 @@ public sealed class GetRetainedMail(
             }
         };
     }
-
-    private async Task<RetainedMailFolderRecommendation> RecommendFolderAsync(
-        RetainedMailDetail detail,
-        CancellationToken cancellationToken)
-    {
-        if (detail.Classification is not { } dossier)
-        {
-            return Unavailable(
-                null,
-                "This message has no current classification decision, so no Outlook folder can be recommended.");
-        }
-
-        var policy = MailLogicalFolderPolicy.Map(dossier.Current);
-        if (policy.FolderType is not { } folderType)
-        {
-            return Unavailable(policy, policy.Reason);
-        }
-
-        var mailboxes = await approvedMailboxStore.ListAsync(cancellationToken);
-        var mailbox = mailboxes.SingleOrDefault(item => item.Id == detail.Summary.MailboxId);
-        if (mailbox is null || mailbox.State != ApprovedMailboxState.Approved)
-        {
-            return Unavailable(
-                policy,
-                "This message's mailbox is not currently approved, so its designated Outlook folder is unavailable.");
-        }
-
-        var binding = mailbox.FolderBindings.SingleOrDefault(item => item.FolderType == folderType);
-        if (binding is null)
-        {
-            var label = MailLogicalFolders.Definition(folderType).Label;
-            return Unavailable(
-                policy,
-                $"The designated {label} folder is not configured for this mailbox.");
-        }
-
-        var isCurrentLocation = await folderMoveStore.IsCurrentLocationAsync(
-            detail.Summary.Id,
-            binding.FolderIdentity,
-            cancellationToken);
-        return new(
-            folderType,
-            policy.PolicyKey,
-            policy.PolicyVersion,
-            policy.Reason,
-            mailbox.Version,
-            folderMover?.IsAvailable == true && !isCurrentLocation);
-    }
-
-    private static RetainedMailFolderRecommendation Unavailable(
-        MailLogicalFolderResult? policy,
-        string reason) => new(
-            null,
-            policy?.PolicyKey ?? MailLogicalFolderPolicy.Key,
-            policy?.PolicyVersion ?? MailLogicalFolderPolicy.Version,
-            reason);
 
     private static string ResolveActorLabel(
         string packedActor,

@@ -37,7 +37,7 @@ public sealed class DefinitiveIntakeCaseTypeTests
             [],
             false));
 
-        Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
         Assert.Null(result.CaseType);
     }
 

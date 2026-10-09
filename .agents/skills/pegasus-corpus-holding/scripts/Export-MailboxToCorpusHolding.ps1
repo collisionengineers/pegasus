@@ -112,8 +112,10 @@ foreach ($address in $Mailbox) {
             if ($Search -and $PSBoundParameters.ContainsKey('Since') -and $received -lt $Since) { continue }
             if ($Search -and $PSBoundParameters.ContainsKey('Until') -and $received -ge $Until) { continue }
 
-            $messageId = if ($message.internetMessageId) { $message.internetMessageId } else { $message.id }
-            $name = Get-HoldingFileName $received $messageId ([string]$message.subject)
+            # Graph omits a property it has no value for (a deleted meeting request has no from), and
+            # strict mode throws on a missing hashtable property, so index the optional ones.
+            $messageId = if ($message['internetMessageId']) { $message['internetMessageId'] } else { $message.id }
+            $name = Get-HoldingFileName $received $messageId ([string]$message['subject'])
             $status = 'skipped'
             if (-not $held.Contains((Get-MessageHash $messageId))) {
                 $status = 'would copy'
@@ -132,14 +134,14 @@ foreach ($address in $Mailbox) {
                 }
             }
 
-            $from = if ($message.from) { $message.from.emailAddress.address } else { '' }
+            $from = if ($message['from']) { $message['from']['emailAddress']['address'] } else { '' }
             $rows.Add([pscustomobject]@{
                     Mailbox           = $address
                     Folder            = if ($Folder) { $Folder } else { 'all' }
                     Received          = $received.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
                     From              = $from
-                    Subject           = $message.subject
-                    HasAttachments    = $message.hasAttachments
+                    Subject           = $message['subject']
+                    HasAttachments    = $message['hasAttachments']
                     InternetMessageId = $messageId
                     File              = $name
                     Status            = $status

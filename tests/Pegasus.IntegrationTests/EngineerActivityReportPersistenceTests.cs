@@ -250,10 +250,8 @@ public sealed class EngineerActivityReportPersistenceTests
             {
                 IntakeReceiptId = id,
                 Outcome = "classified",
-                Direction = "received",
                 Family = family,
                 Subtype = subtype,
-                AmbiguousCandidatesJson = "[]",
                 PredicatesJson = "[]",
                 Reason = "report test",
                 PolicyKey = "report-test",

@@ -370,7 +370,6 @@ public sealed class ApprovedMailboxEstateIntegrationTests
                     current.MailboxIdentity,
                     current.InboxFolderIdentity,
                     current.SentFolderIdentity,
-                    current.FolderBindings,
                     current.VerifiedEncodedMessageSizeLimit),
                 CancellationToken.None);
         }

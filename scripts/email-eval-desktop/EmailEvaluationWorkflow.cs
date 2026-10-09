@@ -176,7 +176,7 @@ public sealed class EmailEvaluationWorkflow
         }
         else if (catalog.Find(family, category) is null)
         {
-            return (false, Fail("Choose one of the retained Received or Sent categories."));
+            return (false, Fail("Choose one of the retained Received categories."));
         }
 
         try
@@ -264,9 +264,7 @@ public sealed class EmailEvaluationWorkflow
             return null;
         }
 
-        var headline = result.Outcome == MailClassificationOutcome.Classified
-            ? FormatCategory(result.Category!)
-            : $"Ambiguous ({string.Join(", ", result.AmbiguousCandidates)})";
+        var headline = FormatCategory(result.Category!);
 
         var matched = result.Predicates.Where(predicate => predicate.Matched).ToArray();
         var evidenceLines = matched.Length == 0
@@ -280,9 +278,8 @@ public sealed class EmailEvaluationWorkflow
 
     private static string FormatCategory(MailCategory category)
     {
-        var direction = category.Direction == MailDirection.Received ? "Received" : "Sent";
         var name = category.Subtype is null ? category.Name : $"{category.Name}/{category.Subtype}";
-        return $"{direction} / {name}";
+        return $"Received / {name}";
     }
 
     private EvaluationSnapshot Clear(string messageText)

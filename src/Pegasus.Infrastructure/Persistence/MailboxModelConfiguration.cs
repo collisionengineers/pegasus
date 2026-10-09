@@ -105,34 +105,6 @@ internal static class MailboxModelConfiguration
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        builder.Entity<RetainedMailFolderMoveEntity>(entity =>
-        {
-            entity.ToTable("RetainedMailFolderMoves");
-            entity.HasKey(item => item.Id);
-            entity.Property(item => item.OperationKey).HasMaxLength(36).IsRequired();
-            entity.Property(item => item.RequestHash).HasMaxLength(64).IsFixedLength().IsRequired();
-            entity.Property(item => item.ExpectedRecommendationPolicyKey).HasMaxLength(100).IsRequired();
-            entity.Property(item => item.MailboxId).HasMaxLength(100).IsRequired();
-            entity.Property(item => item.ImmutableMessageId).HasMaxLength(500).IsRequired();
-            entity.Property(item => item.SourceFolderId).HasMaxLength(500).IsRequired();
-            entity.Property(item => item.DestinationFolderId).HasMaxLength(500).IsRequired();
-            entity.Property(item => item.FolderType).HasMaxLength(40).IsRequired();
-            entity.Property(item => item.Actor).HasMaxLength(500).IsRequired();
-            entity.Property(item => item.ActorRolesJson).IsRequired();
-            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
-            entity.Property(item => item.Outcome).HasMaxLength(40).IsRequired();
-            entity.Property(item => item.FailureReason).HasMaxLength(1000);
-            entity.HasIndex(item => item.OperationKey).IsUnique();
-            entity.HasIndex(item => item.RetainedMailboxMessageId)
-                .IsUnique()
-                .HasFilter("[Outcome] IN ('pending', 'uncertain')");
-            entity.HasIndex(item => new { item.RetainedMailboxMessageId, item.RecordedAtUtc });
-            entity.HasOne(item => item.RetainedMailboxMessage)
-                .WithMany()
-                .HasForeignKey(item => item.RetainedMailboxMessageId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-
         builder.Entity<ApprovedSentPollStateEntity>(entity =>
         {
             entity.ToTable("ApprovedSentPollStates", t => t.HasCheckConstraint("CK_ApprovedSentPollStates_Generation", "[Generation] >= 0"));
@@ -185,13 +157,9 @@ internal static class MailboxModelConfiguration
             entity.ToTable("IntakeMailClassificationDecisions");
             entity.HasKey(item => item.IntakeReceiptId);
             entity.Property(item => item.Outcome).HasMaxLength(40).IsRequired();
-            entity.Property(item => item.Direction).HasMaxLength(20);
             entity.Property(item => item.Family).HasMaxLength(100);
             entity.Property(item => item.Subtype).HasMaxLength(100);
             entity.Property(item => item.CaseType).HasMaxLength(40);
-            entity.Property(item => item.OtherName).HasMaxLength(200);
-            entity.Property(item => item.OtherReasoning).HasMaxLength(1000);
-            entity.Property(item => item.AmbiguousCandidatesJson).IsRequired();
             entity.Property(item => item.PredicatesJson).IsRequired();
             entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
             entity.Property(item => item.PolicyKey).HasMaxLength(100).IsRequired();

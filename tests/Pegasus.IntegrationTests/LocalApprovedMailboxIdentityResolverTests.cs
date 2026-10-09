@@ -20,7 +20,6 @@ public sealed class LocalApprovedMailboxIdentityResolverTests
         Assert.Equal(first!.MailboxIdentity, second!.MailboxIdentity);
         Assert.Equal(first.InboxFolderIdentity, second.InboxFolderIdentity);
         Assert.Equal(first.SentFolderIdentity, second.SentFolderIdentity);
-        Assert.Equal(first.FolderBindings, second.FolderBindings);
     }
 
     [Fact]

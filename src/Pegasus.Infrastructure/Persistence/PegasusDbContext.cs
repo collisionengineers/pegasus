@@ -112,8 +112,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         Set<RetainedMailboxMessageEntity>();
     internal DbSet<RetainedMailboxAttachmentEntity> RetainedMailboxAttachments =>
         Set<RetainedMailboxAttachmentEntity>();
-    internal DbSet<RetainedMailFolderMoveEntity> RetainedMailFolderMoves =>
-        Set<RetainedMailFolderMoveEntity>();
     internal DbSet<ApprovedSentPollStateEntity> ApprovedSentPollStates =>
         Set<ApprovedSentPollStateEntity>();
     internal DbSet<ApprovedSentPollOutcomeEntity> ApprovedSentPollOutcomes =>

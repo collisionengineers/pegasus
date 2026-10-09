@@ -167,8 +167,7 @@ public sealed class MailboxesModel(
                     ? new(
                         mailboxIdentity,
                         inboxFolderIdentity,
-                        sentFolderIdentity,
-                        existingMailbox.FolderBindings)
+                        sentFolderIdentity)
                     : await resolveApprovedMailboxIdentity.ResolveAsync(
                         normalizedAddress,
                         cancellationToken);
@@ -203,7 +202,6 @@ public sealed class MailboxesModel(
                         resolution?.MailboxIdentity ?? existingMailbox?.MailboxIdentity,
                         resolution?.InboxFolderIdentity ?? existingMailbox?.InboxFolderIdentity,
                         resolution?.SentFolderIdentity ?? existingMailbox?.SentFolderIdentity,
-                        resolution?.FolderBindings ?? existingMailbox?.FolderBindings,
                         input.VerifiedEncodedMessageSizeLimit),
                     cancellationToken);
                 TempData["AdministrationStatus"] =
@@ -223,79 +221,6 @@ public sealed class MailboxesModel(
         }
 
         IsNewMailboxEditorOpen = isNewMailbox;
-        await LoadAsync(actor, cancellationToken);
-        PrepareFormState();
-        return Page();
-    }
-
-    public async Task<IActionResult> OnPostResolveFoldersAsync(CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedMailboxes);
-        await LoadAsync(actor, cancellationToken);
-        var input = RequireForm(MailboxForm, value => MailboxForm = value);
-        ValidateForm(input, nameof(MailboxForm));
-        var mailbox = Mailboxes.SingleOrDefault(item => item.Id == input.MailboxId);
-        if (mailbox is null
-            || mailbox.MailboxIdentity is null
-            || input.ExpectedVersion != mailbox.Version
-            || !IsOperationKeyValid(input.OperationKey))
-        {
-            ModelState.AddModelError(
-                string.Empty,
-                "The mailbox policy changed after this form was loaded. Review it and retry.");
-        }
-
-        ApprovedMailboxIdentityResolution? resolution = null;
-        if (ModelState.IsValid)
-        {
-            resolution = await resolveApprovedMailboxIdentity.ResolveAsync(
-                mailbox!.Address,
-                cancellationToken);
-            if (resolution is null
-                || !string.Equals(
-                    resolution.MailboxIdentity,
-                    mailbox.MailboxIdentity,
-                    StringComparison.Ordinal))
-            {
-                ModelState.AddModelError(
-                    string.Empty,
-                    "The logical folders could not be resolved for this exact mailbox.");
-            }
-        }
-
-        if (ModelState.IsValid)
-        {
-            try
-            {
-                var updated = await updateApprovedMailbox.ExecuteAsync(
-                    new(
-                        mailbox!.Id,
-                        mailbox.Address,
-                        mailbox.RouteScopes,
-                        mailbox.State,
-                        mailbox.Version,
-                        actor,
-                        input.OperationKey,
-                        mailbox.MailboxIdentity,
-                        mailbox.InboxFolderIdentity,
-                        mailbox.SentFolderIdentity,
-                        resolution!.FolderBindings ?? [],
-                        mailbox.VerifiedEncodedMessageSizeLimit),
-                    cancellationToken);
-                TempData["AdministrationStatus"] =
-                    $"{updated.FolderBindings.Count} logical folder bindings were saved for {updated.Address}.";
-                return RedirectToPage();
-            }
-            catch (ApprovedMailboxUpdateException exception)
-            {
-                ModelState.AddModelError(string.Empty, MailboxErrorMessage(exception));
-            }
-        }
         await LoadAsync(actor, cancellationToken);
         PrepareFormState();
         return Page();

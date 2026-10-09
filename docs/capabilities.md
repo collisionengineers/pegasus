@@ -12,8 +12,8 @@ exclusion.
 | ID | Capability | Owner |
 | --- | --- | --- |
 | OPS-10 | Production environment deployed directly from an authorised terminal | [ADR-0014](adr/0014-local-to-production-deployment.md) |
-| MAIL-21 | Shared Core classification: versioned rules, evidence, ambiguity outcome | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
-| MAIL-22 | Detailed Received/Sent/Reply taxonomy with reasoned Other | [Settled mailbox taxonomy and correction](frd/frd-08-email-mailbox-and-background-processing.md#settled-mailbox-taxonomy-and-correction) |
+| MAIL-21 | Shared Core classification: versioned rules, evidence | [Classification and destination catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-and-destination-catalogue) |
+| MAIL-22 | Detailed Received taxonomy | [Settled mailbox taxonomy and correction](frd/frd-08-email-mailbox-and-background-processing.md#settled-mailbox-taxonomy-and-correction) |
 | ACC-01 | Staff sign-in with Pegasus-managed usernames and passwords | [Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) |
 | ACC-02 | Administrator, Engineer and User roles held as data | [Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) |
 | ACC-03 | Staff account lifecycle, password reset, force logout, role assignment | [Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) |
@@ -151,26 +151,23 @@ exclusion.
 | INT-16 | OCR of every incoming scanned document page, read as a report and, when needed, as an instruction | [Qualified OCR](frd/frd-05-documents-extraction-and-custody.md#qualified-ocr) |
 | INT-28 | Automatic matching of image-led and instruction-led records | [Pairing and merge](frd/frd-19-image-led-intake-and-pairing.md#pairing-and-merge); [Grouped image-intake routing](frd/frd-19-image-led-intake-and-pairing.md#grouped-image-intake-routing) |
 | MAIL-01 | Identify every inbound mailbox item and its mailbox/thread/message identity | [Inbound mailbox identity](frd/frd-08-email-mailbox-and-background-processing.md#inbound-mailbox-identity) |
-| MAIL-02 | Map classifications to queues, Other, Unidentified or Triage | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
-| MAIL-03 | One shared classification policy across all supported mailboxes | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
-| MAIL-04 | Explainable classification evidence, policy version, correction history, and the case type and Triage match a correction carries | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
-| MAIL-05 | Recommend the designated Outlook folder for a classified message | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
-| MAIL-06 | Staff confirmation of a recommended folder move in Pegasus | [Classification, linking and folder-move actions](frd/frd-20-mailbox-workspace.md#classification-linking-and-folder-move-actions) |
-| MAIL-07 | Move the confirmed message to the designated Outlook folder | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
+| MAIL-02 | Map classifications to queues, Unidentified or Triage | [Classification and destination catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-and-destination-catalogue) |
+| MAIL-03 | One shared classification policy across all supported mailboxes | [Classification and destination catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-and-destination-catalogue) |
+| MAIL-04 | Explainable classification evidence, policy version, correction history, and the case type and Triage match a correction carries | [Classification and destination catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-and-destination-catalogue) |
 | MAIL-09 | Automatic association of related email and attachments with a case | [Automatic Case association of retained mail](frd/frd-08-email-mailbox-and-background-processing.md#automatic-case-association-of-retained-mail) |
-| MAIL-10 | Manual email/case association, unlink, relink, correction, and the next action a corrected classification offers | [Classification, linking and folder-move actions](frd/frd-20-mailbox-workspace.md#classification-linking-and-folder-move-actions) |
+| MAIL-10 | Manual email/case association, unlink, relink, correction, and the next action a corrected classification offers | [Classification and linking actions](frd/frd-20-mailbox-workspace.md#classification-and-linking-actions) |
 | MAIL-11 | Browse, search and view mailbox messages and threads | [Quick preview and message detail](frd/frd-20-mailbox-workspace.md#quick-preview-and-message-detail) |
-| MAIL-13 | Outlook category by allowlisted identifier; no read-state, flag or delete | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
+| MAIL-13 | Outlook category by allowlisted identifier; no read-state, flag or delete | [Classification and destination catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-and-destination-catalogue) |
 | CASE-23 | Post-report query and dispute work on the existing Case | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | UI-10 | Full email-management workspace | [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
-| UI-14 | Categorised email views by destination and classification | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue); [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
+| UI-14 | Email views by destination and received family | [Classification and destination catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-and-destination-catalogue); [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
 | API-01 | Principal-scoped submission API | [Accepted API-01 submission contract](frd/frd-09-principal-and-intermediary-routes.md#accepted-api-01-submission-contract) |
 | API-02 | Principal API receipt and processing-status lookup | [Principal API and contract boundary](frd/frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary) |
 | API-03 | Principal API resulting Case/PO lookup | [Principal API and contract boundary](frd/frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary) |
 | API-04 | Principal API credential issue, reset, revoke, pause, and resume | [Principal API and contract boundary](frd/frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary) |
 | MCP-05 | Automation Actor actions for the broader classified-email workspace | [MCP automation and actor boundary](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary) |
 | AI-05 | Automatic AI-assisted image readiness assessment of the current Case image set | [Ordinary-image VRM and image analysis](frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis) |
-| MAIL-23 | Map the detailed taxonomy to operational queues and designated Outlook folders | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
+| MAIL-23 | Map the detailed taxonomy to operational queues | [Classification and destination catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-and-destination-catalogue) |
 | INT-32 | Separate chase state per half; pairing shown in Work Centre | [Age and chase state](frd/frd-19-image-led-intake-and-pairing.md#age-and-chase-state); [Pairing and merge](frd/frd-19-image-led-intake-and-pairing.md#pairing-and-merge); [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | INT-33 | Near-real-time durable intake with truthful transient state | [Source occurrence and dispatch identity](frd/frd-02-intake-and-source-identity.md#source-occurrence-and-dispatch-identity); [Mailbox wake-up and recovery](frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#mailbox-wake-up-and-recovery) |
 | MAIL-19 | Automatically send chasers or other outbound messages | [Outbound correspondence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence) |
@@ -262,3 +259,6 @@ statements and the `CAP-0NN` source map remain recoverable from Git history.
 | UI-01 | Operations dashboard/cockpit: the `/Operations` page and its rail row | 2026-09-28, operator decision |
 | AI-09 | Send to AI push hand-off to a channel, with its work-request record and connector settings; the AI Job List (`AI-10`) is the only route | 2026-09-28, operator decision |
 | EXT-04 | Principal-selected report route to an external engineering system (ZIP export or API send); every standard Case now has the Case export ([ADR-0065](adr/0065-case-export-replaces-eva-routes.md)) | 2026-10-07, operator decision |
+| MAIL-05 | Recommend the designated Outlook folder for a classified message | 2026-10-08, operator decision (ADR-0067) |
+| MAIL-06 | Staff confirmation of a recommended folder move in Pegasus | 2026-10-08, operator decision (ADR-0067) |
+| MAIL-07 | Move the confirmed message to the designated Outlook folder | 2026-10-08, operator decision (ADR-0067) |

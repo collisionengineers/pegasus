@@ -380,6 +380,7 @@ internal sealed class EfIntakeMutationStore(
         };
 
         receipt.Version++;
+        ApplyCaseStateClassification(context, receipt, caseWorkflow, occurredAtUtc);
         var entry = await PostReportQueryTransitions.EnterAsync(
             context, receipt, caseWorkflow, occurredAtUtc, cancellationToken);
         if (entry.Kind != PostReportQueryEntry.None)
@@ -1076,6 +1077,7 @@ internal sealed class EfIntakeMutationStore(
         {
             if (eventType == "intake_case_linked")
             {
+                ApplyCaseStateClassification(context, receipt, caseWorkflow, occurredAtUtc);
                 entry = await PostReportQueryTransitions.EnterAsync(
                     context, receipt, caseWorkflow, occurredAtUtc, cancellationToken);
             }
@@ -1158,6 +1160,34 @@ internal sealed class EfIntakeMutationStore(
         }
 
         return EfIntakeReceiptStore.Map(receipt, false, acceptedCaseId);
+    }
+
+    /// <summary>
+    /// FRD-08 case-state classification: a retained mail message joining a Case
+    /// with no Principal classification takes its family from the Case's state,
+    /// written as the automated decision before the Query rule reads it. A
+    /// corrected decision (version above one) is left alone by the shared apply.
+    /// </summary>
+    private static void ApplyCaseStateClassification(
+        PegasusDbContext context,
+        IntakeReceiptEntity receipt,
+        CaseWorkflowEntity workflow,
+        DateTimeOffset occurredAtUtc)
+    {
+        if (receipt.SourceChannel != "mailbox")
+        {
+            return;
+        }
+        var current = receipt.MailClassificationDecision is { } decision
+            ? EfIntakeReceiptStore.MapMailClassificationDecision(decision)
+            : null;
+        var derived = CaseStateMailClassification.Derive(
+            current, Enum.Parse<CaseLifecycleState>(workflow.State));
+        if (derived is not null)
+        {
+            EfIntakeReceiptStore.ApplyMailClassificationDecision(
+                context, receipt, derived, CaseStateMailClassification.Actor, occurredAtUtc);
+        }
     }
 
     private static Task<IntakeReceiptEntity?> LoadReceiptAsync(
