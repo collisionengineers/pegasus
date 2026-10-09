@@ -958,11 +958,13 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(["freeze", "record"], harness.Sequence);
 
         await harness.RecordCaseFolderAsync("case-root");
+        // The sweep leaves a newly recorded version to its request for the
+        // inline-filing grace, so it runs once that has passed.
         var reconciled = await new ReconcilePendingArtifactCustody(
                 harness.Factory,
                 content,
                 scope.ServiceProvider.GetRequiredService<Pegasus.Core.Intake.IIntakeArtifactStore>(),
-                Harness.Clock)
+                Harness.ClockAt(Harness.StartUtc + PendingCustodyRetryPolicy.InlineFilingGrace))
             .ExecuteAsync(10, CancellationToken.None);
         Assert.Equal(1, reconciled.Confirmed);
         Assert.Equal(
