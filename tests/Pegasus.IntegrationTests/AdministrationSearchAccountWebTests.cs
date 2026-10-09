@@ -1227,11 +1227,19 @@ public sealed class AdministrationSearchAccountWebTests
         csvResponse.EnsureSuccessStatusCode();
         Assert.StartsWith("text/csv", csvResponse.Content.Headers.ContentType?.MediaType, StringComparison.Ordinal);
         var csv = await csvResponse.Content.ReadAsStringAsync();
+        Assert.Contains("Principal,Time to produce,Time to ready,Time to send", csv, StringComparison.Ordinal);
+        Assert.Contains("QDOS,2 days,3 days,4 days", csv, StringComparison.Ordinal);
+
+        // Held is now, so it is Queues' (item E), with the same holding age.
+        using var queuesResponse = await client.GetAsync(
+            $"/Administration/Reports?handler=QueuesCsv&from={fromParam}&to={toParam}");
+        queuesResponse.EnsureSuccessStatusCode();
+        var queues = await queuesResponse.Content.ReadAsStringAsync();
+        Assert.Contains("Principal,Currently held,Oldest held since,Triages,Oldest Triage since", queues, StringComparison.Ordinal);
         Assert.Contains(
-            "Principal,Currently held,Oldest held since,Time to produce,Time to ready,Time to send",
-            csv,
+            $"QDOS,1,{Pegasus.Core.LondonCalendar.TimeAt(heldAt).ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)},0,",
+            queues,
             StringComparison.Ordinal);
-        Assert.Contains($"QDOS,1,{OperatorLabels.OfficeTime(heldAt)},2 days,3 days,4 days", csv, StringComparison.Ordinal);
     }
 
     private static string FormValue(string html, string name)

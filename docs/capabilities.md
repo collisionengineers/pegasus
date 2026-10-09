@@ -209,8 +209,10 @@ exclusion.
 | MCP-07 | Administration switch for Send to AI | [Send to AI switch](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch) |
 | MI-01 | Per-Engineer throughput, query rate/types, and Audit uplift | [Management Reports](frd/frd-17-administration-workspace.md#management-reports) |
 | MI-02 | Per-principal report counts, Inspection/Audit split, and periods feeding invoice generation | [Management Reports](frd/frd-17-administration-workspace.md#management-reports) |
-| MI-03 | Holding age and instruction-to-produced, ready and sent turnaround | [Management Reports](frd/frd-17-administration-workspace.md#management-reports) |
+| MI-03 | Instruction-to-produced, ready and sent turnaround | [Management Reports](frd/frd-17-administration-workspace.md#management-reports) |
 | MI-04 | A per-Case list with chosen columns and shared column presets, exported as CSV or workbook | [Management Reports](frd/frd-17-administration-workspace.md#management-reports) |
+| MI-05 | Queues now: held Cases, Triages and Unidentified items, with the oldest of each | [Management Reports](frd/frd-17-administration-workspace.md#management-reports) |
+| MI-06 | Reports produced by outcome, and Audit agreement with the reviewed report | [Management Reports](frd/frd-17-administration-workspace.md#management-reports) |
 | OPS-26 | Release notes written and published by an Administrator, shown once to each person | [Release notes](frd/frd-17-administration-workspace.md#release-notes) |
 | OPS-27 | Report a problem: kept with its captured state and raised as a repository issue | [Problem reports](frd/frd-17-administration-workspace.md#problem-reports) |
 | ACC-12 | External/customer application accounts (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |

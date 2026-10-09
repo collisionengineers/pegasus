@@ -9,7 +9,7 @@ using Pegasus.Core.Reports;
 
 namespace Pegasus.IntegrationTests;
 
-/// <summary>Administration → Reports through the real page over the seeded LocalDB: the workbook download and the MI-01 sort.</summary>
+/// <summary>Administration → Management Reports through the real page over the seeded LocalDB: Design A, the downloads and the sorts.</summary>
 [Trait("Category", "SqlServer")]
 public sealed class AdministrationReportsWebTests
 {
@@ -29,18 +29,22 @@ public sealed class AdministrationReportsWebTests
         using var stream = new MemoryStream(await response.Content.ReadAsByteArrayAsync());
         using var document = SpreadsheetDocument.Open(stream, false);
         var names = document.WorkbookPart!.Workbook!.Sheets!.Elements<Sheet>().Select(sheet => sheet.Name!.Value!).ToArray();
-        Assert.Equal(["Engineer activity", "Reports by Principal", "Turnaround", "By month"], names);
+        Assert.Equal(["Engineer activity", "Reports by Principal", "By month", "Outcomes", "Turnaround", "Queues"], names);
 
-        // MI-02's Inspection and Audit split sits beside each total on both
-        // the per-Principal sheet and the month breakdown.
+        // Every Inspection and Audit split the page's Work choice draws from
+        // sits beside its total on both the per-Principal and month sheets.
         var workbookPart = document.WorkbookPart!;
-        foreach (var sheetName in new[] { "Reports by Principal", "By month" })
+        foreach (var (sheetName, measures) in new[]
+        {
+            ("Reports by Principal", new[] { "Reports produced", "Reports sent", "Agreed fees" }),
+            ("By month", new[] { "Reports produced", "Fee notes produced", "Reports sent", "Agreed fees" })
+        })
         {
             var sheet = workbookPart.Workbook!.Sheets!.Elements<Sheet>().Single(candidate => candidate.Name!.Value == sheetName);
             var worksheet = (WorksheetPart)workbookPart.GetPartById(sheet.Id!.Value!);
             var header = worksheet.Worksheet!.GetFirstChild<SheetData>()!.Elements<Row>().First()
                 .Elements<Cell>().Select(cell => cell.InlineString!.Text!.Text).ToArray();
-            foreach (var measure in new[] { "Reports produced", "Reports sent", "Agreed fees" })
+            foreach (var measure in measures)
             {
                 var total = Array.IndexOf(header, measure);
                 Assert.True(total >= 0, $"{sheetName} lacks {measure}.");
@@ -49,33 +53,88 @@ public sealed class AdministrationReportsWebTests
         }
     }
 
+    /// <summary>
+    /// Design A: the period bar under the title, Person and Work in the
+    /// section heads, each section's own download, one sort arrow (site.css
+    /// draws it from aria-sort), a count's first click largest first, and no
+    /// MI labels or Engineer activity note.
+    /// </summary>
     [Fact]
-    public async Task ThePageOffersTheWorkbookTheSortableColumnsAndTheMonthTable()
+    public async Task ThePageIsDesignAWithItsSortsWorkChoicesAndDownloads()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = CreateClient(factory);
 
-        using var response = await client.GetAsync($"{Page}?sort=queries&dir=desc");
+        using var response = await client.GetAsync($"{Page}?sort=queries&dir=desc&work=audit");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("handler=Workbook", html, StringComparison.Ordinal);
-        Assert.Contains("data-sort-toggle", html, StringComparison.Ordinal);
+        Assert.Contains("<select id=\"report-period\" name=\"period\" data-period-preset>", html, StringComparison.Ordinal);
+        Assert.Contains("<option value=\"custom\" selected=\"selected\">Custom</option>", html, StringComparison.Ordinal);
+        Assert.Contains("<select id=\"report-engineer\" name=\"engineerId\">", html, StringComparison.Ordinal);
+        Assert.Contains("<option value=\"audit\" selected=\"selected\">Audit</option>", html, StringComparison.Ordinal);
+        foreach (var handler in new[] { "Workbook", "Csv", "PrincipalCsv", "MonthsCsv", "OutcomesCsv", "TurnaroundCsv", "QueuesCsv" })
+        {
+            Assert.Contains($"handler={handler}", html, StringComparison.Ordinal);
+        }
+
         Assert.Contains("aria-sort=\"descending\"", html, StringComparison.Ordinal);
-        Assert.Contains("id=\"mi02-months-title\"", html, StringComparison.Ordinal);
+        // The sorted column reverses; an unsorted count's first click is largest first.
+        Assert.Contains("sort=queries&amp;dir=asc", html, StringComparison.Ordinal);
+        Assert.Contains("msort=produced&amp;mdir=desc", html, StringComparison.Ordinal);
+        Assert.Contains("msort=code&amp;mdir=asc", html, StringComparison.Ordinal);
+        // The Work choice and the sort survive every link.
+        Assert.Contains("work=audit", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-sort-arrow", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("MI01", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Queries received are credited", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"months-title\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"outcomes-title\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"queues-title\"", html, StringComparison.Ordinal);
         Assert.Contains("Amendment requests", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Disputes", html, StringComparison.Ordinal); // A dispute is a query.
-        Assert.Contains("Audit reports sent", html, StringComparison.Ordinal);
-        // MI-02: each measure's Inspection and Audit columns beside its total,
-        // named from the measure's own label (the encoder writes the middle dot
-        // as a numeric reference).
-        foreach (var measure in new[] { "Reports produced", "Reports sent", "Agreed fees" })
-        {
-            Assert.Contains(
-                $"<th scope=\"col\" class=\"num\">{measure}</th><th scope=\"col\" class=\"num\">{measure} &#xB7; Inspection</th><th scope=\"col\" class=\"num\">{measure} &#xB7; Audit</th>",
-                html,
-                StringComparison.Ordinal);
-        }
+        // Reports by Principal: four columns, the Work choice picks the figures.
+        Assert.DoesNotContain("Reports produced &#xB7; Inspection", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>Item B2: a period that ends before it starts draws no report and no figure, only the error and the Case list.</summary>
+    [Fact]
+    public async Task AnInvalidPeriodShowsTheErrorAndDrawsNoReport()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync($"{Page}?from=2031-05-01T00:00&to=2031-04-01T00:00");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Choose a valid date range.", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"mi01-title\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("metric-value", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=Workbook", html, StringComparison.Ordinal);
+        Assert.Contains("data-case-list", html, StringComparison.Ordinal);
+
+        using var csv = await client.GetAsync($"{Page}?handler=Csv&from=2031-05-01T00:00&to=2031-04-01T00:00");
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, csv.StatusCode);
+    }
+
+    [Fact]
+    public async Task APeriodChoiceIsKeptAndEachCsvUsesThePageHeadings()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = CreateClient(factory);
+
+        var html = await client.GetStringAsync($"{Page}?period=last-month");
+        Assert.Contains("<option value=\"last-month\" selected=\"selected\">Last month</option>", html, StringComparison.Ordinal);
+
+        using var csv = await client.GetAsync($"{Page}?handler=Csv&period=last-month");
+        Assert.Equal(HttpStatusCode.OK, csv.StatusCode);
+        Assert.StartsWith(
+            "Person,Queries received,Amendment requests,Reports sent,Audit reports sent,Received to sent\r\n",
+            await csv.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
+        using var turnaround = await client.GetAsync($"{Page}?handler=TurnaroundCsv");
+        Assert.StartsWith("Principal,Time to produce,Time to ready,Time to send\r\n", await turnaround.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -99,12 +158,12 @@ public sealed class AdministrationReportsWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("data-reports-by-month", html, StringComparison.Ordinal);
-        Assert.Contains("<td colspan=\"12\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
+        Assert.Contains("<td colspan=\"6\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
 
         using var workbookResponse = await client.GetAsync($"{Page}?handler=Workbook");
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, workbookResponse.StatusCode);
-        await AssertCsvExportsRefusedAsync(client);
+        await AssertCsvsAsync(client, refused: ["MonthsCsv"]);
     }
 
     [Fact]
@@ -127,12 +186,12 @@ public sealed class AdministrationReportsWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("<td colspan=\"12\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
+        Assert.Contains("<td colspan=\"6\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
 
         using var workbookResponse = await client.GetAsync($"{Page}?handler=Workbook");
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, workbookResponse.StatusCode);
-        await AssertCsvExportsRefusedAsync(client);
+        await AssertCsvsAsync(client, refused: ["MonthsCsv"]);
     }
 
     [Fact]
@@ -161,7 +220,7 @@ public sealed class AdministrationReportsWebTests
         using var workbookResponse = await client.GetAsync($"{Page}?handler=Workbook");
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, workbookResponse.StatusCode);
-        await AssertCsvExportsRefusedAsync(client);
+        await AssertCsvsAsync(client, refused: ["Csv"]);
     }
 
     [Fact]
@@ -183,7 +242,7 @@ public sealed class AdministrationReportsWebTests
         using var response = await client.GetAsync($"{Page}?handler=Workbook");
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
-        await AssertCsvExportsRefusedAsync(client);
+        await AssertCsvsAsync(client, refused: ["PrincipalCsv", "TurnaroundCsv", "QueuesCsv"]);
     }
 
     [Fact]
@@ -345,12 +404,15 @@ public sealed class AdministrationReportsWebTests
             BaseAddress = new Uri("https://localhost:7139")
         });
 
-    private static async Task AssertCsvExportsRefusedAsync(HttpClient client)
+    /// <summary>Item L: a report's CSV refuses only when its own read failed.</summary>
+    private static async Task AssertCsvsAsync(HttpClient client, string[] refused)
     {
-        foreach (var handler in new[] { "Csv", "PrincipalCsv", "TurnaroundCsv" })
+        foreach (var handler in new[] { "Csv", "PrincipalCsv", "MonthsCsv", "OutcomesCsv", "TurnaroundCsv", "QueuesCsv" })
         {
             using var response = await client.GetAsync($"{Page}?handler={handler}");
-            Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+            Assert.Equal(
+                refused.Contains(handler) ? HttpStatusCode.UnprocessableEntity : HttpStatusCode.OK,
+                response.StatusCode);
         }
     }
 
@@ -378,7 +440,6 @@ public sealed class AdministrationReportsWebTests
         public Task<IReadOnlyList<EngineerActivityCounts>> GetAsync(
             DateTimeOffset fromUtc,
             DateTimeOffset toUtc,
-            Guid? engineerId,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<EngineerActivityCounts>>(
             [new(Guid.NewGuid(), 1, 1, AverageReceivedToSent: TimeSpan.FromHours(-1))]);

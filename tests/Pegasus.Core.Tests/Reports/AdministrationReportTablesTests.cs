@@ -9,7 +9,7 @@ public sealed class AdministrationReportTablesTests
     private static readonly DateTimeOffset To = new(2026, 9, 1, 0, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public void BuildsOneSheetPerReportWithTypedColumnsAndTotalsWhereTheyMakeSense()
+    public void BuildsOneSheetPerReportWithThePageHeadingsAndEveryWorkSplit()
     {
         var engineer = new EngineerActivityReport(From, To,
         [
@@ -19,27 +19,30 @@ public sealed class AdministrationReportTablesTests
         [
             new(Guid.NewGuid(), "QDOS", 2, 3, 2, 1, 0, 0, 0, 0,
                 TimeSpan.FromHours(20), TimeSpan.FromHours(21), TimeSpan.FromHours(22), TimeSpan.FromHours(40),
-                0, null, 1, From, 0,
+                2, From.AddDays(-3), 1, From, 0,
                 ReportsProduced: 2,
                 AgreedFeeTotal: 250m,
                 AuditReportsProduced: 1,
                 AuditSent: 1,
-                AuditAgreedFeeTotal: 100m)
+                AuditAgreedFeeTotal: 100m),
+            // Held now, nothing in the period: Queues only.
+            new(Guid.NewGuid(), "PCH", 0, 0, 0, 0, 0, 0, 0, 0, null, null, null, null, 0, null, 1, From, 0, ReportsProduced: 0)
         ]);
         var monthly = new List<MonthlyReportActivity>
         {
-            new(Guid.NewGuid(), "QDOS", 2026, 8, 2, 1, 2, 250m, AuditReportsGenerated: 1, AuditSent: 1, AuditAgreedFeeTotal: 100m)
+            new(Guid.NewGuid(), "QDOS", 2026, 8, 2, 2, 2, 250m, AuditReportsGenerated: 1, AuditSent: 1, AuditAgreedFeeTotal: 100m, AuditFeeNotesGenerated: 1)
         };
+        var outcomes = new ReportOutcomesReport(From, To, [new(Guid.NewGuid(), "QDOS", 1, 1, 0, 0, 1, 0)]);
 
-        var sheets = AdministrationReportTables.Build(engineer, principal, monthly);
+        var sheets = AdministrationReportTables.Build(engineer, principal, monthly, outcomes, new Words());
 
-        Assert.Equal(["Engineer activity", "Reports by Principal", "Turnaround", "By month"], sheets.Select(sheet => sheet.Name));
+        Assert.Equal(["Engineer activity", "Reports by Principal", "By month", "Outcomes", "Turnaround", "Queues"], sheets.Select(sheet => sheet.Name));
         var engineerSheet = sheets[0];
         Assert.Equal(["Person", "Queries received", "Amendment requests", "Reports sent", "Audit reports sent", "Received to sent"],
             engineerSheet.Columns.Select(column => column.Title));
-        Assert.Equal(WorkbookColumnKind.Duration, engineerSheet.Columns[^1].Kind);
         Assert.True(engineerSheet.Totals);
-        Assert.Equal(["alex", 3, 1, 4, 2, TimeSpan.FromHours(30)], engineerSheet.Rows.Single());
+        // Item K: a turnaround reads as the page writes it.
+        Assert.Equal(["alex", 3, 1, 4, 2, "30h"], engineerSheet.Rows.Single());
 
         // MI-02: each total sits beside its Inspection and Audit split.
         var byPrincipal = sheets[1];
@@ -53,17 +56,30 @@ public sealed class AdministrationReportTablesTests
             byPrincipal.Columns.Select(column => column.Title));
         Assert.All(byPrincipal.Columns.Skip(7).Take(3), column => Assert.Equal(WorkbookColumnKind.Money, column.Kind));
         Assert.Equal(["QDOS", 2, 1, 1, 2, 1, 1, 250m, 150m, 100m], byPrincipal.Rows.Single());
-        Assert.False(sheets[2].Totals); // Averages and dates do not sum.
+
+        // Item D: fee notes split by work too, so the page's Work choice has every figure.
         Assert.Equal(
             [
                 "Month", "Principal",
                 "Reports produced", "Reports produced · Inspection", "Reports produced · Audit",
-                "Fee notes produced",
+                "Fee notes produced", "Fee notes produced · Inspection", "Fee notes produced · Audit",
                 "Reports sent", "Reports sent · Inspection", "Reports sent · Audit",
                 "Agreed fees", "Agreed fees · Inspection", "Agreed fees · Audit"
             ],
+            sheets[2].Columns.Select(column => column.Title));
+        Assert.Equal(["Aug 2026", "QDOS", 2, 1, 1, 2, 1, 1, 2, 1, 1, 250m, 150m, 100m], sheets[2].Rows.Single());
+
+        Assert.Equal(["Principal", "Repairable", "Total loss", "Cash in lieu", "Contract repair", "Agrees", "Differs"],
             sheets[3].Columns.Select(column => column.Title));
-        Assert.Equal(["Aug 2026", "QDOS", 2, 1, 1, 1, 2, 1, 1, 250m, 150m, 100m], sheets[3].Rows.Single());
+        Assert.Equal(["QDOS", 1, 1, 0, 0, 1, 0], sheets[3].Rows.Single());
+
+        // Turnaround keeps the period's times; the held figures are Queues', now.
+        Assert.Equal(["Principal", "Time to produce", "Time to ready", "Time to send"], sheets[4].Columns.Select(column => column.Title));
+        Assert.Equal(["QDOS", "20h", "22h", "40h"], sheets[4].Rows.Single());
+        Assert.False(sheets[4].Totals);
+        Assert.Equal(["Principal", "Currently held", "Oldest held since", "Triages", "Oldest Triage since"], sheets[5].Columns.Select(column => column.Title));
+        Assert.Equal(["QDOS", "PCH"], sheets[5].Rows.Select(row => row[0]));
+        Assert.Equal(["QDOS", 1, From, 2, From.AddDays(-3)], sheets[5].Rows[0]);
         Assert.All(sheets, sheet => Assert.All(sheet.Rows, row => Assert.Equal(sheet.Columns.Count, row.Count)));
     }
 
@@ -71,21 +87,32 @@ public sealed class AdministrationReportTablesTests
     public void AnUnavailablePrincipalReportCannotBuildAWorkbook()
     {
         Assert.Throws<ArgumentNullException>(() =>
-            AdministrationReportTables.Build(new EngineerActivityReport(From, To, []), null!, []));
+            AdministrationReportTables.Build(new EngineerActivityReport(From, To, []), null!, [], new ReportOutcomesReport(From, To, []), new Words()));
     }
 
     [Fact]
-    public void TheCsvCarriesTheNewColumnsInOrder()
+    public void AReportsCsvIsItsSheetUnderThePageHeadings()
     {
-        var csv = EngineerActivityReportCsv.ToCsv(
-        [
-            new(Guid.NewGuid(), "alex", 4, 3, 1, 2, TimeSpan.FromHours(1))
-        ]);
+        var csv = WorkbookSheetCsv.Write(AdministrationReportTables.EngineerActivity(
+            new EngineerActivityReport(From, To,
+            [
+                new(Guid.NewGuid(), "alex", 4, 3, 1, 2, TimeSpan.FromHours(1)),
+                new(Guid.NewGuid(), "Smith, \"J\"", 0, 1),
+                new(Guid.NewGuid(), "=SUM(A1:A2)", 0, 0)
+            ]),
+            new Words()));
 
-        Assert.StartsWith(
-            "Recorded send actor,Queries received for assigned Engineer,Amendment requests,Reports sent by recorded actor,Audit reports sent,Received to sent\r\nalex,3,1,4,2,01:00:00\r\n",
-            csv,
-            StringComparison.Ordinal);
+        Assert.Equal(
+            "Person,Queries received,Amendment requests,Reports sent,Audit reports sent,Received to sent\r\n"
+            + "alex,3,1,4,2,1h\r\n"
+            + "\"Smith, \"\"J\"\"\",1,0,0,0,\r\n"
+            + "'=SUM(A1:A2),0,0,0,0,\r\n",
+            csv);
+    }
+
+    private sealed class Words : IAdministrationReportLabels
+    {
+        public string Turnaround(TimeSpan value) => $"{value.TotalHours:0}h";
     }
 
     [Fact]
@@ -120,7 +147,8 @@ public sealed class AdministrationReportTablesTests
             [new(id, "QDOS", 2026, 8, 1, 0, 1, 10m, AuditReportsGenerated: 2)],
             [new(id, "QDOS", 2026, 8, 1, 0, 1, 10m, AuditSent: 2)],
             [new(id, "QDOS", 2026, 8, 1, 0, 1, 10m, AuditAgreedFeeTotal: 11m)],
-            [new(id, "QDOS", 2026, 8, 1, 0, 1, 10m, AuditReportsGenerated: -1)]
+            [new(id, "QDOS", 2026, 8, 1, 0, 1, 10m, AuditReportsGenerated: -1)],
+            [new(id, "QDOS", 2026, 8, 1, 1, 1, 10m, AuditFeeNotesGenerated: 2)]
         ];
         var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
 

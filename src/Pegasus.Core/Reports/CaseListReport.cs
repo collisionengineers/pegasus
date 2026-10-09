@@ -186,13 +186,16 @@ public static class CaseListPolicy
     public static string? OriginalOutcomeCode(CaseListRecord record)
     {
         ArgumentNullException.ThrowIfNull(record);
-        return record.Type switch
-        {
-            CaseType.Audit => Value(record.Primary, AssessmentVocabulary.OriginalReportOutcome),
-            CaseType.InspectionAndAudit => Value(record.Primary, AssessmentVocabulary.Outcome),
-            _ => null
-        };
+        return OriginalOutcomeCode(record.Type, record.Primary);
     }
+
+    /// <summary>The same rule from the Case's own work's recorded facts, for a reader that has no Case list row.</summary>
+    public static string? OriginalOutcomeCode(CaseType type, CaseListWorkFacts primary) => type switch
+    {
+        CaseType.Audit => Value(primary, AssessmentVocabulary.OriginalReportOutcome),
+        CaseType.InspectionAndAudit => Value(primary, AssessmentVocabulary.Outcome),
+        _ => null
+    };
 
     public static object? OriginalOutcome(CaseListRecord record) =>
         !Applies(CaseListSide.Audit, record.Type)
@@ -416,7 +419,7 @@ public static class WorkbookSheetCsv
     {
         ArgumentNullException.ThrowIfNull(sheet);
         var builder = new StringBuilder()
-            .AppendJoin(',', sheet.Columns.Select(column => EngineerActivityReportCsv.EscapeField(column.Title)))
+            .AppendJoin(',', sheet.Columns.Select(column => EscapeField(column.Title)))
             .Append("\r\n");
         foreach (var row in sheet.Rows)
         {
@@ -424,6 +427,18 @@ public static class WorkbookSheetCsv
         }
 
         return builder.ToString();
+    }
+
+    /// <summary>RFC 4180 quoting, and a leading <c>'</c> on text a spreadsheet would read as a formula.</summary>
+    public static string EscapeField(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        var safe = value.Length > 0 && value[0] is '=' or '+' or '-' or '@'
+            ? "'" + value
+            : value;
+        return safe.IndexOfAny([',', '"', '\r', '\n']) < 0
+            ? safe
+            : $"\"{safe.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
     }
 
     private static string Field(object? value) => value switch
@@ -435,8 +450,8 @@ public static class WorkbookSheetCsv
         DateOnly date => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
         DateTimeOffset moment => LondonCalendar.TimeAt(moment).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
         TimeSpan duration => duration.ToString("c", CultureInfo.InvariantCulture),
-        string text => EngineerActivityReportCsv.EscapeField(text),
-        _ => EngineerActivityReportCsv.EscapeField(Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty)
+        string text => EscapeField(text),
+        _ => EscapeField(Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty)
     };
 }
 
