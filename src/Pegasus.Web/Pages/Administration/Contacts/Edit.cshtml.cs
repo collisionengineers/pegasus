@@ -78,7 +78,7 @@ public sealed class EditModel(
     [BindProperty] public long ReplacementExpectedVersion { get; set; }
     [BindProperty, StringLength(OrganizationAdministrationPolicy.MaximumPrincipalCodeLength)] public string SuccessorCode { get; set; } = string.Empty;
     [BindProperty, StringLength(OrganizationAdministrationPolicy.MaximumReasonLength)] public string? ReplacementReason { get; set; }
-    [BindProperty] public string ReplacementOperationKey { get; set; } = NewOperationKey();
+    [BindProperty] public string? ReplacementOperationKey { get; set; } = NewOperationKey();
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -265,7 +265,7 @@ public sealed class EditModel(
         {
             try
             {
-                await replacePrincipal.ExecuteAsync(new(Principal!.Id, expectedVersion, SuccessorCode, actor, ReplacementOperationKey, ReplacementReason,
+                await replacePrincipal.ExecuteAsync(new(Principal!.Id, expectedVersion, SuccessorCode, actor, ReplacementOperationKey!, ReplacementReason,
                     ExpectedVersion), cancellationToken);
                 TempData["AdministrationStatus"] = "The predecessor was disabled and its linked successor was created.";
                 return RedirectToPage("Index");
