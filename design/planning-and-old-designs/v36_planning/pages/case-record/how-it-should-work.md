@@ -6,7 +6,7 @@ Proposed on 9 October 2026; not yet decided. Each rule is one sentence the FRD c
 
 - D1. "{Name} is editing" is stated once, on the ribbon chip beside Take over; section heads carry no repeated label while a colleague holds the lease. (item A)
 - D2. Below 980px only the section row stays sticky; the ribbon scrolls with the page. (item B)
-- D3. One vocabulary on the page: the section and its controls say Repair Spec; "Import estimate", "Estimate file", "Target Estimate", "Estimate draft ready" and "Review estimate" become their Repair Spec words. (item C)
+- D3. The page uses the reserved terms: "Estimate" only for a source document (the import words stay), the AI Proposal by its own name in the aside rows, and the Send to AI dialog's target named as the Repair Spec. (item C)
 
 ## Aside
 
