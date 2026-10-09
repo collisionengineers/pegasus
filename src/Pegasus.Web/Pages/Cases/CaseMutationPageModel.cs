@@ -398,7 +398,10 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     /// mode. The command consumes the lease it runs under, so a lease claimed
     /// here is released only when the command refused. A claim a colleague's
     /// live lease refuses states the claim's own wording, and the claimed
-    /// token never reaches the browser: the page reads on afterwards.
+    /// token never reaches the browser: the page reads on afterwards. A
+    /// command taken inside the session keeps it: the page reclaims the next
+    /// lease, as an immediate post does, so only Done or a link away from the
+    /// Case ends edit mode (operator, 9 October 2026).
     /// </summary>
     protected Task<IActionResult> ExecuteCaseCommandUnderLeaseAsync(
         Guid id,
@@ -445,7 +448,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
                 actor => execute(actor, editLeaseToken),
                 failureMessage,
                 redirect,
-                keepEditing: false);
+                keepEditing: true);
         }
 
         redirect ??= RedirectToDetails;

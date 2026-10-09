@@ -279,6 +279,9 @@ current state, in and out of an edit session (operator, 29 September 2026),
 with one exception: Create audit is always listed on an Inspection + Audit
 Case and, when refused, is greyed out with the refusal as its hover text
 (operator, 1 October 2026).
+An item taken inside a session keeps it: the page holds the next lease and
+stays in edit mode until Done or a link away from the Case, unless the
+action left the Case terminal or archived (operator, 9 October 2026).
 An item taken outside a session runs under a lease claimed for that one
 action and consumed by it, the way Generate report does
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)); a refused action

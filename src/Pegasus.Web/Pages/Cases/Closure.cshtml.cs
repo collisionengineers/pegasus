@@ -19,8 +19,16 @@ public sealed class ClosureModel(
     IReopenCase reopenCase,
     IReturnCaseToEngineer returnToEngineer,
     IArchiveCase archiveCase,
+    ICaseWorkflowQueries workflows,
+    IAcquireCaseEditLease acquireLease,
     ILogger<ClosureModel> logger) : CaseMutationPageModel(logger)
 {
+    /// <summary>
+    /// An action taken inside the edit session keeps it unless the Case is
+    /// now terminal or archived (operator, 9 October 2026).
+    /// </summary>
+    protected override (ICaseWorkflowQueries Workflows, IAcquireCaseEditLease Leases)? LeaseReclaim => (workflows, acquireLease);
+
     public IActionResult OnGet() => NotFound();
 
     public Task<IActionResult> OnPostRecordReportApprovalAsync(
