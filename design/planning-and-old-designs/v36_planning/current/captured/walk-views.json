@@ -1,0 +1,95 @@
+{
+ "tag": "views",
+ "url": "https://localhost:5240/Cases/F53E8A21-4363-4A48-B7D7-03F531BBFB76",
+ "read": {
+  "shots": [
+   "views-read-1580.png",
+   "views-read-1440.png",
+   "views-read-760.png",
+   "views-read-sec-overview-1580.png",
+   "views-read-sec-claim-1580.png",
+   "views-read-sec-inspection-1580.png",
+   "views-read-sec-vehicle-1580.png",
+   "views-read-sec-damage-1580.png",
+   "views-read-sec-valuation-1580.png",
+   "views-read-sec-estimate-1580.png",
+   "views-read-sec-settlement-1580.png",
+   "views-read-sec-report-1580.png",
+   "views-read-sec-files-1580.png",
+   "views-read-sec-notes-1580.png"
+  ],
+  "menu": "views-read-menu-1580.png",
+  "menuItems": [
+   "Export case",
+   "Return to Review",
+   "Send chaser",
+   "Place on Hold",
+   "Correct principal",
+   "Create audit",
+   "Close case"
+  ],
+  "dialogs": [
+   "views-read-dialog-case-hold-dialog-1580.png",
+   "views-read-dialog-case-return-review-dialog-1580.png",
+   "views-read-dialog-case-correct-principal-dialog-1580.png",
+   "views-read-dialog-case-close-dialog-1580.png"
+  ],
+  "tabs": [
+   "views-read-tabs-overview-1580.png",
+   "views-read-tabs-claim-1580.png",
+   "views-read-tabs-inspection-1580.png",
+   "views-read-tabs-vehicle-1580.png",
+   "views-read-tabs-estimate-1580.png",
+   "views-read-tabs-settlement-1580.png",
+   "views-read-tabs-report-1580.png",
+   "views-read-tabs-files-1580.png",
+   "views-read-tabs-notes-1580.png"
+  ]
+ },
+ "edit": {
+  "shots": [
+   "views-edit-1580.png",
+   "views-edit-1440.png",
+   "views-edit-760.png",
+   "views-edit-sec-overview-1580.png",
+   "views-edit-sec-claim-1580.png",
+   "views-edit-sec-inspection-1580.png",
+   "views-edit-sec-vehicle-1580.png",
+   "views-edit-sec-damage-1580.png",
+   "views-edit-sec-valuation-1580.png",
+   "views-edit-sec-estimate-1580.png",
+   "views-edit-sec-settlement-1580.png",
+   "views-edit-sec-report-1580.png",
+   "views-edit-sec-files-1580.png",
+   "views-edit-sec-notes-1580.png"
+  ],
+  "menu": "views-edit-menu-1580.png",
+  "menuItems": [
+   "Export case",
+   "Return to Review",
+   "Send chaser",
+   "Place on Hold",
+   "Correct principal",
+   "Create audit",
+   "Close case"
+  ],
+  "dialogs": [
+   "views-edit-dialog-case-hold-dialog-1580.png",
+   "views-edit-dialog-case-return-review-dialog-1580.png",
+   "views-edit-dialog-case-correct-principal-dialog-1580.png",
+   "views-edit-dialog-case-close-dialog-1580.png"
+  ],
+  "tabs": [
+   "views-edit-tabs-overview-1580.png",
+   "views-edit-tabs-claim-1580.png",
+   "views-edit-tabs-inspection-1580.png",
+   "views-edit-tabs-vehicle-1580.png",
+   "views-edit-tabs-estimate-1580.png",
+   "views-edit-tabs-settlement-1580.png",
+   "views-edit-tabs-report-1580.png",
+   "views-edit-tabs-files-1580.png",
+   "views-edit-tabs-notes-1580.png"
+  ]
+ },
+ "errors": []
+}

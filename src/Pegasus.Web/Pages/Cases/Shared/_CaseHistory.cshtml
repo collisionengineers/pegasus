@@ -37,7 +37,8 @@
                 <textarea id="case-note" name="note" rows="2" required
                           maxlength="@Pegasus.Core.Cases.AddCaseNote.MaximumLength"></textarea>
                 <div class="button-row">
-                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Adding" class="btn btn--primary">
+                    @* A secondary button: Files' Add evidence is the one red primary on this screen (v36 item Q, 9 October 2026). *@
+                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Adding" class="btn">
                         <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
                         <span>Add Case note</span>
                     </button>
@@ -54,10 +55,8 @@
 
         @if (entries.Length == 0)
         {
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
-                <h3>No notes</h3>
-            </div>
+            @* One empty state across the page: a muted sentence in a row (v36 f46). *@
+            <p class="empty-line" data-notes-empty>No notes</p>
         }
         else
         {

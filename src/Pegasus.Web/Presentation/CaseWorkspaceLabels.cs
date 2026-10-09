@@ -84,7 +84,8 @@ public static class CaseWorkspaceLabels
         public const string OutstandingRequirements = "Outstanding requirements";
         public const string UnlinkReportEvidence = "Unlink report evidence";
         public const string SendChaser = "Send chaser";
-        public const string ReviewEstimate = "Review estimate";
+        // The AI Proposal by its reserved term (v36 item C, 9 October 2026).
+        public const string ReviewEstimate = "Review AI Proposal";
         public const string OpenQuery = "Open query";
         /// <summary>The Next action row an open Case shows while a linked message is a cancellation (FRD-13).</summary>
         public const string CancellationReceived = "Cancellation received";
@@ -287,8 +288,9 @@ public static class CaseWorkspaceLabels
                 AssessmentVocabulary.DamageImpacts or AssessmentVocabulary.ImpactSeverity
                     or AssessmentVocabulary.ImpactLocation => "damage",
                 AssessmentVocabulary.ReportDate => "report",
-                AssessmentVocabulary.SettlementStoragePerDay or AssessmentVocabulary.CostRecoveryCharge
-                    or CaseDataFieldNames.InspectionDate or CaseDataFieldNames.InspectionMode
+                // Storage per day and the recovery charge are recorded in Decisions (v36 item G).
+                AssessmentVocabulary.SettlementStoragePerDay or AssessmentVocabulary.CostRecoveryCharge => "settlement",
+                CaseDataFieldNames.InspectionDate or CaseDataFieldNames.InspectionMode
                     or CaseDataFieldNames.InspectionAddress => "inspection",
                 CaseDataFieldNames.ClaimantName => "claim",
                 CaseDataFieldNames.ClaimNumber or CaseDataFieldNames.IncidentDate => "overview",
@@ -592,7 +594,7 @@ public static class CaseWorkspaceLabels
         public const string LabourRateCard = "Labour-rate card";
         public const string KeepEnteredRate = "Keep entered rate";
         public const string PartNumberShort = "Part no.";
-        public const string UnitPounds = "Unit £";
+        public const string UnitPounds = "Unit (£)";
         public const string Hours = "Hours";
         public const string DiscountsPercent = "Discounts %";
         public const string Overall = "Overall";

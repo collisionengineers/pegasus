@@ -1,0 +1,2123 @@
+<!doctype html>
+<html lang="en" data-busy-label="Working…" data-busy-still="Still"><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Case QDOS31004 · Pegasus</title>
+    <link rel="stylesheet" href="/css/site.36o3pp1ngg.css">
+    
+        <link rel="stylesheet" href="/css/case-workspace.t4oj3kl9va.css">
+
+</head>
+<body>
+    <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></symbol>
+  <symbol id="icon-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></symbol>
+  <symbol id="icon-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path><path d="M3 21v-5h5"></path></symbol>
+  <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></symbol>
+  <symbol id="icon-calendar" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></symbol>
+  <symbol id="icon-check-circle" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></symbol>
+  <symbol id="icon-alert-triangle" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" x2="12" y1="9" y2="13"></line><line x1="12" x2="12.01" y1="17" y2="17"></line></symbol>
+  <symbol id="icon-alert-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></symbol>
+  <symbol id="icon-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></symbol>
+  <symbol id="icon-file-text" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" x2="8" y1="13" y2="13"></line><line x1="16" x2="8" y1="17" y2="17"></line><line x1="10" x2="8" y1="9" y2="9"></line></symbol>
+  <symbol id="icon-filter" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></symbol>
+  <symbol id="icon-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path></symbol>
+  <symbol id="icon-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"></path></symbol>
+  <symbol id="icon-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></symbol>
+  <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" x2="12" y1="3" y2="15"></line></symbol>
+  <symbol id="icon-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></symbol>
+  <symbol id="icon-trash-2" viewBox="0 0 24 24"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" x2="10" y1="11" y2="17"></line><line x1="14" x2="14" y1="11" y2="17"></line></symbol>
+  <symbol id="icon-layout-dashboard" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect></symbol>
+  <symbol id="icon-inbox" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></symbol>
+  <symbol id="icon-list" viewBox="0 0 24 24"><line x1="8" x2="21" y1="6" y2="6"></line><line x1="8" x2="21" y1="12" y2="12"></line><line x1="8" x2="21" y1="18" y2="18"></line><line x1="3" x2="3.01" y1="6" y2="6"></line><line x1="3" x2="3.01" y1="12" y2="12"></line><line x1="3" x2="3.01" y1="18" y2="18"></line></symbol>
+  <symbol id="icon-folder-open" viewBox="0 0 24 24"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path></symbol>
+  <symbol id="icon-image" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></symbol>
+  <symbol id="icon-loader" viewBox="0 0 24 24"><line x1="12" x2="12" y1="2" y2="6"></line><line x1="12" x2="12" y1="18" y2="22"></line><line x1="4.93" x2="7.76" y1="4.93" y2="7.76"></line><line x1="16.24" x2="19.07" y1="16.24" y2="19.07"></line><line x1="2" x2="6" y1="12" y2="12"></line><line x1="18" x2="22" y1="12" y2="12"></line><line x1="4.93" x2="7.76" y1="19.07" y2="16.24"></line><line x1="16.24" x2="19.07" y1="7.76" y2="4.93"></line></symbol>
+  <symbol id="icon-layout-grid" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1"></rect><rect width="7" height="7" x="14" y="3" rx="1"></rect><rect width="7" height="7" x="14" y="14" rx="1"></rect><rect width="7" height="7" x="3" y="14" rx="1"></rect></symbol>
+  <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M5 12h14"></path><path d="M12 5v14"></path></symbol>
+  <symbol id="icon-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"></path></symbol>
+  <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></symbol>
+  <symbol id="icon-more-horizontal" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></symbol>
+  <symbol id="icon-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"></path></symbol>
+  <symbol id="icon-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path></symbol>
+  <symbol id="icon-mail" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></symbol>
+  <symbol id="icon-mail-open" viewBox="0 0 24 24"><path d="M21.2 8.4c.5.38.8.97.8 1.6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 .8-1.6l8-6a2 2 0 0 1 2.4 0l8 6Z"></path><path d="m22 10-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 10"></path></symbol>
+  <symbol id="icon-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></symbol>
+  <symbol id="icon-pencil" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path><path d="m15 5 4 4"></path></symbol>
+  <symbol id="icon-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></symbol>
+  <symbol id="icon-x" viewBox="0 0 24 24"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></symbol>
+  <symbol id="icon-pause" viewBox="0 0 24 24"><rect width="4" height="16" x="6" y="4"></rect><rect width="4" height="16" x="14" y="4"></rect></symbol>
+  <symbol id="icon-play" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></symbol>
+  <symbol id="icon-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></symbol>
+  <symbol id="icon-external-link" viewBox="0 0 24 24"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></symbol>
+  <symbol id="icon-eye" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></symbol>
+  <symbol id="icon-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></symbol>
+  <symbol id="icon-log-out" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" x2="9" y1="12" y2="12"></line></symbol>
+  <symbol id="icon-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l4 2"></path></symbol>
+  <symbol id="icon-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></symbol>
+  <symbol id="icon-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></symbol>
+  <symbol id="icon-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path></symbol>
+  <symbol id="icon-car" viewBox="0 0 24 24"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"></path><circle cx="7" cy="17" r="2"></circle><path d="M9 17h6"></path><circle cx="17" cy="17" r="2"></circle></symbol>
+  <symbol id="icon-check-square" viewBox="0 0 24 24"><path d="m9 11 3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></symbol>
+  <symbol id="icon-archive" viewBox="0 0 24 24"><rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path></symbol>
+  <symbol id="icon-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path></symbol>
+  <symbol id="icon-paperclip" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></symbol>
+  <symbol id="icon-home" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></symbol>
+  <symbol id="icon-map-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></symbol>
+  <symbol id="icon-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m21 2-9.6 9.6"></path><path d="m15.5 7.5 3 3L22 7l-3-3"></path></symbol>
+  <symbol id="icon-rotate-cw" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path></symbol>
+  <symbol id="icon-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></symbol>
+  <symbol id="icon-sparkles" viewBox="0 0 24 24"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path><path d="M5 3v4"></path><path d="M19 17v4"></path><path d="M3 5h4"></path><path d="M17 19h4"></path></symbol>
+  <symbol id="icon-reply" viewBox="0 0 24 24"><polyline points="9 17 4 12 9 7"></polyline><path d="M20 18v-2a4 4 0 0 0-4-4H4"></path></symbol>
+  <symbol id="icon-flag" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" x2="4" y1="22" y2="15"></line></symbol>
+  <symbol id="icon-arrow-up-down" viewBox="0 0 24 24"><path d="m21 16-4 4-4-4"></path><path d="M17 20V4"></path><path d="m3 8 4-4 4 4"></path><path d="M7 4v16"></path></symbol>
+  <symbol id="icon-list-checks" viewBox="0 0 24 24"><path d="m3 17 2 2 4-4M3 7l2 2 4-4M13 6h8M13 12h8M13 18h8"></path></symbol>
+  <symbol id="icon-chevron-up" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"></path></symbol>
+  <symbol id="icon-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"></path></symbol>
+  <symbol id="icon-arrow-up" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7M12 19V5"></path></symbol>
+  <symbol id="icon-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14m7-7-7 7-7-7"></path></symbol>
+  <symbol id="icon-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path></symbol>
+  <symbol id="icon-images" viewBox="0 0 24 24"><path d="M18 22H4a2 2 0 0 1-2-2V6M22 13.5V7a2 2 0 0 0-2-2H10a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3.5zM22 17l-3.09-3.09a2 2 0 0 0-2.83 0L10 20M13 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"></path></symbol>
+  <symbol id="icon-forward" viewBox="0 0 24 24"><path d="m15 17 6-6-6-6M21 11H9a6 6 0 0 0-6 6v3"></path></symbol>
+  <symbol id="icon-unlink" viewBox="0 0 24 24"><path d="m18.84 12.25 1.72-1.71a5 5 0 0 0-7.07-7.07l-1.71 1.71M5.17 11.75l-1.71 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71M8 2v3M2 8h3M16 22v-3M22 16h-3"></path></symbol>
+  <symbol id="icon-file-output" viewBox="0 0 24 24"><path d="M14 2v4a2 2 0 0 0 2 2h4M4 7V4a2 2 0 0 1 2-2 2 2 0 0 0-2 2M4.06 20.1A2 2 0 0 0 6 22h12a2 2 0 0 0 2-2V7l-5-5H6M2 15h10M9 18l3-3-3-3"></path></symbol>
+  <symbol id="icon-eye-off" viewBox="0 0 24 24"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61M2 2l20 20M9.88 9.88a3 3 0 1 0 4.24 4.24"></path></symbol>
+  <symbol id="icon-key-round" viewBox="0 0 24 24"><path d="M2.59 15.6a2 2 0 0 0 0 2.83l2.98 2.98a2 2 0 0 0 2.83 0L21 8.8a7 7 0 1 0-6.4-5.65zM16.5 7.5h.01"></path></symbol>
+  <symbol id="icon-rotate-ccw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5"></path></symbol>
+  <symbol id="icon-crop" viewBox="0 0 24 24"><path d="M6 2v14a2 2 0 0 0 2 2h14M18 22V8a2 2 0 0 0-2-2H2"></path></symbol>
+  <symbol id="icon-tag" viewBox="0 0 24 24"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"></path><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"></circle></symbol>
+  <symbol id="icon-file-image" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><circle cx="10" cy="12" r="2"></circle><path d="m20 17-1.296-1.296a2.41 2.41 0 0 0-3.408 0L9 22"></path></symbol>
+  <symbol id="icon-zap" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path></symbol>
+  <symbol id="icon-grip-vertical" viewBox="0 0 24 24"><path d="M9 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM9 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM15 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM15 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"></path></symbol>
+  <symbol id="icon-shield-check" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1zM9 12l2 2 4-4"></path></symbol>
+  <symbol id="icon-building" viewBox="0 0 24 24"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18ZM6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2M10 6h4M10 10h4M10 14h4M10 18h4"></path></symbol>
+  <symbol id="icon-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"></path></symbol>
+  <symbol id="icon-clipboard-list" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M9 2h6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zM12 11h4M12 16h4M8 11h.01M8 16h.01"></path></symbol>
+  <symbol id="icon-zoom-in" viewBox="0 0 24 24"><path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35M11 8v6M8 11h6"></path></symbol>
+  <symbol id="icon-corner-up-left" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 5 5v6"></path></symbol>
+  <symbol id="icon-bar-chart" viewBox="0 0 24 24"><path d="M12 20V10M18 20V4M6 20v-4"></path></symbol>
+  <symbol id="icon-bot" viewBox="0 0 24 24"><path d="M12 8V4H8M4 8h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM2 14h2M20 14h2M15 13v2M9 13v2"></path></symbol>
+  <symbol id="icon-circle" viewBox="0 0 24 24"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z"></path></symbol>
+  <symbol id="icon-circle-dot" viewBox="0 0 24 24"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"></path></symbol>
+  <symbol id="icon-circle-slash" viewBox="0 0 24 24"><path d="M9 15l6-6M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z"></path></symbol>
+  <symbol id="icon-file-spreadsheet" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7ZM14 2v4a2 2 0 0 0 2 2h4M8 13h2M14 13h2M8 17h2M14 17h2"></path></symbol>
+  <symbol id="icon-heart-pulse" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7ZM3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"></path></symbol>
+  <symbol id="icon-move" viewBox="0 0 24 24"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"></path></symbol>
+  <symbol id="icon-phone" viewBox="0 0 24 24"><path d="M13.83 16.5a2 2 0 0 0 2.24-.42l1.05-1.05a2 2 0 0 0 0-2.83l-1.5-1.5a2 2 0 0 0-2.83 0l-.5.5a13.5 13.5 0 0 1-4.98-4.98l.5-.5a2 2 0 0 0 0-2.83l-1.5-1.5a2 2 0 0 0-2.83 0L2.42 2.44a2 2 0 0 0-.42 2.24A19 19 0 0 0 13.83 16.5z"></path></symbol>
+  <symbol id="icon-pound-sterling" viewBox="0 0 24 24"><path d="M18 7c0-5.33-8-5.33-8 0v10M6 12h8M6 17h12"></path></symbol>
+  <symbol id="icon-scroll-text" viewBox="0 0 24 24"><path d="M15 12h-5M15 8h-5M19 17V5a2 2 0 0 0-2-2H4M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"></path></symbol>
+  <symbol id="icon-square" viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"></path></symbol>
+  <symbol id="icon-square-check" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></symbol>
+  <symbol id="icon-undo" viewBox="0 0 24 24"><path d="M3 7v6h6M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path></symbol>
+</svg>
+
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <div class="app-shell" data-app-shell="">
+        <header class="app-rail">
+            <a class="brand" aria-label="Pegasus home" href="/">
+                <img src="/images/pegasus-mark-refined-128.tctmpgz0uo.png" alt="" aria-hidden="true">
+                <span class="brand-copy"><strong>PEGASUS</strong><span>Case management</span></span>
+            </a>
+            <nav class="primary-nav" aria-label="Primary">
+                <div class="nav-label">Work</div>
+                <a class="nav-link" href="/">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard"></use></svg>
+                    <span>Work Centre</span>
+                </a>
+                    <a class="nav-link" href="/Inbox">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-inbox"></use></svg>
+                        <span>Inbox</span>
+                    </a>
+                    <a class="nav-link" href="/Upload">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-upload"></use></svg>
+                        <span>Upload</span>
+                    </a>
+                <a class="nav-link" aria-current="page" href="/Cases">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-list-checks"></use></svg>
+                    <span>Cases</span>
+                        <span class="nav-count" aria-label="7 outstanding">7</span>
+                </a>
+                <a class="nav-link" href="/Search">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+                    <span>Search</span>
+                </a>
+                    <div class="nav-label">Manage</div>
+                    <a class="nav-link" href="/Administration">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-settings"></use></svg>
+                        <span>Administration</span>
+                    </a>
+            </nav>
+            <div class="rail-spacer"></div>
+            <button type="button" class="rail-collapse" data-rail-toggle="" aria-expanded="true" aria-label="Collapse navigation" data-label-collapse="Collapse navigation" data-label-expand="Expand navigation" title="">
+                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left"></use></svg>
+                <span>Collapse</span>
+            </button>
+            <div class="rail-health">
+                <div class="rail-health-line"><span class="health-dot"></span><span>Current · 11:30</span></div>
+            </div>
+                <div class="rail-user" role="group" aria-label="User">
+                    <span class="avatar" aria-hidden="true">IU</span>
+                    <div><strong>integration-user</strong><small>Administrator</small></div>
+                    <button type="button" class="icon-button" data-dialog-open="account-dialog" aria-label="Account menu" data-dialog-open-bound="true">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-more-horizontal"></use></svg>
+                    </button>
+                </div>
+        </header>
+        <div class="app-column">
+            <section class="utility-bar" aria-label="Utility bar">
+                <div class="utility-freshness"><span class="health-dot"></span><span>Current · 11:30</span></div>
+                <form class="utility-search" role="search" method="get" action="/Search">
+                    <label class="sr-only" for="global-search">Search Pegasus</label>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+                    <input id="global-search" type="search" name="query" data-command-input="" aria-label="Search Pegasus" placeholder="Search cases, references or people" autocomplete="off">
+                    <span class="shortcut-hint" aria-hidden="true">Ctrl K</span>
+                </form>
+                <div class="utility-actions">
+                        <a class="btn btn--primary" href="/Cases/Create">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-plus"></use></svg>
+                            <span>New case</span>
+                        </a>
+                    <span class="bell-wrap">
+                        <button type="button" class="icon-button" data-dialog-open="notifications-dialog" aria-label="Notifications" data-dialog-open-bound="true">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-bell"></use></svg>
+                        </button>
+                    </span>
+                        <button type="button" class="icon-button utility-account" data-dialog-open="account-dialog" aria-label="Account menu" data-dialog-open-bound="true">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-more-horizontal"></use></svg>
+                        </button>
+                </div>
+            </section>
+            <main id="main-content" class="app-main" tabindex="-1">
+                <div class="content">
+                    
+
+
+
+
+<div data-case-notices="">
+</div>
+
+
+<article class="record case-record" id="case-record" data-case-record="" data-case-id="0746fbd1-cd71-436a-8b53-409862c97cc1" data-case-version="0" data-editor-commit="" data-layout="scroll" data-section-current="overview" data-case-editing="false" data-case-view="" style="--sticky-h: 97px;">
+    <div class="sticky-block" data-sticky-block="">
+        <div class="ribbon" aria-label="Case identity">
+    <div class="ribbon-facts" data-case-ribbon-facts="">
+        <div class="ribbon-item ribbon-ref">
+            <div class="ribbon-label">Case workspace</div>
+            <h1 class="ribbon-value">QDOS31004</h1>
+        </div>
+        <div class="ribbon-item ribbon-registration">
+            <div class="ribbon-label">Registration</div>
+            <div class="ribbon-value mono"><span>AU37DIT</span></div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Claimant</div>
+            <div class="ribbon-value"><span>Standalone Audit Claimant</span></div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Principal</div>
+            <div class="ribbon-value"><span>QDOS</span></div>
+        </div>
+        <div class="ribbon-item">
+            <div class="ribbon-label">Engineer</div>
+            <div class="ribbon-value"><span>Not recorded</span></div>
+        </div>
+        <div class="ribbon-chips" aria-label="State" data-case-ribbon-chips="">
+            <span class="status status--amber">Not ready</span>
+
+                <span class="status status--navy status--plain" data-case-type-chip="">Audit</span>
+        </div>
+    </div>
+    <div class="ribbon-actions" data-case-ribbon-actions="">
+            <form method="post" data-case-edit-form="" action="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?handler=ClaimLease">
+                <input type="hidden" name="id" value="0746fbd1-cd71-436a-8b53-409862c97cc1">
+                <input type="hidden" name="expectedVersion" value="0">
+                <input type="hidden" name="operationKey" value="882a714560bd4cb4951db9c33145ae0b">
+                <input type="hidden" name="section" value="overview" data-case-section-field="">
+                <input type="hidden" name="view">
+                <button type="submit" data-busy-label="Opening…" class="btn btn--dark" data-case-edit="">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-pencil"></use></svg>
+                    <span>Edit Case</span>
+                </button>
+            <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAACbxd9m6Mlw764Cxcu26fRCWj1ejGK4JAKliewZLSkUgeEEU_mD6pFLNFFrpHjzkqi-usrAHzypvZNIjPNSKpkQ6cvZyaYuN8ECLc6V4yUBec_fn6ekvqTcysufrZsm_C4"></form>
+        <details class="menu" data-menu="" data-case-actions="">
+            <summary class="btn"><span>Actions</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></summary>
+            <div class="menu-body">
+                <form method="post" data-no-inplace="" data-busy-download="" data-busy-download-failed="The file could not be downloaded. Try again." data-case-export="" action="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1/Documents/Export?handler=Bundle">
+                    <input type="hidden" name="operationKey" value="bf39da3f662342439e39dce49fe795d5">
+                    <input type="hidden" name="view">
+                    <button type="submit" class="btn" data-busy-label="Exporting…" data-busy-done="Exported">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-download"></use></svg>
+                        <span>Export case</span>
+                    </button>
+                <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAACbxd9m6Mlw764Cxcu26fRCWj1ejGK4JAKliewZLSkUgeEEU_mD6pFLNFFrpHjzkqi-usrAHzypvZNIjPNSKpkQ6cvZyaYuN8ECLc6V4yUBec_fn6ekvqTcysufrZsm_C4"></form>
+                    <a class="btn" data-send-chaser="" href="/Inbox/Compose?caseReference=QDOS31004&amp;purpose=chaser">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-send"></use></svg>
+                        <span>Send chaser</span>
+                    </a>
+                    <div class="menu-sep"></div>
+                            <button type="button" class="btn" data-dialog-open="case-hold-dialog" data-dialog-open-bound="true">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-pause"></use></svg>
+                                <span>Place on Hold</span>
+                            </button>
+                        <button type="button" class="btn" data-dialog-open="case-correct-principal-dialog" data-dialog-open-bound="true">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle"></use></svg>
+                            <span>Correct principal</span>
+                        </button>
+                    <div class="menu-sep"></div>
+                    <button type="button" class="btn btn--danger" data-dialog-open="case-close-dialog" data-dialog-open-bound="true">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle"></use></svg>
+                        <span>Close case</span>
+                    </button>
+            </div>
+        </details>
+    </div>
+</div>
+
+        <div class="section-row">
+            <nav class="section-nav" aria-label="Case sections" data-section-nav="">
+                    <a class="section-link" data-section-link="overview" aria-current="true" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=overview#section-overview">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard"></use></svg>
+                        <span>Case details</span>
+                    </a>
+                    <a class="section-link" data-section-link="claim" aria-current="false" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=claim#section-claim">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-clipboard-list"></use></svg>
+                        <span>Claim</span>
+                    </a>
+                    <a class="section-link" data-section-link="original-report" aria-current="false" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=original-report#section-original-report">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-file-text"></use></svg>
+                        <span>Original report</span>
+                    </a>
+                    <a class="section-link" data-section-link="inspection" aria-current="false" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=inspection#section-inspection">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-map-pin"></use></svg>
+                        <span>Inspection details</span>
+                    </a>
+                    <a class="section-link" data-section-link="vehicle" aria-current="false" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=vehicle#section-vehicle">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-car"></use></svg>
+                        <span>Vehicle</span>
+                    </a>
+                    <a class="section-link" data-section-link="estimate" aria-current="false" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=estimate#section-estimate">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-list"></use></svg>
+                        <span>Repair Spec</span>
+                    </a>
+                    <a class="section-link" data-section-link="settlement" aria-current="false" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=settlement#section-settlement">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>
+                        <span>Decisions</span>
+                    </a>
+                    <a class="section-link" data-section-link="report" aria-current="false" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=report#section-report">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-file"></use></svg>
+                        <span>Report</span>
+                    </a>
+                    <a class="section-link" data-section-link="files" aria-current="false" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=files#section-files">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-folder"></use></svg>
+                        <span>Files</span>
+                    </a>
+                    <a class="section-link" data-section-link="notes" aria-current="false" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=notes#section-notes">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-history"></use></svg>
+                        <span>Notes</span>
+                    </a>
+            </nav>
+            <div class="section-tools">
+                <div class="refresh-button" data-refresh-region="" role="status" aria-live="polite">
+    <form method="get" data-refresh-form="" data-refresh-bound="true">
+                <input type="hidden" name="section" value="overview" data-refresh-field="section">
+        <button type="submit" class="btn btn--small" title="Refresh">
+            <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw"></use></svg>
+            <span data-refresh-label="">Refresh</span>
+        </button>
+    </form>
+</div>
+
+                <div class="layout-switch" role="group" aria-label="Case layout" data-case-layout-switch="">
+                    <button type="button" data-case-layout="scroll" aria-pressed="true">Scroll</button>
+                    <button type="button" data-case-layout="tabs" aria-pressed="false">Tabs</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="workspace">
+        <div class="workspace-main" id="case-main">
+                        
+<section class="record-section panel" id="section-overview" data-section="overview" data-collapse="case.overview" data-collapse-bound="true">
+    <div class="panel-head">
+        <h2 id="section-overview-title">Case details</h2>
+        <div class="panel-actions">
+                <form method="post" data-case-edit-form="" action="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?handler=ClaimLease">
+        <input type="hidden" name="id" value="0746fbd1-cd71-436a-8b53-409862c97cc1">
+        <input type="hidden" name="expectedVersion" value="0">
+        <input type="hidden" name="operationKey" value="882a714560bd4cb4951db9c33145ae0b">
+        <input type="hidden" name="section" value="overview">
+        <input type="hidden" name="view">
+        <button type="submit" data-busy-label="Opening…" class="btn btn--small" data-section-edit="overview">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil"></use></svg>
+            <span>Edit</span>
+        </button>
+    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAACbxd9m6Mlw764Cxcu26fRCWj1ejGK4JAKliewZLSkUgeEEU_mD6pFLNFFrpHjzkqi-usrAHzypvZNIjPNSKpkQ6cvZyaYuN8ECLc6V4yUBec_fn6ekvqTcysufrZsm_C4"></form>
+<button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+
+        </div>
+    </div>
+    <div class="panel-body stack">
+        
+
+        <div class="overview-grid">
+            <div class="sub-panel" data-collapse="case.overview.case" data-collapse-bound="true"><h3>Case <button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+</h3>
+                <div class="fg g2">
+                    <div class="fc ro"><span class="lbl">Case type</span><div class="fv">Audit</div></div>
+                    <div class="fc ro"><span class="lbl">Our ref</span><div class="fv mono">QDOS31004</div></div>
+                    <div class="fc ro">            <span class="lbl">Claim reference</span>
+<div class="fv mono">AUD-78</div></div>
+                    <div class="fc ro">            <span class="lbl">Incident date</span>
+<div class="fv empty">Not recorded</div></div>
+                    <div class="fc ro"><span class="lbl">Received</span><div class="fv">06 May 2031 11:30</div></div>
+                    <div class="fc ro">            <span class="lbl">Due</span>
+<div class="fv empty">Not recorded</div></div>
+                    <div class="fc ro"><span class="lbl">Matter line</span><div class="fv derived" data-matter-line="">Road Traffic Accident: Standalone Audit Claimant</div></div>
+                    <div class="fc ro" data-field="signOffEngineerId">
+                            <span class="lbl">Sign-off Engineer</span>
+                            <div class="fv">Unassigned</div>
+                    </div>
+                </div>
+            </div>
+            <div class="sub-panel" data-collapse="case.overview.principal" data-collapse-bound="true"><h3>Principal <button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+</h3>
+                <div class="fg">
+                    <div class="fc ro"><span class="lbl">Principal</span><div class="fv">QDOS</div></div>
+                    <div class="fc ro" data-claim-source-cell="">            <span class="lbl">Claim source</span>
+<div class="fv empty">Not recorded</div></div>
+                    <div class="fc ro" data-claim-source-contact="name">            <span class="lbl">Claim source contact name</span>
+<div class="fv empty">Not recorded</div></div>
+                    <div class="fc ro" data-claim-source-contact="phone">            <span class="lbl">Claim source contact phone</span>
+<div class="fv empty">Not recorded</div></div>
+                    <div class="fc ro" data-claim-source-contact="email">            <span class="lbl">Claim source contact e-mail</span>
+<div class="fv empty">Not recorded</div></div>
+                </div>
+            </div>
+        </div>
+        <div class="sub-panel" data-collapse="case.overview.contact" data-collapse-bound="true"><h3>Case contact <button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+</h3>
+            <div class="fg g3">
+                <div class="fc ro">            <span class="lbl">Contact name</span>
+<div class="fv empty">Not recorded</div></div>
+                <div class="fc ro">            <span class="lbl">Contact e-mail</span>
+<div class="fv empty">Not recorded</div></div>
+                <div class="fc ro">            <span class="lbl">Contact phone</span>
+<div class="fv empty">Not recorded</div></div>
+            </div>
+        </div>
+
+        <div class="sub-panel notes-band" data-notes-band="" data-collapse="case.overview.notes" data-collapse-bound="true"><h3>Notes <button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+</h3>
+            <div class="fg g2">
+                <div class="fc ro">            <span class="lbl">Principal notes · this Case</span>
+<div class="fv empty multi">Not recorded</div></div>
+                <div class="fc ro">            <span class="lbl">Claim source notes · this Case</span>
+<div class="fv empty multi">Not recorded</div></div>
+            </div>
+        </div>
+
+        <div class="accident" data-accident-band="">
+            <div class="fg g2">
+                <div class="fc ro">            <span class="lbl">Accident circumstances</span>
+<div class="fv empty multi">Not recorded</div></div>
+                <div class="fc ro" data-client-notes="">            <span class="lbl">Notes from client</span>
+<div class="fv empty multi">Not recorded</div></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+                        
+<section class="record-section panel" id="section-claim" data-section="claim" data-collapse="case.claim" data-collapse-bound="true">
+    <div class="panel-head">
+        <h2 id="section-claim-title">Claim</h2>
+        <div class="panel-actions">    <form method="post" data-case-edit-form="" action="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?handler=ClaimLease">
+        <input type="hidden" name="id" value="0746fbd1-cd71-436a-8b53-409862c97cc1">
+        <input type="hidden" name="expectedVersion" value="0">
+        <input type="hidden" name="operationKey" value="882a714560bd4cb4951db9c33145ae0b">
+        <input type="hidden" name="section" value="claim">
+        <input type="hidden" name="view">
+        <button type="submit" data-busy-label="Opening…" class="btn btn--small" data-section-edit="claim">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil"></use></svg>
+            <span>Edit</span>
+        </button>
+    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAACbxd9m6Mlw764Cxcu26fRCWj1ejGK4JAKliewZLSkUgeEEU_mD6pFLNFFrpHjzkqi-usrAHzypvZNIjPNSKpkQ6cvZyaYuN8ECLc6V4yUBec_fn6ekvqTcysufrZsm_C4"></form>
+<button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+</div>
+    </div>
+    <div class="panel-body stack">
+        <div class="sub-panel" data-collapse="case.claim.claimant" data-collapse-bound="true"><h3>Claimant <button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+</h3>
+            <div class="fg g4">
+                <div class="fc ro">            <span class="lbl">Claimant</span>
+<div class="fv">Standalone Audit Claimant</div></div>
+                <div class="fc ro">            <span class="lbl">Contact</span>
+<div class="fv empty">Not recorded</div></div>
+                <div class="fc ro">            <span class="lbl">Address</span>
+<div class="fv empty">Not recorded</div></div>
+                <div class="fc ro">            <span class="lbl">Claimant VAT status</span>
+<div class="fv empty">Not recorded</div></div>
+                <div class="fc ro" data-field="settlement.claimant_vat_registered">
+                        <span class="lbl">Claimant VAT registered</span>
+                    <div class="fv empty">Not recorded</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+                        
+<section class="record-section panel" id="section-original-report" data-section="original-report" data-collapse="case.original-report" data-collapse-bound="true">
+    <div class="panel-head">
+        <h2 id="section-original-report-title">Original report</h2>
+        <div class="panel-actions">    <form method="post" data-case-edit-form="" action="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?handler=ClaimLease">
+        <input type="hidden" name="id" value="0746fbd1-cd71-436a-8b53-409862c97cc1">
+        <input type="hidden" name="expectedVersion" value="0">
+        <input type="hidden" name="operationKey" value="882a714560bd4cb4951db9c33145ae0b">
+        <input type="hidden" name="section" value="original-report">
+        <input type="hidden" name="view">
+        <button type="submit" data-busy-label="Opening…" class="btn btn--small" data-section-edit="original-report">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil"></use></svg>
+            <span>Edit</span>
+        </button>
+    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAACbxd9m6Mlw764Cxcu26fRCWj1ejGK4JAKliewZLSkUgeEEU_mD6pFLNFFrpHjzkqi-usrAHzypvZNIjPNSKpkQ6cvZyaYuN8ECLc6V4yUBec_fn6ekvqTcysufrZsm_C4"></form>
+<button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+</div>
+    </div>
+    <div class="panel-body stack">
+        <div class="fg g4">
+        <div class="fc ro" data-field="original_report.assessor">
+                <span class="lbl">Assessor</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        <div class="fc ro" data-field="original_report.report_date">
+                <span class="lbl">Report date</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        <div class="fc ro" data-field="original_report.roadworthiness">
+                <span class="lbl">Roadworthiness</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        <div class="fc ro" data-field="original_report.outcome">
+                <span class="lbl">Repairable status</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        </div>
+    </div>
+</section>
+
+
+                        
+<section class="record-section panel" id="section-inspection" data-section="inspection" data-collapse="case.inspection" data-collapse-bound="true">
+    <div class="panel-head">
+        <h2 id="section-inspection-title">Inspection details</h2>
+        <div class="panel-actions">
+                <form method="post" data-case-edit-form="" action="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?handler=ClaimLease">
+        <input type="hidden" name="id" value="0746fbd1-cd71-436a-8b53-409862c97cc1">
+        <input type="hidden" name="expectedVersion" value="0">
+        <input type="hidden" name="operationKey" value="882a714560bd4cb4951db9c33145ae0b">
+        <input type="hidden" name="section" value="inspection">
+        <input type="hidden" name="view">
+        <button type="submit" data-busy-label="Opening…" class="btn btn--small" data-section-edit="inspection">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil"></use></svg>
+            <span>Edit</span>
+        </button>
+    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAACbxd9m6Mlw764Cxcu26fRCWj1ejGK4JAKliewZLSkUgeEEU_mD6pFLNFFrpHjzkqi-usrAHzypvZNIjPNSKpkQ6cvZyaYuN8ECLc6V4yUBec_fn6ekvqTcysufrZsm_C4"></form>
+<button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+
+        </div>
+    </div>
+    <div class="panel-body stack">
+        <div class="fg g4">
+            <div class="fc ro" data-inspection-type="">
+                <span class="lbl">Inspection type</span>
+                <div class="fv empty">Not recorded</div>
+            </div>
+            <div class="fc ro">
+            <span class="lbl">Inspection date</span>
+                <div class="fv empty">Not recorded</div>
+            </div>
+            <div class="fc ro" data-inspection-choice-cell="">
+            <span class="lbl">Inspect at</span>
+                <div class="fv">Manual entry</div>
+            </div>
+            <div class="fc ro" data-inspection-address-field="" data-inspection-address="">
+            <span class="lbl">Inspection address</span>
+                <div class="fv empty" data-inspection-address-read="">Not recorded</div>
+            </div>
+            <div class="fc ro" data-inspection-principal-default="" hidden="hidden">
+                <span class="lbl">Principal default</span>
+                <div class="fv empty">Not recorded</div>
+            </div>
+        </div>
+
+        <div class="sub-panel" data-inspection-repairer="" data-collapse="case.inspection.repairer" data-collapse-bound="true"><h3>Repairer <button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+</h3>
+            <div class="fg g4">
+                <div class="fc ro">
+            <span class="lbl">Repairer contact</span>
+                    <div class="fv">Not linked</div>
+                </div>
+                <div class="fc ro">
+            <span class="lbl">Repairer</span>
+                    <div class="fv empty">Not recorded</div>
+                </div>
+                <div class="fc span2 ro">
+            <span class="lbl">Address</span>
+                    <div class="fv empty">Not recorded</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sub-panel" data-inspection-storage="" data-collapse="case.inspection.storage" data-collapse-bound="true"><h3>Storage <button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+</h3>
+            <div class="fg g4">
+                <div class="fc span2 ro">
+            <span class="lbl">Storage location</span>
+                    <div class="fv empty">Not recorded</div>
+                </div>
+                <div class="fc ro">
+            <span class="lbl">Storage per day</span>
+                    <div class="fv empty mono">Not recorded</div>
+                </div>
+                <div class="fc ro">
+            <span class="lbl">Recovery charge</span>
+                    <div class="fv empty mono">Not recorded</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+                    <section class="record-section panel" id="section-vehicle" data-section="vehicle" data-collapse="case.vehicle" aria-labelledby="section-vehicle-title" data-collapse-bound="true">
+    <div class="panel-head">
+        <h2 id="section-vehicle-title">Vehicle</h2>
+        <span class="meta quiet" data-vehicle-lookup-line="">Not yet looked up</span>
+        <div class="panel-actions">
+            <span class="gated" data-vehicle-experian-seam="">
+                <svg class="icon" aria-hidden="true"><use href="#icon-lock"></use></svg>
+                <span>Experian is not connected</span>
+            </span>
+                <form method="post" data-case-edit-form="" action="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?handler=ClaimLease">
+        <input type="hidden" name="id" value="0746fbd1-cd71-436a-8b53-409862c97cc1">
+        <input type="hidden" name="expectedVersion" value="0">
+        <input type="hidden" name="operationKey" value="8f2ae7d466ce4dc6b83f74e43b655a48">
+        <input type="hidden" name="section" value="vehicle">
+        <input type="hidden" name="view">
+        <button type="submit" data-busy-label="Opening…" class="btn btn--small" data-section-edit="vehicle">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil"></use></svg>
+            <span>Edit</span>
+        </button>
+    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAAAEX2wdnIeG1MmfyDLJfOj25gXdal37ZPPfZzWT4Y3RpzfuOr2DBS6N5EN6Xs2O_Vf9rbRuqnRtdEW7Hte-TnpuGMd_s9GEikxjZliadsAiQXmYNc_wWE5TbZuPB9ZLYeU"></form>
+<button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+
+        </div>
+    </div>
+    <div class="panel-body stack">
+        <div class="fg g4" data-vehicle-facts="">
+            <div class="fc ro">
+            <span class="lbl">Registration</span>
+                <div class="fv mono">AU37DIT</div>
+            </div>
+            <div class="fc ro">
+            <span class="lbl">Make</span>
+                <div class="fv empty">Not recorded</div>
+            </div>
+            <div class="fc ro">
+            <span class="lbl">Model</span>
+                <div class="fv empty">Not recorded</div>
+            </div>
+            <div class="fc ro">
+            <span class="lbl">Year</span>
+                <div class="fv empty">Not recorded</div>
+            </div>
+                    <div class="fc ro" data-vehicle-identity="vehicle.vin">
+            <span class="lbl">VIN</span>
+                        <div class="fv empty mono">Not recorded</div>
+                    </div>
+                    <div class="fc ro" data-vehicle-identity="vehicle.vehicle_type">
+            <span class="lbl">Vehicle type</span>
+                        <div class="fv empty">Not recorded</div>
+                    </div>
+                    <div class="fc ro" data-vehicle-identity="vehicle.body">
+            <span class="lbl">Body type</span>
+                        <div class="fv empty">Not recorded</div>
+                    </div>
+                    <div class="fc ro" data-vehicle-provenance-row="vehicle.engine_cc">
+            <span class="lbl">Engine</span>
+                        <div class="fv empty">Not recorded</div>
+                    </div>
+                    <div class="fc ro" data-vehicle-provenance-row="vehicle.fuel">
+            <span class="lbl">Fuel</span>
+                        <div class="fv empty">Not recorded</div>
+                    </div>
+                    <div class="fc ro" data-vehicle-provenance-row="vehicle.colour">
+            <span class="lbl">Colour</span>
+                        <div class="fv empty">Not recorded</div>
+                    </div>
+                    <div class="fc ro" data-vehicle-identity="vehicle.transmission">
+            <span class="lbl">Transmission</span>
+                        <div class="fv empty">Not recorded</div>
+                    </div>
+                    <div class="fc ro" data-vehicle-provenance-row="vehicle.tax_expiry">
+            <span class="lbl">Tax expiry</span>
+                        <div class="fv empty">Not recorded</div>
+                    </div>
+                    <div class="fc ro" data-vehicle-provenance-row="vehicle.mot_expiry">
+            <span class="lbl">MOT expiry</span>
+                        <div class="fv empty">Not recorded</div>
+                    </div>
+        </div>
+
+        <div class="sub-panel" data-vehicle-mileage="" data-collapse="case.vehicle.mileage" data-collapse-bound="true"><h3>Mileage &amp; condition <button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+</h3>
+            <div class="fg g4">
+                <div class="fc ro">
+            <span class="lbl">Mileage</span>
+                    <div class="fv empty mono" data-vehicle-mileage-read="">Not recorded</div>
+                </div>
+                <div class="fc ro">
+            <span class="lbl">Mileage source</span>
+                    <div class="fv empty">Not recorded</div>
+                </div>
+                <div class="fc ro">
+            <span class="lbl">Pre-incident condition</span>
+                    <div class="fv empty">Not recorded</div>
+                </div>
+                <div class="fc ro">
+            <span class="lbl">Odometer unit</span>
+                    <div class="fv empty">Not recorded</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sub-panel vehicle-history" data-collapse="case.vehicle.history" data-vehicle-history="" data-collapse-bound="true"><h3>Vehicle history <span class="rt">Experian is not connected</span> <button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+</h3>
+            <div class="fc ro">
+            <span class="lbl">Vehicle history</span>
+                <div class="fv empty multi">Not recorded</div>
+            </div>
+        </div>
+    </div>
+</section>
+                        
+<section class="record-section record-section--nested panel case-damage" id="section-damage" data-section="damage" data-section-parent="vehicle" data-collapse="case.damage" data-damage-editor="" data-damage-editable="false" data-damage-impacts="[]" data-damage-areas="{&quot;plan&quot;:[&quot;front&quot;,&quot;left_front&quot;,&quot;right_front&quot;,&quot;left_side&quot;,&quot;right_side&quot;,&quot;rear&quot;,&quot;left_rear&quot;,&quot;right_rear&quot;],&quot;other&quot;:[&quot;underside&quot;,&quot;interior&quot;,&quot;mechanical&quot;],&quot;names&quot;:{&quot;front&quot;:&quot;Front&quot;,&quot;left_front&quot;:&quot;LH Front&quot;,&quot;right_front&quot;:&quot;RH Front&quot;,&quot;left_side&quot;:&quot;LH Side&quot;,&quot;right_side&quot;:&quot;RH Side&quot;,&quot;rear&quot;:&quot;Rear&quot;,&quot;left_rear&quot;:&quot;LH Rear&quot;,&quot;right_rear&quot;:&quot;RH Rear&quot;,&quot;underside&quot;:&quot;Underside&quot;,&quot;interior&quot;:&quot;Interior&quot;,&quot;mechanical&quot;:&quot;Mechanical&quot;},&quot;centres&quot;:{&quot;front&quot;:{&quot;x&quot;:0.5,&quot;y&quot;:0.1},&quot;left_front&quot;:{&quot;x&quot;:0.18,&quot;y&quot;:0.2},&quot;right_front&quot;:{&quot;x&quot;:0.82,&quot;y&quot;:0.2},&quot;left_side&quot;:{&quot;x&quot;:0.1,&quot;y&quot;:0.53},&quot;right_side&quot;:{&quot;x&quot;:0.9,&quot;y&quot;:0.53},&quot;rear&quot;:{&quot;x&quot;:0.5,&quot;y&quot;:0.92},&quot;left_rear&quot;:{&quot;x&quot;:0.18,&quot;y&quot;:0.84},&quot;right_rear&quot;:{&quot;x&quot;:0.82,&quot;y&quot;:0.84}},&quot;box&quot;:{&quot;x&quot;:42,&quot;y&quot;:16,&quot;w&quot;:156,&quot;h&quot;:394},&quot;bands&quot;:{&quot;front&quot;:0.34,&quot;rear&quot;:0.72,&quot;left&quot;:0.372,&quot;right&quot;:0.628},&quot;radius&quot;:0.12,&quot;margin&quot;:0.08,&quot;minRadius&quot;:0.0641025641025641,&quot;maxRadius&quot;:0.5,&quot;burst&quot;:{&quot;points&quot;:10,&quot;depth&quot;:0.46,&quot;rotation&quot;:3,&quot;stretchX&quot;:1.18,&quot;stretchY&quot;:0.9,&quot;jitter&quot;:0.14,&quot;fill&quot;:&quot;#ffeb69&quot;,&quot;opacity&quot;:0.96,&quot;line&quot;:&quot;#1d1d1d&quot;,&quot;lineWidth&quot;:3.2}}" data-damage-severities="[{&quot;k&quot;:&quot;light&quot;,&quot;n&quot;:&quot;Light&quot;},{&quot;k&quot;:&quot;light_to_moderate&quot;,&quot;n&quot;:&quot;Light to moderate&quot;},{&quot;k&quot;:&quot;moderate&quot;,&quot;n&quot;:&quot;Moderate&quot;},{&quot;k&quot;:&quot;moderate_to_heavy&quot;,&quot;n&quot;:&quot;Moderate to heavy&quot;},{&quot;k&quot;:&quot;heavy&quot;,&quot;n&quot;:&quot;Heavy&quot;}]" data-damage-multiple="Multiple" data-damage-absent="Not recorded" data-damage-none="No damage recorded." data-damage-no-note="No note" data-damage-note-label="Note" data-damage-remove-label="Remove" data-damage-grade-label="Severity" data-collapse-bound="true" data-damage-bound="true">
+    <div class="panel-head">
+        <h2 id="section-damage-title">Damage</h2>
+        <div class="panel-actions">    <form method="post" data-case-edit-form="" action="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?handler=ClaimLease">
+        <input type="hidden" name="id" value="0746fbd1-cd71-436a-8b53-409862c97cc1">
+        <input type="hidden" name="expectedVersion" value="0">
+        <input type="hidden" name="operationKey" value="882a714560bd4cb4951db9c33145ae0b">
+        <input type="hidden" name="section" value="damage">
+        <input type="hidden" name="view">
+        <button type="submit" data-busy-label="Opening…" class="btn btn--small" data-section-edit="damage">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil"></use></svg>
+            <span>Edit</span>
+        </button>
+    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAACbxd9m6Mlw764Cxcu26fRCWj1ejGK4JAKliewZLSkUgeEEU_mD6pFLNFFrpHjzkqi-usrAHzypvZNIjPNSKpkQ6cvZyaYuN8ECLc6V4yUBec_fn6ekvqTcysufrZsm_C4"></form>
+<button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+</div>
+    </div>
+    <div class="panel-body stack">
+        <div class="damage-workbench">
+            <div class="damage-view" data-damage-view="">
+                <svg class="damage-diagram" viewBox="0 0 240 434" role="group" aria-label="Vehicle damage diagram, plan view">
+                    <text class="damage-diagram-label" x="120" y="8" text-anchor="middle">FRONT</text>
+                    <defs>
+<linearGradient id="asset-car-paint" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#cbd3d9"></stop><stop offset=".11" stop-color="#f1f4f6"></stop><stop offset=".42" stop-color="#ffffff"></stop><stop offset=".69" stop-color="#f7f9fa"></stop><stop offset=".91" stop-color="#e0e6ea"></stop><stop offset="1" stop-color="#c2cdd4"></stop></linearGradient>
+<linearGradient id="asset-car-roof" x1="0" y1="0" x2="1" y2=".24"><stop offset="0" stop-color="#e5ebee"></stop><stop offset=".34" stop-color="#ffffff"></stop><stop offset=".76" stop-color="#f4f7f9"></stop><stop offset="1" stop-color="#dce4e9"></stop></linearGradient>
+<linearGradient id="asset-car-glass" x1="0" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#25323b"></stop><stop offset=".47" stop-color="#4d606d"></stop><stop offset="1" stop-color="#273741"></stop></linearGradient>
+<linearGradient id="asset-car-metal" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#647680"></stop><stop offset=".30" stop-color="#c9d5dc"></stop><stop offset=".52" stop-color="#edf2f5"></stop><stop offset="1" stop-color="#70828d"></stop></linearGradient>
+<linearGradient id="asset-car-rubber" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#202a31"></stop><stop offset=".45" stop-color="#404d57"></stop><stop offset="1" stop-color="#1d2830"></stop></linearGradient>
+<linearGradient id="asset-car-seat" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#25323a"></stop><stop offset=".45" stop-color="#485761"></stop><stop offset="1" stop-color="#27343c"></stop></linearGradient>
+</defs>
+<g stroke-linecap="round" stroke-linejoin="round">
+<g>
+<rect x="38" y="87" width="14" height="49" rx="4" fill="url(#asset-car-rubber)"></rect>
+<path d="M41 93 V130" fill="none" stroke="#56636b" stroke-width="0.75"></path>
+<rect x="188" y="87" width="14" height="49" rx="4" fill="url(#asset-car-rubber)"></rect>
+<path d="M191 93 V130" fill="none" stroke="#56636b" stroke-width="0.75"></path>
+<rect x="38" y="313" width="14" height="49" rx="4" fill="url(#asset-car-rubber)"></rect>
+<path d="M41 319 V356" fill="none" stroke="#56636b" stroke-width="0.75"></path>
+<rect x="188" y="313" width="14" height="49" rx="4" fill="url(#asset-car-rubber)"></rect>
+<path d="M191 319 V356" fill="none" stroke="#56636b" stroke-width="0.75"></path>
+</g>
+<g>
+<path d="M50 144 L34 149 Q29 151 30 158 Q31 162 37 161 L50 157 Z" fill="url(#asset-car-paint)" stroke="#657782" stroke-width="0.85"></path>
+<path d="M50 144 L34 149 Q29 151 30 158 Q31 162 37 161 L50 157 Z" fill="url(#asset-car-paint)" stroke="#657782" stroke-width="0.85" transform="translate(240 0) scale(-1 1)"></path>
+<path d="M31 158 L46 153" fill="none" stroke="#b2c0c9" stroke-width="0.75"></path>
+<path d="M31 158 L46 153" fill="none" stroke="#b2c0c9" stroke-width="0.75" transform="translate(240 0) scale(-1 1)"></path>
+</g>
+<g>
+<path d="M82 21 Q120 11 158 21 C181 26 191 40 194 62 Q198 87 195 115 L193 154 L194 295 Q198 326 196 351 Q194 379 183 395 Q176 404 159 407 Q120 413 81 407 Q64 404 57 395 Q46 379 44 351 Q42 326 46 295 L47 154 L45 115 Q42 87 46 62 C49 40 59 26 82 21 Z" fill="url(#asset-car-paint)" stroke="#617581" stroke-width="1.1"></path>
+<path d="M82 21 Q120 11 158 21 C181 26 191 40 194 62 Q198 87 195 115 L193 154 L194 295 Q198 326 196 351 Q194 379 183 395 Q176 404 159 407 Q120 413 81 407 Q64 404 57 395 Q46 379 44 351 Q42 326 46 295 L47 154 L45 115 Q42 87 46 62 C49 40 59 26 82 21 Z" fill="none" stroke="#ffffff" stroke-width="1.05" transform="translate(120 217) scale(.969 .987) translate(-120 -217)"></path>
+<path d="M54 67 Q49 99 51 127 L52 288 Q47 324 51 348 L57 370" fill="none" stroke="#b6c2ca" stroke-width="0.85"></path>
+<path d="M54 67 Q49 99 51 127 L52 288 Q47 324 51 348 L57 370" fill="none" stroke="#b6c2ca" stroke-width="0.85" transform="translate(240 0) scale(-1 1)"></path>
+<path d="M57 70 Q53 101 55 128 L56 284 Q51 323 55 349" fill="none" stroke="#fdfefe" stroke-width="1.6"></path>
+<path d="M57 70 Q53 101 55 128 L56 284 Q51 323 55 349" fill="none" stroke="#fdfefe" stroke-width="1.6" transform="translate(240 0) scale(-1 1)"></path>
+</g>
+<g>
+<path d="M64 57 Q120 43 176 57 L180 119 Q120 100 60 119 Z" fill="url(#asset-car-roof)" stroke="#adbbc4" stroke-width="0.8"></path>
+<path d="M74 64 Q70 86 69 109" fill="none" stroke="#cad4db" stroke-width="0.7"></path>
+<path d="M74 64 Q70 86 69 109" fill="none" stroke="#cad4db" stroke-width="0.7" transform="translate(240 0) scale(-1 1)"></path>
+<path d="M78 64 Q76 89 75 107" fill="none" stroke="#ffffff" stroke-width="1.2"></path>
+<path d="M78 64 Q76 89 75 107" fill="none" stroke="#ffffff" stroke-width="1.2" transform="translate(240 0) scale(-1 1)"></path>
+<path d="M64 32 Q120 18 176 32" fill="none" stroke="#9cabb4" stroke-width="0.75"></path>
+<path d="M94 27 Q120 23 146 27" fill="none" stroke="#536570" stroke-width="1.9"></path>
+<path d="M57 42 Q72 34 89 33 L84 42 Q69 46 55 50 Z" fill="#c0cdd5" stroke="#778b97" stroke-width="0.7"></path>
+<path d="M57 42 Q72 34 89 33 L84 42 Q69 46 55 50 Z" fill="#c0cdd5" stroke="#778b97" stroke-width="0.7" transform="translate(240 0) scale(-1 1)"></path>
+<path d="M60 43 L82 36" fill="none" stroke="#fcfefe" stroke-width="1.75"></path>
+<path d="M60 43 L82 36" fill="none" stroke="#fcfefe" stroke-width="1.75" transform="translate(240 0) scale(-1 1)"></path>
+<path d="M57 53 Q120 37 183 53" fill="none" stroke="#b9c5cd" stroke-width="0.75"></path>
+</g>
+<g>
+<path d="M65 127 Q120 105 175 127 Q185 151 184 178 L181 290 Q179 316 169 331 Q120 347 71 331 Q61 316 59 290 L56 178 Q55 151 65 127 Z" fill="url(#asset-car-glass)" stroke="#30424e" stroke-width="1.0"></path>
+<path d="M65 127 Q120 105 175 127 Q185 151 184 178 L181 290 Q179 316 169 331 Q120 347 71 331 Q61 316 59 290 L56 178 Q55 151 65 127 Z" fill="none" stroke="#90a1ad" stroke-width="0.8" transform="translate(120 225) scale(.97 .981) translate(-120 -225)"></path>
+<path d="M70 130 Q113 113 160 125 L145 160 Q116 154 87 163 Z" fill="#90a6b4" opacity=".16"></path>
+<path d="M174 137 Q179 157 179 187 L175 284 L169 302 L168 176 Z" fill="#b5c6d1" opacity=".13"></path>
+<path d="M62 167 L68 179 L70 215 L62 215 Z" fill="#b6c6d0" opacity=".10"></path>
+<path d="M62 167 L68 179 L70 215 L62 215 Z" fill="#b6c6d0" transform="translate(240 0) scale(-1 1)" opacity=".10"></path>
+<path d="M70 132 Q120 115 170 132" fill="none" stroke="#b0bec7" stroke-width="0.7"></path>
+<path d="M77 155 L113 153 M126 153 L162 154" fill="none" stroke="#1f2f39" stroke-width="1.25"></path>
+</g>
+<g>
+<path d="M81 166 Q120 157 159 166 L164 284 Q120 294 76 284 Z" fill="url(#asset-car-roof)" stroke="#9faeb8" stroke-width="0.75"></path>
+<path d="M87 174 Q120 167 153 174 L157 277 Q120 284 83 277 Z" fill="none" stroke="#ffffff" stroke-width="0.9"></path>
+<path d="M65 133 L81 167 M61 220 L78 220 M65 319 L77 282" fill="none" stroke="#dce4e9" stroke-width="3.2"></path>
+<path d="M65 133 L81 167 M61 220 L78 220 M65 319 L77 282" fill="none" stroke="#dce4e9" stroke-width="3.2" transform="translate(240 0) scale(-1 1)"></path>
+<path d="M65 133 L81 167" fill="none" stroke="#eef3f6" stroke-width="1.1"></path>
+<path d="M65 133 L81 167" fill="none" stroke="#eef3f6" stroke-width="1.1" transform="translate(240 0) scale(-1 1)"></path>
+<path d="M79 324 Q120 336 161 324" fill="none" stroke="#a6b7c2" stroke-width="0.75"></path>
+<path d="M79 304 Q120 312 161 304" fill="none" stroke="#637984" stroke-width="0.4"></path>
+<path d="M79 310 Q120 318 161 310" fill="none" stroke="#637984" stroke-width="0.4"></path>
+<path d="M79 316 Q120 324 161 316" fill="none" stroke="#637984" stroke-width="0.4"></path>
+</g>
+<g>
+<path d="M47 146 L60 155 M48 221 L61 221 M46 302 L62 303" fill="none" stroke="#9cabb5" stroke-width="0.8"></path>
+<path d="M47 146 L60 155 M48 221 L61 221 M46 302 L62 303" fill="none" stroke="#9cabb5" stroke-width="0.8" transform="translate(240 0) scale(-1 1)"></path>
+<path d="M51 192 V206 M51 265 V279" fill="none" stroke="#8598a4" stroke-width="1.8"></path>
+<path d="M51 192 V206 M51 265 V279" fill="none" stroke="#8598a4" stroke-width="1.8" transform="translate(240 0) scale(-1 1)"></path>
+<path d="M51 193 V204 M51 266 V277" fill="none" stroke="#eef4f7" stroke-width="0.65"></path>
+<path d="M51 193 V204 M51 266 V277" fill="none" stroke="#eef4f7" stroke-width="0.65" transform="translate(240 0) scale(-1 1)"></path>
+</g>
+<g>
+<path d="M66 345 Q120 358 174 345 L179 375 Q120 390 61 375 Z" fill="url(#asset-car-roof)" stroke="#a7b5bf" stroke-width="0.7"></path>
+<path d="M54 365 Q68 375 87 377 L85 383 Q66 382 53 373 Z" fill="#596e7b" stroke="#647681" stroke-width="0.55"></path>
+<path d="M54 365 Q68 375 87 377 L85 383 Q66 382 53 373 Z" fill="#596e7b" stroke="#647681" stroke-width="0.55" transform="translate(240 0) scale(-1 1)"></path>
+<path d="M59 370 Q72 377 85 379" fill="none" stroke="#a7bac6" stroke-width="0.75"></path>
+<path d="M59 370 Q72 377 85 379" fill="none" stroke="#a7bac6" stroke-width="0.75" transform="translate(240 0) scale(-1 1)"></path>
+<path d="M74 392 Q120 405 166 392" fill="none" stroke="#7d929f" stroke-width="0.9"></path>
+<path d="M91 400 Q120 406 149 400" fill="none" stroke="#445a67" stroke-width="2"></path>
+<rect x="105" y="386" width="30" height="5" rx="1.3" fill="#e2e9ed" stroke="#a2b2bc" stroke-width="0.5"></rect>
+</g>
+</g>
+
+                    <g class="dv-hit" aria-hidden="true">
+                            <path d="M38 91 Q38 87 42 87 H48 Q52 87 52 91 V132 Q52 136 48 136 H42 Q38 136 38 132 Z"></path>
+                            <path d="M188 91 Q188 87 192 87 H198 Q202 87 202 91 V132 Q202 136 198 136 H192 Q188 136 188 132 Z"></path>
+                            <path d="M38 317 Q38 313 42 313 H48 Q52 313 52 317 V358 Q52 362 48 362 H42 Q38 362 38 358 Z"></path>
+                            <path d="M188 317 Q188 313 192 313 H198 Q202 313 202 317 V358 Q202 362 198 362 H192 Q188 362 188 358 Z"></path>
+                            <path d="M50 144 L34 149 Q29 151 30 158 Q31 162 37 161 L50 157 Z"></path>
+                            <path d="M190 144 L206 149 Q211 151 210 158 Q209 162 203 161 L190 157 Z"></path>
+                            <path d="M82 21 Q120 11 158 21 C181 26 191 40 194 62 Q198 87 195 115 L193 154 L194 295 Q198 326 196 351 Q194 379 183 395 Q176 404 159 407 Q120 413 81 407 Q64 404 57 395 Q46 379 44 351 Q42 326 46 295 L47 154 L45 115 Q42 87 46 62 C49 40 59 26 82 21 Z"></path>
+                    </g>
+                    <g class="damage-marks" data-damage-marks="" aria-hidden="true">
+                    </g>
+                    <text class="damage-diagram-label" x="120" y="431" text-anchor="middle">REAR</text>
+                </svg>
+                <div class="dv-readout" data-damage-readout="" aria-live="polite"></div>
+                <div class="damage-extra" aria-label="Other vehicle areas">
+                            <span class="btn btn--small is-static" data-damage-area="underside">Underside</span>
+                            <span class="btn btn--small is-static" data-damage-area="interior">Interior</span>
+                            <span class="btn btn--small is-static" data-damage-area="mechanical">Mechanical</span>
+                </div>
+            </div>
+            <div class="damage-facts">
+                <div class="fg g3">
+                    <div class="fc ro"><span class="lbl">Impact location</span><div class="fv derived" data-damage-location="">Not recorded</div></div>
+                    <div class="fc ro"><span class="lbl">Impact severity</span><div class="fv derived" data-damage-severity="">Not recorded</div></div>
+                    <div class="fc ro"><span class="lbl">Recorded areas</span><div class="fv" data-damage-count="">0</div></div>
+                </div>
+                <ul class="impact-list" data-damage-impact-list="" aria-label="Recorded areas">
+                        <li class="muted" data-damage-empty="">No damage recorded.</li>
+                </ul>
+                <div class="sub-panel mt-2"><h3>Tyres &amp; seat belts</h3>
+                    <div class="fg g4">
+                            <div class="fc ro">
+            <span class="lbl">Right-front tyre</span>
+                                <div class="fv empty">Not recorded</div>
+                            </div>
+                            <div class="fc ro">
+            <span class="lbl">Left-front tyre</span>
+                                <div class="fv empty">Not recorded</div>
+                            </div>
+                            <div class="fc ro">
+            <span class="lbl">Right-rear tyre</span>
+                                <div class="fv empty">Not recorded</div>
+                            </div>
+                            <div class="fc ro">
+            <span class="lbl">Left-rear tyre</span>
+                                <div class="fv empty">Not recorded</div>
+                            </div>
+                            <div class="fc ro">
+            <span class="lbl">Right-front belt</span>
+                                <div class="fv empty">Not recorded</div>
+                            </div>
+                            <div class="fc ro">
+            <span class="lbl">Left-front belt</span>
+                                <div class="fv empty">Not recorded</div>
+                            </div>
+                            <div class="fc ro">
+            <span class="lbl">Right-rear belt</span>
+                                <div class="fv empty">Not recorded</div>
+                            </div>
+                            <div class="fc ro">
+            <span class="lbl">Left-rear belt</span>
+                                <div class="fv empty">Not recorded</div>
+                            </div>
+                            <div class="fc ro">
+            <span class="lbl">Spare tyre</span>
+                                <div class="fv empty">Not recorded</div>
+                            </div>
+                            <div class="fc ro">
+            <span class="lbl">Centre belt</span>
+                                <div class="fv empty">Not recorded</div>
+                            </div>
+                            <div class="fc span2 ro">
+            <span class="lbl">Material transfer</span>
+                                <div class="fv empty">Not recorded</div>
+                            </div>
+                            <div class="fc ro">
+            <span class="lbl">Airbags deployed</span>
+                                <div class="fv empty">Not recorded</div>
+                            </div>
+                    </div>
+                </div>
+                <div class="fg g4 mt-2">
+                    <div class="fc span3 ro">
+            <span class="lbl">Unrelated damage</span>
+                        <div class="fv empty">Not recorded</div>
+                    </div>
+                    <div class="fc ro">
+            <span class="lbl">Unrelated-damage deduction</span>
+                        <div class="fv mono empty">Not recorded</div>
+                    </div>
+                    <div class="fc ro span4"><span class="lbl">Incident narrative</span><div class="fv derived empty" data-damage-narrative="">Not recorded</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+                    <section class="record-section record-section--nested panel" id="section-valuation" data-section="valuation" data-section-parent="vehicle" data-collapse="case.valuation" aria-labelledby="section-valuation-title" data-collapse-bound="true">
+    <div class="panel-head">
+        <h2 id="section-valuation-title">Valuation</h2>
+        <span class="meta" data-valuation-head="">Engineer's Value —</span>
+        <div class="panel-actions">
+                <form method="post" data-case-edit-form="" action="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?handler=ClaimLease">
+        <input type="hidden" name="id" value="0746fbd1-cd71-436a-8b53-409862c97cc1">
+        <input type="hidden" name="expectedVersion" value="0">
+        <input type="hidden" name="operationKey" value="fc7ce0ef827c44fc9843ebf3e46930d1">
+        <input type="hidden" name="section" value="valuation">
+        <input type="hidden" name="view">
+        <button type="submit" data-busy-label="Opening…" class="btn btn--small" data-section-edit="valuation">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil"></use></svg>
+            <span>Edit</span>
+        </button>
+    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAADzFujM1MdzsWpqN3xnEqvdERA0Elx-5US2cQenRT30REw-a4WMKcPORTAYFxz08FzLRwb_KZtOB9HMqYe-FuMtIl5HALiy2fFt_CgnkEHYwZlukZ6yzgkDiuE55Noj28w"></form>
+<button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+
+        </div>
+    </div>
+    <div class="panel-body stack">
+        <div class="valuation-cards" data-valuation-cards="">
+                <div class="valuation-card entry" data-valuation-entry="glasses" data-valuation-source-card="Glasses" data-valuation-card="glasses" data-retail="" data-trade="">
+                    <div class="valuation-card-head">
+                        <h3>Glass's</h3>
+                        <span class="valuation-card-word" data-valuation-chosen-word="" hidden="hidden">Selected</span>
+                    </div>
+                    <div class="valuation-card-figs">
+        <div class="valuation-card-fig">
+                <span class="lbl">Retail</span>
+                <span class="valuation-card-value mono is-blank">—</span>
+        </div>
+        <div class="valuation-card-fig">
+                <span class="lbl">Trade</span>
+                <span class="valuation-card-value mono is-blank">—</span>
+        </div>
+                        <div class="valuation-card-fig valuation-card-month">
+                                <span class="lbl">Guide month</span>
+                                <span class="valuation-card-value is-blank">—</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="valuation-card entry" data-valuation-entry="brego" data-valuation-source-card="Brego" data-valuation-card="brego" data-retail="" data-trade="">
+                    <div class="valuation-card-head">
+                        <h3>Brego</h3>
+                        <span class="valuation-card-word" data-valuation-chosen-word="" hidden="hidden">Selected</span>
+                    </div>
+                    <div class="valuation-card-figs">
+        <div class="valuation-card-fig">
+                <span class="lbl">Retail</span>
+                <span class="valuation-card-value mono is-blank">—</span>
+        </div>
+        <div class="valuation-card-fig">
+                <span class="lbl">Trade</span>
+                <span class="valuation-card-value mono is-blank">—</span>
+        </div>
+                        <div class="valuation-card-fig valuation-card-month">
+                                <span class="lbl">Guide month</span>
+                                <span class="valuation-card-value is-blank">—</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="valuation-card entry" data-valuation-entry="super-cap" data-valuation-source-card="SuperCap" data-valuation-card="super-cap" data-retail="" data-trade="">
+                    <div class="valuation-card-head">
+                        <h3>Super CAP</h3>
+                        <span class="valuation-card-word" data-valuation-chosen-word="" hidden="hidden">Selected</span>
+                    </div>
+                    <div class="valuation-card-figs">
+        <div class="valuation-card-fig">
+                <span class="lbl">Retail</span>
+                <span class="valuation-card-value mono is-blank">—</span>
+        </div>
+        <div class="valuation-card-fig">
+                <span class="lbl">Trade</span>
+                <span class="valuation-card-value mono is-blank">—</span>
+        </div>
+                        <div class="valuation-card-fig valuation-card-month">
+                                <span class="lbl">Guide month</span>
+                                <span class="valuation-card-value is-blank">—</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="valuation-card entry" data-valuation-entry="cap" data-valuation-source-card="Cap" data-valuation-card="cap" data-retail="" data-trade="">
+                    <div class="valuation-card-head">
+                        <h3>CAP</h3>
+                        <span class="valuation-card-word" data-valuation-chosen-word="" hidden="hidden">Selected</span>
+                    </div>
+                    <div class="valuation-card-figs">
+        <div class="valuation-card-fig">
+                <span class="lbl">Retail</span>
+                <span class="valuation-card-value mono is-blank">—</span>
+        </div>
+        <div class="valuation-card-fig">
+                <span class="lbl">Trade</span>
+                <span class="valuation-card-value mono is-blank">—</span>
+        </div>
+                        <div class="valuation-card-fig valuation-card-month">
+                                <span class="lbl">Guide month</span>
+                                <span class="valuation-card-value is-blank">—</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="valuation-card entry" data-valuation-entry="cazana" data-valuation-source-card="Cazana" data-valuation-card="cazana" data-retail="" data-trade="">
+                    <div class="valuation-card-head">
+                        <h3>Cazana</h3>
+                        <span class="valuation-card-word" data-valuation-chosen-word="" hidden="hidden">Selected</span>
+                    </div>
+                    <div class="valuation-card-figs">
+        <div class="valuation-card-fig">
+                <span class="lbl">Retail</span>
+                <span class="valuation-card-value mono is-blank">—</span>
+        </div>
+        <div class="valuation-card-fig">
+                <span class="lbl">Trade</span>
+                <span class="valuation-card-value mono is-blank">—</span>
+        </div>
+                        <div class="valuation-card-fig valuation-card-month">
+                                <span class="lbl">Guide month</span>
+                                <span class="valuation-card-value is-blank">—</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="valuation-card valuation-card--research" data-valuation-pending="" data-valuation-card="ai-market-research" data-valuation-source-card="AiMarketResearch" data-retail="" data-trade="">
+                    <div class="valuation-card-head">
+                        <h3>AI market research</h3>
+                        <span class="src-tag src-tag--ai">AI</span>
+                        <span class="valuation-card-word" data-valuation-chosen-word="" hidden="hidden">Selected</span>
+                    </div>
+                    <div class="valuation-card-figs">
+        <div class="valuation-card-fig">
+                <span class="lbl">Retail</span>
+                <span class="valuation-card-value mono is-blank">—</span>
+        </div>
+        <div class="valuation-card-fig">
+                <span class="lbl">Trade</span>
+                <span class="valuation-card-value mono is-blank">—</span>
+        </div>
+                        <div class="valuation-card-fig valuation-card-month">
+                        </div>
+                    </div>
+                </div>
+        </div>
+
+        <div class="valuation-calc" data-valuation-calc="" data-valuation-form="" data-preview-url="" data-text-preview-failed="" data-valuation-bound="true">
+    <div class="sub-panel valuation-deductions">
+        <div class="fc ro">
+                <span class="lbl">Condition deduction</span>
+            <div class="fv mono empty" data-valuation-deduction-read="">—</div>
+        </div>
+        <div class="fc valuation-ptl ro">
+            <span class="lbl">Previous total loss<span class="calc-amount" data-valuation-amount="ptl"></span></span>
+            <div class="fv" data-valuation-ptl-read="">None</div>
+        </div>
+    </div>
+    <div class="valuation-value" data-valuation-values="">
+        <div class="fc ro" data-field="assessment.values.engineer">
+                <span class="lbl">Engineer's Value</span>
+            <div class="fv mono empty">—</div>
+        </div>
+    </div>
+</div>
+
+
+
+        <div class="valuation-report fc ro" data-field="report-content" data-report-content-bound="true">
+            <span class="lbl">On the report</span>
+            <div class="fv" data-report-content="">Guide source not disclosed</div>
+        </div>
+    </div>
+</section>
+                        
+
+<section class="record-section panel" id="section-estimate" data-section="estimate" data-collapse="case.estimate" data-estimate-section="" data-estimate-drop-target="" data-collapse-bound="true" data-estimate-import-bound="true" data-estimate-bound="true">
+    <div class="panel-head">
+        <h2 id="section-estimate-title">Repair Spec</h2>
+        <div class="panel-actions">
+                <form id="case-estimate-import-form" method="post" enctype="multipart/form-data" data-estimate-import-form="" data-estimate-import-one-file="Choose exactly one estimate file." data-estimate-import-non-empty="Choose a non-empty estimate file." data-estimate-import-too-large="Choose an estimate file of 32 MiB or less." data-estimate-import-max-bytes="33554432" data-estimate-import-extensions=".json,.xml,.pdf" data-estimate-import-unsupported="Choose a PDF, XML or JSON estimate file." data-estimate-import-busy="Wait for the current Case action to finish before importing an estimate." action="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=estimate&amp;handler=ImportEstimate">
+                    <input type="hidden" name="id" value="0746fbd1-cd71-436a-8b53-409862c97cc1">
+                    <input type="hidden" name="expectedVersion" value="0">
+                    <input type="hidden" name="operationKey" value="328ba12f2eab428c94021ac372fac627">
+                    <input type="hidden" name="editLeaseToken" value="">
+                    <input type="hidden" name="section" value="estimate">
+                    <input type="hidden" name="view">
+                    <div class="estimate-import-control">
+                        <div class="estimate-import-fallback" data-estimate-import-fallback="" hidden="">
+                            <label for="estimate-import-file">Estimate file</label>
+                            <input id="estimate-import-file" type="file" name="estimateFile" accept=".json,.xml,.pdf" required="" data-estimate-import-input="">
+                            <button type="submit" data-busy-label="Importing…" class="btn btn--small">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-upload"></use></svg>
+                                <span>Import estimate</span>
+                            </button>
+                        </div>
+                        <button type="button" data-busy-label="Importing…" class="btn btn--small" data-estimate-import-picker="">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-upload"></use></svg>
+                            <span>Import</span>
+                        </button>
+                        <span class="estimate-import-status" role="status" aria-live="polite" hidden="" data-estimate-import-status="" data-importing-text="Importing estimate…"></span>
+                    </div>
+                <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAACbxd9m6Mlw764Cxcu26fRCWj1ejGK4JAKliewZLSkUgeEEU_mD6pFLNFFrpHjzkqi-usrAHzypvZNIjPNSKpkQ6cvZyaYuN8ECLc6V4yUBec_fn6ekvqTcysufrZsm_C4"></form>
+            <div data-glass-controls="launch" data-glass-id="" data-glass-version="" data-glass-controls-url="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?handler=GlassSession" hidden="hidden">
+</div>
+
+            <button type="button" class="btn btn--small btn--icon" data-estimate-expand="" title="Expand" aria-label="Expand estimate" data-label-expand="Expand" data-label-close="Close full screen">
+                <svg class="icon" aria-hidden="true"><use href="#icon-external-link"></use></svg>
+            </button>
+                <form method="post" data-case-edit-form="" action="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?handler=ClaimLease">
+        <input type="hidden" name="id" value="0746fbd1-cd71-436a-8b53-409862c97cc1">
+        <input type="hidden" name="expectedVersion" value="0">
+        <input type="hidden" name="operationKey" value="882a714560bd4cb4951db9c33145ae0b">
+        <input type="hidden" name="section" value="estimate">
+        <input type="hidden" name="view">
+        <button type="submit" data-busy-label="Opening…" class="btn btn--small" data-section-edit="estimate">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil"></use></svg>
+            <span>Edit</span>
+        </button>
+    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAACbxd9m6Mlw764Cxcu26fRCWj1ejGK4JAKliewZLSkUgeEEU_mD6pFLNFFrpHjzkqi-usrAHzypvZNIjPNSKpkQ6cvZyaYuN8ECLc6V4yUBec_fn6ekvqTcysufrZsm_C4"></form>
+<button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+
+        </div>
+    </div>
+    <div class="panel-body stack">
+        <div data-glass-controls="outcome" hidden="hidden">
+</div>
+
+
+            <div class="empty estimate-empty" data-estimate-empty="">No repair specs recorded</div>
+
+        <div data-glass-controls="session" data-glass-id="" data-glass-version="" data-glass-state="" hidden="hidden">
+
+</div>
+
+
+
+    </div>
+    <div class="estimate-import-drop-overlay" hidden="" data-estimate-import-overlay="" aria-hidden="true">
+        <div class="estimate-import-drop-card">
+            <svg class="icon" aria-hidden="true"><use href="#icon-upload"></use></svg>
+            <strong>Drop estimate to import</strong>
+            <span>One PDF, XML or JSON file, up to 32 MiB.</span>
+        </div>
+    </div>
+</section>
+
+
+
+
+
+
+
+                        
+<section class="record-section panel" id="section-settlement" data-section="settlement" data-collapse="case.settlement" data-settlement-repair-cost="" data-settlement="" data-settlement-outcome="" data-settlement-editable="false" data-collapse-bound="true" data-settlement-bound="true">
+    <div class="panel-head">
+        <h2 id="section-settlement-title">Decisions</h2>
+        <div class="panel-actions">
+                <form method="post" data-case-edit-form="" action="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?handler=ClaimLease">
+        <input type="hidden" name="id" value="0746fbd1-cd71-436a-8b53-409862c97cc1">
+        <input type="hidden" name="expectedVersion" value="0">
+        <input type="hidden" name="operationKey" value="882a714560bd4cb4951db9c33145ae0b">
+        <input type="hidden" name="section" value="settlement">
+        <input type="hidden" name="view">
+        <button type="submit" data-busy-label="Opening…" class="btn btn--small" data-section-edit="settlement">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil"></use></svg>
+            <span>Edit</span>
+        </button>
+    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAACbxd9m6Mlw764Cxcu26fRCWj1ejGK4JAKliewZLSkUgeEEU_mD6pFLNFFrpHjzkqi-usrAHzypvZNIjPNSKpkQ6cvZyaYuN8ECLc6V4yUBec_fn6ekvqTcysufrZsm_C4"></form>
+<button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+
+        </div>
+    </div>
+    <div class="panel-body stack">
+        <div class="metric-strip" data-settlement-figures="">
+                <div class="metric"><span class="metric-label">Engineer's Value</span><span class="metric-value">—</span><span class="metric-meta">Set in Valuation</span></div>
+                <div class="metric"><span class="metric-label">Labour hours</span><span class="metric-value">—</span></div>
+                <div class="metric"><span class="metric-label">Repair cost inc VAT</span><span class="metric-value red">—</span><span class="metric-meta">From current repair spec</span></div>
+                <div class="metric"><span class="metric-label">Repair cost of value</span><span class="metric-value">—</span></div>
+        </div>
+
+        <div class="decisions" data-decisions="">
+            <div class="dec-head">
+                <h3>Decisions</h3>
+            </div>
+        <div class="dec" data-decision="assessment.outcome" data-shown-when="">
+            <span class="dl">Outcome </span>
+        <div class="fc ro" data-field="assessment.outcome">
+                <span class="lbl">Outcome</span>
+            <div class="fv empty sr-only">Not recorded</div>
+                <div class="radiorow is-static" aria-hidden="true" data-decision-radios-read="assessment.outcome">
+                    <span class="pick-radio" data-on="true"><span class="dot"></span>Not recorded</span>
+                        <span class="pick-radio" data-on="false"><span class="dot"></span>Total loss</span>
+                        <span class="pick-radio" data-on="false"><span class="dot"></span>Repairable</span>
+                        <span class="pick-radio" data-on="false"><span class="dot"></span>Cash in lieu</span>
+                        <span class="pick-radio" data-on="false"><span class="dot"></span>Contract repair</span>
+                </div>
+        </div>
+        </div>
+            <div class="dec" data-decision="assessment.values.engineer">
+                <span class="dl">Engineer's Value</span>
+                <div class="fc ro">
+                    <span class="lbl">Engineer's Value</span>
+                    <div class="fv mono" data-decision-engineer-value="" data-engineer-value="">
+                        <span>—</span>
+                        <a class="src-tag" data-section-jump="valuation" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=valuation#section-valuation">Valuation</a>
+                    </div>
+                </div>
+            </div>
+            <div class="dec" data-decision-salvage-absent="" data-hidden-when="total-loss">
+                <span class="dl">Salvage</span>
+                <div class="fc ro"><span class="lbl">Salvage</span><div class="fv">Not applicable</div></div>
+            </div>
+        <div class="dec" data-decision="assessment.category" data-shown-when="total-loss" hidden="hidden">
+            <span class="dl">Salvage category </span>
+        <div class="fc ro" data-field="assessment.category">
+                <span class="lbl">Salvage category</span>
+            <div class="fv empty sr-only">Not recorded</div>
+                <div class="radiorow is-static" aria-hidden="true" data-decision-radios-read="assessment.category">
+                    <span class="pick-radio" data-on="true"><span class="dot"></span>Not recorded</span>
+                        <span class="pick-radio" data-on="false"><span class="dot"></span>A</span>
+                        <span class="pick-radio" data-on="false"><span class="dot"></span>B</span>
+                        <span class="pick-radio" data-on="false"><span class="dot"></span>S</span>
+                        <span class="pick-radio" data-on="false"><span class="dot"></span>N</span>
+                        <span class="pick-radio" data-on="false"><span class="dot"></span>N/A</span>
+                </div>
+        </div>
+        </div>
+        <div class="dec" data-decision="assessment.salvage_value" data-shown-when="total-loss" hidden="hidden">
+            <span class="dl">Salvage value </span>
+        <div class="fc ro" data-field="assessment.salvage_value">
+                <span class="lbl">Salvage value</span>
+            <div class="fv mono empty">Not recorded</div>
+        </div>
+                <div class="salvage-share" data-salvage-share="" data-salvage-matrix="" data-salvage-matrix-follows="">
+                        <span class="muted">Set in Valuation</span>
+                </div>
+        </div>
+        <div class="dec" data-decision="assessment.legal_status" data-shown-when="">
+            <span class="dl">Roadworthiness </span>
+        <div class="fc ro" data-field="assessment.legal_status">
+                <span class="lbl">Roadworthiness</span>
+            <div class="fv empty sr-only">Not recorded</div>
+                <div class="radiorow is-static" aria-hidden="true" data-decision-radios-read="assessment.legal_status">
+                    <span class="pick-radio" data-on="true"><span class="dot"></span>Not recorded</span>
+                        <span class="pick-radio" data-on="false"><span class="dot"></span>Roadworthy</span>
+                        <span class="pick-radio" data-on="false"><span class="dot"></span>Unroadworthy</span>
+                </div>
+        </div>
+        </div>
+            <div class="dec" data-decision="assessment.unroadworthy_reason" data-shown-when="unroadworthy" hidden="hidden">
+                <span class="dl">Unroadworthy reason</span>
+        <div class="fc ro" data-field="assessment.unroadworthy_reason">
+                <span class="lbl">Unroadworthy reason</span>
+            <div class="fv multi empty">Not recorded</div>
+        </div>
+            </div>
+        <div class="dec" data-decision="vehicle.temporary_repairs_possible" data-shown-when="unroadworthy" hidden="hidden">
+            <span class="dl">Temporary repairs possible </span>
+        <div class="fc ro" data-field="vehicle.temporary_repairs_possible">
+                <span class="lbl">Temporary repairs possible</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        </div>
+        <div class="dec" data-decision="vehicle.temporary_repair_method" data-shown-when="unroadworthy" hidden="hidden">
+            <span class="dl">Temporary repair method </span>
+        <div class="fc ro" data-field="vehicle.temporary_repair_method">
+                <span class="lbl">Temporary repair method</span>
+            <div class="fv multi empty">Not recorded</div>
+        </div>
+        </div>
+        <div class="dec" data-decision="vehicle.temporary_repair_cost" data-shown-when="unroadworthy" hidden="hidden">
+            <span class="dl">Temporary repair cost </span>
+        <div class="fc ro" data-field="vehicle.temporary_repair_cost">
+                <span class="lbl">Temporary repair cost</span>
+            <div class="fv mono empty">Not recorded</div>
+        </div>
+        </div>
+        </div>
+
+        <div class="fg g4">
+        <div class="fc ro" data-field="settlement.excess">
+                <span class="lbl">Excess</span>
+            <div class="fv mono empty">Not recorded</div>
+        </div>
+        <div class="fc ro" data-field="settlement.betterment">
+                <span class="lbl">Betterment</span>
+            <div class="fv mono empty">Not recorded</div>
+        </div>
+        <div class="fc ro" data-field="settlement.contract_sum">
+                <span class="lbl">Agreed contract sum</span>
+            <div class="fv mono empty">Not recorded</div>
+        </div>
+        </div>
+
+        <div class="sub-panel" data-collapse="case.settlement.costs" data-collapse-bound="true"><h3>Costs, hire &amp; delays <button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+</h3>
+            <div class="fg g4">
+                <div class="fc ro" data-settlement-computed-reserve="">
+                    <span class="lbl">Repair reserve (computed)</span>
+                    <div class="fv mono derived empty" data-settlement-computed-reserve-value="" data-not-applicable="Not applicable" data-rounded-up="repair cost rounded up to the next £50">Not applicable</div>
+                </div>
+        <div class="fc ro" data-field="settlement.reserve">
+                <span class="lbl">Reserve</span>
+            <div class="fv mono empty">Not recorded</div>
+        </div>
+        <div class="fc ro" data-field="settlement.diminution">
+                <span class="lbl">Diminution</span>
+            <div class="fv mono empty">Not recorded</div>
+        </div>
+        <div class="fc ro" data-field="settlement.hire_start">
+                <span class="lbl">Hire start</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        <div class="fc ro" data-field="settlement.hire_daily_cost">
+                <span class="lbl">Hire daily cost</span>
+            <div class="fv mono empty">Not recorded</div>
+        </div>
+        <div class="fc ro" data-field="settlement.repair_delays">
+                <span class="lbl">Repair delays</span>
+            <div class="fv multi empty">Not recorded</div>
+        </div>
+        <div class="fc ro" data-field="settlement.report_delay">
+                <span class="lbl">Report delay</span>
+            <div class="fv multi empty">Not recorded</div>
+        </div>
+                <div class="fc ro"><span class="lbl">Storage charge</span><div class="fv mono derived empty">Not recorded</div></div>
+            </div>
+        </div>
+
+        <div class="sub-panel" data-shown-when="total-loss" hidden="hidden" data-collapse="case.settlement.salvage" data-collapse-bound="true"><h3>Salvage <button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+</h3>
+            <div class="fg g4">
+        <div class="fc ro" data-field="settlement.salvage.at">
+                <span class="lbl">Salvage location</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        <div class="fc ro" data-field="settlement.salvage.agent">
+                <span class="lbl">Salvage agent</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        <div class="fc ro" data-field="settlement.salvage.agent_reference">
+                <span class="lbl">Salvage agent reference</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        <div class="fc ro" data-field="settlement.salvage.moved">
+                <span class="lbl">Salvage moved</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        <div class="fc ro" data-field="settlement.salvage.owner_retains">
+                <span class="lbl">Owner retains salvage</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        <div class="fc ro" data-field="settlement.salvage.value_agreed">
+                <span class="lbl">Salvage value agreed</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        <div class="fc ro" data-field="settlement.salvage.settled">
+                <span class="lbl">Salvage settled</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+                        
+<section class="record-section panel" id="section-report" data-section="report" data-collapse="case.report" data-report="" data-collapse-bound="true">
+    <div class="panel-head">
+        <h2 id="section-report-title">Report</h2>
+        <div class="panel-actions">
+                <span class="gated" data-report-gate="">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-lock"></use></svg>
+                    <span>Report not ready</span>
+                </span>
+                <form method="post" data-case-edit-form="" action="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?handler=ClaimLease">
+        <input type="hidden" name="id" value="0746fbd1-cd71-436a-8b53-409862c97cc1">
+        <input type="hidden" name="expectedVersion" value="0">
+        <input type="hidden" name="operationKey" value="882a714560bd4cb4951db9c33145ae0b">
+        <input type="hidden" name="section" value="report">
+        <input type="hidden" name="view">
+        <button type="submit" data-busy-label="Opening…" class="btn btn--small" data-section-edit="report">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil"></use></svg>
+            <span>Edit</span>
+        </button>
+    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAACbxd9m6Mlw764Cxcu26fRCWj1ejGK4JAKliewZLSkUgeEEU_mD6pFLNFFrpHjzkqi-usrAHzypvZNIjPNSKpkQ6cvZyaYuN8ECLc6V4yUBec_fn6ekvqTcysufrZsm_C4"></form>
+<button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+
+        </div>
+    </div>
+    <div class="panel-body stack">
+        <div class="report-tabs" role="tablist" aria-label="Report" data-report-tabs="" data-report-tabs-bound="true">
+            <button type="button" class="report-tab" role="tab" aria-selected="true" aria-controls="report-pane-report" data-report-tab="report" tabindex="0">Report</button>
+            <button type="button" class="report-tab" role="tab" aria-selected="false" aria-controls="report-pane-fee" data-report-tab="fee" tabindex="-1">Fee</button>
+        </div>
+        <div id="report-pane-report" class="stack" role="tabpanel" aria-label="Report" data-report-pane="report">
+        <div class="pv" data-report-preview-card="">
+            <div class="pv-thumb" aria-hidden="true"></div>
+            <div class="pv-meta">
+                <div class="pt" data-report-title="">Assessment Report — AU37DIT</div>
+                <div class="ps" data-report-status="">
+                        <span>No generation yet.</span>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="fg g4">
+            <div class="fc ro" data-field="reportDate">
+                    <span class="lbl">Report date</span>
+                <div class="fv derived empty">—</div>
+            </div>
+        <div class="fc span3 ro" data-field="narrative.engineers_comments">
+                <span class="lbl">Engineer's comments</span>
+            <div class="fv multi empty">Not recorded</div>
+        </div>
+        <div class="fc span4 ro" data-field="report.valuation_commentary_text">
+                <span class="lbl">Valuation commentary</span>
+            <div class="fv multi empty">Not recorded</div>
+        </div>
+            <div class="fc ro span4"><span class="lbl">Statement of truth</span><div class="fv derived multi">I declare that I understand my duty in providing this report to the court and I confirm that I have complied with that duty. I understand that this duty overrides any other obligation. The report is based upon instructions received.
+
+I confirm that I have made clear which facts and matters referred to in this report are within my own knowledge and which are not. Those that are within my own knowledge I confirm to be true. The opinions I have expressed represent my true and complete professional opinion on the matters to which they refer.
+
+Parts prices are subject to fluctuation and further damage may be found upon dismantling the vehicle. Our valuation is based on the mileage information provided and assuming that the vehicle has a valid MOT certificate (where applicable) to support such.
+
+We appreciate your instructions and enclose our fee note for your kind attention, which we confirm remains payable irrespective of the outcome of this case. Please ensure this is passed to your accounts department.</div></div>
+        </div>
+
+        </div>
+        <div id="report-pane-fee" class="stack" role="tabpanel" aria-label="Fee" data-report-pane="fee" hidden="">
+            <div class="fg g3" data-report-fee-fields="">
+        <div class="fc ro" data-field="fee.agreed_fee">
+                <span class="lbl">Agreed fee<span class="src-tag" data-provenance-word="Principal">Principal</span></span>
+            <div class="fv mono">£180.00</div>
+        </div>
+                <div class="fc ro" data-report-fee-note="vat">
+                    <span class="lbl">VAT</span>
+                    <div class="fv mono derived">£36.00</div>
+                </div>
+                <div class="fc ro" data-report-fee-note="total">
+                    <span class="lbl">Total</span>
+                    <div class="fv mono derived">£216.00</div>
+                </div>
+            </div>
+            <div class="fg">
+        <div class="fc ro" data-field="fee.description_lines">
+                <span class="lbl">Fee description</span>
+            <div class="fv multi empty">Not recorded</div>
+        </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+                    <section class="record-section panel is-tabbed" id="section-files" data-section="files" data-collapse="case.files" aria-labelledby="section-files-title" data-file-tabs-wrap="" data-collapse-bound="true" data-file-tabs-bound="true" data-file-tabs-active="documents">
+    <div class="panel-head">
+        <h2 id="section-files-title">Files</h2>
+            <span class="status status--amber status--plain" data-custody-chip="">Box case folder: preparing</span>
+        <div class="panel-actions">
+            <a class="btn btn--small btn--primary" data-add-evidence="" href="/Upload?caseId=0746fbd1-cd71-436a-8b53-409862c97cc1">
+                <svg class="icon" aria-hidden="true"><use href="#icon-upload"></use></svg>
+                <span>Add evidence</span>
+            </a>
+            <button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+
+        </div>
+    </div>
+    <div class="panel-body stack">
+        <div class="tabs" role="tablist" aria-label="Files" data-file-tabs="">
+            <button type="button" class="tab" role="tab" aria-selected="true" aria-controls="case-files-documents" data-file-tab="documents">Documents · 0</button>
+            <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="case-files-images" data-file-tab="images">Images · 0</button>
+            <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="case-files-correspondence" data-file-tab="correspondence">Correspondence · 0</button>
+        </div>
+        <div id="case-files-documents" role="tabpanel" data-file-tab-panel="documents">
+            <h3 class="tab-panel-title">Documents</h3>
+            
+    <p class="muted" data-documents-empty="">No documents on this Case.</p>
+
+        </div>
+        <div id="case-files-images" role="tabpanel" data-file-tab-panel="images" hidden="">
+            <h3 class="tab-panel-title">Images</h3>
+            
+    <p class="muted" data-images-empty="">No images on this Case.</p>
+
+        </div>
+        <div id="case-files-correspondence" role="tabpanel" data-file-tab-panel="correspondence" hidden="">
+            <h3 class="tab-panel-title">Correspondence</h3>
+            
+<div class="correspondence" data-correspondence="">
+        <div class="button-row">
+            <a class="btn btn--small" data-compose="" href="/Inbox/Compose?caseReference=QDOS31004">
+                <svg class="icon" aria-hidden="true"><use href="#icon-send"></use></svg>
+                <span>Compose</span>
+            </a>
+        </div>
+        <p class="muted" data-correspondence-empty="">No retained correspondence is associated with this Case.</p>
+</div>
+
+        </div>
+    </div>
+</section>
+                    <section class="record-section panel" id="section-notes" data-section="notes" data-collapse="case.notes" aria-labelledby="section-notes-title" data-collapse-bound="true">
+    <div class="panel-head">
+        <h2 id="section-notes-title">Notes</h2>
+        <div class="panel-actions">
+            <button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="true" aria-label="Collapse section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+
+        </div>
+    </div>
+    <div class="panel-body stack">
+            <form method="post" class="note-form" data-case-note-form="" action="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1/Tasks?handler=AddNote">
+                <input type="hidden" name="id" value="0746fbd1-cd71-436a-8b53-409862c97cc1">
+                <input type="hidden" name="operationKey" value="30482a3f78eb487680ddf377ff281779">
+                <input type="hidden" name="view">
+                <label class="lbl" for="case-note">Case note</label>
+                <textarea id="case-note" name="note" rows="2" required="" maxlength="2000"></textarea>
+                <div class="button-row">
+                    <button type="submit" data-busy-label="Adding…" class="btn btn--primary">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-plus"></use></svg>
+                        <span>Add Case note</span>
+                    </button>
+                </div>
+            <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAAApftcx_kmo-th1-wOKsZUj-i_SxMBYAPAf3GS4vo-U71hmKyM4cjGj2YhhTyQKK79hgUyj2EwFtLXZFdx_1MVlvjFRkqNj-CpOYQcrZV5Ndr3394aNbp7NnETaYox8zSw"></form>
+
+            <div class="notes-timeline" data-case-history="">
+                        <div class="note sys" data-history-event="manual_case_created">
+                            <div class="nw"><span>06 May 2031</span> <span>11:30</span></div>
+                            <div class="nb">
+                                <b>development-offline-administrator</b>
+ — Manual case created — Case created directly by staff.                            </div>
+                        </div>
+                        <div class="note sys" data-history-event="principal_guidance_applied">
+                            <div class="nw"><span>06 May 2031</span> <span>11:30</span></div>
+                            <div class="nb"><b>QDOS</b> — Principal guidance applied — Synthetic Principal guidance: review the retained instruction before preparing the assessment.</div>
+                        </div>
+            </div>
+    </div>
+</section>
+        </div>
+
+        <aside class="workspace-aside" aria-label="Case context" data-case-aside="">
+    <section class="panel context-card" data-figures="">
+        <div class="panel-head"><h2>Figures</h2></div>
+        <div class="panel-body">
+            <dl class="figures">
+                <div class="figure figure--big"><dt>Repair cost inc VAT</dt><dd class="mono">—</dd></div>
+                <div class="figure"><dt>Engineer's Value</dt><dd class="mono">—</dd></div>
+                <div class="figure"><dt>Repair cost of value</dt><dd class="mono">—</dd></div>
+            </dl>
+        </div>
+    </section>
+    <section class="panel context-card" data-next-action="">
+        <div class="panel-head"><h2>Next action</h2></div>
+        <div class="panel-body">
+                    <div class="next-step next-step--item" data-next-step="" data-case-requirement="">
+                        <strong data-next-label="">Original report missing</strong>
+                        <small>Audit</small>
+                        <a class="btn next-step-go" data-section-jump="files" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=files#section-files">Files</a>
+                    </div>
+        </div>
+    </section>
+        <section class="panel context-card report-not-ready is-collapsed" data-collapse="case.aside.report" data-collapse-folded="" data-report-not-ready="" data-collapse-bound="true">
+            <div class="panel-head">
+                <h2><svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle"></use></svg>Report not ready</h2>
+                <button type="button" class="icon-button panel-collapse" data-collapse-toggle="" aria-expanded="false" aria-label="Expand section" data-label-collapse="Collapse section" data-label-expand="Expand section" title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+</button>
+
+            </div>
+            <div class="panel-body">
+                    <div class="outstanding-block" data-case-requirements="">
+                            <h3><svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle"></use></svg>Outstanding requirements</h3>
+                        <ul class="blocker-list">
+                                <li class="blocker" data-case-requirement="">
+                                    <a class="blocker-name" data-section-jump="files" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=files#section-files">Original report missing</a>
+                                    <small>Audit</small>
+                                </li>
+                                <li class="blocker" data-case-requirement="">
+                                    <a class="blocker-name" data-section-jump="overview" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=overview#section-overview">Instructions incomplete</a>
+                                    <small>Case requirements · Details are incomplete</small>
+                                </li>
+                                <li class="blocker" data-case-requirement="">
+                                    <a class="blocker-name" data-section-jump="overview" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=overview#section-overview">Images incomplete</a>
+                                    <small>Case requirements · Details are incomplete</small>
+                                </li>
+                        </ul>
+                    </div>
+                    <div class="outstanding-block" data-report-blockers="">
+                            <h3><svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle"></use></svg>Report not ready</h3>
+                            <div class="blocker-group" data-blocker-group="overview">
+                                    <div class="blocker-group-head">Case details</div>
+                                <ul class="blocker-list">
+                                        <li class="blocker" data-report-blocker="overview">
+                                                <a class="blocker-name" data-section-jump="overview" data-section-tab="" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=overview#section-overview">Incident date</a>
+                                            <small>Case record · The report prints the incident date and none is recorded.</small>
+                                            <small class="blocker-how">Record it on the Case details section.</small>
+                                        </li>
+                                </ul>
+                            </div>
+                            <div class="blocker-group" data-blocker-group="inspection">
+                                    <div class="blocker-group-head">Inspection details</div>
+                                <ul class="blocker-list">
+                                        <li class="blocker" data-report-blocker="inspection">
+                                                <a class="blocker-name" data-section-jump="inspection" data-section-tab="" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=inspection#section-inspection">Inspection date</a>
+                                            <small>Case record · The report says the damage was assessed on the Inspection date and none is recorded.</small>
+                                            <small class="blocker-how">Record it on the Inspection details section.</small>
+                                        </li>
+                                        <li class="blocker" data-report-blocker="inspection">
+                                                <a class="blocker-name" data-section-jump="inspection" data-section-tab="" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=inspection#section-inspection">Inspection type</a>
+                                            <small>Case record · The report says how the vehicle was assessed and no inspection type is recorded.</small>
+                                            <small class="blocker-how">Choose Inspect at on the Inspection details section.</small>
+                                        </li>
+                                </ul>
+                            </div>
+                            <div class="blocker-group" data-blocker-group="vehicle">
+                                    <div class="blocker-group-head">Vehicle</div>
+                                <ul class="blocker-list">
+                                        <li class="blocker" data-report-blocker="vehicle">
+                                                <a class="blocker-name" data-section-jump="vehicle" data-section-tab="" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=vehicle#section-vehicle">Vehicle type</a>
+                                            <small>Assessment record · No value is recorded.</small>
+                                            <small class="blocker-how">Record it on the Vehicle section.</small>
+                                        </li>
+                                        <li class="blocker" data-report-blocker="vehicle">
+                                                <a class="blocker-name" data-section-jump="vehicle" data-section-tab="" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=vehicle#section-vehicle">Pre-incident condition</a>
+                                            <small>Assessment record · No value is recorded.</small>
+                                            <small class="blocker-how">Record it on the Vehicle section.</small>
+                                        </li>
+                                        <li class="blocker" data-report-blocker="vehicle">
+                                                <a class="blocker-name" data-section-jump="vehicle" data-section-tab="" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=vehicle#section-vehicle">Vehicle history check</a>
+                                            <small>Assessment record · No value is recorded.</small>
+                                            <small class="blocker-how">Record the vehicle history on the Vehicle section.</small>
+                                        </li>
+                                </ul>
+                            </div>
+                            <div class="blocker-group" data-blocker-group="damage">
+                                    <div class="blocker-group-head">Damage</div>
+                                <ul class="blocker-list">
+                                        <li class="blocker" data-report-blocker="damage">
+                                                <a class="blocker-name" data-section-jump="damage" data-section-tab="" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=damage#section-damage">Impact location</a>
+                                            <small>Assessment record · No value is recorded.</small>
+                                            <small class="blocker-how">Record a damage on the Damage section; the impact location is derived from it.</small>
+                                        </li>
+                                        <li class="blocker" data-report-blocker="damage">
+                                                <a class="blocker-name" data-section-jump="damage" data-section-tab="" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=damage#section-damage">Impact severity</a>
+                                            <small>Assessment record · No value is recorded.</small>
+                                            <small class="blocker-how">Record a damage on the Damage section; the impact severity is derived from it.</small>
+                                        </li>
+                                </ul>
+                            </div>
+                            <div class="blocker-group" data-blocker-group="valuation">
+                                    <div class="blocker-group-head">Valuation</div>
+                                <ul class="blocker-list">
+                                        <li class="blocker" data-report-blocker="valuation">
+                                                <a class="blocker-name" data-section-jump="valuation" data-section-tab="" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=valuation#section-valuation">Retail value</a>
+                                            <small>Assessment record · No value is recorded.</small>
+                                            <small class="blocker-how">Enter it on the Valuation section.</small>
+                                        </li>
+                                        <li class="blocker" data-report-blocker="valuation">
+                                                <a class="blocker-name" data-section-jump="valuation" data-section-tab="" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=valuation#section-valuation">Trade value</a>
+                                            <small>Assessment record · No value is recorded.</small>
+                                            <small class="blocker-how">Enter it on the Valuation section.</small>
+                                        </li>
+                                        <li class="blocker" data-report-blocker="valuation">
+                                                <a class="blocker-name" data-section-jump="valuation" data-section-tab="" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=valuation#section-valuation">Engineer's Value</a>
+                                            <small>Assessment record · No value is recorded.</small>
+                                            <small class="blocker-how">Enter it on the Valuation section.</small>
+                                        </li>
+                                </ul>
+                            </div>
+                            <div class="blocker-group" data-blocker-group="estimate">
+                                    <div class="blocker-group-head">Repair Spec</div>
+                                <ul class="blocker-list">
+                                        <li class="blocker" data-report-blocker="estimate">
+                                                <a class="blocker-name" data-section-jump="estimate" data-section-tab="" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=estimate#section-estimate">Current repair spec</a>
+                                            <small>Estimates · No repair spec is Current on the Case.</small>
+                                            <small class="blocker-how">Import an estimate, bring one back from Glass's or add a new repair spec on the Repair Spec section; Use repair spec switches to an existing one.</small>
+                                        </li>
+                                </ul>
+                            </div>
+                            <div class="blocker-group" data-blocker-group="settlement">
+                                    <div class="blocker-group-head">Decisions</div>
+                                <ul class="blocker-list">
+                                        <li class="blocker" data-report-blocker="settlement">
+                                                <a class="blocker-name" data-section-jump="settlement" data-section-tab="" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=settlement#section-settlement">Assessment outcome</a>
+                                            <small>Assessment record · No value is recorded.</small>
+                                            <small class="blocker-how">Record it on the Decisions section.</small>
+                                        </li>
+                                        <li class="blocker" data-report-blocker="settlement">
+                                                <a class="blocker-name" data-section-jump="settlement" data-section-tab="" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=settlement#section-settlement">Roadworthiness</a>
+                                            <small>Assessment record · No value is recorded.</small>
+                                            <small class="blocker-how">Record it on the Decisions section.</small>
+                                        </li>
+                                </ul>
+                            </div>
+                            <div class="blocker-group" data-blocker-group="files">
+                                    <div class="blocker-group-head">Files</div>
+                                <ul class="blocker-list">
+                                        <li class="blocker" data-report-blocker="files">
+                                                <a class="blocker-name" data-section-jump="files" data-section-tab="images" href="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1?section=files#section-files">Overview image</a>
+                                            <small>Case files · The report prints one Overview image and no image in the report is tagged Overview.</small>
+                                            <small class="blocker-how">Tag one Case image Overview on the Files section.</small>
+                                        </li>
+                                </ul>
+                            </div>
+                            <div class="blocker-group" data-blocker-group="accounts">
+                                    <div class="blocker-group-head">Staff accounts &amp; roles</div>
+                                <ul class="blocker-list">
+                                        <li class="blocker" data-report-blocker="">
+                                                <a class="blocker-name" data-blocker-accounts="" href="/Administration/Accounts">Sign-off Engineer</a>
+                                            <small>Case sign-off account · No staff account is a Sign-off Engineer with a signature on file.</small>
+                                            <small class="blocker-how">An Administrator sets a name and signature on the account in Accounts.</small>
+                                        </li>
+                                </ul>
+                            </div>
+                    </div>
+            </div>
+        </section>
+</aside>
+
+    </div>
+</article>
+
+<div data-case-viewer-host=""><div class="case-viewer" data-case-viewer="" hidden="" role="dialog" aria-modal="true" aria-label="Image viewer" tabindex="-1" data-viewer-bound="true">
+    <div class="case-viewer-top">
+        <div class="case-viewer-title">
+            <b data-viewer-name=""></b>
+            <span class="tag" data-viewer-tag="" hidden=""></span>
+            <span class="case-viewer-n" data-viewer-position=""></span>
+        </div>
+        <div class="case-viewer-tools" data-viewer-tools="">
+            <span class="case-viewer-set" data-viewer-view-tools="">
+                <button type="button" class="btn btn--small" data-viewer-rotate="">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw"></use></svg>
+                    <span>Rotate</span>
+                </button>
+                <button type="button" class="btn btn--small" data-viewer-zoom="">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-zoom-in"></use></svg>
+                    <span data-viewer-zoom-label="">Zoom</span>
+                </button>
+                <button type="button" class="btn btn--small" data-viewer-crop="" hidden="">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-crop"></use></svg>
+                    <span>Crop</span>
+                </button>
+                <a class="btn btn--small" data-viewer-download="" download="">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-download"></use></svg>
+                    <span data-viewer-download-label="">Download</span>
+                </a>
+                <label class="case-viewer-inc" data-viewer-in-report-wrap="" hidden="">
+                    <input type="checkbox" data-viewer-in-report="">
+                    <span>In report</span>
+                </label>
+            </span>
+            <span class="case-viewer-set" data-viewer-crop-tools="" hidden="">
+                <span class="case-viewer-n" data-viewer-crop-status=""></span>
+                <label class="sr-only" for="case-viewer-aspect">Aspect</label>
+                <select id="case-viewer-aspect" class="case-viewer-select" data-viewer-aspect="">
+                    <option value="free">Free</option>
+                    <option value="1">Square</option>
+                    <option value="1.3333333">4:3</option>
+                    <option value="1.7777778">16:9</option>
+                </select>
+                <button type="button" class="btn btn--small" data-viewer-crop-rotate="-90">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-rotate-ccw"></use></svg>
+                    <span>Rotate left</span>
+                </button>
+                <button type="button" class="btn btn--small" data-viewer-crop-rotate="90">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw"></use></svg>
+                    <span>Rotate right</span>
+                </button>
+                <button type="button" class="btn btn--small" data-viewer-crop-full="">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-image"></use></svg>
+                    <span>Full frame</span>
+                </button>
+                <button type="button" class="btn btn--small" data-viewer-crop-reset="">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-history"></use></svg>
+                    <span>Reset</span>
+                </button>
+                <button type="button" class="btn btn--small btn--primary" data-viewer-crop-save="">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check"></use></svg>
+                    <span>Save crop</span>
+                </button>
+                <button type="button" class="btn btn--small" data-viewer-crop-cancel="">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x"></use></svg>
+                    <span>Cancel</span>
+                </button>
+            </span>
+        </div>
+        <button type="button" class="icon-button" data-viewer-close="" aria-label="Close">
+            <svg class="icon" aria-hidden="true"><use href="#icon-x"></use></svg>
+        </button>
+    </div>
+    <button type="button" class="case-viewer-nav prev" data-viewer-prev="" aria-label="Previous">
+        <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left"></use></svg>
+    </button>
+    <div class="case-viewer-stage" data-viewer-stage="">
+        <img alt="" data-viewer-image="" hidden="">
+        <iframe title="" data-viewer-document="" hidden=""></iframe>
+        <video controls="" preload="metadata" data-viewer-video="" hidden=""></video>
+    </div>
+    <button type="button" class="case-viewer-nav next" data-viewer-next="" aria-label="Next">
+        <svg class="icon" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+    </button>
+    <div class="case-viewer-strip" data-viewer-strip=""></div>
+</div>
+</div>
+<div data-case-dialogs="">
+        <div id="case-hold-dialog" class="dialog-backdrop" data-dialog="case-hold-dialog" hidden="" data-dialog-bound="true">
+            <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-hold-dialog-title">
+                <div class="dialog-head">
+                    <h2 id="case-hold-dialog-title" tabindex="-1">Place on Hold</h2>
+                    <button type="button" class="dialog-close" data-dialog-close="" aria-label="Close dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-x"></use></svg>
+                    </button>
+                </div>
+                <form method="post" action="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1/Workflow?handler=Hold">
+                    <input type="hidden" name="id" value="0746fbd1-cd71-436a-8b53-409862c97cc1">
+                    <input type="hidden" name="expectedVersion" value="0">
+                    <input type="hidden" name="operationKey" value="5b1adb74a82c4abe917b5d916df7a331">
+                    <input type="hidden" name="view">
+                    <div class="dialog-body stack">
+                        <div class="field">
+                            <label class="req" for="case-hold-reason">Reason for action</label>
+                            <textarea id="case-hold-reason" name="reason" rows="3" required="" maxlength="500" data-dialog-initial-focus=""></textarea>
+                        </div>
+                        <div class="field">
+                            <label for="case-hold-review-on">Review on</label>
+                            <input id="case-hold-review-on" name="reviewOn" type="date" min="2026-10-09">
+                        </div>
+                    </div>
+                    <div class="dialog-foot">
+                        <button type="button" class="btn" data-dialog-close="">Cancel</button>
+                        <button type="submit" data-busy-label="Placing on hold…" class="btn btn--primary">Place on Hold</button>
+                    </div>
+                <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAACbxd9m6Mlw764Cxcu26fRCWj1ejGK4JAKliewZLSkUgeEEU_mD6pFLNFFrpHjzkqi-usrAHzypvZNIjPNSKpkQ6cvZyaYuN8ECLc6V4yUBec_fn6ekvqTcysufrZsm_C4"></form>
+            </section>
+        </div>
+    <div id="case-correct-principal-dialog" class="dialog-backdrop" data-dialog="case-correct-principal-dialog" hidden="" data-dialog-bound="true">
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-correct-principal-dialog-title">
+            <div class="dialog-head">
+                <h2 id="case-correct-principal-dialog-title" tabindex="-1">Correct principal</h2>
+                <button type="button" class="dialog-close" data-dialog-close="" aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x"></use></svg>
+                </button>
+            </div>
+            <form method="post" action="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1/Workflow?handler=CreateLinkedReplacement">
+                <input type="hidden" name="id" value="0746fbd1-cd71-436a-8b53-409862c97cc1">
+                <input type="hidden" name="expectedVersion" value="0">
+                <input type="hidden" name="operationKey" value="19d8ef13b11246cebc2c8842df35ce1d">
+                <input type="hidden" name="view">
+                <div class="dialog-body stack">
+                    <div class="notice notice--warning">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle"></use></svg>
+                        <span>Record Created in error and create the linked replacement case.</span>
+                    </div>
+                    <div class="field">
+                        <label class="req" for="case-replacement-principal">Replacement principal code</label>
+                        <input id="case-replacement-principal" name="replacementPrincipalCode" required="" maxlength="100" data-dialog-initial-focus="">
+                    </div>
+                    <div class="field">
+                        <label class="req" for="case-replacement-reason">Reason for action</label>
+                        <textarea id="case-replacement-reason" name="reason" rows="3" required="" maxlength="500"></textarea>
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close="">Cancel</button>
+                    <button type="submit" data-busy-label="Creating…" class="btn btn--danger">Create linked replacement</button>
+                </div>
+            <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAACbxd9m6Mlw764Cxcu26fRCWj1ejGK4JAKliewZLSkUgeEEU_mD6pFLNFFrpHjzkqi-usrAHzypvZNIjPNSKpkQ6cvZyaYuN8ECLc6V4yUBec_fn6ekvqTcysufrZsm_C4"></form>
+        </section>
+    </div>
+
+
+    <div id="case-close-dialog" class="dialog-backdrop" data-dialog="case-close-dialog" hidden="" data-dialog-bound="true">
+        <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-close-dialog-title">
+            <div class="dialog-head">
+                <h2 id="case-close-dialog-title" tabindex="-1">Close case</h2>
+                <button type="button" class="dialog-close" data-dialog-close="" aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x"></use></svg>
+                </button>
+            </div>
+            <form method="post" action="/Cases/0746fbd1-cd71-436a-8b53-409862c97cc1/Closure?handler=Close">
+                <input type="hidden" name="id" value="0746fbd1-cd71-436a-8b53-409862c97cc1">
+                <input type="hidden" name="expectedVersion" value="0">
+                <input type="hidden" name="operationKey" value="4b19971be5bb498e9baf29a226e34c92">
+                <input type="hidden" name="view">
+                <div class="dialog-body stack">
+                    <div class="field">
+                        <label class="req" for="case-close-outcome">Outcome</label>
+                        <select id="case-close-outcome" name="outcome" required="" data-dialog-initial-focus="">
+                            <option value=""></option>
+                                <option value="PrincipalCancelled">Cancelled</option>
+                                <option value="CollisionEngineersRejected">Collision Engineers rejected</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label class="req" for="case-close-reason">Reason for action</label>
+                        <textarea id="case-close-reason" name="reason" rows="3" required="" maxlength="500"></textarea>
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close="">Cancel</button>
+                    <button type="submit" data-busy-label="Closing…" class="btn btn--danger btn--danger-solid">Close case</button>
+                </div>
+            <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAACbxd9m6Mlw764Cxcu26fRCWj1ejGK4JAKliewZLSkUgeEEU_mD6pFLNFFrpHjzkqi-usrAHzypvZNIjPNSKpkQ6cvZyaYuN8ECLc6V4yUBec_fn6ekvqTcysufrZsm_C4"></form>
+        </section>
+    </div>
+
+
+
+
+</div>
+
+                </div>
+            </main>
+        </div>
+    </div>
+    
+<div class="dialog-backdrop" data-dialog="account-dialog" hidden="" data-dialog-bound="true">
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="account-dialog-title">
+        <div class="dialog-head">
+            <h2 id="account-dialog-title" tabindex="-1">Account</h2>
+            <button type="button" class="dialog-close" data-dialog-close="" aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x"></use></svg>
+            </button>
+        </div>
+        <div class="dialog-body">
+            <div class="definition-list">
+                <dl class="definition"><dt>Name</dt><dd>integration-user</dd></dl>
+                <dl class="definition"><dt>Role</dt><dd>Administrator</dd></dl>
+                <dl class="definition"><dt>Idle lock</dt><dd>2 hours</dd></dl>
+            </div>
+        </div>
+        <div class="dialog-foot">
+            <button type="button" class="btn" data-dialog-close="">Close</button>
+            <a class="btn" href="/ReleaseNotes">
+                <svg class="icon" aria-hidden="true"><use href="#icon-flag"></use></svg>
+                <span>Release notes</span>
+            </a>
+            <button type="button" class="btn" data-dialog-open="problem-dialog" data-dialog-open-bound="true">
+                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle"></use></svg>
+                <span>Report a problem</span>
+            </button>
+            <a class="btn" href="/Account/PasswordChange">
+                <svg class="icon" aria-hidden="true"><use href="#icon-key"></use></svg>
+                <span>Change password</span>
+            </a>
+            <form method="post" action="/Account/SignOut">
+                <button type="submit" class="btn btn--danger" data-busy-label="Signing out…">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-log-out"></use></svg>
+                    <span>Sign out</span>
+                </button>
+            <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAACbxd9m6Mlw764Cxcu26fRCWj1ejGK4JAKliewZLSkUgeEEU_mD6pFLNFFrpHjzkqi-usrAHzypvZNIjPNSKpkQ6cvZyaYuN8ECLc6V4yUBec_fn6ekvqTcysufrZsm_C4"></form>
+        </div>
+    </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="notifications-dialog" data-dialog-open-on-load="" hidden="" data-dialog-bound="true">
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="notifications-dialog-title">
+        <div class="dialog-head">
+            <h2 id="notifications-dialog-title" tabindex="-1">Notifications</h2>
+            <button type="button" class="dialog-close" data-dialog-close="" aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x"></use></svg>
+            </button>
+        </div>
+        <div class="dialog-body dialog-body--list">
+                <p class="empty-state" role="status">No notifications</p>
+        </div>
+        <div class="dialog-foot">
+            <button type="button" class="btn btn--dark" data-dialog-close="">Close</button>
+        </div>
+    </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="command-dialog" hidden="" data-dialog-bound="true">
+    <section class="dialog command-dialog" role="dialog" aria-modal="true" aria-labelledby="command-dialog-title">
+        <div class="dialog-head">
+            <h2 id="command-dialog-title" tabindex="-1">Search Pegasus</h2>
+            <button type="button" class="dialog-close" data-dialog-close="" aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x"></use></svg>
+            </button>
+        </div>
+        <div class="command-search">
+            <label class="sr-only" for="command-input">Search</label>
+            <input id="command-input" type="search" autocomplete="off" data-command-palette-input="" aria-controls="command-results">
+        </div>
+        <div id="command-results" class="command-results" role="listbox" aria-label="Search results" data-command-results="">
+            <button type="button" class="command-result" role="option" aria-selected="true" data-route="/">
+                <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard"></use></svg>
+                <span><strong>Work Centre</strong></span>
+            </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Inbox">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-inbox"></use></svg>
+                    <span><strong>Inbox</strong></span>
+                </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Upload">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-upload"></use></svg>
+                    <span><strong>Upload</strong></span>
+                </button>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Cases">
+                <svg class="icon" aria-hidden="true"><use href="#icon-list"></use></svg>
+                <span><strong>Cases</strong></span>
+            </button>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Search">
+                <svg class="icon" aria-hidden="true"><use href="#icon-folder-open"></use></svg>
+                <span><strong>Search</strong></span>
+            </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Administration">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-grid"></use></svg>
+                    <span><strong>Administration</strong></span>
+                </button>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Search?query=" data-command-fallback="" hidden="">
+                <svg class="icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+                <span><strong>Search Cases for <span data-command-fallback-term=""></span></strong></span>
+                <span class="kbd" aria-hidden="true">Enter</span>
+            </button>
+        </div>
+    </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="problem-dialog" hidden="" data-dialog-bound="true">
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="problem-dialog-title">
+        <form method="post" data-problem-form="" data-problem-case-sections="overview,claim,original-report,inspection,vehicle,damage,valuation,estimate,settlement,report,files,notes" action="/ProblemReports?handler=Report">
+            <input type="hidden" name="operationKey" value="f3822132658f417dabe29652565de6d7">
+            <div class="dialog-head">
+                <h2 id="problem-dialog-title" tabindex="-1">Report a problem</h2>
+                <button type="button" class="dialog-close" data-dialog-close="" aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x"></use></svg>
+                </button>
+            </div>
+            <div class="dialog-body stack">
+                <input type="hidden" name="returnUrl" value="" data-problem-return="">
+                <input type="hidden" name="route" value="" data-problem-route="">
+                <input type="hidden" name="method" value="GET">
+                <input type="hidden" name="traceId" value="00-c1cf3a206a1abf003e1243e340dce1f1-47a2c81184b469f8-00">
+                <input type="hidden" name="caseReference" value="" data-problem-case="">
+                <input type="hidden" name="viewport" value="" data-problem-viewport="">
+                <input type="hidden" name="editing" value="false" data-problem-editing="">
+                <input type="hidden" name="errors" value="" data-problem-errors="">
+                <div class="field">
+                    <label for="problem-description">What happened</label>
+                    <textarea id="problem-description" name="description" rows="6" maxlength="4000" required=""></textarea>
+                </div>
+            </div>
+            <div class="dialog-foot">
+                <button type="button" class="btn" data-dialog-close="">Cancel</button>
+                <button type="submit" class="btn btn--primary" data-busy-label="Sending…">Send</button>
+            </div>
+        <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAACbxd9m6Mlw764Cxcu26fRCWj1ejGK4JAKliewZLSkUgeEEU_mD6pFLNFFrpHjzkqi-usrAHzypvZNIjPNSKpkQ6cvZyaYuN8ECLc6V4yUBec_fn6ekvqTcysufrZsm_C4"></form>
+    </section>
+</div>
+
+    <div class="toast-region" aria-live="polite" data-toast-region=""></div>
+
+    <script src="/js/site.kdtdjx6jqp.js"></script>
+    <script src="/js/edit-scope-release.35sdkoqoov.js"></script>
+    
+        <script src="/js/case-workspace.yl556t3rhq.js"></script>
+
+
+
+</body></html>

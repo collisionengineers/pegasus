@@ -94,7 +94,8 @@
     }
     function saveLayout() {
         if (window.pegasusPreferences) {
-            window.pegasusPreferences.write(layoutCookie, layout);
+            // The choice lasts as the fold and rail choices do, not the session (v36 item U).
+            window.pegasusPreferences.write(layoutCookie, layout, window.pegasusPreferences.year);
         }
     }
 
@@ -163,7 +164,8 @@
             }
         });
         openSubTab(sectionFor(key), tab);
-        window.scrollTo({ top: 0, behavior: 'auto' });
+        // Instant: the page's own smooth scroll would glide a tab switch to the top (v36 item U).
+        window.scrollTo({ top: 0, behavior: 'instant' });
     }
     function setLayout(value, persist) {
         navigationVersion += 1;
@@ -314,7 +316,7 @@
     function scrollSectionIntoView(host) {
         measure();
         var top = window.scrollY + host.getBoundingClientRect().top - readingLine() - 8;
-        window.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
+        window.scrollTo({ top: Math.max(0, top), behavior: 'instant' });
     }
     function focusSection(host) {
         var heading = host.querySelector('h2');
@@ -1029,7 +1031,9 @@
         measure();
         // A section redrawn above the reading line may have grown or shrunk;
         // the section at the reading line stays where it was on the screen.
-        if (!keepSections || (catchingUp && !editingEnded)) { keep(saved); }
+        // A landed commit's swap of the notices and ribbon can grow or shrink
+        // what stands above the reading line too (v36 item T).
+        if (!keepSections || (catchingUp && !editingEnded) || commitLanded) { keep(saved); }
         // The whole record drawn afresh leaves no section to follow a save.
         if (!keepSections) { redrawWanted = false; }
         if (commitLanded) {
@@ -1252,12 +1256,14 @@
         }
     }
 
-    // A document action posts at once and the sections stay as the operator
-    // has them. Only what the action changed is drawn again: the image's tile
-    // (or every tag picker, for a new tag), the notices and the aside. A tag
-    // moves the Case version and the edit lease, so the new pair is carried
-    // into every form that held the old one, the Save form included: the
-    // next commit still carries the Case's authority.
+    // A document action posts at once. What the action changed is drawn
+    // again: the image's tile (or every tag picker, for a new tag), the
+    // notices and the aside. A tag or In report can clear a report blocker,
+    // so the other sections then follow it as they follow a save, Files and
+    // Notes staying as loaded. A tag moves the Case version and the edit
+    // lease, so the new pair is carried into every form that held the old
+    // one, the Save form included: the next commit still carries the Case's
+    // authority.
     function submitDocumentAction(form, submitter) {
         var body = new FormData(form, submitter && submitter.name ? submitter : undefined);
         var previousLease = body.get('editLeaseToken');
@@ -1294,6 +1300,9 @@
             if (tileId) {
                 if (changesTile) { redrawImageTile(parsed, tileId, toReport); } else { redrawTagPickers(parsed, tileId); }
             }
+            // The Report's head and every section reading the image follow
+            // once nothing waits, as after a save.
+            if (changesTile && incoming.getAttribute('data-case-editing') === 'true') { redrawWanted = true; }
             announceNotices();
             done = true;
         }).catch(function (error) {
@@ -1557,8 +1566,8 @@
             if (next !== form) { idle(form); }
             busy(next, button);
             // A document action (tag, untag, new tag, In report) while editing
-            // is not an edit of the Case: it posts at once and redraws only
-            // its own tile, so the sections stay as the operator has them.
+            // is not an edit of the Case: it posts at once and redraws its own
+            // tile, and the other sections follow it as they follow a save.
             if (next.hasAttribute('data-document-action') && record.getAttribute('data-case-editing') === 'true') {
                 submitDocumentAction(next, button);
                 return;
@@ -4182,7 +4191,7 @@
             var legal = control(section.querySelector('[data-decision="assessment.legal_status"]'));
             var reserveRead = section.querySelector('[data-settlement-computed-reserve-value]');
             var repairCost = parseFloat(section.getAttribute('data-settlement-repair-cost')) || 0;
-            bindRadios(section);
+            // The Decisions choices are selects; the v28 P29 radio group is gone (v36 item J).
             bindSalvageShare(section);
             bindSalvageMatrix(section);
             bindReasonBank(section);
@@ -4974,7 +4983,7 @@
             set(id, { rotation: crop.rotation, crop: selection });
             state.rotation = crop.rotation;
             render();
-            if (typeof window.pegasusToast === 'function') { window.pegasusToast('The crop was staged. Save the Case to keep it.'); }
+            if (typeof window.pegasusToast === 'function') { window.pegasusToast('The crop was staged.'); }
         }
         function cropRotate(degrees) {
             if (!state.crop) { return; }

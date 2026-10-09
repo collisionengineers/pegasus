@@ -45,7 +45,7 @@ public sealed class CaseWorkflowWebTests
     }
 
     [Fact]
-    public async Task NativeHandoffDialogCanAssignAnEnabledUserWithoutASeparateReviewAction()
+    public async Task NativeHandoffDialogAssignsAnEnabledUserWithoutASeparateReviewActionAndKeepsEditing()
     {
         var engineerId = Guid.NewGuid();
         var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
@@ -83,8 +83,18 @@ public sealed class CaseWorkflowWebTests
         AssertLeasedMutation(workspace, handoff, InputValue(dialog, "operationKey"), "Assign Engineer");
         Assert.Equal(engineerId, handoff.EngineerId);
         Assert.Empty(store.Transitions);
-        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.WorkCentre.Assigned,
-            await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
+
+        // Assigning while editing keeps the edit session (operator, 9 October
+        // 2026): the redirected page still edits, with a lease in the edit form.
+        var landed = await GetHtmlAsync(workspace.Client, response.Headers.Location!.OriginalString);
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.WorkCentre.Assigned, landed, StringComparison.Ordinal);
+        Assert.Contains("data-case-editing=\"true\"", landed, StringComparison.Ordinal);
+        var editForm = landed[landed.IndexOf("id=\"case-edit-form\"", StringComparison.Ordinal)..];
+        editForm = editForm[..editForm.IndexOf("</form>", StringComparison.Ordinal)];
+        Assert.Contains(
+            $"name=\"editLeaseToken\" value=\"{store.LeaseToken}\"",
+            editForm,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -266,7 +276,11 @@ public sealed class CaseWorkflowWebTests
         AssertPrg(holdResponse, store.CaseId);
         AssertPrg(releaseResponse, store.CaseId);
         AssertPrg(handoffResponse, store.CaseId);
-        var actorSubjectId = Assert.Single(store.Claims).Actor.SubjectId;
+        // The edit session's claim, then one reclaim after each action: an
+        // action taken inside the session keeps it (operator, 9 October 2026).
+        Assert.Equal(4, store.Claims.Count);
+        var actorSubjectId = store.Claims[0].Actor.SubjectId;
+        Assert.All(store.Claims, claim => Assert.Equal(actorSubjectId, claim.Actor.SubjectId));
         var hold = Assert.Single(store.Holds);
         var release = Assert.Single(store.Releases);
         var handoff = Assert.Single(store.EngineerAssignments);
