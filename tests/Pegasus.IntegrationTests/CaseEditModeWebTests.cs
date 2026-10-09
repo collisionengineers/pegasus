@@ -777,12 +777,9 @@ public sealed class CaseEditModeWebTests
             editing,
             StringComparison.Ordinal);
         Assert.Contains("name=\"claimNumber\"", editing, StringComparison.Ordinal);
-        // Our ref is the Case's own immutable reference: a greyed cell with no
-        // control and no padlock, reading the same in both modes.
-        Assert.Contains(
-            "<div class=\"fc ro\"><span class=\"lbl\">Our ref</span><div class=\"fv mono\">QDOS3100042</div></div>",
-            editing,
-            StringComparison.Ordinal);
+        // Case type, Our ref and Principal are the ribbon's facts and are not
+        // repeated as greyed cells (v36 item E, 9 October 2026).
+        Assert.DoesNotContain(">Our ref</span>", editing, StringComparison.Ordinal);
         Assert.DoesNotContain("icon lk", editing, StringComparison.Ordinal);
         Assert.DoesNotContain(">Our ref</label>", editing, StringComparison.Ordinal);
 

@@ -90,8 +90,9 @@ action** and, while anything is outstanding, **Report not ready** (operator,
 per-kind action and one step: the first outstanding Case requirement while
 the Case is Not ready or Held, else the state's own step, else, while the
 report is not ready, its first blocker in page order. A requirement or a
-blocker as the step is drawn in full (what is missing, its source and reason,
-what clears it) with one full-width control to where it is cleared; a step
+blocker as the step is drawn in full (what is missing, its source and reason)
+with one full-width control to where it is cleared, and no sentence on how
+to resolve it: the control is the how (v36 item AB, 9 October 2026); a step
 whose control says what the step says, such as Assign Engineer or Create
 audit, is that control alone, and any other step names itself above its
 section's control.
@@ -100,8 +101,8 @@ the browser opens it and remembered per browser like the section folds. It
 lists everything outstanding, the step's own item included: every
 outstanding Case requirement, in whatever state, then the report's
 readiness list, every blocker under the name of the section that
-clears it, each with the requirement as its link, its source, why it is
-outstanding and what clears it
+clears it, each with the requirement as its link, its source and why it is
+outstanding; the link is what clears it (9 October 2026)
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
 Original report missing links to Files, where Mark as original report is;
 the other Case requirements link to Case details. The card is headed
@@ -348,9 +349,11 @@ from the instruction email, also has **Original report missing**, sourced
 from Audit.
 
 Then the Case and Principal cards, each folding and staying folded per
-browser; the Sign-off Engineer is decided on the Case card. Identity cells (Case type, Our ref,
-Received, Principal) stay greyed while the rest edits, with no padlock; the Case card carries the derived Matter line and, once a
-report has been sent, when and from which mailbox. The Claim source is chosen from the active
+browser; the Sign-off Engineer is decided on the Case card. Case type, Our ref and Principal are
+the ribbon's facts and are not repeated as cells (v36 item E, 9 October 2026); Received stays a
+greyed cell, with no padlock; the Case card carries the derived Matter line across its foot and, once a
+report has been sent, when and from which mailbox. A select's empty option carries the cell's
+absent word (Not recorded, Unassigned), so the control reads as the box does. The Claim source is chosen from the active
 Claim Source contacts. A Notes band shows the Principal's and the Claim
 source's Notes on every Case, read-only and absent when the record has none
 ([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),
@@ -359,7 +362,8 @@ circumstances beside Notes from client.
 
 ### Claim
 
-The claimant's cells four across — name, contact, address, Claimant VAT
+The claimant's cells four across — name, contact, address (spanning two
+cells, so it neither wraps reading nor clips editing; 9 October 2026), Claimant VAT
 status (the instruction's words, not the repairer's status the Repair Spec
 records; operator, 28 September 2026) — and,
 beside them, the Engineer's decision on the claimant's VAT registration,
@@ -439,7 +443,8 @@ returns it (operator, 24 September 2026). One **Look up DVLA & MOT** action
 that neither staff nor the Automation Actor has recorded, and records the
 lookup's own facts. It never overwrites an extracted, staff-entered or
 Automation-recorded value. There is no checks panel and
-no suggestion table. Run Experian check stays the disabled seam. A labelled
+no suggestion table. The Experian seam is stated once, on the Vehicle history
+area (v36 item K, 9 October 2026); the section head carries no pill. The
 Vehicle history area holds the history-check narrative as read-only text,
 editable in edit mode
 ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)).
@@ -491,7 +496,8 @@ its Retail, Trade and Guide month holding that source's latest recorded
 figures (no mileage: the Case's own is used, operator, 24 September 2026), as
 text while reading and as inputs in the same place while editing; any box may
 be blank and is saved as entered. While editing, the boxes belong to the Case
-form, and a connected source's card has **Get valuation**, which asks the
+form, and a connected source's card has **Get valuation**, a small button
+centred at the card's foot (operator, 9 October 2026), which asks the
 provider for the Case's accepted registration and mileage in that month and
 fills the boxes in place, without redrawing the page. Glass's and Cazana are
 the connected sources; a Glass's valuation's PDF report is filed on the Case's
@@ -499,9 +505,13 @@ Documents after the figures have answered and appears there on the next load
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
 A source with no connected provider shows "{Source} valuation is
 unavailable. Contact an administrator or report a problem." on its card from
-the start and offers no Get valuation (28 September 2026, kept 8 October
-2026); a connected source that cannot answer shows the same sentence when
-pressed.
+the start, as one quiet line under its figures rather than a notice box
+(operator, 9 October 2026), and offers no Get valuation (28 September 2026,
+kept 8 October 2026); a connected source that cannot answer shows the same
+sentence as its notice when pressed. Reading keeps the Value increases
+sub-panel, the deductions and the Calculation line in the same geometry as
+editing, greyed, so entering edit grows nothing (operator, 9 October 2026);
+the sub-panel still lists only what the calculation applied (8 October 2026).
 A card has no Save of its own (23 September 2026): each save records
 every card whose figures changed, a card left blank or unchanged records
 nothing, and the same source and month replaces the earlier card; a typed
@@ -588,10 +598,15 @@ Repair Spec carries the specification set and raw estimate import. See
 Decisions shows outcome, category, salvage value, roadworthiness with the
 unroadworthy reason and, only while the vehicle is recorded unroadworthy,
 whether temporary repairs are possible with their method and cost (operator,
-24 September 2026), excess, betterment, claimant VAT registered, reserve,
-equity (derived), repair duration and delays, report delay, storage per day,
-recovery, hire start and daily cost, diminution and salvage logistics.
-Financial ratio lines are permitted. The field meanings are owned by
+24 September 2026), excess, betterment, labour hours (read-only, from the
+Current repair spec), claimant VAT registered, reserve, repair duration and
+delays, report delay, storage per day and the recovery charge (recorded here
+since 9 October 2026), hire start and daily cost, diminution and salvage
+logistics. A recorded choice (outcome, category, roadworthiness) reads as the
+greyed value box and edits as a select whose empty option is Not recorded
+(operator, 9 October 2026; the v28 radio group is gone). There is no figures
+strip: the aside's Figures card is the home of the repair cost, the Engineer's
+Value and their ratio (operator, 9 October 2026). The field meanings are owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement).
 
 ### Report
@@ -610,8 +625,9 @@ The content switches are under **On the report** in Valuation. The report
 renders the sign-off Engineer tuple and the marked damage diagram. The
 diagram is the Case page's own plan: the report and the Damage section draw
 the same vehicle and place each burst alike (operator, 27 September 2026). The
-**Statement of truth** cell shows the accepted statement the report prints,
-read-only; no Case edits it
+**Statement of truth** is a sub-panel folded until the browser opens it,
+remembered per browser (v36 item P, 9 October 2026); its cell shows the accepted
+statement the report prints, read-only; no Case edits it
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes)).
 
 **The report card** names the report and says where it stands in plain words

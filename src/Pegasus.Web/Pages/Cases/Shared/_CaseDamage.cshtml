@@ -171,12 +171,9 @@
                     <text class="damage-diagram-label" x="120" y="431" text-anchor="middle">@DamageLabels.Rear</text>
                 </svg>
                 <div class="dv-readout" data-damage-readout aria-live="polite"></div>
-                @if (editable)
-                {
-                        <button type="button" class="btn btn--small" data-damage-reset><svg class="icon" aria-hidden="true"><use href="#icon-undo" /></svg><span>@DamageLabels.Reset</span></button>
-                }
                 @* The chips stand in the same place in both modes: pressable while
-                   the section edits, a greyed reading of what is recorded otherwise. *@
+                   the section edits, a greyed reading of what is recorded otherwise.
+                   Reset shares their row, at its right (v36 f23). *@
                 <div class="damage-extra" aria-label="@DamageLabels.OtherAreas">
                     @foreach (var extra in AssessmentVocabulary.DamageOtherAreas)
                     {
@@ -190,13 +187,17 @@
                             <span class="btn btn--small is-static @(recorded ? "is-damaged" : null)" data-damage-area="@extra">@DamageLabels.Location(extra)</span>
                         }
                     }
+                    @if (editable)
+                    {
+                        <button type="button" class="btn btn--small" data-damage-reset><svg class="icon" aria-hidden="true"><use href="#icon-undo" /></svg><span>@DamageLabels.Reset</span></button>
+                    }
                 </div>
             </div>
             <div class="damage-facts">
-                <div class="fg g3">
+                @* No count of recorded areas: the list under these says what is recorded (v36 item L, 9 October 2026). *@
+                <div class="fg g2">
                     <div class="fc ro"><span class="lbl">@EngineerLabels.ImpactLocation</span><div class="fv derived" data-damage-location>@locationText</div></div>
                     <div class="fc ro"><span class="lbl">@EngineerLabels.ImpactSeverity</span><div class="fv derived" data-damage-severity>@severityText</div></div>
-                    <div class="fc ro"><span class="lbl">@DamageLabels.RecordedAreas</span><div class="fv" data-damage-count>@impacts.Count</div></div>
                 </div>
                 <ul class="impact-list" data-damage-impact-list aria-label="@DamageLabels.RecordedAreas">
                     @if (impacts.Count == 0)
@@ -251,8 +252,8 @@
                             var recorded = Recorded(field.Key);
                             var name = CaseWorkspaceLabels.Editors.FormName(field.Key);
                             var mayEditField = Model.CanEditAssessmentField(field.Key);
-                            var span = field.Key == AssessmentVocabulary.DamageMaterialTransfer ? "span2" : null;
-                            <div class="fc @span @(mayEditField ? null : "ro")">
+                            @* One cell each, so Airbags deployed shares the last row (v36 f24). *@
+                            <div class="fc @(mayEditField ? null : "ro")">
                                 @{ Lbl(mayEditField, "edit-" + field.Key, field.Value); }
                                 <div class="fv @(recorded is null ? "empty" : null)">@DisplayValue(field.Key, recorded)</div>
                                 @if (mayEditField)
@@ -260,7 +261,7 @@
                                     if (definition.Type == AssessmentFieldType.Enumerated)
                                     {
                                         <select id="edit-@field.Key" class="fi" name="@name" form="case-edit-form">
-                                            <option value="" selected="@(value is null)"></option>
+                                            <option value="" selected="@(value is null)">@OperatorLabels.CaseWorkspace.AbsentValue</option>
                                             @foreach (var code in definition.Codes ?? [])
                                             {
                                                 <option value="@code" selected="@(value == code)">@DamageLabels.CodeWord(code)</option>
@@ -285,7 +286,8 @@
                         var mayEditUnrelated = Model.CanEditAssessmentField(AssessmentVocabulary.DamageUnrelated);
                         var mayEditDeduction = Model.CanEditAssessmentField(AssessmentVocabulary.DamageUnrelatedDeduction);
                     }
-                    <div class="fc span3 @(mayEditUnrelated ? null : "ro")">
+                    @* Unrelated damage and its deduction share one row at half width each, so the deduction label is never cut (v36 f21). *@
+                    <div class="fc span2 @(mayEditUnrelated ? null : "ro")">
                         @{ Lbl(mayEditUnrelated, "edit-" + AssessmentVocabulary.DamageUnrelated, damageFields[AssessmentVocabulary.DamageUnrelated]); }
                         <div class="fv @(unrelatedRead == OperatorLabels.CaseWorkspace.AbsentValue ? "empty" : null)">@unrelatedRead</div>
                         @if (mayEditUnrelated)
@@ -293,7 +295,7 @@
                             <input id="edit-@AssessmentVocabulary.DamageUnrelated" class="fi" name="@CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelated)" form="case-edit-form" value="@unrelated" maxlength="@AssessmentVocabulary.Definitions[AssessmentVocabulary.DamageUnrelated].MaximumLength" />
                         }
                     </div>
-                    <div class="fc @(mayEditDeduction ? null : "ro")">
+                    <div class="fc span2 @(mayEditDeduction ? null : "ro")">
                         @{ Lbl(mayEditDeduction, "edit-" + AssessmentVocabulary.DamageUnrelatedDeduction, damageFields[AssessmentVocabulary.DamageUnrelatedDeduction]); }
                         <div class="fv mono @(deductionRecorded is null ? "empty" : null)">@DisplayValue(AssessmentVocabulary.DamageUnrelatedDeduction, deductionRecorded)</div>
                         @if (mayEditDeduction)

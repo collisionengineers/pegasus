@@ -112,11 +112,6 @@
                             </label>
                         }
                         <span class="valuation-card-word" data-valuation-chosen-word hidden="@(selected ? null : "hidden")">@ValuationLabels.Selected</span>
-                        @if (connected)
-                        {
-                            <button type="button" class="btn btn--small" data-valuation-get data-busy-label="@OperatorLabels.Busy.LookingUp" data-busy-done="@OperatorLabels.Busy.Done.Valued" data-valuation-source="@slug"
-                                    data-valuation-url="@GetValuationAction(source)"><span>@ValuationLabels.GetValuation</span></button>
-                        }
                     </div>
                     <div class="valuation-card-figs">
                         @{ CardFigure(editable, idPrefix + "retail", ValuationLabels.Retail, retail, field + "RetailValue", "retail");
@@ -134,6 +129,15 @@
                             }
                         </div>
                     </div>
+                    @if (connected)
+                    {
+                        @* Get valuation stands at the card's foot, centred, on every
+                           card that has it (v36 item M, 9 October 2026). *@
+                        <div class="valuation-card-foot">
+                            <button type="button" class="btn btn--small" data-valuation-get data-busy-label="@OperatorLabels.Busy.LookingUp" data-busy-done="@OperatorLabels.Busy.Done.Valued" data-valuation-source="@slug"
+                                    data-valuation-url="@GetValuationAction(source)"><span>@ValuationLabels.GetValuation</span></button>
+                        </div>
+                    }
                     @if (editable)
                     {
                         @* The card's own answer to Get valuation (operator-approved
@@ -210,10 +214,6 @@
                             </label>
                         }
                         <span class="valuation-card-word" data-valuation-chosen-word hidden="@(selected ? null : "hidden")">@ValuationLabels.Selected</span>
-                        @if (asks)
-                        {
-                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Starting" form="case-market-research-form" class="btn btn--small" data-valuation-source="@researchSlug"><span>@ValuationLabels.GetValuation</span></button>
-                        }
                     </div>
                     <div class="valuation-card-figs">
                         @{ CardFigure(false, null, ValuationLabels.Retail, retail, null, null, pending is not null);
@@ -231,6 +231,12 @@
                             }
                         </div>
                     </div>
+                    @if (asks)
+                    {
+                        <div class="valuation-card-foot">
+                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Starting" form="case-market-research-form" class="btn btn--small" data-valuation-source="@researchSlug"><span>@ValuationLabels.GetValuation</span></button>
+                        </div>
+                    }
                     @if (pending is not null)
                     {
                         <div class="valuation-card-meta researching">@ValuationLabels.Researching · @Model.PendingMarketResearchMonth</div>

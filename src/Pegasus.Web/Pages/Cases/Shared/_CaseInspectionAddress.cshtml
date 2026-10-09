@@ -3,7 +3,8 @@
     editing — type, date, Inspect at, the recorded address with its source
     tag, the Principal's default only where the Case holds something else —
     then the Repairer and Storage sub-panels. Storage per day and the recovery
-    charge live here (v25 decision E); Settlement keeps only the derived charge.
+    charge are Engineer figures recorded in Decisions (v36 item G, 9 October
+    2026); Storage here is the location alone.
 
     Every control joins the record's one Save form, #case-edit-form,
     so this section never posts a second whole-record form. The address input
@@ -22,7 +23,6 @@
     var details = Model.Case!;
     var data = details.Data;
     var mayEdit = Model.CanEditCaseData && data is not null;
-    var mayEditMoney = Model.CanEditEngineering;
     var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "inspection");
 
     var address = data?.Inspection.Address;
@@ -50,16 +50,11 @@
     var showPrincipalDefault = principalDefault is not null
         && !string.Equals(principalDefault.Value, recorded?.Value, StringComparison.OrdinalIgnoreCase);
     var modeLabel = mode is null ? null : OperatorLabels.InspectionMode(mode.Value);
-    var storagePerDay = Model.AssessmentEditorValue(AssessmentVocabulary.SettlementStoragePerDay);
-    var recoveryCharge = Model.AssessmentEditorValue(AssessmentVocabulary.CostRecoveryCharge);
 
     string Value(string? text) => string.IsNullOrWhiteSpace(text) ? OperatorLabels.CaseWorkspace.AbsentValue : text;
     string ValueClass(string? text) => string.IsNullOrWhiteSpace(text) ? "fv empty" : "fv";
     // A cell without a control is .ro, so its value stays while the record edits.
     string? Ro(bool editable) => editable ? null : "ro";
-    string Money(string? text) => decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)
-        ? "£" + amount.ToString("N2", CultureInfo.GetCultureInfo("en-GB"))
-        : Value(text);
 
     string ChoiceLabel(InspectionAddressChoice choice) => choice.Kind switch
     {
@@ -103,12 +98,11 @@
                 @if (mayEdit)
                 {
                     <select id="inspection-address-choice" class="fi" data-inspection-address-choice form="case-edit-form">
-                        @foreach (var choice in choices)
+                        @* A choice the Case cannot take is absent, never disabled (v36 item H, 9 October 2026). *@
+                        @foreach (var choice in choices.Where(choice => choice.IsAvailable || choice == selectedChoice))
                         {
-                            var label = ChoiceLabel(choice);
                             <option value="@choice.Kind" data-address="@choice.Address"
-                                    selected="@(choice == selectedChoice ? "selected" : null)"
-                                    disabled="@(!choice.IsAvailable ? "disabled" : null)">@label@(!choice.IsAvailable ? OperatorLabels.CaseWorkspace.NotRecordedSuffix : null)</option>
+                                    selected="@(choice == selectedChoice ? "selected" : null)">@ChoiceLabel(choice)</option>
                         }
                     </select>
                 }
@@ -171,29 +165,16 @@
         </div>
 
         <div class="sub-panel @Model.CollapsedClass("case.inspection.storage")" data-inspection-storage data-collapse="case.inspection.storage"><h3>@InspectionLabels.Storage <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.inspection.storage")" /></h3>
+            @* Storage per day and the recovery charge are Engineer figures recorded
+               in Decisions' Costs, hire & delays (v36 item G, 9 October 2026); the
+               location is the one Case-data fact here. *@
             <div class="fg g4">
-                <div class="fc span2 @Ro(mayEdit)">
+                <div class="fc span4 @Ro(mayEdit)">
                     @{ Lbl("storage-location", OperatorLabels.CaseWorkspace.StorageLocation, OperatorLabels.SourceTag(storage?.Source)); }
                     <div class="@ValueClass(storage?.Value)">@Value(storage?.Value)</div>
                     @if (mayEdit)
                     {
                         <input id="storage-location" class="fi" name="storageLocation" form="case-edit-form" maxlength="1000" value="@storage?.Value" />
-                    }
-                </div>
-                <div class="fc @Ro(mayEditMoney)">
-                    @{ LblWhen(mayEditMoney, "edit-storage-per-day", InspectionLabels.StoragePerDay, Model.AssessmentSourceTag(AssessmentVocabulary.SettlementStoragePerDay)); }
-                    <div class="@ValueClass(storagePerDay) mono">@Money(storagePerDay)</div>
-                    @if (mayEditMoney)
-                    {
-                        <input type="number" step="0.01" min="0" id="edit-storage-per-day" class="fi mono" name="storagePerDay" form="case-edit-form" value="@storagePerDay" />
-                    }
-                </div>
-                <div class="fc @Ro(mayEditMoney)">
-                    @{ LblWhen(mayEditMoney, "edit-recovery-charge", OperatorLabels.CaseWorkspace.EngineerSections.RecoveryCharge, Model.AssessmentSourceTag(AssessmentVocabulary.CostRecoveryCharge)); }
-                    <div class="@ValueClass(recoveryCharge) mono">@Money(recoveryCharge)</div>
-                    @if (mayEditMoney)
-                    {
-                        <input type="number" step="0.01" min="0" id="edit-recovery-charge" class="fi mono" name="recoveryCharge" form="case-edit-form" value="@recoveryCharge" />
                     }
                 </div>
             </div>

@@ -313,6 +313,8 @@ tbody tr:hover{background:#f3f6f7}
    without script the × is simply absent because the page does not render
    it). The control is the same shape on the stale bar and every tone. */
 .notice:has(.dismiss){padding-right:38px}
+/* The global focus ring sets position:relative; the dismiss × keeps its place (v36 cross-cutting). */
+.dismiss:focus-visible{position:absolute}
 .dismiss{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:26px;height:26px;padding:0;border:0;background:transparent;color:inherit;opacity:.7;display:grid;place-items:center;border-radius:var(--radius);cursor:pointer}
 .dismiss:hover{opacity:1;background:rgba(0,0,0,.06)}
 .dismiss .icon{width:14px;height:14px;margin:0}
@@ -722,7 +724,8 @@ tbody tr:hover{background:#f3f6f7}
    Toasts
    --------------------------------------------------------------------------- */
 
-.toast-region{position:fixed;right:16px;bottom:38px;z-index:1100;display:flex;flex-direction:column;gap:7px;pointer-events:none}
+/* Above the Case viewer (1200), so a toast raised while it is open is seen (v36 item V). */
+.toast-region{position:fixed;right:16px;bottom:38px;z-index:1300;display:flex;flex-direction:column;gap:7px;pointer-events:none}
 .toast{position:relative;width:min(370px,calc(100vw - 32px));padding:11px 38px 11px 13px;background:var(--nav);color:#fff;border-left:4px solid #71ad7a;box-shadow:var(--shadow);font-size:11px;animation:toast-in .18s ease-out}
 .toast strong{display:block;margin-bottom:3px}
 .toast--warning{border-left-color:#e0a144}

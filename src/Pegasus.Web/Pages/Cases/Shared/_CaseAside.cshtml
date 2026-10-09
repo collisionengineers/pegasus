@@ -120,9 +120,10 @@
         <div class="panel-head"><h2>@Frame.Figures</h2></div>
         <div class="panel-body">
             <dl class="figures">
-                <div class="figure figure--big"><dt>@Frame.RepairCostIncVat</dt><dd class="mono">@(repairCost is { } cost ? FormatMoney(cost) : "—")</dd></div>
-                <div class="figure"><dt>@Frame.EngineersValue</dt><dd class="mono">@(engineerValue is { } ev ? FormatMoney(ev) : "—")</dd></div>
-                <div class="figure"><dt>@Frame.RepairCostOfValue</dt><dd class="mono">@(repairCost is { } c && engineerValue is { } v && v > 0 ? $"{Math.Round(c / v * 100)}%" : "—")</dd></div>
+                @* An absent figure is one glyph in one weight (v36 f06). *@
+                <div class="figure figure--big"><dt>@Frame.RepairCostIncVat</dt><dd class="mono @(repairCost is null ? "absent" : null)">@(repairCost is { } cost ? FormatMoney(cost) : "—")</dd></div>
+                <div class="figure"><dt>@Frame.EngineersValue</dt><dd class="mono @(engineerValue is null ? "absent" : null)">@(engineerValue is { } ev ? FormatMoney(ev) : "—")</dd></div>
+                <div class="figure"><dt>@Frame.RepairCostOfValue</dt><dd class="mono @(repairCost is { } rc && engineerValue is { } evr && evr > 0 ? null : "absent")">@(repairCost is { } c && engineerValue is { } v && v > 0 ? $"{Math.Round(c / v * 100)}%" : "—")</dd></div>
             </dl>
         </div>
     </section>
@@ -133,7 +134,7 @@
             {
                 var (label, action) = draft.Action switch
                 {
-                    AiDraftAction.ReviewEstimate => ("Estimate draft ready", Frame.ReviewEstimate),
+                    AiDraftAction.ReviewEstimate => (OperatorLabels.AiJobs.AiProposalReady, Frame.ReviewEstimate),
                     AiDraftAction.OpenQuery => ("Query response draft ready", Frame.OpenQuery),
                     _ => ("Unidentified resolution draft ready", Frame.Review)
                 };
@@ -184,7 +185,7 @@
                     <div class="next-step next-step--item" data-next-step data-report-blocker="@firstSection">
                         <strong data-next-label>@first.Requirement</strong>
                         <small>@first.Source · @first.WhyOutstanding</small>
-                        <small class="next-step-how">@first.HowToResolve</small>
+                        @* No sentence on how to resolve it: the control below is the how (v36 item AB, 9 October 2026). *@
                         @if (firstFocus is not null)
                         {
                             <partial name="Cases/Shared/_CaseBlockerEdit" model="new CaseBlockerEditView(Model, firstFocus, repairSpecLabel, StepButton)" />
@@ -235,6 +236,19 @@
                         else
                         {
                             <button type="button" class="@StepButton" data-dialog-open="case-create-audit-dialog" data-next-create-audit>@Frame.CreateAudit</button>
+                        }
+                    </div>
+                }
+                else if (workflow.State == Pegasus.Core.Workflow.CaseLifecycleState.Held)
+                {
+                    @* A Held Case's step names the hold with its review date, as
+                       the ribbon's chip does, and its control is Release Hold, the
+                       Actions menu's own dialog (v36 item D, 9 October 2026). *@
+                    <div class="next-step" data-next-step data-next-held>
+                        <strong data-next-label>@Model.StateChipText</strong>
+                        @if (!Model.ColleagueIsEditing && !Model.IsPostReportReadOnly)
+                        {
+                            <button type="button" class="@StepButton" data-dialog-open="case-release-hold-dialog" data-next-release-hold>@Frame.ReleaseHold</button>
                         }
                     </div>
                 }
@@ -323,7 +337,6 @@
                                                 <span class="blocker-name">@reason.Requirement</span>
                                             }
                                             <small>@reason.Source · @reason.WhyOutstanding</small>
-                                            <small class="blocker-how">@reason.HowToResolve</small>
                                         </li>
                                     }
                                 </ul>
