@@ -17,6 +17,29 @@ reference.
 | Secret and grant | Secret `cazana-api-key` (version `6db98eae…17c4`) created in `pegasusprodkv252ow37g`. The Web identity `pegasus-prod-web-id-252ow37gij` was granted Key Vault Secrets User at that secret's scope (assignment `5541b295…5bc2`). `CAZANA_API_KEY_SECRET_URI` was set in the workstation's `pegasus-prod` azd environment. |
 | Still owed | After the release: `Cazana__ApiKey` reads `Resolved`, and Get valuation on a test Case's Cazana card fills Retail and Trade. |
 
+## Release 95 — 8 October 2026 (deployment live)
+
+Release 95 deployed [PR 1128](https://github.com/collisionengineers/pegasus/pull/1128). It merged four PRs into `dev`:
+
+- [PR 1118](https://github.com/collisionengineers/pegasus/pull/1118): the Case ribbon gives the registration its own cell after the Case reference; chips that do not fit beside the facts take their own row.
+- [PR 1119](https://github.com/collisionengineers/pegasus/pull/1119): the Release 94 record.
+- [PR 1120](https://github.com/collisionengineers/pegasus/pull/1120): every Work Centre Activity figure shows Today and This week.
+- [PR 1125](https://github.com/collisionengineers/pegasus/pull/1125): the intake wipe keeps `CaseListPresets`.
+
+The route was the normal App Service route with the migration identity unchanged, run from the Windows workstation, with no outage. Web and Worker are Running on the approved release, and full production smoke passed.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `9e85b82fa634cb176404bc40e2aee2a14d77e0cf`. This is the merge of PR 1128 into `dev`; its tree equals the PR head `bff3ddcca` that CI tested. Promoted atomically to both `dev` and `main`; `main` was `8df124b82`. Manifest schema 3 SHA-256 `A3FF2E55DB9EE1DAA187C930B8FA36C1914A73ADCA2223533F9713C4A4230DC9`. `web.zip` SHA-256 `4AF2A1B90CAEC75E1FCCBF1115F11F8F961B0A54D1878C2F08EB66AA31D357DA`, 107,521,599 bytes. `worker.zip` SHA-256 `312E0AD5CC78F2433B0208AFBADB51A79BF84BAF7791D1755A1FC6261771C25D`. Windows `efbundle.exe` SHA-256 `E38E2A8C53C5FAF73F5A54A7AC14F20E08710EC65089553224D63C256ECF97B7` (built, not run). |
+| Review and verification | No PR had review feedback and no two PRs touched the same file; the train merged without conflicts and the lost-work audit passed (recorded in PR 1128's body). <br>**CI:** PR 1128 run 37843139844 passed all 10 jobs at `bff3ddcca` (infrastructure skipped). The Local, Artifact, PreDeploy and PreProvision gates passed. <br>**Operator approval (8 October 2026):** the combination, its merge and the release, with all merge and deployment authority granted in the request. |
+| Schema and grants | Unchanged. The manifest's migration identity `20261008174505_CaseListPresets` equals the head Release 94 applied and verified; the range adds no migration. No bundle or bootstrap ran. |
+| Deployment | `azd provision` with Web `approved` and Worker `approved-live-worker` found no changes. B1 quota in `uksouth` read 3. `web.zip` was deployed with restart (deployment `1a14366c-e593-48e9-8803-8665c0ee203f` succeeded 21:29:18Z, package `20261008212859.zip`; the site took 197 s to start); the site answered the exact SHA at 21:33:13Z. `worker.zip` was deployed by config-zip (deployment `8a8a8a26-f93d-44cc-a33d-fb3148dba4af`). |
+| Production smoke | Passed at 21:35:39Z. The Worker activation smoke passed as `approved-live-worker`. Active Web package `20261008212859.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed: last completed poll `2026-10-08T21:35:03Z`; the active Graph subscription expires `2026-10-12T13:50:00Z`. |
+| Wipe | None. |
+| PR states | PRs 1118, 1119, 1120 and 1125 read Merged when PR 1128 landed. No GitHub issue was linked to any of them. |
+| Still owed | Live proofs of the changes themselves:<br>• PR 1118: the Case ribbon's Registration cell and its chip row on a real Case above 1100 px, including a total-loss Case in edit mode.<br>• PR 1120: the Work Centre Activity panel shows all ten figures.<br>• PR 1125: the next wipe dry run reads `CaseListPresets` on the preserve list.<br>The Release 81 to 94 proofs remain owed. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-95-9e85b82f`; the build and deploy drivers and their logs at `artifacts/releases/release-95-driver`; the combination's audit and PR body at `../pegasus-worktrees/merge-1118-1125-audit.md` and `merge-1118-1125-pr-body.md`. |
+
 ## Release 94 — 8 October 2026 (deployment live)
 
 Release 94 deployed [PR 1117](https://github.com/collisionengineers/pegasus/pull/1117). It merged seven PRs into `dev`:
