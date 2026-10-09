@@ -203,7 +203,12 @@
         // The head keeps the action as a text link beside the title, not a boxed button over the figures.
         const link = document.createElement('button'); link.type = 'button'; link.className = 'link-button v36-getval-link'; link.textContent = 'Get valuation';
         btn.replaceWith(link);
-      } else if (variant === 'foot') { btn.classList.add('v36-getval-foot'); (figs || card).after ? (figs ? figs.after(btn) : card.append(btn)) : card.append(btn); }
+      } else if (variant === 'foot') {
+        // Under the box column, at the small-control size and natural width.
+        btn.classList.add('v36-getval-foot');
+        const row = document.createElement('div'); row.className = 'v36-getval-footrow'; row.append(btn);
+        if (figs) figs.after(row); else card.append(row);
+      }
       else if (variant === 'inline' && figs) {
         // A fourth figure row: the button sits in the box column under the month, at the boxes' width.
         const row = document.createElement('div'); row.className = 'valuation-card-fig v36-getval-inline';

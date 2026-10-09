@@ -76,7 +76,8 @@ body.v36-strip-hidden .v36-strip{display:none}
 .v36-f23 [data-damage-reset]{margin-left:auto}
 /* f25 · Get valuation variants. */
 .v36-getval-link{font-size:12.5px;align-self:center;margin-left:auto}
-.v36-getval-foot{width:100%;margin-top:8px}
+.v36-getval-footrow{display:flex;justify-content:flex-end;margin-top:8px}
+.v36-getval-foot{min-height:28px;padding:0 10px;font-size:12px}
 .v36-getval-inline > .btn{width:100%;justify-content:center}
 /* f26 · an unconnected card states the approved sentence as one quiet line, not a notice box. */
 .valuation-card-note.v36-quiet{background:none;border:0;padding:4px 0 0;font-size:11.5px;color:var(--muted)}

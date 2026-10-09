@@ -3246,7 +3246,8 @@ body.v36-strip-hidden .v36-strip{display:none}
 .v36-f23 [data-damage-reset]{margin-left:auto}
 /* f25 · Get valuation variants. */
 .v36-getval-link{font-size:12.5px;align-self:center;margin-left:auto}
-.v36-getval-foot{width:100%;margin-top:8px}
+.v36-getval-footrow{display:flex;justify-content:flex-end;margin-top:8px}
+.v36-getval-foot{min-height:28px;padding:0 10px;font-size:12px}
 .v36-getval-inline > .btn{width:100%;justify-content:center}
 /* f26 · an unconnected card states the approved sentence as one quiet line, not a notice box. */
 .valuation-card-note.v36-quiet{background:none;border:0;padding:4px 0 0;font-size:11.5px;color:var(--muted)}
@@ -25468,7 +25469,12 @@ We appreciate your instructions and enclose our fee note for your kind attention
         // The head keeps the action as a text link beside the title, not a boxed button over the figures.
         const link = document.createElement('button'); link.type = 'button'; link.className = 'link-button v36-getval-link'; link.textContent = 'Get valuation';
         btn.replaceWith(link);
-      } else if (variant === 'foot') { btn.classList.add('v36-getval-foot'); (figs || card).after ? (figs ? figs.after(btn) : card.append(btn)) : card.append(btn); }
+      } else if (variant === 'foot') {
+        // Under the box column, at the small-control size and natural width.
+        btn.classList.add('v36-getval-foot');
+        const row = document.createElement('div'); row.className = 'v36-getval-footrow'; row.append(btn);
+        if (figs) figs.after(row); else card.append(row);
+      }
       else if (variant === 'inline' && figs) {
         // A fourth figure row: the button sits in the box column under the month, at the boxes' width.
         const row = document.createElement('div'); row.className = 'valuation-card-fig v36-getval-inline';

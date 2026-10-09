@@ -62,7 +62,7 @@ Tiers: **a** is alignment inside the existing contract (listed, not lettered); *
 
 | # | Today | Proposal | Tier | Evidence |
 | --- | --- | --- | --- | --- |
-| f25 | Get valuation at the right of the card head over a column of narrow right-aligned boxes (operator, 9 October) | foot (the proposal's default), head-link or inline, the operator's choice; the AI market research card's head button moves the same way | b (M) | `engineer-edit-sec-valuation-1580.png` (AI card), the operator's screenshot |
+| f25 | Get valuation at the right of the card head over a column of narrow right-aligned boxes (operator, 9 October) | foot (a small button under the box column, the proposal's default), head-link or inline, the operator's choice; the AI market research card's head button moves the same way | b (M) | `engineer-edit-sec-valuation-1580.png` (AI card), the operator's screenshot |
 | f26 | Every unconnected card repeats a blue notice "{Source} valuation is unavailable. Contact an administrator or report a problem." while editing: five on one screen | One quiet line under the figures, the approved words | b (N) | `engineer-edit-sec-valuation-1580.png` |
 | f27 | Card boxes are 28px beside 36px cells (sixteen on the ladder) | 32px, the small-control step | a | `measure-engineer-edit.json` (`heights`) |
 | f28 | Reading omits Value increases and the Calculation line (`_CaseValuationCalculation.cshtml:54,81,202`): the section is 590px reading and 913px editing, so Edit grows it by 323px | Reading draws the edit geometry greyed | b (O) | `measure-engineer-read.json` / `-edit.json` (`sections.valuation.h`) |
