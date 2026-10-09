@@ -154,12 +154,34 @@ Listed so the operator can decide whether to raise them; none is proposed in thi
 - Structured reasons for hold, cancellation, rejection, reopening and created in error. All are free text, so a "why" breakdown would not be reliable.
 - Whether an AI proposal was accepted, edited or rejected as a job outcome.
 
-## 10. Stage 2 plan (waiting for approval to start)
+## 10. Stage 2 (approved and implemented 9 October 2026)
+
+The operator approved Stage 2 by invoking the conversion on 9 October 2026. What was built follows; the deliberate differences from the mockup are listed after it.
 
 Design A with every item decided. Hand-over is [razor-html-mockup-conversion](../../../../.agents/skills/razor-html-mockup-conversion/SKILL.md). Builds on PR #1146 (no Disputes).
 - `Pages/Administration/Reports.cshtml(.cs)`: the period bar with Period presets (B, H), the Person head select listing people with activity (N), the workbook page action, per-report CSV availability and a By month CSV (L), the period error in the bar with no report drawn (B2), the Work choice (`work=` / `workm=`, D), Reports by Principal sorting and meters (P), the Engineer activity note and MI labels removed (C, M), the Queues and Outcomes sections (E, O), and Previous period under each total (G). The four sections stay in today's order.
-- Core: Fee notes produced by work in `MonthlyReportActivity` (D). Automation's sends as their own Engineer activity row (J). Queues from `PrincipalReportActivity`'s Triage figures plus the Unidentified count (E). Outcomes from the first confirmed report snapshots (O). A second run of the same reads for the previous period (G). The page's words and "6 days" durations in the CSVs and workbook (K).
+- Core: Fee notes produced by work in `MonthlyReportActivity` (D). Automation's sends as their own Engineer activity row (J). Queues from `PrincipalReportActivity`'s Triage figures plus the Unidentified count (E). Outcomes from the outcome frozen in each confirmed report produced in the period, so they add up to Reports produced, with Audit agreement by the Case list's rule (O). A second run of the same reads for the previous period (G). The page's words and "6 days" durations in the CSVs and workbook (K).
 - Defect fixes: the invalid-period false zero, the doubled sort arrow, Apply and presets forgetting the period and sort, the dead hooks, FRD-17's "ten" and "twelve areas".
 - Docs: FRD-17 §Management Reports rewritten for the decisions; FRD-15 L59 (the Work Centre's Reports sent now agrees with MI-01, Automation row included); `capabilities.md` MI rows for Queues and Outcomes.
 - Tests: `AdministrationReportsWebTests` (the split headers pinned on the page change under D), `AdministrationReportTablesTests` and `EngineerActivityReportTests` for K's headings and durations and J's row, and Core and persistence tests for every new read. CI runs them.
 - This folder stays (S).
+
+**Conformance evidence (9 October 2026).** `capture-stage2-v37.py` drove the routed page from a local host that serves the real page with the mockup's fixtures in place of its reads (`artifacts/v37-stage2-host`, ignored, not committed). It printed `RESULT {"fail": [], "okCount": 28}` with no script error. The shots in `stage2-shots/` share their numbers with Design A's in `v37-shots/` (01 default at 1580, 1440 and 760; 09 invalid; 13 Reports by Principal unavailable; 17 Person; 21 empty; 34 the whole page). Side by side they match, except for what the host supplies: the signed-in user, the rail counts, Automation & AI not composed, and Unidentified reading 0. The checks prove on the routed page:
+- Design A's section order, with no MI label and only the Case list note;
+- Reports sent at 110 in both reports, with the Automation row;
+- Previous period under all six totals, and six Person choices;
+- a count's first click largest first, with one arrow drawn by site.css;
+- the Work choice submitting itself, keeping the sort and showing QDOS's 13 Audit reports;
+- typing a date making the Period Custom;
+- a download going busy then done, a failed report refusing only its own CSV, and the invalid period drawing no figure;
+- nothing spilling sideways at any width.
+
+These shots and checks are not the application's test evidence; CI's tests are.
+
+Where the build differs from the mockup, and why:
+- **Queues with nothing held and no Triage** draws its three tiles and no table, because an empty-table sentence for it would be new copy.
+- **Every non-staff sender gets its own row**, not only Automation, so Reports sent always agrees with Reports by Principal.
+- **Person keeps the chosen person** in its list when they have no activity in the period, so the choice still reads as made.
+- **The workbook gains Outcomes and Queues sheets**, and Turnaround's CSV and sheet lose the held columns, which are Queues'. A Queues CSV writes its dates as the shared sheet writer does (`yyyy-MM-dd HH:mm`).
+- **Saving or removing a Case list preset** still returns to the page without the report's sort and Work choices; choosing a preset keeps them (finding 7).
+- **The sort arrow is site.css's alone**, so site.js's arrow swap and both dead hooks are gone. site.js gains one script: typing a From or To sets the Period choice to Custom.

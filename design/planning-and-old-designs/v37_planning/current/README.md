@@ -31,9 +31,11 @@ Every state is also reachable by query string:
 | [captured/](captured/structure-reports-live.json) | The running page's DOM and the structure diff |
 | [live-shots/](live-shots/live-reports-1440.png) | The running page at 1580, 1440 and 760, full page, and a sorted head |
 | [v37-shots/](v37-shots/verification.json) | Screenshots and the dated self-check record |
+| [capture-stage2-v37.py](capture-stage2-v37.py) | Stage 2 conformance: shots and behaviour checks of the routed page from a local host serving the mockup's fixtures |
+| [stage2-shots/](stage2-shots/verification.json) | The routed page in Design A's states, numbered as `v37-shots/`, and the dated result |
 | [v37-notes.md](v37-notes.md) | What the operator settled, changes, live rules mirrored, departures, lettered sign-off items, known limits, what needs new recording, Stage 2 sketch |
 | [discussion-log.md](discussion-log.md) | The operator's brief and each round |
 
 ## Status
 
-Stage 1 delivered on 9 October 2026. The same day, the operator ruled that a dispute is a query; the mockup follows, and PR #1146 makes the application change. The operator then chose Design A and settled every lettered item; A's default view is the decided page. Stage 2 waits for the operator's approval.
+Stage 1 delivered on 9 October 2026. The same day, the operator ruled that a dispute is a query; the mockup follows, and PR #1146 makes the application change. The operator then chose Design A and settled every lettered item; A's default view is the decided page. Stage 2 implemented it on 9 October 2026, and the folder is kept as historical reference (item S). Current behaviour is owned by FRD-17 "Management Reports".
