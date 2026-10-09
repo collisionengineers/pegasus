@@ -459,7 +459,7 @@ public sealed class CaseDamageAndViewerWebTests
                 ("editLeaseToken", store.LeaseToken),
                 ("reason", "Recorded damage observations"),
                 ("damageImpacts", closedBoundaryImpact),
-                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelated), "Old rear bumper scrape"),
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelated), "Old rear bumper scrape")));
         AssertPrg(saveResponse, store.CaseId);
 
         var damage = Assert.Single(store.Saves).Damage;
