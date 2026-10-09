@@ -278,6 +278,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => item.SourceHash);
             entity.HasIndex(item => new { item.SourceChannel, item.ExternalReceiptToken }).IsUnique();
             entity.HasIndex(item => new { item.SourceChannel, item.ProcessedAtUtc, item.Id }).IsDescending(false, true, false);
+            // The Work Centre's E-mails received figure reads mailbox receipts by arrival time.
+            entity.HasIndex(item => new { item.SourceChannel, item.ReceivedAtUtc });
             entity.HasIndex(item => item.DeclaredCaseId);
         });
 

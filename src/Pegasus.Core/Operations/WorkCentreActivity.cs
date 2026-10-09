@@ -11,7 +11,7 @@ namespace Pegasus.Core.Operations;
 /// <param name="NewCases">Cases created, excluding Triage Cases, as the New cases list counts them.</param>
 /// <param name="SentToEngineer">Cases first sent to Engineer: each Case counted once, on its first entry into With Engineer.</param>
 /// <param name="ReportsSent">Sent report e-mails, as the Engineer activity report (MI-01) counts them.</param>
-/// <param name="Completed">Entries into Complete, including a Case reopened since.</param>
+/// <param name="Completed">Cases that entered Complete, each once, including a Case reopened since.</param>
 /// <param name="EmailsReceived">Mailbox receipts; an upload is also a receipt and is not counted.</param>
 public sealed record WorkCentreActivityCounts(
     WorkCentreActivityFigure NewCases,
@@ -22,13 +22,6 @@ public sealed record WorkCentreActivityCounts(
 
 /// <summary>One figure's count today and since Monday.</summary>
 public sealed record WorkCentreActivityFigure(int Today, int ThisWeek);
-
-/// <summary>One read of the figures and the windows they cover.</summary>
-public sealed record WorkCentreActivity(
-    WorkCentreActivityCounts Counts,
-    DateTimeOffset DayStartUtc,
-    DateTimeOffset WeekStartUtc,
-    DateTimeOffset AsOfUtc);
 
 /// <summary>The store's aggregate read; a failed read throws, it never answers zero.</summary>
 public interface IWorkCentreActivityQueries
@@ -41,7 +34,7 @@ public interface IWorkCentreActivityQueries
 
 public interface IGetWorkCentreActivity
 {
-    Task<WorkCentreActivity> ExecuteAsync(ActionActor actor, DateTimeOffset asOfUtc, CancellationToken cancellationToken);
+    Task<WorkCentreActivityCounts> ExecuteAsync(ActionActor actor, DateTimeOffset asOfUtc, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -62,14 +55,13 @@ public sealed class GetWorkCentreActivity(IWorkCentreActivityQueries queries) : 
     private readonly IWorkCentreActivityQueries queries =
         queries ?? throw new ArgumentNullException(nameof(queries));
 
-    public async Task<WorkCentreActivity> ExecuteAsync(
+    public Task<WorkCentreActivityCounts> ExecuteAsync(
         ActionActor actor,
         DateTimeOffset asOfUtc,
         CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.AccessStaffApplication);
         var (dayStartUtc, weekStartUtc) = WorkCentreActivityPolicy.WindowsAt(asOfUtc);
-        var counts = await queries.GetAsync(dayStartUtc, weekStartUtc, cancellationToken);
-        return new WorkCentreActivity(counts, dayStartUtc, weekStartUtc, asOfUtc);
+        return queries.GetAsync(dayStartUtc, weekStartUtc, cancellationToken);
     }
 }

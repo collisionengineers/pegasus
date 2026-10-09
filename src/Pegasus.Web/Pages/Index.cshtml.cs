@@ -134,7 +134,7 @@ public partial class IndexModel(
     public bool AiJobsUnavailable { get; private set; }
 
     /// <summary>The Activity figures (FRD-15): null until read, and never drawn as zero when the read failed.</summary>
-    public WorkCentreActivity? Activity { get; private set; }
+    public WorkCentreActivityCounts? Activity { get; private set; }
 
     public bool ActivityUnavailable { get; private set; }
 
@@ -675,7 +675,7 @@ public partial class IndexModel(
     }
 
     /// <summary>The Activity panel: the day and week figures as of this load.</summary>
-    private async Task<WorkCentreActivity> ReadActivityAsync(ActionActor actor, CancellationToken cancellationToken)
+    private async Task<WorkCentreActivityCounts> ReadActivityAsync(ActionActor actor, CancellationToken cancellationToken)
     {
         using var timing = DocumentReadTelemetry.Start("web.workcentre.activity");
         return await getActivity.ExecuteAsync(actor, NowUtc, cancellationToken);
