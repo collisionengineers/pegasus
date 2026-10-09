@@ -80,7 +80,8 @@
             <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonClaimant</div>
             <div class="ribbon-value"><span>@(string.IsNullOrWhiteSpace(summary.Claimant) ? OperatorLabels.CaseWorkspace.AbsentValue : summary.Claimant)</span></div>
         </div>
-        <div class="ribbon-item">
+        @* Principal is a code: natural width, so Claimant and Engineer get the room (v36 f03). *@
+        <div class="ribbon-item ribbon-principal">
             <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonPrincipal</div>
             <div class="ribbon-value"><span>@workflow.Identity.PrincipalCode</span></div>
         </div>

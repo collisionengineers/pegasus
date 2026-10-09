@@ -50,8 +50,11 @@
     // every active preset, then Add 20 % VAT, then the custom rows the
     // calculator offers. Read mode lists only what the recorded calculation applied.
     var vatApplied = recorded is { Calculation.CommercialVatApplied: true };
-    var shownIncreases = Model.ValuationIncreaseRows.Where(row => row.Selected).ToArray();
-    var hasIncreases = editable || shownIncreases.Length > 0 || vatApplied;
+    // Reading keeps the sub-panel and the Calculation line in the edit geometry,
+    // greyed, so entering edit grows nothing (v36 item O, 9 October 2026), and
+    // lists only what the calculation applied: an unticked preset with an amount
+    // reads as part of the figure (operator, 8 October 2026).
+    var readRows = Model.ValuationIncreaseRows.Where(row => row.Selected).ToArray();
 
     string Money(decimal value) => ValuationCalculationPolicy.FormatMoney(value);
 
@@ -78,8 +81,7 @@
         <input type="hidden" name="selection.GuideSource" value="" form="case-edit-form" disabled data-valuation-source-input />
         <input type="hidden" name="selection.Use" value="true" form="case-edit-form" disabled data-valuation-use-input />
     }
-    @if (hasIncreases)
-    {
+    @{
         <div class="sub-panel valuation-increases">
             <h3 class="adds-head" data-valuation-adds-head>@ValuationLabels.ValueIncreases</h3>
             <div class="adds" data-valuation-adds>
@@ -132,23 +134,25 @@
                 }
                 else
                 {
-                    @* Read mode lists what the recorded calculation applied,
-                       each with a tick (a mark, not a control). *@
-                    foreach (var row in shownIncreases)
+                    @* Read mode lists what the recorded calculation applied, each
+                       with a tick (a mark, not a control), in the rows' edit order. *@
+                    var readVatDrawn = !vatApplied;
+                    foreach (var row in readRows)
                     {
+                        if (row.PresetId == Guid.Empty && !readVatDrawn)
+                        {
+                            readVatDrawn = true;
+                            ReadVatRow(vatApplied, recorded);
+                        }
                         <div class="add on" data-valuation-applied-addition="true">
                             <span class="add-check"><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span class="sr-only">@ValuationLabels.Applied</span></span>
                             <span>@row.Label</span>
-                            <span class="amt">@Money(row.Amount ?? 0m)</span>
+                            <span class="amt">@(row.Amount is { } amount ? Money(amount) : "—")</span>
                         </div>
                     }
-                    if (vatApplied)
+                    if (!readVatDrawn)
                     {
-                        <div class="add on add--vat" data-valuation-applied-addition="true">
-                            <span class="add-check"><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span class="sr-only">@ValuationLabels.Applied</span></span>
-                            <span>@ValuationLabels.AddVat</span>
-                            <span class="amt" data-valuation-amount="vat">@ValuationLabels.VatAmount(recorded!.Calculation)</span>
-                        </div>
+                        ReadVatRow(vatApplied, recorded);
                     }
                 }
             </div>
@@ -198,9 +202,8 @@
        refusal's own reason here. *@
     <div class="valuation-value" data-valuation-values>
         @{ ValueCell(); }
-        @* Reading with no recorded calculation has nothing to say here. *@
-        @if (editable || basisName is not null)
-        {
+        @* The line reads in both modes, blank when nothing is recorded, so the geometry holds (v36 item O). *@
+        @{
             <div class="valuation-value-calc">
                 <span class="lbl">@ValuationLabels.Calculation</span>
                 <span data-valuation-basis-name>@(basisName is null ? string.Empty : string.Format(CultureInfo.InvariantCulture, ValuationLabels.FromRetail, basisName))</span>
@@ -216,6 +219,17 @@
 </div>
 
 @functions {
+    // Reading, Add 20 % VAT in the same row, greyed, ticked when the recorded
+    // calculation applied it.
+    private void ReadVatRow(bool vatApplied, AppliedValuation? recorded)
+    {
+        <div class="add add--vat @(vatApplied ? "on" : "is-static")" data-valuation-applied-addition="@(vatApplied ? "true" : "false")">
+            <span class="add-check">@if (vatApplied) {<svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span class="sr-only">@ValuationLabels.Applied</span>}</span>
+            <span>@ValuationLabels.AddVat</span>
+            <span class="amt" data-valuation-amount="vat">@(vatApplied ? ValuationLabels.VatAmount(recorded!.Calculation) : "—")</span>
+        </div>
+    }
+
     // Add 20 % VAT as a row of the value increases (item F), its amount where
     // an increase's figure stands. A VAT-registered claimant never has the
     // commercial addition, so the box is disabled with the reason beside it.

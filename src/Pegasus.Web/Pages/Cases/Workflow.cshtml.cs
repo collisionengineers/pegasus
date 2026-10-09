@@ -23,8 +23,16 @@ public sealed class WorkflowModel(
     ITransitionCase transitionCase,
     IAssignCaseEngineer assignEngineer,
     ICreateLinkedReplacement createLinkedReplacement,
+    ICaseWorkflowQueries workflows,
+    IAcquireCaseEditLease acquireLease,
     ILogger<WorkflowModel> logger) : CaseMutationPageModel(logger)
 {
+    /// <summary>
+    /// An action taken inside the edit session keeps it: after one succeeds
+    /// the session carries on (operator, 9 October 2026).
+    /// </summary>
+    protected override (ICaseWorkflowQueries Workflows, IAcquireCaseEditLease Leases)? LeaseReclaim => (workflows, acquireLease);
+
     public IActionResult OnGet() => NotFound();
 
     public Task<IActionResult> OnPostHoldAsync(

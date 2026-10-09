@@ -172,6 +172,37 @@ public sealed partial class OrganizationDirectoryWebTests
         Assert.Matches(
             """<div class="field" data-notes-on-every-case><label for="NotesOnEveryCase">Notes on every Case</label><textarea[^>]*name="NotesOnEveryCase"[^>]*>""",
             editor);
+        // A Principal-only contact has no role to link to a principal.
+        Assert.Contains("<section class=\"contact-section\" data-linked-principals hidden=\"hidden\"", editor, StringComparison.Ordinal);
+
+        // Save posts only the contact form: the Replace dialog's fields are absent.
+        var inspectionMode = await factory.Database.ScalarAsync<string>(
+            "SELECT InspectionMode FROM Principals WHERE Id = '" + principalId + "';");
+        using var saved = await client.PostAsync(
+            $"{path}?handler=Save",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(editor, "__RequestVerificationToken"),
+                ["ContactId"] = InputValue(editor, "ContactId"),
+                ["ExpectedVersion"] = InputValue(editor, "ExpectedVersion"),
+                ["GuidanceTemplateVersion"] = InputValue(editor, "GuidanceTemplateVersion"),
+                ["OperationKey"] = InputValue(editor, "OperationKey"),
+                ["Name"] = InputValue(editor, "Name"),
+                ["Roles"] = "Principal",
+                ["PrincipalCode"] = InputValue(editor, "PrincipalCode"),
+                ["PrincipalInspectionMode"] = inspectionMode == "image_based_assessment" ? "ImageBasedAssessment" : "PhysicalAddress",
+                ["NotesOnEveryCase"] = "Ring the claimant before inspection.",
+                ["Active"] = bool.TrueString
+            }));
+
+        Assert.True(
+            saved.StatusCode == HttpStatusCode.Redirect,
+            $"Expected a redirect but got {saved.StatusCode}. " +
+                $"Validation errors: {await DescribeValidationErrorsAsync(saved)}");
+        Assert.Equal(
+            "Ring the claimant before inspection.",
+            await factory.Database.ScalarAsync<string>(
+                $"SELECT NotesOnEveryCase FROM Organizations WHERE Id = '{contactId:D}';"));
     }
 
     [Fact]

@@ -412,6 +412,26 @@
         document.querySelectorAll('[data-refresh-form]').forEach(resetRefresh);
     });
 
+    // A link button that navigates shows the busy state a submit does until
+    // the next page arrives (v36 item R, 9 October 2026): the Work Centre
+    // rows' arrows, the Cases list's Open full Case, a Case's Add evidence and
+    // the Next action's control. In-page jumps, downloads, dialog openers and
+    // new-window links are not navigations of this kind.
+    document.addEventListener('click', function (event) {
+        var link = event.target.closest ? event.target.closest('a.btn[href]') : null;
+        if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+            return;
+        }
+        var href = link.getAttribute('href') || '';
+        if (!href || href.charAt(0) === '#' || link.target || link.hasAttribute('download')
+            || link.hasAttribute('data-busy-download') || link.hasAttribute('data-no-busy')
+            || link.hasAttribute('data-dialog-open') || link.hasAttribute('data-section-jump')
+            || link.getAttribute('aria-disabled') === 'true') {
+            return;
+        }
+        startBusy(link, null);
+    });
+
     // A download answers with a file, not a page, so no navigation ends its
     // busy state. A [data-busy-download] link or form fetches the file
     // instead and hands it to the browser: the state ends when the file
@@ -2143,8 +2163,11 @@ window.pegasusPreferences = (function () {
     }, true);
 
     document.addEventListener('click', function (event) {
+        // An item that opens a dialog closes its own menu too, so the menu never
+        // stands open behind the dialog's backdrop (v36 item V, 9 October 2026).
+        var opensDialog = event.target.closest && event.target.closest('[data-dialog-open]');
         openMenus().forEach(function (menu) {
-            if (!menu.contains(event.target)) {
+            if (!menu.contains(event.target) || opensDialog) {
                 menu.open = false;
             }
         });

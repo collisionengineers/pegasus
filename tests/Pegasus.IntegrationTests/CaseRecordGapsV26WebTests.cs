@@ -344,16 +344,18 @@ public sealed class CaseRecordGapsV26WebTests
         Assert.Contains(">Semi-automatic<", vehicle, StringComparison.Ordinal);
         Assert.DoesNotContain(
             $"data-vehicle-provenance-row=\"{AssessmentVocabulary.VehicleTransmission}\"", vehicle, StringComparison.Ordinal);
-        // The v29 slot: after the colour, before the tax expiry.
-        var colour = vehicle.IndexOf(
-            $"data-vehicle-provenance-row=\"{AssessmentVocabulary.VehicleColour}\"", StringComparison.Ordinal);
+        // The v36 slot (f19, 9 October 2026): the editable facts first, so the
+        // transmission follows the body type and the lookup-only engine size
+        // follows it.
+        var body = vehicle.IndexOf(
+            $"data-vehicle-identity=\"{AssessmentVocabulary.VehicleBody}\"", StringComparison.Ordinal);
         var transmission = vehicle.IndexOf(
             $"data-vehicle-identity=\"{AssessmentVocabulary.VehicleTransmission}\"", StringComparison.Ordinal);
-        var tax = vehicle.IndexOf(
-            $"data-vehicle-provenance-row=\"{AssessmentVocabulary.VehicleTaxExpiry}\"", StringComparison.Ordinal);
+        var engine = vehicle.IndexOf(
+            $"data-vehicle-provenance-row=\"{AssessmentVocabulary.VehicleEngineCc}\"", StringComparison.Ordinal);
         Assert.True(
-            colour >= 0 && colour < transmission && transmission < tax,
-            "The transmission must sit between the colour and the tax expiry.");
+            body >= 0 && body < transmission && transmission < engine,
+            "The transmission must sit between the body type and the engine size.");
 
         using var response = await SaveAsync(workspace, (name, "automatic"));
 
@@ -786,15 +788,15 @@ public sealed class CaseRecordGapsV26WebTests
         var panel = InspectionPanel(await ReadCaseAsync(store));
 
         // v26: one geometry of labelled cells — the address, then the Repairer
-        // and Storage sub-panels (storage money moved here from Settlement).
+        // and Storage sub-panels. The storage money is Decisions' (v36 item G,
+        // 9 October 2026): Storage keeps the location alone.
         Assert.Contains("1 Depot Road", panel, StringComparison.Ordinal);
         Assert.Contains(">Storage location<", panel, StringComparison.Ordinal);
         Assert.Contains("14 Storage Lane", panel, StringComparison.Ordinal);
         Assert.Contains("data-inspection-repairer", panel, StringComparison.Ordinal);
         Assert.Contains(">Repairer<", panel, StringComparison.Ordinal);
         Assert.Contains("data-inspection-storage", panel, StringComparison.Ordinal);
-        Assert.Contains(CaseWorkspaceLabels.Inspection.StoragePerDay, panel, StringComparison.Ordinal);
-        // Read mode: the storage money reads; its control joins only the edit session.
+        Assert.DoesNotContain(CaseWorkspaceLabels.Inspection.StoragePerDay, panel, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"storagePerDay\"", panel, StringComparison.Ordinal);
         Assert.DoesNotContain(">Source<", panel, StringComparison.Ordinal);
         // The Principal's default is its own cell only where the Case holds

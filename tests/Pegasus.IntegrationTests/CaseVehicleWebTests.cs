@@ -402,7 +402,9 @@ public sealed class CaseVehicleWebTests
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
         var seam = ExperianSeam(html);
 
-        Assert.Contains("class=\"gated\"", seam, StringComparison.Ordinal);
+        // Said once, on the Vehicle history sub-panel; the section head carries no pill (v36 item K, 9 October 2026).
+        Assert.DoesNotContain("data-vehicle-experian-seam", html, StringComparison.Ordinal);
+        Assert.Contains("class=\"rt\"", seam, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.CaseWorkspace.ExperianSeamCondition, seam, StringComparison.Ordinal);
         Assert.DoesNotContain("<button", seam, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=", seam, StringComparison.Ordinal);
@@ -657,13 +659,14 @@ public sealed class CaseVehicleWebTests
         return new(caseId, null, answered, [answered]);
     }
 
-    /// <summary>The v26 Experian seam: the head's `.gated` pill and its text.</summary>
+    /// <summary>The Experian seam: the Vehicle history sub-panel's `.rt` line and its text (v36 item K).</summary>
     private static string ExperianSeam(string html)
     {
-        var marker = html.IndexOf("data-vehicle-experian-seam", StringComparison.Ordinal);
+        var panel = html.IndexOf("data-vehicle-history", StringComparison.Ordinal);
+        Assert.True(panel >= 0, "The Vehicle history sub-panel is not rendered.");
+        var marker = html.IndexOf("class=\"rt\"", panel, StringComparison.Ordinal);
         Assert.True(marker >= 0, "The Experian seam is not rendered.");
         var start = html.LastIndexOf('<', marker);
-        // Up to the close of the pill's text span: the icon and the wording.
         var end = html.IndexOf("</span>", marker, StringComparison.Ordinal);
         Assert.True(end > start, "The Experian seam is not closed.");
         return html[start..end];

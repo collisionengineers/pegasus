@@ -143,7 +143,9 @@ export and the calculation PDF land the same spec:
   a Specialist line. With hours it is priced by work units
   at the spec's rate; with none, its amount is a fixed Specialist sum.
 - An included operation is a no-charge Other line, with neither hours nor a
-  price, noted as included in its row. It is never a new part.
+  price, noted as included in its row. It is never a new part. The grid draws
+  it as included: indented under the row it belongs to, its note across the
+  figure columns, with no figure boxes while reading (operator, 9 October 2026).
 - A part's side prints after its description, `(L)` or `(R)`, as Glass's
   sheet prints it.
 - A guide time or price the engineer changed in Glass's, Glass's reason for

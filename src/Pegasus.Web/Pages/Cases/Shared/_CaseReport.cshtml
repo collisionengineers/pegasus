@@ -99,10 +99,12 @@
     // so what it needs is a confirmed report, not every artifact confirmed.
     // The form is offered again after a send, so the same report can be sent
     // again (operator, 6 October 2026).
-    var canSendReport = leaseForReport
-        && generation is not null
+    // Reading shows the same delivery cells greyed, so Edit grows nothing (v36
+    // item Z, 9 October 2026); only the lease-holding session posts them.
+    var reportSendable = generation is not null
         && generation.State == CaseReportGenerationState.Confirmed
         && reportArtifact?.Status == CaseReportArtifactStatus.Confirmed;
+    var canSendReport = leaseForReport && reportSendable;
     var repairSpecArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
         artifact.Kind == CaseReportArtifactKind.RepairSpecification);
     var imagePackArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
@@ -375,15 +377,20 @@
                             {
                                 var attachId = "report-attach-" + attachKind.ToString().ToLowerInvariant();
                                 var always = attachKind == CaseReportArtifactKind.AssessmentReport;
-                                <label class="choice" for="@attachId">
-                                    <input type="checkbox" id="@attachId" name="attach" value="@attachKind"
-                                           checked="@(always || attachKind == CaseReportArtifactKind.FeeNote)"
-                                           disabled="@always" data-report-attach-choice="@attachKind" />
-                                    <span>@attachLabel</span>
-                                </label>
                                 @if (always)
                                 {
+                                    @* The report is always attached: a value, not a disabled control (v36 item Z). *@
+                                    <span class="choice is-static" data-report-attach-choice="@attachKind" data-on="true"><span class="tick"><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg></span><span>@attachLabel</span></span>
                                     <input type="hidden" name="attach" value="@attachKind" />
+                                }
+                                else
+                                {
+                                    <label class="choice" for="@attachId">
+                                        <input type="checkbox" id="@attachId" name="attach" value="@attachKind"
+                                               checked="@(attachKind == CaseReportArtifactKind.FeeNote)"
+                                               data-report-attach-choice="@attachKind" />
+                                        <span>@attachLabel</span>
+                                    </label>
                                 }
                             }
                         </div>
@@ -405,6 +412,30 @@
                     </button>
                 </form>
             }
+            else if (reportSendable)
+            {
+                @* Reading: the same cells, greyed, with no Send (v36 item Z). *@
+                <div class="recip-form" data-send-report-read>
+                    <span class="lg">@Words.ReviewedRecipients</span>
+                    <div class="fc ro"><span class="lbl">To</span><div class="fv empty">@OperatorLabels.CaseWorkspace.AbsentValue</div></div>
+                    <div class="fc ro"><span class="lbl">Cc</span><div class="fv empty">@OperatorLabels.CaseWorkspace.AbsentValue</div></div>
+                    @if (attachable.Length > 0)
+                    {
+                        <span class="lbl">@ReportLabels.Attach</span>
+                        <div class="cluster" data-report-attach>
+                            @foreach (var (attachKind, attachLabel) in attachable)
+                            {
+                                var on = attachKind is CaseReportArtifactKind.AssessmentReport or CaseReportArtifactKind.FeeNote;
+                                <span class="choice is-static" data-on="@(on ? "true" : "false")"><span class="tick">@if (on) {<svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>}</span><span>@attachLabel</span></span>
+                            }
+                        </div>
+                    }
+                    <span class="lbl">@ReportLabels.FileName</span>
+                    <div class="fv mono" data-report-file-name>@Model.ReportDeliveryFileName</div>
+                    <span class="lbl">@ReportLabels.Message</span>
+                    <div class="fv multi" data-report-message-read>@Model.ReportDeliveryMessage</div>
+                </div>
+            }
         }
 
         <div class="fg g4">
@@ -423,12 +454,23 @@
                     <input id="f-report-date" class="fi" type="date" name="reportDate" form="case-edit-form" value="@reportDate" />
                 }
             </div>
-            @{ await Field(AssessmentVocabulary.EngineersComments, labels[AssessmentVocabulary.EngineersComments], multi: true, extraClass: "span3");
+            @* The comments take a full row like the commentary under them (v36 f38). *@
+            @{ await Field(AssessmentVocabulary.EngineersComments, labels[AssessmentVocabulary.EngineersComments], multi: true, extraClass: "span4");
             }
             @* The valuation commentary itself, beside the switch that prints it:
                the Engineer's words, frozen into the report when the switch is on. *@
             @{ await Field(AssessmentVocabulary.ReportValuationCommentaryText, Words.ValuationCommentary, multi: true, extraClass: "span4"); }
-            <div class="fc ro span4"><span class="lbl">@EngineerLabels.StatementOfTruth</span><div class="fv derived multi @(Model.StatementOfTruth.Count == 0 ? "empty" : null)">@(Model.StatementOfTruth.Count == 0 ? OperatorLabels.CaseWorkspace.AbsentValue : string.Join("\n\n", Model.StatementOfTruth))</div></div>
+        </div>
+
+        @* The Statement of truth is the same five paragraphs on every Case: a
+           sub-panel folded until this browser opens it, remembered by the fold
+           cookie as the aside's card is (v36 item P, 9 October 2026). *@
+        @{ var statementFold = Model.FoldedUntilOpened("case.report.statement"); }
+        <div class="sub-panel @(statementFold.Collapsed ? "is-collapsed" : null)" data-collapse="@statementFold.Key" data-collapse-folded data-report-statement>
+            <h3>@EngineerLabels.StatementOfTruth <partial name="Shared/_SubPanelToggle" model="statementFold" /></h3>
+            <div class="fg">
+                <div class="fc ro"><span class="lbl">@EngineerLabels.StatementOfTruth</span><div class="fv derived multi @(Model.StatementOfTruth.Count == 0 ? "empty" : null)">@(Model.StatementOfTruth.Count == 0 ? OperatorLabels.CaseWorkspace.AbsentValue : string.Join("\n\n", Model.StatementOfTruth))</div></div>
+            </div>
         </div>
 
         @* P30: the report's narrative, in print order. Each block tracks its

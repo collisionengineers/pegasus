@@ -91,6 +91,7 @@
                     <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                     @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
                     <input type="hidden" name="view" value="@Model.ViewRoute" />
+                <input type="hidden" name="section" value="@Model.Section" />
                     <div class="dialog-body stack">
                         <div class="field">
                             <label class="req" for="case-hold-reason">@OperatorLabels.CaseWorkspace.ReasonForAction</label>
@@ -160,6 +161,7 @@
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                 @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
                 <input type="hidden" name="view" value="@Model.ViewRoute" />
+                <input type="hidden" name="section" value="@Model.Section" />
                 <div class="dialog-body stack">
                     <div class="notice notice--warning">
                         <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
@@ -213,6 +215,7 @@
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                 @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
                 <input type="hidden" name="view" value="@Model.ViewRoute" />
+                <input type="hidden" name="section" value="@Model.Section" />
                 <div class="dialog-body stack">
                     <div class="field">
                         <label class="req" for="case-close-outcome">@OperatorLabels.CaseWorkspace.ClosureOutcome</label>
@@ -267,6 +270,7 @@
                     <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                     @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
                     <input type="hidden" name="view" value="@Model.ViewRoute" />
+                <input type="hidden" name="section" value="@Model.Section" />
                     <input type="hidden" name="instructionsComplete" value="@(Model.AssignEngineerChoices!.InstructionsComplete)" />
                     <input type="hidden" name="imagesComplete" value="@(Model.AssignEngineerChoices!.ImagesComplete)" />
                     <input type="hidden" name="evidenceReference" value="case-completeness-projection" />
@@ -313,6 +317,7 @@
                         @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
                         @* In the Inspection view, the Inspection report's own evidence, on its work. *@
                         <input type="hidden" name="view" value="@Model.ViewRoute" />
+                <input type="hidden" name="section" value="@Model.Section" />
                         <div class="definition-list">
                             <dl class="definition"><dt>Mailbox</dt><dd>@evidence.MailboxIdentity</dd></dl>
                             <dl class="definition"><dt>Sent</dt><dd>@OperatorLabels.OfficeTime(evidence.SentAtUtc)</dd></dl>

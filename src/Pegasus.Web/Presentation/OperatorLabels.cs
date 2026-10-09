@@ -619,7 +619,7 @@ public static class OperatorLabels
 
         if (route.EndsWith("?section=estimate", StringComparison.OrdinalIgnoreCase))
         {
-            return "Estimate draft ready";
+            return AiJobs.AiProposalReady;
         }
 
         return "AI draft ready";
@@ -1829,10 +1829,12 @@ public static class OperatorLabels
     /// </remarks>
     public static class AiJobs
     {
+        // An AI Proposal (CONTEXT.md) is named by its reserved term, not as an estimate (v36 item C, 9 October 2026).
+        public const string AiProposalReady = "AI Proposal ready";
         public const string PanelTitle = "AI Job List";
         public const string SendUnidentified = "Send Unidentified to AI";
         public const string CompleteJob = "Complete job";
-        public const string ReviewEstimate = "Review estimate";
+        public const string ReviewEstimate = "Review AI Proposal";
         public const string OpenQuery = "Open query";
         public const string Review = "Review";
 
@@ -2369,7 +2371,7 @@ public static class OperatorLabels
             public const string LabourRate = "Labour rate";
             public const string LabourRatePerHour = "Labour rate (\u00a3/h)";
             public const string RegionalUplift = "Regional uplift";
-            public const string MaterialPounds = "Material \u00a3";
+            public const string MaterialPounds = "Material (\u00a3)";
             public const string OtherCostsPounds = "Other costs (\u00a3)";
             public const string Vat = "VAT";
             public const string VatPercent = "VAT %";
