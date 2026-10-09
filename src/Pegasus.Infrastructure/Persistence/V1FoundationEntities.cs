@@ -136,7 +136,6 @@ internal sealed class GlassRepairEstimateSessionEntity : IApplicationManagedConc
     public required string OperationKey { get; set; }
     public Pegasus.Core.Assessment.GlassRepairEstimateSessionState State { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
-    public DateTimeOffset ExpiresAtUtc { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }
     public string? ProviderVehicleId { get; set; }
     public string? EreId { get; set; }

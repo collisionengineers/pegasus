@@ -353,20 +353,29 @@ things follow when the return is accepted but the estimate does not land:
   reported as interrupted. If custody instead answers that an artifact failed,
   the session is `Failed` with the same code and cannot be continued.
 
+A session has no lifetime (operator, 9 October 2026). A saved return lands,
+and a press continues the staff member's own session, however long ago it was
+launched; only a return under a replaced or disabled credential is `Expired`.
+
 Every continued session presents the current Case version and live edit
 lease, including preparation, an active estimate and a waiting import. The
-current registration (normalized for spacing and case) and whole-mile mileage
-must match the protected launch facts. A mismatch refuses further provider
-work and leaves the account held; staff restore the original facts or confirm
-external closure before starting a new session. A valid continuation replaces
-the protected import authority with the authority just proved. Credential
-generation must still match the account used at launch.
+current registration (normalized for spacing and case) must match the one the
+stock vehicle was made with. A mismatch refuses further provider work and
+leaves the account held; staff restore the original registration or confirm
+external closure before starting a new session. A corrected mileage does not
+stop it: the vehicle keeps the mileage it was made with, and is proved and its
+export read against that. A placeholder holds no registration or mileage at
+Glass's, so it continues whatever the Case now records, and its return is read
+against the Case's current facts (operator, 9 October 2026). A valid
+continuation replaces the protected import authority with the authority just
+proved. Credential generation must still match the account used at launch.
 
-A reopen of a spec's estimate proves the same things against what the spec
-recorded: the Case must still record the registration and mileage the estimate
-was started for. A mismatch is refused before Glass's is contacted and before
-a session is recorded, and holds nothing. The session is new and uses the
-pressing staff member's current credential.
+A reopen of a spec's estimate follows the same rule against what the spec
+recorded: on a real stock vehicle the Case must still record the registration
+the estimate was started for. A changed registration is refused before
+Glass's is contacted and before a session is recorded, and holds nothing. A
+corrected mileage, or any change on a placeholder, reopens the estimate. The
+session is new and uses the pressing staff member's current credential.
 
 Before selecting a vehicle or reopening an estimate, the provider detail form
 must identify the expected vehicle ID, registration, mileage and NatCode, and
@@ -378,8 +387,10 @@ the form of the vehicle it has just created once more, 500 ms later, when the
 first reading does not identify it, and settles on the second refusal; no
 other proof is read again.
 
-What "show the profile" means depends on whether the provider has started an
-estimate on the vehicle. Before a start, the repair-profile control is enabled
+The configured profile is one deployment setting because Glass's keeps
+repair profiles for the organisation, so every staff login offers the same one
+under the same id (operator, 9 October 2026). What "show the profile" means
+depends on whether the provider has started an estimate on the vehicle. Before a start, the repair-profile control is enabled
 and offers the configured profile. Once a start has allocated an estimate the
 provider locks the control and marks the profile that started it selected, so
 a continued session, a reopen or Fetch again requires exactly one disabled
@@ -501,8 +512,9 @@ the same import. A staff Import makes the imported spec Current.
 - A **Glass's** press against a Case that changed since the page rendered, or
   whose edit lease ended, is refused with "The Case changed. Reload it and
   retry." It is not an error page.
-- A reopen of a spec's estimate after the Case registration or mileage changed
-  is refused before Glass's is contacted.
+- A reopen of a spec's estimate after the Case registration changed is refused
+  before Glass's is contacted. A corrected mileage, or a corrected plate on a
+  placeholder, reopens it.
 - An estimate reset with the portal's own Reset Repair Estimate cannot be
   reopened from Pegasus.
 

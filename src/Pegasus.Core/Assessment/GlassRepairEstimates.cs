@@ -22,32 +22,49 @@ public static class GlassRepairEstimateSessionPolicy
     private static string Compact(string? value) =>
         new((value ?? string.Empty).Where(character => !char.IsWhiteSpace(character)).ToArray());
 
-    public static void RequireUnchangedVehicle(
-        string originalRegistration, long originalMileage, string registration, long mileage)
-    {
-        if (!SameRegistration(originalRegistration, registration) || originalMileage != mileage)
-        {
-            throw new GlassRepairEstimateRefusalException(
-                "The Case registration or mileage has changed since this Glass's session started. "
-                + "The session still holds the account. Restore the original vehicle details to resume, "
-                + "or close the external session and confirm its closure before launching again.");
-        }
-    }
+    /// <summary>
+    /// The registration and mileage a staff member's own session continues
+    /// on. A stock vehicle the session recorded is held at Glass's under the
+    /// registration and mileage it was made with: the Case must still record
+    /// that registration, and a corrected mileage continues on the vehicle's
+    /// own. A placeholder holds neither at Glass's, and a session that has
+    /// recorded no vehicle yet holds nothing there, so each follows what the
+    /// Case records now (operator, 9 October 2026; issue 1070).
+    /// </summary>
+    public static (string Registration, long MileageMiles) RequireUnchangedVehicle(
+        string recordedRegistration, long recordedMileage, bool placeholder, bool vehicleRecorded,
+        string registration, long mileage) =>
+        ContinuingVehicle(
+            recordedRegistration, recordedMileage, placeholder, followsCase: placeholder || !vehicleRecorded,
+            registration, mileage,
+            "The Case registration has changed since this Glass's session started. "
+            + "The session still holds the account. Restore the original vehicle details to resume, "
+            + "or close the external session and confirm its closure before launching again.");
 
     /// <summary>
-    /// A repair spec's Glass's estimate stands on the vehicle it was started
-    /// for. The Case must still record that registration and mileage for the
-    /// estimate to be reopened; nothing is held at Glass's while it does not.
+    /// The registration and mileage a repair spec's Glass's estimate is
+    /// reopened on, under the same rule as a live session
+    /// (<see cref="RequireUnchangedVehicle"/>); nothing is held at Glass's
+    /// while it is refused.
     /// </summary>
-    public static void RequireUnchangedEstimateVehicle(
-        string originalRegistration, long originalMileage, string registration, long mileage)
+    public static (string Registration, long MileageMiles) RequireUnchangedEstimateVehicle(
+        GlassEstimateLink link, string registration, long mileage) =>
+        ContinuingVehicle(
+            link.Registration, link.MileageMiles, link.Placeholder, followsCase: link.Placeholder,
+            registration, mileage,
+            "The Case registration has changed since this Glass's estimate was started. "
+            + "Restore the original vehicle details to reopen it.");
+
+    private static (string Registration, long MileageMiles) ContinuingVehicle(
+        string recordedRegistration, long recordedMileage, bool placeholder, bool followsCase,
+        string registration, long mileage, string refusal)
     {
-        if (!SameRegistration(originalRegistration, registration) || originalMileage != mileage)
+        if (!placeholder && !SameRegistration(recordedRegistration, registration))
         {
-            throw new GlassRepairEstimateRefusalException(
-                "The Case registration or mileage has changed since this Glass's estimate was started. "
-                + "Restore the original vehicle details to reopen it.");
+            throw new GlassRepairEstimateRefusalException(refusal);
         }
+
+        return followsCase ? (registration, mileage) : (recordedRegistration, recordedMileage);
     }
 
     public static bool OccupiesAccount(GlassRepairEstimateSessionState state) => state is
@@ -179,7 +196,7 @@ public sealed record GlassEstimateLink(
 public sealed record GlassRepairEstimateSession(
     Guid Id, Guid CaseId, Guid PegasusUserId, long CredentialGeneration,
     string NormalizedExternalAccountKey, GlassRepairEstimateSessionState State,
-    long Version, string OperationKey, DateTimeOffset CreatedAtUtc, DateTimeOffset ExpiresAtUtc,
+    long Version, string OperationKey, DateTimeOffset CreatedAtUtc,
     string? ProviderVehicleId, string? ProviderEstimateId, string? FailureCode,
     DateTimeOffset? CallbackConsumedAtUtc = null);
 /// <summary>

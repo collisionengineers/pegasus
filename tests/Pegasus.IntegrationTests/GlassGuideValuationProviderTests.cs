@@ -477,7 +477,6 @@ public sealed class GlassGuideValuationProviderTests
                 EstimatorBase,
                 CallbackBase,
                 ProfileId,
-                SessionLifetime: TimeSpan.FromHours(8),
                 ExportPollInterval: TimeSpan.FromMilliseconds(5),
                 ExportTimeout: TimeSpan.FromMilliseconds(50),
                 MaximumExportBytes: 16 * 1024 * 1024);

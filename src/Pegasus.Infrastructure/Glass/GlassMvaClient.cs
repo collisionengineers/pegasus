@@ -37,6 +37,12 @@ internal sealed class GlassMvaStageException(
     /// read budget ran out. Never a registration, a body, a token or a URL.
     /// </summary>
     public string? Detail { get; } = detail;
+
+    /// <summary>
+    /// A profile refusal that found the repair-profile control locked before
+    /// a start: the vehicle may already hold an estimate.
+    /// </summary>
+    public bool ProfileLocked { get; init; }
 }
 
 /// <summary>
@@ -561,7 +567,15 @@ internal sealed partial class GlassMvaClient(
                 .ToArray();
             if (ProfileRefusal(profiles, estimateStarted) is { } refusal)
             {
-                throw new GlassMvaStageException(GlassFailure.DetailsProfile, detail: $"profile={refusal}");
+                // The configured id is Pegasus's own setting, never a value
+                // Glass's answered, and is said in the host log only
+                // (operator, 9 October 2026).
+                throw new GlassMvaStageException(
+                    GlassFailure.DetailsProfile,
+                    detail: $"profile={refusal} required={options.RepairProfileId}")
+                {
+                    ProfileLocked = refusal == "disabled",
+                };
             }
 
             return inputs;
@@ -625,12 +639,13 @@ internal sealed partial class GlassMvaClient(
 
     /// <summary>
     /// Why the repair-profile control is not what the vehicle's phase
-    /// requires, as a flag for the host log (never a value), or null when it
-    /// is: <c>absent</c> or <c>multiple</c> when there is not exactly one
-    /// control; <c>disabled</c> before a start when the control is locked;
-    /// <c>enabled</c> after a start when it is not locked; <c>option</c> when
-    /// the configured profile is not the option the phase requires — an
-    /// enabled one before a start, the one selected option after it.
+    /// requires, as a flag for the host log (never a value Glass's answered),
+    /// or null when it is: <c>absent</c> or <c>multiple</c> when there is not
+    /// exactly one control; <c>disabled</c> before a start when the control
+    /// is locked; <c>enabled</c> after a start when it is not locked;
+    /// <c>not-offered</c> before a start when the login offers no enabled
+    /// option of the configured profile; <c>not-selected</c> after a start
+    /// when the one selected option is not the configured profile.
     /// </summary>
     private string? ProfileRefusal(Match[] profiles, bool estimateStarted)
     {
@@ -655,13 +670,13 @@ internal sealed partial class GlassMvaClient(
                 && !selected[0].ContainsKey("disabled")
                 && selected[0].GetValueOrDefault("value") == options.RepairProfileId
                     ? null
-                    : "option";
+                    : "not-selected";
         }
 
         return offered.Any(option => !option.ContainsKey("disabled")
             && option.GetValueOrDefault("value") == options.RepairProfileId)
                 ? null
-                : "option";
+                : "not-offered";
     }
 
     /// <summary>

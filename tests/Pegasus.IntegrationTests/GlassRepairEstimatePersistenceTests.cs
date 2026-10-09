@@ -1147,7 +1147,6 @@ public sealed class GlassRepairEstimatePersistenceTests
                     Version: 0,
                     operationKey,
                     StartUtc,
-                    StartUtc.AddHours(2),
                     ProviderVehicleId: null,
                     ProviderEstimateId: null,
                     FailureCode: null),

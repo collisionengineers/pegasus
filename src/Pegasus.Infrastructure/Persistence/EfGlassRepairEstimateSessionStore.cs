@@ -183,7 +183,6 @@ public sealed class EfGlassRepairEstimateSessionStore(
             OperationKey = operationKey,
             State = session.State,
             CreatedAtUtc = session.CreatedAtUtc,
-            ExpiresAtUtc = session.ExpiresAtUtc,
             UpdatedAtUtc = now,
             ProviderVehicleId = session.ProviderVehicleId,
             EreId = session.ProviderEstimateId,
@@ -259,7 +258,6 @@ public sealed class EfGlassRepairEstimateSessionStore(
         var previousState = entity.State;
         entity.State = session.State;
         entity.ActiveAccountKey = OccupiesAccount(session.State) ? entity.NormalizedAccountKey : null;
-        entity.ExpiresAtUtc = session.ExpiresAtUtc;
         entity.ProviderVehicleId = session.ProviderVehicleId;
         entity.EreId = session.ProviderEstimateId;
         entity.LastError = session.FailureCode;
@@ -412,7 +410,6 @@ public sealed class EfGlassRepairEstimateSessionStore(
             entity.Version,
             entity.OperationKey,
             entity.CreatedAtUtc,
-            entity.ExpiresAtUtc,
             entity.ProviderVehicleId,
             entity.EreId,
             entity.LastError,
