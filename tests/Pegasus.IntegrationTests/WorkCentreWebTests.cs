@@ -693,15 +693,14 @@ public sealed class WorkCentreWebTests
 
         public bool Throw { get; init; }
 
-        public Task<WorkCentreActivity> ExecuteAsync(ActionActor actor, DateTimeOffset asOfUtc, CancellationToken cancellationToken)
+        public Task<WorkCentreActivityCounts> ExecuteAsync(ActionActor actor, DateTimeOffset asOfUtc, CancellationToken cancellationToken)
         {
             if (Throw)
             {
                 throw new InvalidOperationException("activity failed");
             }
 
-            var (dayStart, weekStart) = WorkCentreActivityPolicy.WindowsAt(asOfUtc);
-            return Task.FromResult(new WorkCentreActivity(Counts, dayStart, weekStart, asOfUtc));
+            return Task.FromResult(Counts);
         }
     }
 
