@@ -16,7 +16,7 @@ public sealed class EngineerActivityReportTests
         var goneId = Guid.NewGuid();
         var queries = new Counts([
             new(goneId, 4, 1),
-            new(knownId, 2, 7, 3, 4, 2, TimeSpan.FromHours(6))]);
+            new(knownId, 2, 7, 4, 2, TimeSpan.FromHours(6))]);
         var useCase = new GetEngineerActivityReport(queries, new Accounts(knownId, "engineer.one"));
 
         var report = await useCase.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None);
@@ -26,7 +26,7 @@ public sealed class EngineerActivityReportTests
         Assert.Collection(
             report.Rows,
             row => Assert.Equal(
-                new EngineerActivityRow(knownId, "engineer.one", 2, 7, 3, 4, 2, TimeSpan.FromHours(6)),
+                new EngineerActivityRow(knownId, "engineer.one", 2, 7, 4, 2, TimeSpan.FromHours(6)),
                 row),
             row => Assert.Equal(new EngineerActivityRow(goneId, ActorDisplayNames.FormerStaff, 4, 1), row));
     }
