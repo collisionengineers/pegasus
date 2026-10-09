@@ -453,9 +453,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
 
         Assert.Equal(1, saved.CaseVersion);
-        // The three this save wrote, beside the agreed fee the Case took from
+        // The two this save wrote, beside the agreed fee the Case took from
         // its Principal at creation.
-        Assert.Equal(3, saved.Fields.Count(field => field.Path != AssessmentVocabulary.AgreedFee));
+        Assert.Equal(2, saved.Fields.Count(field => field.Path != AssessmentVocabulary.AgreedFee));
         Assert.All(saved.Fields, field => Assert.Equal(ActorKind.Automation, field.RecordedByKind));
         // An assessment save writes fields only; the lines are the Current
         // repair spec's, and none is in use yet.
