@@ -961,6 +961,9 @@ public sealed partial class ReconcilePendingArtifactCustody
         // Left out before Take, so a version that is waiting does not use up one
         // of the slots that fresh work could have had.
         var waiting = await WaitingVersionIdsAsync(db, cancellationToken);
+        // A version recorded moments ago is still being filed by the request
+        // that recorded it; filing it here too races that upload in Box.
+        var recordedBefore = timeProvider.GetUtcNow() - PendingCustodyRetryPolicy.InlineFilingGrace;
         var candidates = await (
             from version in db.Set<DocumentVersionEntity>().AsNoTracking()
             join document in db.Set<CaseDocumentEntity>().AsNoTracking()
@@ -971,6 +974,7 @@ public sealed partial class ReconcilePendingArtifactCustody
                 on document.CaseId equals caseEntity.Id
             where version.CustodyStatus == DocumentCustodyStatus.Pending
                 && version.PendingContentStorageKey != null
+                && version.CreatedAtUtc <= recordedBefore
                 && !waiting.Contains(version.Id)
             let lastAttempt = db.Set<ActionHistoryEntity>()
                 .Where(history => history.AggregateType == nameof(DocumentVersionEntity)
