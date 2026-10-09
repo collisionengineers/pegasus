@@ -87,6 +87,7 @@ else
                    data-file-name="@version.FileName"
                    data-thumb="@thumbnailHref"
                    data-tag="@firstTag?.Name"
+                   data-evidence-occurrence="@occurrence.Id"
                    data-evidence-preparation-occurrence="@(mayCrop ? occurrence.Id.ToString() : null)">
                     <img src="@thumbnailHref" alt="@version.FileName" loading="lazy" data-gallery-image />
                     @if (firstTag is not null)
