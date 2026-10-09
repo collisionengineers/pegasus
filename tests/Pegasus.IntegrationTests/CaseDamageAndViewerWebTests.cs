@@ -472,7 +472,7 @@ public sealed class CaseDamageAndViewerWebTests
         var drawn = damage.Impacts[1];
         Assert.Equal(["left_side", "right_side"], drawn.Areas);
         Assert.Equal(new DamageDisc(0.5, 0.53, 0.08), drawn.Disc);
-        Assert.Equal("Old rear bumper scrape", damage.AssessmentFields[AssessmentVocabulary.DamageUnrelated]);
+        Assert.Equal("Old rear bumper scrape", damage.AssessmentFields![AssessmentVocabulary.DamageUnrelated]);
     }
 
 }
