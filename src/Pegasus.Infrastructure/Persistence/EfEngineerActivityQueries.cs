@@ -132,7 +132,6 @@ internal sealed class EfEngineerActivityQueries(
             .ToDictionary(group => group.Key, group => new
             {
                 Count = group.Count(),
-                Disputes = group.Count(item => item.Subtype == MailCategory.DisputeSubtype),
                 Amendments = group.Count(item => item.Subtype == MailCategory.AmendmentRequestSubtype)
             });
 
@@ -145,7 +144,6 @@ internal sealed class EfEngineerActivityQueries(
                 id,
                 reportsByEngineer.TryGetValue(id, out var sent) ? sent.Count : 0,
                 queries.TryGetValue(id, out var received) ? received.Count : 0,
-                received?.Disputes ?? 0,
                 received?.Amendments ?? 0,
                 sent?.Audit ?? 0,
                 sent?.Turnaround))

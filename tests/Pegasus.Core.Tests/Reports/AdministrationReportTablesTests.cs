@@ -13,7 +13,7 @@ public sealed class AdministrationReportTablesTests
     {
         var engineer = new EngineerActivityReport(From, To,
         [
-            new(Guid.NewGuid(), "alex", 4, 3, Disputes: 1, AmendmentRequests: 1, AuditReportsSent: 2, AverageReceivedToSent: TimeSpan.FromHours(30))
+            new(Guid.NewGuid(), "alex", 4, 3, AmendmentRequests: 1, AuditReportsSent: 2, AverageReceivedToSent: TimeSpan.FromHours(30))
         ]);
         var principal = new PrincipalReportActivityReport(From, To,
         [
@@ -35,11 +35,11 @@ public sealed class AdministrationReportTablesTests
 
         Assert.Equal(["Engineer activity", "Reports by Principal", "Turnaround", "By month"], sheets.Select(sheet => sheet.Name));
         var engineerSheet = sheets[0];
-        Assert.Equal(["Person", "Queries received", "Disputes", "Amendment requests", "Reports sent", "Audit reports sent", "Received to sent"],
+        Assert.Equal(["Person", "Queries received", "Amendment requests", "Reports sent", "Audit reports sent", "Received to sent"],
             engineerSheet.Columns.Select(column => column.Title));
         Assert.Equal(WorkbookColumnKind.Duration, engineerSheet.Columns[^1].Kind);
         Assert.True(engineerSheet.Totals);
-        Assert.Equal(["alex", 3, 1, 1, 4, 2, TimeSpan.FromHours(30)], engineerSheet.Rows.Single());
+        Assert.Equal(["alex", 3, 1, 4, 2, TimeSpan.FromHours(30)], engineerSheet.Rows.Single());
 
         // MI-02: each total sits beside its Inspection and Audit split.
         var byPrincipal = sheets[1];
@@ -79,11 +79,11 @@ public sealed class AdministrationReportTablesTests
     {
         var csv = EngineerActivityReportCsv.ToCsv(
         [
-            new(Guid.NewGuid(), "alex", 4, 3, 1, 1, 2, TimeSpan.FromHours(1))
+            new(Guid.NewGuid(), "alex", 4, 3, 1, 2, TimeSpan.FromHours(1))
         ]);
 
         Assert.StartsWith(
-            "Recorded send actor,Queries received for assigned Engineer,Disputes,Amendment requests,Reports sent by recorded actor,Audit reports sent,Received to sent\r\nalex,3,1,1,4,2,01:00:00\r\n",
+            "Recorded send actor,Queries received for assigned Engineer,Amendment requests,Reports sent by recorded actor,Audit reports sent,Received to sent\r\nalex,3,1,4,2,01:00:00\r\n",
             csv,
             StringComparison.Ordinal);
     }
