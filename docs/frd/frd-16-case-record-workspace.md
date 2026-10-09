@@ -147,7 +147,10 @@ Below 1441px the aside folds into a strip above the sections.
 Actions post in place and the record's parts refresh without navigation.
 An action, Refresh or a link away waits for a change not yet sent to land
 first; a document action (tag, New tag, In report) posts in place and
-redraws only its own tile.
+redraws its own tile. After a tag, untag or In report the other sections
+follow as after a save, Files and Notes staying as loaded, so a report
+blocker it clears leaves the Report offering Generate report with no reload
+(operator, 9 October 2026).
 
 **Edit session.** The whole record enters one edit mode over one lease
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). Every change is
@@ -694,7 +697,8 @@ tile shows:
 - while the Case edit lease is held, **In report**, on or off, posted at
   once like a tag, so readiness reads it with no Case save (operator, 26
   September 2026). A tag, New tag or In report is a document action: it
-  posts in place and redraws only its own tile;
+  posts in place and redraws its own tile, and the other sections follow
+  it as they follow a save;
 - Preview and, while the Case edit lease is held, Crop.
 
 While the Case edit lease is held the tile's tools are one panel joined to
@@ -913,7 +917,8 @@ Inspection's values only.
   the next change tries again.
 - A change not yet sent lands before Done, Refresh, navigation or an
   immediate action; a document action (tag, New tag, In report) posts in
-  place and redraws only its own tile. Closing the tab sends a change not yet
+  place and redraws its own tile, the other sections following as after a
+  save. Closing the tab sends a change not yet
   sent as the page hides.
 - An action bar for a state with no permitted action shows the state and no
   control.
