@@ -130,7 +130,7 @@ public sealed class CaseImagesWindowWebTests
 
         // The viewer's own Pop out: a link to the window that the script
         // points at the image in view; hidden until one is.
-        Assert.Matches("data-case-viewer\s+hidden", html);
+        Assert.Matches(@"data-case-viewer\s+hidden", html);
         Assert.DoesNotContain("data-viewer-standalone=\"true\"", html, StringComparison.Ordinal);
         Assert.Contains(
             $"<a class=\"btn btn--small\" href=\"/Cases/{store.CaseId:D}/Images\" target=\"_blank\" rel=\"noopener\" data-viewer-popout data-images-popout hidden>",
