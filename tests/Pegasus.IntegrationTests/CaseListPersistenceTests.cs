@@ -129,7 +129,7 @@ public sealed class CaseListPersistenceTests
         Assert.Equal(ActorKind.Staff, inspectionRecord.Primary.FirstSentByKind);
         Assert.Equal(sender.ToString("D"), inspectionRecord.Primary.FirstSentBySubjectId);
         Assert.Null(inspectionRecord.AuditWork);
-        Assert.Equal(new CaseListActivity(2, 1, 1, 0, 0, 0, 2, 0, 1, 1), inspectionRecord.Activity);
+        Assert.Equal(new CaseListActivity(2, 1, 1, 0, 0, 2, 0, 1, 1), inspectionRecord.Activity);
 
         var auditRecord = all.Single(record => record.CaseId == audit);
         Assert.Equal("Smith Assessors", auditRecord.Primary.Assessment[AssessmentVocabulary.OriginalReportAssessor]);

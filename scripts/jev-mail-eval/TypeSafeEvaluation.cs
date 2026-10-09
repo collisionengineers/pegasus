@@ -83,7 +83,7 @@ public static class JevQuestions
         ["new-instruction-received"] = "Initial accepted work instruction: audit, diminution, inspection, new client, or website enquiry.",
         ["non-client-related"] = "Internal, company, tool, service, or software mail unrelated to client work.",
         ["in-progress-cases"] = "Cancellation, progress update, chase, or other correspondence about ongoing work.",
-        ["post-report-emails"] = "Query, dispute, or amendment request about a delivered report.",
+        ["post-report-emails"] = "Query (a dispute included) or amendment request about a delivered report.",
         ["pre-instruction-emails"] = "Triage, another pre-formal handling request, or images before a formal instruction.",
         ["internal-cc"] = "Internal copied correspondence that is not the primary actionable occurrence.",
         [EvaluationTaxonomy.Abstain] = "Evidence is missing, unsupported, contradictory, or several categories genuinely compete."
@@ -140,8 +140,7 @@ public static class JevQuestions
         ("in-progress-cases", "client-chasing-for-update") => "Client asks for progress.",
         ("in-progress-cases", "principal-chasing-for-update") => "Principal asks for progress.",
         ("in-progress-cases", "ongoing-correspondence") => "Other ongoing case correspondence.",
-        ("post-report-emails", "query") => "Question about a delivered report.",
-        ("post-report-emails", "dispute") => "Challenge to a delivered report or finding.",
+        ("post-report-emails", "query") => "Question about, or challenge to, a delivered report or finding.",
         ("post-report-emails", "amendment-request") => "Request to amend a delivered report.",
         ("pre-instruction-emails", "triage-request") => "Initial assessment before a formal instruction.",
         ("pre-instruction-emails", "pre-formal-instruction-request") => "Pre-formal handling request other than triage.",

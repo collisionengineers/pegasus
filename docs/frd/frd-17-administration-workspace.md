@@ -193,8 +193,8 @@ totals. Reports and fees are counted per report: the first confirmed report
 of the Inspection and, once created, of the Audit of an Inspection + Audit
 Case each count once, with their own agreed fee. An Audit report is the
 report of a standalone Audit Case or the Audit of an Inspection + Audit
-Case. MI-01 counts the queries by type (disputes and amendment requests
-within the total), the Audit reports sent (the Audit uplift) and each
+Case. MI-01 counts the queries (a dispute is a query) with the amendment
+requests among them, the Audit reports sent (the Audit uplift) and each
 person's turnaround to sent, measured from the instruction's receipt, or
 for the Audit of an Inspection + Audit Case from Create audit; its columns
 sort by person, queries or reports, and a meter beside each count shows it
@@ -238,8 +238,8 @@ the list's own order.
   engineer** is the signatory of the latest confirmed report, or the
   signatory the Case would use now. **Report sent by** is who made the
   work's first report send.
-- Queries, disputes and amendment requests are post-report mail linked to
-  the Case, counted as MI-01 counts them.
+- Queries (a dispute is a query) and amendment requests are post-report
+  mail linked to the Case, counted as MI-01 counts them.
 
 **Presets** are named column sets every Administrator shares, such as
 "Invoicing". **Use preset** ticks a preset's columns; the ticks can still be
@@ -293,7 +293,7 @@ checks the expected version inside its mutation transaction.
   against it.
 - A Case list with no column, half a period or an unknown column is refused
   with its reason. A failed or invalid Case list read refuses the download;
-  no cell reads unavailable or   in its place.
+  no cell reads unavailable or 0 in its place.
 - A Case list preset needs a name of up to 100 characters, unique among the
   presets kept, and at least one column. A removed preset frees its name.
 

@@ -40,20 +40,19 @@ public sealed record CaseListWorkFacts(
     public static CaseListWorkFacts Empty { get; } = new(new Dictionary<string, string>());
 }
 
-/// <summary>The Case's activity counts. Queries are post-report mail linked to the Case; disputes and amendment requests are part of them.</summary>
+/// <summary>The Case's activity counts. Queries are post-report mail linked to the Case, disputes included; amendment requests are part of them.</summary>
 public sealed record CaseListActivity(
     int Images,
     int ImagesInReport,
     int Documents,
     int Queries,
-    int Disputes,
     int AmendmentRequests,
     int EmailsSent,
     int Chases,
     int OpenTasks,
     int Notes)
 {
-    public static CaseListActivity None { get; } = new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    public static CaseListActivity None { get; } = new(0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 /// <summary>
@@ -379,8 +378,6 @@ public sealed class GetCaseList(ICaseListQueries queries, IStaffAccountQueries s
         || record.Activity.ImagesInReport > record.Activity.Images
         || record.Activity.Documents < 0
         || record.Activity.Queries < 0
-        || record.Activity.Disputes < 0
-        || record.Activity.Disputes > record.Activity.Queries
         || record.Activity.AmendmentRequests < 0
         || record.Activity.AmendmentRequests > record.Activity.Queries
         || record.Activity.EmailsSent < 0

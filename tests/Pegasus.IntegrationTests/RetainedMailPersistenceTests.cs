@@ -794,7 +794,7 @@ public sealed class RetainedMailPersistenceTests
         {
             (instruction, ReceivedMailFamily.NewInstructionReceived, "inspection"),
             (query, ReceivedMailFamily.PostReportEmails, "query"),
-            (dispute, ReceivedMailFamily.PostReportEmails, "dispute"),
+            (dispute, ReceivedMailFamily.PostReportEmails, MailCategory.QuerySubtype),
             (otherCase, ReceivedMailFamily.InProgressCases, MailCategory.CancellationSubtype),
             (caseUpdate, ReceivedMailFamily.InProgressCases, "case-update"),
             (reversed, ReceivedMailFamily.InProgressCases, MailCategory.CancellationSubtype),

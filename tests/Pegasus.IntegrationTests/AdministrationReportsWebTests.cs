@@ -63,7 +63,8 @@ public sealed class AdministrationReportsWebTests
         Assert.Contains("data-sort-toggle", html, StringComparison.Ordinal);
         Assert.Contains("aria-sort=\"descending\"", html, StringComparison.Ordinal);
         Assert.Contains("id=\"mi02-months-title\"", html, StringComparison.Ordinal);
-        Assert.Contains("Disputes", html, StringComparison.Ordinal);
+        Assert.Contains("Amendment requests", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Disputes", html, StringComparison.Ordinal); // A dispute is a query.
         Assert.Contains("Audit reports sent", html, StringComparison.Ordinal);
         // MI-02: each measure's Inspection and Audit columns beside its total,
         // named from the measure's own label (the encoder writes the middle dot
@@ -155,7 +156,7 @@ public sealed class AdministrationReportsWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("<span class=\"metric-value\">Unavailable</span>", html, StringComparison.Ordinal);
-        Assert.Contains("<td colspan=\"7\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
+        Assert.Contains("<td colspan=\"6\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
 
         using var workbookResponse = await client.GetAsync($"{Page}?handler=Workbook");
 

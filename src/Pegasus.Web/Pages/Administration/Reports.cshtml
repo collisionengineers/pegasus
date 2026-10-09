@@ -46,7 +46,6 @@
                             <tr>
                                 <th scope="col" aria-sort="@Model.AriaSort("person")"><a class="admin-report-sort" data-sort-toggle asp-page="/Administration/Reports" asp-route-from="@from" asp-route-to="@to" asp-route-engineerId="@Model.EngineerId" asp-route-sort="person" asp-route-dir="@Model.SortDirectionFor("person")">Person <span data-sort-arrow>@Model.SortArrow("person")</span></a></th>
                                 <th scope="col" class="num" aria-sort="@Model.AriaSort("queries")"><a class="admin-report-sort" data-sort-toggle asp-page="/Administration/Reports" asp-route-from="@from" asp-route-to="@to" asp-route-engineerId="@Model.EngineerId" asp-route-sort="queries" asp-route-dir="@Model.SortDirectionFor("queries")">Queries received <span data-sort-arrow>@Model.SortArrow("queries")</span></a></th>
-                                <th scope="col" class="num">Disputes</th>
                                 <th scope="col" class="num">Amendment requests</th>
                                 <th scope="col" class="num" aria-sort="@Model.AriaSort("reports")"><a class="admin-report-sort" data-sort-toggle asp-page="/Administration/Reports" asp-route-from="@from" asp-route-to="@to" asp-route-engineerId="@Model.EngineerId" asp-route-sort="reports" asp-route-dir="@Model.SortDirectionFor("reports")">Reports sent <span data-sort-arrow>@Model.SortArrow("reports")</span></a></th>
                                 <th scope="col" class="num">Audit reports sent</th>
@@ -56,7 +55,7 @@
                         <tbody>
                         @if (Model.EngineerActivityUnavailable)
                         {
-                            <tr><td colspan="7" class="muted">Unavailable</td></tr>
+                            <tr><td colspan="6" class="muted">Unavailable</td></tr>
                         }
                         else
                         {
@@ -65,14 +64,13 @@
                                 <tr>
                                     <td>@row.DisplayName</td>
                                     <td class="num"><span class="admin-report-measure"><meter min="0" max="@Math.Max(Model.MostQueriesReceived, 1)" value="@row.QueriesReceived" aria-hidden="true"></meter><span class="tabular">@row.QueriesReceived</span></span></td>
-                                    <td class="num tabular">@row.Disputes</td>
                                     <td class="num tabular">@row.AmendmentRequests</td>
                                     <td class="num"><span class="admin-report-measure"><meter min="0" max="@Math.Max(Model.MostReportsSent, 1)" value="@row.ReportsSent" aria-hidden="true"></meter><span class="tabular">@row.ReportsSent</span></span></td>
                                     <td class="num tabular">@row.AuditReportsSent</td>
                                     <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToSent, "—")</td>
                                 </tr>
                             }
-                            @if (Model.EngineerResult.Rows.Count == 0) { <tr><td colspan="7" class="muted">No engineer activity was recorded for this period.</td></tr> }
+                            @if (Model.EngineerResult.Rows.Count == 0) { <tr><td colspan="6" class="muted">No engineer activity was recorded for this period.</td></tr> }
                         }
                         </tbody>
                     </table>
