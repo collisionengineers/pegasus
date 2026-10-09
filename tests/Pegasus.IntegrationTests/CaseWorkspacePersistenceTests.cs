@@ -293,11 +293,7 @@ public sealed class CaseWorkspacePersistenceTests
                     }),
                 Damage = new([new(["left_front"], "light", "Scuffed")], new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
-                    [AssessmentVocabulary.DamageTyreRightFront] = "damaged",
-                    [AssessmentVocabulary.DamageBeltLeftRear] = "deployed",
                     [AssessmentVocabulary.DamageUnrelated] = "Old rear bumper scrape",
-                    [AssessmentVocabulary.DamageUnrelatedDeduction] = "125.50",
-                    [AssessmentVocabulary.DamageMaterialTransfer] = "White paint transfer"
                 }),
                 Completeness = new(true, true)
             },
@@ -335,11 +331,7 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal(
             "left_front",
             result.Assessment.Fields.Single(field => field.Path == AssessmentVocabulary.ImpactLocation).Value);
-        Assert.Equal("damaged", result.Assessment.Field(AssessmentVocabulary.DamageTyreRightFront)?.Value);
-        Assert.Equal("deployed", result.Assessment.Field(AssessmentVocabulary.DamageBeltLeftRear)?.Value);
         Assert.Equal("Old rear bumper scrape", result.Assessment.Field(AssessmentVocabulary.DamageUnrelated)?.Value);
-        Assert.Equal("125.50", result.Assessment.Field(AssessmentVocabulary.DamageUnrelatedDeduction)?.Value);
-        Assert.Equal("White paint transfer", result.Assessment.Field(AssessmentVocabulary.DamageMaterialTransfer)?.Value);
     }
 
     /// <summary>
@@ -888,11 +880,7 @@ public sealed class CaseWorkspacePersistenceTests
             Settlement = new(new Dictionary<string, string?>(StringComparer.Ordinal)
             {
                 [AssessmentVocabulary.Outcome] = "repairable",
-                [AssessmentVocabulary.SettlementExcess] = "250.00",
-                [AssessmentVocabulary.SettlementBetterment] = "0.00",
                 [AssessmentVocabulary.SettlementClaimantVatRegistered] = "false",
-                [AssessmentVocabulary.SettlementRepairDelays] = "",
-                [AssessmentVocabulary.SettlementHireStart] = "2031-05-20"
             }),
             Report = new(new Dictionary<string, string?>(StringComparer.Ordinal)
             {
@@ -919,9 +907,7 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal(1, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
         // One workspace event and one report-invalidation event, not one save per section.
         Assert.Equal(historyBefore + 2, await harness.HistoryCountAsync());
-        Assert.Equal("250.00", saved.Assessment.Field(AssessmentVocabulary.SettlementExcess)?.Value);
         Assert.Equal("false", saved.Assessment.Field(AssessmentVocabulary.SettlementClaimantVatRegistered)?.Value);
-        Assert.Null(saved.Assessment.Field(AssessmentVocabulary.SettlementRepairDelays)?.Value);
         Assert.Equal("Scuffed", saved.Assessment.Field(AssessmentVocabulary.EngineersComments)?.Value);
         Assert.Equal("120.00", saved.Assessment.Field(AssessmentVocabulary.AgreedFee)?.Value);
         Assert.Equal("2031-05-20", saved.Assessment.Field(AssessmentVocabulary.ReportDate)?.Value);
@@ -1274,7 +1260,7 @@ public sealed class CaseWorkspacePersistenceTests
                         }),
                     Settlement = new(new Dictionary<string, string?>(StringComparer.Ordinal)
                     {
-                        [AssessmentVocabulary.SettlementExcess] = "250.00"
+                        [AssessmentVocabulary.SettlementClaimantVatRegistered] = "false"
                     }),
                     Report = new(new Dictionary<string, string?>(StringComparer.Ordinal)
                     {
