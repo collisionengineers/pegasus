@@ -258,7 +258,7 @@ public sealed class CaseRecordGapsV26WebTests
         // The lookup's tag sits in the cell's label line; the box holds the value.
         Assert.Matches(
             new Regex(
-                $"data-vehicle-identity=\"{Regex.Escape(AssessmentVocabulary.VehicleVin)}\">\\s*<label[^>]*>[^<]*<span class=\"src-tag src-tag--lookup\" data-provenance-word=\"Lookup\">Lookup</span></label>\\s*<div class=\"fv mono\">WVWZZZ1JZXW000001</div>",
+                $"data-vehicle-identity=\"{Regex.Escape(AssessmentVocabulary.VehicleVin)}\" data-field=\"{Regex.Escape(AssessmentVocabulary.VehicleVin)}\">\\s*<label[^>]*>[^<]*<span class=\"src-tag src-tag--lookup\" data-provenance-word=\"Lookup\">Lookup</span></label>\\s*<div class=\"fv mono\">WVWZZZ1JZXW000001</div>",
                 RegexOptions.Singleline),
             vehicle);
         // The input's later attributes sit on the next source line, so the
@@ -313,7 +313,7 @@ public sealed class CaseRecordGapsV26WebTests
             // line, the value in the box and no control.
             Assert.Matches(
                 new Regex(
-                    $"<div class=\"fc ro\" data-vehicle-provenance-row=\"{Regex.Escape(path)}\">\\s*<span class=\"lbl\">{Regex.Escape(label)}<span class=\"src-tag src-tag--lookup\" data-provenance-word=\"Lookup\">Lookup</span></span>\\s*<div class=\"fv\">{Regex.Escape(read)}</div>",
+                    $"<div class=\"fc ro\" data-vehicle-provenance-row=\"{Regex.Escape(path)}\" data-field=\"{Regex.Escape(path)}\">\\s*<span class=\"lbl\">{Regex.Escape(label)}<span class=\"src-tag src-tag--lookup\" data-provenance-word=\"Lookup\">Lookup</span></span>\\s*<div class=\"fv\">{Regex.Escape(read)}</div>",
                     RegexOptions.Singleline),
                 vehicle);
             Assert.DoesNotContain(
@@ -368,7 +368,7 @@ public sealed class CaseRecordGapsV26WebTests
         var reading = SectionHtml(await ReadCaseAsync(store, ports.Register, section: "vehicle"), "vehicle");
         Assert.Matches(
             new Regex(
-                $"class=\"fc ro\" data-vehicle-identity=\"{Regex.Escape(AssessmentVocabulary.VehicleTransmission)}\">\\s*<span class=\"lbl\">{CaseWorkspaceLabels.Vehicle.Transmission}</span>\\s*<div class=\"fv\">CVT</div>",
+                $"class=\"fc ro\" data-vehicle-identity=\"{Regex.Escape(AssessmentVocabulary.VehicleTransmission)}\" data-field=\"{Regex.Escape(AssessmentVocabulary.VehicleTransmission)}\">\\s*<span class=\"lbl\">{CaseWorkspaceLabels.Vehicle.Transmission}</span>\\s*<div class=\"fv\">CVT</div>",
                 RegexOptions.Singleline),
             reading);
         Assert.DoesNotContain($"name=\"{name}\"", reading, StringComparison.Ordinal);

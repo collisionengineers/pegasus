@@ -107,7 +107,7 @@
                     </select>
                 }
             </div>
-            <div class="fc @Ro(mayEdit)" data-inspection-address-field data-inspection-address data-field="@Pegasus.Core.Cases.CaseDataFieldNames.InspectionAddress">
+            <div class="fc @Ro(mayEdit)" data-field="@Pegasus.Core.Cases.CaseDataFieldNames.InspectionAddress" data-inspection-address-field data-inspection-address>
                 @{ Lbl("inspection-address", OperatorLabels.CaseWorkspace.InspectionAddressPanel, OperatorLabels.SourceTag(recorded?.Source)); }
                 <div class="@ValueClass(recorded?.Value)" data-inspection-address-read>@(recorded is null ? OperatorLabels.CaseWorkspace.NotRecorded : recorded.Value)</div>
                 @if (mayEdit)
