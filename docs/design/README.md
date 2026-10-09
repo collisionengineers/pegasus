@@ -210,11 +210,17 @@ motorbike), one yellow comic burst per recorded damage sized and placed by
 dragging and kept as drawn (no wider than half the vehicle, unnumbered and
 unclipped, one look for every severity), and a recorded-areas list numbered
 in recorded order. Images open in a
-full-screen **viewer** (title, tag, position, Rotate, Zoom, Download, In
-report while editing, and a filmstrip with excluded images greyed); crop
-happens on the viewer stage itself (drag, handles, move, Aspect, Rotate left
-and right, Full frame, Reset, Save crop). A crop is a stored rectangle: tiles
-and the report show the cropped region and Download returns the original.
+full-screen **viewer** (title, tag, position, Rotate, Zoom, Download, Pop
+out, In report while editing, and a filmstrip with excluded images greyed);
+crop happens on the viewer stage itself (drag, handles, move, Aspect, Rotate
+left and right, Full frame, Reset, Save crop). A crop is a stored rectangle:
+tiles and the report show the cropped region and Download returns the
+original. **Pop out** (operator, 9 October 2026) — a `.btn.btn--small` with
+the `external-link` glyph in the Files head after Add evidence, and in the
+viewer's tool set after Download — opens the Case's images in their own
+named window (`/Cases/{id}/Images`, about 1280×900, a new tab when pop-ups
+are blocked): the read-mode tiles under the same viewer, with no shell, no
+lease and no Crop, Tag or In report.
 Pre-Case records keep the simpler viewer with Crop (Apply, Clear, Cancel)
 and the Tag select, and their tiles show the cropped region the same way.
 The Triage Case page's viewer has neither: a Triage takes no crop and no tag

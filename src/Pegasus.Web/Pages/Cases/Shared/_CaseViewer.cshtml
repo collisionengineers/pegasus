@@ -1,22 +1,27 @@
 @*
     The Case record's full-screen viewer (v26 § Image viewer): title, tag and
     position, Rotate, Zoom, Crop (while the image is preparable), Download,
-    and while editing the "In report" box, which presses the image tile's own
-    In report button, posted at once (operator, 26 September 2026);
-    a filmstrip along the bottom with excluded images greyed. It opens from
-    any [data-evidence-item] inside a [data-evidence-set] — Files and the Report
-    strip — and from a report draft preview as a
+    Pop out (the Case's images in their own window, opened on this image;
+    operator, 9 October 2026), and while editing the "In report" box, which
+    presses the image tile's own In report button, posted at once (operator,
+    26 September 2026); a filmstrip along the bottom with excluded images
+    greyed. It opens from any [data-evidence-item] inside a [data-evidence-set]
+    — Files and the Report strip — and from a report draft preview as a
     document page. Crop happens on the stage: the crop is a stored rectangle
     over the rotated source, staged into the one Case form, never a new file.
 
-    files.js owns every behaviour; without script each trigger is a real link
-    to the same authorised preview, so nothing here is required to read a file.
+    The images window renders the same viewer standalone: no Pop out of its
+    own, and no preparation on its tiles, so it is the read-mode viewer.
+
+    case-workspace.js owns every behaviour; without script each trigger is a
+    real link to the same authorised preview, so nothing here is required to
+    read a file.
 *@
-@model Pegasus.Web.Pages.Cases.DetailsModel
+@model Pegasus.Web.Pages.Cases.CaseViewerView
 @using Pegasus.Web.Presentation
 @using ViewerLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Viewer
 @using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages
-<div class="case-viewer" data-case-viewer hidden role="dialog" aria-modal="true" aria-label="@ViewerLabels.Title" tabindex="-1">
+<div class="case-viewer" data-case-viewer data-viewer-standalone="@(Model.Standalone ? "true" : null)" hidden role="dialog" aria-modal="true" aria-label="@ViewerLabels.Title" tabindex="-1">
     <div class="case-viewer-top">
         <div class="case-viewer-title">
             <b data-viewer-name></b>
@@ -41,6 +46,13 @@
                     <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
                     <span data-viewer-download-label>@ViewerLabels.Download</span>
                 </a>
+                @if (!Model.Standalone)
+                {
+                    <a class="btn btn--small" href="@CaseFileAddresses.ImagesWindow(Model.CaseId)" target="_blank" rel="noopener" data-viewer-popout data-images-popout hidden>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+                        <span>@ViewerLabels.PopOut</span>
+                    </a>
+                }
                 <label class="case-viewer-inc" data-viewer-in-report-wrap hidden>
                     <input type="checkbox" data-viewer-in-report />
                     <span>@ViewerLabels.InReport</span>

@@ -734,11 +734,22 @@ The Crop lease gate is the record's whole edit mode
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). Crop is unavailable
 once the Case reaches Completed or Query, and never on an archived Case. It
 is not tied to With Engineer, so a Review-state Case shows Crop. Images open
-in a full-screen viewer (title, tag, position, Rotate, Zoom, Download, In
-report while editing, which is the tile's own In report, and a filmstrip).
-Crop happens on the viewer stage. Opening a document brings the viewer into
-view. A crop is a stored rectangle: the tile and the report show the cropped region
-and Download returns the original.
+in a full-screen viewer (title, tag, position, Rotate, Zoom, Download, Pop
+out, In report while editing, which is the tile's own In report, and a
+filmstrip). Crop happens on the viewer stage. Opening a document brings the
+viewer into view. A crop is a stored rectangle: the tile and the report show
+the cropped region and Download returns the original.
+
+**Pop out** (operator, 9 October 2026) opens the Case's images in their own
+window, `/Cases/{id}/Images`, so they can stay on a second screen while the
+Case is worked on: the Files head offers it once one image can be read, and
+the viewer's Pop out opens the window on the image in view and closes the
+viewer here. The window is the read-mode Images tab under the same viewer
+(Rotate, Zoom, Download, the filmstrip); it holds no edit lease and posts
+nothing, so it offers no Crop, Tag or In report, and opening it does not end
+an edit session on the Case page ([FRD-14](frd-14-record-edit-leases.md)).
+One window per Case: Pop out pressed again brings it forward on the chosen
+image. An image added to the Case appears in the window when it is reloaded.
 
 Images on a vehicle-images record or an Unidentified item carry the same
 crop, rotation and tags. Their rules are

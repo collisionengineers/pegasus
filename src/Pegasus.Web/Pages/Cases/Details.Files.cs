@@ -1,7 +1,7 @@
-using System.Globalization;
 using Microsoft.Net.Http.Headers;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Cases;
 
@@ -43,16 +43,9 @@ public sealed partial class DetailsModel
             ? []
             : [.. CaseFiles.Current(FilesSection?.Documents ?? Case!.Documents).Where(IsCaseImage)];
 
-    /// <summary>
-    /// The Images tab's tile order: the report's own order first, then the
-    /// images the report does not use in their existing document order.
-    /// </summary>
+    /// <summary>The Images tab's tile order (<see cref="CaseFileAddresses.ReportOrdered"/>).</summary>
     public IReadOnlyList<CaseFile> ReportOrderedCaseImageFiles(IReadOnlyDictionary<Guid, PreparedReportImage> places) =>
-    [
-        .. CaseImageFiles.OrderBy(file => places.TryGetValue(file.Occurrence.Id, out var image)
-            ? image.Order
-            : int.MaxValue)
-    ];
+        CaseFileAddresses.ReportOrdered(CaseImageFiles, places);
 
     /// <summary>
     /// Each image the report prints, by occurrence: its place and how it
@@ -62,15 +55,8 @@ public sealed partial class DetailsModel
     public IReadOnlyDictionary<Guid, PreparedReportImage> ReportImagesByOccurrence =>
         CaseAssetPreparationPolicy.ForReport(AssetPreparations).ToDictionary(image => image.OccurrenceId);
 
-    /// <summary>
-    /// Whether a file is one of the Case's images: the image role and a media
-    /// type the tile can render. SVG stays a document because it is never
-    /// displayed from this origin.
-    /// </summary>
-    public static bool IsCaseImage(CaseFile file) =>
-        file.Occurrence.SemanticRole == DocumentSemanticRole.Image
-        && (file.Version.MediaType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
-            || file.Version.MediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase));
+    /// <summary>Whether a file is one of the Case's images (<see cref="CaseFileAddresses.IsCaseImage"/>).</summary>
+    public static bool IsCaseImage(CaseFile file) => CaseFileAddresses.IsCaseImage(file);
 
     /// <summary>The report preparation this image carries, if the Case has one for it.</summary>
     public CaseAssetPreparation? PreparationFor(Guid occurrenceId) =>
@@ -97,25 +83,14 @@ public sealed partial class DetailsModel
                 && !parsed.MediaType.Equals("image/svg+xml", StringComparison.OrdinalIgnoreCase)));
 
     /// <summary>The inline preview the viewer reads (the original bytes, no history row).</summary>
-    public string PreviewUrl(CaseFile file) =>
-        $"/Cases/{CurrentCaseId:D}/Documents/{file.Occurrence.Id:D}/Download?versionId={file.Version.Id:D}&inline=true";
+    public string PreviewUrl(CaseFile file) => CaseFileAddresses.Preview(CurrentCaseId, file);
 
     /// <summary>The audited download.</summary>
-    public string DownloadUrl(CaseFile file) =>
-        $"/Cases/{CurrentCaseId:D}/Documents/{file.Occurrence.Id:D}/Download?versionId={file.Version.Id:D}";
+    public string DownloadUrl(CaseFile file) => CaseFileAddresses.Download(CurrentCaseId, file);
 
-    /// <summary>
-    /// The tile's derived rendering. It carries the preparation version so a
-    /// saved crop is a new address rather than a week-cached earlier crop.
-    /// </summary>
-    public string ThumbnailUrl(CaseFile file)
-    {
-        var preparation = PreparationFor(file.Occurrence.Id);
-        var address = PreviewUrl(file) + "&size=" + CaseDocumentThumbnails.ThumbSizeToken;
-        return address
-            + "&prep=" + (preparation?.PreparationVersion ?? 0).ToString(CultureInfo.InvariantCulture)
-            + "&renderer=" + CaseDocumentThumbnails.RendererIdentity;
-    }
+    /// <summary>The tile's derived rendering, by its preparation version.</summary>
+    public string ThumbnailUrl(CaseFile file) =>
+        CaseFileAddresses.Thumbnail(CurrentCaseId, file, PreparationFor(file.Occurrence.Id));
 
     private Guid CurrentCaseId => FilesSection?.Frame.Workflow.CaseId ?? Case!.Workflow.CaseId;
 }
