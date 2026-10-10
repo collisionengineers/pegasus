@@ -8,8 +8,8 @@ These are requirements, not a claim of deployment or operator acceptance.
 
 ## Evidence discipline
 
-Use the accepted interface requirements and current FRD-12 interactions. One
-Case record supports the refined Scroll/Tabs display choice. Native
+Use the accepted interface requirements and current FRD-12 interactions. The
+Case record is one scrolling page. Native
 engineering and reports are owned by Pegasus. Prototype behavior
 is reference evidence; it does not overrule current requirements.
 
@@ -149,8 +149,8 @@ and a colleague editing (chips that do not fit beside the facts take their own
 row under them; the reference and registration are never cut short); then Edit Case, or while editing the Editing badge,
 its status word (Saving…, Saved 14:02, or why the last change was not saved)
 and Done, and one **Actions** menu — and the 40px **section row** of
-section links, Refresh and the Scroll/Tabs switch. Scroll is the default in
-every state; a Tabs choice lasts for the browser session. The section row
+section links and Refresh. The page always scrolls; there is no Tabs layout
+(operator, 9 October 2026). The section row
 links Case details, Claim, Original report on Audit Cases, Inspection details,
 Vehicle (with Damage and Valuation inside), Repair Spec, Decisions, Report,
 Files and Notes. Each is a foldable panel whose head carries its own Edit
@@ -210,11 +210,17 @@ motorbike), one yellow comic burst per recorded damage sized and placed by
 dragging and kept as drawn (no wider than half the vehicle, unnumbered and
 unclipped, one look for every severity), and a recorded-areas list numbered
 in recorded order. Images open in a
-full-screen **viewer** (title, tag, position, Rotate, Zoom, Download, In
-report while editing, and a filmstrip with excluded images greyed); crop
-happens on the viewer stage itself (drag, handles, move, Aspect, Rotate left
-and right, Full frame, Reset, Save crop). A crop is a stored rectangle: tiles
-and the report show the cropped region and Download returns the original.
+full-screen **viewer** (title, tag, position, Rotate, Zoom, Download, Pop
+out, In report while editing, and a filmstrip with excluded images greyed);
+crop happens on the viewer stage itself (drag, handles, move, Aspect, Rotate
+left and right, Full frame, Reset, Save crop). A crop is a stored rectangle:
+tiles and the report show the cropped region and Download returns the
+original. **Pop out** (operator, 9 October 2026) — a `.btn.btn--small` with
+the `external-link` glyph in the Files head after Add evidence, and in the
+viewer's tool set after Download — opens the Case's images in their own
+named window (`/Cases/{id}/Images`, about 1280×900, a new tab when pop-ups
+are blocked): the read-mode tiles under the same viewer, with no shell, no
+lease and no Crop, Tag or In report.
 Pre-Case records keep the simpler viewer with Crop (Apply, Clear, Cancel)
 and the Tag select, and their tiles show the cropped region the same way.
 The Triage Case page's viewer has neither: a Triage takes no crop and no tag
@@ -311,12 +317,10 @@ shared `.dismiss` × so it can be put away before it expires.
   record is one container — header, identity ribbon, action bar, sections as
   tabs — and the operator reaches its identity, its state, its available
   actions and its main content without scrolling.
-- The Case record has Scroll and Tabs display modes using the same section
-  hosts and one edit form. Scroll is the no-script fallback: its identity
-  ribbon, action bar and section navigation are sticky, sections below the
-  fold load lazily, and `?section=` reaches a section. Tabs hide inactive
-  sections without removing their loaded fields or a change not yet sent.
-  Retain the personal display preference and the single Case Notes timeline.
+- The Case record is one scrolling page of section hosts with one edit form:
+  its identity ribbon, action bar and section navigation are sticky, sections
+  below the fold load lazily, and `?section=` reaches a section. Retain the
+  single Case Notes timeline.
 - <a id="source-tags"></a>**Source tags.** Where a value came from is one
   visible word in a small `src-tag` pill in the cell's label line, the same in
   read and edit: Extracted · AI · E-mail · Lookup · Principal · Automatic ·
@@ -748,6 +752,15 @@ answers that it does not value a vehicle of that age. It shows in the
 Glass's card as an info notice, with no Report a problem, because nothing is
 broken; every other failure keeps the unavailable sentence.
 
+> The Case registration has changed since this Glass's estimate was started. Restore the original vehicle details to reopen it.
+
+> The Case registration has changed since this Glass's session started. The session still holds the account. Restore the original vehicle details to resume, or close the external session and confirm its closure before launching again.
+
+The operator approved both (9 October 2026, issue 1070) for **Glass's** on a
+spec's estimate, and on the staff member's own live session, after the Case
+registration changed. A corrected mileage, or any change on a placeholder,
+is not refused.
+
 Permanent consequences must be visible without hover or colour alone. Illustrative text must not fabricate operational input.
 
 These words are banned from operator-facing copy in
@@ -897,7 +910,7 @@ deleted in wave 5.
 | `record`, `record-head`, `record-accent`, `record-bar`, `record-body` | Single-record container |
 | `sticky-block` (`[data-sticky-block]`) | The record's sticky block under the utility bar, measured at runtime into `--sticky-h` |
 | `ribbon`, `ribbon-facts`, `ribbon-item`, `ribbon-ref`, `ribbon-registration`, `ribbon-value`, `ribbon-chips`, `ribbon-actions` | The 56px identity ribbon: the reference as the page's `h1` (`ribbon-value`) under "Case workspace", Registration, Claimant, Principal, Engineer; state, Case type and colleague-editing chips; then the edit controls and the one **Actions** menu |
-| `section-row`, `section-nav`, `section-link`, `section-tools`, `layout-switch` | The 40px section row: section links (the one in view carries `aria-current`), Refresh and the Scroll/Tabs switch |
+| `section-row`, `section-nav`, `section-link`, `section-tools` | The 40px section row: section links (the one in view carries `aria-current`) and Refresh |
 | `workspace`, `workspace-aside` | The record grid: sections beside a 285px aside (the Views card once an Audit exists, Figures, Next action, Report not ready) that folds above the sections below 1441px |
 | `context-card` (`[data-case-views]`), `next-row` | The Views card: one row per view, the current one plain with `aria-current="page"`, the other a link |
 | `record-section`, `panel[data-collapse]`, `panel-collapse`, `is-collapsed`, `is-editing`, `is-locked` | One section panel, foldable and remembered per browser; the record's edit and read-only states |
@@ -907,7 +920,6 @@ deleted in wave 5.
 | `gated`, `avail` | The dashed availability label, stated once per section head |
 | `damage-workbench`, `damage-marks`, `figures`, `figure` | The Damage plan and its bursts, and the aside figures |
 | `damage-diagram`, `dv-hit`, `dm`, `dm-guides` | The vehicle's drawing and the outline a press must start on, one burst per recorded damage over its unpainted disc (kept as drawn, unclipped), and the dashed band guides shown while editing |
-| `tyre-card` | Tyre and seat belt per corner, spare tyre, centre belt |
 | `valuation-card` | One valuation entry: source, date, time, guide month, retail, trade (and the mileage an Engineer's Value or AI entry carries) |
 | `outcome-option` | Settlement outcome choice |
 | `derived` | A value derived, never entered: impact location and severity, equity, the Incident narrative and the statement of truth read from their report owners, and a permitted ratio line where one is shown |
@@ -1145,6 +1157,8 @@ Use guidance only where the operator must understand a consequence:
 - "Unlinking this email cancels case <reference>."
 - "{Source} valuation is unavailable. Contact an administrator or report a problem."
 - "Glass's cannot value this vehicle because of its age: Glass's values cars and motorcycles up to 20 years old and light commercial vehicles up to 15."
+- "The Case registration has changed since this Glass's estimate was started. Restore the original vehicle details to reopen it."
+- "The Case registration has changed since this Glass's session started. The session still holds the account. Restore the original vehicle details to resume, or close the external session and confirm its closure before launching again."
 
 Illustrative text must not fabricate operational input. Loading, empty,
 stale/partial, retryable error, denied/unauthenticated, validation, conflict,

@@ -319,6 +319,11 @@ public sealed partial class AssessmentReportDraftWebTests
                     // The anchor tag helper writes a null tab as an empty one.
                     Assert.DoesNotMatch("data-section-tab=\"[^\"]", row);
                 }
+                // The jump outlines the cell recording the blocker's field.
+                if (CaseWorkspaceLabels.Report.BlockerField(reason) is { } field)
+                {
+                    Assert.Contains($"data-section-field=\"{field}\"", row, StringComparison.Ordinal);
+                }
             }
         }
 
@@ -567,8 +572,6 @@ public sealed partial class AssessmentReportDraftWebTests
                 Year: "2012"),
             Settlement = new(new Dictionary<string, string?>(StringComparer.Ordinal)
             {
-                [AssessmentVocabulary.SettlementExcess] = "250.00",
-                [AssessmentVocabulary.SettlementBetterment] = "0.00",
                 [AssessmentVocabulary.SettlementClaimantVatRegistered] = "false"
             }),
             Report = new(new Dictionary<string, string?>(StringComparer.Ordinal)
@@ -612,10 +615,9 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal("application/pdf", response.Content.Headers.ContentType?.MediaType);
         Assert.Equal(1, source.PreviewReads);
         var snapshot = Assert.IsType<AssessmentReportSnapshot>(renderer.Snapshot);
-        // The excess, betterment and the claimant's VAT answer are saved on
-        // the Case and are no part of the report; only a contract repair
-        // carries an agreed sum.
-        Assert.Equal("250.00", persisted.Field(AssessmentVocabulary.SettlementExcess)?.Value);
+        // The claimant's VAT answer is saved on the Case and is no part of
+        // the report; only a contract repair carries an agreed sum.
+        Assert.Equal("false", persisted.Field(AssessmentVocabulary.SettlementClaimantVatRegistered)?.Value);
         Assert.Equal(new ReportSettlement(), snapshot.Settlement);
         Assert.Equal("History clear", snapshot.HistoryCheck);
         Assert.Equal("Scuffed", snapshot.EngineerComments);

@@ -124,6 +124,10 @@ internal sealed class EfMonthlyReportActivityQueries(
                     .Where(x => x.PrincipalId == key.PrincipalId && MonthOf(x.GeneratedAtUtc) == key.Month
                         && x.Kind == nameof(CaseReportArtifactKind.AssessmentReport))
                     .ToList();
+                var feeNotes = artifacts
+                    .Where(x => x.PrincipalId == key.PrincipalId && MonthOf(x.GeneratedAtUtc) == key.Month
+                        && x.Kind == nameof(CaseReportArtifactKind.FeeNote))
+                    .ToList();
                 var sends = sent
                     .Where(x => x.PrincipalId == key.PrincipalId && MonthOf(x.ObservedSentAtUtc) == key.Month)
                     .ToList();
@@ -133,13 +137,13 @@ internal sealed class EfMonthlyReportActivityQueries(
                     key.Month.Year,
                     key.Month.Month,
                     reports.Count,
-                    artifacts.Count(x => x.PrincipalId == key.PrincipalId && MonthOf(x.GeneratedAtUtc) == key.Month
-                        && x.Kind == nameof(CaseReportArtifactKind.FeeNote)),
+                    feeNotes.Count,
                     sends.Count,
                     feeWorkIds.Sum(workId => fees[workId]),
                     reports.Count(x => x.IsAudit),
                     sends.Count(x => x.IsAudit),
-                    feeWorkIds.Where(auditWorkIds.Contains).Sum(workId => fees[workId]));
+                    feeWorkIds.Where(auditWorkIds.Contains).Sum(workId => fees[workId]),
+                    feeNotes.Count(x => x.IsAudit));
             })
             .OrderByDescending(x => x.Year).ThenByDescending(x => x.Month)
             .ThenBy(x => x.PrincipalCode, StringComparer.OrdinalIgnoreCase)

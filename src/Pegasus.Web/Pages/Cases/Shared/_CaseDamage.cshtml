@@ -99,22 +99,9 @@
 
     string AreaNames(IReadOnlyList<string> codes) => string.Join(", ", codes.Select(DamageLabels.Location));
     string Svg(double value) => value.ToString("0.#", CultureInfo.InvariantCulture);
-    string DisplayValue(string path, string? value)
-    {
-        var definition = AssessmentVocabulary.Definitions[path];
-        if (string.IsNullOrWhiteSpace(value)) return OperatorLabels.CaseWorkspace.AbsentValue;
-        if (definition.Type == AssessmentFieldType.Enumerated) return DamageLabels.CodeWord(value);
-        if (definition.Type == AssessmentFieldType.Money
-            && decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var money))
-        {
-            return "£" + money.ToString("N2", CultureInfo.GetCultureInfo("en-GB"));
-        }
-        return value;
-    }
-    string? Recorded(string path) => Model.AssessmentIsAbsent(path) ? null : Model.AssessmentEditorValue(path);
 }
 
-<section class="record-section record-section--nested panel @Model.CollapsedClass("case.damage") @Model.ActiveTabClass("damage") case-damage @(Model.IsEditing && !editable ? "is-locked" : null)" id="section-damage" data-section="damage" data-section-parent="vehicle" data-collapse="case.damage" aria-labelledby="section-damage-title"
+<section class="record-section record-section--nested panel @Model.CollapsedClass("case.damage") case-damage @(Model.IsEditing && !editable ? "is-locked" : null)" id="section-damage" data-section="damage" data-section-parent="vehicle" data-collapse="case.damage" aria-labelledby="section-damage-title"
          data-damage-editor data-damage-editable="@(editable ? "true" : "false")" data-damage-impacts="@rawImpacts"
          data-damage-areas="@areaTable" data-damage-severities="@severityTable" data-damage-multiple="@DamageLabels.Multiple"
          data-damage-absent="@OperatorLabels.CaseWorkspace.AbsentValue" data-damage-none="@DamageLabels.NoDamageRecorded"
@@ -196,8 +183,8 @@
             <div class="damage-facts">
                 @* No count of recorded areas: the list under these says what is recorded (v36 item L, 9 October 2026). *@
                 <div class="fg g2">
-                    <div class="fc ro"><span class="lbl">@EngineerLabels.ImpactLocation</span><div class="fv derived" data-damage-location>@locationText</div></div>
-                    <div class="fc ro"><span class="lbl">@EngineerLabels.ImpactSeverity</span><div class="fv derived" data-damage-severity>@severityText</div></div>
+                    <div class="fc ro" data-field="@AssessmentVocabulary.ImpactLocation"><span class="lbl">@EngineerLabels.ImpactLocation</span><div class="fv derived" data-damage-location>@locationText</div></div>
+                    <div class="fc ro" data-field="@AssessmentVocabulary.ImpactSeverity"><span class="lbl">@EngineerLabels.ImpactSeverity</span><div class="fv derived" data-damage-severity>@severityText</div></div>
                 </div>
                 <ul class="impact-list" data-damage-impact-list aria-label="@DamageLabels.RecordedAreas">
                     @if (impacts.Count == 0)
@@ -243,64 +230,21 @@
                         </li>
                     }
                 </ul>
-                <div class="sub-panel mt-2"><h3>@DamageLabels.TyresAndBelts</h3>
-                    <div class="fg g4">
-                        @foreach (var field in damageFields.Where(entry => entry.Key != AssessmentVocabulary.DamageUnrelated && entry.Key != AssessmentVocabulary.DamageUnrelatedDeduction))
-                        {
-                            var definition = AssessmentVocabulary.Definitions[field.Key];
-                            var value = Model.AssessmentEditorValue(field.Key);
-                            var recorded = Recorded(field.Key);
-                            var name = CaseWorkspaceLabels.Editors.FormName(field.Key);
-                            var mayEditField = Model.CanEditAssessmentField(field.Key);
-                            @* One cell each, so Airbags deployed shares the last row (v36 f24). *@
-                            <div class="fc @(mayEditField ? null : "ro")">
-                                @{ Lbl(mayEditField, "edit-" + field.Key, field.Value); }
-                                <div class="fv @(recorded is null ? "empty" : null)">@DisplayValue(field.Key, recorded)</div>
-                                @if (mayEditField)
-                                {
-                                    if (definition.Type == AssessmentFieldType.Enumerated)
-                                    {
-                                        <select id="edit-@field.Key" class="fi" name="@name" form="case-edit-form">
-                                            <option value="" selected="@(value is null)">@OperatorLabels.CaseWorkspace.AbsentValue</option>
-                                            @foreach (var code in definition.Codes ?? [])
-                                            {
-                                                <option value="@code" selected="@(value == code)">@DamageLabels.CodeWord(code)</option>
-                                            }
-                                        </select>
-                                    }
-                                    else
-                                    {
-                                        <input id="edit-@field.Key" class="fi" name="@name" form="case-edit-form" value="@value" maxlength="@definition.MaximumLength" />
-                                    }
-                                }
-                            </div>
-                        }
-                    </div>
-                </div>
                 <div class="fg g4 mt-2">
                     @{
                         var unrelated = Model.AssessmentEditorValue(AssessmentVocabulary.DamageUnrelated);
                         var unrelatedRead = Model.AssessmentValue(AssessmentVocabulary.DamageUnrelated);
-                        var deduction = Model.AssessmentEditorValue(AssessmentVocabulary.DamageUnrelatedDeduction);
-                        var deductionRecorded = Recorded(AssessmentVocabulary.DamageUnrelatedDeduction);
                         var mayEditUnrelated = Model.CanEditAssessmentField(AssessmentVocabulary.DamageUnrelated);
-                        var mayEditDeduction = Model.CanEditAssessmentField(AssessmentVocabulary.DamageUnrelatedDeduction);
                     }
-                    @* Unrelated damage and its deduction share one row at half width each, so the deduction label is never cut (v36 f21). *@
-                    <div class="fc span2 @(mayEditUnrelated ? null : "ro")">
+                    @* The tyres, belts, airbags, material transfer and the unrelated-damage
+                       deduction are gone (operator, 9 October 2026): no document printed
+                       them. Unrelated damage takes the row alone. *@
+                    <div class="fc span4 @(mayEditUnrelated ? null : "ro")" data-field="@AssessmentVocabulary.DamageUnrelated">
                         @{ Lbl(mayEditUnrelated, "edit-" + AssessmentVocabulary.DamageUnrelated, damageFields[AssessmentVocabulary.DamageUnrelated]); }
                         <div class="fv @(unrelatedRead == OperatorLabels.CaseWorkspace.AbsentValue ? "empty" : null)">@unrelatedRead</div>
                         @if (mayEditUnrelated)
                         {
                             <input id="edit-@AssessmentVocabulary.DamageUnrelated" class="fi" name="@CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelated)" form="case-edit-form" value="@unrelated" maxlength="@AssessmentVocabulary.Definitions[AssessmentVocabulary.DamageUnrelated].MaximumLength" />
-                        }
-                    </div>
-                    <div class="fc span2 @(mayEditDeduction ? null : "ro")">
-                        @{ Lbl(mayEditDeduction, "edit-" + AssessmentVocabulary.DamageUnrelatedDeduction, damageFields[AssessmentVocabulary.DamageUnrelatedDeduction]); }
-                        <div class="fv mono @(deductionRecorded is null ? "empty" : null)">@DisplayValue(AssessmentVocabulary.DamageUnrelatedDeduction, deductionRecorded)</div>
-                        @if (mayEditDeduction)
-                        {
-                            <input id="edit-@AssessmentVocabulary.DamageUnrelatedDeduction" class="fi mono" name="@CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelatedDeduction)" form="case-edit-form" type="number" step="0.01" min="0" value="@deduction" />
                         }
                     </div>
                     <div class="fc ro span4"><span class="lbl">@EngineerLabels.IncidentNarrative</span><div class="fv derived @(Model.IncidentNarrative is null ? "empty" : null) @(Model.IncidentNarrative?.Contains('\n') == true ? "multi" : null)" data-damage-narrative>@(Model.IncidentNarrative ?? OperatorLabels.CaseWorkspace.AbsentValue)</div></div>

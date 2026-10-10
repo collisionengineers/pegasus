@@ -54,6 +54,17 @@ public static class ImageCustodyRetryPolicy
 /// </summary>
 public static class PendingCustodyRetryPolicy
 {
+    /// <summary>
+    /// How long the sweep leaves a newly recorded pending version to the
+    /// request that recorded it. That request records the version first and
+    /// then files it in Box under its fixed name; a sweep that filed it too
+    /// would upload the same name at the same moment, and Box refuses one of
+    /// the two as <c>name_temporarily_reserved</c> (a.QDOS26101's Glass's
+    /// return, 9 October 2026). An upload takes seconds, so two minutes is
+    /// ample, and a version its request never filed is still filed soon after.
+    /// </summary>
+    public static TimeSpan InlineFilingGrace { get; } = TimeSpan.FromMinutes(2);
+
     private static readonly TimeSpan[] Waits =
     [
         TimeSpan.FromMinutes(1),

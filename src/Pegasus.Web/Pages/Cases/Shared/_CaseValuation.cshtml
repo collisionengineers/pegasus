@@ -60,7 +60,7 @@
         + valuation.Details.Date.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
 }
 
-<section class="record-section record-section--nested panel @Model.CollapsedClass("case.valuation") @Model.ActiveTabClass("valuation") @(Model.IsEditing && !Model.SectionIsEditable("valuation") ? "is-locked" : null)" id="section-valuation" data-section="valuation" data-section-parent="vehicle" data-collapse="case.valuation" aria-labelledby="section-valuation-title">
+<section class="record-section record-section--nested panel @Model.CollapsedClass("case.valuation") @(Model.IsEditing && !Model.SectionIsEditable("valuation") ? "is-locked" : null)" id="section-valuation" data-section="valuation" data-section-parent="vehicle" data-collapse="case.valuation" aria-labelledby="section-valuation-title">
     <div class="panel-head">
         <h2 id="section-valuation-title">@ValuationLabels.SectionTitle</h2>
         <span class="meta" data-valuation-head>@Model.ValuationHead</span>
@@ -69,7 +69,8 @@
         </div>
     </div>
     <div class="panel-body stack">
-        <div class="valuation-cards" data-valuation-cards>
+        @* The report's Retail and Trade come from the chosen card, so a jump to either lands on the cards. *@
+        <div class="valuation-cards" data-valuation-cards data-field="@AssessmentVocabulary.ValueRetail @AssessmentVocabulary.ValueTrade">
             @for (var index = 0; index < guideSources.Length; index++)
             {
                 var source = guideSources[index];

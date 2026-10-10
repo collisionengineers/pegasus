@@ -37,7 +37,7 @@
     var vatTag = Model.AssessmentSourceTag(vatPath);
 }
 
-<section class="record-section panel @Model.CollapsedClass("case.claim") @Model.ActiveTabClass("claim") @(Model.IsEditing && !Model.SectionIsEditable("claim") ? "is-locked" : null)" id="section-claim" data-section="claim" data-collapse="case.claim" aria-labelledby="section-claim-title">
+<section class="record-section panel @Model.CollapsedClass("case.claim") @(Model.IsEditing && !Model.SectionIsEditable("claim") ? "is-locked" : null)" id="section-claim" data-section="claim" data-collapse="case.claim" aria-labelledby="section-claim-title">
     <div class="panel-head">
         <h2 id="section-claim-title">@Frame.Claim</h2>
         <div class="panel-actions"><partial name="Cases/Shared/_CaseSectionHeadTools" model="headTools" /></div>
@@ -45,7 +45,7 @@
     <div class="panel-body stack">
         <div class="sub-panel @Model.CollapsedClass("case.claim.claimant")" data-collapse="case.claim.claimant"><h3>Claimant <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.claim.claimant")" /></h3>
             <div class="fg g4">
-                <div class="fc @Ro()">@{ Lbl("f-claimant", OperatorLabels.CaseWorkspace.RibbonClaimant, claimantValue?.Source); }<div class="@ValueClass(claimant)">@Value(claimant)</div>@if (mayEdit){<input id="f-claimant" class="fi" name="claimantName" form="case-edit-form" maxlength="300" value="@claimant" />}</div>
+                <div class="fc @Ro()" data-field="@Pegasus.Core.Cases.CaseDataFieldNames.ClaimantName">@{ Lbl("f-claimant",OperatorLabels.CaseWorkspace.RibbonClaimant, claimantValue?.Source); }<div class="@ValueClass(claimant)">@Value(claimant)</div>@if (mayEdit){<input id="f-claimant" class="fi" name="claimantName" form="case-edit-form" maxlength="300" value="@claimant" />}</div>
                 <div class="fc @Ro()">@{ Lbl("f-claimant-contact", Frame.Contact, claimantContactValue?.Source); }<div class="@ValueClass(claimantContact)">@Value(claimantContact)</div>@if (mayEdit){<input id="f-claimant-contact" class="fi" name="claimantContactNumber" form="case-edit-form" maxlength="100" value="@claimantContact" />}</div>
                 @* The address spans two cells so it neither wraps reading nor clips editing (v36 f14). *@
                 <div class="fc span2 @Ro()">@{ Lbl("f-claimant-address", Frame.Address, claimantAddressValue?.Source); }<div class="@ValueClass(claimantAddress)">@Value(claimantAddress)</div>@if (mayEdit){<input id="f-claimant-address" class="fi" name="claimantAddress" form="case-edit-form" maxlength="1000" value="@claimantAddress" />}</div>

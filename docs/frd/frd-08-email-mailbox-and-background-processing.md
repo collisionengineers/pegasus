@@ -91,7 +91,7 @@ keeps the research context and is not a competing owner.
 | `new-instruction-received` | initial work instructions: `audit`, `diminution`, `inspection`, `new-client`, `website-enquiry` |
 | `non-client-related` | internal or company email from tools, services, software packages and similar sources |
 | `in-progress-cases` | `cancellation`; `case-update`; `chasing-for-update`; other ongoing correspondence |
-| `post-report-emails` | queries; disputes; amendment requests; similar post-report correspondence |
+| `post-report-emails` | queries, a dispute included; amendment requests; similar post-report correspondence |
 | `pre-instruction-emails` | Triage requests; pre-formal-instruction handling requests; images received before formal instructions |
 | `internal-cc` | internal copied correspondence |
 
@@ -99,9 +99,10 @@ Each example is a named classification, never material hidden in a generic
 `Other`. The canonical subtype spellings are `acknowledgement` for the
 General example; `payment-notification`, `remittance` and `invoice-request`
 for billing; `ongoing-correspondence` for the remaining in-progress example;
-`query`, `dispute` and `amendment-request` for post-report mail; and
+`query` and `amendment-request` for post-report mail; and
 `triage-request`, `pre-formal-instruction-request` and `images-received` for
-pre-instruction mail. A family whose row names no subtype needs none.
+pre-instruction mail. A family whose row names no subtype needs none. A
+dispute is a query: there is no dispute subtype (operator, 9 October 2026).
 
 | Sent family | Confirmed meaning |
 | --- | --- |
@@ -147,7 +148,7 @@ the evidence, actor, time, policy version and later corrections.
 | --- | --- | --- | --- | --- |
 | `General/autoreply` | Generated automatic-reply evidence; never quoted new-work text | route predicate or staff | Detailed: `General/autoreply` | No action |
 | `General/undeliverable` | Delivery-status or non-delivery evidence for the exact message | transport evidence or staff | Detailed: `General/undeliverable` | No action |
-| `General/acknowledgement` | Acknowledges receipt without a request, new work, dispute, amendment or cancellation | staff until a predicate is accepted | Detailed: `General/acknowledgement` | No action |
+| `General/acknowledgement` | Acknowledges receipt without a request, new work, query, amendment or cancellation | staff until a predicate is accepted | Detailed: `General/acknowledgement` | No action |
 | `General/general-chase` | General chase, including one about several Cases; never one-to-many association | staff | Detailed: `General/general-chase` | Case queries |
 | `General/case-summary` | Informational summary with no new instruction or actionable request | staff | Detailed: `General/case-summary` | No action |
 | `billing/payment-notification` | Payment notification, excluding a question or request | predicate or staff | Detailed: `billing/payment-notification` | Billing |
@@ -165,8 +166,7 @@ the evidence, actor, time, policy version and later corrections.
 | `in-progress-cases/case-update` | Update on ongoing work, excluding a new instruction or a post-report challenge | staff | Detailed: `in-progress-cases/case-update` | Case updates |
 | `in-progress-cases/chasing-for-update` | Client or Principal asks for progress on ongoing work | staff | Detailed: `in-progress-cases/chasing-for-update` | Case updates |
 | `in-progress-cases/ongoing-correspondence` | Other ongoing correspondence once more specific subtypes are excluded | reasoned staff decision | Detailed: `in-progress-cases/ongoing-correspondence` | Case updates |
-| `post-report-emails/query` | Question about a delivered report | route or thread evidence or staff | Queries | Case queries |
-| `post-report-emails/dispute` | Challenge to a delivered report or finding | route or thread evidence or staff | Queries | Case queries |
+| `post-report-emails/query` | Question about, or challenge to, a delivered report or finding | route or thread evidence or staff | Queries | Case queries |
 | `post-report-emails/amendment-request` | Request to amend a delivered report | route or thread evidence or staff | Queries | Case queries |
 | `pre-instruction-emails/triage-request` | Accepted Triage request; a missing VRM stays Unidentified under FRD-03 | route predicate or staff | Triage | Pre-instructions |
 | `pre-instruction-emails/pre-formal-instruction-request` | Known pre-formal handling request, excluding Triage | staff | Detailed: `pre-instruction-emails/pre-formal-instruction-request` | Pre-instructions |

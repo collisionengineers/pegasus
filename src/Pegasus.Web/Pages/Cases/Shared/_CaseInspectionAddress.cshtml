@@ -70,7 +70,7 @@
     };
 }
 
-<section class="record-section panel @Model.CollapsedClass("case.inspection") @Model.ActiveTabClass("inspection") @(Model.IsEditing && !Model.SectionIsEditable("inspection") ? "is-locked" : null)" id="section-inspection" data-section="inspection" data-collapse="case.inspection" aria-labelledby="section-inspection-title">
+<section class="record-section panel @Model.CollapsedClass("case.inspection") @(Model.IsEditing && !Model.SectionIsEditable("inspection") ? "is-locked" : null)" id="section-inspection" data-section="inspection" data-collapse="case.inspection" aria-labelledby="section-inspection-title">
     <div class="panel-head">
         <h2 id="section-inspection-title">@InspectionLabels.SectionTitle</h2>
         <div class="panel-actions">
@@ -79,11 +79,11 @@
     </div>
     <div class="panel-body stack">
         <div class="fg g4">
-            <div class="fc ro" data-inspection-type>
+            <div class="fc ro" data-inspection-type data-field="@Pegasus.Core.Cases.CaseDataFieldNames.InspectionMode">
                 <span class="lbl">@InspectionLabels.InspectionType</span>
                 <div class="@ValueClass(modeLabel)">@Value(modeLabel)</div>
             </div>
-            <div class="fc @Ro(mayEdit)">
+            <div class="fc @Ro(mayEdit)" data-field="@Pegasus.Core.Cases.CaseDataFieldNames.InspectionDate">
                 @{ Lbl("f-inspection-date", InspectionLabels.InspectionDate, OperatorLabels.SourceTag(inspectionDateValue?.Source)); }
                 <div class="@ValueClass(inspectionDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))">@Value(inspectionDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))</div>
                 @if (mayEdit)
@@ -107,7 +107,7 @@
                     </select>
                 }
             </div>
-            <div class="fc @Ro(mayEdit)" data-inspection-address-field data-inspection-address>
+            <div class="fc @Ro(mayEdit)" data-field="@Pegasus.Core.Cases.CaseDataFieldNames.InspectionAddress" data-inspection-address-field data-inspection-address>
                 @{ Lbl("inspection-address", OperatorLabels.CaseWorkspace.InspectionAddressPanel, OperatorLabels.SourceTag(recorded?.Source)); }
                 <div class="@ValueClass(recorded?.Value)" data-inspection-address-read>@(recorded is null ? OperatorLabels.CaseWorkspace.NotRecorded : recorded.Value)</div>
                 @if (mayEdit)
@@ -166,7 +166,7 @@
 
         <div class="sub-panel @Model.CollapsedClass("case.inspection.storage")" data-inspection-storage data-collapse="case.inspection.storage"><h3>@InspectionLabels.Storage <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.inspection.storage")" /></h3>
             @* Storage per day and the recovery charge are Engineer figures recorded
-               in Decisions' Costs, hire & delays (v36 item G, 9 October 2026); the
+               in Decisions (v36 item G, 9 October 2026); the
                location is the one Case-data fact here. *@
             <div class="fg g4">
                 <div class="fc span4 @Ro(mayEdit)">

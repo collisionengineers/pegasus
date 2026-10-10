@@ -235,6 +235,100 @@ public sealed class MonthlyReportActivityPersistenceTests
         Assert.Equal(100m, principalRow.InspectionAgreedFeeTotal);
     }
 
+    /// <summary>
+    /// Outcomes (item O) and By month's fee notes by work (item D): each
+    /// confirmed report counts under the outcome frozen in its snapshot; the
+    /// Audit report differs from the Inspection's recorded outcome it reviews;
+    /// the Audit work's fee note is the Audit share of the fee notes.
+    /// </summary>
+    [Fact]
+    public async Task OutcomesCountEachReportByItsFrozenOutcomeAndTheAuditByAgreement()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var principalId = Guid.Empty;
+        var inspectionGeneratedAt = new DateTimeOffset(2031, 6, 5, 12, 0, 0, TimeSpan.Zero);
+        var auditGeneratedAt = new DateTimeOffset(2031, 6, 20, 12, 0, 0, TimeSpan.Zero);
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            var principal = await SeededPrincipals.QdosAsync(context);
+            principalId = principal.Id;
+            var caseId = Guid.NewGuid();
+            var auditWorkId = Guid.NewGuid();
+            var inspectionGenerationId = Guid.NewGuid();
+            var auditGenerationId = Guid.NewGuid();
+            var versionIds = new[] { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() };
+            var documentIds = new[] { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() };
+            var hashes = new[] { new string('a', 64), new string('b', 64), new string('c', 64) };
+
+            context.Add(new CaseEntity
+            {
+                Id = caseId,
+                PrincipalId = principal.Id,
+                SequenceLineageId = principal.SequenceLineageId,
+                Year = 2031,
+                Sequence = 1,
+                Reference = "QDOS31001",
+                AuditReference = "a.QDOS31001",
+                Type = "inspection_and_audit",
+                InitialState = "Review",
+                CustodyState = "Confirmed",
+                InstructionComplete = true,
+                ImagesComplete = true,
+                CreatedAtUtc = From,
+                Version = 1,
+                ConcurrencyToken = Guid.NewGuid()
+            });
+            context.CaseWorks.Add(new CaseWorkEntity
+            {
+                Id = auditWorkId,
+                CaseId = caseId,
+                Kind = CaseWorkKinds.Audit,
+                CreatedAtUtc = inspectionGeneratedAt.AddDays(5)
+            });
+            // The Inspection's recorded outcome is the report the Audit reviews.
+            context.CaseAssessmentFields.Add(new CaseAssessmentFieldEntity
+            {
+                WorkId = caseId,
+                FieldPath = AssessmentVocabulary.Outcome,
+                Value = "repairable",
+                RecordedByKind = "Staff",
+                RecordedBy = Guid.NewGuid().ToString("D"),
+                RecordedAtUtc = inspectionGeneratedAt
+            });
+            context.Set<CaseReportGenerationEntity>().AddRange(
+                Generation(inspectionGenerationId, caseId, inspectionGeneratedAt, "{\"agreedFee\":100.00,\"report\":{\"outcome\":1}}", new string('d', 64)),
+                Generation(auditGenerationId, caseId, auditGeneratedAt, "{\"agreedFee\":40.00,\"report\":{\"outcome\":0}}", new string('e', 64), auditWorkId));
+            context.Set<CaseDocumentEntity>().AddRange(
+                new CaseDocumentEntity { Id = documentIds[0], CaseId = caseId, Ordinal = 1, SourceOccurrenceIdentity = "outcomes:inspection" },
+                new CaseDocumentEntity { Id = documentIds[1], CaseId = caseId, Ordinal = 2, SourceOccurrenceIdentity = "outcomes:audit", CustodyFolder = CaseCustodyFolders.Audit },
+                new CaseDocumentEntity { Id = documentIds[2], CaseId = caseId, Ordinal = 3, SourceOccurrenceIdentity = "outcomes:audit-fee-note", CustodyFolder = CaseCustodyFolders.Audit });
+            context.Set<DocumentVersionEntity>().AddRange(
+                Version(versionIds[0], documentIds[0], inspectionGeneratedAt, hashes[0], "QDOS31001_report.pdf"),
+                Version(versionIds[1], documentIds[1], auditGeneratedAt, hashes[1], "A_QDOS31001_report.pdf"),
+                Version(versionIds[2], documentIds[2], auditGeneratedAt, hashes[2], "A_QDOS31001_fee_note.pdf"));
+            context.Set<GeneratedCaseArtifactEntity>().AddRange(
+                Artifact(Guid.NewGuid(), inspectionGenerationId, versionIds[0], hashes[0], nameof(CaseReportArtifactKind.AssessmentReport)),
+                Artifact(Guid.NewGuid(), auditGenerationId, versionIds[1], hashes[1], nameof(CaseReportArtifactKind.AssessmentReport)),
+                Artifact(Guid.NewGuid(), auditGenerationId, versionIds[2], hashes[2], nameof(CaseReportArtifactKind.FeeNote)));
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var facts = await scope.ServiceProvider.GetRequiredService<IReportOutcomeQueries>()
+            .GetAsync(From, To, CancellationToken.None);
+        var month = Assert.Single(await scope.ServiceProvider.GetRequiredService<IMonthlyReportActivityQueries>()
+            .GetAsync(From, To, CancellationToken.None));
+
+        Assert.Equal(
+            [
+                new ReportOutcomeFact(principalId, "QDOS", AssessmentReportOutcome.Repairable, IsAudit: false, null),
+                new ReportOutcomeFact(principalId, "QDOS", AssessmentReportOutcome.TotalLoss, IsAudit: true, "repairable")
+            ],
+            facts.OrderBy(fact => fact.IsAudit));
+        Assert.Equal((1, 1, 0), (month.FeeNotesGenerated, month.AuditFeeNotesGenerated, month.InspectionFeeNotesGenerated));
+    }
+
     private static StaffMailSendOperationEntity SentOperation(Guid generationId, DateTimeOffset sentAt) => new()
     {
         Id = Guid.NewGuid(),

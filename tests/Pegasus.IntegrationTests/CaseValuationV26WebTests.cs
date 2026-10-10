@@ -29,7 +29,7 @@ namespace Pegasus.IntegrationTests;
 /// the calculation and the Retail, Trade and Engineer's Value boxes stand
 /// under its row, the Engineer's Value is the one place the figure stands,
 /// and its label carries the recorded calculation's source as one word.
-/// Use this value is the visible decision to use a row's figure, a source
+/// A click on a card is the visible decision to use its figure, a source
 /// with no connected provider says so before anything is pressed, and the
 /// preview answers with the figures the Save will use or with its own reason
 /// (operator, 28 September 2026).
@@ -52,7 +52,7 @@ public sealed class CaseValuationV26WebTests
     /// mileage, retail and trade boxes join the Case form, with a Get
     /// valuation button that asks by script and the card's hidden notice when
     /// its provider is connected, or the card's standing notice and no button
-    /// when it is not (all five, here). Every card offers Use this value.
+    /// when it is not (all five, here). Every card can be chosen.
     /// There is no card Save and no Add valuation dialog.
     /// </summary>
     [Fact]
@@ -427,8 +427,8 @@ public sealed class CaseValuationV26WebTests
     }
 
     /// <summary>
-    /// Use this value (operator, 28 September 2026): the calculation is
-    /// recorded against its basis card when the Engineer pressed it, even
+    /// Choosing a card (operator, 28 September 2026): the calculation is
+    /// recorded against its basis card when the Engineer chose it, even
     /// when nothing changed since the page opened; a save that does not post
     /// it still records nothing. The two fields it switches on are on the
     /// page and post nothing until then.
@@ -1179,7 +1179,6 @@ public sealed class CaseValuationV26WebTests
             GlassProviderFixture.EstimatorBase,
             GlassProviderFixture.CallbackBase,
             GlassProviderFixture.ProfileId,
-            SessionLifetime: TimeSpan.FromHours(8),
             ExportPollInterval: TimeSpan.FromMilliseconds(5),
             ExportTimeout: TimeSpan.FromMilliseconds(50),
             MaximumExportBytes: 16 * 1024 * 1024));

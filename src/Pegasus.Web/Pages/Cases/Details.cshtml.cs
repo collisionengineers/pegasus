@@ -183,16 +183,6 @@ public sealed partial class DetailsModel(
         Pegasus.Web.Presentation.ShellPreferences.PanelCollapsed(Request, collapseKey) ? "is-collapsed" : null;
 
     /// <summary>
-    /// "is-active" on the addressed section when this browser's layout is
-    /// Tabs, so a Tabs first paint shows that section rather than none.
-    /// </summary>
-    public string? ActiveTabClass(string sectionKey) =>
-        Pegasus.Web.Presentation.ShellPreferences.CaseLayout(Request) == "tabs"
-        && string.Equals(sectionKey, Section, StringComparison.Ordinal)
-            ? "is-active"
-            : null;
-
-    /// <summary>
     /// The associated Vehicle images records whose photographs are still the
     /// record's own. Once a record's merge files them they are Case images,
     /// drawn once as tiles, and the record has no group here.
@@ -751,10 +741,6 @@ public sealed partial class DetailsModel(
             AssessmentEditorValue(AssessmentVocabulary.SalvageCategory),
             EngineerValue,
             SalvageValueFigure);
-
-    /// <summary>The repair reserve the Current repair specification implies (v28 P30), or null.</summary>
-    public decimal? ComputedRepairReserve =>
-        SettlementPolicy.ComputedRepairReserve(RepairCostIncVat, RecordedOutcome);
 
     /// <summary>The selected specification's frozen versions, oldest first (v28 P43).</summary>
     public IReadOnlyList<RepairSpecificationSnapshot> SelectedEstimateSnapshots { get; private set; } = [];

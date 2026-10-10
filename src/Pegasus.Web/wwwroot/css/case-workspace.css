@@ -247,8 +247,8 @@ span.blocker-name{cursor:default;text-decoration:none}
 #section-valuation .add--vat label{display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px}
 #section-valuation .add--vat .calc-amount{float:none;justify-self:end;margin:0}
 #section-valuation .valuation-deductions{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);gap:12px 24px;align-items:start}
-/* Previous total loss: the tick box, then −10 % / −20 % on the Scroll / Tabs
-   switch's own look; a percentage is a radio of the field. */
+/* Previous total loss: the tick box, then −10 % / −20 % on the
+   case-layout-switch look; a percentage is a radio of the field. */
 #section-valuation .valuation-ptl>.lbl{min-height:13px}
 #section-valuation .fc .fi.valuation-ptl-row{border:0;padding:0;background:transparent;align-items:center;flex-wrap:wrap;gap:8px 12px}
 #section-valuation .valuation-ptl-row .choice{min-height:var(--control)}
@@ -306,7 +306,6 @@ span.blocker-name{cursor:default;text-decoration:none}
 #section-settlement .salvage-share .read{font-size:11.5px;color:var(--muted)}
 #section-settlement .reason-bank{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;grid-column:-2/-1}
 #section-settlement .reason-bank .btn{font-size:11.5px;text-align:left}
-#section-settlement [data-settlement-computed-reserve] .fv{font-size:12px}
 
 #section-report .report-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);padding-bottom:0}
 #section-report .report-tab{appearance:none;border:1px solid transparent;border-bottom:0;background:none;color:var(--muted);font:600 12.5px var(--font);padding:6px 12px;border-radius:var(--radius) var(--radius) 0 0;cursor:pointer}
@@ -608,6 +607,10 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 /* ---- The Case viewer (v26 § Image viewer): full screen, crop on the stage ---- */
 .case-viewer{position:fixed;inset:0;z-index:1200;background:rgba(14,17,19,.96);display:grid;grid-template-rows:auto minmax(0,1fr) 88px;grid-template-columns:56px minmax(0,1fr) 56px;color:#fff;outline:0}
 .case-viewer[hidden]{display:none}
+/* The viewer takes focus when it opens; the shared [tabindex]:focus-visible
+   rule must not pull it into the flow or ring it when that focus came from
+   script or a key (the images window, Enter on a tile). */
+.case-viewer:focus-visible{position:fixed;outline:0}
 .case-viewer-top{grid-column:1/-1;display:flex;align-items:center;gap:12px;min-height:48px;padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.1);min-width:0}
 .case-viewer-title{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
 .case-viewer-title b{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -645,6 +648,11 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 .case-viewer-strip button.off{filter:grayscale(.7)}
 .case-viewer-strip button.doc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 6px}
 body.has-viewer{overflow:hidden}
+/* The images window (/Cases/{id}/Images): the read-mode tiles under the
+   same viewer, in a window with no shell. */
+body.case-images-window{margin:0;background:var(--surface-2)}
+.case-images-main{padding:18px;outline:0}
+.case-images-title{margin:0 0 12px;font-size:15px;font-weight:700;color:var(--ink)}
 /* crop on the stage */
 .case-viewer .crop-layer{position:absolute;cursor:crosshair;touch-action:none;z-index:2}
 .case-viewer .crop-sel{position:absolute;border:1px solid #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.55);pointer-events:auto;cursor:move}
@@ -723,3 +731,8 @@ body.has-viewer{overflow:hidden}
 #section-report .choice.is-static[data-on="true"]{color:var(--ink)}
 #section-report .choice.is-static .tick{display:inline-grid;place-items:center;width:15px;height:15px;flex:none;border:1px solid var(--line-strong);border-radius:2px;background:var(--surface-2)}
 #section-report .choice.is-static .tick .icon{width:11px;height:11px}
+/* A Next action or Report not ready jump outlines the cell recording the blocker's field, in the amber of incomplete. */
+.case-record .is-jump-target{outline:2px solid var(--amber-line);outline-offset:3px;border-radius:var(--radius)}
+@media (forced-colors: active) {
+    .case-record .is-jump-target{outline-color:Highlight}
+}

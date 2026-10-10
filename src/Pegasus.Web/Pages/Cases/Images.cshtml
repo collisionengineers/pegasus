@@ -1,0 +1,72 @@
+@page "/Cases/{id:guid}/Images"
+@using Pegasus.Web.Pages.Cases
+@using Pegasus.Web.Presentation
+@using FilesLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Files
+@using TagLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ImageTags
+@model ImagesModel
+@{
+    Layout = null;
+    var title = $"{TagLabels.ImagesTab} · {Model.Reference}";
+}
+@*
+    The images window (operator, 9 October 2026): no shell, no rail, no
+    ribbon — a window the operator keeps beside the Case. The read-mode tiles
+    are the page; the script opens the viewer over them on the image Pop out
+    was pressed on, and Close brings the tiles back. Without script the tiles
+    are links to the same authorised preview. Nothing here claims the Case
+    lease or posts.
+*@
+<!DOCTYPE html>
+<html lang="en" data-busy-label="@OperatorLabels.Busy.Working" data-busy-still="@OperatorLabels.Busy.Still">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@title · Pegasus</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/case-workspace.css" asp-append-version="true" />
+</head>
+<body class="case-images-window">
+    <partial name="Shared/_LucideSprite" />
+    <main id="main-content" class="case-images-main" tabindex="-1">
+        <h1 class="case-images-title">@title</h1>
+        @if (Model.Images.Count == 0)
+        {
+            <p class="muted" data-images-empty>@FilesLabels.NoImages</p>
+        }
+        else
+        {
+            <ul class="thumbs image-grid" data-evidence-set data-images-window-grid>
+                @foreach (var file in Model.Images)
+                {
+                    var occurrence = file.Occurrence;
+                    var version = file.Version;
+                    var thumbnailHref = Model.ThumbnailUrl(file);
+                    var firstTag = occurrence.Tags.FirstOrDefault();
+                    <li class="image-tile" data-image-tile="@occurrence.Id">
+                        <a href="@Model.PreviewUrl(file)"
+                           class="th"
+                           data-evidence-item
+                           data-evidence-start="@(Model.StartOccurrenceId == occurrence.Id ? "true" : null)"
+                           data-download-href="@Model.DownloadUrl(file)"
+                           data-media-type="@version.MediaType"
+                           data-file-name="@version.FileName"
+                           data-thumb="@thumbnailHref"
+                           data-tag="@firstTag?.Name"
+                           data-evidence-occurrence="@occurrence.Id">
+                            <img src="@thumbnailHref" alt="@version.FileName" loading="lazy" data-gallery-image />
+                            @if (firstTag is not null)
+                            {
+                                <span class="tag">@firstTag.Name</span>
+                            }
+                            <span class="th-name">@version.FileName</span>
+                        </a>
+                    </li>
+                }
+            </ul>
+            <partial name="Cases/Shared/_CaseViewer" model="@(new CaseViewerView(Model.CaseId, true))" />
+        }
+    </main>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/case-workspace.js" asp-append-version="true"></script>
+</body>
+</html>

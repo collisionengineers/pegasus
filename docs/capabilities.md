@@ -99,10 +99,10 @@ exclusion.
 | UI-11 | Accounts, Contacts, mailbox allowlist, and configuration workspace | [Administration](frd/frd-17-administration-workspace.md#administration) |
 | UI-13 | Accessible keyboard, screen-reader, focus, contrast, and error behavior | [Operator experience](frd/frd-12-operator-experience.md#operator-experience) |
 | UI-16 | Operations Workspace shell: rail, counts, command palette | [Shell and routes](frd/frd-12-operator-experience.md#shell-and-routes) |
-| UI-17 | Case record: Scroll and Tabs modes over ten sections, and the Inspection and Audit views | [Case workspace](frd/frd-16-case-record-workspace.md#case-workspace) |
+| UI-17 | Case record: one scrolling page of ten sections, and the Inspection and Audit views | [Case workspace](frd/frd-16-case-record-workspace.md#case-workspace) |
 | UI-18 | Awaiting instruction pre-Case queue | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
 | UI-19 | Service health is Administration-only | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
-| ENG-03 | Damage record: zones with severity and note, tyres, belts, diagram | [Damage record](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record) |
+| ENG-03 | Damage record: zones with severity and note, unrelated damage, diagram | [Damage record](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record) |
 | ENG-04 | Settlement fields with derived equity | [Settlement](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement) |
 | ENG-05 | Principal salvage matrix fills the Case salvage value | [Settlement](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement) |
 | AI-11 | Market Research AI job completed outside Pegasus | [AI Job List](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list) |
@@ -161,7 +161,7 @@ exclusion.
 | MAIL-10 | Manual email/case association, unlink, relink, correction, and the next action a corrected classification offers | [Classification, linking and folder-move actions](frd/frd-20-mailbox-workspace.md#classification-linking-and-folder-move-actions) |
 | MAIL-11 | Browse, search and view mailbox messages and threads | [Quick preview and message detail](frd/frd-20-mailbox-workspace.md#quick-preview-and-message-detail) |
 | MAIL-13 | Outlook category by allowlisted identifier; no read-state, flag or delete | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
-| CASE-23 | Post-report query and dispute work on the existing Case | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
+| CASE-23 | Post-report query work, disputes included, on the existing Case | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | UI-10 | Full email-management workspace | [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
 | UI-14 | Categorised email views by destination and classification | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue); [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
 | API-01 | Principal-scoped submission API | [Accepted API-01 submission contract](frd/frd-09-principal-and-intermediary-routes.md#accepted-api-01-submission-contract) |
@@ -209,8 +209,10 @@ exclusion.
 | MCP-07 | Administration switch for Send to AI | [Send to AI switch](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch) |
 | MI-01 | Per-Engineer throughput, query rate/types, and Audit uplift | [Management Reports](frd/frd-17-administration-workspace.md#management-reports) |
 | MI-02 | Per-principal report counts, Inspection/Audit split, and periods feeding invoice generation | [Management Reports](frd/frd-17-administration-workspace.md#management-reports) |
-| MI-03 | Holding age and instruction-to-produced, ready and sent turnaround | [Management Reports](frd/frd-17-administration-workspace.md#management-reports) |
+| MI-03 | Instruction-to-produced, ready and sent turnaround | [Management Reports](frd/frd-17-administration-workspace.md#management-reports) |
 | MI-04 | A per-Case list with chosen columns and shared column presets, exported as CSV or workbook | [Management Reports](frd/frd-17-administration-workspace.md#management-reports) |
+| MI-05 | Queues now: held Cases, Triages and Unidentified items, with the oldest of each | [Management Reports](frd/frd-17-administration-workspace.md#management-reports) |
+| MI-06 | Reports produced by outcome, and Audit agreement with the reviewed report | [Management Reports](frd/frd-17-administration-workspace.md#management-reports) |
 | OPS-26 | Release notes written and published by an Administrator, shown once to each person | [Release notes](frd/frd-17-administration-workspace.md#release-notes) |
 | OPS-27 | Report a problem: kept with its captured state and raised as a repository issue | [Problem reports](frd/frd-17-administration-workspace.md#problem-reports) |
 | ACC-12 | External/customer application accounts (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |

@@ -243,7 +243,6 @@ request that touches the area:
 - design tokens, font, palette, radii or global density;
 - utility bar model, or bringing back a working-set strip;
 - Case ribbon, section-row or section ordering;
-- Scroll/Tabs default behaviour;
 - Views card, Linked cases card, Figures and Next action aside model;
 - established ownership of a fact/action between Case sections;
 - table-to-card or card-to-table presentation family;
@@ -274,7 +273,7 @@ Visual verification:
 
 - routed page changes: compare at 1580×1000 and a smaller desktop width;
 - shared shell/layout changes: also verify at 760px;
-- Case changes: verify read and edit geometry, and the affected section in Scroll/Tabs as relevant;
+- Case changes: verify read and edit geometry, and the affected section;
 - confirm no horizontal spill, clipped toolbar, overlapping viewer controls, duplicate facts/actions,
   or unexplained whitespace.
 

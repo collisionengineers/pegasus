@@ -225,7 +225,11 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261007183000_GrantWorkerTriageFindings",
                 "20261007184000_RemoveEva",
                 "20261008090000_DropAutomationWorkflowEventTimeIndex",
-                "20261008174505_CaseListPresets"
+                "20261008174505_CaseListPresets",
+                "20261009100000_MergeDisputesIntoQueries",
+                "20261009120000_DropGlassSessionExpiry",
+                "20261009120000_RemoveUnprintedAssessmentFields",
+                "20261009120000_WorkCentreActivityIndexes"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());

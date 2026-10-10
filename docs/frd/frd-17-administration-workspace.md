@@ -1,12 +1,13 @@
 # FRD-17: Administration workspace
 
-> Owner capabilities: MI-01 to MI-04, UI-11, MAIL-24 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MI-01 to MI-06, UI-11, MAIL-24 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
-- `/Administration` has ten areas: Accounts, Contacts, Workflow
+- `/Administration` has twelve areas: Accounts, Contacts, Workflow
   configuration, Mail settings, E-mail templates, Valuation presets, Service
-  health, Logs, Management Reports and AI jobs. Automation appears only when composed.
+  health, Logs, Management Reports, Release notes, Problem reports and AI
+  jobs. Automation appears only when composed.
 - Administration buttons act on the click. There is no confirmation dialog.
 - Logs has two tabs: Action logs (who did what) and Intake log (what
   happened to each received file).
@@ -183,29 +184,62 @@ technical actions that apply
 
 ### Management Reports
 
-**Management Reports** shares one period filter across MI-01 Engineer activity,
-MI-02 Reports by Principal (per-Principal report counts) and MI-03
-Turnaround (current holding age, and instruction-to-produced, ready and sent
-turnaround). Each has its own totals and a downloadable CSV, and **Download
-workbook** gives every report for the period as one `.xlsx` with a sheet
-each and a **By month** sheet, typed cells, a frozen filtered header and
-totals. Reports and fees are counted per report: the first confirmed report
-of the Inspection and, once created, of the Audit of an Inspection + Audit
-Case each count once, with their own agreed fee. An Audit report is the
-report of a standalone Audit Case or the Audit of an Inspection + Audit
-Case. MI-01 counts the queries by type (disputes and amendment requests
-within the total), the Audit reports sent (the Audit uplift) and each
-person's turnaround to sent, measured from the instruction's receipt, or
-for the Audit of an Inspection + Audit Case from Create audit; its columns
-sort by person, queries or reports, and a meter beside each count shows it
-against the period's largest. MI-02 adds the agreed fees on the reports
-produced, and a **By month** table (reports and fee notes produced, reports
-sent, agreed fees, per Principal and London month) for invoice generation.
-MI-02 shows reports produced, reports sent and agreed fees each as
-Inspection and Audit columns beside their unchanged totals, on the page, in
-the CSV and in the workbook, its By month sheet included. A section whose
-query fails or returns invalid data renders an unavailable state, never a
-false zero. There is no count of report kinds per Principal.
+**Management Reports** (the v37 round's Design A, settled 9 October 2026)
+has one **period bar** under the title: **Period** (This month, Last month,
+This quarter, Last 12 months or Custom, in whole London months), **From**,
+**To** and **Apply**. Typing a date makes the period Custom. The period
+governs every report below it; a period that ends before it starts, or is
+longer than a year, shows "Choose a valid date range." in the bar and draws
+no report and no figure, only the Case list. **Download workbook** sits in
+the page header. The reports follow in this order, each with its own
+**Download CSV** in its head: Engineer activity (MI-01), Reports by
+Principal and By month (MI-02), Outcomes (MI-06), Turnaround (MI-03),
+Queues (MI-05) and the Case list (MI-04). No MI label is drawn.
+
+Reports and fees are counted per report: the first confirmed report of the
+Inspection and, once created, of the Audit of an Inspection + Audit Case
+each count once, with their own agreed fee. An Audit report is the report
+of a standalone Audit Case or the Audit of an Inspection + Audit Case.
+
+- **Engineer activity** counts each person's queries (a dispute is a query),
+  with the amendment requests among them, credited to the Case's assigned
+  Engineer; the reports sent, credited to their recorded sender; the Audit
+  reports sent (the Audit uplift); and the turnaround to sent, from the
+  instruction's receipt or, for the Audit of an Inspection + Audit Case,
+  from Create audit. Automation's report sends are a row of their own, so
+  Reports sent here agrees with Reports by Principal. **Person**, in the
+  section head, lists the people with activity in the period and narrows
+  this report and its CSV and workbook sheet only.
+- **Reports by Principal** shows reports produced, reports sent and agreed
+  fees per Principal; a Principal with nothing produced and nothing sent is
+  left out. **By month** shows reports and fee notes produced, reports sent
+  and agreed fees per Principal and London month, newest first, for
+  invoice generation. Each has a **Work** choice (All, Inspection or Audit)
+  that picks the figures shown. Their CSVs and workbook sheets keep every
+  total beside its Inspection and Audit columns. There is no count of
+  report kinds per Principal.
+- **Outcomes** counts the reports produced in the period by the outcome
+  each was frozen with (Repairable, Total loss, Cash in lieu, Contract
+  repair), so the counts add up to Reports produced, and the Audit reports
+  that **Agrees** or **Differs** with the recorded outcome of the report
+  they review (the Case list's rule).
+- **Turnaround** shows each Principal's average time from the instruction's
+  receipt to produced, ready and sent in the period.
+- **Queues** is now, whatever the period: Cases currently held and open
+  Triages per Principal, with the oldest of each, and the open Unidentified
+  items with the oldest.
+
+Engineer activity's and Reports by Principal's columns sort: a name's first
+click sorts A to Z, a count's largest first, and a second click reverses.
+A meter beside the queries, reports produced and reports sent shows each
+against its column's largest. The
+sorts, the Work choices, Person and the period are kept by every link and
+form on the page, and a CSV comes out in the order the page shows. Each
+total in those two reports has the same figure for the period just before
+under it ("Previous period"). The CSVs and the workbook use the page's
+headings and write a turnaround as the page does. A report whose query
+fails or returns invalid data renders an unavailable state, never a false
+zero, and refuses only its own CSV; the workbook needs every report.
 
 **MI-04 Case list** downloads one row per Case, open or closed, as a CSV or a
 one-sheet .xlsx. It has its own filter: received date from and to (the
@@ -238,8 +272,8 @@ the list's own order.
   engineer** is the signatory of the latest confirmed report, or the
   signatory the Case would use now. **Report sent by** is who made the
   work's first report send.
-- Queries, disputes and amendment requests are post-report mail linked to
-  the Case, counted as MI-01 counts them.
+- Queries (a dispute is a query) and amendment requests are post-report
+  mail linked to the Case, counted as MI-01 counts them.
 
 **Presets** are named column sets every Administrator shares, such as
 "Invoicing". **Use preset** ticks a preset's columns; the ticks can still be
@@ -293,7 +327,7 @@ checks the expected version inside its mutation transaction.
   against it.
 - A Case list with no column, half a period or an unknown column is refused
   with its reason. A failed or invalid Case list read refuses the download;
-  no cell reads unavailable or   in its place.
+  no cell reads unavailable or 0 in its place.
 - A Case list preset needs a name of up to 100 characters, unique among the
   presets kept, and at least one column. A removed preset frees its name.
 
@@ -302,14 +336,15 @@ checks the expected version inside its mutation transaction.
 Acceptance covers the twelve areas and their routes, the on-click actions
 without confirmation, the Action logs actor resolution and filter, the Intake
 log columns and actions, the six workflow settings and their ranges, and the
-three MI reports with their CSVs, the Case list's downloads and refusals,
+Management Reports with each report's CSV and the workbook, the period
+choices and the invalid period, the Case list's downloads and refusals,
 and preset create, save and remove. Authenticated Web tests cover server-owned
 behaviour. Deployment and live acceptance are separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
 
-- Capabilities: `MI-01`–`MI-04`, `UI-11` in
+- Capabilities: `MI-01`–`MI-06`, `UI-11` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-04](frd-04-parties-accounts-and-access.md),

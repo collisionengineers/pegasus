@@ -92,7 +92,7 @@ public sealed class AssessmentReportProjectionTests
     }
 
     [Fact]
-    public void AnUnroadworthyVehicleCarriesItsReasonAndNoTemporaryRepair()
+    public void AnUnroadworthyVehicleCarriesItsReason()
     {
         var input = ReadyInput();
         AssessmentFieldValue[] fields =
@@ -876,26 +876,10 @@ public sealed class AssessmentReportProjectionTests
             Field(AssessmentVocabulary.VehicleBody, "Hatchback"),
             Field(AssessmentVocabulary.VehicleTaxExpiry, "2027-01-02"),
             Field(AssessmentVocabulary.VehicleMotExpiry, "2027-03-04"),
-            Field(AssessmentVocabulary.VehicleAirbagsDeployed, "None"),
-            Field(AssessmentVocabulary.VehicleTemporaryRepairsPossible, "true"),
-            Field(AssessmentVocabulary.VehicleTemporaryRepairMethod, "Secure bumper"),
-            Field(AssessmentVocabulary.VehicleTemporaryRepairCost, "25.00"),
             Field(AssessmentVocabulary.ImpactSeverity, "moderate"),
             Field(AssessmentVocabulary.ImpactLocation, "right_rear"),
             Field(AssessmentVocabulary.DamageImpacts, "[{\"areas\":[\"right_rear\"],\"disc\":{\"x\":0.86,\"y\":0.86,\"r\":0.1},\"severity\":\"moderate\",\"note\":\"Quarter panel\"}]"),
-            Field(AssessmentVocabulary.DamageTyreRightFront, "ok"),
-            Field(AssessmentVocabulary.DamageTyreLeftFront, "worn"),
-            Field(AssessmentVocabulary.DamageTyreRightRear, "damaged"),
-            Field(AssessmentVocabulary.DamageTyreLeftRear, "illegal"),
-            Field(AssessmentVocabulary.DamageBeltRightFront, "ok"),
-            Field(AssessmentVocabulary.DamageBeltLeftFront, "locked"),
-            Field(AssessmentVocabulary.DamageBeltRightRear, "deployed"),
-            Field(AssessmentVocabulary.DamageBeltLeftRear, "not_fitted"),
-            Field(AssessmentVocabulary.DamageSpareTyre, "repair_kit"),
-            Field(AssessmentVocabulary.DamageCentreBelt, "not_fitted"),
             Field(AssessmentVocabulary.DamageUnrelated, "Door scratch"),
-            Field(AssessmentVocabulary.DamageUnrelatedDeduction, "75.00"),
-            Field(AssessmentVocabulary.DamageMaterialTransfer, "Red paint"),
             Field(AssessmentVocabulary.ValueRetail, "5000.00"),
             Field(AssessmentVocabulary.ValueTrade, "4000.00"),
             Field(AssessmentVocabulary.ValueEngineer, "5000.00"),
@@ -908,24 +892,9 @@ public sealed class AssessmentReportProjectionTests
             Field(AssessmentVocabulary.EngineerSignature, "andy_patterson"),
             Field(AssessmentVocabulary.AgreedFee, "120.00"),
             Field(AssessmentVocabulary.FeeDescriptionLines, "Engineering assessment"),
-            Field(AssessmentVocabulary.SettlementExcess, "250.00"),
-            Field(AssessmentVocabulary.SettlementBetterment, "100.00"),
             Field(AssessmentVocabulary.SettlementClaimantVatRegistered, "true"),
-            Field(AssessmentVocabulary.SettlementReserve, "6000.00"),
-            Field(AssessmentVocabulary.SettlementRepairDelays, "Parts delay"),
-            Field(AssessmentVocabulary.SettlementReportDelay, "None"),
             Field(AssessmentVocabulary.SettlementStoragePerDay, "20.00"),
             Field(AssessmentVocabulary.CostRecoveryCharge, "80.00"),
-            Field(AssessmentVocabulary.SettlementHireStart, "2026-08-04"),
-            Field(AssessmentVocabulary.SettlementHireDailyCost, "35.00"),
-            Field(AssessmentVocabulary.SettlementDiminution, "200.00"),
-            Field(AssessmentVocabulary.SettlementSalvageAt, "Repairer"),
-            Field(AssessmentVocabulary.SettlementSalvageAgent, "Salvage Co"),
-            Field(AssessmentVocabulary.SettlementSalvageAgentReference, "SAL-1"),
-            Field(AssessmentVocabulary.SettlementSalvageMoved, "true"),
-            Field(AssessmentVocabulary.SettlementSalvageOwnerRetains, "false"),
-            Field(AssessmentVocabulary.SettlementSalvageValueAgreed, "true"),
-            Field(AssessmentVocabulary.SettlementSalvageSettled, "2026-08-20"),
         };
 
         var estimateLines = new[]

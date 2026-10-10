@@ -113,6 +113,56 @@ public sealed class GlassRepairEstimateSessionPolicyTests
         GlassRepairEstimateSessionState state, string? failureCode, bool expected) =>
         Assert.Equal(expected, GlassRepairEstimateSessionPolicy.CanRefetchExport(state, failureCode));
 
+    /// <summary>
+    /// Only a changed registration on a real stock vehicle refuses a reopen or
+    /// a resume, in the operator's words (9 October 2026, issue 1070). A
+    /// corrected mileage continues on the registration and mileage the vehicle
+    /// was made with; a placeholder holds neither at Glass's and continues on
+    /// what the Case records now.
+    /// </summary>
+    [Theory]
+    [InlineData("XY99 ZZZ", 33000L, false, null, 0L)]
+    [InlineData("ab12cde", 33001L, false, "AB12 CDE", 33000L)]
+    [InlineData("XY99 ZZZ", 33001L, true, "XY99 ZZZ", 33001L)]
+    public void OnlyAChangedRegistrationOnARealVehicleRefusesAReopenOrAResume(
+        string registration, long mileage, bool placeholder, string? continuesOn, long continuesAt)
+    {
+        var link = new GlassEstimateLink("33576604", "1954488", "123456789", placeholder, "AB12 CDE", 33000);
+        var reopen = () => GlassRepairEstimateSessionPolicy.RequireUnchangedEstimateVehicle(
+            link, registration, mileage);
+        var resume = () => GlassRepairEstimateSessionPolicy.RequireUnchangedVehicle(
+            "AB12 CDE", 33000, placeholder, vehicleRecorded: true, registration, mileage);
+
+        if (continuesOn is null)
+        {
+            Assert.Equal(
+                "The Case registration has changed since this Glass's estimate was started. "
+                + "Restore the original vehicle details to reopen it.",
+                Assert.Throws<GlassRepairEstimateRefusalException>(() => reopen()).Message);
+            Assert.Equal(
+                "The Case registration has changed since this Glass's session started. "
+                + "The session still holds the account. Restore the original vehicle details to resume, "
+                + "or close the external session and confirm its closure before launching again.",
+                Assert.Throws<GlassRepairEstimateRefusalException>(() => resume()).Message);
+        }
+        else
+        {
+            Assert.Equal((continuesOn, continuesAt), reopen());
+            Assert.Equal((continuesOn, continuesAt), resume());
+        }
+    }
+
+    /// <summary>
+    /// A session that has recorded no stock vehicle yet holds nothing at
+    /// Glass's, so a corrected mileage is the one it goes on to use.
+    /// </summary>
+    [Fact]
+    public void ASessionWithNoVehicleYetFollowsTheCaseMileage() =>
+        Assert.Equal(
+            ("ab12cde", 33001L),
+            GlassRepairEstimateSessionPolicy.RequireUnchangedVehicle(
+                "AB12 CDE", 33000, placeholder: false, vehicleRecorded: false, "ab12cde", 33001));
+
     private static GlassRepairEstimateSession Session(GlassRepairEstimateSessionState state) =>
         new(
             Guid.NewGuid(),
@@ -124,7 +174,6 @@ public sealed class GlassRepairEstimateSessionPolicyTests
             Version: 3,
             OperationKey: "op",
             DateTimeOffset.UnixEpoch,
-            DateTimeOffset.UnixEpoch.AddHours(8),
             ProviderVehicleId: null,
             ProviderEstimateId: null,
             FailureCode: null);

@@ -32,8 +32,7 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 public sealed class OpeningModel(
     IGlassRepairEstimateSessionReader glassSessions,
     GlassRepairEstimateAvailability glassAvailability,
-    ProviderWorkQueue glassWork,
-    TimeProvider timeProvider) : StaffPageModel
+    ProviderWorkQueue glassWork) : StaffPageModel
 {
     public GlassRepairEstimateSession Session { get; private set; } = null!;
 
@@ -66,8 +65,7 @@ public sealed class OpeningModel(
         return new JsonResult(new
         {
             pending = glassWork.IsInFlight(session.Id),
-            open = session.State == GlassRepairEstimateSessionState.Active
-                && session.ExpiresAtUtc > timeProvider.GetUtcNow(),
+            open = session.State == GlassRepairEstimateSessionState.Active,
         });
     }
 

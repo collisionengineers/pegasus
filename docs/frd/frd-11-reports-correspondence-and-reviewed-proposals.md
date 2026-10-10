@@ -81,15 +81,15 @@ model, VIN, odometer, engine and fuel, pre-incident condition and impact
 magnitude. The Settlement section holds the settlement sentence and its value
 box. These facts stay recorded on the Case and are not printed:
 
-- tyres, seat belts and airbags;
-- the unrelated-damage deduction and paint or material transfer;
-- temporary repairs;
 - the vehicle's transmission, colour, body, tax expiry and MOT expiry;
-- the settlement facts beyond the outcome's own figures, such as excess,
-  betterment, reserve, equity, delays, storage, recovery, hire, diminution
-  and salvage logistics.
+- the claimant's VAT answer, equity, storage per day and the recovery charge.
 
-Changing one of them does not make a generated report stale.
+Changing one of them does not make a generated report stale. The other
+unprinted facts the Case once carried (tyres, seat belts, airbags, the
+unrelated-damage deduction, material transfer, temporary repairs, excess,
+betterment, reserve, delays, hire, diminution, the lump storage charge and
+the salvage logistics) are no longer recorded (operator, 9 October 2026;
+[FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement)).
 
 ### Report wording blocks
 
@@ -545,9 +545,9 @@ Report sent is the exact approved-mailbox Sent-item evidence in
 [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence).
 Report sent starts post-report work; it does not close the Case.
 
-Post-report queries, disputes, amendment requests and replies stay Case
-correspondence with source and reply-chain identity and permanent history.
-The Engineer answers them. The Completed → Query → Completed cycle is in
+Post-report queries (a dispute is a query), amendment requests and replies
+stay Case correspondence with source and reply-chain identity and permanent
+history. The Engineer answers them. The Completed → Query → Completed cycle is in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#completed-and-query). A
 mailbox adapter calls that shared transition; it never allocates a Case or a
 reference.

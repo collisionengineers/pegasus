@@ -4,8 +4,8 @@
 
 ## Short version
 
-- A Case is one page at `/Cases/{id}` with ten sections. You scroll it, or
-  switch to tabs. Every section can always be read.
+- A Case is one scrolling page at `/Cases/{id}` with ten sections. Every
+  section can always be read.
 - Editing is one page-wide session over one lease. Edit Case and, while
   editing, Done sit in the ribbon. Every change is saved as it is made: a
   cell as it is left, a composite editor when it is left or after a short
@@ -61,12 +61,10 @@ page is open (operator, 6 October 2026). The rule is in
 [FRD-14](frd-14-record-edit-leases.md#take-over).
 
 **The section row** sits under the ribbon. It lists the section links, marks
-the current section as you scroll, and carries **Refresh** and the
-Scroll/Tabs switch. Scroll is the default in every state. A Tabs choice
-lasts for the browser session and is painted by the server, as is each
-section's folded state, which is remembered per browser. `?section=` jumps to
-a section. Sections below the fold load lazily. Tabs hide inactive sections
-without discarding loaded values. Scroll is the no-script fallback.
+the current section as you scroll, and carries **Refresh**. The page always
+scrolls; there is no Tabs layout (operator, 9 October 2026). Each section's
+folded state is remembered per browser and painted by the server.
+`?section=` jumps to a section. Sections below the fold load lazily.
 
 Every editable section head has its own **Edit**, which starts the one
 page-wide edit session without moving the page. When the state does not
@@ -111,12 +109,18 @@ Where a tab inside that section clears it, the link opens that tab too
 (operator, 1 October 2026): a missing Overview or report image
 source opens Files on **Images**, and the agreed fee or its description
 lines open Report on **Fee**.
+Where the blocker names one field, the Next action control and the card's
+link also outline that field's cell in amber, unfolding any fold over it, and
+focus its control while the Case is in edit; the outline stays until the
+next jump (operator, 9 October 2026). The Sign-off Engineer blocker outlines
+the Sign-off Engineer cell, and the report's Retail and Trade outline the
+Valuation guide cards.
 The rows run in page order (operator, 2 October 2026): section by section
 from the top, then by where the field that clears each sits within its
 section, so working down the list moves down the page; a blocker no Case
 section clears comes last, under Accounts where it opens Accounts. The
 Cases list's Current work names the same first row.
-The card shows beside every section and in both modes; a long list scrolls
+The card shows beside every section; a long list scrolls
 within the aside rather than pushing the sections down.
 When a newer fact has made the current generation stale, the Next action
 carries the dismissable warning "A newer fact changed after this generation.
@@ -252,8 +256,7 @@ first), and "Audit · a.{Case/PO}" with the Case's state chip. The current view
 reads plain and the other is a link. `?view=audit` and `?view=inspection`
 address the two views; the Audit view
 is the default, and a write returns to it. The ribbon is unchanged: its
-heading stays the Case/PO. The Scroll/Tabs switch is unchanged and works in
-both views.
+heading stays the Case/PO.
 
 **The Audit view** is the Case as it is worked: every section reads and
 edits the Audit's values, and the Actions menu, Next action and the report
@@ -539,7 +542,10 @@ and the next save records the calculation against it even when it is
 unchanged, including for a card typed in the same edit, and writes the
 report's Retail and Trade from it. A card with no retail answers the click
 with "Enter the retail value on this card to use it."; a click into one of its
-boxes only focuses the box. A save also records a calculation that changed
+boxes only focuses the box. A save after a card was chosen, while the
+Engineer's Value no longer holds that card's calculated figure, is refused
+with "The Engineer's Value no longer matches the figure you chose to use."
+(operator, 9 October 2026). A save also records a calculation that changed
 since the last save — a different basis card, the basis card's retail or
 trade, or any of its controls — and writes Retail and Trade from that card.
 Any other save records no calculation and leaves Retail and Trade as they
@@ -602,13 +608,13 @@ Repair Spec carries the specification set and raw estimate import. See
 ### Decisions
 
 Decisions shows outcome, category, salvage value, roadworthiness with the
-unroadworthy reason and, only while the vehicle is recorded unroadworthy,
-whether temporary repairs are possible with their method and cost (operator,
-24 September 2026), excess, betterment, labour hours (read-only, from the
-Current repair spec), claimant VAT registered, reserve, repair duration and
-delays, report delay, storage per day and the recovery charge (recorded here
-since 9 October 2026), hire start and daily cost, diminution and salvage
-logistics. A recorded choice (outcome, category, roadworthiness) reads as the
+unroadworthy reason, the agreed contract sum, labour hours (read-only, from
+the Current repair spec), storage per day and the recovery charge (recorded
+here since 9 October 2026). The temporary repairs, excess, betterment,
+reserve, delays, hire, diminution and salvage logistics it once showed are
+no longer recorded (operator, 9 October 2026;
+[FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement)).
+A recorded choice (outcome, category, roadworthiness) reads as the
 greyed value box and edits as a select whose empty option is Not recorded
 (operator, 9 October 2026; the v28 radio group is gone). There is no figures
 strip: the aside's Figures card is the home of the repair cost, the Engineer's
@@ -734,11 +740,22 @@ The Crop lease gate is the record's whole edit mode
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). Crop is unavailable
 once the Case reaches Completed or Query, and never on an archived Case. It
 is not tied to With Engineer, so a Review-state Case shows Crop. Images open
-in a full-screen viewer (title, tag, position, Rotate, Zoom, Download, In
-report while editing, which is the tile's own In report, and a filmstrip).
-Crop happens on the viewer stage. Opening a document brings the viewer into
-view. A crop is a stored rectangle: the tile and the report show the cropped region
-and Download returns the original.
+in a full-screen viewer (title, tag, position, Rotate, Zoom, Download, Pop
+out, In report while editing, which is the tile's own In report, and a
+filmstrip). Crop happens on the viewer stage. Opening a document brings the
+viewer into view. A crop is a stored rectangle: the tile and the report show
+the cropped region and Download returns the original.
+
+**Pop out** (operator, 9 October 2026) opens the Case's images in their own
+window, `/Cases/{id}/Images`, so they can stay on a second screen while the
+Case is worked on: the Files head offers it once one image can be read, and
+the viewer's Pop out opens the window on the image in view and closes the
+viewer here. The window is the read-mode Images tab under the same viewer
+(Rotate, Zoom, Download, the filmstrip); it holds no edit lease and posts
+nothing, so it offers no Crop, Tag or In report, and opening it does not end
+an edit session on the Case page ([FRD-14](frd-14-record-edit-leases.md)).
+One window per Case: Pop out pressed again brings it forward on the chosen
+image. An image added to the Case appears in the window when it is reloaded.
 
 Images on a vehicle-images record or an Unidentified item carry the same
 crop, rotation and tags. Their rules are
