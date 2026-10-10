@@ -182,6 +182,21 @@ public sealed class EfEditScopeStore(
         context.RemoveRange(scopes);
     }
 
+    /// <summary>Clears every scope held by one holder kind, inside the caller's transaction.</summary>
+    internal static async Task<int> ClearForHolderKindAsync(
+        PegasusDbContext context,
+        ActorKind holderKind,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        var kind = holderKind.ToString();
+        var scopes = await context.Set<EditScopeEntity>()
+            .Where(item => item.HolderKind == kind)
+            .ToListAsync(cancellationToken);
+        context.RemoveRange(scopes);
+        return scopes.Count;
+    }
+
     internal static async Task RequireAsync(
         PegasusDbContext context,
         EditScopeKind scopeKind,

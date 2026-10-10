@@ -312,6 +312,16 @@ public sealed class AutomationMcpIngressTests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
+        // Automation holds a Case lease and a Triage scope when it is stopped.
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        await BeginEditAsync(client, accessToken, caseId, 0, rpcId: 5);
+        var triageId = Guid.NewGuid();
+        await factory.Database.ExecuteAsync(
+            $"""
+            INSERT INTO EditScopes (ScopeKind, RecordId, HolderKind, Holder, TokenHash, ExpectedVersion, Generation, ExpiresAtUtc)
+            VALUES (N'Triage', '{triageId:D}', N'Automation', N'stopped-grant', REPLICATE('a', 64), 0, 1, DATEADD(minute, 5, SYSDATETIMEOFFSET()))
+            """);
+
         // The Administrator kill switch: disabling the registration takes
         // immediate effect for the already-issued token and refuses new ones.
         using (var scope = mcpFactory.Services.CreateScope())
@@ -338,6 +348,23 @@ public sealed class AutomationMcpIngressTests
                 document.RootElement.ToString(),
                 StringComparison.OrdinalIgnoreCase);
         }
+
+        // Stop released both, so staff need not wait for the expiry, and the
+        // Stop's history entry names the released Case.
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM CaseWorkflows
+            WHERE CaseId = '{caseId:D}' AND EditLeaseHolderKind IS NOT NULL
+            """));
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM EditScopes WHERE HolderKind = N'Automation'"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE EventKind = N'automation_client_disabled'
+              AND AfterJson LIKE N'%{caseId:D}%'
+              AND AfterJson LIKE N'%"EditScopes":1%'
+            """));
 
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             """
