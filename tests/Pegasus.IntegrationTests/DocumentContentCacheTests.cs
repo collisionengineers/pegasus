@@ -977,8 +977,8 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A warm read is the actor, the source and the cache entry: three SQL
-    /// round trips, and a fourth only when the entry's expiry is due to be
+    /// A warm read is the actor and the source with its cache entry: two SQL
+    /// round trips, and a third only when the entry's expiry is due to be
     /// pushed out, which happens at most once an hour.
     /// </summary>
     [Theory]
@@ -1010,7 +1010,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             {
                 Assert.Equal(bytes, await ReadAsync(warm.Content));
             }
-            Assert.Equal(3, commands.Count);
+            Assert.Equal(2, commands.Count);
 
             estate.Clock.Advance(TimeSpan.FromHours(2));
             commands.Reset();
@@ -1018,7 +1018,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             {
                 Assert.Equal(bytes, await ReadAsync(extended.Content));
             }
-            Assert.Equal(4, commands.Count);
+            Assert.Equal(3, commands.Count);
             Assert.Equal(1, estate.Box.Downloads);
             await using var db = await estate.Database.CreateContextAsync();
             Assert.Equal(
@@ -1535,7 +1535,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     /// authorised sources and the cache entries are three SQL calls whatever the
     /// number of images, and each cached image then opens with no more, until
     /// its expiry is due to be pushed out and it costs one update. Read one at a
-    /// time, each image cost three calls of its own.
+    /// time, each image cost two calls of its own.
     /// </summary>
     [Fact]
     public async Task ThreePinnedImagesAreLookedUpInThreeSqlCallsAndOpenFromTheCacheWithNoMore()
@@ -1584,7 +1584,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                 await using var single = await counted.OpenAsync(image.Request, CancellationToken.None);
                 Assert.Equal(image.Bytes, await ReadAsync(single.Content));
             }
-            Assert.Equal(9, commands.Count);
+            Assert.Equal(6, commands.Count);
 
             // After: three calls for all of them, and none as each one opens.
             commands.Reset();
