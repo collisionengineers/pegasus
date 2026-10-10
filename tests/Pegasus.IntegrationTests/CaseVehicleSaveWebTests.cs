@@ -218,7 +218,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         // fewer once a host with no Glass's composed reads no Glass's credential for the
         // Estimate section (this host composes the unavailable gateway); two fewer once the
         // EVA route and submission reads went with EVA; one more for the frame's
-        // linked-Triage read for the aside's Linked cases card. That is 46.
+        // linked-Triage read for the aside's Linked cases card. That is 46; 44 once the Case data and the workflow configuration are one command and the page takes the AI draft target from them (10 October 2026).
         // The save sent 43 until the lease it reclaims read only the Case's workflow row,
         // then 37, 35 once its edit basis read the data in two fewer commands, and 34 once
         // the save writes the work the request names and stales that work's report alone
@@ -239,7 +239,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
 
     // 48 - 1 (no Glass's credential read, #1086) - 2 (EVA reads removed, #1091)
     // + 1 (the frame's linked-Triage read for the Linked cases card, #1087).
-    private const int CasePageCommands = 46;
+    private const int CasePageCommands = 44;
 
     private const int CaseSaveCommands = 35;
 
@@ -329,7 +329,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         // linked-cancellation read (one statement) makes them 83 (35 and 48) and 67
         // (the save and 32); the save at 34 makes them 82 and 66, and at 35 (the workflow
         // mutation lock) 83 and 67. Removing EVA's two reads and adding the linked-Triage
-        // read (7 October 2026) make the answer 31 and the answered commit 66.
+        // read (7 October 2026) make the answer 31 and the answered commit 66; one command for the Case data and none for the AI draft target make the answer 28 and the answered commit 63 (10 October 2026).
         Assert.True(
             firstCommands < redirectedCommands,
             $"An answered commit sent {firstCommands} SQL commands; the save and its redirected page send {redirectedCommands}.");
@@ -352,7 +352,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     /// linked-Triage read, one statement each.
     /// </summary>
     // 32 - 2 (EVA reads removed, #1091) + 1 (the linked-Triage read, #1087).
-    private const int CommitAnswerCommands = 31;
+    private const int CommitAnswerCommands = 28;
 
     private static async Task<(HttpStatusCode Status, string Body, string? Location)> CommitAsync(
         HttpClient client,
