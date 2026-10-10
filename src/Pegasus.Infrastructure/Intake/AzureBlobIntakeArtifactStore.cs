@@ -424,7 +424,7 @@ public sealed class AzureBlobIntakeArtifactStore
         string expectedConcurrencyToken,
         CancellationToken cancellationToken)
     {
-        var hash = GetStagedStorageKeyHash(storageKey);
+        _ = GetStagedStorageKeyHash(storageKey);
         if (string.IsNullOrWhiteSpace(expectedConcurrencyToken))
         {
             return false;
@@ -434,24 +434,9 @@ public sealed class AzureBlobIntakeArtifactStore
         var blob = container.GetBlobClient(storageKey);
         try
         {
-            var properties = await blob.GetPropertiesAsync(
-                new BlobRequestConditions { IfMatch = expected },
-                cancellationToken);
-            var tags = await blob.GetTagsAsync(
-                cancellationToken: cancellationToken);
-            var current = MapStaged(
-                storageKey,
-                hash,
-                properties.Value.ContentLength,
-                properties.Value.CreatedOn,
-                properties.Value.ETag,
-                properties.Value.Metadata,
-                tags.Value.Tags);
-            if (current.Disposition != StagedArtifactDisposition.Completed)
-            {
-                return false;
-            }
-
+            // The caller holds the item it just read or set Completed. The ETag
+            // and the Completed tag condition on the delete itself reject a
+            // blob that changed or is not Completed, so no re-read is needed.
             var deleted = await blob.DeleteIfExistsAsync(
                 DeleteSnapshotsOption.IncludeSnapshots,
                 new BlobRequestConditions

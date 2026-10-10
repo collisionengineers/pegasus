@@ -45,6 +45,21 @@ public sealed class ReconcileUnidentifiedDestinationsTests
     }
 
     [Fact]
+    public async Task TheSweepReusesTheListedItemInsteadOfLookingItUpByOriginAgain()
+    {
+        var harness = new Harness();
+        var receipt = Receipt(Guid.NewGuid(), IntakeDecision.ImageIntakeRegistered);
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        harness.AddOpenItem(1, UnidentifiedOrigin.Receipt(receipt.Id));
+        harness.ImageIntakes.DetailsByOriginReceipt[receipt.Id] = Detail(Guid.NewGuid(), receipt, "AB12CDE-01");
+
+        var result = await harness.Reconciler.ExecuteAsync(50);
+
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 1, 0, 0), result);
+        Assert.Equal(0, harness.Store.ReceiptOriginLookups);
+    }
+
+    [Fact]
     public async Task CaseCreatedReceiptResolvesToTheInstructionCase()
     {
         var harness = new Harness();
@@ -1043,6 +1058,8 @@ public sealed class ReconcileUnidentifiedDestinationsTests
     {
         public List<UnidentifiedItem> Items { get; } = [];
 
+        public int ReceiptOriginLookups { get; private set; }
+
         /// <summary>Item ids the recheck queue hands back this pass.</summary>
         public HashSet<Guid> RecheckItems { get; } = [];
 
@@ -1157,8 +1174,15 @@ public sealed class ReconcileUnidentifiedDestinationsTests
 
         public Task<UnidentifiedItem?> GetByOriginAsync(
             UnidentifiedOrigin origin,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(Items.FirstOrDefault(item => item.Origin == origin));
+            CancellationToken cancellationToken = default)
+        {
+            if (origin.Kind == UnidentifiedOriginKind.Receipt)
+            {
+                ReceiptOriginLookups++;
+            }
+
+            return Task.FromResult(Items.FirstOrDefault(item => item.Origin == origin));
+        }
 
         public Task<IReadOnlyList<UnidentifiedItem>> ListAsync(
             UnidentifiedState? state = UnidentifiedState.Open,

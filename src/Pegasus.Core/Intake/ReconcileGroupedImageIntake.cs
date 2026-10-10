@@ -99,10 +99,10 @@ public sealed class ReconcileGroupedImageIntake(
 
                 var outcome = await processQueuedIntake.ExecuteAsync(stagedReceiptId.Value, cancellationToken);
                 retried++;
-                var refreshed = await receiptQueries.GetAsync(receipt.Id, cancellationToken);
                 if (outcome == QueuedIntakeProcessingOutcome.RetryScheduled
-                    && refreshed?.Decision == IntakeDecision.NeedsSorting
-                    && nowUtc - group.ReceivedAtUtc >= EscapeAfter)
+                    && nowUtc - group.ReceivedAtUtc >= EscapeAfter
+                    && (await receiptQueries.GetAsync(receipt.Id, cancellationToken))?.Decision
+                        == IntakeDecision.NeedsSorting)
                 {
                     await registerUnidentified.ExecuteAsync(
                         ImageIntakeGroupRoutingPolicy.BuildUnidentifiedRegistrationRequest(group, "group_processing_incomplete"),
