@@ -18,8 +18,7 @@ public sealed partial class StaffAuthorityStampRotationTests
         "src/Pegasus.Infrastructure/Persistence/EfStaffAccountAdministration.cs",
         // Identity's password change and reset rotate the stamp themselves.
         "src/Pegasus.Infrastructure/Persistence/EfStaffPasswordChange.cs",
-        // The verification account's convergence resets its password in the
-        // same transaction as its role; bootstrap creates new accounts.
+        // Bootstrap creates the first Administrator with a new stamp.
         "src/Pegasus.Web/Program.cs",
         // The local offline fixture sets a new stamp with every correction.
         "src/Pegasus.Web/Authentication/DevelopmentOfflineInitialization.cs",
@@ -64,7 +63,7 @@ public sealed partial class StaffAuthorityStampRotationTests
     private static partial Regex AuthorityMutation();
 
     [GeneratedRegex(
-        @"UpdateSecurityStampAsync\(|[Uu]serManager\s*\.\s*(ResetPasswordAsync|ChangePasswordAsync)\(|\.SecurityStamp\s*=[^=>]",
+        @"UpdateSecurityStampAsync\(|[Uu]serManager\s*\.\s*(ResetPasswordAsync|ChangePasswordAsync)\(|\bSecurityStamp\s*=[^=>]",
         RegexOptions.CultureInvariant)]
     private static partial Regex StampRotation();
 
