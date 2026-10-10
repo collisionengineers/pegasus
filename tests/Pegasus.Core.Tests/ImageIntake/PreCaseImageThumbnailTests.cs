@@ -30,6 +30,7 @@ public sealed class PreCaseImageThumbnailTests
         Assert.Equal("source-sha", thumbnail.Rendering.SourceSha256);
         Assert.Equal(3, thumbnail.PreparationVersion);
         Assert.Equal((receiptId, assetId), fixture.Download.Read);
+        Assert.Equal(1, fixture.Download.Reads);
         Assert.Equal((CaseAssetRotation.Clockwise90, crop), fixture.Renderer.Rendered);
     }
 
