@@ -587,7 +587,10 @@ internal sealed partial class GlassMvaClient(
     /// states in the <c>vin</c> control. Glass's looks the VIN up from the
     /// registration when the vehicle is created, so a vehicle created from a
     /// plate carries one; null when the control is absent, blank or
-    /// contradictory. A read: nothing at Glass's changes.
+    /// contradictory. A read: nothing at Glass's changes. It asks for the
+    /// details page alone: a vehicle just created returns the control without
+    /// the portal's detail fragments read first (live read-only trial,
+    /// 10 October 2026).
     /// </summary>
     public async Task<string?> VehicleVinAsync(string vehicleId, CancellationToken cancellationToken)
     {
@@ -596,7 +599,7 @@ internal sealed partial class GlassMvaClient(
             throw new ArgumentException("A Glass's stock vehicle id is required.", nameof(vehicleId));
         }
 
-        var value = await DetailsValueAsync(vehicleId, cancellationToken);
+        var value = await DetailsValuePageAsync(vehicleId, cancellationToken);
         var vin = Matched(
             () => Field(Inputs(InertHtml().Replace(value, string.Empty)), "vin"),
             GlassFailure.DetailsIdentity);
@@ -624,13 +627,17 @@ internal sealed partial class GlassMvaClient(
             ajax: true,
             GlassFailure.DetailsRequest,
             cancellationToken);
-        return await TextAsync(
+        return await DetailsValuePageAsync(vehicleId, cancellationToken);
+    }
+
+    /// <summary>The vehicle's details page alone, as the portal serves it without its fragments.</summary>
+    private Task<string> DetailsValuePageAsync(string vehicleId, CancellationToken cancellationToken) =>
+        TextAsync(
             new HttpRequestMessage(
                 HttpMethod.Get, options.MarketValueAssessor($"index/vehicle-details-value/id/{vehicleId}")),
             ajax: true,
             GlassFailure.DetailsRequest,
             cancellationToken);
-    }
 
     /// <summary>Every input control on a page already stripped of its inert text, by attribute.</summary>
     private static Dictionary<string, string>[] Inputs(string controls) =>

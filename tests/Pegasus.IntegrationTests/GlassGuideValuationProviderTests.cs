@@ -64,6 +64,9 @@ public sealed class GlassGuideValuationProviderTests
         var mva = harness.Mva;
         Assert.True(mva.IndexOf("/index/create-new-vehicle/") < mva.IndexOf("/index/vehicle-details-value/"));
         Assert.Contains(mva.Requests, request => request.Path == "/index/vehicle-details-value/id/" + VehicleId);
+        // The portal returns the control without its fragments read first.
+        Assert.Equal(0, mva.Count("GET /index/vehicle-details/"));
+        Assert.Equal(0, mva.Count("GET /index/vehicle-detail-inline-fragment/"));
     }
 
     [Fact]
