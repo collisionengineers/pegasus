@@ -86,7 +86,7 @@ public sealed partial class RailCountsPageFilter(
         // refusal, and reads no figure the shell needs first, so its shell
         // reads start before the handler and run beside it.
         var early = authenticated && IsCaseFullPageGet(context)
-            ? StartShellReads(context.HttpContext, actor)
+            ? StartShellReads(context.HttpContext, actor!)
             : null;
         PageHandlerExecutedContext result;
         try
@@ -103,7 +103,7 @@ public sealed partial class RailCountsPageFilter(
             && authenticated
             && context.HandlerInstance is PageModel pageModel)
         {
-            var shell = early ?? StartShellReads(context.HttpContext, actor);
+            var shell = early ?? StartShellReads(context.HttpContext, actor!);
             await shell.WhenAllAsync();
             var countsTask = shell.Counts;
             var notificationsTask = shell.Notifications;
