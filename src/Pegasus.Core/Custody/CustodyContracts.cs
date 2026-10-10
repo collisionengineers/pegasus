@@ -734,6 +734,21 @@ public interface ICaseArtifactCustody
 {
     Task<CaseArtifactCustodyResult> RetainAsync(
         CaseArtifactCustodyRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Marks the calls made until it is disposed as one batch of document
+    /// writes, so writes into one folder may share a single folder proof
+    /// (FRD-05). A custody with no folder proof to share returns an empty scope.
+    /// </summary>
+    IDisposable BeginDocumentBatch() => NoCustodyBatch.Instance;
+}
+
+/// <summary>The batch scope of a custody that has nothing to share across a batch.</summary>
+public sealed class NoCustodyBatch : IDisposable
+{
+    public static NoCustodyBatch Instance { get; } = new();
+    private NoCustodyBatch() { }
+    public void Dispose() { }
 }
 
 /// <summary>
