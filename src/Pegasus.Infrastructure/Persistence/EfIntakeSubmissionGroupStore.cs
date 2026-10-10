@@ -480,7 +480,7 @@ public sealed class EfIntakeSubmissionGroupStore(
     /// </summary>
     private static async Task<List<IntakeSubmissionGroupMember>> MapMembersAsync(
         PegasusDbContext context,
-        IReadOnlyList<IntakeSubmissionGroupMemberEntity> entities,
+        IntakeSubmissionGroupMemberEntity[] entities,
         bool isDuplicate,
         CancellationToken cancellationToken)
     {
