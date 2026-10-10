@@ -65,6 +65,19 @@ public sealed class ReportOutcomesTests
         Assert.True(ReportPeriods.IsValid(fromUtc, toUtc));
     }
 
+    /// <summary>#1153: a leap day and a BST start with a GMT end make the same London time a year earlier 366 days and an hour away.</summary>
+    [Fact]
+    public void Last12MonthsAcrossALeapDayAndTheClockChangeStaysWithinTheLimit()
+    {
+        var now = new DateTimeOffset(2028, 10, 29, 10, 0, 0, TimeSpan.Zero);
+
+        var (fromUtc, toUtc) = ReportPeriods.Resolve(ReportPeriod.Last12Months, now);
+
+        Assert.Equal(now - GetEngineerActivityReport.MaximumPeriod, fromUtc);
+        Assert.Equal(now, toUtc);
+        Assert.True(ReportPeriods.IsValid(fromUtc, toUtc));
+    }
+
     [Fact]
     public void ThePreviousPeriodIsTheSameLengthJustBefore()
     {

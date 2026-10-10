@@ -87,7 +87,10 @@ public sealed class ReportsModel(
     public ReportOutcomesReport? Outcomes { get; private set; }
 
     /// <summary>The open Unidentified queue now (item E); <see langword="null"/> when it could not be read.</summary>
-    public (int Count, DateTimeOffset? OldestReceivedAtUtc)? Unidentified { get; private set; }
+    public UnidentifiedFigures? Unidentified { get; private set; }
+
+    /// <summary>How many Unidentified items are open and when the oldest was received.</summary>
+    public sealed record UnidentifiedFigures(int Count, DateTimeOffset? OldestReceivedAtUtc);
 
     /// <summary>The same reports for the period just before (item G); absent when they could not be read.</summary>
     public EngineerActivityReport? PreviousEngineer { get; private set; }
@@ -179,7 +182,7 @@ public sealed class ReportsModel(
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
-        if (!await LoadAsync(previous: true, cancellationToken)) return Forbid();
+        if (!await LoadAsync(Reads.Page, cancellationToken)) return Forbid();
         await LoadCaseListAsync(null, cancellationToken);
         return Page();
     }
@@ -343,7 +346,7 @@ public sealed class ReportsModel(
     /// <summary>The page again, with the Case list form as posted and the reason it was refused.</summary>
     private async Task<IActionResult> RedisplayAsync(CaseListInput input, string message, CancellationToken cancellationToken)
     {
-        if (!await LoadAsync(previous: true, cancellationToken)) return Forbid();
+        if (!await LoadAsync(Reads.Page, cancellationToken)) return Forbid();
         await LoadCaseListAsync(input, cancellationToken);
         CaseListError = message;
         return Page();
@@ -388,30 +391,30 @@ public sealed class ReportsModel(
             ? $"case-list-{from:yyyy-MM-dd}-{to:yyyy-MM-dd}.{extension}"
             : $"case-list-all-time.{extension}";
 
-    // Each report's CSV is its sheet, and refuses only when its own read
-    // failed (item L); the workbook needs every report.
+    // Each report's CSV is its sheet, reads only its own report and refuses
+    // only when that read failed (item L); the workbook needs every report.
     public Task<IActionResult> OnGetCsvAsync(CancellationToken cancellationToken) =>
-        CsvAsync(() => EngineerActivityUnavailable ? null : AdministrationReportTables.EngineerActivity(EngineerResult, OperatorAdministrationReportLabels.Instance), "engineer-activity.csv", cancellationToken);
+        CsvAsync(Reads.Engineer, () => EngineerActivityUnavailable ? null : AdministrationReportTables.EngineerActivity(EngineerResult, OperatorAdministrationReportLabels.Instance), "engineer-activity.csv", cancellationToken);
 
     public Task<IActionResult> OnGetPrincipalCsvAsync(CancellationToken cancellationToken) =>
-        CsvAsync(() => PrincipalActivity is { } report ? AdministrationReportTables.ReportsByPrincipal(report with { Rows = PrincipalRows }) : null, "reports-by-principal.csv", cancellationToken);
+        CsvAsync(Reads.Principal, () => PrincipalActivity is { } report ? AdministrationReportTables.ReportsByPrincipal(report with { Rows = PrincipalRows }) : null, "reports-by-principal.csv", cancellationToken);
 
     public Task<IActionResult> OnGetMonthsCsvAsync(CancellationToken cancellationToken) =>
-        CsvAsync(() => Monthly is { } months ? AdministrationReportTables.ByMonth(months) : null, "by-month.csv", cancellationToken);
+        CsvAsync(Reads.Monthly, () => Monthly is { } months ? AdministrationReportTables.ByMonth(months) : null, "by-month.csv", cancellationToken);
 
     public Task<IActionResult> OnGetOutcomesCsvAsync(CancellationToken cancellationToken) =>
-        CsvAsync(() => Outcomes is { } outcomes ? AdministrationReportTables.Outcomes(outcomes) : null, "outcomes.csv", cancellationToken);
+        CsvAsync(Reads.Outcomes, () => Outcomes is { } outcomes ? AdministrationReportTables.Outcomes(outcomes) : null, "outcomes.csv", cancellationToken);
 
     public Task<IActionResult> OnGetTurnaroundCsvAsync(CancellationToken cancellationToken) =>
-        CsvAsync(() => PrincipalActivity is { } report ? AdministrationReportTables.Turnaround(report, OperatorAdministrationReportLabels.Instance) : null, "turnaround.csv", cancellationToken);
+        CsvAsync(Reads.Principal, () => PrincipalActivity is { } report ? AdministrationReportTables.Turnaround(report, OperatorAdministrationReportLabels.Instance) : null, "turnaround.csv", cancellationToken);
 
     public Task<IActionResult> OnGetQueuesCsvAsync(CancellationToken cancellationToken) =>
-        CsvAsync(() => PrincipalActivity is { } report ? AdministrationReportTables.Queues(report) : null, "queues.csv", cancellationToken);
+        CsvAsync(Reads.Principal, () => PrincipalActivity is { } report ? AdministrationReportTables.Queues(report) : null, "queues.csv", cancellationToken);
 
     /// <summary>Every report for the period as one workbook, a sheet each.</summary>
     public async Task<IActionResult> OnGetWorkbookAsync(CancellationToken cancellationToken)
     {
-        if (!await LoadAsync(previous: false, cancellationToken)) return Forbid();
+        if (!await LoadAsync(Reads.Workbook, cancellationToken)) return Forbid();
         if (!TryGetActor(out var actor)) return Forbid();
         if (PeriodInvalid || EngineerActivityUnavailable || PrincipalActivity is null || Monthly is null || Outcomes is null)
         {
@@ -430,15 +433,31 @@ public sealed class ReportsModel(
         return File(bytes, WorkbookMediaType, $"administration-reports-{from}-{to}.xlsx");
     }
 
-    private async Task<IActionResult> CsvAsync(Func<WorkbookSheet?> sheet, string fileName, CancellationToken cancellationToken)
+    private async Task<IActionResult> CsvAsync(Reads report, Func<WorkbookSheet?> sheet, string fileName, CancellationToken cancellationToken)
     {
-        if (!await LoadAsync(previous: false, cancellationToken)) return Forbid();
+        if (!await LoadAsync(report, cancellationToken)) return Forbid();
         return !PeriodInvalid && sheet() is { } table
             ? File(Encoding.UTF8.GetBytes(WorkbookSheetCsv.Write(table)), "text/csv; charset=utf-8", fileName)
             : StatusCode(StatusCodes.Status422UnprocessableEntity);
     }
 
-    private async Task<bool> LoadAsync(bool previous, CancellationToken cancellationToken)
+    /// <summary>The reads a handler asks <see cref="LoadAsync"/> for: the page draws every report, a CSV only its own.</summary>
+    [Flags]
+    private enum Reads
+    {
+        Engineer = 1,
+        Principal = 2,
+        Monthly = 4,
+        Outcomes = 8,
+        Unidentified = 16,
+
+        /// <summary>The Person choices and the period just before, which only the page draws.</summary>
+        PageOnly = 32,
+        Workbook = Engineer | Principal | Monthly | Outcomes,
+        Page = Workbook | Unidentified | PageOnly
+    }
+
+    private async Task<bool> LoadAsync(Reads reads, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return false;
         var now = timeProvider.GetUtcNow();
@@ -459,19 +478,28 @@ public sealed class ReportsModel(
         // and independent. The account list and Engineer report share the
         // scoped staff context, so they remain serial while those are in flight.
         var (previousFrom, previousTo) = ReportPeriods.Previous(from, to);
-        var principalTask = Read(() => principalActivityReport.ExecuteAsync(actor, from, to, cancellationToken));
-        var monthlyTask = Read(() => monthlyActivity.ExecuteAsync(actor, from, to, cancellationToken));
-        var outcomesTask = Read(() => reportOutcomes.ExecuteAsync(actor, from, to, cancellationToken));
-        var unidentifiedTask = Read(() => unidentifiedStore.ListQueueAsync(null, cancellationToken));
-        var previousPrincipalTask = previous
-            ? Read(() => principalActivityReport.ExecuteAsync(actor, previousFrom, previousTo, cancellationToken))
-            : Task.FromResult<PrincipalReportActivityReport?>(null);
+        var page = reads.HasFlag(Reads.PageOnly);
+        var principalTask = Read(reads.HasFlag(Reads.Principal), () => principalActivityReport.ExecuteAsync(actor, from, to, cancellationToken));
+        var monthlyTask = Read(reads.HasFlag(Reads.Monthly), () => monthlyActivity.ExecuteAsync(actor, from, to, cancellationToken));
+        var outcomesTask = Read(reads.HasFlag(Reads.Outcomes), () => reportOutcomes.ExecuteAsync(actor, from, to, cancellationToken));
+        var unidentifiedTask = Read(reads.HasFlag(Reads.Unidentified), async () =>
+        {
+            var count = unidentifiedStore.CountOpenAsync(cancellationToken);
+            var oldest = unidentifiedStore.OldestOpenReceivedAtUtcAsync(cancellationToken);
+            await Task.WhenAll(count, oldest);
+            return new UnidentifiedFigures(await count, await oldest);
+        });
+        var previousPrincipalTask = Read(page, () => principalActivityReport.ExecuteAsync(actor, previousFrom, previousTo, cancellationToken));
 
-        var all = await Read(() => engineerReport.ExecuteAsync(actor, from, to, cancellationToken));
-        EngineerActivityUnavailable = all is null;
+        var all = await Read(reads.HasFlag(Reads.Engineer), () => engineerReport.ExecuteAsync(actor, from, to, cancellationToken));
+        EngineerActivityUnavailable = reads.HasFlag(Reads.Engineer) && all is null;
         if (all is not null)
         {
             EngineerResult = Sorted(all.For(EngineerId));
+        }
+
+        if (page && all is not null)
+        {
             var people = all.People.Select(row => (row.EngineerId, row.DisplayName)).ToList();
             if (EngineerId is { } chosen && people.All(person => person.EngineerId != chosen))
             {
@@ -485,24 +513,22 @@ public sealed class ReportsModel(
             People = [.. people.OrderBy(person => person.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(person => person.EngineerId)];
         }
 
-        if (previous && all is not null)
-        {
-            PreviousEngineer = (await Read(() => engineerReport.ExecuteAsync(actor, previousFrom, previousTo, cancellationToken)))?.For(EngineerId);
-        }
-
+        PreviousEngineer = (await Read(page && all is not null, () => engineerReport.ExecuteAsync(actor, previousFrom, previousTo, cancellationToken)))?.For(EngineerId);
         PrincipalActivity = await principalTask;
         Monthly = await monthlyTask;
         Outcomes = await outcomesTask;
-        Unidentified = await unidentifiedTask is { } queue
-            ? (queue.Count, queue.Select(item => (DateTimeOffset?)item.ReceivedAtUtc).Min())
-            : null;
+        Unidentified = await unidentifiedTask;
         PreviousPrincipal = await previousPrincipalTask;
         return true;
     }
 
-    /// <summary>A read that fails or returns invalid data is unavailable, never a zero.</summary>
-    private static async Task<T?> Read<T>(Func<Task<T>> read) where T : class
+    /// <summary>
+    /// A read the handler asked for. One that fails or returns invalid data
+    /// is unavailable, never a zero; one it did not ask for is not run.
+    /// </summary>
+    private static async Task<T?> Read<T>(bool wanted, Func<Task<T>> read) where T : class
     {
+        if (!wanted) return null;
         try
         {
             return await read();

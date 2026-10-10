@@ -329,6 +329,54 @@ public sealed class MonthlyReportActivityPersistenceTests
         Assert.Equal((1, 1, 0), (month.FeeNotesGenerated, month.AuditFeeNotesGenerated, month.InspectionFeeNotesGenerated));
     }
 
+    /// <summary>#1158: the outcome is read from the snapshot in SQL; a confirmed report frozen without one is unreadable, never a zero.</summary>
+    [Fact]
+    public async Task AConfirmedReportFrozenWithoutAnOutcomeMakesOutcomesUnreadable()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var generatedAt = new DateTimeOffset(2031, 6, 5, 12, 0, 0, TimeSpan.Zero);
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            var principal = await SeededPrincipals.QdosAsync(context);
+            var caseId = Guid.NewGuid();
+            var generationId = Guid.NewGuid();
+            var versionId = Guid.NewGuid();
+            var documentId = Guid.NewGuid();
+            var hash = new string('a', 64);
+
+            context.Add(new CaseEntity
+            {
+                Id = caseId,
+                PrincipalId = principal.Id,
+                SequenceLineageId = principal.SequenceLineageId,
+                Year = 2031,
+                Sequence = 1,
+                Reference = "QDOS31001",
+                Type = "inspection",
+                InitialState = "Review",
+                CustodyState = "Confirmed",
+                InstructionComplete = true,
+                ImagesComplete = true,
+                CreatedAtUtc = From,
+                Version = 1,
+                ConcurrencyToken = Guid.NewGuid()
+            });
+            context.Set<CaseReportGenerationEntity>().Add(
+                Generation(generationId, caseId, generatedAt, "{\"agreedFee\":100.00,\"report\":{}}", new string('d', 64)));
+            context.Set<CaseDocumentEntity>().Add(
+                new CaseDocumentEntity { Id = documentId, CaseId = caseId, Ordinal = 1, SourceOccurrenceIdentity = "outcomes:no-outcome" });
+            context.Set<DocumentVersionEntity>().Add(Version(versionId, documentId, generatedAt, hash, "QDOS31001_report.pdf"));
+            context.Set<GeneratedCaseArtifactEntity>().Add(
+                Artifact(Guid.NewGuid(), generationId, versionId, hash, nameof(CaseReportArtifactKind.AssessmentReport)));
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        await Assert.ThrowsAsync<InvalidDataException>(() => scope.ServiceProvider.GetRequiredService<IReportOutcomeQueries>()
+            .GetAsync(From, To, CancellationToken.None));
+    }
+
     private static StaffMailSendOperationEntity SentOperation(Guid generationId, DateTimeOffset sentAt) => new()
     {
         Id = Guid.NewGuid(),
