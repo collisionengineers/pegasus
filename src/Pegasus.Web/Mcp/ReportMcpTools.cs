@@ -98,7 +98,7 @@ internal sealed class ReportMcpTools(
     ILinkReportEvidence linkEvidence,
     IUnlinkReportEvidence unlinkEvidence,
     IGetCaseHeader getCaseHeader,
-    IGetCasePageFrame getPageFrame,
+    IAvailableReportSentEvidenceQueries availableEvidence,
     IGetAssessmentAccess getAssessmentAccess,
     ICaseWorkflowQueries workflowQueries,
     AutomationActorResolver resolver,
@@ -141,8 +141,8 @@ internal sealed class ReportMcpTools(
                     ?? throw new McpException("The case was not found.");
                 var (approval, sent) = WorkEvidence(header, selector);
                 var generations = await reportGenerations.ListAsync(context.Actor, caseId, selector, cancellationToken);
-                var current = await reportGenerations.GetCurrentAsync(context.Actor, caseId, selector, cancellationToken);
-                var frame = await getPageFrame.ExecuteAsync(new(caseId, context.Actor, Work: selector), cancellationToken);
+                var current = generations.FirstOrDefault(generation => generation.SupersededById is null);
+                var available = await availableEvidence.ListAsync(cancellationToken);
                 return new ReportListToolResult(
                     caseId,
                     selector == CaseWorkSelector.Primary ? "inspection" : "current",
@@ -164,7 +164,7 @@ internal sealed class ReportMcpTools(
                         ? null
                         : new ReportSentEvidenceToolItem(sent.EvidenceId, sent.MailboxIdentity, sent.InternetMessageIdentity,
                             sent.SentAtUtc, sent.LinkedAtUtc),
-                    (frame?.AvailableReportSentEvidence ?? [])
+                    available
                         .Select(evidence => new ReportSentEvidenceToolItem(
                             evidence.EvidenceId,
                             evidence.MailboxIdentity,

@@ -902,7 +902,7 @@ public sealed class RetainedMailPersistenceTests
         // reversed association or on no association.
         var frame = await scope.ServiceProvider
             .GetRequiredService<ICaseQueryStore>()
-            .GetPageFrameAsync(caseId, CancellationToken.None);
+            .GetPageFrameAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal(sharedFirstId, frame!.LinkedCancellationMessageId);
     }
 

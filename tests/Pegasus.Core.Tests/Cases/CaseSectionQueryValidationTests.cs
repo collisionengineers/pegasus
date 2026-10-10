@@ -162,7 +162,7 @@ public sealed class CaseSectionQueryValidationTests
             throw new InvalidOperationException("A direct section must reuse its supplied frame.");
         }
 
-        public Task<CasePageFrameData?> GetPageFrameAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<CasePageFrameData?> GetPageFrameAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryAsync(Guid caseId, CancellationToken cancellationToken) =>

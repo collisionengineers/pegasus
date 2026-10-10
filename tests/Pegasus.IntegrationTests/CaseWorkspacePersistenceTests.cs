@@ -105,7 +105,7 @@ public sealed class CaseWorkspacePersistenceTests
             .Options;
         var pageFactory = new PooledDbContextFactory<PegasusDbContext>(pageOptions);
         var frame = await new EfCaseQueryStore(pageFactory, harness.TimeProvider)
-            .GetPageFrameAsync(harness.CaseId, CancellationToken.None);
+            .GetPageFrameAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         var pageFrame = Assert.IsType<CasePageFrameData>(frame).Frame;
 
         var directFilesOptions = new DbContextOptionsBuilder<PegasusDbContext>()

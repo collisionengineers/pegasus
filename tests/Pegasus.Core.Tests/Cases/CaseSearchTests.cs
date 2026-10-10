@@ -111,7 +111,7 @@ public sealed class CaseSearchTests
         public Task<CaseSectionFrame?> GetSectionFrameAsync(Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<CasePageFrameData?> GetPageFrameAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<CasePageFrameData?> GetPageFrameAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<CaseFilesSectionData?> GetFilesSectionAsync(Guid caseId, bool includeDocuments, CaseSectionFrame? frame, CancellationToken cancellationToken) =>
