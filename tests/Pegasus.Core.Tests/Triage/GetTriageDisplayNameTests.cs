@@ -189,6 +189,9 @@ public sealed class GetTriageDisplayNameTests
                     ? [new(staffId, userName, true, false, StaffRole.User)]
                     : []);
 
+        public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");

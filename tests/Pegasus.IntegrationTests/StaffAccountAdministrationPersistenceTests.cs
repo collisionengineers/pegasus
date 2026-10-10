@@ -175,6 +175,16 @@ public sealed class StaffAccountAdministrationPersistenceTests
             .ListSignOffEngineersAsync(default);
 
         Assert.Equal(valid.Id, Assert.Single(choices).StaffId);
+
+        var queries = services.GetRequiredService<IStaffAccountQueries>();
+        var signature = await queries.GetSignOffSignatureAsync(valid.Id, default);
+        Assert.Equal([0x89, 0x50, 0x4e, 0x47], signature?.Content);
+        Assert.Equal(SignOffSignaturePolicy.MediaType, signature?.ContentType);
+        foreach (var name in new[] { "disabled-sign-off", "unsigned-sign-off" })
+        {
+            var other = await userManager.FindByNameAsync(name);
+            Assert.Null(await queries.GetSignOffSignatureAsync(other!.Id, default));
+        }
     }
 
     [Fact]

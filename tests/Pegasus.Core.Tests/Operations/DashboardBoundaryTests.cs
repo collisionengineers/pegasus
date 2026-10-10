@@ -1209,6 +1209,9 @@ public sealed class DashboardBoundaryTests
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<StaffAccountSummary>>([]);
 
+        public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
     }
@@ -1232,6 +1235,9 @@ public sealed class DashboardBoundaryTests
                 staffIds.Contains(staffId)
                     ? [new StaffAccountSummary(staffId, userName, IsEnabled: true, MustChangePassword: false, StaffRole.Engineer)]
                     : []);
+
+        public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>

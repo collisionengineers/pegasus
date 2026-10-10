@@ -195,8 +195,8 @@ public sealed class EfCaseReportGenerationStore(
 
         var snapshot = BuildSnapshot(request, reportInputs, readiness, projected.Snapshot, reportDate, now, operationKey);
         var profiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken).ConfigureAwait(false);
-        if (!SignatoryMatches(snapshot, CaseSignOffEngineerResolver.Resolve(
-                workflow.SignOffEngineerId, workflow.AssignedEngineerId, profiles)))
+        if (!await SignatoryMatchesAsync(context, snapshot, CaseSignOffEngineerResolver.Resolve(
+                workflow.SignOffEngineerId, workflow.AssignedEngineerId, profiles), [], cancellationToken).ConfigureAwait(false))
         {
             throw new InvalidOperationException(
                 "The sign-off Engineer changed while report inputs were being read; generate again.");
@@ -879,6 +879,7 @@ public sealed class EfCaseReportGenerationStore(
         PegasusDbContext context, DateTimeOffset nowUtc, CancellationToken cancellationToken)
     {
         var profiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken);
+        var signatureHashes = new Dictionary<Guid, string?>();
         var currentWorkIds = CaseWorkScope.CurrentWorkIds(context);
         var current = await (
             from generation in context.Set<CaseReportGenerationEntity>()
@@ -892,7 +893,8 @@ public sealed class EfCaseReportGenerationStore(
         {
             var signatory = CaseSignOffEngineerResolver.Resolve(
                 row.SignOffEngineerId, row.AssignedEngineerId, profiles);
-            if (!SignatoryMatches(DeserializeSnapshot(row.Generation), signatory))
+            if (!await SignatoryMatchesAsync(
+                    context, DeserializeSnapshot(row.Generation), signatory, signatureHashes, cancellationToken))
             {
                 await MarkWorkStaleAsync(context, row.Generation.CaseId, row.Generation.WorkId,
                     CaseReportStaleReasons.SignatoryChanged, nowUtc, cancellationToken);
@@ -900,15 +902,37 @@ public sealed class EfCaseReportGenerationStore(
         }
     }
 
-    private static bool SignatoryMatches(
-        CaseReportGenerationSnapshot snapshot, SignOffEngineerProfile? profile) =>
-        profile is not null
-        && snapshot.SignatoryStaffId == profile.StaffId
-        && string.Equals(snapshot.Report.Signatory.PrintedName, profile.PrintedName, StringComparison.Ordinal)
-        && string.Equals(snapshot.Report.Signatory.Qualifications, profile.Qualifications, StringComparison.Ordinal)
-        && string.Equals(snapshot.SignatureContentType, profile.SignatureContentType, StringComparison.Ordinal)
-        && string.Equals(snapshot.SignatureSha256,
-            Convert.ToHexStringLower(SHA256.HashData(profile.Signature)), StringComparison.Ordinal);
+    /// <summary>
+    /// Whether the frozen signatory is still the resolved one. The signature
+    /// bytes are read only once the cheaper fields already agree, and their
+    /// hash is remembered per account in <paramref name="signatureHashes"/>.
+    /// </summary>
+    private static async Task<bool> SignatoryMatchesAsync(
+        PegasusDbContext context,
+        CaseReportGenerationSnapshot snapshot,
+        SignOffEngineerProfile? profile,
+        Dictionary<Guid, string?> signatureHashes,
+        CancellationToken cancellationToken)
+    {
+        if (profile is null
+            || snapshot.SignatoryStaffId != profile.StaffId
+            || !string.Equals(snapshot.Report.Signatory.PrintedName, profile.PrintedName, StringComparison.Ordinal)
+            || !string.Equals(snapshot.Report.Signatory.Qualifications, profile.Qualifications, StringComparison.Ordinal)
+            || !string.Equals(snapshot.SignatureContentType, SignOffSignaturePolicy.MediaType, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (!signatureHashes.TryGetValue(profile.StaffId, out var hash))
+        {
+            var signature = await EfStaffAccountQueries.GetSignOffSignatureAsync(
+                context, profile.StaffId, cancellationToken).ConfigureAwait(false);
+            hash = signature is null ? null : Convert.ToHexStringLower(SHA256.HashData(signature.Content));
+            signatureHashes[profile.StaffId] = hash;
+        }
+
+        return string.Equals(snapshot.SignatureSha256, hash, StringComparison.Ordinal);
+    }
 
     public async Task<LogicalDocumentContent> OpenAsync(
         ActionActor actor, Guid caseId, Guid generationId, Guid artifactId,
@@ -1051,6 +1075,7 @@ public sealed class EfCaseReportGenerationStore(
     {
         var signatory = readiness.Signatory
             ?? throw new InvalidOperationException("A ready case report has a resolved sign-off Engineer.");
+        var signature = report.Signatory;
         var estimate = inputs.Readiness.CurrentEstimate
             ?? throw new InvalidOperationException("A ready case report has a Current estimate.");
 
@@ -1062,8 +1087,8 @@ public sealed class EfCaseReportGenerationStore(
             CaseReportActor.Of(request.Actor),
             now,
             signatory.StaffId,
-            Convert.ToHexStringLower(SHA256.HashData(signatory.Signature)),
-            signatory.SignatureContentType,
+            Convert.ToHexStringLower(SHA256.HashData(signature.SignatureContent)),
+            signature.SignatureContentType,
             estimate.SpecificationId,
             estimate.Version,
             report.Costs,
@@ -1320,12 +1345,12 @@ public sealed class EfCaseReportContentSource(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        var profiles = await staffAccountQueries.ListSignOffEngineersAsync(cancellationToken)
-            .ConfigureAwait(false);
-        var signatory = profiles.SingleOrDefault(profile => profile.StaffId == snapshot.SignatoryStaffId)
+        var signatory = await staffAccountQueries
+            .GetSignOffSignatureAsync(snapshot.SignatoryStaffId, cancellationToken)
+            .ConfigureAwait(false)
             ?? throw new InvalidOperationException(
                 "The frozen sign-off Engineer account is no longer eligible to sign a report.");
-        var signatureHash = Convert.ToHexStringLower(SHA256.HashData(signatory.Signature));
+        var signatureHash = Convert.ToHexStringLower(SHA256.HashData(signatory.Content));
         if (!signatureHash.Equals(snapshot.SignatureSha256, StringComparison.Ordinal))
         {
             throw new ReportRenderRejectedException(
@@ -1369,7 +1394,7 @@ public sealed class EfCaseReportContentSource(
             Photos = photos,
             Signatory = snapshot.Report.Signatory with
             {
-                SignatureContent = signatory.Signature,
+                SignatureContent = signatory.Content,
                 SignatureContentType = snapshot.SignatureContentType,
             },
         };

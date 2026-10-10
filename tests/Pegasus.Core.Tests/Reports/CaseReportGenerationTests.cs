@@ -67,20 +67,14 @@ public sealed class CaseReportGenerationTests
         Assert.Null(result.Signatory);
     }
 
-    [Theory]
-    [InlineData("", true, "image/png")]
-    [InlineData("Ed Mawdsley", false, "image/png")]
-    [InlineData("Ed Mawdsley", true, "image/gif")]
-    public void AnIncompleteSignOffEngineerBlocksGeneration(
-        string printedName, bool hasSignature, string contentType)
+    [Fact]
+    public void ASignOffEngineerWithoutAPrintedNameBlocksGeneration()
     {
         var result = CaseReportReadiness.Evaluate(ReadyInput() with
         {
             EligibleSignOffEngineers =
             [
-                new SignOffEngineerProfile(
-                    SignatoryId, printedName, "ATA VDA AQP",
-                    hasSignature ? [1, 2, 3] : [], contentType, IsDefault: true),
+                new SignOffEngineerProfile(SignatoryId, "", "ATA VDA AQP", IsDefault: true),
             ],
         });
 
@@ -118,8 +112,8 @@ public sealed class CaseReportGenerationTests
     [InlineData(true, true)]
     public void ThePreviewNamesTheSameSignOffBlocker(bool resolved, bool accountsOffered)
     {
-        // A resolved account here has a name and no signature.
-        var profile = Profile() with { Signature = [], IsDefault = false };
+        // A resolved account here has no printed name.
+        var profile = Profile() with { PrintedName = "", IsDefault = false };
         var generation = CaseReportReadiness.Evaluate(ReadyInput() with
         {
             PersistedSignOffEngineerId = resolved ? SignatoryId : null,
@@ -130,7 +124,7 @@ public sealed class CaseReportGenerationTests
             Estimate(),
             resolved
                 ? new ReportSignatory(
-                    profile.PrintedName, profile.Qualifications, profile.Signature, profile.SignatureContentType)
+                    profile.PrintedName, profile.Qualifications, [], "image/png")
                 : null,
             accountsOffered);
 
@@ -1108,7 +1102,7 @@ public sealed class CaseReportGenerationTests
         });
 
     private static SignOffEngineerProfile Profile() =>
-        new(SignatoryId, "Ed Mawdsley", "ATA VDA AQP", [1, 2, 3], "image/png", IsDefault: true);
+        new(SignatoryId, "Ed Mawdsley", "ATA VDA AQP", IsDefault: true);
 
     private static AppliedValuation Valuation() => new(
         Guid.Parse("77777777-7777-7777-7777-777777777777"),
