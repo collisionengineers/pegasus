@@ -585,7 +585,7 @@ internal sealed class BoxContentClient(
         CancellationToken cancellationToken)
     {
         // The walk's first GET is the file itself, so it carries the metadata.
-        var file = await WalkToRootAsync(fileId, cancellationToken, isFile: true, captureItem: true)
+        var file = await WalkToRootAsync(fileId, isFile: true, captureItem: true, cancellationToken)
             ?? throw new InvalidDataException("Box returned the wrong type for a custody file.");
         if (!string.Equals(file.Type, "file", StringComparison.Ordinal))
         {
@@ -1230,7 +1230,7 @@ internal sealed class BoxContentClient(
         string itemId,
         CancellationToken cancellationToken,
         bool isFile = false) =>
-        WalkToRootAsync(itemId, cancellationToken, isFile, captureItem: false);
+        WalkToRootAsync(itemId, isFile, captureItem: false, cancellationToken);
 
     /// <summary>
     /// The ancestry walk. Returns the item's own metadata, read by the walk's
@@ -1238,9 +1238,9 @@ internal sealed class BoxContentClient(
     /// </summary>
     private async Task<BoxItem?> WalkToRootAsync(
         string itemId,
-        CancellationToken cancellationToken,
         bool isFile,
-        bool captureItem)
+        bool captureItem,
+        CancellationToken cancellationToken)
     {
         if (itemId.Equals(options.RootFolderId, StringComparison.Ordinal))
         {
@@ -1939,7 +1939,7 @@ internal sealed class BoxCaseCustody(
 
         var stagingName = $".pegasus-create-{creationOwnerToken}";
         var staging = BoxContentClient.SelectChild(children, stagingName, "folder");
-        BoxItem? finalConflict = null;
+        BoxContentClient.BoxItem? finalConflict = null;
         if (staging is null)
         {
             await RequireLeaseAsync(leaseGuard, cancellationToken);
