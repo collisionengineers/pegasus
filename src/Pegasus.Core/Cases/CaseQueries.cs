@@ -570,14 +570,22 @@ public sealed class GetCasePageFrame(
         // the frame whatever the data read returned.
         var frameRead = store.GetPageFrameAsync(query.CaseId, cancellationToken);
         var dataRead = caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken);
-        await Task.WhenAll(frameRead, dataRead);
-        var frame = frameRead.Result;
+        var frame = await frameRead;
         if (frame is null)
         {
+            try
+            {
+                await dataRead;
+            }
+            catch (Exception)
+            {
+                // A missing Case is a quiet null; the unused data read cannot change that.
+            }
+
             return null;
         }
 
-        var data = dataRead.Result
+        var data = await dataRead
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         return new(
             frame.Frame,
