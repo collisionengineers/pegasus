@@ -15,6 +15,23 @@ namespace Pegasus.IntegrationTests;
 public sealed class CaseDataCompletenessPersistenceTests
 {
     [Fact]
+    public async Task TheCaseDataReadCarriesTheConfiguredAiDraftTargetFromItsOneCommand()
+    {
+        await using var harness = await CaseDataHarness.CreateAsync();
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var configuration = await context.Set<WorkflowConfigurationEntity>().SingleAsync();
+            configuration.AiDraftTargetDays = 9;
+            configuration.Version++;
+            await context.SaveChangesAsync();
+        }
+
+        var data = await harness.GetRequiredDataAsync();
+
+        Assert.Equal(9, data.AiDraftTargetDays);
+    }
+
+    [Fact]
     public async Task TheWorkspaceSaveEvaluatesCompletenessAgainstThePersistedConfiguration()
     {
         await using var harness = await CaseDataHarness.CreateAsync();
