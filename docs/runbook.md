@@ -907,7 +907,9 @@ and Error lines for these host categories:
 - `Host.Aggregator`, the per-function metric series;
 - `Microsoft.Azure.WebJobs.Hosting.OptionsLoggingService`, the option dumps;
 - `Microsoft.Azure.WebJobs.Script.Description.FunctionGroupListenerDecorator`;
-- `Microsoft.Azure.WebJobs.Host.DrainModeManager`.
+- `Microsoft.Azure.WebJobs.Host.DrainModeManager`;
+- `Azure.Core` and `Azure.Identity`, the token and storage request lines;
+- `Microsoft.AspNetCore`, the `Executing StatusCodeResult` line.
 
 `Pegasus.Worker` stays at Information. In the seven days to 30 September 2026,
 the trace categories in that list were 83% of the Worker's trace bytes.
