@@ -1241,6 +1241,9 @@ public sealed class RetainedMailTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
 
+        public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
@@ -1266,6 +1269,9 @@ public sealed class RetainedMailTests
                 staffIds.Contains(staffId)
                     ? [new(staffId, userName, true, false, StaffRole.User)]
                     : []);
+
+        public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>

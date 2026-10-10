@@ -121,6 +121,9 @@ internal sealed class EfAssessmentReportProjectionSource(
             workflow.SignOffEngineerId,
             workflow.AssignedEngineerId,
             profiles);
+        var signature = signOffEngineer is null
+            ? null
+            : await staffAccountQueries.GetSignOffSignatureAsync(signOffEngineer.StaffId, cancellationToken);
         var confirmed = await ConfirmedDocumentsAsync(context, caseId, cancellationToken);
         var sources = ReportSources(confirmed);
 
@@ -197,13 +200,13 @@ internal sealed class EfAssessmentReportProjectionSource(
             photos,
             sources,
             CurrentEstimate: workspace.CurrentSpecification,
-            Signatory: signOffEngineer is null
+            Signatory: signOffEngineer is null || signature is null
                 ? null
                 : new ReportSignatory(
                     signOffEngineer.PrintedName,
                     signOffEngineer.Qualifications,
-                    signOffEngineer.Signature,
-                    signOffEngineer.SignatureContentType),
+                    signature.Content,
+                    signature.ContentType),
             Guides: guides,
             ValuationCommentary: AssessmentReportProjection.ValuationCommentaryOf(
                 workspace.Assessment, latestApplied?.Reason),
