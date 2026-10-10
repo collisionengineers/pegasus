@@ -179,7 +179,7 @@ public sealed class ProductionGraphSourceTests
         var handler = new DelegateHandler(request =>
         {
             paths.Add(request.RequestUri!.AbsolutePath);
-            if (request.Method == HttpMethod.Get && request.RequestUri!.AbsolutePath.EndsWith("/attachments"))
+            if (request.Method == HttpMethod.Get && request.RequestUri!.AbsolutePath.EndsWith("/attachments", StringComparison.Ordinal))
             {
                 requests++;
                 return Response(HttpStatusCode.OK, System.Text.Json.JsonSerializer.Serialize(new
@@ -1788,7 +1788,7 @@ public sealed class ProductionGraphSourceTests
 
     /// <summary>The Graph attachment listing (metadata only) or one attachment's content.</summary>
     private static string ReconciliationBody(HttpRequestMessage request, byte[] bytes) =>
-        request.RequestUri!.AbsolutePath.EndsWith("/attachments")
+        request.RequestUri!.AbsolutePath.EndsWith("/attachments", StringComparison.Ordinal)
             ? System.Text.Json.JsonSerializer.Serialize(new
             {
                 value = new[] { new { id = "att-1", name = "report.pdf", size = bytes.Length,
