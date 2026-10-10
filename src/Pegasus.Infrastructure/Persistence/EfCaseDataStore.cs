@@ -65,10 +65,14 @@ public sealed class EfCaseDataStore(
     }
 
     internal static CaseDataProjection ApplyConfiguration(CaseDataProjection data, CaseWorkflowConfiguration configuration) =>
-        data with { Completeness = data.Completeness with
+        data with
         {
-            Evaluation = CaseCompletenessPolicy.Evaluate(data.Completeness.Values, configuration)
-        } };
+            AiDraftTargetDays = configuration.AiDraftTargetDays,
+            Completeness = data.Completeness with
+            {
+                Evaluation = CaseCompletenessPolicy.Evaluate(data.Completeness.Values, configuration)
+            }
+        };
 
     internal static IQueryable<CaseDataSnapshotEntity> SnapshotQuery(
         PegasusDbContext context,
