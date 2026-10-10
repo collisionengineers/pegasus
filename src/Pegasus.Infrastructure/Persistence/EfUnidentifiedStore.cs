@@ -457,6 +457,15 @@ public sealed class EfUnidentifiedStore(
             .CountAsync(item => item.State == nameof(UnidentifiedState.Open), cancellationToken);
     }
 
+    public async Task<DateTimeOffset?> OldestOpenReceivedAtUtcAsync(CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.Set<UnidentifiedItemEntity>()
+            .AsNoTracking()
+            .Where(item => item.State == nameof(UnidentifiedState.Open))
+            .MinAsync(item => (DateTimeOffset?)item.CreatedAtUtc, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<UnidentifiedQueueRow>> ListClosedQueueAsync(
         UnidentifiedMediaKind? mediaKind,
         int limit,
