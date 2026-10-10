@@ -56,11 +56,13 @@ public sealed class EfCaseWorkspaceStore(
                 cancellationToken))
         {
             // A replay has read neither the configuration nor the work yet.
+            var replayWorkId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken);
+            var replayConfiguration = await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken);
             return await ProjectAsync(
                 context,
                 request.CaseId,
-                await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken),
-                await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken),
+                replayWorkId,
+                replayConfiguration,
                 await ReplayedEstimateIdAsync(context, request.CaseId, request.OperationKey, cancellationToken),
                 wasReplay: true,
                 cancellationToken);
