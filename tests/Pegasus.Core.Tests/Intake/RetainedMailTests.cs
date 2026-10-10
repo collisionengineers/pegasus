@@ -1199,6 +1199,17 @@ public sealed class RetainedMailTests
             return Task.FromResult<StaffNotification?>(null);
         }
 
+        public Task<StaffNotification?> NotifyAsync(
+            StaffNotificationCause cause,
+            Guid caseId,
+            string reference,
+            Guid? assignedEngineerId,
+            ActionActor? actor,
+            string? section,
+            string? registration,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("A correction reads the Case's reference itself.");
+
         public Task<StaffNotification?> NotifyMailArrivalAsync(
             Guid caseId,
             Guid intakeReceiptId,
