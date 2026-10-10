@@ -795,6 +795,12 @@ public sealed class MailboxIntakeIntegrationTests
                 Assert.Equal(4, outcomes.Count);
                 Assert.All(outcomes, outcome => Assert.Equal(AttachmentOutcomeKind.VehicleImages, outcome.Kind));
                 Assert.Single(outcomes.Select(outcome => outcome.Record!.Id).Distinct());
+                var heldReceiptOutcomes = await scope.ServiceProvider.GetRequiredService<IGetRetainedMailAttachmentOutcomes>()
+                    .ExecuteAsync(
+                        ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                        parentReceiptId,
+                        receipt: receipt);
+                Assert.Equal(outcomes, heldReceiptOutcomes);
             }
 
             Assert.Equal(0L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM UnidentifiedItems"));
