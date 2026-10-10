@@ -14,29 +14,29 @@ internal sealed class EfAdministrationHealthMetricsQueries(
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var mailboxFailures = await context.ApprovedSentPollStates.AsNoTracking()
-            .CountAsync(x => x.LastFailureCode != null, cancellationToken);
-        var unknownSends = await context.Set<StaffMailSendOperationEntity>().AsNoTracking()
-            .CountAsync(x => x.State == Pegasus.Core.Operations.StaffMailState.Unknown, cancellationToken);
-        var work = await context.IntakeWorkItems.AsNoTracking()
+        // A DbContext is not thread-safe: each read takes its own so the eight run together.
+        var mailboxFailuresRead = ReadAsync(cancellationToken, context => context.ApprovedSentPollStates.AsNoTracking()
+            .CountAsync(x => x.LastFailureCode != null, cancellationToken));
+        var unknownSendsRead = ReadAsync(cancellationToken, context => context.Set<StaffMailSendOperationEntity>().AsNoTracking()
+            .CountAsync(x => x.State == Pegasus.Core.Operations.StaffMailState.Unknown, cancellationToken));
+        var workRead = ReadAsync(cancellationToken, context => context.IntakeWorkItems.AsNoTracking()
             .GroupBy(x => x.State)
             .Select(group => new { State = group.Key, Count = group.Count(), OldestDueAtUtc = group.Min(x => x.DueAtUtc) })
-            .ToListAsync(cancellationToken);
-        var mailboxHealth = await context.ApprovedInboxPollStates.AsNoTracking()
+            .ToListAsync(cancellationToken));
+        var mailboxHealthRead = ReadAsync(cancellationToken, context => context.ApprovedInboxPollStates.AsNoTracking()
             .Select(item => new MailPollHealth(
                 item.ApprovedMailboxId,
                 item.LastCompletedAtUtc,
                 item.LastFailureCode,
                 item.DueAtUtc))
-            .ToListAsync(cancellationToken);
-        var oldestPendingCustody = await context.Set<DocumentVersionEntity>().AsNoTracking()
+            .ToListAsync(cancellationToken));
+        var oldestPendingCustodyRead = ReadAsync(cancellationToken, context => context.Set<DocumentVersionEntity>().AsNoTracking()
             .Where(item => item.CustodyStatus == DocumentCustodyStatus.Pending)
             .Select(item => (DateTimeOffset?)item.CreatedAtUtc)
-            .MinAsync(cancellationToken);
-        var poisonedInboxMessages = await context.ApprovedInboxPoisonMessages.AsNoTracking()
-            .CountAsync(cancellationToken);
-        var cache = await context.Set<DocumentContentCacheEntryEntity>().AsNoTracking()
+            .MinAsync(cancellationToken));
+        var poisonedInboxMessagesRead = ReadAsync(cancellationToken, context => context.ApprovedInboxPoisonMessages.AsNoTracking()
+            .CountAsync(cancellationToken));
+        var cacheRead = ReadAsync(cancellationToken, context => context.Set<DocumentContentCacheEntryEntity>().AsNoTracking()
             .GroupBy(_ => 1)
             .Select(group => new
             {
@@ -46,13 +46,24 @@ internal sealed class EfAdministrationHealthMetricsQueries(
                 ActiveReadLeases = group.Count(x => x.ReadLeaseExpiresAtUtc > nowUtc),
                 CleanupFailures = group.Count(x => !string.IsNullOrWhiteSpace(x.LastCleanupOutcome))
             })
-            .SingleOrDefaultAsync(cancellationToken);
-        var oldestPendingAiJob = await context.AiJobs.AsNoTracking()
+            .SingleOrDefaultAsync(cancellationToken));
+        var oldestPendingAiJobRead = ReadAsync(cancellationToken, context => context.AiJobs.AsNoTracking()
             .Where(x => x.State == nameof(AiJobState.Queued)
                 || x.State == nameof(AiJobState.Taken)
                 || x.State == nameof(AiJobState.DraftReady))
             .Select(x => (DateTimeOffset?)x.CreatedAtUtc)
-            .MinAsync(cancellationToken);
+            .MinAsync(cancellationToken));
+        await Task.WhenAll(
+            mailboxFailuresRead, unknownSendsRead, workRead, mailboxHealthRead,
+            oldestPendingCustodyRead, poisonedInboxMessagesRead, cacheRead, oldestPendingAiJobRead);
+        var mailboxFailures = await mailboxFailuresRead;
+        var unknownSends = await unknownSendsRead;
+        var work = await workRead;
+        var mailboxHealth = await mailboxHealthRead;
+        var oldestPendingCustody = await oldestPendingCustodyRead;
+        var poisonedInboxMessages = await poisonedInboxMessagesRead;
+        var cache = await cacheRead;
+        var oldestPendingAiJob = await oldestPendingAiJobRead;
         var processCache = cacheMetrics?.Snapshot() ?? new(0, 0);
         return new(
             mailboxFailures,
@@ -71,5 +82,11 @@ internal sealed class EfAdministrationHealthMetricsQueries(
             GetRetainedMailFreshness.Evaluate(mailboxHealth, nowUtc),
             processCache.HitsSinceStart,
             processCache.MissesSinceStart);
+    }
+
+    private async Task<T> ReadAsync<T>(CancellationToken cancellationToken, Func<PegasusDbContext, Task<T>> read)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await read(context);
     }
 }

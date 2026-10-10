@@ -123,20 +123,24 @@ public sealed class LogsModel(
             ModelState.AddModelError(string.Empty, "Choose a valid UTC period.");
             return Page();
         }
+        Task<AdministrationHealthMetrics>? metricsRead = null;
         try
         {
             var record = await ResolveRecordFilterAsync(actor, cancellationToken);
+            metricsRead = getMetrics.ExecuteAsync(actor, timeProvider.GetUtcNow(), cancellationToken);
             Result = await listActionLogs.ExecuteAsync(actor,
                 new(from, to, Trim(Search), Trim(Area), Trim(Actor), Trim(ResultFilter),
                     Trim(Operation), record, Trim(CorrelationId), OldestFirst,
                     CurrentPage, ActorType: SelectedActorKind()?.ToString()), cancellationToken);
-            Metrics = await getMetrics.ExecuteAsync(actor, timeProvider.GetUtcNow(), cancellationToken);
+            Metrics = await metricsRead;
             await ResolveStaffNamesAsync(cancellationToken);
             await ResolveCaseReferencesAsync(actor, cancellationToken);
             await ResolveAiJobReferencesAsync(cancellationToken);
         }
         catch (ArgumentOutOfRangeException)
         {
+            // The metrics panel is not shown for an invalid page; observe the read so a fault is not left unobserved.
+            _ = metricsRead?.ContinueWith(static read => read.Exception, TaskContinuationOptions.OnlyOnFaulted);
             ModelState.AddModelError(nameof(page), "Choose a valid page.");
         }
         return Page();
