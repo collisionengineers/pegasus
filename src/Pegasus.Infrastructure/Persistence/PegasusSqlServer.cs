@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Pegasus.Infrastructure.Persistence.CompiledModel;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -15,6 +16,9 @@ public static class PegasusSqlServer
         options.UseSqlServer(
             connectionString,
             sql => sql.ExecutionStrategy(dependencies => new PegasusSqlServerExecutionStrategy(dependencies)));
+        // The model is compiled ahead of time, so a start does not rebuild it.
+        // Regenerate it with every model or migration change (database-migration recipe).
+        options.UseModel(PegasusDbContextModel.Instance);
         // One shared instance of each, so the context's service provider is reused.
         options.AddInterceptors(ConnectionOpenTimingInterceptor.Instance, DeadlockLoggingInterceptor.Instance);
     }
