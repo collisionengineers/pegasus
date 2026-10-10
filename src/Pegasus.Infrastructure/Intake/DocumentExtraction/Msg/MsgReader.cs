@@ -429,5 +429,5 @@ internal static class MsgReader
     private static MsgDocument Empty(MsgReadOutcome outcome, MsgIssue issue) => new(
         outcome,
         new(MsgItemKind.Generic, "<unavailable>", ImmutableDictionary<string, string>.Empty),
-        [], [], new(null, null, [], null, [], null, "none"), [], [issue]);
+        [], [], new(null, null, [], null, null, "none"), [], [issue]);
 }
