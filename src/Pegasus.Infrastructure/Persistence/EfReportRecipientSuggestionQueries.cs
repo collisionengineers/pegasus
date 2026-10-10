@@ -46,6 +46,7 @@ public sealed class EfReportRecipientSuggestionQueries(
 
         // The email names the report of the work it delivers.
         if (!row.HasPrimaryWork) throw new InvalidDataException($"Case '{caseId}' has no primary work.");
+        // Same rule as CaseWorkSet.Select: Current is Audit when Audit work exists, else Primary.
         var workKind = work == CaseWorkSelector.Current && row.HasAuditWork ? CaseWorkKind.Audit : CaseWorkKind.Primary;
         var reportReference = CaseReferenceFormat.ReportReference(
             new CaseIdentity(caseId, row.PrincipalCode, row.Year, row.Sequence, row.Reference, row.AuditReference),
