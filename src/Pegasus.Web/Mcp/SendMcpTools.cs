@@ -417,9 +417,16 @@ internal sealed class SendMcpTools(
             throw new McpException("At least one To recipient is required.");
         }
 
-        var options = await attachmentResolver.ListIntakeAsync(actor, origin.ReceiptId, cancellationToken);
-        var resolved = await attachmentResolver.ResolveIntakeAsync(
-            actor, origin.ReceiptId, Selections(options, attachments, "Triage's origin item"), cancellationToken);
+        var resolved = attachments is { Length: > 0 }
+            ? await attachmentResolver.ResolveIntakeAsync(
+                actor,
+                origin.ReceiptId,
+                Selections(
+                    await attachmentResolver.ListIntakeAsync(actor, origin.ReceiptId, cancellationToken),
+                    attachments,
+                    "Triage's origin item"),
+                cancellationToken)
+            : [];
         return (
             new(
                 actor,

@@ -214,8 +214,7 @@ public sealed class StaffMailSend(
             await transport.ValidateEncodedSizeAsync(mailbox, operation, command,
                 contents.Select(value => new StaffMailAttachmentContent(
                     value.Attachment, value.Content.Content)).ToArray(), cancellationToken);
-            await RequireCurrentSenderAsync(command.Actor, cancellationToken);
-            _ = await RequireMailboxAsync(command, cancellationToken);
+            _ = await RequireCurrentSenderAndMailboxAsync(command, cancellationToken);
             var mayCreateDraft = operation.State == StaffMailState.Prepared;
             if (mayCreateDraft)
             {
@@ -238,8 +237,7 @@ public sealed class StaffMailSend(
                 null, null, null, cancellationToken);
             foreach (var (attachment, content) in contents)
             {
-                await RequireCurrentSenderAsync(command.Actor, cancellationToken);
-                _ = await RequireMailboxAsync(command, cancellationToken);
+                _ = await RequireCurrentSenderAndMailboxAsync(command, cancellationToken);
                 await transport.AttachAsync(
                     mailbox, operation.Id, draft.ImmutableDraftId, attachment, content.Content, cancellationToken);
             }
@@ -337,6 +335,13 @@ public sealed class StaffMailSend(
         StaffMailSendCommand command, StaffMailOperation operation,
         ApprovedStaffSendMailbox mailbox, bool mayCreate, CancellationToken cancellationToken)
     {
+        if (mayCreate)
+        {
+            // A Prepared entry has not yet recorded DraftCreating, so no draft
+            // carrying this operation can exist to be found.
+            return (operation, await transport.CreateDraftAsync(
+                mailbox, operation, command, cancellationToken));
+        }
         var lookup = await transport.FindDraftAsync(mailbox, operation, cancellationToken);
         if (!string.Equals(operation.ReconciliationContinuation, lookup.Continuation,
                 StringComparison.Ordinal))
@@ -361,13 +366,20 @@ public sealed class StaffMailSend(
         {
             throw new InvalidOperationException("The recorded draft is unavailable for reconciliation.");
         }
-        if (!mayCreate && operation.State == StaffMailState.DraftCreating)
+        if (operation.State == StaffMailState.DraftCreating)
         {
             throw new InvalidOperationException(
                 "Draft creation could not be reconciled; a replacement draft was not created.");
         }
         return (operation, await transport.CreateDraftAsync(
             mailbox, operation, command, cancellationToken));
+    }
+
+    private async Task<ApprovedStaffSendMailbox> RequireCurrentSenderAndMailboxAsync(
+        StaffMailSendCommand command, CancellationToken cancellationToken)
+    {
+        await RequireCurrentSenderAsync(command.Actor, cancellationToken);
+        return await RequireMailboxAsync(command, cancellationToken);
     }
 
     private async Task<ApprovedStaffSendMailbox> RequireMailboxAsync(
