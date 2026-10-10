@@ -122,11 +122,6 @@ public interface IIntakeSubmissionGroupStore
         Guid? parentReceiptId,
         CancellationToken cancellationToken = default);
 
-    Task<IntakeSubmissionGroupMember?> FindMemberAsync(
-        Guid groupId,
-        int ordinal,
-        CancellationToken cancellationToken = default);
-
     Task<IntakeSubmissionGroupMember> AddMemberAsync(
         Guid groupId,
         int ordinal,
@@ -246,7 +241,7 @@ public sealed class SubmitGroupedIntake(
         var isDuplicateByOrdinal = new Dictionary<int, bool>(files.Length);
         foreach (var file in files)
         {
-            var existing = await groupStore.FindMemberAsync(group.Id, file.Ordinal, cancellationToken);
+            var existing = group.Members.FirstOrDefault(member => member.Ordinal == file.Ordinal);
             if (existing is not null)
             {
                 var expectedHash = Convert.ToHexString(
@@ -351,7 +346,7 @@ public sealed class SubmitGroupedIntake(
         var duplicates = new Dictionary<int, bool>(files.Length);
         foreach (var file in files)
         {
-            var existing = await groupStore.FindMemberAsync(group.Id, file.Ordinal, cancellationToken);
+            var existing = group.Members.FirstOrDefault(member => member.Ordinal == file.Ordinal);
             if (existing is not null)
             {
                 var hash = await ReceiveIntake.StreamHashAsync(file.Source, cancellationToken);

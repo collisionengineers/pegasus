@@ -1837,7 +1837,7 @@ public sealed class EfImageIntakeCaseCandidates(
         CancellationToken cancellationToken)
     {
         // Keep the accepted one-missing-character rule in its Core owner.
-        var eligible = await EligibleQuery(context).ToArrayAsync(cancellationToken);
+        var eligible = await EligibleQuery(context, [read]).ToArrayAsync(cancellationToken);
         return eligible.Where(candidate =>
             VrmRegistrationMatching.IsMatch(read, candidate.ConfirmedRegistration)).ToArray();
     }
