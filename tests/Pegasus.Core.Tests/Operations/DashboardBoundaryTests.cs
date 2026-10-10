@@ -321,6 +321,38 @@ public sealed class DashboardBoundaryTests
     }
 
     /// <summary>
+    /// The two no-finding Triage states and the Held and Review Cases are each
+    /// one read, then split back by state in the order the store returned them.
+    /// </summary>
+    [Fact]
+    public async Task TriageAndHeldReviewCasesAreEachOneReadSplitByState()
+    {
+        var openA = NewTriage(Guid.NewGuid(), "OA", TriageState.Open);
+        var awaiting = NewTriage(Guid.NewGuid(), "AW", TriageState.AwaitingInformation);
+        var openB = NewTriage(Guid.NewGuid(), "OB", TriageState.Open);
+        var triage = new StubListTriage { Items = [openA, awaiting, openB] };
+        var heldId = Guid.NewGuid();
+        var reviewId = Guid.NewGuid();
+        var searchCases = new StubSearchCases
+        {
+            Items =
+            [
+                ReviewCase(reviewId, "C/2026/REV", enteredAtUtc: NowUtc.AddDays(-1)),
+                NewHeldCase(heldId, "C/2026/HELD")
+            ]
+        };
+
+        var snapshot = await ExecuteAsync(
+            new RecordingDashboardQueries(), NowUtc, searchCases: searchCases, triage: triage);
+
+        Assert.Equal(1, triage.ListAllCalls);
+        Assert.Equal(1, searchCases.Calls);
+        Assert.Equal(3, snapshot.TriageCount);
+        Assert.Equal(1, snapshot.Attention.KindCounts[NeedsAttentionKind.HeldDecision]);
+        Assert.Equal(1, snapshot.Attention.KindCounts[NeedsAttentionKind.ReviewCase]);
+    }
+
+    /// <summary>
     /// A draft on a Case belongs to that Case's engineer, read for every draft
     /// in one call; a draft whose Case has no workflow, or that is not on a
     /// Case, has no owner.
@@ -954,6 +986,9 @@ public sealed class DashboardBoundaryTests
         public Task<CaseStageCounts> GetCaseStageCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new CaseStageCounts(0, 0, 0, 0));
 
+        public Task<int> GetAwaitingInstructionCountAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(0);
+
         public Task<IReadOnlyList<PairedVehicleImagesCase>> ListPairedVehicleImagesAwaitingStaffAsync(
             CancellationToken cancellationToken) => Task.FromResult(Paired);
     }
@@ -991,6 +1026,8 @@ public sealed class DashboardBoundaryTests
 
         public List<TriageState?> ListAllStates { get; } = [];
 
+        public int ListAllCalls { get; private set; }
+
         public int PageReads { get; private set; }
 
         public Task<TriageListPage> ExecuteAsync(
@@ -1019,6 +1056,7 @@ public sealed class DashboardBoundaryTests
             IReadOnlyCollection<TriageState>? states,
             CancellationToken cancellationToken = default)
         {
+            ListAllCalls++;
             if (states is null)
             {
                 ListAllStates.Add(null);
@@ -1120,11 +1158,13 @@ public sealed class DashboardBoundaryTests
     {
         public IReadOnlyList<CaseSearchItem> Items { get; init; } = [];
         public List<CaseLifecycleState> RequestedStates { get; } = [];
+        public int Calls { get; private set; }
 
         public Task<SearchCasesResult> ExecuteAsync(
             SearchCasesQuery query,
             CancellationToken cancellationToken)
         {
+            Calls++;
             RequestedStates.AddRange(query.Filters.States ?? []);
             var matching = Items.Where(item => query.Filters.States is not { Count: > 0 } states || states.Contains(item.State))
                 .ToArray();

@@ -48,13 +48,25 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
         int For(string state) =>
             counts.SingleOrDefault(item => item.State == state)?.Count ?? 0;
 
+        return new(
+            For(notReady),
+            For(review),
+            For(held),
+            For(reportPreparation) + For(postReport),
+            For(query));
+    }
+
+    public async Task<int> GetAwaitingInstructionCountAsync(CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
         // Awaiting instruction has no CaseWorkflows row until it merges. Its
         // count mirrors Cases/Index.cshtml.cs LoadAwaitingAsync: the lifecycle
         // is AwaitingInstruction and the origin receipt has no current case
         // association. A reversed manual association overrides an older
         // accepted link in the same way as EfImageIntakeStore.ProjectAsync.
         var awaitingInstruction = EfImageIntakeStore.ToCode(ImageInitiatedCaseState.AwaitingInstruction);
-        var awaitingInstructionCount = await context.ImageIntakes
+        return await context.ImageIntakes
             .AsNoTracking()
             .CountAsync(
                 item => item.LifecycleState == awaitingInstruction
@@ -65,14 +77,6 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
                         || !context.CaseIntakeLinks.Any(link =>
                             link.IntakeReceiptId == item.OriginReceiptId)),
                 cancellationToken);
-
-        return new(
-            For(notReady),
-            For(review),
-            For(held),
-            For(reportPreparation) + For(postReport),
-            awaitingInstructionCount,
-            For(query));
     }
 
     public async Task<IReadOnlyList<PairedVehicleImagesCase>> ListPairedVehicleImagesAwaitingStaffAsync(

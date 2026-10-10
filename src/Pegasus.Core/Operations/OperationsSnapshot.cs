@@ -413,12 +413,12 @@ public sealed class GetOperationsSnapshot(
         CancellationToken cancellationToken)
     {
         // The Triage kind is work without a finding, so both no-finding states
-        // are queried directly.
-        var openRead = listTriage.ListAllAsync(actor, [TriageState.Open], cancellationToken);
-        var awaitingRead = listTriage.ListAllAsync(actor, [TriageState.AwaitingInformation], cancellationToken);
+        // are read together and split back by state.
+        var triageRead = listTriage.ListAllAsync(
+            actor, [TriageState.Open, TriageState.AwaitingInformation], cancellationToken);
         var dueRead = ReadDueWorkAsync(asOfUtc, cancellationToken);
-        var heldRead = ReadCasesAsync(actor, CaseLifecycleState.Held, cancellationToken);
-        var reviewRead = ReadCasesAsync(actor, CaseLifecycleState.Review, cancellationToken);
+        var heldAndReviewRead = ReadCasesAsync(
+            actor, [CaseLifecycleState.Held, CaseLifecycleState.Review], cancellationToken);
         var configurationRead = preloadedConfiguration is { } handed
             ? Task.FromResult(handed)
             : workflowConfiguration.GetCurrentAsync(cancellationToken);
@@ -429,13 +429,15 @@ public sealed class GetOperationsSnapshot(
                 ? Task.FromResult<IReadOnlyList<AiJobRecord>>([])
                 : aiJobs.ListOpenAsync(cancellationToken);
         var pairedRead = dashboardQueries.ListPairedVehicleImagesAwaitingStaffAsync(cancellationToken);
-        await Task.WhenAll(openRead, awaitingRead, dueRead, heldRead, reviewRead,
+        await Task.WhenAll(triageRead, dueRead, heldAndReviewRead,
             configurationRead, unidentifiedRead, openJobsRead, pairedRead);
-        var openTriage = await openRead;
-        var awaitingTriage = await awaitingRead;
+        var triage = await triageRead;
+        var openTriage = triage.Where(item => item.State == TriageState.Open).ToArray();
+        var awaitingTriage = triage.Where(item => item.State == TriageState.AwaitingInformation).ToArray();
         var dueWork = await dueRead;
-        var held = await heldRead;
-        var review = await reviewRead;
+        var heldAndReview = await heldAndReviewRead;
+        var held = heldAndReview.Where(item => item.State == CaseLifecycleState.Held).ToArray();
+        var review = heldAndReview.Where(item => item.State == CaseLifecycleState.Review).ToArray();
         var configuration = await configurationRead;
         var unidentified = await unidentifiedRead;
         var drafts = AiDraftPolicy.Drafts(await openJobsRead, configuration.AiDraftTargetDays);
@@ -467,14 +469,14 @@ public sealed class GetOperationsSnapshot(
 
     private async Task<IReadOnlyList<CaseSearchItem>> ReadCasesAsync(
         ActionActor actor,
-        CaseLifecycleState state,
+        IReadOnlyList<CaseLifecycleState> states,
         CancellationToken cancellationToken)
     {
         List<CaseSearchItem> items = [];
         for (var page = 1; ; page++)
         {
             var result = await searchCases.ExecuteAsync(
-                new(actor, new(States: [state]), page, SourcePageSize),
+                new(actor, new(States: states), page, SourcePageSize),
                 cancellationToken);
             items.AddRange(result.Items);
             if (!result.HasNextPage)
