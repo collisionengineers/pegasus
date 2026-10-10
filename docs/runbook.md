@@ -983,7 +983,7 @@ sweep uploaded it too, Box would refuse one of the two uploads with
 ## Web start
 
 Web binds its port before any remote read. The data-protection key ring, the
-Automation OAuth certificates and the verification account are read after it
+Automation OAuth certificates are read after it
 listens, because each waits on a managed-identity token. The first Web telemetry
 has arrived about 100 s after container start, beginning with `/msi/token`; the
 phase timings below show where that time goes. `/health/warm` (the App Service start-up
@@ -994,8 +994,7 @@ Every start prints `[startup] +<ms since process start> ms (+<ms since previous
 mark>) <phase>` lines to stdout (`Main entered`, `configuration loaded`,
 `services composed`, `host built`, `telemetry bridge resolved`, `OAuth
 certificate store resolved`, `static assets mapped`, `Razor Pages and MCP
-mapped`, `pipeline built`, `listening`, then `verification account
-reconciled`). The four marks between `host built` and `pipeline built` split the
+mapped`, `pipeline built`, `listening`). The four marks between `host built` and `pipeline built` split the
 one phase that took 17 s on two starts of 29 September 2026. When `APPLICATIONINSIGHTS_CONNECTION_STRING`
 is set, the same phases are one trace, "Web is listening. Startup phases: ...",
 and each warm-up step logs `Startup warm-up step <name> finished in <ms> ms`
