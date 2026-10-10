@@ -112,6 +112,7 @@ public static class WorkerDependencyInjection
         // host serves none, and says so if one is ever asked for.
         services.AddSingleton<Pegasus.Core.ICursorProtector, Pegasus.Infrastructure.Support.UnavailableCursorProtector>();
         azureClientRegistration.AddTo(services);
+        services.AddSingleton<StaffNotificationPurgeSchedule>();
 
         if (developmentOffline)
         {
