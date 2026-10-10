@@ -172,10 +172,11 @@
                says what the step says is that control alone; any other names
                itself above its section's control. The step is the viewed
                work's and its link stays in that view (operator, 2 October
-               2026). Assign Engineer and Create audit open the Actions menu's
-               own dialogs, Create audit greyed with its reason as the menu
-               item is; where the menu does not offer Assign Engineer the step
-               is its words alone (issue 1025). *@
+               2026). Assign Engineer, Create audit and Mark completed open the
+               Actions menu's own dialogs, Create audit greyed with its reason
+               as the menu item is; where the menu does not offer Assign
+               Engineer or Mark completed the step is its words alone
+               (issue 1025). *@
             @if (next is { } nextRow)
             {
                 if (nextRow.Blocker is { } first)
@@ -218,6 +219,19 @@
                         @if (Model.CanAssignEngineer)
                         {
                             <button type="button" class="@StepButton" data-dialog-open="case-handoff-dialog" data-next-assign-engineer>@CaseWorkspaceLabels.AssignEngineer</button>
+                        }
+                        else
+                        {
+                            <strong data-next-label>@nextRow.Label</strong>
+                        }
+                    </div>
+                }
+                else if (nextRow.OpensMarkCompleted)
+                {
+                    <div class="next-step" data-next-step>
+                        @if (Model.CanMarkCompleted)
+                        {
+                            <button type="button" class="@StepButton" data-dialog-open="case-complete-dialog" data-next-mark-completed>@Frame.MarkCompleted</button>
                         }
                         else
                         {
