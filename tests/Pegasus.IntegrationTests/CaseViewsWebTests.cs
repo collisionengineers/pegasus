@@ -547,7 +547,8 @@ public sealed class CaseViewsWebTests
     /// Once the Inspection report is sent, Create audit is the Next action of
     /// an Inspection + Audit Case that has no Audit yet, with the Actions
     /// menu's own control: live, or greyed with Core's reason (operator,
-    /// 2 October 2026). Any other Case is marked completed next.
+    /// 2 October 2026). Any other Case is marked completed next, with the
+    /// Actions menu's own Mark completed control.
     /// </summary>
     [Theory]
     [InlineData(CaseType.InspectionAndAudit, true, null)]
@@ -575,7 +576,11 @@ public sealed class CaseViewsWebTests
 
         if (caseType != CaseType.InspectionAndAudit)
         {
-            Assert.Contains($"<strong data-next-label>{Frame.MarkCompleted}</strong>", next, StringComparison.Ordinal);
+            Assert.Contains(
+                $"<button type=\"button\" class=\"btn next-step-go\" data-dialog-open=\"case-complete-dialog\" data-next-mark-completed>{Frame.MarkCompleted}</button>",
+                next,
+                StringComparison.Ordinal);
+            Assert.DoesNotContain("data-next-label", next, StringComparison.Ordinal);
             Assert.DoesNotContain("data-next-create-audit", next, StringComparison.Ordinal);
             return;
         }
