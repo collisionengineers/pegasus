@@ -23,4 +23,4 @@ reference/workproviders-and-repairers/principal-identification-corpus.v1.json bi
 *.zip binary
 *.onnx binary
 src/Pegasus.Infrastructure/Vision/Models/*.yaml binary
-src/Pegasus.Infrastructure/Persistence/CompiledModel/** linguist-generated=true
+src/Pegasus.Infrastructure/Persistence/CompiledModel/** linguist-generated=true eol=lf

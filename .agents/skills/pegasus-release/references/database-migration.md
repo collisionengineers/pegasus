@@ -9,8 +9,9 @@ revisions or replicas, disabled ingress, and an unserved old origin. Unknown or
 stale containment blocks SQL.
 
 A migration, or any change to the Pegasus model, also regenerates the compiled model
-the hosts load (`PegasusSqlServer.Configure` passes it to `UseModel`), because
-`dotnet ef migrations add` diffs against it. Run, from the repository root:
+the hosts load (`PegasusSqlServer.Configure` passes it to `UseModel`), because a
+stale compiled model is used at runtime without any error. Run, from the
+repository root:
 
 ```powershell
 dotnet ef dbcontext optimize --project ./src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj `

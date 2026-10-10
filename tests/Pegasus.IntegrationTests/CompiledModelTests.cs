@@ -10,7 +10,7 @@ namespace Pegasus.IntegrationTests;
 /// </summary>
 public sealed class CompiledModelTests
 {
-    private const string ConnectionString = "Server=(localdb)\MSSQLLocalDB;Database=CompiledModelTests;Integrated Security=true";
+    private const string ConnectionString = "Server=tcp:127.0.0.1,1;Database=Unused;Encrypt=False";
 
     [Fact]
     public void ConfiguredContextUsesTheCompiledModelWithTheRuntimeModelsEntities()
