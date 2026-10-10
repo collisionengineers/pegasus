@@ -245,6 +245,59 @@ public sealed class AdministrationReportsWebTests
         await AssertCsvsAsync(client, refused: ["PrincipalCsv", "TurnaroundCsv", "QueuesCsv"]);
     }
 
+    /// <summary>#1157: a CSV runs its own report's read and no other.</summary>
+    [Fact]
+    public async Task EachCsvRunsOnlyItsOwnReportsRead()
+    {
+        var recorder = new RecordingReportQueries();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IEngineerActivityQueries>();
+                services.RemoveAll<IMonthlyReportActivityQueries>();
+                services.RemoveAll<IReportOutcomeQueries>();
+                services.AddSingleton<IEngineerActivityQueries>(recorder);
+                services.AddSingleton<IMonthlyReportActivityQueries>(recorder);
+                services.AddSingleton<IReportOutcomeQueries>(recorder);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+
+        using var queues = await client.GetAsync($"{Page}?handler=QueuesCsv");
+        Assert.Equal(HttpStatusCode.OK, queues.StatusCode);
+        Assert.Equal((0, 0, 0), recorder.Calls);
+
+        using var months = await client.GetAsync($"{Page}?handler=MonthsCsv");
+        Assert.Equal(HttpStatusCode.OK, months.StatusCode);
+        Assert.Equal((0, 1, 0), recorder.Calls);
+    }
+
+    /// <summary>#1159: with nothing held, the Queues table says so rather than drawing nothing.</summary>
+    [Fact]
+    public async Task TheQueuesTableSaysWhenNothingIsHeld()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IV1ActivityReportQueries>();
+                services.AddSingleton<IV1ActivityReportQueries, EmptyPrincipalReportQueries>();
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+
+        var html = await client.GetStringAsync(Page);
+
+        Assert.Contains("<td colspan=\"5\" class=\"muted\">Nothing is currently held.</td>", html, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task NonAdministratorsCannotDownloadTheWorkbook()
     {
@@ -448,6 +501,51 @@ public sealed class AdministrationReportsWebTests
     private sealed class SyntheticDbException : DbException
     {
         public SyntheticDbException() : base("The monthly report database is unavailable.") { }
+    }
+
+    private sealed class RecordingReportQueries : IEngineerActivityQueries, IMonthlyReportActivityQueries, IReportOutcomeQueries
+    {
+        private int engineer;
+        private int monthly;
+        private int outcomes;
+
+        public (int Engineer, int Monthly, int Outcomes) Calls => (engineer, monthly, outcomes);
+
+        Task<IReadOnlyList<EngineerActivityCounts>> IEngineerActivityQueries.GetAsync(
+            DateTimeOffset fromUtc,
+            DateTimeOffset toUtc,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref engineer);
+            return Task.FromResult<IReadOnlyList<EngineerActivityCounts>>([]);
+        }
+
+        Task<IReadOnlyList<MonthlyReportActivity>> IMonthlyReportActivityQueries.GetAsync(
+            DateTimeOffset fromUtc,
+            DateTimeOffset toUtc,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref monthly);
+            return Task.FromResult<IReadOnlyList<MonthlyReportActivity>>([]);
+        }
+
+        Task<IReadOnlyList<ReportOutcomeFact>> IReportOutcomeQueries.GetAsync(
+            DateTimeOffset fromUtc,
+            DateTimeOffset toUtc,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref outcomes);
+            return Task.FromResult<IReadOnlyList<ReportOutcomeFact>>([]);
+        }
+    }
+
+    private sealed class EmptyPrincipalReportQueries : IV1ActivityReportQueries
+    {
+        public Task<IReadOnlyList<PrincipalReportActivity>> GetAsync(
+            DateTimeOffset fromUtc,
+            DateTimeOffset toUtc,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PrincipalReportActivity>>([]);
     }
 
     private sealed class InvalidPrincipalReportQueries : IV1ActivityReportQueries

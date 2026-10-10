@@ -30,9 +30,20 @@ public static class ReportPeriods
             ReportPeriod.ThisMonth => (LondonCalendar.StartOfDay(monthStart), nowUtc),
             ReportPeriod.LastMonth => (LondonCalendar.StartOfDay(monthStart.AddMonths(-1)), LondonCalendar.StartOfDay(monthStart)),
             ReportPeriod.ThisQuarter => (LondonCalendar.StartOfDay(monthStart.AddMonths(-((today.Month - 1) % 3))), nowUtc),
-            ReportPeriod.Last12Months => (LondonCalendar.ToUtc(LondonCalendar.TimeAt(nowUtc).AddMonths(-12)), nowUtc),
+            ReportPeriod.Last12Months => (Last12MonthsStart(nowUtc), nowUtc),
             _ => throw new ArgumentOutOfRangeException(nameof(period), period, "Custom has no fixed period.")
         };
+    }
+
+    /// <summary>
+    /// The same London time twelve months earlier, unless a leap day and a
+    /// BST-to-GMT span make that an hour longer than the limit (#1153).
+    /// </summary>
+    private static DateTimeOffset Last12MonthsStart(DateTimeOffset nowUtc)
+    {
+        var start = LondonCalendar.ToUtc(LondonCalendar.TimeAt(nowUtc).AddMonths(-12));
+        var earliest = nowUtc - GetEngineerActivityReport.MaximumPeriod;
+        return start < earliest ? earliest : start;
     }
 
     /// <summary>The same length of time just before the period: what "Previous period" compares with (item G).</summary>

@@ -417,6 +417,44 @@ public sealed class UnidentifiedPersistenceTests
         Assert.Contains(nameof(IUnidentifiedStore.ReopenAsync), declared);
         Assert.Contains(nameof(IUnidentifiedStore.ListResolutionsToRecheckAsync), declared);
         Assert.Contains(nameof(IUnidentifiedStore.MarkResolutionRecheckedAsync), declared);
+        Assert.Contains(nameof(IUnidentifiedStore.OldestOpenReceivedAtUtcAsync), declared);
+    }
+
+    /// <summary>#1156: Management Reports' Queues figures are two aggregates over the open items, not the queue's rows.</summary>
+    [Fact]
+    public async Task TheOldestOpenItemIsReadWithoutTheQueueAndIgnoresAClosedOne()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var register = scope.ServiceProvider.GetRequiredService<IRegisterUnidentified>();
+        var store = scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>();
+        Assert.Null(await store.OldestOpenReceivedAtUtcAsync());
+
+        async Task<UnidentifiedItem> RegisterAtAsync(DateTimeOffset at) => (await register.ExecuteAsync(
+            new(
+                UnidentifiedOrigin.Receipt(Guid.NewGuid()),
+                UnidentifiedReasonCode.NoUsableIdentification,
+                "test detail",
+                ActionActor.SystemWorker("test-worker"),
+                $"unidentified-test:{Guid.NewGuid():N}",
+                at))).Item;
+        var closed = await RegisterAtAsync(CreatedAtUtc.AddHours(-1));
+        await RegisterAtAsync(CreatedAtUtc);
+        await RegisterAtAsync(CreatedAtUtc.AddHours(1));
+        await store.ResolveAsync(
+            new(
+                closed.Id,
+                closed.Version,
+                ActionActor.Automation("test-worker"),
+                $"unidentified-close-test:{Guid.NewGuid():N}",
+                "No further action is required.",
+                UnidentifiedResolutionTargetKind.Closed,
+                CloseUnidentified.ClosedTargetId,
+                null,
+                CreatedAtUtc));
+
+        Assert.Equal(CreatedAtUtc, await store.OldestOpenReceivedAtUtcAsync());
+        Assert.Equal(2, await store.CountOpenAsync());
     }
 
     /// <summary>

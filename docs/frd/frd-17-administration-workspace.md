@@ -227,7 +227,8 @@ of a standalone Audit Case or the Audit of an Inspection + Audit Case.
   receipt to produced, ready and sent in the period.
 - **Queues** is now, whatever the period: Cases currently held and open
   Triages per Principal, with the oldest of each, and the open Unidentified
-  items with the oldest.
+  items with the oldest. When no Principal holds either, its table says
+  "Nothing is currently held."
 
 Engineer activity's and Reports by Principal's columns sort: a name's first
 click sorts A to Z, a count's largest first, and a second click reverses.
