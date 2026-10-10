@@ -83,6 +83,12 @@ public sealed class IndexModel(
     private readonly TimeProvider _timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
+    /// <summary>
+    /// The staff names the queue rows resolved, kept so the selected row's
+    /// detail does not read the same Engineer again.
+    /// </summary>
+    private IReadOnlyDictionary<Guid, string> _engineerNames = new Dictionary<Guid, string>();
+
     /// <summary>One rail entry: its key, label and icon.</summary>
     public sealed record Tab(string Key, string Label, string Icon);
 
@@ -576,12 +582,6 @@ public sealed class IndexModel(
         (await _unidentifiedStore.ListQueueAsync(null, cancellationToken))
             .Select(UnidentifiedRow)
             .ToArray();
-
-    /// <summary>
-    /// The staff names the queue rows resolved, kept so the selected row's
-    /// detail does not read the same Engineer again.
-    /// </summary>
-    private IReadOnlyDictionary<Guid, string> _engineerNames = new Dictionary<Guid, string>();
 
     private async Task<IReadOnlyDictionary<Guid, string>> EngineerNamesAsync(
         IEnumerable<CaseSearchItem> items,
