@@ -589,8 +589,7 @@ internal sealed partial class GlassMvaClient(
     /// plate carries one; null when the control is absent, blank or
     /// contradictory. A read: nothing at Glass's changes. It asks for the
     /// details page alone: a vehicle just created returns the control without
-    /// the portal's detail fragments read first (live read-only trial,
-    /// 10 October 2026).
+    /// the portal's detail fragments read first.
     /// </summary>
     public async Task<string?> VehicleVinAsync(string vehicleId, CancellationToken cancellationToken)
     {
