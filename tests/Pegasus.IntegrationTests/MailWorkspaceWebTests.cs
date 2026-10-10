@@ -427,7 +427,7 @@ public sealed class MailWorkspaceWebTests
 
     private const int InboxMessageCommands = 28;
 
-    private const int InboxListCommands = 22;
+    private const int InboxListCommands = 21;
 
     private const int InboxPreviewCommands = 10;
 
