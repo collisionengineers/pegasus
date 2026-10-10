@@ -504,6 +504,18 @@ public interface ILeaseCaseForEdit
 }
 
 /// <summary>
+/// Stopping the Automation client releases every Case lease and Triage or Image Intake scope
+/// Automation holds, live or lapsed, so staff need not wait for the expiry. One transaction; the
+/// Stop's own history entry records what was released.
+/// </summary>
+public interface IReleaseAutomationLeases
+{
+    Task<AutomationLeasesReleased> ReleaseAllAsync(CancellationToken cancellationToken);
+}
+
+public sealed record AutomationLeasesReleased(IReadOnlyList<Guid> CaseIds, int EditScopes);
+
+/// <summary>
 /// Persistence port for all case workflow mutations. Each operation is one atomic transaction:
 /// optimistic-version and lease checks, case/due-work change, exact evidence link where supplied,
 /// idempotency, and permanent action history either all commit or all fail.

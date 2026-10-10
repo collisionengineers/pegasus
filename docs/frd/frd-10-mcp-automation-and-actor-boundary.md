@@ -120,7 +120,10 @@ write made under an Automation lease advances the record's version and keeps
 the lease, so one token from `pegasus_edit_begin` carries every write of the
 work until `pegasus_edit_end` releases it (operator, 8 October 2026).
 `pegasus_edit_end` on a lease that has already lapsed or been released answers
-`released` false.
+`released` false. Stopping the automation client releases every Case lease and
+Triage or Image Intake scope Automation holds, so staff need not wait for the
+lapse; the Stop's own history entry records what was released, and no record
+gains history of its own (operator, 10 October 2026).
 
 **Assessment writes.** <a id="assessment-writes"></a>
 `pegasus_assessment_update` writes the assessment fields a staff member
@@ -522,6 +525,7 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-11.
   act.
 - A subject field a job kind does not take is refused, not ignored.
 - Staff cannot take over an Automation lease; it lapses within five minutes.
+- Stopping the automation client releases every lease Automation holds.
 - Missing production signing or encryption keys fail closed.
 
 ## Acceptance evidence

@@ -175,7 +175,9 @@ a Case lease or Triage scope a staff member holds in the same way, and the
 takeover is recorded the same way
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#edit-leases); operator,
 7 October 2026). A lease held by automatic processing, the Automation Actor's
-included, cannot be taken over; it lapses within five minutes. Take over
+included, cannot be taken over; it lapses within five minutes, or ends at
+once when an Administrator stops the automation client
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#edit-leases)). Take over
 applies to a Case and an Image Intake record only: a Triage Case's scope
 lasts one save.
 
