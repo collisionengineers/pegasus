@@ -484,7 +484,7 @@ public sealed class EfIntakeSubmissionGroupStore(
         bool isDuplicate,
         CancellationToken cancellationToken)
     {
-        if (entities.Count == 0)
+        if (entities.Length == 0)
         {
             return [];
         }
@@ -505,7 +505,7 @@ public sealed class EfIntakeSubmissionGroupStore(
                 .ToArrayAsync(cancellationToken))
             .GroupBy(item => item.StagedReceiptId)
             .ToDictionary(group => group.Key, group => group.First());
-        var members = new List<IntakeSubmissionGroupMember>(entities.Count);
+        var members = new List<IntakeSubmissionGroupMember>(entities.Length);
         foreach (var entity in entities)
         {
             if (!staged.TryGetValue(entity.StagedReceiptId, out var receipt))
