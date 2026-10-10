@@ -222,7 +222,7 @@ internal sealed class CaseEditMcpTools(
                         // recorded assessment; an overview-only call never loads it.
                         CaseAssessmentProjection? assessment = null;
                         async Task LoadAssessmentAsync() =>
-                            assessment = await getAssessment.ExecuteAsync(caseId, cancellationToken);
+                            assessment ??= await getAssessment.ExecuteAsync(caseId, cancellationToken);
                         string? Recorded(string path) => assessment?.Field(path)?.Value;
                         decimal? Money(string path) => decimal.TryParse(
                             Recorded(path), NumberStyles.Number, CultureInfo.InvariantCulture, out var value)
