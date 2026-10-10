@@ -995,7 +995,7 @@ public sealed class EfImageIntakeStore(
                 round.Select(item => item.Intake.Id).ToArray(), cancellationToken);
             foreach (var (intake, target, automaticTargetId, staffDecision) in round)
             {
-                var images = imagesByIntake[intake.Id];
+                var images = imagesByIntake.GetValueOrDefault(intake.Id) ?? [];
                 await LoadAssociationsAsync(
                     context,
                     associations,

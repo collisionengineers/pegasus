@@ -1082,6 +1082,96 @@ public sealed class AutomaticImageIntakeTests
         }
     }
 
+    [Theory]
+    [InlineData(QueuedIntakeProcessingOutcome.Completed, 3, 1, 0)]
+    [InlineData(QueuedIntakeProcessingOutcome.RetryScheduled, 0, 1, 0)]
+    [InlineData(QueuedIntakeProcessingOutcome.RetryScheduled, 3, 2, 1)]
+    public async Task GroupedImageSweepReadsTheRefreshedReceiptOnlyWhenTheRetryAndAgeTestsPass(
+        QueuedIntakeProcessingOutcome outcome,
+        int ageHours,
+        int expectedReceiptReads,
+        int expectedEscapes)
+    {
+        var harness = new GroupHarness(memberCount: 2);
+        var receiptId = harness.Receipts[0].Id;
+        var receiptReads = Forwarder<IIntakeReceiptQueries>.Create(harness.ReceiptQueries);
+        var groups = Forwarder<IIntakeSubmissionGroupStore>.Create(harness.GroupStore);
+        groups.Overrides[nameof(IIntakeSubmissionGroupStore.ListPendingImageGroupReceiptsAsync)] =
+            _ => Task.FromResult<IReadOnlyList<Guid>>([receiptId]);
+        var work = Forwarder<IIntakeWorkStore>.Create(null!);
+        work.Overrides[nameof(IIntakeWorkStore.FindStagedReceiptIdForReceiptAsync)] =
+            _ => Task.FromResult<Guid?>(Guid.NewGuid());
+        var register = new CountingRegisterUnidentified();
+        var sweep = new ReconcileGroupedImageIntake(
+            (IIntakeReceiptQueries)receiptReads.Proxy,
+            (IIntakeSubmissionGroupStore)groups.Proxy,
+            (IIntakeWorkStore)work.Proxy,
+            new FixedOutcomeProcessor(outcome),
+            new FixedTimeProvider(harness.GroupStore.Group!.ReceivedAtUtc.AddHours(ageHours)),
+            register);
+
+        var result = await sweep.ExecuteAsync(5);
+
+        Assert.Equal(expectedReceiptReads, receiptReads.Calls.Count(call => call == nameof(IIntakeReceiptQueries.GetAsync)));
+        Assert.Equal(expectedEscapes, result.Escaped);
+        Assert.Equal(expectedEscapes, register.Calls);
+        Assert.Equal(0, result.Failures);
+    }
+
+    private sealed class FixedOutcomeProcessor(QueuedIntakeProcessingOutcome outcome) : IProcessQueuedIntake
+    {
+        public Task<QueuedIntakeProcessingOutcome> ExecuteAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken = default) => Task.FromResult(outcome);
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    private sealed class CountingRegisterUnidentified : Pegasus.Core.Intake.Unidentified.IRegisterUnidentified
+    {
+        public int Calls { get; private set; }
+
+        public Task<Pegasus.Core.Intake.Unidentified.UnidentifiedRegisterResult> ExecuteAsync(
+            Pegasus.Core.Intake.Unidentified.RegisterUnidentifiedRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return Task.FromResult<Pegasus.Core.Intake.Unidentified.UnidentifiedRegisterResult>(null!);
+        }
+    }
+
+    /// <summary>Forwards to a target, recording method names; named methods can be overridden.</summary>
+    public class Forwarder<T> : System.Reflection.DispatchProxy
+        where T : class
+    {
+        public T? Target { get; private set; }
+
+        public List<string> Calls { get; } = [];
+
+        public Dictionary<string, Func<object?[], object?>> Overrides { get; } = [];
+
+        public T Proxy => (T)(object)this;
+
+        public static Forwarder<T> Create(T? target)
+        {
+            var proxy = Create<T, Forwarder<T>>();
+            var forwarder = (Forwarder<T>)(object)proxy;
+            forwarder.Target = target;
+            return forwarder;
+        }
+
+        protected override object? Invoke(System.Reflection.MethodInfo? targetMethod, object?[]? args)
+        {
+            Calls.Add(targetMethod!.Name);
+            return Overrides.TryGetValue(targetMethod.Name, out var handler)
+                ? handler(args ?? [])
+                : targetMethod.Invoke(Target, args);
+        }
+    }
+
     private sealed class FakeReceiptQueries : IIntakeReceiptQueries
     {
         public IntakeReceipt? Receipt { get; set; }
