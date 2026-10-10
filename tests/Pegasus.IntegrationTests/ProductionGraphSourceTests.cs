@@ -175,8 +175,10 @@ public sealed class ProductionGraphSourceTests
             Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)),
             bytes.Length, "report.pdf", "application/pdf");
         var requests = 0;
+        var paths = new List<string>();
         var handler = new DelegateHandler(request =>
         {
+            paths.Add(request.RequestUri!.AbsolutePath);
             if (request.Method == HttpMethod.Get && request.RequestUri!.AbsolutePath.EndsWith("/attachments"))
             {
                 requests++;
@@ -197,7 +199,8 @@ public sealed class ProductionGraphSourceTests
         await sender.AttachAsync(new(Guid.NewGuid(), "mailbox-id", 1, 10_000_000),
             Guid.NewGuid(), "draft", attachment, new MemoryStream(bytes), CancellationToken.None);
 
-        Assert.True(requests >= 1);
+        Assert.Equal(1, requests);
+        Assert.DoesNotContain(paths, path => path.Contains("/attachments/big"));
         Assert.True(progress.Completed);
     }
 
