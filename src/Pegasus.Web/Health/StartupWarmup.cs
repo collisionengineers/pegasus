@@ -461,7 +461,7 @@ internal sealed partial class StartupWarmup(
             "case-page", () => ReadCasePageAsync(services, id, cancellationToken), stoppingToken, cancellationToken);
     }
 
-    private Task ReadWorkCentreAsync(IServiceProvider services, DateTimeOffset now, CancellationToken cancellationToken) =>
+    private Task<OperationsSnapshot> ReadWorkCentreAsync(IServiceProvider services, DateTimeOffset now, CancellationToken cancellationToken) =>
         services.GetRequiredService<IGetOperationsSnapshot>().ExecuteAsync(
             new NeedsAttentionQuery(actor, NeedsAttentionScope.Office, 1, null, now), cancellationToken);
 
