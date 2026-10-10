@@ -129,12 +129,8 @@ internal sealed partial class CachedDocumentContentStore(
         ValidateRequest(request);
         RequireStaffRight(request.Actor);
         await RequireCurrentActorAsync(request.Actor, cancellationToken);
-        var source = await ResolveAuthorizedSourceAsync(request, cancellationToken);
-        return await ServeAsync(
-            request,
-            source,
-            token => TryOpenCachedAsync(source, timeProvider.GetUtcNow(), token),
-            cancellationToken);
+        var (source, entry) = await ResolveAuthorizedSourceAsync(request, cancellationToken);
+        return await ServeAsync(request, source, CachedReader(entry, source), cancellationToken);
     }
 
     /// <summary>
@@ -205,10 +201,7 @@ internal sealed partial class CachedDocumentContentStore(
                 return await ServeAsync(
                     request,
                     source,
-                    entry is null
-                        ? _ => Task.FromResult<Stream?>(null)
-                        : cachedToken => TryOpenCachedAsync(
-                            entry, source, timeProvider.GetUtcNow(), cachedToken),
+                    CachedReader(entry, source),
                     token);
             });
         }
@@ -502,7 +495,22 @@ internal sealed partial class CachedDocumentContentStore(
             StaffAccessRight.PerformCasework);
     }
 
-    private async Task<ResolvedSource> ResolveAuthorizedSourceAsync(
+    /// <summary>
+    /// The cached-content lookup for a source whose cache entry was read with
+    /// its other lookups: a miss when there is no entry.
+    /// </summary>
+    private Func<CancellationToken, Task<Stream?>> CachedReader(
+        DocumentContentCacheEntryEntity? entry,
+        ResolvedSource source) =>
+        entry is null
+            ? _ => Task.FromResult<Stream?>(null)
+            : token => TryOpenCachedAsync(entry, source, timeProvider.GetUtcNow(), token);
+
+    /// <summary>
+    /// The authorised source and, read in the same query, its cache entry
+    /// (<c>null</c> when it has none), so a single open is two SQL calls.
+    /// </summary>
+    private async Task<(ResolvedSource Source, DocumentContentCacheEntryEntity? Entry)> ResolveAuthorizedSourceAsync(
         ReadLogicalDocumentVersionRequest request,
         CancellationToken cancellationToken)
     {
@@ -518,6 +526,9 @@ internal sealed partial class CachedDocumentContentStore(
                 .Select(value => new
                 {
                     Asset = value,
+                    Entry = db.Set<DocumentContentCacheEntryEntity>().AsNoTracking()
+                        .FirstOrDefault(entry => entry.Variant == OriginalVariant
+                            && entry.IntakeAssetId == value.Id),
                     AssociatedWithCase = requestedCaseId == null
                         || db.Cases.Any(caseEntity => caseEntity.Id == requestedCaseId
                             && (caseEntity.OriginIntakeReceiptId == value.IntakeReceiptId
@@ -550,16 +561,18 @@ internal sealed partial class CachedDocumentContentStore(
                 throw new IntakeCustodyUnavailableException(
                     "Durable custody has not confirmed the retained intake file.");
             }
-            return ResolvedSource.Create(
-                documentVersionId: null,
-                asset.Id,
-                asset.BoxFileId,
-                asset.BoxVersionId,
-                asset.ContentHash,
-                asset.ContentLength,
-                asset.FileName,
-                asset.MediaType,
-                expectedParentId);
+            return (
+                ResolvedSource.Create(
+                    documentVersionId: null,
+                    asset.Id,
+                    asset.BoxFileId,
+                    asset.BoxVersionId,
+                    asset.ContentHash,
+                    asset.ContentLength,
+                    asset.FileName,
+                    asset.MediaType,
+                    expectedParentId),
+                row.Entry);
         }
 
         var version = await (
@@ -576,55 +589,43 @@ internal sealed partial class CachedDocumentContentStore(
             select new
             {
                 Version = documentVersion,
+                Entry = db.Set<DocumentContentCacheEntryEntity>().AsNoTracking()
+                    .FirstOrDefault(entry => entry.Variant == OriginalVariant
+                        && entry.DocumentVersionId == documentVersion.Id),
                 // The document's own folder: the a. folder for an Audit report.
                 CaseRootRemoteId = document.CustodyFolder == CaseCustodyFolders.Audit
                     ? caseEntity.AuditCustodyRemoteId
                     : caseEntity.CustodyRootRemoteId
             }).SingleOrDefaultAsync(cancellationToken)
             ?? throw new FileNotFoundException("The authorized document version is unavailable.");
-        return ResolvedSource.Create(
-            version.Version.Id,
-            intakeAssetId: null,
-            version.Version.BoxFileId,
-            version.Version.BoxVersionId,
-            version.Version.Sha256,
-            version.Version.ContentLength,
-            version.Version.FileName,
-            version.Version.MediaType,
-            version.CaseRootRemoteId);
+        return (
+            ResolvedSource.Create(
+                version.Version.Id,
+                intakeAssetId: null,
+                version.Version.BoxFileId,
+                version.Version.BoxVersionId,
+                version.Version.Sha256,
+                version.Version.ContentLength,
+                version.Version.FileName,
+                version.Version.MediaType,
+                version.CaseRootRemoteId),
+            version.Entry);
     }
 
     /// <summary>
-    /// The cached content, or <c>null</c> when there is no live entry to
-    /// serve.
+    /// The cached content of an entry the caller read with its other lookups,
+    /// or <c>null</c> when there is no live entry to serve. The entry is not
+    /// read again, and a database context is opened only when its expiry is
+    /// due to be pushed out.
     /// </summary>
     /// <remarks>
-    /// A hit is the entry read and, at most once an hour, one conditional
-    /// update that pushes its idle expiry out. The update happens before the
-    /// object is read, and cleanup claims only expired entries, so an entry
-    /// being served always has almost all of its two weeks left: cleanup
-    /// cannot remove the object under the read. An entry that expired, or that
-    /// cleanup has claimed, is a miss.
+    /// A hit is at most once an hour one conditional update that pushes the
+    /// idle expiry out. The update happens before the object is read, and
+    /// cleanup claims only expired entries, so an entry being served always
+    /// has almost all of its two weeks left: cleanup cannot remove the object
+    /// under the read. An entry that expired, or that cleanup has claimed, is
+    /// a miss.
     /// </remarks>
-    private async Task<Stream?> TryOpenCachedAsync(
-        ResolvedSource source,
-        DateTimeOffset now,
-        CancellationToken cancellationToken)
-    {
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var entry = await CacheQuery(db, source).AsNoTracking().SingleOrDefaultAsync(cancellationToken);
-        if (entry is null || !await TryTouchAsync(db, entry, IdleLifetime, now, cancellationToken))
-        {
-            return null;
-        }
-        return await OpenCachedObjectAsync(entry, source, cancellationToken);
-    }
-
-    /// <summary>
-    /// The same for an entry the caller read earlier with its other lookups:
-    /// the entry is not read again, and a database context is opened only when
-    /// its expiry is due to be pushed out.
-    /// </summary>
     private async Task<Stream?> TryOpenCachedAsync(
         DocumentContentCacheEntryEntity entry,
         ResolvedSource source,
@@ -1098,10 +1099,11 @@ internal sealed partial class CachedDocumentContentStore(
             ? $"{CachePrefix}document-versions/{versionId:D}"
             : $"{CachePrefix}intake-assets/{source.IntakeAssetId!.Value:D}";
         var blob = container.GetBlobClient(identity);
+        ETag etag;
         try
         {
             content.Position = 0;
-            await blob.UploadAsync(
+            var uploaded = await blob.UploadAsync(
                 content,
                 new BlobUploadOptions
                 {
@@ -1109,18 +1111,23 @@ internal sealed partial class CachedDocumentContentStore(
                     Metadata = new Dictionary<string, string> { [HashMetadata] = source.Sha256 }
                 },
                 cancellationToken);
+            // The caller's content is already verified, so the object this upload
+            // created needs no read-back: its response carries the ETag.
+            etag = uploaded.Value.ETag;
         }
         catch (RequestFailedException exception) when (exception.Status is 409 or 412)
         {
             // A concurrent miss published the same logical identity (Azure answers an
-            // If-None-Match: * loser with 409 BlobAlreadyExists, a fake with 412). Verify it below.
-        }
-        var properties = await blob.GetPropertiesAsync(cancellationToken: cancellationToken);
-        if (properties.Value.ContentLength != source.Length
-            || !properties.Value.Metadata.TryGetValue(HashMetadata, out var hash)
-            || !FixedHashEquals(hash, source.Sha256))
-        {
-            throw new InvalidDataException("The published cache object failed integrity verification.");
+            // If-None-Match: * loser with 409 BlobAlreadyExists, a fake with 412). Verify
+            // the winner's object.
+            var properties = await blob.GetPropertiesAsync(cancellationToken: cancellationToken);
+            if (properties.Value.ContentLength != source.Length
+                || !properties.Value.Metadata.TryGetValue(HashMetadata, out var hash)
+                || !FixedHashEquals(hash, source.Sha256))
+            {
+                throw new InvalidDataException("The published cache object failed integrity verification.");
+            }
+            etag = properties.Value.ETag;
         }
         var completedAt = timeProvider.GetUtcNow();
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -1134,7 +1141,7 @@ internal sealed partial class CachedDocumentContentStore(
                 IntakeAssetId = source.IntakeAssetId,
                 Variant = OriginalVariant,
                 BlobIdentity = identity,
-                ETag = properties.Value.ETag.ToString(),
+                ETag = etag.ToString(),
                 VerifiedSha256 = source.Sha256,
                 VerifiedSize = source.Length,
                 ExpiresAtUtc = completedAt.Add(IdleLifetime),
@@ -1145,7 +1152,7 @@ internal sealed partial class CachedDocumentContentStore(
             || entry.ReadLeaseExpiresAtUtc <= completedAt)
         {
             entry.BlobIdentity = identity;
-            entry.ETag = properties.Value.ETag.ToString();
+            entry.ETag = etag.ToString();
             entry.VerifiedSha256 = source.Sha256;
             entry.VerifiedSize = source.Length;
             entry.ExpiresAtUtc = completedAt.Add(IdleLifetime);
