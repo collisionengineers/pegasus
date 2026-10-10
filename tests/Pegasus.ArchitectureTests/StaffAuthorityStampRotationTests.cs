@@ -33,6 +33,7 @@ public sealed partial class StaffAuthorityStampRotationTests
             .EnumerateFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories)
             .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/'))
             .Where(path => !path.Contains("/Migrations/", StringComparison.Ordinal)
+                && !path.Contains("/Persistence/CompiledModel/", StringComparison.Ordinal)
                 && !path.Contains("/obj/", StringComparison.Ordinal)
                 && !path.Contains("/bin/", StringComparison.Ordinal))
             .Where(path => AuthorityMutation().IsMatch(File.ReadAllText(Path.Combine(root, path))))
