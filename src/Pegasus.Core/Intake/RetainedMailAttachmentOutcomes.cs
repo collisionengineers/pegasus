@@ -113,11 +113,16 @@ public static class RetainedMailAttachmentOutcomePolicy
 
 public interface IGetRetainedMailAttachmentOutcomes
 {
-    /// <summary>Each attachment asset of the message's receipt, with its own outcome.</summary>
+    /// <summary>
+    /// Each attachment asset of the message's receipt, with its own outcome. A
+    /// caller that already holds the receipt passes it as <paramref name="receipt"/>
+    /// to spare a second read; it is used only when it is the receipt asked for.
+    /// </summary>
     Task<IReadOnlyList<RetainedMailAttachmentOutcome>> ExecuteAsync(
         ActionActor actor,
         Guid intakeReceiptId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        IntakeReceipt? receipt = null);
 }
 
 /// <summary>
@@ -133,7 +138,8 @@ public sealed class GetRetainedMailAttachmentOutcomes(
     public async Task<IReadOnlyList<RetainedMailAttachmentOutcome>> ExecuteAsync(
         ActionActor actor,
         Guid intakeReceiptId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IntakeReceipt? receipt = null)
     {
         ArgumentNullException.ThrowIfNull(actor);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
@@ -142,7 +148,10 @@ public sealed class GetRetainedMailAttachmentOutcomes(
             throw new ArgumentException("An intake receipt identifier is required.", nameof(intakeReceiptId));
         }
 
-        if (await receipts.GetAsync(intakeReceiptId, cancellationToken) is not { } receipt)
+        receipt = receipt?.Id == intakeReceiptId
+            ? receipt
+            : await receipts.GetAsync(intakeReceiptId, cancellationToken);
+        if (receipt is null)
         {
             return [];
         }

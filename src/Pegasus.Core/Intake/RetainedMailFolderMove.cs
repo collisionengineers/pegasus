@@ -30,7 +30,8 @@ public sealed record RetainedMailFolderMoveResult(
     int? ExpectedClassificationVersion = null,
     string? ExpectedRecommendationPolicyKey = null,
     int? ExpectedRecommendationPolicyVersion = null,
-    int? ExpectedMailboxVersion = null);
+    int? ExpectedMailboxVersion = null,
+    string? DestinationFolderId = null);
 
 public sealed record RetainedMailFolderMoveCoordinates(
     string MailboxId,

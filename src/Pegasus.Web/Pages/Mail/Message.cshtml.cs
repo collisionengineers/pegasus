@@ -31,6 +31,7 @@ public enum MessageOffer
 
 public sealed class MessageModel(
     GetRetainedMail getRetainedMail,
+    GetRetainedMailPreview getRetainedMailPreview,
     ICreateAiJob createAiJob,
     IAiJobQueries aiJobQueries,
     ISendToAiControl sendToAiControl,
@@ -430,7 +431,7 @@ public sealed class MessageModel(
         }
 
         Detail = detail;
-        CorrespondenceCaseReference = TryNormalizeCaseReference(CorrespondenceCaseReference, out var reference)
+        CorrespondenceCaseReference = ComposeModel.TryNormalizeCaseReference(CorrespondenceCaseReference, out var reference)
             ? reference
             : null;
         if (StaffMailAvailable)
@@ -534,7 +535,7 @@ public sealed class MessageModel(
         // images, Could not be read, Processing failed) from its receipt and assets.
         var outcomes = receipt is null
             ? []
-            : await attachmentOutcomes.ExecuteAsync(actor, receipt.Id, cancellationToken);
+            : await attachmentOutcomes.ExecuteAsync(actor, receipt.Id, cancellationToken, receipt);
         AttachmentRows = Detail.Attachments
             .Select(attachment =>
             {
@@ -1401,7 +1402,11 @@ public sealed class MessageModel(
         {
             return null;
         }
-        return CorrespondenceSender(Detail, await approvedMailboxes.ListAsync(cancellationToken));
+        // GetRetainedMail listed the approved mailboxes for the folder
+        // recommendation when it got that far; list them only otherwise.
+        return CorrespondenceSender(
+            Detail,
+            Detail.ListedMailboxes ?? await approvedMailboxes.ListAsync(cancellationToken));
     }
 
     /// <summary>
@@ -1466,8 +1471,13 @@ public sealed class MessageModel(
                 FixedCorrespondenceCaseReference = Detail.Summary.CaseReference;
             }
         }
-        CorrespondenceCase = await ResolveCaseAsync(
-            actor, CorrespondenceCaseReference, cancellationToken);
+        // Only the composer and the posts it makes read the Case and its
+        // attachments; a plain view of the message renders neither.
+        if (CorrespondenceMode is not null)
+        {
+            CorrespondenceCase = await ResolveCaseAsync(
+                actor, CorrespondenceCaseReference, cancellationToken);
+        }
         if (CorrespondenceCase is not null)
         {
             CorrespondenceCaseReference = CorrespondenceCase.Summary.Reference;
@@ -1502,23 +1512,21 @@ public sealed class MessageModel(
         return true;
     }
 
-    private async Task<CaseHeader?> ResolveCaseAsync(
+    private Task<CaseHeader?> ResolveCaseAsync(
         ActionActor actor,
         string? reference,
         CancellationToken cancellationToken)
     {
-        if (!TryNormalizeCaseReference(reference, out var value))
+        // The Case this message is linked to was read for CurrentCase moments
+        // ago; naming it again needs no second search and header read.
+        if (CurrentCase is { } linked
+            && ComposeModel.TryNormalizeCaseReference(reference, out var value)
+            && string.Equals(linked.Summary.Reference, value, StringComparison.OrdinalIgnoreCase))
         {
-            return null;
+            return Task.FromResult<CaseHeader?>(linked);
         }
 
-        var matches = await searchCases.ExecuteAsync(
-            new(actor, new CaseSearchFilters(CaseReference: value), PageSize: 2), cancellationToken);
-        var match = matches.Items.SingleOrDefault(item =>
-            string.Equals(item.Reference, value, StringComparison.OrdinalIgnoreCase));
-        return match is null
-            ? null
-            : await getCaseHeader.ExecuteAsync(new(match.CaseId, actor), cancellationToken);
+        return ComposeModel.ResolveCaseAsync(searchCases, getCaseHeader, actor, reference, cancellationToken);
     }
 
     private async Task<IReadOnlyList<CaseSearchItem>> SearchCasesAsync(
@@ -1539,12 +1547,6 @@ public sealed class MessageModel(
     {
         normalized = value?.Trim();
         return !string.IsNullOrWhiteSpace(normalized) && normalized.Length <= 300;
-    }
-
-    private static bool TryNormalizeCaseReference(string? value, out string? normalized)
-    {
-        normalized = value?.Trim();
-        return !string.IsNullOrWhiteSpace(normalized) && normalized.Length <= 100;
     }
 
     internal static (StaffMailRecipient[] To, StaffMailRecipient[] Cc) ReplyRecipients(
@@ -1815,8 +1817,9 @@ public sealed class MessageModel(
         Guid messageId,
         CancellationToken cancellationToken)
     {
-        var detail = await getRetainedMail.ExecuteAsync(actor, messageId, SearchTerm, cancellationToken);
-        if (detail?.Summary.IntakeReceiptId is not { } receiptId)
+        var preview = await getRetainedMailPreview.ExecuteAsync(
+            actor, messageId, cancellationToken: cancellationToken);
+        if (preview?.Summary.IntakeReceiptId is not { } receiptId)
         {
             return null;
         }
