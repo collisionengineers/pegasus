@@ -454,7 +454,7 @@ internal sealed class MapiPropertyReader
             case 0x000D: kind = MapiValueKind.OpaqueObject; decoded = null; break;
             default: kind = MapiValueKind.Raw; decoded = null; break;
         }
-        return new(index, kind, decoded, ImmutableArray.Create(raw.ToArray()));
+        return new(index, kind, decoded, ImmutableArray.Create<byte>(raw));
     }
 
     private MapiValue RetainRaw(int index, ReadOnlySpan<byte> raw, uint storageId, ushort propertyId)
@@ -464,7 +464,7 @@ internal sealed class MapiPropertyReader
             _issues.Add(new("MSG_RESOURCE_LIMIT", "The cumulative decoded-byte limit was exceeded; malformed raw bytes were omitted.", storageId, propertyId));
             return new(index, MapiValueKind.Raw, null, []);
         }
-        return new(index, MapiValueKind.Raw, null, ImmutableArray.Create(raw.ToArray()));
+        return new(index, MapiValueKind.Raw, null, ImmutableArray.Create<byte>(raw));
     }
 
     private string? DecodeString8(ReadOnlySpan<byte> bytes, int? codePage, uint storageId, ushort propertyId)

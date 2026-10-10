@@ -121,7 +121,7 @@ internal static class WordBinaryFixture
 
         return new CompoundFile(
             new CompoundFileHeader(0x003e, 3, 512, 64, 0, 1, 0, 0, 4096, 0xfffffffe, 0, 0xfffffffe, 0, []),
-            [], [], [], entries.ToImmutable());
+            [], [], entries.ToImmutable());
     }
 
     internal static void SetFibRange(byte[] wordDocument, int index, uint offset, uint length)

@@ -28,7 +28,7 @@ internal sealed class PdfPigPageTextExtractor : IExtractPdfPageText
 
         try
         {
-            using var document = PdfDocument.Open(content.ToArray());
+            using var document = PdfDocument.Open(DocumentContentCachePublisherExtensions.ArrayOf(content));
             var pages = new List<PdfPageText>();
             var remaining = maximumCharacters;
             for (var number = 1; number <= document.NumberOfPages && remaining > 0; number++)

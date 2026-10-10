@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Web.Presentation;
@@ -61,7 +62,7 @@ public sealed partial class ImageModel(
             {
                 FileName = source.FileName
             }.ToString();
-            return File(source.Content.ToArray(), source.ContentType);
+            return File(DocumentContentCachePublisherExtensions.StreamOf(source.Content), source.ContentType);
         }
         catch (StaffAuthorizationException)
         {

@@ -74,7 +74,6 @@ internal sealed record MsgBodySet(
     string? HtmlText,
     ImmutableArray<byte> HtmlBytes,
     string? RtfText,
-    ImmutableArray<byte> RtfBytes,
     string? CanonicalText,
     string CanonicalSource);
 
@@ -86,7 +85,6 @@ internal sealed record MsgAttachment(
     string? DisplayName,
     string? MediaType,
     string? ContentId,
-    string? ContentLocation,
     bool IsInline,
     ImmutableArray<byte> Content,
     string? PassiveReference,

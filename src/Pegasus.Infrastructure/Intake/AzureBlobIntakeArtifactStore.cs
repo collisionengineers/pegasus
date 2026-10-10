@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Infrastructure.Intake;
@@ -507,7 +508,7 @@ public sealed class AzureBlobIntakeArtifactStore
         IDictionary<string, string>? tags,
         CancellationToken cancellationToken)
     {
-        using var stream = new MemoryStream(content.ToArray(), writable: false);
+        using var stream = DocumentContentCachePublisherExtensions.StreamOf(content);
         try
         {
             await blob.UploadAsync(stream, new BlobUploadOptions

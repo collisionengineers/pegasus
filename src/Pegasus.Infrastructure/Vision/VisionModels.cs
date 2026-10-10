@@ -111,9 +111,9 @@ internal sealed class VisionModelSet
         using var stream = assembly.GetManifestResourceStream(logicalName)
             ?? throw new VisionModelIntegrityException(
                 $"Embedded vision resource '{logicalName}' is missing.");
-        using var buffer = new MemoryStream();
-        stream.CopyTo(buffer);
-        return buffer.ToArray();
+        var bytes = new byte[stream.Length];
+        stream.ReadExactly(bytes);
+        return bytes;
     }
 
     private sealed record VisionModelManifest(

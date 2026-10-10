@@ -1010,12 +1010,32 @@ internal sealed class GraphApprovedInboxSource(
         string inboxFolderId,
         CancellationToken cancellationToken)
     {
+        MimeMessage message;
         try
         {
             await using var stream = new MemoryStream(mime, writable: false);
-            var display = await Pegasus.Infrastructure.Intake.LocalEmailDisplayReader.ReadAsync(
-                stream,
-                cancellationToken);
+            message = await MimeMessage.LoadAsync(stream, cancellationToken);
+        }
+        catch (FormatException)
+        {
+            return GraphFactsOnly(item, inboxFolderId);
+        }
+
+        return ReadRetainedMetadata(message, item, inboxFolderId);
+    }
+
+    /// <summary>
+    /// The same read for a message the caller has already parsed, so a poll
+    /// that needs the message for its own checks does not parse the MIME twice.
+    /// </summary>
+    internal static RetainedMailboxMessageMetadata ReadRetainedMetadata(
+        MimeMessage message,
+        GraphDeltaItem item,
+        string inboxFolderId)
+    {
+        try
+        {
+            var display = Pegasus.Infrastructure.Intake.LocalEmailDisplayReader.Read(message);
             return new(
                 inboxFolderId,
                 item.ConversationId ?? display.ThreadIdentity,
@@ -1032,28 +1052,33 @@ internal sealed class GraphApprovedInboxSource(
         }
         catch (FormatException)
         {
-            // Only the MIME display view is unavailable. Returning null here
-            // used to skip the retained row entirely, so the message was
-            // received and processed while the workspace showed nothing at all —
-            // silently, with the received-item record and the Inbox disagreeing
-            // about whether the mail exists. Graph's own facts are still good,
-            // so the row is written from those with the display fields empty:
-            // the workspace shows the gap, which is what the poll intended.
-            return new(
-                inboxFolderId,
-                item.ConversationId,
-                item.InternetMessageId,
-                SenderAddress: null,
-                SenderDisplayName: null,
-                ToAddresses: [],
-                CcAddresses: [],
-                ReplyToAddresses: [],
-                Subject: null,
-                BodyPlainText: null,
-                Attachments: [],
-                item.IsRead);
+            return GraphFactsOnly(item, inboxFolderId);
         }
     }
+
+    private static RetainedMailboxMessageMetadata GraphFactsOnly(
+        GraphDeltaItem item,
+        string inboxFolderId) =>
+        // Only the MIME display view is unavailable. Returning null here
+        // used to skip the retained row entirely, so the message was
+        // received and processed while the workspace showed nothing at all —
+        // silently, with the received-item record and the Inbox disagreeing
+        // about whether the mail exists. Graph's own facts are still good,
+        // so the row is written from those with the display fields empty:
+        // the workspace shows the gap, which is what the poll intended.
+        new(
+            inboxFolderId,
+            item.ConversationId,
+            item.InternetMessageId,
+            SenderAddress: null,
+            SenderDisplayName: null,
+            ToAddresses: [],
+            CcAddresses: [],
+            ReplyToAddresses: [],
+            Subject: null,
+            BodyPlainText: null,
+            Attachments: [],
+            item.IsRead);
 
     /// <summary>
     /// Shape only. Which mailbox is legitimate is settled upstream by the approved
@@ -1427,8 +1452,8 @@ internal sealed class GraphApprovedSentSource(GraphMailClient client) : IApprove
             {
                 // The Sent Items scope's row, read the way the Inbox poll reads
                 // its own: Graph's identities, the MIME's display content.
-                RetainedMetadata = await GraphApprovedInboxSource.ReadRetainedMetadataAsync(
-                    mime, item, lease.SentFolderIdentity, cancellationToken),
+                RetainedMetadata = GraphApprovedInboxSource.ReadRetainedMetadata(
+                    message, item, lease.SentFolderIdentity),
                 SourceLength = mime.LongLength
             };
         }

@@ -21,10 +21,10 @@ public sealed class CaseExportArchiveTests
         var first = CaseExportArchive.Create(Source(), order);
         var replay = CaseExportArchive.Create(Source(), order);
 
-        Assert.Equal(first.Content, replay.Content);
+        Assert.Equal(first.Content.ToArray(), replay.Content.ToArray());
         Assert.Equal(first.Sha256, replay.Sha256);
         Assert.Equal("QDOS001.zip", first.FileName);
-        using var archive = new ZipArchive(new MemoryStream(first.Content), ZipArchiveMode.Read);
+        using var archive = new ZipArchive(new MemoryStream(first.Content.ToArray()), ZipArchiveMode.Read);
         Assert.Equal(
             [
                 "QDOS001.json",
@@ -47,7 +47,7 @@ public sealed class CaseExportArchiveTests
             Images([OtherOccurrenceId, OverviewOccurrenceId, DamageOccurrenceId]));
 
         Assert.Equal(first.Sha256, changed.Sha256);
-        using var archive = new ZipArchive(new MemoryStream(changed.Content), ZipArchiveMode.Read);
+        using var archive = new ZipArchive(new MemoryStream(changed.Content.ToArray()), ZipArchiveMode.Read);
         Assert.Equal("Images/002 overview.jpg", archive.Entries[1].FullName);
         Assert.Equal("Images/003 damage.png", archive.Entries[2].FullName);
         Assert.Equal("Images/004 other.jpg", archive.Entries[3].FullName);
@@ -60,7 +60,7 @@ public sealed class CaseExportArchiveTests
             Source(),
             new([Images().RetainedImages[0]]));
 
-        using var archive = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);
+        using var archive = new ZipArchive(new MemoryStream(bundle.Content.ToArray()), ZipArchiveMode.Read);
         Assert.Equal(
             [
                 "QDOS001.json",
@@ -75,7 +75,7 @@ public sealed class CaseExportArchiveTests
         var bundle = CaseExportArchive.Create(Source(), new([]));
 
         Assert.Equal("QDOS001.zip", bundle.FileName);
-        using var archive = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);
+        using var archive = new ZipArchive(new MemoryStream(bundle.Content.ToArray()), ZipArchiveMode.Read);
         Assert.Equal(["QDOS001.json"], archive.Entries.Select(entry => entry.FullName));
     }
 
@@ -98,7 +98,7 @@ public sealed class CaseExportArchiveTests
         var replay = CaseExportArchive.Create(changedSource, Images());
 
         Assert.NotEqual(first.Sha256, changed.Sha256);
-        Assert.Equal(changed.Content, replay.Content);
+        Assert.Equal(changed.Content.ToArray(), replay.Content.ToArray());
         Assert.Equal(changed.Sha256, replay.Sha256);
     }
 
@@ -122,7 +122,7 @@ public sealed class CaseExportArchiveTests
     {
         var bundle = CaseExportArchive.Create(Source(), Images());
 
-        using var archive = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);
+        using var archive = new ZipArchive(new MemoryStream(bundle.Content.ToArray()), ZipArchiveMode.Read);
         var names = archive.Entries.Select(entry => entry.FullName).ToArray();
 
         // No manifest.sha256, no provenance.json: neither was ever an operator
@@ -171,7 +171,7 @@ public sealed class CaseExportArchiveTests
         // The whole-archive digest survives the manifest's removal and is still the hash of
         // what ships: it is the revision InputFingerprint and the download's
         // Content-Digest, and only the manifest's per-entry hashes are gone.
-        Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(bundle.Content)), bundle.Sha256);
+        Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(bundle.Content.Span)), bundle.Sha256);
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(bundle.JsonContent)), bundle.JsonSha256);
     }
 
@@ -319,9 +319,9 @@ public sealed class CaseExportArchiveTests
         }
         var expected = unsized.ToArray();
 
-        Assert.Equal(expected, bundle.Content);
+        Assert.Equal(expected, bundle.Content.ToArray());
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(expected)), bundle.Sha256);
-        using var read = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);
+        using var read = new ZipArchive(new MemoryStream(bundle.Content.ToArray()), ZipArchiveMode.Read);
         Assert.Equal(large.Length, read.GetEntry("Images/002 overview.jpg")!.Length);
     }
 
