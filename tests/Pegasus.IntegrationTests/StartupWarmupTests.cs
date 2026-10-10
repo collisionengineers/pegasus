@@ -251,7 +251,7 @@ public sealed class StartupWarmupTests
         reads.RequireOverlap(3);
         await run.PassAsync(TimeSpan.FromMinutes(3));
 
-        Assert.True(reads.WorkCentreReadsOverlapped);
+        Assert.True(reads.ReadsOverlapped);
         Assert.DoesNotContain(
             run.Logger.Entries,
             entry => entry.Message.StartsWith("Warm-up step ", StringComparison.Ordinal));
@@ -283,7 +283,7 @@ public sealed class StartupWarmupTests
         await warmup.StartAsync(CancellationToken.None);
         await Assert.IsAssignableFrom<Task>(warmup.ExecuteTask).WaitAsync(TimeSpan.FromMinutes(1));
 
-        Assert.True(reads.WorkCentreReadsOverlapped);
+        Assert.True(reads.ReadsOverlapped);
         Assert.Equal(1, reads.Calls("case-kind"));
         await warmup.StopAsync(CancellationToken.None);
     }
@@ -691,7 +691,7 @@ public sealed class StartupWarmupTests
 
         public ActivityStamp[] ActivitySeen => Snapshot(activities);
 
-        public bool WorkCentreReadsOverlapped => overlap is { Task.IsCompletedSuccessfully: true };
+        public bool ReadsOverlapped => overlap is { Task.IsCompletedSuccessfully: true };
 
         public int Calls(string call)
         {
@@ -735,7 +735,7 @@ public sealed class StartupWarmupTests
             NeedsAttentionQuery query, CancellationToken cancellationToken = default)
         {
             Note("snapshot");
-            await EnterWorkCentreReadAsync();
+            await EnterOverlapAsync();
             if (SnapshotFails)
             {
                 throw new InvalidOperationException("The attention read is unreadable.");
@@ -754,7 +754,7 @@ public sealed class StartupWarmupTests
                 markSeenValues.Add(markSeen);
             }
 
-            await EnterWorkCentreReadAsync();
+            await EnterOverlapAsync();
             var newest = new RecentCaseRow(
                 NewestCaseId, "QD-1", null, null, "Principal",
                 DateTimeOffset.UnixEpoch, CaseArrival.Manual);
@@ -813,7 +813,7 @@ public sealed class StartupWarmupTests
         async Task<IReadOnlyList<AiJobRecord>> IAiJobQueries.ListOpenAsync(CancellationToken cancellationToken)
         {
             Note("ai-jobs");
-            await EnterWorkCentreReadAsync();
+            await EnterOverlapAsync();
             return [];
         }
 
@@ -914,7 +914,7 @@ public sealed class StartupWarmupTests
             }
         }
 
-        internal async Task EnterWorkCentreReadAsync()
+        internal async Task EnterOverlapAsync()
         {
             TaskCompletionSource? entered;
             lock (gate)
@@ -1011,7 +1011,7 @@ public sealed class StartupWarmupTests
         public async Task<ApprovedMailboxSubscription?> GetActiveAsync(string subscriptionId,
             DateTimeOffset nowUtc, CancellationToken cancellationToken)
         {
-            await reads.EnterWorkCentreReadAsync();
+            await reads.EnterOverlapAsync();
             return null;
         }
 
