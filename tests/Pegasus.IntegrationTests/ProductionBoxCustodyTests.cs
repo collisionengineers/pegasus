@@ -263,8 +263,7 @@ public sealed class ProductionBoxCustodyTests
 
         var requests = box.Requests.Skip(before).ToArray();
         var firstCreate = Array.FindIndex(requests, request => request.StartsWith("POST /2.0/folders", StringComparison.Ordinal));
-        Assert.True(firstCreate > 0, string.Join("
-", requests));
+        Assert.True(firstCreate > 0, string.Join("\n", requests));
         Assert.Equal(1, requests.Take(firstCreate).Count(request =>
             request.Contains("/items", StringComparison.Ordinal)));
     }
