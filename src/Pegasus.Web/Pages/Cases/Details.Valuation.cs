@@ -812,7 +812,7 @@ public sealed partial class DetailsModel
         }
         catch (GuideValuationNotValuedException notValued)
         {
-            var message = CaseWorkspaceLabels.Valuation.NotValued(notValued.Reason);
+            var message = CaseWorkspaceLabels.Valuation.NotValued(source, notValued.Reason);
             if (json)
             {
                 return new JsonResult(new { status = "not_valued", message });

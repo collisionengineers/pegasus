@@ -272,20 +272,22 @@ public sealed class GlassGuideValuationProviderTests
     /// <summary>
     /// Issue 996: the portal answers a plate its VRM supplier does not know
     /// with a type number that is the JSON <c>false</c>. That is "not found"
-    /// after the one search, not three empty candidate reads, and the card
-    /// says the same approved sentence as for any other failure.
+    /// after the one search, not three empty candidate reads. Nothing is
+    /// broken, so the card says why rather than "unavailable" (operator,
+    /// 10 October 2026; issue 1109).
     /// </summary>
     [Fact]
-    public async Task APlateTheProviderDoesNotKnowIsUnavailableAfterOneRequest()
+    public async Task APlateTheProviderDoesNotKnowIsNotValuedAfterOneRequest()
     {
         var harness = Harness.Create();
         const string search = "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000";
         harness.Mva.Set(search, new(HttpStatusCode.OK, UnknownPlate));
 
-        var unavailable = await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>
+        var notValued = await Assert.ThrowsAsync<GuideValuationNotValuedException>(() =>
             harness.Provider.GetAsync(Request(), default));
 
-        var stage = Assert.IsType<GlassMvaStageException>(unavailable.InnerException);
+        Assert.Equal(GuideValuationNotValuedReason.NoVehicleData, notValued.Reason);
+        var stage = Assert.IsType<GlassMvaStageException>(notValued.InnerException);
         Assert.Equal("glass.lookup.notfound", stage.FailureCode);
         Assert.Equal(1, harness.Mva.Count(search));
         Assert.Equal(0, harness.Mva.Count("GET /three-phase-vehicle/get-vehicles"));
