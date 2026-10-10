@@ -28,6 +28,8 @@ public sealed class EfReportRecipientSuggestionQueries(
                              @case.AuditReference,
                              @case.Year,
                              @case.Sequence,
+                             HasPrimaryWork = context.CaseWorks.Any(item => item.CaseId == @case.Id && item.Kind == CaseWorkKinds.Primary),
+                             HasAuditWork = context.CaseWorks.Any(item => item.CaseId == @case.Id && item.Kind == CaseWorkKinds.Audit),
                              PrincipalCode = principal.Code,
                              PrincipalName = principal.Organization.Name,
                              principal.IncludeOriginalInstructionSender,
@@ -43,7 +45,8 @@ public sealed class EfReportRecipientSuggestionQueries(
         }
 
         // The email names the report of the work it delivers.
-        var workKind = (await CaseWorkScope.LoadSetAsync(context, caseId, cancellationToken)).Select(work).Kind;
+        if (!row.HasPrimaryWork) throw new InvalidDataException($"Case '{caseId}' has no primary work.");
+        var workKind = work == CaseWorkSelector.Current && row.HasAuditWork ? CaseWorkKind.Audit : CaseWorkKind.Primary;
         var reportReference = CaseReferenceFormat.ReportReference(
             new CaseIdentity(caseId, row.PrincipalCode, row.Year, row.Sequence, row.Reference, row.AuditReference),
             workKind);
