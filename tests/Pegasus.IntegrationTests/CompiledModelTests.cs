@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Persistence.CompiledModel;
 
@@ -19,13 +21,13 @@ public sealed class CompiledModelTests
         PegasusSqlServer.Configure(configured, ConnectionString);
         using var compiledContext = new PegasusDbContext(configured.Options);
 
-        var runtime = new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(ConnectionString);
-        using var runtimeContext = new PegasusDbContext(runtime.Options);
+        // The design-time model is always built from OnModelCreating, never loaded compiled.
+        var runtimeModel = compiledContext.GetService<IDesignTimeModel>().Model;
 
         Assert.Same(PegasusDbContextModel.Instance, compiledContext.Model);
-        Assert.NotSame(PegasusDbContextModel.Instance, runtimeContext.Model);
+        Assert.NotSame(PegasusDbContextModel.Instance, runtimeModel);
         Assert.Equal(
-            runtimeContext.Model.GetEntityTypes().Select(entity => entity.Name).Order(StringComparer.Ordinal),
+            runtimeModel.GetEntityTypes().Select(entity => entity.Name).Order(StringComparer.Ordinal),
             compiledContext.Model.GetEntityTypes().Select(entity => entity.Name).Order(StringComparer.Ordinal));
     }
 }
