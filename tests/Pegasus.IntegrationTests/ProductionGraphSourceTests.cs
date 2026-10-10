@@ -190,7 +190,7 @@ public sealed class ProductionGraphSourceTests
             }
             return Response(HttpStatusCode.Created, "{}");
         });
-        var progress = new UploadProgressFake { Current = new(null, DateTimeOffset.MaxValue, 0) };
+        var progress = new UploadProgressFake { Current = new(new Uri("https://graph.microsoft.com/upload/session"), DateTimeOffset.MaxValue, 0) };
         var options = Options();
         var sender = new GraphStaffMailSender(
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
