@@ -77,6 +77,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             vehicleLookupReconciler,
             principalSubmissionReconciler,
             new PurgeStaffNotifications(new EmptyStaffNotificationStore(), TimeProvider.System),
+            new StaffNotificationPurgeSchedule(TimeProvider.System),
             new PrepareDocumentThumbnails(thumbnailCandidates, new UnreachableDocumentThumbnails()),
             new RecogniseFiledEstimates(estimateCandidates, new UnreachableDocumentReads(), []),
             logger);
@@ -172,11 +173,45 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         Assert.Contains(logger.States, state => state.ContainsKey("Purged"));
     }
 
+    /// <summary>
+    /// The function class is built for every tick, so the purge gate is shared
+    /// between instances: two ticks inside an hour purge once, and the next hour
+    /// purges again.
+    /// </summary>
+    [Fact]
+    public async Task TheStaffNotificationPurgeRunsAboutHourlyAcrossTicks()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var clock = new SteppedClock(new DateTimeOffset(2026, 10, 10, 9, 0, 0, TimeSpan.Zero));
+        var schedule = new StaffNotificationPurgeSchedule(clock);
+        var store = new EmptyStaffNotificationStore();
+
+        await RunPairingTimerAsync(new RecordingPairing(), contextFactory, purgeSchedule: schedule, notifications: store);
+        clock.Advance(TimeSpan.FromSeconds(10));
+        await RunPairingTimerAsync(new RecordingPairing(), contextFactory, purgeSchedule: schedule, notifications: store);
+        Assert.Equal(1, store.Purges);
+
+        clock.Advance(TimeSpan.FromHours(1));
+        await RunPairingTimerAsync(new RecordingPairing(), contextFactory, purgeSchedule: schedule, notifications: store);
+        Assert.Equal(2, store.Purges);
+    }
+
+    private sealed class SteppedClock(DateTimeOffset start) : TimeProvider
+    {
+        private DateTimeOffset _now = start;
+        public void Advance(TimeSpan by) => _now += by;
+        public override DateTimeOffset GetUtcNow() => _now;
+    }
+
     internal static Task RunPairingTimerAsync(
         IImageIntakeCasePairing pairing,
         IDbContextFactory<PegasusDbContext> contextFactory,
         ISettleFiledCaseReportArtifacts? settlement = null,
-        ILogger<StagedArtifactReconciliationFunction>? logger = null)
+        ILogger<StagedArtifactReconciliationFunction>? logger = null,
+        StaffNotificationPurgeSchedule? purgeSchedule = null,
+        IStaffNotificationStore? notifications = null)
     {
         var workStore = new ReconciliationWorkStore(0);
         var receipts = new EmptyIntakeReceiptQueries();
@@ -196,7 +231,8 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
                 new UnreachableGroupStore(), new EmptyQueuedIntakeStatuses()),
             new ReconcileAutomaticVehicleLookups(new UnreachableAutomaticVehicleLookupStore(), VehicleLookupAvailability.Unavailable),
             new ReconcilePrincipalSubmissions(new EmptyPrincipalSubmissionStore(), new UnreachableActionHistoryWriter(), TimeProvider.System),
-            new PurgeStaffNotifications(new EmptyStaffNotificationStore(), TimeProvider.System),
+            new PurgeStaffNotifications(notifications ?? new EmptyStaffNotificationStore(), TimeProvider.System),
+            purgeSchedule ?? new StaffNotificationPurgeSchedule(TimeProvider.System),
             new PrepareDocumentThumbnails(new NoDocumentThumbnailCandidates(), new UnreachableDocumentThumbnails()),
             new RecogniseFiledEstimates(new RecordingEstimateCandidates(), new UnreachableDocumentReads(), []),
             logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<StagedArtifactReconciliationFunction>.Instance);
@@ -290,12 +326,17 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
     }
     private sealed class EmptyStaffNotificationStore : IStaffNotificationStore
     {
+        public int Purges { get; private set; }
         public Task<StaffNotification> AddAsync(NewStaffNotification notification, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<StaffNotification>> ListAsync(Guid staffId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<int> CountUnreadAsync(Guid staffId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<StaffNotification?> MarkReadAsync(Guid staffId, Guid notificationId, DateTimeOffset readAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<int> MarkAllReadAsync(Guid staffId, DateTimeOffset readAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<int> PurgeOlderThanAsync(DateTimeOffset cutoffUtc, CancellationToken cancellationToken) => Task.FromResult(0);
+        public Task<int> PurgeOlderThanAsync(DateTimeOffset cutoffUtc, CancellationToken cancellationToken)
+        {
+            Purges++;
+            return Task.FromResult(0);
+        }
     }
 
     private sealed class RecordingThumbnailCandidates : IListDocumentThumbnailCandidates

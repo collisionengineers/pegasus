@@ -357,6 +357,33 @@ public sealed class UnifiedWorkPoisonFunction(
     }
 }
 
+/// <summary>
+/// When the staff-notification purge last ran. A singleton, because Functions
+/// builds the function class afresh for every tick.
+/// </summary>
+public sealed class StaffNotificationPurgeSchedule(TimeProvider timeProvider)
+{
+    private static readonly TimeSpan Interval = TimeSpan.FromHours(1);
+    private readonly object _gate = new();
+    private DateTimeOffset? _lastStartedUtc;
+
+    /// <summary>True when the purge is due, and records it as started.</summary>
+    public bool TryStart()
+    {
+        var now = timeProvider.GetUtcNow();
+        lock (_gate)
+        {
+            if (_lastStartedUtc is { } last && now - last < Interval)
+            {
+                return false;
+            }
+
+            _lastStartedUtc = now;
+            return true;
+        }
+    }
+}
+
 public sealed partial class StagedArtifactReconciliationFunction(
     ReconcileStagedArtifacts reconcileStagedArtifacts,
     IDocumentContentCacheCleanup documentContentCacheCleanup,
@@ -369,6 +396,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
     ReconcileAutomaticVehicleLookups reconcileAutomaticVehicleLookups,
     ReconcilePrincipalSubmissions reconcilePrincipalSubmissions,
     PurgeStaffNotifications purgeStaffNotifications,
+    StaffNotificationPurgeSchedule staffNotificationPurgeSchedule,
     PrepareDocumentThumbnails prepareDocumentThumbnails,
     RecogniseFiledEstimates recogniseFiledEstimates,
     ILogger<StagedArtifactReconciliationFunction> logger)
@@ -517,9 +545,12 @@ public sealed partial class StagedArtifactReconciliationFunction(
 
         // Work Centre D10: personal notifications past their 30-day retention drop
         // off. Reads already filter on the window, so this is housekeeping on the
-        // existing sweep, not a new schedule.
-        var purgedNotifications = await purgeStaffNotifications.ExecuteAsync(cancellationToken);
-        LogStaffNotificationPurge(logger, purgedNotifications);
+        // existing sweep, not a new schedule, and it runs about hourly.
+        if (staffNotificationPurgeSchedule.TryStart())
+        {
+            var purgedNotifications = await purgeStaffNotifications.ExecuteAsync(cancellationToken);
+            LogStaffNotificationPurge(logger, purgedNotifications);
+        }
 
         // Plain gallery thumbnails of newly filed photographs, made before
         // the first view. Same existing timer trigger deliberately; this is
