@@ -990,8 +990,7 @@ public sealed partial class AssessmentReportDraftWebTests
             }
             var signatory = projection.Signatory!;
             return new(projection.Assessment, signatoryId, null,
-                [new(signatoryId, signatory.PrintedName, signatory.Qualifications,
-                    signatory.SignatureContent, signatory.SignatureContentType, IsDefault: true)],
+                [new(signatoryId, signatory.PrintedName, signatory.Qualifications, IsDefault: true)],
                 projection.CurrentEstimate,
                 new AppliedValuation(Guid.NewGuid(), projection.Assessment.CaseId, 1, Guid.NewGuid(),
                     ReportFixtureAtUtc, new(5000m, false, 0m, 5000m, null, 0m, [], 0m, 0m, 5000m),
