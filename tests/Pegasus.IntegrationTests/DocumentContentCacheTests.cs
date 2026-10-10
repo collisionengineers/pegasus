@@ -86,6 +86,14 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             Assert.Equal(bytes, await ReadAsync(cold.Content));
             Assert.Equal(1, estate.Box.Downloads);
             Assert.Equal("box-version-1", estate.Box.RequestedVersion);
+            // The winning publish records the upload response's ETag without a HEAD.
+            Assert.Equal(0, estate.Blob.PropertiesReads);
+            await using (var published = await estate.Database.CreateContextAsync())
+            {
+                Assert.Equal(
+                    "\"1\"",
+                    (await published.Set<DocumentContentCacheEntryEntity>().SingleAsync()).ETag);
+            }
 
             estate.Clock.Advance(TimeSpan.FromHours(5));
             estate.Box.Unavailable = true;
@@ -784,6 +792,8 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
 
             Assert.Equal(bytes, await ReadAsync(opened.Content));
             Assert.Equal(0, estate.Blob.UploadCount);
+            // A publish that lost the race verifies the winner's object with a HEAD.
+            Assert.Equal(1, estate.Blob.PropertiesReads);
             await using var db = await estate.Database.CreateContextAsync();
             Assert.Single(await db.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
         }
@@ -2388,6 +2398,9 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         public byte[]? Content { get; set; }
         public int DeleteCount { get; private set; }
         public int UploadCount { get; private set; }
+        private int propertiesReads;
+        /// <summary>Property reads (HEAD requests) asked for.</summary>
+        public int PropertiesReads => Volatile.Read(ref propertiesReads);
         public bool DeleteResult { get; set; } = true;
         public bool MissingContentIsNotFound { get; set; }
         public bool DeletePreconditionFails { get; set; }
@@ -2432,8 +2445,11 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                     new StubResponse()));
             }
         }
-        public override Task<Response<BlobProperties>> GetPropertiesAsync(BlobRequestConditions? conditions=null,CancellationToken token=default)=>
-            Task.FromResult(Response.FromValue(BlobsModelFactory.BlobProperties(contentLength:Content?.LongLength??0,eTag:etag,metadata:new Dictionary<string,string>{{"sha256",Convert.ToHexString(SHA256.HashData(Content??[])).ToLowerInvariant()}}),new StubResponse()));
+        public override Task<Response<BlobProperties>> GetPropertiesAsync(BlobRequestConditions? conditions=null,CancellationToken token=default)
+        {
+            Interlocked.Increment(ref propertiesReads);
+            return Task.FromResult(Response.FromValue(BlobsModelFactory.BlobProperties(contentLength:Content?.LongLength??0,eTag:etag,metadata:new Dictionary<string,string>{{"sha256",Convert.ToHexString(SHA256.HashData(Content??[])).ToLowerInvariant()}}),new StubResponse()));
+        }
         public override Task<Response<BlobDownloadStreamingResult>> DownloadStreamingAsync(BlobDownloadOptions? options=null,CancellationToken token=default)
         {
             if (Content is null && MissingContentIsNotFound)
