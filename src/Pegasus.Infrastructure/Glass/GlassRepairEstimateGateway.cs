@@ -151,6 +151,25 @@ public sealed partial class GlassRepairEstimateGateway(
         var facts = await caseAuthority.RequireEditAuthorityAsync(
             request.Actor, request.CaseId, request.ExpectedCaseVersion, request.LeaseToken, cancellationToken);
         var credential = await RequireCredentialAsync(request.Actor, cancellationToken);
+
+        // The spec on the screen may belong to a Glass's estimate already: the
+        // launch then reopens that estimate on its stock vehicle instead of
+        // making another (operator, 6 October 2026). Whoever holds the Case
+        // edit owns Glass's for it, so a colleague's session still live on the
+        // same vehicle ends here, before the account is asked: staff who share
+        // one Glass's login share its one live slot, and that session may be
+        // the one holding it.
+        var link = request.SpecificationId is { } specificationId
+            ? await caseAuthority.FindEstimateAsync(request.CaseId, specificationId, cancellationToken)
+            : null;
+        var vehicle = (facts.Registration, facts.MileageMiles);
+        if (link is not null)
+        {
+            vehicle = GlassRepairEstimateSessionPolicy.RequireUnchangedEstimateVehicle(
+                link, facts.Registration, facts.MileageMiles);
+            await store.SupersedeAsync(request.CaseId, link.VehicleId, request.Actor, cancellationToken);
+        }
+
         // The account holds one live session. Asking first makes the ordinary
         // refusal a read that names the session in the way; the store's index
         // still decides a genuine race. A replay of the same operation key is
@@ -163,22 +182,6 @@ public sealed partial class GlassRepairEstimateGateway(
                 GlassRepairEstimateSessionConflict.ActiveAccount,
                 live.Id,
                 "The Glass's account already holds a live session.");
-        }
-
-        // The spec on the screen may belong to a Glass's estimate already: the
-        // launch then reopens that estimate on its stock vehicle instead of
-        // making another (operator, 6 October 2026). Whoever holds the Case
-        // edit owns Glass's for it, so a colleague's session still live on the
-        // same vehicle ends here.
-        var link = request.SpecificationId is { } specificationId
-            ? await caseAuthority.FindEstimateAsync(request.CaseId, specificationId, cancellationToken)
-            : null;
-        var vehicle = (facts.Registration, facts.MileageMiles);
-        if (link is not null)
-        {
-            vehicle = GlassRepairEstimateSessionPolicy.RequireUnchangedEstimateVehicle(
-                link, facts.Registration, facts.MileageMiles);
-            await store.SupersedeAsync(request.CaseId, link.VehicleId, request.Actor, cancellationToken);
         }
 
         var now = timeProvider.GetUtcNow();
