@@ -133,6 +133,6 @@ public sealed class ListRecentCases(
             await _visits.MarkSeenAsync(stamped, now, cancellationToken);
         }
 
-        return new RecentCasesFeed(resultTask.Result, since, lastSeenTask.Result);
+        return new RecentCasesFeed(await resultTask, since, await lastSeenTask);
     }
 }
