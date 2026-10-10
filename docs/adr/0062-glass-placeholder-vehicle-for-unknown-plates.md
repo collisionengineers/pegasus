@@ -50,8 +50,10 @@ number is read only when it is a non-empty string. A negative `vrm_lookup`, or
 no type number, is `glass.lookup.notfound` after that one search, with no
 candidate read and no retry. An answer whose `vrm_lookup` cannot be read is a
 bad request, never "not found". `glass.lookup.unavailable` is removed. Get
-valuation on such a plate answers the card's existing notice, with the code
-and `natcode=absent` in the host log; a placeholder has no value.
+valuation on such a plate is not valued (`NoVehicleData`), shown as
+information with the code and `natcode=absent` in the host log (operator,
+10 October 2026; until then it answered the card's "unavailable" notice); a
+placeholder has no value.
 
 **The launch goes on with a placeholder.** When the lookup is not found, the
 launch inserts an unqualified vehicle with the captured form, its model text

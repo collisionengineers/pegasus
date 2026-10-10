@@ -594,7 +594,7 @@ internal sealed class CaseEditMcpTools(
                         catch (GuideValuationNotValuedException notValued)
                         {
                             return new FetchedValuation(
-                                notValued.Reason.ToString(), CaseWorkspaceLabels.Valuation.NotValued(notValued.Reason), null, null);
+                                notValued.Reason.ToString(), CaseWorkspaceLabels.Valuation.NotValued(valuationSource, notValued.Reason), null, null);
                         }
 
                         // The fetched figures are recorded as the card's Save records them.
