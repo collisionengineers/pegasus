@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
@@ -29,7 +30,7 @@ public sealed partial class SourceModel(
 
             Response.Headers.XContentTypeOptions = "nosniff";
             return File(
-                source.Content.ToArray(),
+                DocumentContentCachePublisherExtensions.StreamOf(source.Content),
                 "application/octet-stream",
                 SafeFileName(source.FileName));
         }

@@ -1,6 +1,5 @@
 using Pegasus.Core.Cases;
 using System.Globalization;
-using System.Runtime.InteropServices;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
@@ -270,20 +269,8 @@ internal sealed class EfAssessmentReportProjectionSource(
         var contents = cachedVersions is null
             ? await contentStore.ReadVersionsAsync(reads, cancellationToken).ConfigureAwait(false)
             : await cachedVersions.ReadVersionsAsync(reads, cancellationToken).ConfigureAwait(false);
-        return ContentOf(contents[0]);
+        return DocumentContentCachePublisherExtensions.ArrayOf(contents[0]);
     }
-
-    /// <summary>
-    /// The bytes a content read returned, without a second copy: the read
-    /// hands the image back as a whole array, which the report takes as it
-    /// is. Only a slice of a larger buffer is copied out.
-    /// </summary>
-    private static byte[] ContentOf(ReadOnlyMemory<byte> content) =>
-        MemoryMarshal.TryGetArray(content, out var segment)
-            && segment is { Array: { } array, Offset: 0 }
-            && segment.Count == array.Length
-                ? array
-                : content.ToArray();
 
     // Projection and transactional freeze use one definition of current source
     // membership. The supplied context decides the transaction, never a new one.

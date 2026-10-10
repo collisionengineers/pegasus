@@ -1424,7 +1424,7 @@ public sealed class CustodyOutboxIntegrationTests
         var reference = outcome.Identity.Reference;
         Assert.Equal($"{reference}.zip", bundle.FileName);
 
-        using var archive = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);
+        using var archive = new ZipArchive(new MemoryStream(bundle.Content.ToArray()), ZipArchiveMode.Read);
         var entries = archive.Entries.Select(entry => entry.FullName).ToArray();
 
         // The shape the operator asked for: a zip of the images and a JSON,

@@ -672,7 +672,7 @@ public sealed class MsgReaderTests
         }
 
         public CompoundFile Build() => new(
-            new(0x3E, 3, 512, 64, 0, 1, 0, 0, 4096, 0, 0, 0, 0, []), [], [], [], [.. _entries]);
+            new(0x3E, 3, 512, 64, 0, 1, 0, 0, 4096, 0, 0, 0, 0, []), [], [], [.. _entries]);
 
         private void AddProperties(uint parent, int header, params PropertySpec[] properties)
         {

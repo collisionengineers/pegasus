@@ -122,7 +122,7 @@ public static class PrincipalApiEndpoints
         try
         {
             var receipt = await submit.ExecuteAsync(
-                new(credential, idempotencyKey, body, context.TraceIdentifier),
+                new(credential, idempotencyKey, body.Value, context.TraceIdentifier),
                 cancellationToken);
             if (!receipt.Replayed)
             {
@@ -165,9 +165,14 @@ public static class PrincipalApiEndpoints
     /// is enforced while reading rather than trusted from Content-Length, which
     /// a caller controls and a chunked request omits.
     /// </summary>
-    private static async Task<byte[]?> ReadBodyAsync(HttpRequest request, CancellationToken cancellationToken)
+    private static async Task<ReadOnlyMemory<byte>?> ReadBodyAsync(HttpRequest request, CancellationToken cancellationToken)
     {
-        using var buffer = new MemoryStream();
+        // A declared length inside the bound only sizes the buffer; the bound itself
+        // is still enforced on what is actually read.
+        using var buffer = new MemoryStream(
+            request.ContentLength is > 0 and <= IntakeEnvelopeLimits.MaximumPrincipalApiRequestLength
+                ? (int)request.ContentLength.Value
+                : 0);
         var chunk = new byte[81920];
         int read;
         try
@@ -190,7 +195,7 @@ public static class PrincipalApiEndpoints
             return null;
         }
 
-        return buffer.ToArray();
+        return new ReadOnlyMemory<byte>(buffer.GetBuffer(), 0, (int)buffer.Length);
     }
 
     private static async Task<IResult> GetAsync(

@@ -381,7 +381,7 @@ public sealed class ProcessIntake(
             var content = await artifactStore.ReadAsync(asset.StorageKey, cancellationToken)
                 ?? throw new FileNotFoundException(
                     $"The retained intake asset '{asset.Id}' is unavailable.");
-            await using var stream = new MemoryStream(content.ToArray(), writable: false);
+            await using var stream = DocumentContentCachePublisherExtensions.StreamOf(content);
             var retained = await retainIncomingArtifact.ExecuteAsync(
                 actor,
                 new(

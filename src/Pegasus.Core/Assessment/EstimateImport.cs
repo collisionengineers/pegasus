@@ -184,7 +184,10 @@ public static class EstimateFormats
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(document);
-        using var buffer = new MemoryStream();
+        // Sized to the stated length when it is within the bound, so the bytes land in
+        // one buffer; a wrong stated length still fails the length and hash check below.
+        using var buffer = new MemoryStream(
+            expectedLength is > 0 and <= ImportRawEstimate.MaximumDocumentBytes ? (int)expectedLength : 0);
         var chunk = new byte[81920];
         int read;
         while ((read = await document.Content.ReadAsync(chunk, cancellationToken)) > 0)
@@ -196,7 +199,7 @@ public static class EstimateFormats
             }
             buffer.Write(chunk, 0, read);
         }
-        ReadOnlyMemory<byte> content = buffer.ToArray();
+        ReadOnlyMemory<byte> content = buffer.GetBuffer().AsMemory(0, (int)buffer.Length);
         if (content.Length != expectedLength
             || !string.Equals(Convert.ToHexStringLower(SHA256.HashData(content.Span)), sha256, StringComparison.OrdinalIgnoreCase))
         {

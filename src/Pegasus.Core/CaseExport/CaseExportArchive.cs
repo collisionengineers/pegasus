@@ -42,7 +42,7 @@ public sealed record CaseExportImage(
 public sealed record CaseExportImages(IReadOnlyList<CaseExportImage> RetainedImages);
 
 public sealed record CaseExportBundle(
-    byte[] Content,
+    ReadOnlyMemory<byte> Content,
     string Sha256,
     byte[] JsonContent,
     string JsonSha256,
@@ -170,7 +170,7 @@ public static class CaseExportArchive
 
         return new(
             archive,
-            Hash(archive),
+            Hash(archive.Span),
             json,
             jsonHash,
             $"{reference}.zip");
@@ -347,7 +347,7 @@ public static class CaseExportArchive
         return stream.ToArray();
     }
 
-    private static byte[] WriteArchive(
+    private static ReadOnlyMemory<byte> WriteArchive(
         string jsonName,
         byte[] json,
         IReadOnlyList<ImageEntry> images)
@@ -364,7 +364,8 @@ public static class CaseExportArchive
             }
         }
 
-        return stream.ToArray();
+        // The buffer is the archive's own; the stream is not used again.
+        return stream.GetBuffer().AsMemory(0, (int)stream.Length);
     }
 
     // The archive stores every entry uncompressed, so its size is the entries' content plus
