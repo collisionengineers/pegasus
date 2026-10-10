@@ -107,6 +107,9 @@ public sealed class ApplicationTelemetryVolumeContractTests
                 ["Microsoft.Azure.WebJobs.Hosting.OptionsLoggingService"] = "Warning",
                 ["Microsoft.Azure.WebJobs.Script.Description.FunctionGroupListenerDecorator"] = "Warning",
                 ["Microsoft.Azure.WebJobs.Host.DrainModeManager"] = "Warning",
+                ["Azure.Core"] = "Warning",
+                ["Azure.Identity"] = "Warning",
+                ["Microsoft.AspNetCore"] = "Warning",
                 ["Pegasus.Worker"] = "Information",
                 ["Microsoft.EntityFrameworkCore.Database.Command"] = "None"
             },
