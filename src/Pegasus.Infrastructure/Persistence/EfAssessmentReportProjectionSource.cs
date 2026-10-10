@@ -116,17 +116,28 @@ internal sealed class EfAssessmentReportProjectionSource(
         }
 
         CaseEditAuthority.RequireVersion(caseId, workspace.Header.Version, workflow.Version);
-        var profiles = await staffAccountQueries.ListSignOffEngineersAsync(cancellationToken);
+        // The component reads are independent of one another and each opens its
+        // own context, except the three on this method's context, which stay in
+        // order on it. The closing version re-check runs after all of them.
+        var ownReads = ReadOwnComponentsAsync(context, caseId, selectedWork.Id, cancellationToken);
+        var profilesRead = staffAccountQueries.ListSignOffEngineersAsync(cancellationToken);
+        var preparationsRead = reuse?.PreparationsFor(caseId) is { } reusedPreparations
+            ? Task.FromResult(reusedPreparations)
+            : assetPreparationQueries.ListForCaseAsync(caseId, cancellationToken);
+        var appliedRead = reuse?.AppliedValuationsFor(caseId, work) is { } reusedApplied
+            ? Task.FromResult(reusedApplied)
+            : listAppliedValuations.ExecuteAsync(caseId, work, cancellationToken);
+        await Task.WhenAll(ownReads, profilesRead, preparationsRead, appliedRead);
+        var profiles = profilesRead.Result;
+        var (confirmed, guides, wording) = ownReads.Result;
         var signOffEngineer = CaseSignOffEngineerResolver.Resolve(
             workflow.SignOffEngineerId,
             workflow.AssignedEngineerId,
             profiles);
-        var confirmed = await ConfirmedDocumentsAsync(context, caseId, cancellationToken);
         var sources = ReportSources(confirmed);
 
         // Only the operator's prepared images, in the report's own order.
-        var preparations = reuse?.PreparationsFor(caseId)
-            ?? await assetPreparationQueries.ListForCaseAsync(caseId, cancellationToken);
+        var preparations = preparationsRead.Result;
         var prepared = CaseAssetPreparationPolicy.ForReport(preparations);
         var photoRows = (
                 from image in prepared
@@ -172,18 +183,9 @@ internal sealed class EfAssessmentReportProjectionSource(
             })
             .ToArray();
 
-        var applied = reuse?.AppliedValuationsFor(caseId, work)
-            ?? await listAppliedValuations.ExecuteAsync(caseId, work, cancellationToken);
-        var latestApplied = applied
+        var latestApplied = appliedRead.Result
             .OrderByDescending(valuation => valuation.AcceptedAtUtc)
             .FirstOrDefault();
-        var guides = await GuidesOfAsync(context, selectedWork.Id, cancellationToken);
-        var wording = await context.CaseReportWordings.AsNoTracking()
-            .Where(item => item.WorkId == selectedWork.Id)
-            .OrderBy(item => item.BlockKey)
-            .Select(item => new CaseReportWording(
-                item.BlockKey, item.Title, item.Text, item.Order, item.Included, item.Manual))
-            .ToArrayAsync(cancellationToken);
 
         // Repair costs are never typed here: the projection derives them from
         // the Current estimate (the workspace's accepted specification) through
@@ -231,6 +233,21 @@ internal sealed class EfAssessmentReportProjectionSource(
             WorkId = selectedWork.Id,
             WorkKind = selectedWork.Kind,
         };
+    }
+
+    private static async Task<(ConfirmedDocumentRow[] Confirmed, ReportGuideSources Guides, CaseReportWording[] Wording)>
+        ReadOwnComponentsAsync(
+            PegasusDbContext context, Guid caseId, Guid workId, CancellationToken cancellationToken)
+    {
+        var confirmed = await ConfirmedDocumentsAsync(context, caseId, cancellationToken);
+        var guides = await GuidesOfAsync(context, workId, cancellationToken);
+        var wording = await context.CaseReportWordings.AsNoTracking()
+            .Where(item => item.WorkId == workId)
+            .OrderBy(item => item.BlockKey)
+            .Select(item => new CaseReportWording(
+                item.BlockKey, item.Title, item.Text, item.Order, item.Included, item.Manual))
+            .ToArrayAsync(cancellationToken);
+        return (confirmed, guides, wording);
     }
 
     /// <summary>

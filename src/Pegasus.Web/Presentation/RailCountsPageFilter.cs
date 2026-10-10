@@ -41,7 +41,10 @@ namespace Pegasus.Web.Presentation;
 /// redirects, file responses, heartbeat responses and lazy section partials do
 /// not render the shell, so they do not issue its database reads. A
 /// <see cref="PageResult"/> still receives the data, including an invalid form
-/// that returns its page with validation errors.
+/// that returns its page with validation errors. The one exception is the Case
+/// page's own full-page GET, whose shell reads start before the handler and
+/// overlap it (operator ruling, 10 Oct 2026); a POST never pre-reads, so its
+/// figures are never read ahead of what it changes.
 /// </remarks>
 public sealed partial class RailCountsPageFilter(
     IDashboardQueries dashboardQueries,
@@ -73,24 +76,38 @@ public sealed partial class RailCountsPageFilter(
         PageHandlerExecutingContext context,
         PageHandlerExecutionDelegate next)
     {
-        var result = await next();
         var user = context.HttpContext.User;
-        if (result.Result is PageResult
-            && user.Identity?.IsAuthenticated == true
-            && context.HandlerInstance is PageModel pageModel
-            && StaffActorFactory.TryCreate(
-                user.FindFirstValue(ClaimTypes.NameIdentifier),
-                user.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        var hasActor = StaffActorFactory.TryCreate(
+            user.FindFirstValue(ClaimTypes.NameIdentifier),
+            user.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
+            out var actor);
+        var authenticated = user.Identity?.IsAuthenticated == true && hasActor;
+        // The Case page's own GET renders the shell on every result but a
+        // refusal, and reads no figure the shell needs first, so its shell
+        // reads start before the handler and run beside it.
+        var early = authenticated && IsCaseFullPageGet(context)
+            ? StartShellReads(context.HttpContext, actor)
+            : null;
+        PageHandlerExecutedContext result;
+        try
         {
-            var cancellationToken = context.HttpContext.RequestAborted;
-            // The counts, the bell and the release note share nothing and each
-            // reads on its own context, so they start together. A counts failure
-            // still propagates; the other two answer for themselves.
-            var countsTask = LoadCaseCountsAsync(context.HttpContext, actor, cancellationToken);
-            var notificationsTask = ReadNotificationsAsync(actor, cancellationToken);
-            var releaseNoteTask = ReadReleaseNoteAsync(actor, cancellationToken);
-            await Task.WhenAll(countsTask, notificationsTask, releaseNoteTask);
+            result = await next();
+        }
+        catch
+        {
+            await DrainAsync(early);
+            throw;
+        }
+
+        if (result.Result is PageResult
+            && authenticated
+            && context.HandlerInstance is PageModel pageModel)
+        {
+            var shell = early ?? StartShellReads(context.HttpContext, actor);
+            await shell.WhenAllAsync();
+            var countsTask = shell.Counts;
+            var notificationsTask = shell.Notifications;
+            var releaseNoteTask = shell.ReleaseNote;
 
             pageModel.ViewData["RailCounts"] = new Dictionary<string, int>
             {
@@ -111,6 +128,59 @@ public sealed partial class RailCountsPageFilter(
                 pageModel.ViewData["ReleaseNote"] = releaseNote;
             }
         }
+        else
+        {
+            await DrainAsync(early);
+        }
+    }
+
+    /// <summary>
+    /// The Case workspace's unnamed GET handler, the full page. Its sections,
+    /// refreshes and every POST are other handlers and keep reading the shell
+    /// after their result.
+    /// </summary>
+    private static bool IsCaseFullPageGet(PageHandlerExecutingContext context) =>
+        context.HandlerInstance is Pegasus.Web.Pages.Cases.DetailsModel
+        && context.HandlerMethod is { HttpMethod: "GET", Name: null or "" };
+
+    /// <summary>
+    /// The counts, the bell and the release note share nothing and each reads
+    /// on its own context, so they start together. A counts failure still
+    /// propagates; the other two answer for themselves.
+    /// </summary>
+    private ShellReads StartShellReads(HttpContext httpContext, ActionActor actor)
+    {
+        var cancellationToken = httpContext.RequestAborted;
+        return new(
+            LoadCaseCountsAsync(httpContext, actor, cancellationToken),
+            ReadNotificationsAsync(actor, cancellationToken),
+            ReadReleaseNoteAsync(actor, cancellationToken));
+    }
+
+    /// <summary>Waits out reads started for a page that did not render, so none outlives the request.</summary>
+    private static async Task DrainAsync(ShellReads? reads)
+    {
+        if (reads is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await reads.WhenAllAsync();
+        }
+        catch (Exception)
+        {
+            // The page is not rendering the shell, so a failed read has no reader.
+        }
+    }
+
+    private sealed record ShellReads(
+        Task<CaseRailCounts> Counts,
+        Task<IReadOnlyList<StaffNotification>?> Notifications,
+        Task<ReleaseNote?> ReleaseNote)
+    {
+        public Task WhenAllAsync() => Task.WhenAll(Counts, Notifications, ReleaseNote);
     }
 
     /// <summary>The bell's notifications, or null when the read failed and the dialog must say so.</summary>
@@ -154,7 +224,7 @@ public sealed partial class RailCountsPageFilter(
 
     /// <summary>
     /// Carries a page's already-read totals through this one request to the
-    /// post-handler shell filter. It is never a cross-request cache. A page that
+    /// shell filter. It is never a cross-request cache. A page that
     /// did not read the every-state Triage count passes null for it, and the
     /// shell reads that one alone.
     /// </summary>

@@ -287,9 +287,11 @@ public sealed partial class DetailsModel
     /// </summary>
     private async Task LoadValuationSectionAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken)
     {
-        ApplyValuationSection(await ReadValuationSectionAsync(caseId, actor, WorkSelector, cancellationToken));
-        PendingMarketResearch = MarketResearchPolicy.PendingOf(
-            await aiJobs.ListForSubjectAsync(caseId, cancellationToken));
+        var section = ReadValuationSectionAsync(caseId, actor, WorkSelector, cancellationToken);
+        var jobs = aiJobs.ListForSubjectAsync(caseId, cancellationToken);
+        await Task.WhenAll(section, jobs);
+        ApplyValuationSection(section.Result);
+        PendingMarketResearch = MarketResearchPolicy.PendingOf(jobs.Result);
     }
 
     private async Task<ValuationSectionReads> ReadValuationSectionAsync(
@@ -298,12 +300,14 @@ public sealed partial class DetailsModel
         CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
-        var valuations = await listCaseValuations.ExecuteAsync(caseId, work, cancellationToken);
-        var applied = await listAppliedValuations.ExecuteAsync(caseId, work, cancellationToken);
+        // Each read opens its own context, so the three start together.
+        var valuations = listCaseValuations.ExecuteAsync(caseId, work, cancellationToken);
+        var applied = listAppliedValuations.ExecuteAsync(caseId, work, cancellationToken);
         var presets = StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework)
-            ? await listValuationPresets.ExecuteAsync(actor, cancellationToken)
+            ? listValuationPresets.ExecuteAsync(actor, cancellationToken)
             : null;
-        return new(valuations, applied, presets);
+        await Task.WhenAll(valuations, applied, presets ?? Task.CompletedTask);
+        return new(valuations.Result, applied.Result, presets?.Result);
     }
 
     private void ApplyValuationSection(ValuationSectionReads reads)
