@@ -31,6 +31,7 @@ public partial class IndexModel(
     IGetOperationsSnapshot getOperationsSnapshot,
     IListRecentCases listRecentCases,
     IAiJobQueries aiJobQueries,
+    IAiJobStore aiJobStore,
     ICaseWorkflowConfiguration workflowConfiguration,
     IStaffAccountQueries staffAccounts,
     IGetCaseHeader getCaseHeader,
@@ -279,8 +280,7 @@ public partial class IndexModel(
 
         try
         {
-            var job = (await aiJobQueries.ListOpenAsync(cancellationToken))
-                .FirstOrDefault(candidate => candidate.JobId == jobId);
+            var job = await aiJobStore.GetAsync(jobId, cancellationToken);
             if (job is null || !AiJobPolicy.CompletesByHand(job))
             {
                 throw new InvalidOperationException("The job cannot be completed by hand.");

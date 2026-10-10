@@ -571,8 +571,7 @@ public sealed class CaseWorkspacePersistenceTests
         var actor = Engineer(harness);
         var assessmentStore = new EfCaseAssessmentStore(
             harness.Factory,
-            harness.TimeProvider,
-            new EfRepairSpecificationStore(harness.Factory, harness.TimeProvider));
+            harness.TimeProvider);
         var unprintedLease = await harness.AcquireLeaseAsync(
             initial.Version,
             actor,
