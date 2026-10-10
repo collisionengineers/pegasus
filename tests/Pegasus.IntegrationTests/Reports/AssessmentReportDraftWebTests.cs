@@ -584,8 +584,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "false"
             }, Guid.Parse(engineer.SubjectId), recordDate ? new DateOnly(2026, 8, 19) : (DateOnly?)null)
         }, CancellationToken.None);
-        var assessmentStore = new EfCaseAssessmentStore(harness.Factory, harness.TimeProvider,
-            new EfRepairSpecificationStore(harness.Factory, harness.TimeProvider));
+        var assessmentStore = new EfCaseAssessmentStore(harness.Factory, harness.TimeProvider);
         var persisted = await assessmentStore.GetAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.NotNull(persisted);
         Assert.Equal(saved.Version, persisted.CaseVersion);

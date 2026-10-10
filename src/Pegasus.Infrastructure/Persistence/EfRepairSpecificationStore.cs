@@ -769,6 +769,20 @@ public sealed class EfRepairSpecificationStore(
         return entities.Select(Map).ToArray();
     }
 
+    public async Task<RepairSpecificationVersion?> GetEstimateAsync(
+        Guid caseId,
+        CaseWorkSelector work,
+        Guid estimateId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var selectedWorkIds = CaseWorkScope.SelectedIds(context, caseId, work);
+        var entity = await context.CaseRepairSpecifications.AsNoTracking().Include(item => item.Lines)
+            .Where(item => item.Id == estimateId && selectedWorkIds.Contains(item.WorkId))
+            .SingleOrDefaultAsync(cancellationToken);
+        return entity is null ? null : Map(entity);
+    }
+
     /// <summary>
     /// The keyset-paged sibling of <see cref="ListEstimatesAsync"/>:
     /// newest version first, then estimate id. Projects the
