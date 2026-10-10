@@ -395,15 +395,16 @@ internal sealed class GraphStaffMailSender(
         ApprovedStaffSendMailbox mailbox, string immutableDraftId,
         StaffMailAttachment expected, CancellationToken cancellationToken)
     {
+        // Metadata first: the listing never carries content, so a draft holding
+        // large attachments stays within the page limit.
         System.Uri? uri = BuildMailboxUri(mailbox,
-            $"messages/{Escape(immutableDraftId)}/attachments?$select=name,size,contentType,contentBytes&$top=25");
+            $"messages/{Escape(immutableDraftId)}/attachments?$select=id,name,size,contentType&$top=25");
         for (var page = 0; uri is not null && page < 10; page++)
         {
             using var response = await client.SendStaffAsync(new(HttpMethod.Get, uri), cancellationToken);
             RequireSuccess(response);
-            var responseLimit = checked(expected.ContentLength * 2 + 1024 * 1024);
             using var document = JsonDocument.Parse(await ReadBoundedAsync(
-                response.Content, responseLimit, cancellationToken));
+                response.Content, 1024 * 1024, cancellationToken));
             foreach (var value in document.RootElement.GetProperty("value").EnumerateArray())
             {
                 if (!string.Equals(value.GetProperty("name").GetString(), expected.FileName,
@@ -414,13 +415,10 @@ internal sealed class GraphStaffMailSender(
                 {
                     continue;
                 }
-                if (!value.TryGetProperty("contentBytes", out var encoded)
-                    || encoded.ValueKind != JsonValueKind.String)
-                {
-                    throw new InvalidDataException(
-                        "An attachment with matching metadata cannot be verified without its content.");
-                }
-                var bytes = Convert.FromBase64String(encoded.GetString()!);
+                var attachmentId = value.GetProperty("id").GetString()
+                    ?? throw new InvalidDataException("Microsoft Graph returned an attachment without an identifier.");
+                var bytes = await ReadAttachmentContentAsync(
+                    mailbox, immutableDraftId, attachmentId, expected, cancellationToken);
                 var hash = Convert.ToHexString(SHA256.HashData(bytes));
                 if (string.Equals(hash, expected.Sha256, StringComparison.OrdinalIgnoreCase))
                 {
@@ -439,6 +437,25 @@ internal sealed class GraphStaffMailSender(
             throw new InvalidDataException("Attachment reconciliation exceeded its bounded page limit.");
         }
         return false;
+    }
+
+    private async Task<byte[]> ReadAttachmentContentAsync(
+        ApprovedStaffSendMailbox mailbox, string immutableDraftId, string attachmentId,
+        StaffMailAttachment expected, CancellationToken cancellationToken)
+    {
+        using var response = await client.SendStaffAsync(new(HttpMethod.Get, BuildMailboxUri(mailbox,
+            $"messages/{Escape(immutableDraftId)}/attachments/{Escape(attachmentId)}?$select=contentBytes")),
+            cancellationToken);
+        RequireSuccess(response);
+        using var document = JsonDocument.Parse(await ReadBoundedAsync(
+            response.Content, checked(expected.ContentLength * 2 + 1024 * 1024), cancellationToken));
+        if (!document.RootElement.TryGetProperty("contentBytes", out var encoded)
+            || encoded.ValueKind != JsonValueKind.String)
+        {
+            throw new InvalidDataException(
+                "An attachment with matching metadata cannot be verified without its content.");
+        }
+        return Convert.FromBase64String(encoded.GetString()!);
     }
 
     public async Task<StaffMailSubmitResult> SendDraftAsync(
