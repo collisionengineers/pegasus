@@ -1111,7 +1111,7 @@ internal sealed partial class CachedDocumentContentStore(
                     Metadata = new Dictionary<string, string> { [HashMetadata] = source.Sha256 }
                 },
                 cancellationToken);
-            // The caller's content is already verified, so the object this upload
+            // Every caller hashes and length-checks the content before PublishAsync, so the object this upload
             // created needs no read-back: its response carries the ETag.
             etag = uploaded.Value.ETag;
         }
