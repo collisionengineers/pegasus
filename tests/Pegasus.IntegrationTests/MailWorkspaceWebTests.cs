@@ -425,7 +425,7 @@ public sealed class MailWorkspaceWebTests
 
     private const int InboxMessageCommands = 28; // 29 before #1179: the rail no longer counts Awaiting instruction.
 
-    private const int InboxListCommands = 24;
+    private const int InboxListCommands = 23; // 24 before #1179: the rail no longer counts Awaiting instruction.
 
     private const int InboxPreviewCommands = 11;
 
