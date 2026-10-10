@@ -108,6 +108,8 @@ internal sealed class EfWorkCentreActivityQueries(IDbContextFactory<PegasusDbCon
         var instants = weekInstants(context, weekStartUtc).AsNoTracking();
         var week = await instants.CountAsync(cancellationToken);
         var today = await instants.CountAsync(instant => instant >= dayStartUtc, cancellationToken);
-        return new WorkCentreActivityFigure(today, week);
+        // The two counts are separate commands; a row landing between them
+        // must not make today exceed the week.
+        return new WorkCentreActivityFigure(Math.Min(today, week), week);
     }
 }
