@@ -984,38 +984,40 @@ public sealed class EfImageIntakeStore(
             .Select(workflow => workflow.CaseId)
             .ToArrayAsync(cancellationToken);
         var pending = new List<ImageIntakeSummary>();
-        foreach (var (intake, target, automaticTargetId, staffDecision) in targeted)
+        var unleased = targeted.Where(item => !leasedCases.Contains(item.Target)).ToArray();
+        // Images are read in one batch per round, sized to the slots still
+        // open, so a record the early stop would never reach is never read.
+        for (var next = 0; next < unleased.Length && pending.Count < maximumItems;)
         {
-            if (leasedCases.Contains(target))
+            var round = unleased[next..Math.Min(unleased.Length, next + maximumItems - pending.Count)];
+            next += round.Length;
+            var imagesByIntake = await ListImagesAsync(
+                round.Select(item => item.Intake.Id).ToArray(), cancellationToken);
+            foreach (var (intake, target, automaticTargetId, staffDecision) in round)
             {
-                continue;
-            }
-            var images = await ListImagesAsync(intake.Id, cancellationToken);
-            await LoadAssociationsAsync(
-                context,
-                associations,
-                images.Select(image => image.ReceiptId).Where(receiptId => receiptId != intake.OriginReceiptId),
-                cancellationToken);
-            if (images.Any(image => associations.TryGetValue(image.ReceiptId, out var association)
-                    ? !association.IsActive || association.CaseId != target
-                    : !staffDecision && automaticTargetId != target))
-            {
-                continue;
-            }
-            // A manual group staff have started is theirs to finish; it waits
-            // outside the bounded batch until every member is linked.
-            var members = images.Select(image => image.ReceiptId).Prepend(intake.OriginReceiptId).Distinct()
-                .Select(memberId => associations.GetValueOrDefault(memberId)).ToArray();
-            if (ImageIntakeCasePairing.AwaitsStaffCompletion(intake.Source,
-                    members.Any(member => member?.ActorKind == nameof(ActorKind.Staff)),
-                    members.All(member => member is { IsActive: true } && member.CaseId == target)))
-            {
-                continue;
-            }
-            pending.Add(intake);
-            if (pending.Count == maximumItems)
-            {
-                break;
+                var images = imagesByIntake.GetValueOrDefault(intake.Id) ?? [];
+                await LoadAssociationsAsync(
+                    context,
+                    associations,
+                    images.Select(image => image.ReceiptId).Where(receiptId => receiptId != intake.OriginReceiptId),
+                    cancellationToken);
+                if (images.Any(image => associations.TryGetValue(image.ReceiptId, out var association)
+                        ? !association.IsActive || association.CaseId != target
+                        : !staffDecision && automaticTargetId != target))
+                {
+                    continue;
+                }
+                // A manual group staff have started is theirs to finish; it waits
+                // outside the bounded batch until every member is linked.
+                var members = images.Select(image => image.ReceiptId).Prepend(intake.OriginReceiptId).Distinct()
+                    .Select(memberId => associations.GetValueOrDefault(memberId)).ToArray();
+                if (ImageIntakeCasePairing.AwaitsStaffCompletion(intake.Source,
+                        members.Any(member => member?.ActorKind == nameof(ActorKind.Staff)),
+                        members.All(member => member is { IsActive: true } && member.CaseId == target)))
+                {
+                    continue;
+                }
+                pending.Add(intake);
             }
         }
         return pending;

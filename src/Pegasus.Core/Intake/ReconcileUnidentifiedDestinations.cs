@@ -72,7 +72,7 @@ public sealed class ReconcileUnidentifiedDestinations(
                 var synchronized = item.Origin.Kind switch
                 {
                     UnidentifiedOriginKind.Receipt => await SynchronizeForReceiptOriginAsync(
-                        item.Origin.Id, cancellationToken),
+                        item, cancellationToken),
                     UnidentifiedOriginKind.SubmissionGroup => await SynchronizeForSubmissionGroupAsync(
                         item.Origin.Id, cancellationToken),
                     _ => false
@@ -160,12 +160,12 @@ public sealed class ReconcileUnidentifiedDestinations(
     }
 
     private async Task<bool> SynchronizeForReceiptOriginAsync(
-        Guid receiptId,
+        UnidentifiedItem item,
         CancellationToken cancellationToken)
     {
-        var receipt = await receiptQueries.GetAsync(receiptId, cancellationToken);
+        var receipt = await receiptQueries.GetAsync(item.Origin.Id, cancellationToken);
         return receipt is not null
-            && await SynchronizeForReceiptAsync(receipt, cancellationToken);
+            && await SynchronizeForReceiptAsync(receipt, item, cancellationToken);
     }
 
     /// <summary>
@@ -257,6 +257,21 @@ public sealed class ReconcileUnidentifiedDestinations(
         // Open branch, re-gated on the receipt having no case association.
         var existing = await unidentifiedStore.GetByOriginAsync(
             UnidentifiedOrigin.Receipt(receipt.Id), cancellationToken);
+        return await SynchronizeForReceiptAsync(receipt, existing, cancellationToken);
+    }
+
+    /// <summary>
+    /// The same synchronization for a caller that already holds the receipt's
+    /// Unidentified item (the worker sweep lists whole items), so the origin
+    /// lookup is not repeated. A null item means the receipt has none.
+    /// </summary>
+    public async Task<bool> SynchronizeForReceiptAsync(
+        IntakeReceipt receipt,
+        UnidentifiedItem? existing,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+
         var synchronized = existing is not null
             && await SynchronizeReceiptItemAsync(existing, receipt, cancellationToken);
 
