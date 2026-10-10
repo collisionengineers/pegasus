@@ -1,6 +1,8 @@
+using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
 using OpenIddict.Abstractions;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Mcp;
 
@@ -24,6 +26,7 @@ public sealed class AutomationClientRegistry(
     IOpenIddictApplicationManager applications,
     IMemoryCache cache,
     IActionHistoryWriter actionHistory,
+    IReleaseAutomationLeases automationLeases,
     TimeProvider timeProvider,
     AutomationMcpOptions options)
 {
@@ -136,6 +139,8 @@ public sealed class AutomationClientRegistry(
     /// The Administrator enable/disable action. Attributable permanent
     /// history is written for every request and the cached enabled state is
     /// dropped so the change takes effect on the next automation request.
+    /// Stop also releases every lease Automation holds; the history entry
+    /// records what was released.
     /// </summary>
     public async Task<AutomationClientStatus> SetEnabledAsync(
         bool enabled,
@@ -166,6 +171,9 @@ public sealed class AutomationClientRegistry(
         }
 
         cache.Remove(EnabledCacheKey);
+        var released = enabled
+            ? null
+            : await automationLeases.ReleaseAllAsync(cancellationToken);
         await actionHistory.AppendAsync(
             new ActionHistoryEntry(
                 Guid.NewGuid(),
@@ -176,7 +184,8 @@ public sealed class AutomationClientRegistry(
                 timeProvider.GetUtcNow(),
                 currentlyEnabled == enabled ? "Unchanged" : "Succeeded",
                 operationKey.Trim(),
-                string.IsNullOrWhiteSpace(reason) ? null : reason.Trim()),
+                string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(),
+                AfterJson: released is null ? null : JsonSerializer.Serialize(released)),
             cancellationToken);
         return await GetStatusAsync(actor, cancellationToken);
     }

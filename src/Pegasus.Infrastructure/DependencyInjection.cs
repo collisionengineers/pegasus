@@ -396,6 +396,7 @@ public static class DependencyInjection
         services.AddScoped<ResolveApprovedOutlookCategory>();
         services.AddScoped<EfCaseWorkflowStore>();
         services.AddScoped<ICaseWorkflowStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
+        services.AddScoped<IReleaseAutomationLeases>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<IAutoLinkReportEvidenceStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseWorkflowQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
