@@ -1094,11 +1094,11 @@ public sealed class AutomaticImageIntakeTests
     {
         var harness = new GroupHarness(memberCount: 2);
         var receiptId = harness.Receipts[0].Id;
-        var receiptReads = Forwarder<IIntakeReceiptQueries>.Create(harness.ReceiptQueries);
-        var groups = Forwarder<IIntakeSubmissionGroupStore>.Create(harness.GroupStore);
+        var receiptReads = Forwarder.For<IIntakeReceiptQueries>(harness.ReceiptQueries);
+        var groups = Forwarder.For<IIntakeSubmissionGroupStore>(harness.GroupStore);
         groups.Overrides[nameof(IIntakeSubmissionGroupStore.ListPendingImageGroupReceiptsAsync)] =
             _ => Task.FromResult<IReadOnlyList<Guid>>([receiptId]);
-        var work = Forwarder<IIntakeWorkStore>.Create(null!);
+        var work = Forwarder.For<IIntakeWorkStore>(null!);
         work.Overrides[nameof(IIntakeWorkStore.FindStagedReceiptIdForReceiptAsync)] =
             _ => Task.FromResult<Guid?>(Guid.NewGuid());
         var register = new CountingRegisterUnidentified();
@@ -1144,21 +1144,20 @@ public sealed class AutomaticImageIntakeTests
     }
 
     /// <summary>Forwards to a target, recording method names; named methods can be overridden.</summary>
-    public class Forwarder<T> : System.Reflection.DispatchProxy
-        where T : class
+    public class Forwarder : System.Reflection.DispatchProxy
     {
-        public T? Target { get; private set; }
+        public object? Target { get; private set; }
 
         public List<string> Calls { get; } = [];
 
         public Dictionary<string, Func<object?[], object?>> Overrides { get; } = [];
 
-        public T Proxy => (T)(object)this;
+        public object Proxy => this;
 
-        public static Forwarder<T> Create(T? target)
+        public static Forwarder For<T>(object? target)
+            where T : class
         {
-            var proxy = Create<T, Forwarder<T>>();
-            var forwarder = (Forwarder<T>)(object)proxy;
+            var forwarder = (Forwarder)(object)Create<T, Forwarder>();
             forwarder.Target = target;
             return forwarder;
         }
