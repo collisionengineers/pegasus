@@ -1898,7 +1898,13 @@ public sealed partial class DetailsModel(
                     || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate))
                     || damageSubmitted || wordingSubmitted || guideEntries is { Length: > 0 }
                     || estimate is not null || adoption is not null;
-                var current = await getCaseEditBasis.ExecuteAsync(new(id, actor, work), cancellationToken)
+                // The edit basis and the workspace each open their own context, so
+                // they read side by side; a missing Case is still reported first.
+                using var saveReads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
+                var basisRead = saveReads.Start(readToken => getCaseEditBasis.ExecuteAsync(new(id, actor, work), readToken));
+                var workspaceRead = saveReads.Start(readToken => getAssessmentWorkspace.ExecuteAsync(new(id, actor, work), readToken));
+                await saveReads.WhenAllAsync();
+                var current = await basisRead
                     ?? throw new KeyNotFoundException("The Case is unavailable.");
                 var data = current.Data;
                 // This read supplies unshown values, never new write authority.
@@ -1915,8 +1921,7 @@ public sealed partial class DetailsModel(
                 {
                     throw new InvalidOperationException("The case is read-only once Complete.");
                 }
-                var workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor, work), cancellationToken);
-                var assessment = workspace?.Assessment;
+                var assessment = (await workspaceRead)?.Assessment;
                 string? Recorded(string path) => assessment?.Field(path)?.Value;
                 decimal? Money(string path) => decimal.TryParse(Recorded(path), NumberStyles.Number,
                     CultureInfo.InvariantCulture, out var value) ? value : null;

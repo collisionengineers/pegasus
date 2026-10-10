@@ -84,14 +84,14 @@ public sealed class EfCaseWorkflowStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var normalizedOperationKey = operationKey.Trim();
-        return await context.CaseWorkflowEvents.AsNoTracking().AnyAsync(
-                item => item.CaseId == caseId
-                    && item.OperationKey == normalizedOperationKey,
-                cancellationToken)
-            || await context.CaseEditLeaseOperations.AsNoTracking().AnyAsync(
-                item => item.CaseId == caseId
-                    && item.OperationKey == normalizedOperationKey,
-                cancellationToken);
+        // One round trip: the key is in the history or in the lease operations.
+        return await context.CaseWorkflowEvents.AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.OperationKey == normalizedOperationKey)
+            .Select(item => item.OperationKey)
+            .Concat(context.CaseEditLeaseOperations.AsNoTracking()
+                .Where(item => item.CaseId == caseId && item.OperationKey == normalizedOperationKey)
+                .Select(item => item.OperationKey))
+            .AnyAsync(cancellationToken);
     }
 
     async Task<CaseDueWork?> ICaseDueWorkQueries.GetAsync(Guid caseId, CancellationToken cancellationToken)
