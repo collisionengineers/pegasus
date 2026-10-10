@@ -255,7 +255,7 @@ public sealed class ProductionBoxCustodyTests
     public async Task CreatingAnOwnedFolderListsItsParentBeforeTheCreateOnce()
     {
         var box = new StatefulBox();
-        var custody = new BoxCaseCustody(new MemoryArtifactStore([]), CreateClient(box));
+        var custody = new BoxCaseCustody(new MemoryArtifactStore(Array.Empty<byte>()), CreateClient(box));
         var before = box.Requests.Count;
 
         await custody.CreateCaseRootAsync(
