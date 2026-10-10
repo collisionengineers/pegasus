@@ -272,6 +272,9 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         internal ETag NextMetadataETag { get; init; } = new("\"etag-next\"");
         internal RequestFailedException? DownloadFailure { get; init; }
         internal int DownloadCount { get; private set; }
+        internal int UploadCount { get; private set; }
+        internal RequestFailedException? UploadFailure { get; set; }
+        internal byte[] Body { get; init; } = [];
         internal int DeleteCount { get; private set; }
         internal BlobRequestConditions? LastConditionalGetPropertiesConditions { get; private set; }
         internal BlobRequestConditions? LastSetMetadataConditions { get; private set; }
