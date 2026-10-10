@@ -72,6 +72,13 @@ public sealed partial class GlassGuideValuationProvider(
             LogUnavailable(logger, request.CaseId, request.GuideMonth, exception.FailureCode, exception.Detail);
             throw new GuideValuationNotValuedException(Source, GuideValuationNotValuedReason.VehicleAge, exception);
         }
+        catch (GlassMvaStageException exception) when (exception.FailureCode == GlassFailure.LookupNotFound)
+        {
+            // Glass's "vehicle details have not been found": nothing is broken
+            // (operator, 10 October 2026; issue 1109).
+            LogUnavailable(logger, request.CaseId, request.GuideMonth, exception.FailureCode, exception.Detail);
+            throw new GuideValuationNotValuedException(Source, GuideValuationNotValuedReason.NoVehicleData, exception);
+        }
         catch (Exception exception) when (Unavailable(exception, cancellationToken))
         {
             LogUnavailable(logger, request.CaseId, request.GuideMonth, Code(exception), Detail(exception));
