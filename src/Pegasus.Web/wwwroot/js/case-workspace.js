@@ -539,6 +539,12 @@
                 if (generation !== heartbeatGeneration) {
                     return;
                 }
+                // A followed redirect is the sign-in page: the session has
+                // ended and no later beat can renew the lease.
+                if (response.redirected) {
+                    stopHeartbeat();
+                    return;
+                }
                 // The answer is the Case's version: system work that moved it
                 // is drawn as the page catches up.
                 if (response.ok) {

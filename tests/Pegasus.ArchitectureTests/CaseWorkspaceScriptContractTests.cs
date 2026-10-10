@@ -66,11 +66,36 @@ public sealed class CaseWorkspaceScriptContractTests
             beat,
             StringComparison.Ordinal);
         Assert.Contains("response.status === 409", beat, StringComparison.Ordinal);
+        var redirected = beat.IndexOf("if (response.redirected) {", StringComparison.Ordinal);
+        Assert.True(redirected >= 0 && redirected < beat.IndexOf("if (response.ok) {", StringComparison.Ordinal));
+        Assert.Contains("stopHeartbeat();", beat[redirected..beat.IndexOf("if (response.ok) {", StringComparison.Ordinal)], StringComparison.Ordinal);
         Assert.Contains("response.status === 403 || response.status === 404", beat, StringComparison.Ordinal);
         Assert.Equal(2, beat.Split("requestCatchUp();", StringSplitOptions.None).Length - 1);
         Assert.DoesNotContain("document.hidden", beat, StringComparison.Ordinal);
         Assert.DoesNotContain("data-case-renew", script, StringComparison.Ordinal);
         Assert.DoesNotContain("is-expiring", script, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The Image Intake edit heartbeat ends quietly when its post is redirected to
+    /// sign-in: the timer stops and the named visibility listener is removed.
+    /// </summary>
+    [Fact]
+    public void TheEditScopeHeartbeatStopsWhenSignInRedirectsIt()
+    {
+        var site = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "site.js"));
+
+        var start = site.IndexOf("function bindEditScopeHeartbeats(root) {", StringComparison.Ordinal);
+        Assert.True(start >= 0);
+        var body = site[start..];
+        var ok = body.IndexOf("if (response.ok) {", StringComparison.Ordinal);
+        var redirected = body.IndexOf("if (response.redirected) {", StringComparison.Ordinal);
+        Assert.True(redirected >= 0 && redirected < ok);
+        var branch = body[redirected..ok];
+        Assert.Contains("window.clearInterval(timer);", branch, StringComparison.Ordinal);
+        Assert.Contains("document.removeEventListener('visibilitychange', onVisible);", branch, StringComparison.Ordinal);
+        Assert.Contains("document.addEventListener('visibilitychange', onVisible);", body, StringComparison.Ordinal);
     }
 
     /// <summary>
