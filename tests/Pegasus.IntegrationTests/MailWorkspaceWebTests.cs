@@ -407,14 +407,14 @@ public sealed class MailWorkspaceWebTests
         // page sent 52, the list 39 and the preview 18. After the Lane D reads they sent
         // 30, 24 and 11. The message page then sent 29 once its read of the message took
         // the receipt's classification decision for the classification dossier too,
-        // rather than reading that decision a second time. The other two commands that
-        // join it are the summary mapping (the row's own label) and the intake read (the
-        // receipt aggregate).
+        // rather than reading that decision a second time. The #1181 trims then left the
+        // message page two reads of that decision: the summary mapping (the row's own
+        // label) and the intake read (the receipt aggregate).
         Assert.True(
             messageCommands == InboxMessageCommands,
             $"The Inbox message page sent {messageCommands} SQL commands; it is pinned at {InboxMessageCommands}."
             + Environment.NewLine + messageDescription);
-        Assert.Equal(3, classificationDecisionReads);
+        Assert.Equal(2, classificationDecisionReads);
         Assert.True(
             listCommands == InboxListCommands,
             $"The Inbox list sent {listCommands} SQL commands; it is pinned at {InboxListCommands}."
