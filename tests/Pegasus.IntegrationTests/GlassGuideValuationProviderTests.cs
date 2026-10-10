@@ -195,12 +195,12 @@ public sealed class GlassGuideValuationProviderTests
 
     /// <summary>
     /// Whatever stopped it, the card says the same approved sentence and
-    /// nothing is saved to the stock list; the log names the stage.
+    /// nothing is saved to the stock list; the log names the stage. A plate
+    /// Glass's does not know is the one answer that is not a failure
+    /// (<see cref="APlateTheProviderDoesNotKnowIsNotValuedAfterOneRequest"/>).
     /// </summary>
     [Theory]
     [InlineData("POST /login/index", 200, "<form name=\"Form_Login\"></form>", "glass.login.redirect")]
-    [InlineData("GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000/nostocksearch/1", 200,
-        "{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":-1}", "glass.lookup.notfound")]
     [InlineData("GET /three-phase-vehicle/get-vehicles", 200,
         "{\"success\":true,\"html\":\"<div class=\\\"three_phase_car_info car1\\\">N\\/C: 999<\\/div>\"}", "glass.candidates.none")]
     [InlineData("GET /three-phase-vehicle/get-values", 200, ValuationNotPossible, "glass.valuation.not_possible")]
