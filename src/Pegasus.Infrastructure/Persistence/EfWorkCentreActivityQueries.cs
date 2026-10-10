@@ -105,7 +105,7 @@ internal sealed class EfWorkCentreActivityQueries(IDbContextFactory<PegasusDbCon
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var instants = weekInstants(context, weekStartUtc).AsNoTracking();
+        var instants = weekInstants(context, weekStartUtc);
         var week = await instants.CountAsync(cancellationToken);
         var today = await instants.CountAsync(instant => instant >= dayStartUtc, cancellationToken);
         // The two counts are separate commands; a row landing between them
