@@ -87,10 +87,10 @@ public sealed class ReportsModel(
     public ReportOutcomesReport? Outcomes { get; private set; }
 
     /// <summary>The open Unidentified queue now (item E); <see langword="null"/> when it could not be read.</summary>
-    public UnidentifiedQueue? Unidentified { get; private set; }
+    public UnidentifiedFigures? Unidentified { get; private set; }
 
     /// <summary>How many Unidentified items are open and when the oldest was received.</summary>
-    public sealed record UnidentifiedQueue(int Count, DateTimeOffset? OldestReceivedAtUtc);
+    public sealed record UnidentifiedFigures(int Count, DateTimeOffset? OldestReceivedAtUtc);
 
     /// <summary>The same reports for the period just before (item G); absent when they could not be read.</summary>
     public EngineerActivityReport? PreviousEngineer { get; private set; }
@@ -487,7 +487,7 @@ public sealed class ReportsModel(
             var count = unidentifiedStore.CountOpenAsync(cancellationToken);
             var oldest = unidentifiedStore.OldestOpenReceivedAtUtcAsync(cancellationToken);
             await Task.WhenAll(count, oldest);
-            return new UnidentifiedQueue(await count, await oldest);
+            return new UnidentifiedFigures(await count, await oldest);
         });
         var previousPrincipalTask = Read(page, () => principalActivityReport.ExecuteAsync(actor, previousFrom, previousTo, cancellationToken));
 
