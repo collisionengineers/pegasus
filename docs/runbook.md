@@ -1321,11 +1321,21 @@ retain the session and collect provider startup evidence before closing it:
    order, origin, whether the parent construction ran, and the parent's
    `dialog` value at child lookup. Compare a successful portal launch and
    Pegasus launch for the same vehicle/account under controlled browser state.
-4. The supplied September 2026 captures show the child searches synchronously
-   for `parent.dialog`, then `openModeless` dereferences the missing result.
-   They do not prove why the parent object was absent. Ask the supplier to
-   identify the first failed startup dependency and establish explicit readiness
-   before child dialog access. Do not patch provider JavaScript from Pegasus.
+4. The September and October 2026 captures show a load-order race inside
+   Glass's own frames: the child `acofr2.php` builds its dialog client at
+   parse time and searches its parents for `dialog`, which the parent
+   `acofr.php` creates only after inserting that child frame; `openModeless`
+   then dereferences the missing result. The provider code is byte-identical
+   across the one successful start and five stalls, and two of the stalls were
+   launched by Glass's own portal, so neither the Pegasus window nor its caller
+   rewrite is involved (deep dive, 5 October 2026). Ask the supplier to
+   establish dialog readiness before the child reads `parent.dialog`. Do not
+   patch provider JavaScript from Pegasus. The retry is pressing **Glass's**
+   again: it continues the same session on the same stock vehicle with a fresh
+   start, and makes no second vehicle or estimate. The Case page does this
+   once itself when the estimator's frames have not loaded within 30 seconds
+   of the handoff, and says so if the second start stalls too or the window is
+   closed without a return (operator, 10 October 2026; issue 1065).
 5. Continuing a session, and reopening a spec's estimate, require an
    unchanged registration on a real stock vehicle plus current Case edit
    authority; a corrected mileage, or any change on a placeholder, continues.
@@ -1341,5 +1351,6 @@ retain the session and collect provider startup evidence before closing it:
 
 The [FRD-25 live acceptance matrix](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#acceptance-evidence)
 remains required after the supplier correction and authorized deployment.
-Issue #861 remains open until automatic launch, edit, Save & Exit and Draft
-import pass on the deployed bytes. Manual file import is not this proof.
+Issue #1066 holds that walk and stays open until automatic launch, edit,
+Save & Exit and import pass on the deployed bytes. Manual file import is not
+this proof.

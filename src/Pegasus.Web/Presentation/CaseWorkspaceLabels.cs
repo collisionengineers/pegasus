@@ -1144,6 +1144,18 @@ public static class CaseWorkspaceLabels
         /// </summary>
         public const string FetchAgain = "Fetch again";
 
+        /// <summary>
+        /// What the Case page says of the estimator window once Glass's has it
+        /// (operator, 10 October 2026; issue 1065): closed without a return,
+        /// or an estimator whose frames never loaded after the page's one
+        /// automatic second press.
+        /// </summary>
+        public const string ClosedWithoutReturn =
+            "Glass's was closed without Save & Exit. Press Glass's to continue this session.";
+
+        public const string EditorDidNotOpen =
+            "The Glass's estimator did not open. Press Glass's again; it continues this session.";
+
         /// <summary>The Glass's window while its provider work runs in the background.</summary>
         public const string Preparing = "Preparing Glass's…";
 

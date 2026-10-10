@@ -1557,6 +1557,63 @@
     var glassOpening = false;
     var glassWindow = null;
     var glassWindowWatch = null;
+    var glassEditorWatch = null;
+    var glassReturning = false;
+    var glassRetriedSession = null;
+    function stopGlassEditorWatch() {
+        if (glassEditorWatch) { window.clearInterval(glassEditorWatch); glassEditorWatch = null; }
+    }
+    // Once Glass's has the window it is cross-origin, and the one thing this
+    // page may still read of it is how deep its frame tree goes. The provider's
+    // start-up stall (issue 1065) leaves its frameset skeleton with no working
+    // frame loaded: the window, its child frame and that frame's empty frames,
+    // three levels; a working editor nests its panes four deep and more.
+    // ponytail: assumes the 2026 acofr.php/acofr2.php framesets. A flatter
+    // provider page makes this silent; it never reads a loaded editor as stalled.
+    function frameDepth(frame, cap) {
+        try {
+            var deepest = 0;
+            for (var i = 0; i < frame.length && deepest < cap - 1; i++) {
+                deepest = Math.max(deepest, frameDepth(frame[i], cap - 1));
+            }
+            return 1 + deepest;
+        } catch (_) { return 1; }
+    }
+    // After the handoff: a window closed without a return is said; an estimator
+    // whose frames have not grown within the wait is pressed again once, the
+    // same press as the staff member's (operator, 10 October 2026), then said.
+    function watchGlassEditor() {
+        stopGlassEditorWatch();
+        var host = record.querySelector('[data-glass-controls="launch"]');
+        var popup = glassWindow;
+        if (!host || !popup || typeof popup.length !== 'number') { return; }
+        var wait = Number(host.dataset.glassEditorWait) || 30000;
+        var since = Date.now();
+        var loaded = false;
+        glassEditorWatch = window.setInterval(function () {
+            if (glassReturning || glassOpening) { stopGlassEditorWatch(); return; }
+            if (popup.closed) {
+                stopGlassEditorWatch();
+                refreshGlassControls().then(function (state) {
+                    if (state === 'Active') { showActionError(host.dataset.glassClosedNotice); }
+                }).catch(function (error) { showActionError(error.message); });
+                return;
+            }
+            if (loaded) { return; }
+            if (frameDepth(popup, 4) >= 4) { loaded = true; return; }
+            if (Date.now() - since < wait) { return; }
+            stopGlassEditorWatch();
+            var session = record.querySelector('[data-glass-controls="session"]');
+            var sessionId = session && session.dataset.glassId;
+            var launch = record.querySelector('form[data-glass-slot="launch"]');
+            if (launch && sessionId && glassRetriedSession !== sessionId) {
+                glassRetriedSession = sessionId;
+                launch.requestSubmit();
+                return;
+            }
+            showActionError(host.dataset.glassStallNotice);
+        }, 1000);
+    }
     function finishGlassOpening() {
         glassOpening = false;
         if (glassWindowWatch) { window.clearInterval(glassWindowWatch); glassWindowWatch = null; }
@@ -1611,12 +1668,17 @@
         });
     }
     window.pegasusGlassHandoff = function () {
-        return refreshGlassControls().catch(function (error) { showActionError(error.message); }).finally(finishGlassOpening);
+        return refreshGlassControls().catch(function (error) { showActionError(error.message); }).finally(function () {
+            finishGlassOpening();
+            watchGlassEditor();
+        });
     };
     window.pegasusGlassReturn = function (url) {
         if (!samePage(url) || new URL(url, window.location.href).origin !== window.location.origin) {
             return Promise.reject(new Error('The Glass return does not belong to this Case.'));
         }
+        glassReturning = true;
+        stopGlassEditorWatch();
         // The controls first; then, once any change not yet sent has landed,
         // the Case as it now stands, the recorded spec included.
         return refreshGlassControls().then(function () {
@@ -1650,6 +1712,8 @@
         glassWindow = window.open('', windowName, 'popup=yes,width=1280,height=900');
         if (!glassWindow) { showActionError("Allow pop-ups for Pegasus, then open Glass's again."); return; }
         glassOpening = true;
+        glassReturning = false;
+        stopGlassEditorWatch();
         form.setAttribute('aria-busy', 'true');
         busy(form, event.submitter || null);
         glassWindowWatch = window.setInterval(function () {
