@@ -995,7 +995,9 @@ public sealed partial class ReconcilePendingArtifactCustody
             .ToArrayAsync(cancellationToken);
         var confirmed = 0; var retained = 0; var failures = 0;
         string? firstFailure = null;
-        using var batch = BeginDocumentBatch();
+        using var batch = contentStore is BoxDocumentContentStore boxStore
+            ? boxStore.BeginFolderProofBatch()
+            : NoCustodyBatch.Instance;
         foreach (var candidate in candidates)
         {
             var auditFolder = string.Equals(

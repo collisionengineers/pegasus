@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Security.Cryptography;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 
 namespace Pegasus.Infrastructure.Custody;
