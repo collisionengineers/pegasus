@@ -527,18 +527,41 @@ Browser evidence covers save-before-launch, refusal without provider work,
 waiting in the Glass's window, fresh controls, stale Close and preservation of
 edits during return.
 
-The hosted editor must also pass live acceptance on the deployed artifact:
-three fresh launches across two vehicle models (cold and warm browser), three
-reopens (before and after a save) including reload and host restart,
-deliberate estimate changes followed by Save & Exit and an automatic import
-that lands as the Current spec, a reopen of the returned spec whose second
-Save & Exit updates that spec and leaves one stock vehicle at Glass's, a
-second Glass's spec started from **New repair spec**, a reopen by a second
-staff member after a take-over, a reopen from an Audit's copy, replay
-producing one spec, expired-lease recovery, original-window closure, and a
-second Case refused while the account is held. Chrome is primary; Edge also
-covers a fresh launch and a reopen. Manual export/import does not satisfy this integration's
-acceptance. Supplier startup failures remain open until that journey passes
+The hosted editor must also pass live acceptance on the deployed artifact.
+The walk is issue 1066's, on Cases created after the last wipe; Chrome is
+primary, Edge covers one fresh launch and one reopen, and each step is
+recorded in operations as it passes:
+
+1. Three fresh launches across two vehicle models, cold and warm browser;
+   the estimator title names the Case vehicle each time. A launch that meets
+   the provider's start-up stall and opens on the page's own second press, or
+   on the staff member's, passes with the stall noted.
+2. Lines added, Save & Exit: one repair spec, Current, with retained XML and
+   PDF; replay of the callback creates nothing further.
+3. Glass's again on that spec: the same lines open and one stock row stands
+   at Glass's; a changed line and Save & Exit update the same spec in place.
+4. Reopens before a save and after a save, including a page reload and a
+   host restart in between.
+5. Fetch again on a session whose export could not be read.
+6. New repair spec, then Glass's: a second, separate estimate.
+7. A second Engineer takes the Case over and reopens the first spec. Whether
+   a second Glass's login can open another login's stock record needs a
+   second login; both stored credentials are one login today, so the
+   take-over alone is recorded as not proving it.
+8. Create audit, then Glass's on the Audit's copy: the same estimate.
+9. One estimator session longer than 30 minutes returning its export.
+10. A Glass's return after an Assign Engineer hand-off and re-claim.
+11. Expired-lease recovery, Close from the original Case window after a
+    reopen, and a second Case refused while the account is held.
+12. The checks owed since Releases 82 to 90: a placeholder launch, return
+    and reopen on a plate Glass's does not know; a return that fills an empty
+    VIN and never replaces one; the Repair Spec still full screen after a
+    return; busy buttons on the Glass's paths; and a changed registration
+    refused on a real stock vehicle while a session with no recorded vehicle
+    follows the Case.
+
+Manual export/import does not satisfy this integration's acceptance.
+Supplier startup failures remain open until that journey passes
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
