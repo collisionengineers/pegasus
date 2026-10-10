@@ -147,7 +147,6 @@ public static class CaseListColumns
             CaseListFacts.ReportFigures, [], (work, _) => work.LatestReportRepairCost));
         columns.AddRange(Money("salvage_value", "Salvage value", AssessmentVocabulary.SalvageValue));
         columns.AddRange(Money("recovery_charge", "Recovery charge", AssessmentVocabulary.CostRecoveryCharge));
-        columns.AddRange(Money("storage_charge", "Storage charge", AssessmentVocabulary.CostStorageCharge));
 
         columns.Add(Claim("party.repairer", "Repairer", CaseDataFieldNames.RepairerName) with { Group = CaseListColumnGroup.PartiesAndActivity });
         columns.Add(Claim("party.claim_source", "Claim source", CaseDataFieldNames.ClaimSourceName) with { Group = CaseListColumnGroup.PartiesAndActivity });
@@ -156,7 +155,6 @@ public static class CaseListColumns
         columns.Add(Activity("activity.images_in_report", "Images in report", activity => activity.ImagesInReport));
         columns.Add(Activity("activity.documents", "Documents", activity => activity.Documents));
         columns.Add(Activity("activity.queries", "Queries", activity => activity.Queries));
-        columns.Add(Activity("activity.disputes", "Disputes", activity => activity.Disputes));
         columns.Add(Activity("activity.amendment_requests", "Amendment requests", activity => activity.AmendmentRequests));
         columns.Add(Activity("activity.emails_sent", "E-mails sent", activity => activity.EmailsSent));
         columns.Add(Activity("activity.chases", "Chases", activity => activity.Chases));

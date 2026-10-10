@@ -222,14 +222,15 @@ public sealed class ReportRequirementOwnershipTests
         Assert.Null(AutomationRefusal(AssessmentVocabulary.CostRecoveryCharge));
         Assert.Null(AutomationRefusal(AssessmentVocabulary.Outcome));
         Assert.Null(AutomationRefusal(AssessmentVocabulary.ValueEngineer));
-        // The 25 Decisions editors (the outcome, roadworthiness and salvage
-        // findings included since 7 October 2026), 1 Valuation (the
-        // Engineer's Value: Retail and Trade follow the chosen guide card since
-        // 8 October 2026), 4 original report, 7 Report, 14 Damage and 4 Vehicle
-        // editors, the vehicle history and condition, and the 5 typed Case-save
-        // paths. A new editor changes this count on purpose: it widens what
-        // automation may write.
-        Assert.Equal(62, accepted.Count);
+        // The 7 Decisions editors (the outcome, roadworthiness and salvage
+        // findings included since 7 October 2026; the unprinted settlement
+        // facts gone since 9 October 2026), 1 Valuation (the Engineer's Value:
+        // Retail and Trade follow the chosen guide card since 8 October 2026),
+        // 4 original report, 7 Report, 1 Damage (the unrelated damage) and 4
+        // Vehicle editors, the vehicle history and condition, and the 5 typed
+        // Case-save paths. A new editor changes this count on purpose: it
+        // widens what automation may write.
+        Assert.Equal(31, accepted.Count);
     }
 
     [Theory]
@@ -258,10 +259,6 @@ public sealed class ReportRequirementOwnershipTests
     [InlineData(CaseDataFieldNames.IncidentDate, null, "overview")]
     [InlineData(AssessmentVocabulary.VehicleFuel, null, "vehicle")]
     [InlineData(AssessmentVocabulary.VehicleTransmission, null, "vehicle")]
-    [InlineData(AssessmentVocabulary.VehicleAirbagsDeployed, null, "damage")]
-    [InlineData(AssessmentVocabulary.VehicleTemporaryRepairsPossible, null, "settlement")]
-    [InlineData(AssessmentVocabulary.VehicleTemporaryRepairMethod, null, "settlement")]
-    [InlineData(AssessmentVocabulary.VehicleTemporaryRepairCost, null, "settlement")]
     [InlineData(null, CaseReportReadiness.SignatoryRequirement, null)]
     [InlineData(null, CaseReportReadiness.CurrentEstimateRequirement, "estimate")]
     [InlineData(null, CaseReportReadiness.LabourRateRequirement, "estimate")]
@@ -275,6 +272,19 @@ public sealed class ReportRequirementOwnershipTests
             requirement ?? "Requirement", "Source", "Why outstanding", "How to resolve", field);
 
         Assert.Equal(section, CaseWorkspaceLabels.Report.BlockerSection(item));
+    }
+
+    [Fact]
+    public void BlockerFieldNamesTheCellAJumpOutlines()
+    {
+        var history = new AssessmentReadinessItem(
+            "Requirement", "Source", "Why outstanding", "How to resolve", AssessmentVocabulary.HistoryCheck);
+        var image = new AssessmentReadinessItem(
+            CaseReportReadiness.OverviewImageRequirement, "Source", "Why outstanding", "How to resolve");
+
+        Assert.Equal(AssessmentVocabulary.HistoryCheck, CaseWorkspaceLabels.Report.BlockerField(history));
+        Assert.Equal("signOffEngineerId", CaseWorkspaceLabels.Report.BlockerField(CaseReportReadiness.SignOffEngineerNotChosen));
+        Assert.Null(CaseWorkspaceLabels.Report.BlockerField(image));
     }
 
     /// <summary>

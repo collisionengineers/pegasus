@@ -277,7 +277,7 @@ public sealed class AssessmentPolicyTests
     {
         Assert.Throws<ArgumentException>(() =>
             AssessmentPolicy.ValidateAndNormalize(
-                Request(new() { [AssessmentVocabulary.SettlementHireStart] = "03/08/2026" })));
+                Request(new() { [AssessmentVocabulary.OriginalReportDate] = "03/08/2026" })));
     }
 
     /// <summary>
@@ -830,8 +830,8 @@ public sealed class AssessmentPolicyTests
         {
             [AssessmentVocabulary.Outcome] = "contract_repair",
             [AssessmentVocabulary.SettlementContractSum] = "4500.00",
-            [AssessmentVocabulary.SalvageValue] = "500.00",
-            [AssessmentVocabulary.SettlementSalvageAgent] = "Old agent"
+            [AssessmentVocabulary.SalvageCategory] = "S",
+            [AssessmentVocabulary.SalvageValue] = "500.00"
         };
         var writes = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
@@ -842,7 +842,7 @@ public sealed class AssessmentPolicyTests
 
         Assert.Null(writes[AssessmentVocabulary.SettlementContractSum]);
         Assert.Null(writes[AssessmentVocabulary.SalvageValue]);
-        Assert.Null(writes[AssessmentVocabulary.SettlementSalvageAgent]);
+        Assert.Null(writes[AssessmentVocabulary.SalvageCategory]);
     }
 
     [Fact]

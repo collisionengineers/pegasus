@@ -159,8 +159,9 @@ public sealed record ValuationCalculationSelection(
     public ValuationSource? GuideSource { get; init; }
 
     /// <summary>
-    /// The Engineer pressed Use this value: an explicit decision that the Save
-    /// must record or refuse, never drop. Absent on every other save.
+    /// The Engineer chose a card (a click on it, or Enter or Space): an
+    /// explicit decision that the Save must record or refuse, never drop.
+    /// Absent on every other save.
     /// </summary>
     public bool Use { get; init; }
 }
@@ -329,11 +330,12 @@ public static class ValuationCalculationPolicy
     public const string AppliedReason = "Engineer's Value applied.";
 
     /// <summary>
-    /// The refusal when Use this value was pressed and the Engineer's Value
-    /// box no longer holds the figure it chose, so no decision is dropped silently.
+    /// The refusal when a card was chosen and the Engineer's Value box no
+    /// longer holds its figure, so no decision is dropped silently (operator,
+    /// 9 October 2026).
     /// </summary>
     public const string UseFigureChanged =
-        "The Engineer's Value no longer matches the figure you chose to use. Press Use this value again.";
+        "The Engineer's Value no longer matches the figure you chose to use.";
 
     /// <summary>
     /// Printed currency. The value itself stays decimal; only what is shown

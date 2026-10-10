@@ -3,7 +3,7 @@
 // separate mutation path and no business rule lives in the browser.
 //
 // Blocks, in order:
-//   frame       sticky measure, Scroll/Tabs, lazy section bodies, the
+//   frame       sticky measure, lazy section bodies, the
 //               section nav, in-place actions (fetch + swap), the edit
 //               session (save as you go, heartbeat, expiry)
 //   sections    the section-owned enhancements (damage clicker, valuation
@@ -24,11 +24,6 @@
     var block = record.querySelector('[data-sticky-block]');
     var nav = record.querySelector('[data-section-nav]');
     var main = document.getElementById('case-main');
-    var layoutSwitch = record.querySelector('[data-case-layout-switch]');
-    var layoutButtons = layoutSwitch
-        ? Array.prototype.slice.call(layoutSwitch.querySelectorAll('[data-case-layout]'))
-        : [];
-    var layout = 'scroll';
     var activeKey = record.getAttribute('data-section-current') || 'overview';
     var fragmentPath = window.location.pathname.replace(/\/+$/, '') + '/Section';
     var submitting = false;
@@ -70,9 +65,6 @@
     function sectionFor(key) {
         return document.getElementById('section-' + key);
     }
-    function linkFor(key) {
-        return links().find(function (link) { return link.getAttribute('data-section-link') === key; });
-    }
     // A host nested under another (Damage and Valuation inside Vehicle, v28
     // P26) has no link of its own: its parent's link speaks for it.
     function ownerKey(key) {
@@ -88,58 +80,10 @@
         return block.getBoundingClientRect().bottom;
     }
 
-    var layoutCookie = 'pegasus-case-layout';
-    function readLayout() {
-        return record.getAttribute('data-layout') === 'tabs' ? 'tabs' : 'scroll';
-    }
-    function saveLayout() {
-        if (window.pegasusPreferences) {
-            // The choice lasts as the fold and rail choices do, not the session (v36 item U).
-            window.pegasusPreferences.write(layoutCookie, layout, window.pegasusPreferences.year);
-        }
-    }
-
     function bindMounted(root) {
         (window.pegasusMountBinders || []).forEach(function (bind) { bind(root); });
     }
 
-    // ---- Scroll / Tabs ----------------------------------------------------
-    function applyScrollState() {
-        nav.removeAttribute('role');
-        links().forEach(function (link) {
-            link.removeAttribute('role');
-            link.removeAttribute('aria-selected');
-            link.removeAttribute('aria-controls');
-            link.removeAttribute('tabindex');
-        });
-        sections().forEach(function (host) {
-            host.classList.remove('is-active');
-            host.removeAttribute('role');
-            host.removeAttribute('aria-labelledby');
-        });
-    }
-    function applyTabState() {
-        nav.setAttribute('role', 'tablist');
-        links().forEach(function (link) {
-            var key = link.getAttribute('data-section-link');
-            var selected = key === activeKey;
-            var ownedPanelIds = sections()
-                .filter(function (host) { return ownerKey(host.getAttribute('data-section')) === key; })
-                .map(function (host) { return host.id; });
-            link.id = 'case-section-tab-' + key;
-            link.setAttribute('role', 'tab');
-            link.setAttribute('aria-controls', ownedPanelIds.join(' '));
-            link.setAttribute('aria-selected', selected ? 'true' : 'false');
-            link.setAttribute('tabindex', selected ? '0' : '-1');
-            link.setAttribute('aria-current', selected ? 'true' : 'false');
-        });
-        sections().forEach(function (host) {
-            var key = host.getAttribute('data-section');
-            host.setAttribute('role', 'tabpanel');
-            host.setAttribute('aria-labelledby', 'case-section-tab-' + ownerKey(key));
-            host.classList.toggle('is-active', ownerKey(key) === activeKey);
-        });
-    }
     // A report blocker names the tab inside its section that clears it
     // (operator, 1 October 2026): Files opens on Images, Report on Fee. The
     // tab's own button is pressed, so the tab binders stay the one owner.
@@ -147,49 +91,6 @@
         if (!host || !tab) { return; }
         var button = host.querySelector('[data-file-tab="' + tab + '"], [data-report-tab="' + tab + '"]');
         if (button && button.getAttribute('aria-selected') !== 'true') { button.click(); }
-    }
-    function selectTab(key, tab) {
-        navigationVersion += 1;
-        pendingAnchor = null;
-        key = ownerKey(key);
-        if (!linkFor(key)) {
-            return;
-        }
-        activeKey = key;
-        updateSectionFields();
-        applyTabState();
-        main.querySelectorAll('[data-lazy]').forEach(function (placeholder) {
-            if (ownerKey(placeholder.getAttribute('data-lazy')) === activeKey) {
-                mount(placeholder, function (host) { applyTabState(); openSubTab(host, tab); });
-            }
-        });
-        openSubTab(sectionFor(key), tab);
-        // Instant: the page's own smooth scroll would glide a tab switch to the top (v36 item U).
-        window.scrollTo({ top: 0, behavior: 'instant' });
-    }
-    function setLayout(value, persist) {
-        navigationVersion += 1;
-        pendingAnchor = null;
-        layout = value === 'tabs' ? 'tabs' : 'scroll';
-        record.setAttribute('data-layout', layout);
-        if (layoutSwitch) {
-            layoutSwitch.hidden = false;
-        }
-        layoutButtons.forEach(function (button) {
-            button.setAttribute('aria-pressed', button.getAttribute('data-case-layout') === layout ? 'true' : 'false');
-        });
-        if (layout === 'tabs') {
-            applyTabState();
-            selectTab(activeKey);
-        } else {
-            applyScrollState();
-            mountApproaching();
-            spy();
-        }
-        measure();
-        if (persist) {
-            saveLayout();
-        }
     }
 
     // ---- lazy bodies --------------------------------------------------------
@@ -254,11 +155,7 @@
                 // bound through its parent (every binder is idempotent).
                 bindMounted(host.parentElement || host);
                 measure();
-                if (layout === 'tabs') {
-                    applyTabState();
-                } else {
-                    spy();
-                }
+                spy();
                 waiting.splice(0, waiting.length).forEach(function (callback) { callback(host); });
                 settlePendingAnchor();
             })
@@ -278,9 +175,6 @@
             });
     }
     function mountApproaching() {
-        if (layout !== 'scroll') {
-            return;
-        }
         var limit = window.innerHeight * 2.5;
         main.querySelectorAll('[data-lazy]').forEach(function (placeholder) {
             if (placeholder.getBoundingClientRect().top < limit) {
@@ -297,7 +191,7 @@
         });
     }
     function settlePendingAnchor() {
-        if (!pendingAnchor || layout !== 'scroll') {
+        if (!pendingAnchor) {
             return;
         }
         var target = sectionFor(pendingAnchor.key);
@@ -310,7 +204,12 @@
         })) {
             return;
         }
-        scrollSectionIntoView(target);
+        var marked = target.querySelector('.is-jump-target');
+        if (marked) {
+            marked.scrollIntoView({ block: 'center' });
+        } else {
+            scrollSectionIntoView(target);
+        }
         pendingAnchor = null;
     }
     function scrollSectionIntoView(host) {
@@ -341,9 +240,6 @@
             control.scrollIntoView({ block: 'center' });
             try { control.focus({ preventScroll: true }); } catch (_) { control.focus(); }
         }
-        if (layout === 'tabs') {
-            selectTab(key);
-        }
         // As jumpTo: a later navigation wins over a section still mounting.
         navigation = ++navigationVersion;
         var target = sectionFor(key);
@@ -356,12 +252,31 @@
         }
         land(target);
     }
-    function jumpTo(key, focus, tab) {
-        var navigation = ++navigationVersion;
-        if (layout === 'tabs') {
-            selectTab(key, tab);
-            return;
+    // A jump to a report blocker outlines the cell recording its field
+    // (data-field, a space-separated list), unfolding any panel folded over
+    // it, and focuses its control while the record edits. The outline lasts
+    // until the next jump. Answers whether a control took focus.
+    function markField(host, field) {
+        record.querySelectorAll('.is-jump-target').forEach(function (cell) { cell.classList.remove('is-jump-target'); });
+        var cell = host && field ? host.querySelector('[data-field~="' + field + '"]') : null;
+        if (!cell) {
+            return false;
         }
+        for (var panel = cell.closest('[data-collapse]'); panel; panel = panel.parentElement && panel.parentElement.closest('[data-collapse]')) {
+            var toggle = panel.classList.contains('is-collapsed') ? panel.querySelector('[data-collapse-toggle]') : null;
+            if (toggle) { toggle.click(); }
+        }
+        cell.classList.add('is-jump-target');
+        cell.scrollIntoView({ block: 'center' });
+        var control = cell.querySelector('.fi');
+        if (!control) {
+            return false;
+        }
+        try { control.focus({ preventScroll: true }); } catch (_) { control.focus(); }
+        return true;
+    }
+    function jumpTo(key, focus, tab, field) {
+        var navigation = ++navigationVersion;
         var target = sectionFor(key);
         if (!target) {
             return;
@@ -369,24 +284,22 @@
         var predecessors = lazyBefore(target);
         pendingAnchor = predecessors.length ? { key: key, predecessors: predecessors } : null;
         if (target.hasAttribute('data-lazy')) {
+            markField(null);
             mount(target, function (host) {
-                if (navigation !== navigationVersion || layout !== 'scroll') { return; }
+                if (navigation !== navigationVersion) { return; }
                 openSubTab(host, tab);
                 scrollSectionIntoView(host);
                 mountApproaching();
-                if (focus) { focusSection(host); }
+                if (!markField(host, field) && focus) { focusSection(host); }
             });
             return;
         }
         openSubTab(target, tab);
         scrollSectionIntoView(target);
         mountApproaching();
-        if (focus) { focusSection(target); }
+        if (!markField(target, field) && focus) { focusSection(target); }
     }
     function spy() {
-        if (layout !== 'scroll') {
-            return;
-        }
         var hosts = sections();
         if (!hosts.length) {
             return;
@@ -421,28 +334,6 @@
         event.preventDefault();
         jumpTo(link.getAttribute('data-section-link'), true);
     });
-    nav.addEventListener('keydown', function (event) {
-        if (layout !== 'tabs') {
-            return;
-        }
-        var link = event.target.closest('[data-section-link]');
-        if (!link) {
-            return;
-        }
-        var all = links();
-        var index = all.indexOf(link);
-        var nextIndex;
-        if (event.key === 'ArrowRight') { nextIndex = index + 1; }
-        else if (event.key === 'ArrowLeft') { nextIndex = index - 1; }
-        else if (event.key === 'Home') { nextIndex = 0; }
-        else if (event.key === 'End') { nextIndex = all.length - 1; }
-        else { return; }
-        event.preventDefault();
-        if (nextIndex < 0) { nextIndex = all.length - 1; }
-        if (nextIndex >= all.length) { nextIndex = 0; }
-        all[nextIndex].focus();
-        selectTab(all[nextIndex].getAttribute('data-section-link'));
-    });
     document.addEventListener('click', function (event) {
         // An empty jump is an ordinary link.
         var jump = event.target.closest('[data-section-jump]:not([data-section-jump=""])');
@@ -450,10 +341,7 @@
             return;
         }
         event.preventDefault();
-        jumpTo(jump.getAttribute('data-section-jump'), true, jump.getAttribute('data-section-tab'));
-    });
-    layoutButtons.forEach(function (button) {
-        button.addEventListener('click', function () { setLayout(button.getAttribute('data-case-layout'), true); });
+        jumpTo(jump.getAttribute('data-section-jump'), true, jump.getAttribute('data-section-tab'), jump.getAttribute('data-section-field'));
     });
 
     var ticking = false;
@@ -464,9 +352,6 @@
         ticking = true;
         window.setTimeout(function () {
             ticking = false;
-            if (layout !== 'scroll') {
-                return;
-            }
             mountApproaching();
             spy();
         }, 80);
@@ -477,9 +362,7 @@
     window.addEventListener('resize', function () {
         pendingAnchor = null;
         measure();
-        if (layout === 'scroll') {
-            spy();
-        }
+        spy();
     });
     if ('ResizeObserver' in window) {
         new ResizeObserver(measure).observe(block);
@@ -1008,24 +891,16 @@
             var value = incoming.getAttribute(name);
             if (value === null) { record.removeAttribute(name); } else { record.setAttribute(name, value); }
         });
-        record.setAttribute('data-layout', layout);
         main = document.getElementById('case-main');
         // Dialogs first so the openers in the swapped roots find them.
         ['[data-case-dialogs]', '[data-case-viewer-host]', '[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '#case-main', '[data-case-aside]'].forEach(function (selector) {
             var root = document.querySelector(selector);
             if (root) { bindMounted(root); }
         });
-        if (!keepSections) {
-            if (layout === 'tabs') {
-                applyTabState();
-                var selected = sectionFor(activeKey);
-                if (selected && selected.hasAttribute('data-lazy')) { mount(selected, applyTabState); }
-            } else { applyScrollState(); }
-        }
         // A section that was loaded is loaded again as the Case now stands.
         lazyRedrawn.forEach(function (placeholder) { mount(placeholder); });
         if (catchingUp && !editingEnded) {
-            if (layout === 'tabs') { applyTabState(); } else { spy(); }
+            spy();
         }
         updateSectionFields();
         measure();
@@ -1103,7 +978,7 @@
             section.replaceWith.apply(section, incoming);
             bindMounted(main);
             measure();
-            if (layout === 'tabs') { applyTabState(); } else { spy(); }
+            spy();
             window.history.replaceState(null, '', href);
         }).catch(function () {
             window.location.assign(href);
@@ -1822,14 +1697,14 @@
     });
 
     // ---- init ------------------------------------------------------------------
-    layout = readLayout();
     measure();
     bindEstimateImport(record);
-    setLayout(layout, false);
+    mountApproaching();
+    spy();
     bindHeartbeat();
     bindEditControls();
     var addressed = new URLSearchParams(window.location.search).get('section');
-    if (addressed && layout === 'scroll' && addressed.trim().toLowerCase() !== 'overview') {
+    if (addressed && addressed.trim().toLowerCase() !== 'overview') {
         jumpTo(addressed.trim().toLowerCase(), false);
     }
     var editingNow = record.getAttribute('data-case-editing') === 'true';
@@ -4189,8 +4064,6 @@
 
             var outcome = control(section.querySelector('[data-decision="assessment.outcome"]'));
             var legal = control(section.querySelector('[data-decision="assessment.legal_status"]'));
-            var reserveRead = section.querySelector('[data-settlement-computed-reserve-value]');
-            var repairCost = parseFloat(section.getAttribute('data-settlement-repair-cost')) || 0;
             // The Decisions choices are selects; the v28 P29 radio group is gone (v36 item J).
             bindSalvageShare(section);
             bindSalvageMatrix(section);
@@ -4206,22 +4079,9 @@
                     element.hidden = on;
                 });
             }
-            function syncReserve(outcomeValue) {
-                if (!reserveRead) {
-                    return;
-                }
-                var reserve = outcomeValue === 'repairable' && repairCost > 0
-                    ? Math.ceil(repairCost / 50) * 50 : null;
-                reserveRead.textContent = reserve === null
-                    ? reserveRead.getAttribute('data-not-applicable')
-                    : '£' + reserve.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                        + ' (' + reserveRead.getAttribute('data-rounded-up') + ')';
-                reserveRead.classList.toggle('empty', reserve === null);
-            }
             function sync() {
                 if (outcome) {
                     show('total-loss', outcome.value === 'total_loss');
-                    syncReserve(outcome.value);
                 }
                 if (legal) {
                     show('unroadworthy', legal.value === 'unroadworthy');
@@ -4744,6 +4604,11 @@
         var aspect = host.querySelector('[data-viewer-aspect]');
         var strip = host.querySelector('[data-viewer-strip]');
         var downloadDefault = downloadLabel ? downloadLabel.textContent : 'Download';
+        // Pop out (operator, 9 October 2026): the images window, opened on
+        // the image in view. The window has no Pop out of its own.
+        var popout = host.querySelector('[data-viewer-popout]');
+        var popoutBase = popout ? popout.getAttribute('href') || '' : '';
+        var standalone = host.getAttribute('data-viewer-standalone') === 'true';
 
         var state = { open: false, items: [], index: 0, rotation: 0, zoom: false, invoker: null, crop: null, kind: '' };
         // The crop editor's working copy: rotation and the selection in the
@@ -4762,6 +4627,7 @@
                 thumb: trigger.getAttribute('data-thumb') || (img ? img.getAttribute('src') : '') || '',
                 tag: trigger.getAttribute('data-tag') || '',
                 occurrence: id,
+                occurrenceId: trigger.getAttribute('data-evidence-occurrence') || '',
                 excluded: trigger.classList.contains('off'),
                 downloadLabel: extra && extra.downloadLabel ? extra.downloadLabel : downloadDefault,
                 element: trigger
@@ -4840,6 +4706,10 @@
             zoomButton.hidden = kind !== 'image';
             if (zoomLabel) { zoomLabel.textContent = state.zoom ? 'Fit' : 'Zoom'; }
             cropButton.hidden = kind !== 'image' || !value;
+            if (popout) {
+                popout.hidden = kind !== 'image' || !item.occurrenceId;
+                if (item.occurrenceId) { popout.setAttribute('href', popoutBase + '?image=' + encodeURIComponent(item.occurrenceId)); }
+            }
             inReportWrap.hidden = kind !== 'image' || !value;
             if (value) { inReport.checked = value.inReport; }
             viewTools.hidden = !!state.crop;
@@ -5183,6 +5053,7 @@
 
         return {
             get open() { return state.open; },
+            get standalone() { return standalone; },
             current: current,
             render: render,
             open: open,
@@ -5211,6 +5082,26 @@
             }
         };
     }
+    // The images window: one named window per Case, so Pop out pressed again
+    // brings it forward on the chosen image rather than opening another. A
+    // blocked pop-up is not opened here; the link's own target="_blank" runs.
+    function openImagesWindow(href) {
+        var name = 'pegasus-images-' + new URL(href, window.location.href).pathname;
+        var opened = null;
+        try { opened = window.open(href, name, 'popup=yes,width=1280,height=900'); } catch (_) { opened = null; }
+        if (opened) { try { opened.focus(); } catch (_) { /* a window that cannot be focused is still open */ } }
+        return !!opened;
+    }
+    document.addEventListener('click', function (event) {
+        var link = event.target.closest('a[data-images-popout]');
+        if (!link || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey) { return; }
+        if (!openImagesWindow(link.href)) { return; }
+        event.preventDefault();
+        // From the viewer, the window is now the viewing surface: the Case
+        // form comes back on screen here.
+        if (viewer && viewer.open && link.hasAttribute('data-viewer-popout')) { viewer.close(); }
+    });
+
     function bindViewer(root) {
         var host = root.matches && root.matches('[data-case-viewer]')
             ? root
@@ -5223,6 +5114,13 @@
                 openDocument: function (options) { viewer.openDocument(options); },
                 close: function () { viewer.close(); }
             };
+            if (viewer.standalone) {
+                // The images window opens on the image Pop out was pressed
+                // on, else the first; Close brings the tiles back.
+                var start = document.querySelector('[data-evidence-set] [data-evidence-item][data-evidence-start="true"]')
+                    || document.querySelector('[data-evidence-set] [data-evidence-item]');
+                if (start) { viewer.open(start); }
+            }
         }
         all(root, '[data-evidence-item]').forEach(function (trigger) {
             if (trigger.dataset.caseViewerBound === 'true') { return; }

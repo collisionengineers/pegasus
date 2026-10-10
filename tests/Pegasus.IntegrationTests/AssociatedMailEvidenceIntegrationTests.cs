@@ -184,6 +184,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             // A completed intervening edit must trigger a fresh guard, not strand the old plan.
             await db.CaseWorkflows.Where(value => value.CaseId == caseId).ExecuteUpdateAsync(update => update
                 .SetProperty(value => value.Version, value => value.Version + 1));
+            await AgePastInlineFilingGraceAsync(db);
         }
         await using var scope = factory.Services.CreateAsyncScope();
         var reconciliation = await scope.ServiceProvider.GetRequiredService<ReconcilePendingArtifactCustody>()
@@ -260,6 +261,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
                     break;
             }
             await db.SaveChangesAsync();
+            await AgePastInlineFilingGraceAsync(db);
         }
         await using var scope = factory.Services.CreateAsyncScope();
         var result = await scope.ServiceProvider.GetRequiredService<ReconcilePendingArtifactCustody>()
@@ -322,6 +324,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
                 .Select(value => value.PendingContentStorageKey!).SingleAsync();
             await db.Cases.Where(value => value.Id == caseId).ExecuteUpdateAsync(update => update
                 .SetProperty(value => value.CustodyRootRemoteId, "case-root"));
+            await AgePastInlineFilingGraceAsync(db);
         }
         var path = Path.Combine(factory.ArtifactDirectory, storageKey.Replace('/', Path.DirectorySeparatorChar));
         var original = await File.ReadAllBytesAsync(path);
@@ -561,6 +564,15 @@ public sealed class AssociatedMailEvidenceIntegrationTests
                where occurrence.CaseId == caseId
                select new { version.FileName, occurrence.SemanticRole })
             .ToDictionaryAsync(file => file.FileName, file => file.SemanticRole);
+
+    /// <summary>
+    /// The sweep leaves a newly recorded version to the request that recorded
+    /// it for the inline-filing grace; ages every version past it so the sweep
+    /// offers what intake left pending.
+    /// </summary>
+    private static Task<int> AgePastInlineFilingGraceAsync(PegasusDbContext db) =>
+        db.Set<DocumentVersionEntity>().ExecuteUpdateAsync(update => update.SetProperty(
+            value => value.CreatedAtUtc, DateTimeOffset.UtcNow.AddHours(-1)));
 
     private static async Task AssertFiledAsync(IntakeWebApplicationFactory factory, Guid caseId, DocumentCustodyStatus custody)
     {

@@ -57,13 +57,16 @@ public sealed class WorkCentreActivityPersistenceTests
                 Mail(StaffMailPurpose.GeneralCorrespondence, StaffMailState.Sent, DayStart.AddHours(4)),
                 Mail(StaffMailPurpose.CaseReport, StaffMailState.Failed, null));
 
-            // Completed: every entry into Complete this week (item H), whether by
-            // Complete, by a reply to a post-report query or by a withdrawn query;
-            // a query received leaves Complete and is not one; last week is not counted.
+            // Completed: Cases that entered Complete this week, each once
+            // (item H), whether by Complete, by a reply to a post-report query
+            // or by a withdrawn query; a Case that entered three times, once
+            // today, is one Case for the week and one for today; a query
+            // received leaves Complete and is not one; last week is not counted.
             context.AddRange(
                 Event(today.Id, "case_completed", DayStart.AddHours(6)),
                 Event(thisWeek.Id, "case_query_replied", WeekStart.AddHours(30)),
                 Event(thisWeek.Id, "case_query_withdrawn", WeekStart.AddHours(40), version: 3),
+                Event(thisWeek.Id, "case_query_replied", DayStart.AddHours(10), version: 5),
                 Event(lastWeek.Id, "case_completed", WeekStart.AddDays(-1)),
                 Event(todayToo.Id, "case_query_received", DayStart.AddHours(7)));
 
@@ -87,7 +90,7 @@ public sealed class WorkCentreActivityPersistenceTests
             NewCases: new(Today: 2, ThisWeek: 3),
             SentToEngineer: new(Today: 1, ThisWeek: 2),
             ReportsSent: new(Today: 1, ThisWeek: 2),
-            Completed: new(Today: 1, ThisWeek: 3),
+            Completed: new(Today: 2, ThisWeek: 2),
             EmailsReceived: new(Today: 2, ThisWeek: 3)), counts);
     }
 

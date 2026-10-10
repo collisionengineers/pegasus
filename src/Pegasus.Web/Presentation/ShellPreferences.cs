@@ -5,7 +5,7 @@ namespace Pegasus.Web.Presentation;
 
 /// <summary>
 /// The per-browser layout preferences the server renders in its first paint,
-/// so a collapsed rail, a remembered Tabs layout or a folded panel never
+/// so a collapsed rail or a folded panel never
 /// flashes open before script runs (CSP forbids an inline script). site.js
 /// writes the cookies when a preference changes; this is their one reader,
 /// and every value is allow-listed: anything else reads as the default.
@@ -14,9 +14,6 @@ public static partial class ShellPreferences
 {
     /// <summary><c>collapsed</c> or <c>expanded</c>; one-year cookie.</summary>
     public const string RailCookie = "pegasus-rail";
-
-    /// <summary><c>scroll</c> or <c>tabs</c>; a session cookie (v26 remembers a manual layout for the session).</summary>
-    public const string CaseLayoutCookie = "pegasus-case-layout";
 
     /// <summary>The collapsed panel keys joined by <c>|</c>; one-year cookie.</summary>
     public const string CollapsedPanelsCookie = "pegasus-collapsed";
@@ -27,13 +24,6 @@ public static partial class ShellPreferences
     {
         ArgumentNullException.ThrowIfNull(request);
         return string.Equals(request.Cookies[RailCookie], "collapsed", StringComparison.Ordinal);
-    }
-
-    /// <summary>The Case record's initial layout: Tabs only when the cookie says so, else Scroll.</summary>
-    public static string CaseLayout(HttpRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        return string.Equals(request.Cookies[CaseLayoutCookie], "tabs", StringComparison.Ordinal) ? "tabs" : "scroll";
     }
 
     public static bool PanelCollapsed(HttpRequest request, string key)

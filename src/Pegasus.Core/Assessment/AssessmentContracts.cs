@@ -60,26 +60,10 @@ public static class AssessmentVocabulary
     public const string VehicleBody = "vehicle.body";
     public const string VehicleTaxExpiry = "vehicle.tax_expiry";
     public const string VehicleMotExpiry = "vehicle.mot_expiry";
-    public const string VehicleAirbagsDeployed = "vehicle.airbags_deployed";
-    public const string VehicleTemporaryRepairsPossible = "vehicle.temporary_repairs_possible";
-    public const string VehicleTemporaryRepairMethod = "vehicle.temporary_repair_method";
-    public const string VehicleTemporaryRepairCost = "vehicle.temporary_repair_cost";
     public const string ImpactSeverity = "assessment.impact_severity";
     public const string ImpactLocation = "assessment.impact_location";
     public const string DamageImpacts = "damage.impacts";
-    public const string DamageTyreRightFront = "damage.tyres.right_front.tyre";
-    public const string DamageTyreLeftFront = "damage.tyres.left_front.tyre";
-    public const string DamageTyreRightRear = "damage.tyres.right_rear.tyre";
-    public const string DamageTyreLeftRear = "damage.tyres.left_rear.tyre";
-    public const string DamageBeltRightFront = "damage.tyres.right_front.belt";
-    public const string DamageBeltLeftFront = "damage.tyres.left_front.belt";
-    public const string DamageBeltRightRear = "damage.tyres.right_rear.belt";
-    public const string DamageBeltLeftRear = "damage.tyres.left_rear.belt";
-    public const string DamageSpareTyre = "damage.tyres.spare";
-    public const string DamageCentreBelt = "damage.tyres.centre_belt";
     public const string DamageUnrelated = "damage.unrelated";
-    public const string DamageUnrelatedDeduction = "damage.unrelated_deduction";
-    public const string DamageMaterialTransfer = "damage.material_transfer";
     public const string ValueRetail = "assessment.values.retail";
     public const string ValueTrade = "assessment.values.trade";
     public const string ValueEngineer = "assessment.values.engineer";
@@ -88,7 +72,6 @@ public static class AssessmentVocabulary
     public const string RateManufacturerApproved = "rates.manufacturer_approved";
     public const string RateRegionalUplift = "rates.regional_uplift";
     public const string CostRecoveryCharge = "costs.recovery_charge";
-    public const string CostStorageCharge = "costs.storage_charge";
     public const string Outcome = "assessment.outcome";
     public const string LegalStatus = "assessment.legal_status";
     public const string UnroadworthyReason = "assessment.unroadworthy_reason";
@@ -111,29 +94,14 @@ public static class AssessmentVocabulary
     public const string EngineerSignature = "engineer.signature";
     public const string AgreedFee = "fee.agreed_fee";
     public const string FeeDescriptionLines = "fee.description_lines";
-    public const string SettlementExcess = "settlement.excess";
-    public const string SettlementBetterment = "settlement.betterment";
     public const string SettlementClaimantVatRegistered = "settlement.claimant_vat_registered";
-    public const string SettlementReserve = "settlement.reserve";
-    public const string SettlementRepairDelays = "settlement.repair_delays";
-    public const string SettlementReportDelay = "settlement.report_delay";
     public const string SettlementStoragePerDay = "settlement.storage_per_day";
-    public const string SettlementHireStart = "settlement.hire_start";
-    public const string SettlementHireDailyCost = "settlement.hire_daily_cost";
-    public const string SettlementDiminution = "settlement.diminution";
     /// <summary>The agreed contract repair sum (v28 P35): the Engineer's figure the report prints as the cap.</summary>
     public const string SettlementContractSum = "settlement.contract_sum";
     public const string OriginalReportAssessor = "original_report.assessor";
     public const string OriginalReportDate = "original_report.report_date";
     public const string OriginalReportRoadworthiness = "original_report.roadworthiness";
     public const string OriginalReportOutcome = "original_report.outcome";
-    public const string SettlementSalvageAt = "settlement.salvage.at";
-    public const string SettlementSalvageAgent = "settlement.salvage.agent";
-    public const string SettlementSalvageAgentReference = "settlement.salvage.agent_reference";
-    public const string SettlementSalvageMoved = "settlement.salvage.moved";
-    public const string SettlementSalvageOwnerRetains = "settlement.salvage.owner_retains";
-    public const string SettlementSalvageValueAgreed = "settlement.salvage.value_agreed";
-    public const string SettlementSalvageSettled = "settlement.salvage.settled";
 
     /// <summary>
     /// Every accepted damage zone with its display label and the headline
@@ -200,8 +168,6 @@ public static class AssessmentVocabulary
         + "with x and y from 0 to 1 and r from 0.0641 to 0.5, whose plan areas replace the areas given. "
         + "Example: [{\"areas\":[\"left_front\"],\"severity\":\"light\",\"note\":\"\"}]";
 
-    private static readonly string[] TyreCodes = ["ok", "worn", "damaged", "illegal"];
-    private static readonly string[] BeltCodes = ["ok", "locked", "deployed", "not_fitted"];
 
     private static readonly AssessmentFieldDefinition[] DefinitionList =
     [
@@ -220,28 +186,12 @@ public static class AssessmentVocabulary
         new(VehicleBody, AssessmentFieldType.Text, 100),
         new(VehicleTaxExpiry, AssessmentFieldType.Date, 10),
         new(VehicleMotExpiry, AssessmentFieldType.Date, 10),
-        new(VehicleAirbagsDeployed, AssessmentFieldType.Text, 200),
-        new(VehicleTemporaryRepairsPossible, AssessmentFieldType.Flag, 5),
-        new(VehicleTemporaryRepairMethod, AssessmentFieldType.Text, 2000),
-        new(VehicleTemporaryRepairCost, AssessmentFieldType.Money, 20),
         new(ImpactSeverity, AssessmentFieldType.Enumerated, 20,
             Codes: DamageSeverities.Keys.ToArray()),
         new(ImpactLocation, AssessmentFieldType.Enumerated, 20,
             Codes: [.. DamagePlanAreas, .. DamageOtherAreas, "multiple"]),
         new(DamageImpacts, AssessmentFieldType.Json, 4000, Format: DamageImpactsFormat),
-        new(DamageTyreRightFront, AssessmentFieldType.Enumerated, 20, Codes: TyreCodes),
-        new(DamageTyreLeftFront, AssessmentFieldType.Enumerated, 20, Codes: TyreCodes),
-        new(DamageTyreRightRear, AssessmentFieldType.Enumerated, 20, Codes: TyreCodes),
-        new(DamageTyreLeftRear, AssessmentFieldType.Enumerated, 20, Codes: TyreCodes),
-        new(DamageBeltRightFront, AssessmentFieldType.Enumerated, 20, Codes: BeltCodes),
-        new(DamageBeltLeftFront, AssessmentFieldType.Enumerated, 20, Codes: BeltCodes),
-        new(DamageBeltRightRear, AssessmentFieldType.Enumerated, 20, Codes: BeltCodes),
-        new(DamageBeltLeftRear, AssessmentFieldType.Enumerated, 20, Codes: BeltCodes),
-        new(DamageSpareTyre, AssessmentFieldType.Enumerated, 20, Codes: ["ok", "repair_kit", "missing", "damaged"]),
-        new(DamageCentreBelt, AssessmentFieldType.Enumerated, 20, Codes: ["ok", "locked", "not_fitted"]),
         new(DamageUnrelated, AssessmentFieldType.Text, 2000),
-        new(DamageUnrelatedDeduction, AssessmentFieldType.Money, 20),
-        new(DamageMaterialTransfer, AssessmentFieldType.Text, 2000),
         new(ValueRetail, AssessmentFieldType.Money, 20, MustBePositive: true),
         new(ValueTrade, AssessmentFieldType.Money, 20, MustBePositive: true),
         new(ValueEngineer, AssessmentFieldType.Money, 20, MustBePositive: true),
@@ -251,7 +201,6 @@ public static class AssessmentVocabulary
         new(RateManufacturerApproved, AssessmentFieldType.Flag, 5),
         new(RateRegionalUplift, AssessmentFieldType.Flag, 5),
         new(CostRecoveryCharge, AssessmentFieldType.Money, 20),
-        new(CostStorageCharge, AssessmentFieldType.Money, 20),
         new(Outcome, AssessmentFieldType.Enumerated, 20,
             Codes: ["total_loss", "repairable", "cash_in_lieu", "contract_repair"]),
         new(LegalStatus, AssessmentFieldType.Enumerated, 20,
@@ -272,16 +221,8 @@ public static class AssessmentVocabulary
         new(ReportValuationCommentaryText, AssessmentFieldType.Text, 4000),
         new(ReportIncludeUnrelatedDamage, AssessmentFieldType.Flag, 5),
         new(ReportDate, AssessmentFieldType.Date, 10),
-        new(SettlementExcess, AssessmentFieldType.Money, 20),
-        new(SettlementBetterment, AssessmentFieldType.Money, 20),
         new(SettlementClaimantVatRegistered, AssessmentFieldType.Flag, 5),
-        new(SettlementReserve, AssessmentFieldType.Money, 20),
-        new(SettlementRepairDelays, AssessmentFieldType.Text, 2000),
-        new(SettlementReportDelay, AssessmentFieldType.Text, 2000),
         new(SettlementStoragePerDay, AssessmentFieldType.Money, 20),
-        new(SettlementHireStart, AssessmentFieldType.Date, 10),
-        new(SettlementHireDailyCost, AssessmentFieldType.Money, 20),
-        new(SettlementDiminution, AssessmentFieldType.Money, 20),
         new(SettlementContractSum, AssessmentFieldType.Money, 20),
         // An Audit's original report (v28 P51): who wrote it, when, and what it found.
         new(OriginalReportAssessor, AssessmentFieldType.Text, 200),
@@ -290,13 +231,6 @@ public static class AssessmentVocabulary
             Codes: ["roadworthy", "unroadworthy"]),
         new(OriginalReportOutcome, AssessmentFieldType.Enumerated, 20,
             Codes: ["repairable", "total_loss", "cash_in_lieu", "contract_repair"]),
-        new(SettlementSalvageAt, AssessmentFieldType.Text, 400),
-        new(SettlementSalvageAgent, AssessmentFieldType.Text, 200),
-        new(SettlementSalvageAgentReference, AssessmentFieldType.Text, 100),
-        new(SettlementSalvageMoved, AssessmentFieldType.Flag, 5),
-        new(SettlementSalvageOwnerRetains, AssessmentFieldType.Flag, 5),
-        new(SettlementSalvageValueAgreed, AssessmentFieldType.Flag, 5),
-        new(SettlementSalvageSettled, AssessmentFieldType.Date, 10)
     ];
 
     public static IReadOnlyDictionary<string, AssessmentFieldDefinition> Definitions { get; } =

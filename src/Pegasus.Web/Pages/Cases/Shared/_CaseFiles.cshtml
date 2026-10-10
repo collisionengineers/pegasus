@@ -1,5 +1,6 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Core.Cases
+@using Pegasus.Core.Documents
 @using Pegasus.Web.Pages.Cases
 @using Pegasus.Web.Presentation
 @using TagLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ImageTags
@@ -19,6 +20,10 @@
     var imageCount = Model.CaseImageFiles.Count + Model.ImageIntakes.Sum(intake => Model.ImagesByIntake.GetValueOrDefault(intake.Id, []).Count);
     var correspondenceCount = correspondenceEmails.Count;
     var headTools = new CaseSectionHeadView(Model, "files");
+    // Pop out (operator, 9 October 2026): the Case's images in their own
+    // window, offered once one of them can be read; an image still arriving
+    // brings the button with it when it confirms. Absent, never disabled.
+    var hasReadableImage = Model.CaseImageFiles.Any(file => file.Version.CustodyStatus == DocumentCustodyStatus.Confirmed);
 }
 
 @* Files (v26 § Files): one panel, three tabs — Documents, Images and
@@ -27,7 +32,7 @@
    after the other, each under its own heading; script turns the strip on. An
    image's tags and crop live on its tile; where it sits in the report is the
    Report section's. *@
-<section class="record-section panel @Model.CollapsedClass("case.files") @Model.ActiveTabClass("files") @(Model.IsEditing && !Model.SectionIsEditable("files") ? "is-locked" : null)" id="section-files" data-section="files" data-collapse="case.files" aria-labelledby="section-files-title" data-file-tabs-wrap>
+<section class="record-section panel @Model.CollapsedClass("case.files") @(Model.IsEditing && !Model.SectionIsEditable("files") ? "is-locked" : null)" id="section-files" data-section="files" data-collapse="case.files" aria-labelledby="section-files-title" data-file-tabs-wrap>
     <div class="panel-head">
         <h2 id="section-files-title">@OperatorLabels.CaseWorkspace.FilesPanel</h2>
         @if (custodyConfirmed)
@@ -54,6 +59,13 @@
                 <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
                 <span>@OperatorLabels.CaseWorkspace.AddEvidence</span>
             </a>
+            @if (hasReadableImage)
+            {
+                <a class="btn btn--small" href="@CaseFileAddresses.ImagesWindow(Model.CurrentWorkflow!.CaseId)" target="_blank" rel="noopener" data-images-popout>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+                    <span>@FilesLabels.PopOut</span>
+                </a>
+            }
             @if (custodyConfirmed)
             {
                 <details class="menu" data-menu data-files-menu>

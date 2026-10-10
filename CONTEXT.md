@@ -190,4 +190,7 @@ The word “intake” never appears in operator-facing text (operator decision
 Reversible post-report Case states. A query received for or attached to a
 Completed Case moves it to Query; replying moves it back to Completed.
 There is no terminally closed Case state
-([FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md)).
+([FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md)). A dispute, a
+challenge to a delivered report or finding, is a query: there is no separate
+dispute type, count or column (operator, 9 October 2026).
+_Avoid_: Dispute as its own category

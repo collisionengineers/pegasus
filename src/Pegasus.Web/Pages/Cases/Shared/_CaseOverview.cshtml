@@ -63,7 +63,7 @@
     var claimSource = caseNotes?.ClaimSource;
 }
 
-<section class="record-section panel @Model.CollapsedClass("case.overview") @Model.ActiveTabClass("overview") @(Model.IsEditing && !Model.SectionIsEditable("overview") ? "is-locked" : null)" id="section-overview" data-section="overview" data-collapse="case.overview" aria-labelledby="section-overview-title">
+<section class="record-section panel @Model.CollapsedClass("case.overview") @(Model.IsEditing && !Model.SectionIsEditable("overview") ? "is-locked" : null)" id="section-overview" data-section="overview" data-collapse="case.overview" aria-labelledby="section-overview-title">
     <div class="panel-head">
         <h2 id="section-overview-title">Case details</h2>
         <div class="panel-actions">
@@ -125,8 +125,8 @@
             <div class="sub-panel @Model.CollapsedClass("case.overview.case")" data-collapse="case.overview.case"><h3>Case <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.overview.case")" /></h3>
                 @* Case type, Our ref and Principal are the ribbon's facts and are not repeated here (v36 item E, 9 October 2026). *@
                 <div class="fg g2">
-                    <div class="fc @Ro()">@{ Lbl("f-claim-reference", Frame.ClaimReference, claimNumberValue?.Source); }<div class="@ValueClass(claimNumber) mono">@Value(claimNumber)</div>@if (mayEdit){<input id="f-claim-reference" class="fi mono" name="claimNumber" form="case-edit-form" maxlength="200" value="@claimNumber" />}</div>
-                    <div class="fc @Ro()">@{ Lbl("f-incident-date", Frame.IncidentDate, incidentDateValue?.Source); }<div class="@ValueClass(incidentDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))">@Value(incidentDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))</div>@if (mayEdit){<input id="f-incident-date" class="fi" name="incidentDate" form="case-edit-form" type="date" value="@incidentDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
+                    <div class="fc @Ro()" data-field="@Pegasus.Core.Cases.CaseDataFieldNames.ClaimNumber">@{ Lbl("f-claim-reference", Frame.ClaimReference, claimNumberValue?.Source); }<div class="@ValueClass(claimNumber) mono">@Value(claimNumber)</div>@if (mayEdit){<input id="f-claim-reference" class="fi mono" name="claimNumber" form="case-edit-form" maxlength="200" value="@claimNumber" />}</div>
+                    <div class="fc @Ro()" data-field="@Pegasus.Core.Cases.CaseDataFieldNames.IncidentDate">@{ Lbl("f-incident-date", Frame.IncidentDate, incidentDateValue?.Source); }<div class="@ValueClass(incidentDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))">@Value(incidentDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))</div>@if (mayEdit){<input id="f-incident-date" class="fi" name="incidentDate" form="case-edit-form" type="date" value="@incidentDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
                     <div class="fc ro"><span class="lbl">@Frame.Received</span><div class="fv">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</div></div>
                     <div class="fc @Ro()">@{ Lbl("f-due-by", Frame.Due); }<div class="@ValueClass(dueBy?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))">@Value(dueBy?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))</div>@if (mayEdit){<input id="f-due-by" class="fi" name="dueBy" form="case-edit-form" type="date" value="@dueBy?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
                     @* The Sign-off Engineer (v28 P38): decided with the Case, not the report. *@

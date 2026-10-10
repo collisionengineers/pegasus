@@ -4,7 +4,6 @@
    fragment response is never a candidate for the record's own snapshot
    states and every other handler keeps the query-string form. *@
 @using Pegasus.Web.Presentation
-@using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
     ViewData["Title"] = Model.TriageCase is { } titledTriageCase
@@ -73,7 +72,7 @@
 <article class="record case-record @(editing ? "is-editing" : null)" id="case-record" data-case-record
          data-case-id="@summary.CaseId" data-case-version="@workflow.Version"
          data-editor-commit="@Model.CommittedEditorCommand"
-         data-layout="@Pegasus.Web.Presentation.ShellPreferences.CaseLayout(HttpContext.Request)" data-section-current="@Model.Section"
+         data-section-current="@Model.Section"
          data-case-editing="@(editing ? "true" : "false")" data-case-view="@Model.ViewRoute">
     @* The sticky block (v26 frame rule 1): the 56px ribbon and the 40px
        section row, measured by case-workspace.js into --sticky-h. *@
@@ -103,10 +102,6 @@
                     };
                 }
                 <partial name="Shared/_RefreshButton" />
-                <div class="layout-switch" role="group" aria-label="Case layout" data-case-layout-switch hidden>
-                    <button type="button" data-case-layout="scroll" aria-pressed="true">@Frame.Scroll</button>
-                    <button type="button" data-case-layout="tabs" aria-pressed="false">@Frame.Tabs</button>
-                </div>
             </div>
         </div>
     </div>
@@ -124,7 +119,7 @@
                 }
                 if (Model.SectionIsDeferred(entry.Key))
                 {
-                    <section class="record-section panel section-placeholder @Model.ActiveTabClass(entry.Key)" id="section-@entry.Key"
+                    <section class="record-section panel section-placeholder" id="section-@entry.Key"
                              data-section="@entry.Key" data-lazy="@entry.Key"
                              data-section-parent="@(DetailsModel.IsNestedSection(entry.Key) ? "vehicle" : null)"
                              aria-label="@entry.Label"></section>
@@ -179,5 +174,5 @@
     </div>
 </article>
 
-<div data-case-viewer-host><partial name="Cases/Shared/_CaseViewer" model="Model" /></div>
+<div data-case-viewer-host><partial name="Cases/Shared/_CaseViewer" model="@(new Pegasus.Web.Pages.Cases.CaseViewerView(Model.CurrentWorkflow!.CaseId, false))" /></div>
 <div data-case-dialogs><partial name="Cases/Shared/_CaseDialogs" model="Model" /></div>

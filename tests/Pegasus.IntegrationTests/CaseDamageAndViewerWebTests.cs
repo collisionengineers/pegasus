@@ -459,11 +459,7 @@ public sealed class CaseDamageAndViewerWebTests
                 ("editLeaseToken", store.LeaseToken),
                 ("reason", "Recorded damage observations"),
                 ("damageImpacts", closedBoundaryImpact),
-                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageTyreRightFront), "damaged"),
-                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageBeltLeftRear), "deployed"),
-                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelated), "Old rear bumper scrape"),
-                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelatedDeduction), "125.50"),
-                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageMaterialTransfer), "White paint transfer")));
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelated), "Old rear bumper scrape")));
         AssertPrg(saveResponse, store.CaseId);
 
         var damage = Assert.Single(store.Saves).Damage;
@@ -476,11 +472,7 @@ public sealed class CaseDamageAndViewerWebTests
         var drawn = damage.Impacts[1];
         Assert.Equal(["left_side", "right_side"], drawn.Areas);
         Assert.Equal(new DamageDisc(0.5, 0.53, 0.08), drawn.Disc);
-        Assert.Equal("damaged", damage.AssessmentFields![AssessmentVocabulary.DamageTyreRightFront]);
-        Assert.Equal("deployed", damage.AssessmentFields[AssessmentVocabulary.DamageBeltLeftRear]);
-        Assert.Equal("Old rear bumper scrape", damage.AssessmentFields[AssessmentVocabulary.DamageUnrelated]);
-        Assert.Equal("125.50", damage.AssessmentFields[AssessmentVocabulary.DamageUnrelatedDeduction]);
-        Assert.Equal("White paint transfer", damage.AssessmentFields[AssessmentVocabulary.DamageMaterialTransfer]);
+        Assert.Equal("Old rear bumper scrape", damage.AssessmentFields![AssessmentVocabulary.DamageUnrelated]);
     }
 
 }

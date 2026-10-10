@@ -974,6 +974,12 @@ the `CorrelationId` of its `ArtifactCustodyReconciliationAttempt` row in
 before the next try (`PendingCustodyRetryPolicy` in Core). A retained outcome,
 such as a Case with no folder yet, never waits.
 
+The sweep skips a version recorded in the last two minutes. That version still
+belongs to the request that recorded it, which is uploading it to Box. If the
+sweep uploaded it too, Box would refuse one of the two uploads with
+`name_temporarily_reserved`. That happened to a.QDOS26101's Glass's return on
+9 October 2026.
+
 ## Web start
 
 Web binds its port before any remote read. The data-protection key ring, the
@@ -1238,9 +1244,15 @@ it stopped.
 - `glass.details.profile` carries one flag, `profile=absent` or `multiple`
   (not exactly one `ere_profile` control), `disabled` (a launch found the
   control already locked), `enabled` (a continued session, a reopen or Fetch
-  again found it unlocked, so the vehicle shows no estimate) or `option` (the
-  configured profile is not the offered one before a start, or not the one
-  selected after it). After a start the portal locks the control with the
+  again found it unlocked, so the vehicle shows no estimate), `not-offered`
+  (before a start, the login offers no enabled option of the configured
+  profile) or `not-selected` (after a start, the one selected option is not
+  the configured profile). Every flag is followed by `required=<id>`, the
+  configured `Glass__RepairProfileId`. Glass's keeps repair profiles for the
+  organisation, so `not-offered` means the profile was removed or disabled
+  there, or the setting is wrong. A start whose answer was lost is read as
+  started only when the control is locked, so it keeps `not-offered` rather
+  than reporting `enabled`. After a start the portal locks the control with the
   profile that started the estimate selected, so a continued session, a reopen
   or Fetch again expects exactly that. `enabled` on a reopen of a spec's
   estimate (`Failed`) usually means the estimate was reset with the portal's
@@ -1314,9 +1326,11 @@ retain the session and collect provider startup evidence before closing it:
    They do not prove why the parent object was absent. Ask the supplier to
    identify the first failed startup dependency and establish explicit readiness
    before child dialog access. Do not patch provider JavaScript from Pegasus.
-5. Continuing a session, and reopening a spec's estimate, require unchanged
-   registration and mileage plus current Case edit authority. Restore the
-   original facts or close the external editor and use Close with a reason.
+5. Continuing a session, and reopening a spec's estimate, require an
+   unchanged registration on a real stock vehicle plus current Case edit
+   authority; a corrected mileage, or any change on a placeholder, continues.
+   Restore the original registration or close the external editor and use
+   Close with a reason. A session has no lifetime: a late Save & Exit lands.
    Unknown writes retain their hold; never clear credentials to get around it.
    A start that went unanswered on a recorded vehicle is asked again there
    when Glass's is pressed; a vehicle whose creation went unanswered is never

@@ -205,7 +205,7 @@ public sealed class CaseListReportTests
             Record(CaseType.Triage, state: null, triageState: TriageState.Open),
             Record(CaseType.Inspection, audit: Work()),
             Record(CaseType.Inspection) with { Activity = CaseListActivity.None with { Images = 1, ImagesInReport = 2 } },
-            Record(CaseType.Inspection) with { Activity = CaseListActivity.None with { Queries = 1, Disputes = 2 } }
+            Record(CaseType.Inspection) with { Activity = CaseListActivity.None with { Queries = 1, AmendmentRequests = 2 } }
         ];
 
         foreach (var record in invalid)

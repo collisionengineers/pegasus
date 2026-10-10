@@ -258,7 +258,7 @@ public sealed class CaseRecordGapsV26WebTests
         // The lookup's tag sits in the cell's label line; the box holds the value.
         Assert.Matches(
             new Regex(
-                $"data-vehicle-identity=\"{Regex.Escape(AssessmentVocabulary.VehicleVin)}\">\\s*<label[^>]*>[^<]*<span class=\"src-tag src-tag--lookup\" data-provenance-word=\"Lookup\">Lookup</span></label>\\s*<div class=\"fv mono\">WVWZZZ1JZXW000001</div>",
+                $"data-vehicle-identity=\"{Regex.Escape(AssessmentVocabulary.VehicleVin)}\" data-field=\"{Regex.Escape(AssessmentVocabulary.VehicleVin)}\">\\s*<label[^>]*>[^<]*<span class=\"src-tag src-tag--lookup\" data-provenance-word=\"Lookup\">Lookup</span></label>\\s*<div class=\"fv mono\">WVWZZZ1JZXW000001</div>",
                 RegexOptions.Singleline),
             vehicle);
         // The input's later attributes sit on the next source line, so the
@@ -313,7 +313,7 @@ public sealed class CaseRecordGapsV26WebTests
             // line, the value in the box and no control.
             Assert.Matches(
                 new Regex(
-                    $"<div class=\"fc ro\" data-vehicle-provenance-row=\"{Regex.Escape(path)}\">\\s*<span class=\"lbl\">{Regex.Escape(label)}<span class=\"src-tag src-tag--lookup\" data-provenance-word=\"Lookup\">Lookup</span></span>\\s*<div class=\"fv\">{Regex.Escape(read)}</div>",
+                    $"<div class=\"fc ro\" data-vehicle-provenance-row=\"{Regex.Escape(path)}\" data-field=\"{Regex.Escape(path)}\">\\s*<span class=\"lbl\">{Regex.Escape(label)}<span class=\"src-tag src-tag--lookup\" data-provenance-word=\"Lookup\">Lookup</span></span>\\s*<div class=\"fv\">{Regex.Escape(read)}</div>",
                     RegexOptions.Singleline),
                 vehicle);
             Assert.DoesNotContain(
@@ -368,172 +368,10 @@ public sealed class CaseRecordGapsV26WebTests
         var reading = SectionHtml(await ReadCaseAsync(store, ports.Register, section: "vehicle"), "vehicle");
         Assert.Matches(
             new Regex(
-                $"class=\"fc ro\" data-vehicle-identity=\"{Regex.Escape(AssessmentVocabulary.VehicleTransmission)}\">\\s*<span class=\"lbl\">{CaseWorkspaceLabels.Vehicle.Transmission}</span>\\s*<div class=\"fv\">CVT</div>",
+                $"class=\"fc ro\" data-vehicle-identity=\"{Regex.Escape(AssessmentVocabulary.VehicleTransmission)}\" data-field=\"{Regex.Escape(AssessmentVocabulary.VehicleTransmission)}\">\\s*<span class=\"lbl\">{CaseWorkspaceLabels.Vehicle.Transmission}</span>\\s*<div class=\"fv\">CVT</div>",
                 RegexOptions.Singleline),
             reading);
         Assert.DoesNotContain($"name=\"{name}\"", reading, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task TheDamageSectionRecordsWhichAirbagsDeployedBesideTheBelts()
-    {
-        var store = new RecordingCaseDetailsStore
-        {
-            State = CaseLifecycleState.ReportPreparation,
-            CaseState = CaseLifecycleState.ReportPreparation
-        };
-        var ports = new RecordGapPorts(store);
-        ports.Staff(AssessmentVocabulary.VehicleAirbagsDeployed, "Driver front");
-        using var workspace = await EnterEditModeAsync(store, ports.Register);
-
-        var damage = SectionHtml(await workspace.GetWorkspaceAsync(), "damage");
-        var name = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.VehicleAirbagsDeployed);
-        Assert.Contains(
-            $"<label for=\"edit-{AssessmentVocabulary.VehicleAirbagsDeployed}\">Airbags deployed</label>",
-            damage,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            $"name=\"{name}\" form=\"case-edit-form\" value=\"Driver front\" maxlength=\"200\"",
-            damage,
-            StringComparison.Ordinal);
-        // Beside the belts: after the material transfer, before the unrelated damage.
-        var transfer = damage.IndexOf(
-            $"name=\"{CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageMaterialTransfer)}\"", StringComparison.Ordinal);
-        var airbags = damage.IndexOf($"name=\"{name}\"", StringComparison.Ordinal);
-        var unrelated = damage.IndexOf(
-            $"name=\"{CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelated)}\"", StringComparison.Ordinal);
-        Assert.True(
-            transfer >= 0 && transfer < airbags && airbags < unrelated,
-            "The airbags must sit after the material transfer and before the unrelated damage.");
-
-        using var response = await SaveAsync(workspace, (name, "None"));
-
-        AssertPrg(response, store.CaseId);
-        var saved = Assert.Single(store.Saves);
-        Assert.Equal("None", saved.Damage!.AssessmentFields![AssessmentVocabulary.VehicleAirbagsDeployed]);
-        Assert.Null(saved.Vehicle);
-
-        // Damage is never a lazy section, so a read without the lease carries it.
-        var reading = SectionHtml(await ReadCaseAsync(store, ports.Register), "damage");
-        Assert.Contains("<span class=\"lbl\">Airbags deployed</span>", reading, StringComparison.Ordinal);
-        Assert.Contains("<div class=\"fv\">Driver front</div>", reading, StringComparison.Ordinal);
-        Assert.DoesNotContain($"name=\"{name}\"", reading, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task TheDecisionsCarryTemporaryRepairsOnlyForAnUnroadworthyVehicle()
-    {
-        string[] paths =
-        [
-            AssessmentVocabulary.VehicleTemporaryRepairsPossible,
-            AssessmentVocabulary.VehicleTemporaryRepairMethod,
-            AssessmentVocabulary.VehicleTemporaryRepairCost
-        ];
-
-        // Roadworthy: the rows are hidden, and their controls still join the one Save form.
-        var roadworthy = new RecordingCaseDetailsStore
-        {
-            State = CaseLifecycleState.ReportPreparation,
-            CaseState = CaseLifecycleState.ReportPreparation
-        };
-        var roadworthyPorts = new RecordGapPorts(roadworthy);
-        roadworthyPorts.Staff(AssessmentVocabulary.LegalStatus, "roadworthy");
-        using (var hidden = await EnterEditModeAsync(roadworthy, roadworthyPorts.Register))
-        {
-            var decisions = SectionHtml(await hidden.GetWorkspaceAsync(), "settlement");
-            foreach (var path in paths)
-            {
-                Assert.Contains(
-                    $"<div class=\"dec\" data-decision=\"{path}\" data-shown-when=\"unroadworthy\" hidden=\"hidden\">",
-                    decisions,
-                    StringComparison.Ordinal);
-                Assert.Matches(
-                    $"<(input|textarea|select)[^>]*name=\"{Regex.Escape(CaseWorkspaceLabels.Editors.FormName(path))}\"[^>]*form=\"case-edit-form\"",
-                    decisions);
-            }
-        }
-
-        var store = new RecordingCaseDetailsStore
-        {
-            State = CaseLifecycleState.ReportPreparation,
-            CaseState = CaseLifecycleState.ReportPreparation
-        };
-        var ports = new RecordGapPorts(store);
-        ports.Staff(AssessmentVocabulary.LegalStatus, "unroadworthy");
-        ports.Staff(AssessmentVocabulary.UnroadworthyReason, "Brake line severed");
-        ports.Staff(AssessmentVocabulary.VehicleTemporaryRepairsPossible, "true");
-        ports.Staff(AssessmentVocabulary.VehicleTemporaryRepairMethod, "Cable-tie the bumper");
-        ports.Staff(AssessmentVocabulary.VehicleTemporaryRepairCost, "45.00");
-        using var workspace = await EnterEditModeAsync(store, ports.Register);
-
-        var settlement = SectionHtml(await workspace.GetWorkspaceAsync(), "settlement");
-        foreach (var path in paths)
-        {
-            Assert.Contains(
-                $"<div class=\"dec\" data-decision=\"{path}\" data-shown-when=\"unroadworthy\">",
-                settlement,
-                StringComparison.Ordinal);
-        }
-        var possible = Regex.Match(
-            settlement,
-            "<select id=\"f-vehicle-temporary-repairs-possible\"[^>]*>(?<options>.*?)</select>",
-            RegexOptions.Singleline);
-        Assert.True(possible.Success, "The temporary repairs select must render.");
-        Assert.Contains(
-            "<option value=\"true\" selected=\"selected\">Yes</option>",
-            possible.Groups["options"].Value,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            $"<textarea id=\"f-vehicle-temporary-repair-method\" class=\"fi\" name=\"{CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.VehicleTemporaryRepairMethod)}\" form=\"case-edit-form\" maxlength=\"2000\">Cable-tie the bumper</textarea>",
-            settlement,
-            StringComparison.Ordinal);
-        // The input's later attributes sit on the next source lines.
-        Assert.Matches(
-            $"name=\"{Regex.Escape(CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.VehicleTemporaryRepairCost))}\" form=\"case-edit-form\" value=\"45\\.00\"\\s+type=\"number\"\\s+step=\"0\\.01\"",
-            settlement);
-        // They follow the unroadworthy reason, in order.
-        var reason = settlement.IndexOf(
-            $"data-decision=\"{AssessmentVocabulary.UnroadworthyReason}\"", StringComparison.Ordinal);
-        var order = paths.Select(path => settlement.IndexOf($"data-decision=\"{path}\"", StringComparison.Ordinal)).ToArray();
-        Assert.True(
-            reason >= 0 && reason < order[0] && order[0] < order[1] && order[1] < order[2],
-            "The temporary repair rows must follow the unroadworthy reason in order.");
-
-        using var response = await SaveAsync(
-            workspace,
-            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.VehicleTemporaryRepairsPossible), "false"),
-            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.VehicleTemporaryRepairMethod), "Tape the lamp"),
-            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.VehicleTemporaryRepairCost), "12.50"));
-
-        AssertPrg(response, store.CaseId);
-        var saved = Assert.Single(store.Saves);
-        var fields = saved.Settlement!.AssessmentFields!;
-        Assert.Equal("false", fields[AssessmentVocabulary.VehicleTemporaryRepairsPossible]);
-        Assert.Equal("Tape the lamp", fields[AssessmentVocabulary.VehicleTemporaryRepairMethod]);
-        Assert.Equal("12.50", fields[AssessmentVocabulary.VehicleTemporaryRepairCost]);
-        Assert.Null(saved.Vehicle);
-        Assert.Null(saved.Damage);
-
-        var reading = WebUtility.HtmlDecode(SectionHtml(await ReadCaseAsync(store, ports.Register), "settlement"));
-        foreach (var (path, read) in new[]
-        {
-            (AssessmentVocabulary.VehicleTemporaryRepairsPossible, "Yes"),
-            (AssessmentVocabulary.VehicleTemporaryRepairMethod, "Cable-tie the bumper"),
-            (AssessmentVocabulary.VehicleTemporaryRepairCost, "£45.00")
-        })
-        {
-            Assert.Contains(
-                $"<div class=\"dec\" data-decision=\"{path}\" data-shown-when=\"unroadworthy\">",
-                reading,
-                StringComparison.Ordinal);
-            Assert.Matches(
-                new Regex(
-                    $"<div class=\"fc ro\" data-field=\"{Regex.Escape(path)}\">\\s*<span class=\"lbl\">{Regex.Escape(CaseWorkspaceLabels.Editors.Settlement[path])}</span>\\s*<div class=\"fv[^\"]*\">{Regex.Escape(read)}</div>",
-                    RegexOptions.Singleline),
-                reading);
-            Assert.DoesNotContain(
-                $"name=\"{CaseWorkspaceLabels.Editors.FormName(path)}\"", reading, StringComparison.Ordinal);
-        }
     }
 
     /// <summary>
@@ -553,7 +391,6 @@ public sealed class CaseRecordGapsV26WebTests
         ports.Automation(AssessmentVocabulary.Outcome, "repairable");
         ports.Staff(AssessmentVocabulary.LegalStatus, "unroadworthy");
         ports.Staff(AssessmentVocabulary.UnroadworthyReason, "Brake line severed");
-        ports.Automation(AssessmentVocabulary.VehicleTemporaryRepairsPossible, "true");
         using var workspace = await EnterEditModeAsync(store, ports.Register);
 
         var settlement = SectionHtml(await workspace.GetWorkspaceAsync(), "settlement");
@@ -570,17 +407,11 @@ public sealed class CaseRecordGapsV26WebTests
             RegexOptions.Singleline);
         Assert.True(outcome.Success, "The outcome select must render.");
         Assert.Contains("value=\"repairable\" selected=\"selected\"", outcome.Groups["options"].Value, StringComparison.Ordinal);
-        var control = Regex.Match(
-            settlement,
-            "<select id=\"f-vehicle-temporary-repairs-possible\"[^>]*>(?<options>.*?)</select>",
-            RegexOptions.Singleline);
-        Assert.True(control.Success, "The temporary repairs select must render.");
-        Assert.Contains("value=\"true\" selected=\"selected\"", control.Groups["options"].Value, StringComparison.Ordinal);
         // The strip hides the cell's own label, so the AI value's source tag
         // is in the row's visible label column.
         Assert.Matches(
             new Regex(
-                $"<div class=\"dec\" data-decision=\"{Regex.Escape(AssessmentVocabulary.VehicleTemporaryRepairsPossible)}\"[^>]*>\\s*"
+                $"<div class=\"dec\" data-decision=\"{Regex.Escape(AssessmentVocabulary.Outcome)}\"[^>]*>\\s*"
                     + "<span class=\"dl\">[^<]*<span class=\"src-tag src-tag--ai\" data-provenance-word=\"AI\">AI</span></span>",
                 RegexOptions.Singleline),
             settlement);
@@ -639,10 +470,10 @@ public sealed class CaseRecordGapsV26WebTests
     }
 
     [Theory]
-    [InlineData("pegasus-rail=collapsed; pegasus-case-layout=tabs; pegasus-collapsed=case.report|case.notes", true)]
-    [InlineData("pegasus-rail=sideways; pegasus-case-layout=grid; pegasus-collapsed=CASE.REPORT|case report|case.report-with-a-key-far-longer-than-forty-chars", false)]
+    [InlineData("pegasus-rail=collapsed; pegasus-collapsed=case.report|case.notes", true)]
+    [InlineData("pegasus-rail=sideways; pegasus-collapsed=CASE.REPORT|case report|case.report-with-a-key-far-longer-than-forty-chars", false)]
     [InlineData(null, false)]
-    public async Task TheRailLayoutAndFoldedPanelsArePaintedFromTheirCookies(string? cookie, bool remembered)
+    public async Task TheRailAndFoldedPanelsArePaintedFromTheirCookies(string? cookie, bool remembered)
     {
         var store = new RecordingCaseDetailsStore();
         using var baseFactory = new IntakeWebApplicationFactory();
@@ -667,7 +498,6 @@ public sealed class CaseRecordGapsV26WebTests
 
         var shell = Regex.Match(html, "<div class=\"(?<classes>app-shell[^\"]*)\" data-app-shell>").Groups["classes"].Value;
         var toggle = Regex.Match(html, "<button[^>]*data-rail-toggle[^>]*>").Value;
-        var record = Regex.Match(html, "<article class=\"record case-record[^>]*>", RegexOptions.Singleline).Value;
         var overviewTag = Regex.Match(html, "<section class=\"[^\"]*\" id=\"section-overview\"").Value;
         // The Report section is never deferred, so its own markup (not a lazy
         // placeholder) carries the fold on a read-only visit.
@@ -677,8 +507,6 @@ public sealed class CaseRecordGapsV26WebTests
         {
             Assert.Contains("rail-collapsed", shell, StringComparison.Ordinal);
             Assert.Contains("aria-expanded=\"false\"", toggle, StringComparison.Ordinal);
-            Assert.Contains("data-layout=\"tabs\"", record, StringComparison.Ordinal);
-            Assert.Contains("is-active", overviewTag, StringComparison.Ordinal);
             Assert.Contains("is-collapsed", vehicleTag, StringComparison.Ordinal);
             Assert.Contains("aria-expanded=\"false\"", vehicleChevron, StringComparison.Ordinal);
             Assert.DoesNotContain("is-collapsed", overviewTag, StringComparison.Ordinal);
@@ -687,8 +515,6 @@ public sealed class CaseRecordGapsV26WebTests
         {
             Assert.DoesNotContain("rail-collapsed", shell, StringComparison.Ordinal);
             Assert.Contains("aria-expanded=\"true\"", toggle, StringComparison.Ordinal);
-            Assert.Contains("data-layout=\"scroll\"", record, StringComparison.Ordinal);
-            Assert.DoesNotContain("is-active", overviewTag, StringComparison.Ordinal);
             Assert.DoesNotContain("is-collapsed", vehicleTag, StringComparison.Ordinal);
             Assert.Contains("aria-expanded=\"true\"", vehicleChevron, StringComparison.Ordinal);
         }

@@ -35,10 +35,9 @@ Do not turn the ribbon into a button shelf.
 The section row owns:
 
 - section navigation;
-- Refresh;
-- Scroll/Tabs switch.
+- Refresh.
 
-Scroll remains the default unless the operator explicitly changes it.
+The page always scrolls; there is no Tabs layout (operator, 9 October 2026).
 
 There is no working-set strip above the ribbon, and no strip of view tabs replaces it.
 
@@ -54,7 +53,7 @@ An Inspection + Audit Case whose Audit has been created has two views of one rec
   server-rendered). The Audit view is the default. Without an Audit there is no card and `view`
   is ignored; a standalone Audit and a Triage Case have one view.
 - Do not add a view switch to the ribbon or the section row, and do not put the Audit reference on
-  the ribbon. The Scroll/Tabs switch is unchanged.
+  the ribbon.
 - **The Inspection view edits the Inspection's own values** (operator, 2 October 2026): the
   same section-head Edit, the one Case lease and the one Save form as the Audit view, in the
   same geometry. Do not reintroduce a read-only label or a per-view lease. A save there changes
@@ -98,7 +97,9 @@ Important ownership decisions:
 - Case details contains the Notes band/current overview facts, not a second Notes timeline.
 - Claim contains claimant and claim facts; Original report belongs only to Audit Cases.
 - Inspection owns inspection and storage-location details; Storage per day and Recovery charge are
-  Engineer figures recorded in Decisions' Costs, hire & delays (operator, 9 October 2026).
+  Engineer figures recorded in Decisions (operator, 9 October 2026). Decisions has no Costs, hire &
+  delays or Salvage sub-panel, and no temporary repair rows: the facts no document printed are no
+  longer recorded (operator, 9 October 2026).
 - Vehicle owns one accepted mileage field with provenance rows, not multiple competing mileage boxes.
 - Damage owns the Plan damage clicker and engineering damage facts.
 - Valuation owns the guide cards, the valuation calculation, the Engineer's Value box and the On the report content switches.
@@ -182,7 +183,7 @@ The sources are guide cards in a grid (operator, 8 October 2026). In order:
 2. Value increases: every active preset with its figure, then Add 20 % VAT with its amount, then
    two Other… rows, in two columns;
 3. the deductions: Condition deduction, then a Previous total loss tick box with a −10 % / −20 %
-   switch (the field's radios on the Scroll / Tabs switch's look);
+   switch (the field's radios on the `case-layout-switch` look);
 4. the Engineer's Value: the one box, with "from {source} retail", "None yet" or Core's reason
    beside it;
 5. On the report, as one line.
@@ -290,6 +291,9 @@ Files is the Case evidence home.
 Preserve:
 
 - image tiles and full-screen viewer;
+- Pop out (operator, 9 October 2026): the Files head's and the viewer's buttons open the
+  Case's images in their own window, `/Cases/{id}/Images`, which is the read-mode tiles under
+  the same viewer and holds no lease: no Crop, Tag or In report there, and no Pop out of its own;
 - tag picker using the shared menu convention;
 - crop on the viewer stage;
 - original Download semantics;
@@ -328,7 +332,6 @@ Any Case UI change should be checked against:
 - 1580px and smaller-desktop rendered views;
 - read and edit modes when the feature is editable;
 - colleague-editing / blocked state when the change touches edit authority;
-- Scroll/Tabs if the change affects section presentation;
 - both views, each editing its own work, when the Case has an Audit.
 
 A feature addition does not authorize moving existing fields/actions to make room. Fit the feature

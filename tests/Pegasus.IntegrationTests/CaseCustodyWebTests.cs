@@ -393,7 +393,7 @@ public sealed class CaseCustodyWebTests
                     null,
                     null,
                     "Sender unavailable",
-                    MailCategory.Received(ReceivedMailFamily.PostReportEmails, "dispute"))
+                    MailCategory.Received(ReceivedMailFamily.PostReportEmails, "amendment-request"))
             ]
         };
         using var baseFactory = new IntakeWebApplicationFactory();

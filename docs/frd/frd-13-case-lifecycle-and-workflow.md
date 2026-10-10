@@ -193,8 +193,8 @@ association never links new material to an archived Case.
 
 ### Completed and Query
 
-The Engineer answers queries and disputes from the Principal, a third-party
-insurer or the claimant. When a query is received for, or attached to, a
+The Engineer answers queries from the Principal, a third-party insurer or
+the claimant; a dispute is a query. When a query is received for, or attached to, a
 Completed Case, the Case moves to Query. Replying moves it back to Completed.
 Correcting a linked message's classification to a post-report family attaches
 a query in the same way. Correcting it away, or unlinking it, before any reply

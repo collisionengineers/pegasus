@@ -239,7 +239,6 @@ public sealed class CaseEngineerSectionsWebTests
                 Field(AssessmentVocabulary.SalvageCategory, "S"),
                 Field(AssessmentVocabulary.SalvageValue, "750.00"),
                 Field(AssessmentVocabulary.CostRecoveryCharge, "120.00"),
-                Field(AssessmentVocabulary.CostStorageCharge, "80.00"),
                 Field(AssessmentVocabulary.EngineersComments, "Engineer comments recorded"),
                 Field(AssessmentVocabulary.HistoryCheck, "History clear"),
                 Field(AssessmentVocabulary.AgreedFee, "120.00"),

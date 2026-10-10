@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Reports;
 using Pegasus.Web.Presentation;
 using System.Text;
@@ -14,8 +15,10 @@ public sealed class ReportsModel(
     GetEngineerActivityReport engineerReport,
     GetV1ActivityReport principalActivityReport,
     GetMonthlyReportActivity monthlyActivity,
+    GetReportOutcomes reportOutcomes,
     ExportAdministrationReports export,
     IStaffAccountQueries staffAccounts,
+    IUnidentifiedStore unidentifiedStore,
     GetCaseList getCaseList,
     ExportCaseList exportCaseList,
     ListCaseListPresets listCaseListPresets,
@@ -25,50 +28,141 @@ public sealed class ReportsModel(
 {
     public const string WorkbookMediaType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
+    /// <summary>The Period choices (item H) by their query value.</summary>
+    public static IReadOnlyList<(string Value, ReportPeriod Period, string Label)> Periods { get; } =
+    [
+        ("this-month", ReportPeriod.ThisMonth, "This month"),
+        ("last-month", ReportPeriod.LastMonth, "Last month"),
+        ("this-quarter", ReportPeriod.ThisQuarter, "This quarter"),
+        ("last-12-months", ReportPeriod.Last12Months, "Last 12 months"),
+        ("custom", ReportPeriod.Custom, "Custom")
+    ];
+
+    /// <summary>The Work choices (item D): every report, or one work's.</summary>
+    public static IReadOnlyList<(string Value, string Label)> Works { get; } =
+        [("all", "All"), ("inspection", "Inspection"), ("audit", "Audit")];
+
     [BindProperty(SupportsGet = true, Name = "from")] public DateTime? From { get; set; }
     [BindProperty(SupportsGet = true, Name = "to")] public DateTime? To { get; set; }
+    [BindProperty(SupportsGet = true, Name = "period")] public string? Period { get; set; }
     [BindProperty(SupportsGet = true, Name = "engineerId")] public Guid? EngineerId { get; set; }
 
-    /// <summary>MI-01's sort: <c>person</c>, <c>queries</c> or <c>reports</c>; anything else is the default order.</summary>
+    /// <summary>Engineer activity's sort: <c>person</c>, <c>queries</c> or <c>reports</c>; anything else is the default order.</summary>
     [BindProperty(SupportsGet = true, Name = "sort")] public string? Sort { get; set; }
 
-    /// <summary>MI-01's direction: <c>desc</c> or anything else for ascending.</summary>
+    /// <summary>Engineer activity's direction: <c>desc</c> or anything else for ascending.</summary>
     [BindProperty(SupportsGet = true, Name = "dir")] public string? Direction { get; set; }
+
+    /// <summary>Reports by Principal's sort: <c>code</c>, <c>produced</c>, <c>sent</c> or <c>fees</c> (item P).</summary>
+    [BindProperty(SupportsGet = true, Name = "msort")] public string? PrincipalSort { get; set; }
+
+    [BindProperty(SupportsGet = true, Name = "mdir")] public string? PrincipalDirection { get; set; }
+
+    /// <summary>Reports by Principal's Work choice: <c>all</c>, <c>inspection</c> or <c>audit</c>.</summary>
+    [BindProperty(SupportsGet = true, Name = "work")] public string? Work { get; set; }
+
+    /// <summary>By month's Work choice.</summary>
+    [BindProperty(SupportsGet = true, Name = "workm")] public string? MonthWork { get; set; }
+
+    /// <summary>From after To, or longer than a year: the period bar says so and no report is read (item B2).</summary>
+    public bool PeriodInvalid { get; private set; }
 
     public EngineerActivityReport EngineerResult { get; private set; } = new(default, default, []);
     public bool EngineerActivityUnavailable { get; private set; }
-    public IReadOnlyList<StaffAccountSummary> People { get; private set; } = [];
+
+    /// <summary>The Person choices: the staff with activity in the period, and the chosen person (item N).</summary>
+    public IReadOnlyList<(Guid Id, string Name)> People { get; private set; } = [];
 
     /// <summary>
-    /// The MI-02/MI-03 per-Principal read for the same period. <see langword="null"/>
-    /// means the query failed or returned invalid data; the page renders that
-    /// as an unavailable state rather than a false zero.
+    /// The per-Principal read for the period. <see langword="null"/> means the
+    /// query failed or returned invalid data; the page renders that as an
+    /// unavailable state rather than a false zero.
     /// </summary>
     public PrincipalReportActivityReport? PrincipalActivity { get; private set; }
 
-    /// <summary>MI-02's month breakdown; <see langword="null"/> when its query failed.</summary>
+    /// <summary>By month; <see langword="null"/> when its query failed.</summary>
     public IReadOnlyList<MonthlyReportActivity>? Monthly { get; private set; }
+
+    /// <summary>Outcomes (item O); <see langword="null"/> when its query failed.</summary>
+    public ReportOutcomesReport? Outcomes { get; private set; }
+
+    /// <summary>The open Unidentified queue now (item E); <see langword="null"/> when it could not be read.</summary>
+    public (int Count, DateTimeOffset? OldestReceivedAtUtc)? Unidentified { get; private set; }
+
+    /// <summary>The same reports for the period just before (item G); absent when they could not be read.</summary>
+    public EngineerActivityReport? PreviousEngineer { get; private set; }
+
+    public PrincipalReportActivityReport? PreviousPrincipal { get; private set; }
+
+    public string PeriodValue => Periods.Any(item => item.Value == Period) ? Period! : "custom";
+
+    public string WorkValue => Works.Any(item => item.Value == Work) ? Work! : "all";
+
+    public string MonthWorkValue => Works.Any(item => item.Value == MonthWork) ? MonthWork! : "all";
 
     public bool Descending => string.Equals(Direction, "desc", StringComparison.OrdinalIgnoreCase);
 
-    public int MostReportsSent => EngineerResult.Rows.Count == 0 ? 0 : EngineerResult.Rows.Max(row => row.ReportsSent);
+    public bool PrincipalDescending => string.Equals(PrincipalDirection, "desc", StringComparison.OrdinalIgnoreCase);
 
-    public int MostQueriesReceived => EngineerResult.Rows.Count == 0 ? 0 : EngineerResult.Rows.Max(row => row.QueriesReceived);
+    /// <summary>A count's first click sorts largest first; a name's smallest first; a second click reverses (item P).</summary>
+    public string SortDirectionFor(string column) => NextDirection(Sort, Descending, column, column == "person");
 
-    public string SortDirectionFor(string column) =>
-        string.Equals(Sort, column, StringComparison.OrdinalIgnoreCase) && !Descending ? "desc" : "asc";
+    public string PrincipalSortDirectionFor(string column) => NextDirection(PrincipalSort, PrincipalDescending, column, column == "code");
 
-    public string SortArrow(string column) =>
-        string.Equals(Sort, column, StringComparison.OrdinalIgnoreCase) ? (Descending ? "↓" : "↑") : string.Empty;
+    public string? AriaSort(string column) => AriaSortOf(Sort, Descending, column);
 
-    public string? AriaSort(string column) =>
-        string.Equals(Sort, column, StringComparison.OrdinalIgnoreCase) ? (Descending ? "descending" : "ascending") : null;
+    public string? PrincipalAriaSort(string column) => AriaSortOf(PrincipalSort, PrincipalDescending, column);
 
-    /// <summary>MI-02's split column: the measure's own label with the work it counts, e.g. "Reports produced · Inspection".</summary>
-    public static string InspectionColumn(string measure) => ReportColumnTitles.Inspection(measure);
+    /// <summary>A Reports by Principal measure for the chosen work.</summary>
+    public int Produced(PrincipalReportActivity row) => ByWork(WorkValue, row.ReportsProduced, row.InspectionReportsProduced, row.AuditReportsProduced);
 
-    /// <summary>MI-02's split column: the measure's own label with the work it counts, e.g. "Agreed fees · Audit".</summary>
-    public static string AuditColumn(string measure) => ReportColumnTitles.Audit(measure);
+    public int Sent(PrincipalReportActivity row) => ByWork(WorkValue, row.Sent, row.InspectionSent, row.AuditSent);
+
+    public decimal Fees(PrincipalReportActivity row) => ByWork(WorkValue, row.AgreedFeeTotal, row.InspectionAgreedFeeTotal, row.AuditAgreedFeeTotal);
+
+    /// <summary>A By month measure for its own Work choice.</summary>
+    public (int Produced, int FeeNotes, int Sent, decimal Fees) MonthFigures(MonthlyReportActivity row) => MonthWorkValue switch
+    {
+        "inspection" => (row.InspectionReportsGenerated, row.InspectionFeeNotesGenerated, row.InspectionSent, row.InspectionAgreedFeeTotal),
+        "audit" => (row.AuditReportsGenerated, row.AuditFeeNotesGenerated, row.AuditSent, row.AuditAgreedFeeTotal),
+        _ => (row.ReportsGenerated, row.FeeNotesGenerated, row.Sent, row.AgreedFeeTotal)
+    };
+
+    /// <summary>Reports by Principal's rows: a Principal with anything produced or sent, in the chosen order.</summary>
+    public IReadOnlyList<PrincipalReportActivity> PrincipalRows => PrincipalActivity is { } report
+        ? SortedPrincipals(report.Rows.Where(row => row.ReportsProduced > 0 || row.Sent > 0))
+        : [];
+
+    /// <summary>
+    /// The page's state as query values, so a sort, a Work choice, Person and
+    /// the period survive every link and form on the page (finding 7).
+    /// Each override replaces a value; a null drops it.
+    /// </summary>
+    public Dictionary<string, string> State(params (string Key, string? Value)[] overrides)
+    {
+        var state = new Dictionary<string, string>(StringComparer.Ordinal);
+        void Set(string key, string? value)
+        {
+            if (!string.IsNullOrEmpty(value)) state[key] = value; else state.Remove(key);
+        }
+
+        Set("period", PeriodValue == "custom" ? null : PeriodValue);
+        Set("from", From?.ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture));
+        Set("to", To?.ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture));
+        Set("engineerId", EngineerId?.ToString("D"));
+        Set("sort", Sort);
+        Set("dir", Sort is null ? null : Direction);
+        Set("msort", PrincipalSort);
+        Set("mdir", PrincipalSort is null ? null : PrincipalDirection);
+        Set("work", WorkValue == "all" ? null : WorkValue);
+        Set("workm", MonthWorkValue == "all" ? null : MonthWorkValue);
+        foreach (var (key, value) in overrides)
+        {
+            Set(key, value);
+        }
+
+        return state;
+    }
 
     /// <summary>The Case list preset whose columns the page ticks.</summary>
     [BindProperty(SupportsGet = true, Name = "preset")] public Guid? PresetId { get; set; }
@@ -85,7 +179,7 @@ public sealed class ReportsModel(
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
-        if (!await LoadAsync(cancellationToken)) return Forbid();
+        if (!await LoadAsync(previous: true, cancellationToken)) return Forbid();
         await LoadCaseListAsync(null, cancellationToken);
         return Page();
     }
@@ -249,7 +343,7 @@ public sealed class ReportsModel(
     /// <summary>The page again, with the Case list form as posted and the reason it was refused.</summary>
     private async Task<IActionResult> RedisplayAsync(CaseListInput input, string message, CancellationToken cancellationToken)
     {
-        if (!await LoadAsync(cancellationToken)) return Forbid();
+        if (!await LoadAsync(previous: true, cancellationToken)) return Forbid();
         await LoadCaseListAsync(input, cancellationToken);
         CaseListError = message;
         return Page();
@@ -294,124 +388,136 @@ public sealed class ReportsModel(
             ? $"case-list-{from:yyyy-MM-dd}-{to:yyyy-MM-dd}.{extension}"
             : $"case-list-all-time.{extension}";
 
-    public async Task<IActionResult> OnGetCsvAsync(CancellationToken cancellationToken)
-    {
-        if (!await LoadAsync(cancellationToken)) return Forbid();
-        if (ReportsUnavailable) return StatusCode(StatusCodes.Status422UnprocessableEntity);
-        return File(
-            Encoding.UTF8.GetBytes(EngineerActivityReportCsv.ToCsv(EngineerResult.Rows)),
-            "text/csv; charset=utf-8",
-            "engineer-activity.csv");
-    }
+    // Each report's CSV is its sheet, and refuses only when its own read
+    // failed (item L); the workbook needs every report.
+    public Task<IActionResult> OnGetCsvAsync(CancellationToken cancellationToken) =>
+        CsvAsync(() => EngineerActivityUnavailable ? null : AdministrationReportTables.EngineerActivity(EngineerResult, OperatorAdministrationReportLabels.Instance), "engineer-activity.csv", cancellationToken);
 
-    public async Task<IActionResult> OnGetPrincipalCsvAsync(CancellationToken cancellationToken)
-    {
-        if (!await LoadAsync(cancellationToken)) return Forbid();
-        if (ReportsUnavailable) return StatusCode(StatusCodes.Status422UnprocessableEntity);
-        return File(
-            Encoding.UTF8.GetBytes(ReportsByPrincipalCsv(PrincipalActivity)),
-            "text/csv; charset=utf-8",
-            "reports-by-principal.csv");
-    }
+    public Task<IActionResult> OnGetPrincipalCsvAsync(CancellationToken cancellationToken) =>
+        CsvAsync(() => PrincipalActivity is { } report ? AdministrationReportTables.ReportsByPrincipal(report with { Rows = PrincipalRows }) : null, "reports-by-principal.csv", cancellationToken);
 
-    public async Task<IActionResult> OnGetTurnaroundCsvAsync(CancellationToken cancellationToken)
-    {
-        if (!await LoadAsync(cancellationToken)) return Forbid();
-        if (ReportsUnavailable) return StatusCode(StatusCodes.Status422UnprocessableEntity);
-        return File(
-            Encoding.UTF8.GetBytes(TurnaroundCsv(PrincipalActivity)),
-            "text/csv; charset=utf-8",
-            "turnaround.csv");
-    }
+    public Task<IActionResult> OnGetMonthsCsvAsync(CancellationToken cancellationToken) =>
+        CsvAsync(() => Monthly is { } months ? AdministrationReportTables.ByMonth(months) : null, "by-month.csv", cancellationToken);
 
-    /// <summary>Every report for the period as one workbook, a sheet each plus the month breakdown.</summary>
+    public Task<IActionResult> OnGetOutcomesCsvAsync(CancellationToken cancellationToken) =>
+        CsvAsync(() => Outcomes is { } outcomes ? AdministrationReportTables.Outcomes(outcomes) : null, "outcomes.csv", cancellationToken);
+
+    public Task<IActionResult> OnGetTurnaroundCsvAsync(CancellationToken cancellationToken) =>
+        CsvAsync(() => PrincipalActivity is { } report ? AdministrationReportTables.Turnaround(report, OperatorAdministrationReportLabels.Instance) : null, "turnaround.csv", cancellationToken);
+
+    public Task<IActionResult> OnGetQueuesCsvAsync(CancellationToken cancellationToken) =>
+        CsvAsync(() => PrincipalActivity is { } report ? AdministrationReportTables.Queues(report) : null, "queues.csv", cancellationToken);
+
+    /// <summary>Every report for the period as one workbook, a sheet each.</summary>
     public async Task<IActionResult> OnGetWorkbookAsync(CancellationToken cancellationToken)
     {
-        if (!await LoadAsync(cancellationToken)) return Forbid();
+        if (!await LoadAsync(previous: false, cancellationToken)) return Forbid();
         if (!TryGetActor(out var actor)) return Forbid();
-        if (EngineerActivityUnavailable || PrincipalActivity is null || Monthly is null)
+        if (PeriodInvalid || EngineerActivityUnavailable || PrincipalActivity is null || Monthly is null || Outcomes is null)
         {
             return StatusCode(StatusCodes.Status422UnprocessableEntity);
         }
 
-        var bytes = export.Execute(actor, EngineerResult, PrincipalActivity, Monthly);
+        var bytes = export.Execute(
+            actor,
+            EngineerResult,
+            PrincipalActivity,
+            Monthly,
+            Outcomes,
+            OperatorAdministrationReportLabels.Instance);
         var from = LondonCalendar.DateAt(EngineerResult.FromUtc).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         var to = LondonCalendar.DateAt(EngineerResult.ToUtc).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         return File(bytes, WorkbookMediaType, $"administration-reports-{from}-{to}.xlsx");
     }
 
-    private bool ReportsUnavailable => EngineerActivityUnavailable || PrincipalActivity is null || Monthly is null;
+    private async Task<IActionResult> CsvAsync(Func<WorkbookSheet?> sheet, string fileName, CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(previous: false, cancellationToken)) return Forbid();
+        return !PeriodInvalid && sheet() is { } table
+            ? File(Encoding.UTF8.GetBytes(WorkbookSheetCsv.Write(table)), "text/csv; charset=utf-8", fileName)
+            : StatusCode(StatusCodes.Status422UnprocessableEntity);
+    }
 
-    private async Task<bool> LoadAsync(CancellationToken cancellationToken)
+    private async Task<bool> LoadAsync(bool previous, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return false;
-        var to = To is { } localTo ? LondonCalendar.ToUtc(localTo) : timeProvider.GetUtcNow();
-        var from = From is { } localFrom ? LondonCalendar.ToUtc(localFrom) : to.AddDays(-31);
-        // The per-Principal and month reads are factory-backed and independent.
-        // The account list and Engineer report share the scoped staff context,
-        // so they remain serial while those separate reads are in flight.
-        var principalTask = principalActivityReport.ExecuteAsync(actor, from, to, cancellationToken);
-        var monthlyTask = monthlyActivity.ExecuteAsync(actor, from, to, cancellationToken);
-        try
+        var now = timeProvider.GetUtcNow();
+        var choice = Periods.First(item => item.Value == PeriodValue).Period;
+        var (from, to) = choice == ReportPeriod.Custom
+            ? (From is { } localFrom ? LondonCalendar.ToUtc(localFrom) : (To is { } toFrom ? LondonCalendar.ToUtc(toFrom) : now).AddDays(-31),
+               To is { } localTo ? LondonCalendar.ToUtc(localTo) : now)
+            : ReportPeriods.Resolve(choice, now);
+        From = LondonCalendar.TimeAt(from);
+        To = LondonCalendar.TimeAt(to);
+        if (!ReportPeriods.IsValid(from, to))
         {
-            var people = await staffAccounts.ListAsync(0, 100, cancellationToken);
-            People = people.Accounts
-                .Where(account => account.IsEnabled)
-                .OrderBy(account => account.UserName, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(account => account.Id)
-                .ToArray();
-            EngineerResult = await engineerReport.ExecuteAsync(actor, from, to, EngineerId, cancellationToken);
-            EngineerResult = EngineerResult with { Rows = Sorted(EngineerResult.Rows) };
-            From ??= LondonCalendar.TimeAt(EngineerResult.FromUtc);
-            To ??= LondonCalendar.TimeAt(EngineerResult.ToUtc);
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            ModelState.AddModelError(string.Empty, "Choose a valid date range.");
-        }
-        catch (Exception exception) when (
-            exception is not OperationCanceledException
-            && exception is not StaffAuthorizationException)
-        {
-            EngineerActivityUnavailable = true;
+            PeriodInvalid = true;
+            return true;
         }
 
-        try
+        // The per-Principal, month, outcome and queue reads are factory-backed
+        // and independent. The account list and Engineer report share the
+        // scoped staff context, so they remain serial while those are in flight.
+        var (previousFrom, previousTo) = ReportPeriods.Previous(from, to);
+        var principalTask = Read(() => principalActivityReport.ExecuteAsync(actor, from, to, cancellationToken));
+        var monthlyTask = Read(() => monthlyActivity.ExecuteAsync(actor, from, to, cancellationToken));
+        var outcomesTask = Read(() => reportOutcomes.ExecuteAsync(actor, from, to, cancellationToken));
+        var unidentifiedTask = Read(() => unidentifiedStore.ListQueueAsync(null, cancellationToken));
+        var previousPrincipalTask = previous
+            ? Read(() => principalActivityReport.ExecuteAsync(actor, previousFrom, previousTo, cancellationToken))
+            : Task.FromResult<PrincipalReportActivityReport?>(null);
+
+        var all = await Read(() => engineerReport.ExecuteAsync(actor, from, to, cancellationToken));
+        EngineerActivityUnavailable = all is null;
+        if (all is not null)
         {
-            PrincipalActivity = await principalTask;
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            // The invalid-period case is already reported above; the two
-            // reports share one period filter.
-        }
-        catch (Exception exception) when (
-            exception is not OperationCanceledException
-            && exception is not StaffAuthorizationException)
-        {
-            PrincipalActivity = null;
+            EngineerResult = Sorted(all.For(EngineerId));
+            var people = all.People.Select(row => (row.EngineerId, row.DisplayName)).ToList();
+            if (EngineerId is { } chosen && people.All(person => person.EngineerId != chosen))
+            {
+                var accounts = await staffAccounts.ListAsync(0, 100, cancellationToken);
+                if (accounts.Accounts.FirstOrDefault(account => account.Id == chosen) is { } account)
+                {
+                    people.Add((account.Id, account.UserName));
+                }
+            }
+
+            People = [.. people.OrderBy(person => person.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(person => person.EngineerId)];
         }
 
-        try
+        if (previous && all is not null)
         {
-            Monthly = await monthlyTask;
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            // As above: one period filter, reported once.
-        }
-        catch (Exception exception) when (
-            exception is not OperationCanceledException
-            && exception is not StaffAuthorizationException)
-        {
-            Monthly = null;
+            PreviousEngineer = (await Read(() => engineerReport.ExecuteAsync(actor, previousFrom, previousTo, cancellationToken)))?.For(EngineerId);
         }
 
+        PrincipalActivity = await principalTask;
+        Monthly = await monthlyTask;
+        Outcomes = await outcomesTask;
+        Unidentified = await unidentifiedTask is { } queue
+            ? (queue.Count, queue.Select(item => (DateTimeOffset?)item.ReceivedAtUtc).Min())
+            : null;
+        PreviousPrincipal = await previousPrincipalTask;
         return true;
     }
 
-    private EngineerActivityRow[] Sorted(IReadOnlyList<EngineerActivityRow> rows)
+    /// <summary>A read that fails or returns invalid data is unavailable, never a zero.</summary>
+    private static async Task<T?> Read<T>(Func<Task<T>> read) where T : class
     {
+        try
+        {
+            return await read();
+        }
+        catch (Exception exception) when (
+            exception is not OperationCanceledException
+            && exception is not StaffAuthorizationException)
+        {
+            return null;
+        }
+    }
+
+    private EngineerActivityReport Sorted(EngineerActivityReport report)
+    {
+        var rows = report.Rows;
         IOrderedEnumerable<EngineerActivityRow> ordered = Sort?.ToLowerInvariant() switch
         {
             "queries" => Descending ? rows.OrderByDescending(row => row.QueriesReceived) : rows.OrderBy(row => row.QueriesReceived),
@@ -421,69 +527,41 @@ public sealed class ReportsModel(
                 : rows.OrderBy(row => row.DisplayName, StringComparer.OrdinalIgnoreCase),
             _ => rows.OrderBy(row => 0)
         };
-        return ordered.ThenBy(row => row.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(row => row.EngineerId).ToArray();
-    }
-
-    /// <summary>
-    /// MI-02: per-Principal report counts by type for the period, each total
-    /// beside its Inspection and Audit split. Mirrors exactly the columns
-    /// <c>Reports.cshtml</c> renders for this section.
-    /// </summary>
-    private static string ReportsByPrincipalCsv(PrincipalReportActivityReport? report)
-    {
-        var header = string.Join(
-            ",",
-            "Principal",
-            "Reports produced", InspectionColumn("Reports produced"), AuditColumn("Reports produced"),
-            "Reports sent", InspectionColumn("Reports sent"), AuditColumn("Reports sent"),
-            "Agreed fees", InspectionColumn("Agreed fees"), AuditColumn("Agreed fees"));
-        var builder = new StringBuilder(header).Append("\r\n");
-        if (report is null) return builder.ToString();
-        foreach (var row in report.Rows.Where(row => row.ReportsProduced > 0 || row.Sent > 0))
+        return report with
         {
-            builder.Append(EngineerActivityReportCsv.EscapeField(row.PrincipalCode)).Append(',')
-                .Append(row.ReportsProduced).Append(',')
-                .Append(row.InspectionReportsProduced).Append(',')
-                .Append(row.AuditReportsProduced).Append(',')
-                .Append(row.Sent).Append(',')
-                .Append(row.InspectionSent).Append(',')
-                .Append(row.AuditSent).Append(',')
-                .Append(row.AgreedFeeTotal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
-                .Append(row.InspectionAgreedFeeTotal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
-                .Append(row.AuditAgreedFeeTotal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))
-                .Append("\r\n");
-        }
-
-        return builder.ToString();
+            Rows = [.. ordered.ThenBy(row => row.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(row => row.EngineerId)]
+        };
     }
 
-    /// <summary>
-    /// MI-03: holding age and instruction-to-produced/ready/sent turnaround
-    /// per Principal for the period. Mirrors exactly the columns
-    /// <c>Reports.cshtml</c> renders for this section.
-    /// </summary>
-    private static string TurnaroundCsv(PrincipalReportActivityReport? report)
+    private PrincipalReportActivity[] SortedPrincipals(IEnumerable<PrincipalReportActivity> rows)
     {
-        var builder = new StringBuilder(
-            "Principal,Currently held,Oldest held since,Time to produce,Time to ready,Time to send").Append("\r\n");
-        if (report is null) return builder.ToString();
-        foreach (var row in report.Rows.Where(row =>
-            row.CurrentHeldCases > 0
-            || row.AverageReceivedToGeneration.HasValue
-            || row.AverageReceivedToReady.HasValue
-            || row.AverageReceivedToSent.HasValue))
+        IOrderedEnumerable<PrincipalReportActivity> ordered = PrincipalSort?.ToLowerInvariant() switch
         {
-            builder.Append(EngineerActivityReportCsv.EscapeField(row.PrincipalCode)).Append(',')
-                .Append(row.CurrentHeldCases).Append(',')
-                .Append(OperatorLabels.OfficeTime(row.OldestHeldAtUtc, string.Empty)).Append(',')
-                .Append(OperatorLabels.ReportTurnaround(row.AverageReceivedToGeneration, string.Empty)).Append(',')
-                .Append(OperatorLabels.ReportTurnaround(row.AverageReceivedToReady, string.Empty)).Append(',')
-                .Append(OperatorLabels.ReportTurnaround(row.AverageReceivedToSent, string.Empty))
-                .Append("\r\n");
-        }
-
-        return builder.ToString();
+            "produced" => PrincipalDescending ? rows.OrderByDescending(Produced) : rows.OrderBy(Produced),
+            "sent" => PrincipalDescending ? rows.OrderByDescending(Sent) : rows.OrderBy(Sent),
+            "fees" => PrincipalDescending ? rows.OrderByDescending(Fees) : rows.OrderBy(Fees),
+            "code" => PrincipalDescending
+                ? rows.OrderByDescending(row => row.PrincipalCode, StringComparer.OrdinalIgnoreCase)
+                : rows.OrderBy(row => row.PrincipalCode, StringComparer.OrdinalIgnoreCase),
+            _ => rows.OrderBy(row => 0)
+        };
+        return [.. ordered.ThenBy(row => row.PrincipalCode, StringComparer.OrdinalIgnoreCase).ThenBy(row => row.PrincipalId)];
     }
+
+    private static string NextDirection(string? current, bool descending, string column, bool textual) =>
+        string.Equals(current, column, StringComparison.OrdinalIgnoreCase)
+            ? descending ? "asc" : "desc"
+            : textual ? "asc" : "desc";
+
+    private static string? AriaSortOf(string? current, bool descending, string column) =>
+        string.Equals(current, column, StringComparison.OrdinalIgnoreCase) ? (descending ? "descending" : "ascending") : null;
+
+    private static T ByWork<T>(string work, T all, T inspection, T audit) => work switch
+    {
+        "inspection" => inspection,
+        "audit" => audit,
+        _ => all
+    };
 }
 
 /// <summary>

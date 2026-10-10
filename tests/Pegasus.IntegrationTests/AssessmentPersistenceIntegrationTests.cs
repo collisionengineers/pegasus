@@ -445,7 +445,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 {
                     ["vehicle.condition"] = "good",
                     ["damage.unrelated"] = "Kerbed nearside wheel",
-                    ["settlement.excess"] = "250.00"
                     // The findings and the valuation values are deliberately
                     // absent: a finding is recorded only by staff, and the
                     // Engineer's Value and its retail and trade are staff
@@ -454,9 +453,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
 
         Assert.Equal(1, saved.CaseVersion);
-        // The three this save wrote, beside the agreed fee the Case took from
+        // The two this save wrote, beside the agreed fee the Case took from
         // its Principal at creation.
-        Assert.Equal(3, saved.Fields.Count(field => field.Path != AssessmentVocabulary.AgreedFee));
+        Assert.Equal(2, saved.Fields.Count(field => field.Path != AssessmentVocabulary.AgreedFee));
         Assert.All(saved.Fields, field => Assert.Equal(ActorKind.Automation, field.RecordedByKind));
         // An assessment save writes fields only; the lines are the Current
         // repair spec's, and none is in use yet.

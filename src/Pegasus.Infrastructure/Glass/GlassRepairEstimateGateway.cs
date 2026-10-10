@@ -173,10 +173,11 @@ public sealed partial class GlassRepairEstimateGateway(
         var link = request.SpecificationId is { } specificationId
             ? await caseAuthority.FindEstimateAsync(request.CaseId, specificationId, cancellationToken)
             : null;
+        var vehicle = (facts.Registration, facts.MileageMiles);
         if (link is not null)
         {
-            GlassRepairEstimateSessionPolicy.RequireUnchangedEstimateVehicle(
-                link.Registration, link.MileageMiles, facts.Registration, facts.MileageMiles);
+            vehicle = GlassRepairEstimateSessionPolicy.RequireUnchangedEstimateVehicle(
+                link, facts.Registration, facts.MileageMiles);
             await store.SupersedeAsync(request.CaseId, link.VehicleId, request.Actor, cancellationToken);
         }
 
@@ -185,8 +186,8 @@ public sealed partial class GlassRepairEstimateGateway(
         var digest = Sha256Hex(correlation);
         var provider = new ProviderState
         {
-            Registration = facts.Registration,
-            MileageMiles = facts.MileageMiles,
+            Registration = vehicle.Registration,
+            MileageMiles = vehicle.MileageMiles,
             CaseVersion = request.ExpectedCaseVersion,
             LeaseToken = request.LeaseToken,
             PegasusCallback = options.CallbackFor(correlation).AbsoluteUri,
@@ -213,7 +214,6 @@ public sealed partial class GlassRepairEstimateGateway(
             Version: 0,
             request.OperationKey.Trim(),
             now,
-            now + options.SessionLifetime,
             ProviderVehicleId: link?.VehicleId,
             ProviderEstimateId: link?.EstimateId,
             FailureCode: null);
@@ -412,7 +412,8 @@ public sealed partial class GlassRepairEstimateGateway(
     /// A vehicle whose first start went unanswered may or may not hold an
     /// estimate, and the portal locks the repair profile only once it does:
     /// the vehicle is proved as not started and, when its profile is locked,
-    /// as started.
+    /// as started. Any other profile refusal is the vehicle's as it stands,
+    /// so it is the one settled.
     /// </summary>
     private static async Task<T> EitherWayAsync<T>(Func<bool, Task<T>> prove)
     {
@@ -420,7 +421,7 @@ public sealed partial class GlassRepairEstimateGateway(
         {
             return await prove(false);
         }
-        catch (GlassMvaStageException locked) when (locked.FailureCode == GlassFailure.DetailsProfile)
+        catch (GlassMvaStageException locked) when (locked.ProfileLocked)
         {
             return await prove(true);
         }
@@ -551,7 +552,6 @@ public sealed partial class GlassRepairEstimateGateway(
         RequireOwner(actor, material.Session);
         var provider = Unprotect(material.ProtectedProviderState);
         return material.Session.State == GlassRepairEstimateSessionState.Active
-            && material.Session.ExpiresAtUtc > timeProvider.GetUtcNow()
             && provider.EstimatorUrl is { } url
                 ? new Uri(url, UriKind.Absolute)
                 : null;
@@ -562,8 +562,8 @@ public sealed partial class GlassRepairEstimateGateway(
     /// facts and the launching credential are proved before anything is
     /// written, and the proved authority replaces the protected import
     /// authority. A session waiting to be imported is claimed for the import;
-    /// a live one is recorded for its launch to continue; one whose outcome
-    /// cannot be known, or whose lifetime has passed, is settled here and owes
+    /// a live one is recorded for its launch to continue, however long ago it
+    /// started; one whose outcome cannot be known is settled here and owes
     /// nothing more.
     /// </summary>
     public async Task<GlassRepairEstimateStep> PrepareResumeAsync(
@@ -594,8 +594,9 @@ public sealed partial class GlassRepairEstimateGateway(
         }
         var facts = await caseAuthority.RequireEditAuthorityAsync(
             request.Actor, session.CaseId, request.ExpectedCaseVersion, request.LeaseToken, cancellationToken);
-        GlassRepairEstimateSessionPolicy.RequireUnchangedVehicle(
-            provider.Registration, provider.MileageMiles, facts.Registration, facts.MileageMiles);
+        (provider.Registration, provider.MileageMiles) = GlassRepairEstimateSessionPolicy.RequireUnchangedVehicle(
+            provider.Registration, provider.MileageMiles, provider.Placeholder,
+            vehicleRecorded: provider.MvaVehicleId is not null, facts.Registration, facts.MileageMiles);
         await RequireLaunchCredentialAsync(request.Actor, session, cancellationToken);
         provider.CaseVersion = request.ExpectedCaseVersion;
         provider.LeaseToken = request.LeaseToken;
@@ -628,7 +629,7 @@ public sealed partial class GlassRepairEstimateGateway(
         }
 
         // A host may have stopped after the provider acted but before the ID
-        // was recorded. Neither a retry nor local expiry can prove it closed.
+        // was recorded. A retry cannot prove it closed.
         if (IsUncertain(session, provider))
         {
             return new(
@@ -636,17 +637,6 @@ public sealed partial class GlassRepairEstimateGateway(
                     GlassFailure.TransportUnknown, provider, material.CallbackDigest, results, cancellationToken),
                 GlassRepairEstimateContinuation.None);
         }
-        if (session.ExpiresAtUtc <= timeProvider.GetUtcNow())
-        {
-            // The provider's side of an open calculation has lapsed; it is
-            // settled here rather than re-opened for work the callback would
-            // refuse. A claimed result above is read, not re-opened, so it is
-            // not subject to this.
-            return new(
-                await ExpireAsync(session, provider, material.CallbackDigest, results, cancellationToken),
-                GlassRepairEstimateContinuation.None);
-        }
-
         var launching = provider.EreId is null && provider.PegasusCallback is not null;
         if (!launching)
         {
@@ -662,9 +652,10 @@ public sealed partial class GlassRepairEstimateGateway(
 
     /// <summary>
     /// A return's prepare half: prove the correlation and the owner, and claim
-    /// the delivery. Everything after the claim that needs no provider —
-    /// expiry, a replaced credential, a calculation that was not saved — is
-    /// settled here; a saved one owes its import.
+    /// the delivery. Everything after the claim that needs no provider — a
+    /// replaced credential, a calculation that was not saved — is settled
+    /// here; a saved one owes its import, however long after the launch it
+    /// arrives (operator, 9 October 2026).
     /// </summary>
     public async Task<GlassRepairEstimateStep> AcceptCallbackAsync(
         GlassRepairEstimateCallback callback, CancellationToken cancellationToken)
@@ -731,13 +722,6 @@ public sealed partial class GlassRepairEstimateGateway(
                 GlassRepairEstimateContinuation.None);
         }
 
-        if (session.ExpiresAtUtc <= timeProvider.GetUtcNow())
-        {
-            return new(
-                await ExpireAsync(session, provider, material.CallbackDigest, results, cancellationToken),
-                GlassRepairEstimateContinuation.None);
-        }
-
         var credential = await credentials.GetEnabledAsync(
             callback.Actor, ExternalCredentialProvider.GlassRepairEstimate, cancellationToken);
         if (credential is null || credential.Reference.CredentialGeneration != session.CredentialGeneration)
@@ -745,7 +729,14 @@ public sealed partial class GlassRepairEstimateGateway(
             // The credential that launched this has been replaced or turned
             // off; the session it opened is no longer this staff member's to finish.
             return new(
-                await ExpireAsync(session, provider, material.CallbackDigest, results, cancellationToken),
+                await WriteAsync(
+                    session,
+                    GlassRepairEstimateSessionState.Expired,
+                    GlassFailure.CallbackExpired,
+                    provider,
+                    material.CallbackDigest,
+                    results,
+                    cancellationToken),
                 GlassRepairEstimateContinuation.None);
         }
         if (Query(callback.RawQuery, "DoSave") != "1")
@@ -978,7 +969,7 @@ public sealed partial class GlassRepairEstimateGateway(
 
     /// <summary>
     /// A session past Prepared whose vehicle was never recorded: the provider
-    /// may have made one, and neither a retry nor local expiry can prove it
+    /// may have made one, and a retry cannot prove it
     /// did not. A start that went unanswered on a recorded vehicle is not
     /// uncertain in this way: starting again on that vehicle answers the
     /// estimate it holds, so the launch stages take it up where they stopped.
@@ -1478,21 +1469,6 @@ public sealed partial class GlassRepairEstimateGateway(
                 "This Glass's session belongs to another staff member.");
         }
     }
-
-    private Task<GlassRepairEstimateSession> ExpireAsync(
-        GlassRepairEstimateSession session,
-        ProviderState provider,
-        string callbackDigest,
-        Results results,
-        CancellationToken cancellationToken) =>
-        session.State == GlassRepairEstimateSessionState.Unknown ? Task.FromResult(session) : WriteAsync(
-            session,
-            GlassRepairEstimateSessionState.Expired,
-            GlassFailure.CallbackExpired,
-            provider,
-            callbackDigest,
-            results,
-            cancellationToken);
 
     /// <summary>
     /// Records where a session stopped and says so once in the host log,
