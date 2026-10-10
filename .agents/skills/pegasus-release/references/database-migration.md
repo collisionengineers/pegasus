@@ -8,6 +8,19 @@ and unserved, or the first App Service cutover's Container App has no active
 revisions or replicas, disabled ingress, and an unserved old origin. Unknown or
 stale containment blocks SQL.
 
+A migration, or any change to the Pegasus model, also regenerates the compiled model
+the hosts load (`PegasusSqlServer.Configure` passes it to `UseModel`), because
+`dotnet ef migrations add` diffs against it. Run, from the repository root:
+
+```powershell
+dotnet ef dbcontext optimize --project ./src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj `
+  --startup-project ./src/Pegasus.Web/Pegasus.Web.csproj `
+  --output-dir Persistence/CompiledModel --namespace Pegasus.Infrastructure.Persistence.CompiledModel
+```
+
+and commit `src/Pegasus.Infrastructure/Persistence/CompiledModel/`. The `unit`
+CI lane regenerates it and fails on any difference.
+
 Any migration or SQL that changes a user's roles, claims or enabled state must
 also set a new `SecurityStamp` for that user. Signed-in sessions are refused
 only when the stamp changes.
