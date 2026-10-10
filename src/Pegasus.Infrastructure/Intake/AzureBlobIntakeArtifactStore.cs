@@ -424,6 +424,7 @@ public sealed class AzureBlobIntakeArtifactStore
         string expectedConcurrencyToken,
         CancellationToken cancellationToken)
     {
+        // Validates the key shape; the delete's ETag and Completed tag conditions guard the rest.
         _ = GetStagedStorageKeyHash(storageKey);
         if (string.IsNullOrWhiteSpace(expectedConcurrencyToken))
         {
