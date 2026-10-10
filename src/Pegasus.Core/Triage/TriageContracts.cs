@@ -476,6 +476,19 @@ public interface ITriageQueries
         IReadOnlyCollection<TriageState>? states,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// One offset window of <see cref="ListAsync"/>: <paramref name="take"/>
+    /// rows after <paramref name="skip"/> in the same newest-first order. The
+    /// database applies the window, so rows outside it are never read.
+    /// </summary>
+    Task<IReadOnlyList<TriageSummary>> ListWindowAsync(
+        IReadOnlyCollection<TriageState>? states,
+        int skip,
+        int take,
+        CancellationToken cancellationToken) =>
+        Task.FromException<IReadOnlyList<TriageSummary>>(
+            new NotSupportedException("Triage offset windows are not available."));
+
     Task<int> CountAsync(IReadOnlyCollection<TriageState>? states, CancellationToken cancellationToken);
 
     /// <summary>
