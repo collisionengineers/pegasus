@@ -535,7 +535,7 @@ public sealed class MessageModel(
         // images, Could not be read, Processing failed) from its receipt and assets.
         var outcomes = receipt is null
             ? []
-            : await attachmentOutcomes.ExecuteAsync(actor, receipt.Id, cancellationToken, receipt);
+            : await attachmentOutcomes.ExecuteAsync(actor, receipt.Id, receipt, cancellationToken);
         AttachmentRows = Detail.Attachments
             .Select(attachment =>
             {
