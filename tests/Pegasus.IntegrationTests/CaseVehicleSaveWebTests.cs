@@ -241,7 +241,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     // + 1 (the frame's linked-Triage read for the Linked cases card, #1087).
     private const int CasePageCommands = 44;
 
-    private const int CaseSaveCommands = 35;
+    private const int CaseSaveCommands = 34;
 
     /// <summary>
     /// Roadmap Lane H (FRD-16): a commit the page script posts is answered with
@@ -329,7 +329,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         // linked-cancellation read (one statement) makes them 83 (35 and 48) and 67
         // (the save and 32); the save at 34 makes them 82 and 66, and at 35 (the workflow
         // mutation lock) 83 and 67. Removing EVA's two reads and adding the linked-Triage
-        // read (7 October 2026) make the answer 31 and the answered commit 66; one command for the Case data and none for the AI draft target make the answer 28 and the answered commit 63 (10 October 2026).
+        // read (7 October 2026) make the answer 31 and the answered commit 66; one command for the Case data and none for the AI draft target make the save 34, the answer 29 and the answered commit 63 (10 October 2026).
         Assert.True(
             firstCommands < redirectedCommands,
             $"An answered commit sent {firstCommands} SQL commands; the save and its redirected page send {redirectedCommands}.");
@@ -352,7 +352,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     /// linked-Triage read, one statement each.
     /// </summary>
     // 32 - 2 (EVA reads removed, #1091) + 1 (the linked-Triage read, #1087).
-    private const int CommitAnswerCommands = 28;
+    private const int CommitAnswerCommands = 29;
 
     private static async Task<(HttpStatusCode Status, string Body, string? Location)> CommitAsync(
         HttpClient client,
