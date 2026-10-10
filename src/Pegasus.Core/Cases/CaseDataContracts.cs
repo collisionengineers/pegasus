@@ -180,7 +180,15 @@ public sealed record CaseDataProjection(
     CaseInspectionData Inspection,
     // Appended for the v1 Case workspace.
     CaseWorkspaceData? Workspace = null,
-    Guid? StandaloneAuditEvidenceId = null);
+    Guid? StandaloneAuditEvidenceId = null,
+    // The workflow configuration's AI draft target the projection was read under;
+    // set only by the reads that evaluate completeness against the configuration.
+    int? AiDraftTargetDays = null)
+{
+    /// <summary>The AI draft target this projection was read under.</summary>
+    public int RequiredAiDraftTargetDays => AiDraftTargetDays
+        ?? throw new InvalidOperationException("The case data was read without the workflow configuration.");
+}
 
 /// <summary>
 /// The v1 Case workspace facts that carry no intake candidate set: every one
