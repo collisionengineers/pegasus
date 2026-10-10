@@ -121,8 +121,8 @@ public interface IGetRetainedMailAttachmentOutcomes
     Task<IReadOnlyList<RetainedMailAttachmentOutcome>> ExecuteAsync(
         ActionActor actor,
         Guid intakeReceiptId,
-        CancellationToken cancellationToken = default,
-        IntakeReceipt? receipt = null);
+        IntakeReceipt? receipt = null,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -138,8 +138,8 @@ public sealed class GetRetainedMailAttachmentOutcomes(
     public async Task<IReadOnlyList<RetainedMailAttachmentOutcome>> ExecuteAsync(
         ActionActor actor,
         Guid intakeReceiptId,
-        CancellationToken cancellationToken = default,
-        IntakeReceipt? receipt = null)
+        IntakeReceipt? receipt = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(actor);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
