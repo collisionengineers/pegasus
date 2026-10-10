@@ -2572,6 +2572,37 @@ public sealed class GlassRepairEstimateGatewayTests
     }
 
     /// <summary>
+    /// Staff who share one Glass's login share its one live slot, so the
+    /// colleague's session on the estimate is the one holding the account. It
+    /// still ends when the staff member holding the Case reopens the spec,
+    /// rather than refusing the reopen as the account's live session: here it
+    /// was left Unknown by custody that threw on its return, as a.QDOS26101's
+    /// was on 9 October 2026.
+    /// </summary>
+    [Fact]
+    public async Task AReopenOnASharedGlassLoginEndsTheColleaguesSessionHoldingIt()
+    {
+        var harness = Harness.Create();
+        harness.Credentials.Give(harness.OtherEngineer, harness.OtherEngineerId, account: Harness.Account);
+        await harness.CompleteAsync(await harness.LaunchAsync());
+        var earlier = await harness.LaunchAsync(
+            operationKey: "glass-launch-2", specificationId: harness.Import.EstimateId);
+        harness.Custody.Failure = new InvalidOperationException("Box temporarily reserved the name");
+        var held = await harness.CompleteAsync(earlier);
+        harness.Custody.Failure = null;
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, held.State);
+        Assert.Equal(GlassFailure.CustodyFailed, held.FailureCode);
+
+        var taken = await harness.LaunchAsync(
+            harness.OtherEngineer, operationKey: "glass-launch-3", specificationId: harness.Import.EstimateId);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Active, taken.State);
+        Assert.Equal(harness.OtherEngineerId, taken.PegasusUserId);
+        Assert.Equal(GlassRepairEstimateSessionState.Cancelled, harness.Store.Sessions[earlier.Id].Session.State);
+        Assert.Equal(1, harness.Mva.Count("GET /index/create-new-vehicle"));
+    }
+
+    /// <summary>
     /// A session reopening its spec's estimate makes nothing at Glass's, so a
     /// vehicle that cannot be proved is a plain failure that frees the
     /// account, and the next launch reopens the estimate again.
