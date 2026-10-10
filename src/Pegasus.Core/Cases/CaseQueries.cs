@@ -496,13 +496,18 @@ public sealed class GetCaseEditBasis(
             throw new ArgumentException("A case identifier is required.", nameof(query));
         }
 
-        var frame = await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        // The data read needs only the identity and the work, not the frame,
+        // and each store opens its own context, so the two overlap.
+        var frameTask = store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        var dataTask = caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken);
+        await Task.WhenAll(frameTask, dataTask);
+        var frame = frameTask.Result;
         if (frame is null)
         {
             return null;
         }
 
-        var data = await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
+        var data = dataTask.Result
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         if (data.Identity.CaseId != frame.Workflow.CaseId)
         {

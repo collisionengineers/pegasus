@@ -6,11 +6,14 @@ namespace Pegasus.Core.Triage;
 
 /// <summary>
 /// One offset page of the Triages in any of <paramref name="States"/>; every
-/// state when <see langword="null"/>.
+/// state when <see langword="null"/>. <paramref name="TotalCount"/> is the
+/// matching total the caller has already counted, so the page read does not
+/// count again; it may be a row out if a Triage changed since.
 /// </summary>
 public sealed record ListTriageQuery(
     ActionActor Actor,
     IReadOnlyCollection<TriageState>? States,
+    int TotalCount,
     int Page = 1,
     int PageSize = 25);
 
@@ -112,12 +115,12 @@ public sealed class ListTriage(ITriageQueries queries) : IListTriage
                 "The Triage state is not recognized.");
         }
 
-        var matches = await queries.ListAsync(query.States, cancellationToken);
-        var items = matches
-            .Skip((query.Page - 1) * query.PageSize)
-            .Take(query.PageSize)
-            .ToArray();
-        return new(items, query.Page, query.PageSize, matches.Count);
+        var items = await queries.ListWindowAsync(
+            query.States,
+            (query.Page - 1) * query.PageSize,
+            query.PageSize,
+            cancellationToken);
+        return new(items, query.Page, query.PageSize, query.TotalCount);
     }
 
     public Task<int> CountAsync(
