@@ -120,17 +120,19 @@ public sealed class ListRecentCases(
 
         var now = asOfUtc ?? _timeProvider.GetUtcNow();
         var since = RecentCasesPolicy.WindowStart(now);
-        var result = await _queries.ListAsync(since, page, RecentCasesPolicy.PageSize, cancellationToken);
-        DateTimeOffset? lastSeen = null;
-        if (Notifications.StaffNotificationPolicy.StaffId(actor) is { } staffId)
+        // The feed and the previous look share nothing, so they read together;
+        // this open is stamped only after the previous look is in hand.
+        var resultTask = _queries.ListAsync(since, page, RecentCasesPolicy.PageSize, cancellationToken);
+        var staffId = Notifications.StaffNotificationPolicy.StaffId(actor);
+        var lastSeenTask = staffId is { } id
+            ? _visits.GetLastSeenAsync(id, cancellationToken)
+            : Task.FromResult<DateTimeOffset?>(null);
+        await Task.WhenAll(resultTask, lastSeenTask);
+        if (staffId is { } stamped && markSeen)
         {
-            lastSeen = await _visits.GetLastSeenAsync(staffId, cancellationToken);
-            if (markSeen)
-            {
-                await _visits.MarkSeenAsync(staffId, now, cancellationToken);
-            }
+            await _visits.MarkSeenAsync(stamped, now, cancellationToken);
         }
 
-        return new RecentCasesFeed(result, since, lastSeen);
+        return new RecentCasesFeed(resultTask.Result, since, lastSeenTask.Result);
     }
 }

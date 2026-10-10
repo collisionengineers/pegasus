@@ -173,6 +173,8 @@ public sealed class IndexModel(
 
     public int TriageCount { get; private set; }
 
+    public int AwaitingInstructionCount { get; private set; }
+
     /// <summary>Open Unidentified items only; a closed item is never counted.</summary>
     public int UnidentifiedCount { get; private set; }
 
@@ -183,7 +185,7 @@ public sealed class IndexModel(
         "with_engineer" => StageCounts.WithEngineer,
         "query" => StageCounts.Query,
         "triage" => TriageCount,
-        "awaiting" => StageCounts.AwaitingInstruction,
+        "awaiting" => AwaitingInstructionCount,
         "held" => StageCounts.Held,
         "unidentified" => UnidentifiedCount,
         _ => 0
@@ -377,13 +379,15 @@ public sealed class IndexModel(
         // Every group carries its count whichever one is open. The three
         // count queries use their own DbContext each, so they run together.
         var stageCountsTask = _dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
+        var awaitingTask = _dashboardQueries.GetAwaitingInstructionCountAsync(cancellationToken);
         var triageTask = _listTriage.CountAsync(
             actor,
             TriageLifecycleRules.ActiveStates,
             cancellationToken);
         var openUnidentifiedCountTask = _unidentifiedStore.CountOpenAsync(cancellationToken);
-        await Task.WhenAll(stageCountsTask, triageTask, openUnidentifiedCountTask);
+        await Task.WhenAll(stageCountsTask, awaitingTask, triageTask, openUnidentifiedCountTask);
         StageCounts = stageCountsTask.Result;
+        AwaitingInstructionCount = awaitingTask.Result;
         TriageCount = triageTask.Result;
         UnidentifiedCount = openUnidentifiedCountTask.Result;
         RailCountsPageFilter.SetCaseCounts(
