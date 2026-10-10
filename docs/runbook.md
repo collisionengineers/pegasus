@@ -900,7 +900,7 @@ nothing, so the next one checks again.
 
 The Worker host used to write about 90% of the telemetry Pegasus ingested,
 mostly its own lines. `src/Pegasus.Worker/host.json` now keeps only Warning
-and Error lines for these host categories:
+and Error lines for these categories:
 
 - `Function`, the "Executing" and "Executed" lines of every function;
 - `Host.Startup` and `Host.Triggers`;
