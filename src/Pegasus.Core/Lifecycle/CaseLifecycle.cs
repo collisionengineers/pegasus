@@ -116,6 +116,8 @@ public sealed class AssignCaseEngineer(
             await notifier.NotifyAsync(
                 StaffNotificationCause.CaseAssigned,
                 request.CaseId,
+                assigned.Identity.Reference,
+                assigned.AssignedEngineerId,
                 request.Actor,
                 section: null,
                 registration: null,

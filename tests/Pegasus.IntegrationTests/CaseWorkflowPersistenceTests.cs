@@ -19,6 +19,24 @@ namespace Pegasus.IntegrationTests;
 public sealed class CaseWorkflowPersistenceTests
 {
     [Fact]
+    public async Task HasOperationFindsAKeyInTheHistoryOrTheLeaseOperationsAndNothingElse()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, actor, "claim-probe"),
+            default);
+        await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+            new(harness.CaseId, 0, actor, "start-probe", "Inspection work started", lease.Token),
+            default);
+
+        Assert.True(await harness.Store.HasOperationAsync(harness.CaseId, "claim-probe", default));
+        Assert.True(await harness.Store.HasOperationAsync(harness.CaseId, " start-probe ", default));
+        Assert.False(await harness.Store.HasOperationAsync(harness.CaseId, "never-used", default));
+        Assert.False(await harness.Store.HasOperationAsync(Guid.NewGuid(), "claim-probe", default));
+    }
+
+    [Fact]
     public async Task StartMovesDirectlyToReportPreparationAndRetainedSentEvidenceNeedsNoApproval()
     {
         await using var harness = await WorkflowHarness.CreateAsync();

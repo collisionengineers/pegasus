@@ -24,6 +24,20 @@ public interface ICaseStaffNotifier
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// The same notification for a caller that already holds the Case's reference
+    /// and Engineer from the act it just committed, so nothing is read again.
+    /// </summary>
+    Task<StaffNotification?> NotifyAsync(
+        StaffNotificationCause cause,
+        Guid caseId,
+        string reference,
+        Guid? assignedEngineerId,
+        ActionActor? actor,
+        string? section,
+        string? registration,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// An e-mail linked to a Case: a cancellation when the message is one and the
     /// Case is still open, Query included; otherwise a query when the Case is in
     /// Query; otherwise an ordinary arrival. Nothing is raised for a Case with no
@@ -63,22 +77,38 @@ public sealed class CaseStaffNotifier(
         CancellationToken cancellationToken)
     {
         var workflow = await _workflows.GetAsync(caseId, cancellationToken);
-        if (workflow is null)
-        {
-            return null;
-        }
-
-        return await _raise.ExecuteAsync(
-            new StaffNotificationEvent(
+        return workflow is null
+            ? null
+            : await NotifyAsync(
                 cause,
                 caseId,
                 workflow.Identity.Reference,
+                workflow.AssignedEngineerId,
+                actor,
+                section,
+                registration,
+                cancellationToken);
+    }
+
+    public Task<StaffNotification?> NotifyAsync(
+        StaffNotificationCause cause,
+        Guid caseId,
+        string reference,
+        Guid? assignedEngineerId,
+        ActionActor? actor,
+        string? section,
+        string? registration,
+        CancellationToken cancellationToken) =>
+        _raise.ExecuteAsync(
+            new StaffNotificationEvent(
+                cause,
+                caseId,
+                reference,
                 registration,
                 StaffNotificationPolicy.CaseRoute(caseId, section),
-                workflow.AssignedEngineerId,
+                assignedEngineerId,
                 actor),
             cancellationToken);
-    }
 
     public async Task<StaffNotification?> NotifyMailArrivalAsync(
         Guid caseId,

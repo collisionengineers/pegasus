@@ -412,9 +412,15 @@ public sealed record SaveCaseWorkspaceResult(
 
 public interface ICaseWorkspaceStore
 {
+    /// <summary>
+    /// <paramref name="signOffProfiles"/> is the eligible sign-off list a caller
+    /// has already read to validate the request; the store lists it itself when
+    /// the caller passes none.
+    /// </summary>
     Task<SaveCaseWorkspaceResult> SaveAsync(
         SaveCaseWorkspaceRequest request,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        IReadOnlyList<SignOffEngineerProfile>? signOffProfiles = null);
 }
 
 public interface ISaveCaseWorkspace
@@ -438,14 +444,14 @@ public sealed class SaveCaseWorkspace(
         CancellationToken cancellationToken)
     {
         var normalized = CaseWorkspacePolicy.ValidateAndNormalize(request);
+        IReadOnlyList<SignOffEngineerProfile>? signOffProfiles = null;
         if (normalized.Report?.SignOffEngineerId is { } signOffEngineerId)
         {
-            CaseSignOffEngineerResolver.RequireEligible(
-                await _staffAccounts.ListSignOffEngineersAsync(cancellationToken),
-                signOffEngineerId);
+            signOffProfiles = await _staffAccounts.ListSignOffEngineersAsync(cancellationToken);
+            CaseSignOffEngineerResolver.RequireEligible(signOffProfiles, signOffEngineerId);
         }
 
-        var result = await _store.SaveAsync(normalized, cancellationToken);
+        var result = await _store.SaveAsync(normalized, cancellationToken, signOffProfiles);
         if (!result.WasReplay && notifier is not null)
         {
             // Work Centre D10 cause 3: the Case's engineer is told when someone else
@@ -453,6 +459,8 @@ public sealed class SaveCaseWorkspace(
             await notifier.NotifyAsync(
                 StaffNotificationCause.EditedByOther,
                 normalized.CaseId,
+                result.Data.Identity.Reference,
+                result.Assessment.AssignedEngineerId,
                 normalized.Actor,
                 section: "notes",
                 registration: result.Data.Vehicle.Registration.Current?.Value,
