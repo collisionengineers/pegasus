@@ -52,6 +52,33 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     private readonly ConcurrentDictionary<Guid, CreatedFile> createdFiles = [];
 
     /// <summary>
+    /// The folder proofs of the document-write batch the current call flow is
+    /// inside, or null outside one. Per batch, never a time window.
+    /// </summary>
+    private readonly AsyncLocal<ConcurrentDictionary<string, BoxContentClient.ProvedFolder>?> batchProofs = new();
+
+    /// <summary>
+    /// Opens a batch of document writes: the first write into a folder proves
+    /// it and the rest of the batch reuses that proof. A fence failure on an
+    /// upload drops the folder's proof, and disposing the scope drops them all.
+    /// A batch already open is joined, not replaced.
+    /// </summary>
+    internal IDisposable BeginFolderProofBatch()
+    {
+        if (batchProofs.Value is not null)
+        {
+            return NoCustodyBatch.Instance;
+        }
+        batchProofs.Value = new();
+        return new BatchScope(this);
+    }
+
+    private sealed class BatchScope(BoxDocumentContentStore store) : IDisposable
+    {
+        public void Dispose() => store.batchProofs.Value = null;
+    }
+
+    /// <summary>
     /// The document's name in the flat case folder: its occurrence ordinal,
     /// then the original file name. A later revision of the same occurrence
     /// says so in its own name, because a flat folder has nowhere else to
@@ -115,17 +142,35 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             contentLength,
             normalizedHash,
             cancellationToken);
+        return await StoreVerifiedStreamAsync(
+            address, staged, contentLength, normalizedHash, cancellationToken);
+    }
+
+    /// <summary>
+    /// Stores a stream whose <paramref name="contentLength"/> bytes the caller
+    /// has already verified against <paramref name="normalizedSha256"/>. The
+    /// stream must be readable and seekable; it is neither copied nor hashed
+    /// again.
+    /// </summary>
+    internal async Task<DocumentContentWriteResult> StoreVerifiedStreamAsync(
+        ManagedDocumentContentAddress address,
+        Stream verified,
+        long contentLength,
+        string normalizedSha256,
+        CancellationToken cancellationToken)
+    {
+        Validate(address);
         return await StoreVerifiedVersionAsync(
             address,
             contentLength,
-            normalizedHash,
-            folder => client.UploadAsync(
+            normalizedSha256,
+            folder => client.UploadVerifiedAsync(
                 folder,
                 FlatFileName(address),
-                staged,
+                verified,
                 contentLength,
                 address.MediaType,
-                normalizedHash,
+                normalizedSha256,
                 cancellationToken),
             cancellationToken);
     }
@@ -164,8 +209,27 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         // one more for the a. folder inside it. The name is not looked
         // for first: a file that already holds it is Box's 409, and the client
         // says so, having compared its content with this content.
-        var folder = await client.ProveFolderAsync(caseFolder, cancellationToken);
-        var upload = await createAsync(folder);
+        // Inside a batch the first write proves the folder and the rest share
+        // that proof (FRD-05); outside one every write proves it.
+        var proofs = batchProofs.Value;
+        if (proofs is null || !proofs.TryGetValue(caseFolder, out var folder))
+        {
+            folder = await client.ProveFolderAsync(caseFolder, cancellationToken);
+            if (proofs is not null)
+            {
+                proofs[caseFolder] = folder;
+            }
+        }
+        BoxContentClient.BoxUpload upload;
+        try
+        {
+            upload = await createAsync(folder);
+        }
+        catch (Exception exception) when (proofs is not null && BoxContentClient.IsFenceFailure(exception))
+        {
+            proofs.TryRemove(caseFolder, out _);
+            throw;
+        }
         var file = upload.File;
         var versionId = file.VersionId
             ?? throw new InvalidDataException(upload.Created

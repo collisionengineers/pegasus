@@ -281,8 +281,13 @@ internal sealed class EfCaseArtifactCustody(
             version.BoxFileId,
             version.BoxVersionId);
         content.Position = 0;
-        var write = await documentContentStore.StoreVersionAsync(
-            address, content, request.ContentLength, version.Sha256, cancellationToken);
+        // The staged stream was verified against this hash when it was staged,
+        // so the Box store takes it as is instead of copying and hashing again.
+        var write = documentContentStore is BoxDocumentContentStore boxStore
+            ? await boxStore.StoreVerifiedStreamAsync(
+                address, content, request.ContentLength, version.Sha256, cancellationToken)
+            : await documentContentStore.StoreVersionAsync(
+                address, content, request.ContentLength, version.Sha256, cancellationToken);
         if (documentContentStore is BoxDocumentContentStore
             && (string.IsNullOrWhiteSpace(write.RemoteId)
                 || string.IsNullOrWhiteSpace(write.BoxVersionId)))
@@ -387,6 +392,11 @@ internal sealed class EfCaseArtifactCustody(
         }
     }
 
+    public IDisposable BeginDocumentBatch() =>
+        documentContentStore is BoxDocumentContentStore boxStore
+            ? boxStore.BeginFolderProofBatch()
+            : NoCustodyBatch.Instance;
+
     internal static bool TryGetAutomaticPromotionReceiptId(
         string operationKey,
         Guid caseId,
@@ -417,13 +427,17 @@ internal sealed class EfCaseArtifactCustody(
             return;
         }
 
+        // One target check ahead of both completion branches below.
+        if (!await IntakePromotionTarget.IsCurrentAsync(
+                db, caseId, receiptId, expectedCaseVersion, nowUtc, cancellationToken))
+        {
+            return;
+        }
+
         var plan = await db.IntakeMutationHistory.AsNoTracking()
             .SingleOrDefaultAsync(item => item.OperationKey
                 == AutomaticCaseEvidencePromotionOperationKey.Plan(receiptId), cancellationToken);
-        if (plan?.CaseId != caseId
-            || string.IsNullOrWhiteSpace(plan.AfterJson)
-            || !await IntakePromotionTarget.IsCurrentAsync(
-                db, caseId, receiptId, expectedCaseVersion, nowUtc, cancellationToken))
+        if (plan?.CaseId != caseId || string.IsNullOrWhiteSpace(plan.AfterJson))
         {
             return;
         }
@@ -480,12 +494,6 @@ internal sealed class EfCaseArtifactCustody(
                 AfterCaseVersion = expectedCaseVersion
             });
             await db.SaveChangesAsync(cancellationToken);
-            return;
-        }
-
-        if (!await IntakePromotionTarget.IsCurrentAsync(
-                db, caseId, receiptId, expectedCaseVersion, nowUtc, cancellationToken))
-        {
             return;
         }
 
@@ -987,6 +995,7 @@ public sealed partial class ReconcilePendingArtifactCustody
             .ToArrayAsync(cancellationToken);
         var confirmed = 0; var retained = 0; var failures = 0;
         string? firstFailure = null;
+        using var batch = BeginDocumentBatch();
         foreach (var candidate in candidates)
         {
             var auditFolder = string.Equals(
