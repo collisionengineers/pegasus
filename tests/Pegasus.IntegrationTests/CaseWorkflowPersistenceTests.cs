@@ -27,7 +27,7 @@ public sealed class CaseWorkflowPersistenceTests
             new(harness.CaseId, 0, actor, "claim-probe"),
             default);
         await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
-            new(harness.CaseId, 0, actor, "start-probe", "Inspection work started", lease.Token),
+            new ChangeCaseStateRequest(harness.CaseId, 0, actor, "start-probe", "Inspection work started", lease.Token),
             default);
 
         Assert.True(await harness.Store.HasOperationAsync(harness.CaseId, "claim-probe", default));
