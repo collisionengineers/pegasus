@@ -10,6 +10,7 @@
 }
 <div data-glass-controls="launch" data-glass-id="@glassSession?.Id" data-glass-version="@glassSession?.Version"
      data-glass-controls-url="@Url.Page("/Cases/Details", "GlassSession", new { id = caseId, view = Model.ViewRoute, estimate = Model.GlassSpecificationId })"
+     data-glass-closed-notice="@GlassLabels.ClosedWithoutReturn" data-glass-stall-notice="@GlassLabels.EditorDidNotOpen"
      hidden="@(!editing || !Model.CanLaunchGlass)">
     @* The one Glass's slot (v26 G; one button, operator 6 October 2026):
        Glass's continues this staff member's session while it holds the
