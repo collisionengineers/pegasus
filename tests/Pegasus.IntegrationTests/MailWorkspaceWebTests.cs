@@ -401,6 +401,8 @@ public sealed class MailWorkspaceWebTests
         var previewCommands = counter.Count;
         var previewDescription = counter.Describe();
 
+        // The Inbox list and Message page trims (#1181) took the message page to 28 and
+        // spared the list its unretained-history check and its preview a second read.
         // Measured with LocalDB in this scenario. Before Lane D (2ee268507) the message
         // page sent 52, the list 39 and the preview 18. After the Lane D reads they sent
         // 30, 24 and 11. The message page then sent 29 once its read of the message took
@@ -423,11 +425,11 @@ public sealed class MailWorkspaceWebTests
             + Environment.NewLine + previewDescription);
     }
 
-    private const int InboxMessageCommands = 29;
+    private const int InboxMessageCommands = 28;
 
-    private const int InboxListCommands = 24;
+    private const int InboxListCommands = 22;
 
-    private const int InboxPreviewCommands = 11;
+    private const int InboxPreviewCommands = 10;
 
     [Fact]
     public async Task ExactMessageCanBeSearchedLinkedUnlinkedAndLinkedToAReplacement()
