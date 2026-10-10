@@ -187,7 +187,7 @@ public sealed class EfCaseAssessmentStore(
         return await ReadCurrentAsync(context, workflow, cancellationToken);
     }
 
-    private async Task<CaseAssessmentProjection> GetRequiredAsync(
+    private static async Task<CaseAssessmentProjection> GetRequiredAsync(
         PegasusDbContext context,
         Guid caseId,
         CancellationToken cancellationToken)
