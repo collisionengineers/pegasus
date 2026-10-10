@@ -510,7 +510,7 @@ public sealed class EfIntakeSubmissionGroupStore(
         {
             if (!staged.TryGetValue(entity.StagedReceiptId, out var receipt))
             {
-                throw new InvalidOperationException("Sequence contains no matching element");
+                throw new InvalidOperationException($"Staged receipt {entity.StagedReceiptId} for the group member was not found.");
             }
 
             outcomes.TryGetValue(entity.StagedReceiptId, out var processed);
