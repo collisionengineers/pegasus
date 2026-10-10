@@ -217,12 +217,13 @@ jobs:
         shell: pwsh
         # Regenerates the compiled model in place; any difference means a model
         # or migration change shipped without running `dotnet ef dbcontext optimize`.
+        # The generated modelId GUID is random on every run, so that line is ignored.
         run: |
           dotnet tool restore
           dotnet ef dbcontext optimize --project ./src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj --startup-project ./src/Pegasus.Web/Pegasus.Web.csproj --configuration Release --no-build --output-dir Persistence/CompiledModel --namespace Pegasus.Infrastructure.Persistence.CompiledModel
           if ($LASTEXITCODE -ne 0) { throw 'dotnet ef dbcontext optimize failed.' }
           git add --intent-to-add --all -- src/Pegasus.Infrastructure/Persistence/CompiledModel
-          git diff --exit-code -- src/Pegasus.Infrastructure/Persistence/CompiledModel
+          git diff --exit-code -I 'modelId: new Guid' -- src/Pegasus.Infrastructure/Persistence/CompiledModel
           if ($LASTEXITCODE -ne 0) { throw 'The compiled model is stale: run dotnet ef dbcontext optimize and commit the result.' }
 
   sql-integration:
