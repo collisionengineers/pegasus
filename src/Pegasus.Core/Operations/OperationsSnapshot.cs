@@ -462,7 +462,7 @@ public sealed class GetOperationsSnapshot(
             reviewPartitions.Where(partition => partition.IsReadyForEngineerAssignment).Select(partition => partition.Item).ToArray(),
             unidentified,
             [.. openTriage, .. awaitingTriage],
-            openTriage.Count + awaitingTriage.Count,
+            openTriage.Length + awaitingTriage.Length,
             drafts,
             paired);
     }
