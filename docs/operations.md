@@ -4,6 +4,24 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 99 — 10 October 2026 (deployment live)
+
+Release 99 deployed [PR 1160](https://github.com/collisionengineers/pegasus/pull/1160): a Glass's reopen by the staff member holding the Case ends a colleague's session on the same estimate before the account is checked. Staff who share one Glass's login share its one live slot. From 09:41Z alex's five presses on a.QDOS26101 were refused as "The Glass's account already holds a live session." andrew's reopen of 9 October (session `18109a40`, `Unknown` at `glass.custody.failed` after the Box 409 that PR 1144 fixed) held the login they share, and the account check ran before the supersede FRD-25 requires. The 8-hour lifetime removal (PR 1143) was not the cause: the old expiry never touched an `Unknown` session.
+
+The route was the normal App Service route with the migration identity unchanged, run from the Windows workstation. Web and Worker are Running on the approved release, and full production smoke passed.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `7b22c751024c2a6bde86faf5dd8495c9f7dfdddf`. This is the merge of PR 1160 into `dev`; its tree equals the PR head `095697f70` that CI tested. Promoted atomically to both `dev` and `main`; `main` was `cd6b20c23`. Manifest schema 3 SHA-256 `61AD7057A1EE57925CCFA391E3AE840FF2434E86D5656D71C6E9431554ECD9E0`. `web.zip` SHA-256 `0ADCECE4481E6100456C7ECB2AF9240EBC804C75395D111F03A38DB59E4D64BD`, 107,603,512 bytes. `worker.zip` SHA-256 `C752CEBA68B8E4FAB37383DEF803E604858A847358F5A58D39EE6C810B090DE3`. Windows `efbundle.exe` SHA-256 `13739E710A5EF54E4BF746F37F1E6B6B8130A10507F1D5C9914FEE6A967A9B16` (built, not run). |
+| Review and verification | No review feedback. <br>**CI:** PR 1160 run 38045618929 passed every job at `095697f70`: all six `sql-integration` shards, `unit`, `invariants` and `changes`. The Local, Artifact, PreDeploy and PreProvision gates passed. <br>**Operator approval (10 October 2026):** the remediation PR, its merge and the release, with merge and release authority granted in the request. |
+| Schema and grants | Unchanged. The manifest's migration identity `20261009120000_WorkCentreActivityIndexes` equals the live head that Release 98 applied (read 11:15Z). No bundle or bootstrap ran. |
+| Deployment | `azd provision` with Web `approved` and Worker `approved-live-worker` found no changes (11:16:16–11:16:27Z). B1 quota in `uksouth` read 3. `web.zip` was deployed with restart. OneDeploy `0b7786c5-fc8a-4743-90c3-3cbc59741005` succeeded at 11:16:52Z with package `20261010111634.zip`. The first container start logged the transient SQL login failure (`SqlException`, TCP Provider error 35) at 11:20:43Z, and the platform restarted it. The second start listened at 11:26:09Z. The CLI's tracker had already reported "site failed to start within 10 mins", so the driver stopped. A direct read-back showed the site Running, `/health/ready` 200 and `/diagnostics/version` reporting the exact release, and the route resumed at 11:28:07Z as in Releases 71 and 96. `worker.zip` was deployed by config-zip (deployment `033d52b8-4dea-42e7-998f-2590c1958a4a`, succeeded 11:28:42Z). The request log answered 200 until 11:22Z, logged nothing 11:23–11:25Z and only client-closed 499s at 11:26Z, and answered 200 again from 11:27Z. Web outage: at most 11:22–11:27Z. The Worker was not stopped. |
+| Production smoke | Passed at 11:30:34Z. The Worker activation smoke passed as `approved-live-worker`. Active Web package `20261010111634.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed: last completed poll `2026-10-10T11:30:03Z`; the active Graph subscription expires `2026-10-12T13:50:00Z`. |
+| Wipe | None. |
+| PR states | PR 1160 reads Merged. No GitHub issue was linked. |
+| Still owed | Live proof of the change: alex presses Glass's on a.QDOS26101 with "Glass's 1" on screen. Session `18109a40` then reads `Cancelled`, with the history reason "The Glass's estimate was reopened by the staff member holding the Case.", and a new session of alex's opens the estimate. At 11:31Z the session still read `Unknown` and held the account. The Release 81 to 98 proofs remain owed. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-99-7b22c751`; the build, deploy and resume drivers and their logs at `artifacts/releases/release-99-driver`. |
+
 ## Release 98 — 10 October 2026 (deployment live)
 
 Release 98 deployed [PR 1151](https://github.com/collisionengineers/pegasus/pull/1151). It merged eleven PRs into `dev`:
