@@ -31,8 +31,9 @@ function fixture() {
     // The operation keys a save has applied: Core refuses a key it has already applied.
     window.applied = [];
     function controls() {
-        return '<div data-glass-controls="launch" data-glass-controls-url="/case?handler=GlassSession" data-glass-id="session" data-glass-version="' + state.sessionVersion + '">'
-            + '<form data-glass-window target="_blank" method="post" action="/case?handler=' + (state.slot === 'launch' ? 'LaunchGlass' : 'ResumeGlass') + '">'
+        return '<div data-glass-controls="launch" data-glass-controls-url="/case?handler=GlassSession" data-glass-id="session" data-glass-version="' + state.sessionVersion + '"'
+            + ' data-glass-editor-wait="1500" data-glass-closed-notice="Closed without a return" data-glass-stall-notice="Estimator did not open">'
+            + '<form data-glass-window data-glass-slot="launch" target="_blank" method="post" action="/case?handler=' + (state.slot === 'launch' ? 'LaunchGlass' : 'ResumeGlass') + '">'
             + '<input name="expectedCaseVersion" type="hidden" value="' + state.caseVersion + '"><input name="editLeaseToken" type="hidden" value="lease">'
             + '<input name="operationKey" type="hidden" value="launch-key"><button>Glass</button></form></div>'
             + '<div data-glass-controls="outcome" hidden></div>'
@@ -116,19 +117,32 @@ function fixture() {
     </script><script src="/workspace.js"></script><script>window.fixtureReady=true;</script></body></html>`;
 }
 
+let origin = 'http://127.0.0.1';
 const server = createServer((req, res) => {
     res.setHeader('Content-Type', req.url.endsWith('.js') ? 'text/javascript' : req.url === '/opening/state' ? 'application/json' : 'text/html');
     if (req.url === '/workspace.js') { res.end(workspaceScript); }
     else if (req.url === '/return.js') { res.end(returnScript); }
     else if (req.url === '/opening.js') { res.end(openingScript); }
-    else if (req.url === '/opening') { statePolls = 0; res.end('<body data-glass-opening-state="/opening/state" data-glass-opening-go="/provider"><p>Preparing <a href="/provider">Continue</a></p><script src="/opening.js"></script>'); }
+    else if (req.url.startsWith('/opening?') || req.url === '/opening') {
+        statePolls = 0;
+        const go = new URL(req.url, origin).searchParams.get('go') || '/provider';
+        res.end('<body data-glass-opening-state="/opening/state" data-glass-opening-go="' + go + '"><p>Preparing <a href="' + go + '">Continue</a></p><script src="/opening.js"></script>');
+    }
     else if (req.url === '/opening/state') { res.end(JSON.stringify({ pending: statePolls++ === 0, open: true })); }
     else if (req.url === '/return') { res.end('<body data-glass-return="/case"><script src="/return.js"></script>'); }
-    else if (req.url === '/provider') { res.end('<title>Provider fixture</title>Editor URL issued'); }
+    // The provider's editor as the Case page can read it cross-origin: a working one nests frames four deep and more
+    // (acofr.php → acofr2.php → frame_main → its panes); the start-up stall of issue 1065 stays on the three-level
+    // skeleton (acofr.php → acofr2.php → its empty frames).
+    else if (req.url === '/provider') { res.end('<title>Provider fixture</title><frameset rows="*"><frame src="/provider/main"></frameset>'); }
+    else if (req.url === '/provider/main') { res.end('<frameset rows="*,*"><frame src="/provider/pane"><frame src="about:blank"></frameset>'); }
+    else if (req.url === '/provider/pane') { res.end('<frameset rows="*"><frame src="/provider/leaf"></frameset>'); }
+    else if (req.url === '/provider/leaf') { res.end('Editor URL issued'); }
+    else if (req.url === '/provider-stall') { res.end('<title>Provider fixture</title><frameset rows="*"><frame src="/provider-stall/skeleton"></frameset>'); }
+    else if (req.url === '/provider-stall/skeleton') { res.end('<frameset rows="*,*"><frame src="about:blank"><frame src="about:blank"></frameset>'); }
     else { res.end(fixture()); }
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-const origin = `http://127.0.0.1:${server.address().port}`;
+origin = `http://127.0.0.1:${server.address().port}`;
 const proc = spawn(browser, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
     `--user-data-dir=${join(output, 'profile')}`, '--remote-debugging-port=0', 'about:blank'], { windowsHide: true, stdio: 'ignore' });
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -176,6 +190,8 @@ try {
     };
     const record = (name, value) => { evidence.push({ name, value }); console.log('PASS', name); };
     const posts = result => result.trace.filter(x => x.type === 'provider');
+    // A landed save is followed by the Case's own catch-up read, so the commits are the Save posts alone.
+    const saves = result => result.trace.filter(x => x.type === 'fetch' && x.url.includes('handler=Save'));
 
     // Save as you go: a script's fill (edit) commits after the idle, leaving a cell (leave) at once;
     // a launch, a return or an action waits for a change not yet sent and runs only once it has landed.
@@ -193,7 +209,7 @@ try {
     await evaluate("edit('AB12 CDE'); leave();"); await delay(100);
     await evaluate("edit('XY99ZZZ'); leave();"); await delay(100);
     result = await evaluate('result()');
-    assert.deepEqual(result.trace.filter(x => x.type === 'fetch').map(x => x.operationKey), ['save-1', 'save-2']);
+    assert.deepEqual(saves(result).map(x => x.operationKey), ['save-1', 'save-2']);
     assert.equal(result.version, '3'); assert.equal(result.value, 'XY99ZZZ'); assert.match(result.status, /^Saved/);
     record('A second change in the session posts the key the first commit was answered with and lands', result);
 
@@ -208,7 +224,7 @@ try {
     assert.equal(result.version, '2', 'The refusal carried the Case\'s current version forward');
     await evaluate("edit('QQ11QQQ'); leave();"); await delay(100);
     result = await evaluate('result()');
-    const keys = result.trace.filter(x => x.type === 'fetch').map(x => x.operationKey);
+    const keys = saves(result).map(x => x.operationKey);
     assert.equal(keys[keys.length - 1], 'save-2', 'The save after a refusal posts the key the refusal was answered with');
     assert.equal(result.version, '3'); assert.equal(result.value, 'QQ11QQQ'); assert.match(result.status, /^Saved/);
     record('A refused commit carries the fresh key and version forward, so the next change lands', result);
@@ -289,6 +305,27 @@ try {
     await evaluate("state.status='Completed'; realPopup.location='/return';"); await waitFor('realPopup.closed');
     assert.equal(await evaluate('realPopup.closed'), true); assert.equal((await evaluate('result()')).value, 'XY99ZZZ');
     record('Real popup waits, refreshes the Case, opens provider then returns without losing edits', await evaluate('result()'));
+
+    // Issue 1065: the window the launch reserved, sent through Opening to an estimator whose frames never grow past
+    // the skeleton, is pressed again once by the page (a second provider post), then said when it stalls again.
+    // The traced form post never navigates the window, so each leg sends it through Opening by hand.
+    const reserved = "window.open('', 'pegasus-glass-' + location.pathname)";
+    await reset(); await evaluate("window.open=window.nativeOpen; launch();"); await delay(100);
+    await evaluate(reserved + ".location = '/opening?go=/provider-stall'; true;"); await delay(3500);
+    result = await evaluate('result()'); assert.equal(posts(result).length, 2, 'The stalled estimator is pressed again once');
+    assert.equal(result.notice, '');
+    await evaluate(reserved + ".location = '/opening?go=/provider-stall'; true;"); await delay(3500);
+    result = await evaluate('result()'); assert.equal(posts(result).length, 2, 'A second stall is not pressed again');
+    assert.match(result.notice, /Estimator did not open/);
+    await evaluate(reserved + '.close(); true;');
+    record('A stalled estimator is pressed again once, then reported', result);
+    await reset(); await evaluate("window.open=window.nativeOpen; launch();"); await delay(100);
+    await evaluate(reserved + ".location = '/opening?go=/provider'; true;"); await delay(3500);
+    result = await evaluate('result()'); assert.equal(posts(result).length, 1, 'A loaded editor is left alone'); assert.equal(result.notice, '');
+    await evaluate(reserved + '.close(); true;'); await delay(1500);
+    result = await evaluate('result()'); assert.match(result.notice, /Closed without a return/);
+    record('A loaded editor is left alone; closing it without a return is said', result);
+
     await send('Page.navigate', { url: origin + '/opening' }); await waitFor("location.pathname === '/provider'");
     assert.equal(await evaluate('location.pathname'), '/provider');
     record('No-opener window continues in its own window', true);
