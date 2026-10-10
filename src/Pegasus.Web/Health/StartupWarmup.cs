@@ -260,10 +260,8 @@ internal sealed partial class StartupWarmup(
                 // The page reads its three sections side by side, each on its own
                 // database context and connection, so the pass touches the three
                 // together.
-                var attention = services.GetRequiredService<IGetOperationsSnapshot>().ExecuteAsync(
-                    new NeedsAttentionQuery(actor, NeedsAttentionScope.Office, 1, null, now), cancellationToken);
-                var newCases = services.GetRequiredService<IListRecentCases>().ExecuteAsync(
-                    actor, 1, markSeen: false, cancellationToken, now);
+                var attention = ReadWorkCentreAsync(services, now, cancellationToken);
+                var newCases = ReadNewestCaseIdAsync(services, now, cancellationToken);
                 var aiJobs = services.GetRequiredService<IAiJobQueries>().ListOpenAsync(cancellationToken);
                 try
                 {
@@ -276,7 +274,7 @@ internal sealed partial class StartupWarmup(
                     // Case page step.
                     if (newCases.IsCompletedSuccessfully)
                     {
-                        caseId = (await newCases).Page.Items.Select(item => (Guid?)item.CaseId).FirstOrDefault();
+                        caseId = await newCases;
                     }
                 }
             }, stoppingToken);
@@ -429,23 +427,31 @@ internal sealed partial class StartupWarmup(
             $"model build {modelBuild.TotalMilliseconds:F0} ms, first connection {firstConnection.TotalMilliseconds:F0} ms"));
         // Graph hangs up on a webhook that answers slowly and resends only
         // minutes later, so the first mail must not pay for this query.
-        await StepAsync("mail-webhook", () =>
+        // Nothing below needs the model step's result beyond the warmed model
+        // and connection, and each read takes its own context, so they start
+        // together; only the Case page waits, for the newest Case id.
+        var mailWebhook = StepAsync("mail-webhook", () =>
             services.GetRequiredService<IApprovedMailboxSubscriptionStore>().GetActiveAsync(
                 "startup-warm-up", now, cancellationToken),
             stoppingToken, cancellationToken);
-        await StepAsync("work-centre", async () =>
-        {
-            await services.GetRequiredService<IGetOperationsSnapshot>().ExecuteAsync(
-                new NeedsAttentionQuery(actor, NeedsAttentionScope.Office, 1, null, now), cancellationToken);
-        }, stoppingToken, cancellationToken);
+        var workCentre = StepAsync(
+            "work-centre", () => ReadWorkCentreAsync(services, now, cancellationToken), stoppingToken, cancellationToken);
+        var recentThenCasePage = RecentCasesThenCasePageAsync(services, now, cancellationToken, stoppingToken);
+        await Task.WhenAll(mailWebhook, workCentre, recentThenCasePage);
+    }
 
+    private async Task RecentCasesThenCasePageAsync(
+        IServiceProvider services,
+        DateTimeOffset now,
+        CancellationToken cancellationToken,
+        CancellationToken stoppingToken)
+    {
         Guid? caseId = null;
-        await StepAsync("recent-cases", async () =>
-        {
-            var feed = await services.GetRequiredService<IListRecentCases>().ExecuteAsync(
-                actor, 1, markSeen: false, cancellationToken, now);
-            caseId = feed.Page.Items.Select(item => (Guid?)item.CaseId).FirstOrDefault();
-        }, stoppingToken, cancellationToken);
+        await StepAsync(
+            "recent-cases",
+            async () => caseId = await ReadNewestCaseIdAsync(services, now, cancellationToken),
+            stoppingToken,
+            cancellationToken);
         if (caseId is not { } id)
         {
             return;
@@ -453,6 +459,18 @@ internal sealed partial class StartupWarmup(
 
         await StepAsync(
             "case-page", () => ReadCasePageAsync(services, id, cancellationToken), stoppingToken, cancellationToken);
+    }
+
+    private Task ReadWorkCentreAsync(IServiceProvider services, DateTimeOffset now, CancellationToken cancellationToken) =>
+        services.GetRequiredService<IGetOperationsSnapshot>().ExecuteAsync(
+            new NeedsAttentionQuery(actor, NeedsAttentionScope.Office, 1, null, now), cancellationToken);
+
+    private async Task<Guid?> ReadNewestCaseIdAsync(
+        IServiceProvider services, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var feed = await services.GetRequiredService<IListRecentCases>().ExecuteAsync(
+            actor, 1, markSeen: false, cancellationToken, now);
+        return feed.Page.Items.Select(item => (Guid?)item.CaseId).FirstOrDefault();
     }
 
     /// <summary>
