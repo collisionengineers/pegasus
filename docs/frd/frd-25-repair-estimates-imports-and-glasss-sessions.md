@@ -366,7 +366,10 @@ external closure before starting a new session. A corrected mileage does not
 stop it: the vehicle keeps the mileage it was made with, and is proved and its
 export read against that. A placeholder holds no registration or mileage at
 Glass's, so it continues whatever the Case now records, and its return is read
-against the Case's current facts (operator, 9 October 2026). A valid
+against the Case's current facts (operator, 9 October 2026). A session that
+has recorded no vehicle yet holds nothing at Glass's either, so a corrected
+registration or mileage continues it on what the Case now records (operator,
+10 October 2026). A valid
 continuation replaces the protected import authority with the authority just
 proved. Credential generation must still match the account used at launch.
 

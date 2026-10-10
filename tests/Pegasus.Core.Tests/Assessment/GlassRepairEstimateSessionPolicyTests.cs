@@ -154,14 +154,17 @@ public sealed class GlassRepairEstimateSessionPolicyTests
 
     /// <summary>
     /// A session that has recorded no stock vehicle yet holds nothing at
-    /// Glass's, so a corrected mileage is the one it goes on to use.
+    /// Glass's, so a corrected mileage or a corrected registration is the
+    /// one it goes on to use (operator, 10 October 2026; issue 1155).
     /// </summary>
-    [Fact]
-    public void ASessionWithNoVehicleYetFollowsTheCaseMileage() =>
+    [Theory]
+    [InlineData("ab12cde", 33001L)]
+    [InlineData("XY99 ZZZ", 33001L)]
+    public void ASessionWithNoVehicleYetFollowsTheCase(string registration, long mileage) =>
         Assert.Equal(
-            ("ab12cde", 33001L),
+            (registration, mileage),
             GlassRepairEstimateSessionPolicy.RequireUnchangedVehicle(
-                "AB12 CDE", 33000, placeholder: false, vehicleRecorded: false, "ab12cde", 33001));
+                "AB12 CDE", 33000, placeholder: false, vehicleRecorded: false, registration, mileage));
 
     private static GlassRepairEstimateSession Session(GlassRepairEstimateSessionState state) =>
         new(
