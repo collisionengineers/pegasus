@@ -28,17 +28,65 @@ internal sealed class EfRecentCaseQueries(
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(page, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // The count and the page share nothing, nor do the facts and the
+        // drafts, so each pair runs together on contexts of its own.
+        var countTask = CountAsync(sinceUtc, cancellationToken);
+        var pageTask = ReadPageAsync(sinceUtc, page, pageSize, cancellationToken);
+        await Task.WhenAll(countTask, pageTask);
+        var count = countTask.Result;
+        var pageRows = pageTask.Result;
+        var caseIds = pageRows.Select(row => row.CaseId).ToArray();
+        var factsTask = ReadFactsAsync(caseIds, cancellationToken);
+        var draftsTask = ReadDraftsAsync(caseIds, cancellationToken);
+        await Task.WhenAll(factsTask, draftsTask);
+        var facts = factsTask.Result;
+        var drafts = draftsTask.Result;
 
-        // New cases are definitive instructions; a Triage Case is counted by
-        // its own Work Centre metric.
+        string? Fact(Guid caseId, string field) =>
+            facts.FirstOrDefault(item => item.CaseId == caseId && item.FieldName == field)?.Value;
+
+        var items = pageRows.Select(row =>
+        {
+            var draft = drafts.FirstOrDefault(item => item.CaseId == row.CaseId);
+            return new RecentCaseRow(
+                row.CaseId,
+                row.Reference,
+                Fact(row.CaseId, CaseDataFieldNames.VehicleRegistration) ?? draft?.VehicleRegistration,
+                Fact(row.CaseId, CaseDataFieldNames.ClaimantName) ?? draft?.ClaimantName,
+                row.Principal,
+                row.CreatedAtUtc,
+                RecentCasesPolicy.Arrival(Channel(row.SourceChannel), row.CreatedByAutomation));
+        }).ToArray();
+
+        return new RecentCasesPage(items, page, pageSize, count);
+    }
+
+    // New cases are definitive instructions; a Triage Case is counted by its
+    // own Work Centre metric.
+    private static IQueryable<CaseEntity> CreatedCases(PegasusDbContext context, DateTimeOffset sinceUtc)
+    {
         var dismissals = context.Set<WorkCentreDismissalEntity>();
-        var createdCases = context.Set<CaseEntity>().AsNoTracking()
+        return context.Set<CaseEntity>().AsNoTracking()
             .Where(caseEntity => caseEntity.CreatedAtUtc >= sinceUtc
                 && caseEntity.Type != CaseTypeCodes.Triage
                 && !dismissals.Any(dismissal => dismissal.RecordId == caseEntity.Id
                     && dismissal.DismissedAtUtc >= caseEntity.CreatedAtUtc));
-        var count = await createdCases.CountAsync(cancellationToken);
+    }
+
+    private async Task<int> CountAsync(DateTimeOffset sinceUtc, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await CreatedCases(context, sinceUtc).CountAsync(cancellationToken);
+    }
+
+    private async Task<Row[]> ReadPageAsync(
+        DateTimeOffset sinceUtc,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var createdCases = CreatedCases(context, sinceUtc);
 
         // The reference is unique, so Cases created at one moment keep one
         // order on every page. A page past any int is past the end.
@@ -48,7 +96,7 @@ internal sealed class EfRecentCaseQueries(
             && item.AfterVersion == 0
             && (item.EventType == "manual_case_created"
                 || item.EventType == "case_created_as_replacement"));
-        var pageRows = await (
+        return await (
             from caseEntity in createdCases
                 .OrderByDescending(item => item.CreatedAtUtc)
                 .ThenBy(item => item.Reference)
@@ -70,39 +118,30 @@ internal sealed class EfRecentCaseQueries(
                     item.CaseId == caseEntity.Id
                     && item.ActorKind == AutomationActorKind)))
             .ToArrayAsync(cancellationToken);
-        var caseIds = pageRows.Select(row => row.CaseId).ToArray();
-        var facts = await context.CaseDataFields.AsNoTracking()
+    }
+
+    private async Task<List<FactRow>> ReadFactsAsync(Guid[] caseIds, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.CaseDataFields.AsNoTracking()
             .Where(item => caseIds.Contains(item.WorkId)
                 && item.ValueKind == CaseDataCodes.Confirmed
                 && (item.FieldName == CaseDataFieldNames.VehicleRegistration
                     || item.FieldName == CaseDataFieldNames.ClaimantName))
-            .Select(item => new { CaseId = item.WorkId, item.FieldName, item.Value })
+            .Select(item => new FactRow(item.WorkId, item.FieldName, item.Value))
             .ToListAsync(cancellationToken);
-        var drafts = await (
+    }
+
+    private async Task<List<DraftRow>> ReadDraftsAsync(Guid[] caseIds, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await (
             from caseEntity in context.Set<CaseEntity>().AsNoTracking()
             join draft in context.Set<InstructionDraftEntity>().AsNoTracking()
                 on caseEntity.OriginIntakeReceiptId equals draft.IntakeReceiptId
             where caseIds.Contains(caseEntity.Id)
-            select new { CaseId = caseEntity.Id, draft.VehicleRegistration, draft.ClaimantName })
+            select new DraftRow(caseEntity.Id, draft.VehicleRegistration, draft.ClaimantName))
             .ToListAsync(cancellationToken);
-
-        string? Fact(Guid caseId, string field) =>
-            facts.FirstOrDefault(item => item.CaseId == caseId && item.FieldName == field)?.Value;
-
-        var items = pageRows.Select(row =>
-        {
-            var draft = drafts.FirstOrDefault(item => item.CaseId == row.CaseId);
-            return new RecentCaseRow(
-                row.CaseId,
-                row.Reference,
-                Fact(row.CaseId, CaseDataFieldNames.VehicleRegistration) ?? draft?.VehicleRegistration,
-                Fact(row.CaseId, CaseDataFieldNames.ClaimantName) ?? draft?.ClaimantName,
-                row.Principal,
-                row.CreatedAtUtc,
-                RecentCasesPolicy.Arrival(Channel(row.SourceChannel), row.CreatedByAutomation));
-        }).ToArray();
-
-        return new RecentCasesPage(items, page, pageSize, count);
     }
 
     private static IntakeSourceChannel? Channel(string? code) => code switch
@@ -110,6 +149,10 @@ internal sealed class EfRecentCaseQueries(
         null => null,
         _ => EfIntakeReceiptStore.ParseSourceChannel(code)
     };
+
+    private sealed record FactRow(Guid CaseId, string FieldName, string Value);
+
+    private sealed record DraftRow(Guid CaseId, string? VehicleRegistration, string? ClaimantName);
 
     private sealed record Row(
         Guid CaseId,

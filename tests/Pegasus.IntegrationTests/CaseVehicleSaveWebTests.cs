@@ -239,7 +239,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
 
     // 48 - 1 (no Glass's credential read, #1086) - 2 (EVA reads removed, #1091)
     // + 1 (the frame's linked-Triage read for the Linked cases card, #1087).
-    private const int CasePageCommands = 46;
+    private const int CasePageCommands = 45; // 46 before #1179: the rail no longer counts Awaiting instruction.
 
     private const int CaseSaveCommands = 35;
 

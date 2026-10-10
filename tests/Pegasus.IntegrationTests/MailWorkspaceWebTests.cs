@@ -423,7 +423,7 @@ public sealed class MailWorkspaceWebTests
             + Environment.NewLine + previewDescription);
     }
 
-    private const int InboxMessageCommands = 29;
+    private const int InboxMessageCommands = 28; // 29 before #1179: the rail no longer counts Awaiting instruction.
 
     private const int InboxListCommands = 24;
 
