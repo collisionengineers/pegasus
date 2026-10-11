@@ -64,7 +64,10 @@ separately accepted identity change replaces it. Each account has exactly one
 current role.
 
 All three stored staff roles have the same ordinary casework authority.
-Administrator additionally holds application-management authority. Every
+Administrator additionally holds application-management authority; an
+Administrator therefore holds every Engineer ability as well as the
+administrator-only ones, which is intended. Signing a report still depends on
+the account's sign-off flag and signature, not on role. Every
 account must still be enabled and meet any signature, workflow, lease or
 state prerequisite for the action.
 
