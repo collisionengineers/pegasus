@@ -624,8 +624,6 @@ public sealed class WorkerCompositionTests
                 "Server=(localdb)\\MSSQLLocalDB;Database=Pegasus_WorkerComposition;" +
                 "Integrated Security=true;Encrypt=false",
             ["Intake:LocalArtifactPath"] = Path.Combine(root, "intake"),
-            ["ApprovedInbox:MailboxId"] = "instructions",
-            ["ApprovedInbox:MailboxAddress"] = "instructions@example.test",
             ["ApprovedInbox:LocalRootPath"] = Path.Combine(root, "approved-inbox"),
             ["ApprovedSent:MailboxId"] = "instructions",
             ["ApprovedSent:MailboxAddress"] = "instructions@example.test",

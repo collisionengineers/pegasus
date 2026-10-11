@@ -14,7 +14,6 @@ internal sealed class VehicleLookupRequestEntity
     public required string RequestedByRolesJson { get; set; }
     public DateTimeOffset RequestedAtUtc { get; set; }
     public long ResultingCaseVersion { get; set; }
-    public List<VehicleLookupObservationEntity> Observations { get; set; } = [];
 }
 
 internal sealed class VehicleLookupObservationEntity

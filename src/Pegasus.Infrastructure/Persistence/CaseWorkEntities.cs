@@ -33,13 +33,6 @@ internal static class CaseWorkKinds
     public const string Primary = "primary";
     public const string Audit = "audit";
 
-    public static string ToCode(CaseWorkKind kind) => kind switch
-    {
-        CaseWorkKind.Primary => Primary,
-        CaseWorkKind.Audit => Audit,
-        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown work kind.")
-    };
-
     public static CaseWorkKind Parse(string value) => value switch
     {
         Primary => CaseWorkKind.Primary,

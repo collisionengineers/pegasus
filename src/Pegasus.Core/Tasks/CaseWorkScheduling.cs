@@ -44,8 +44,6 @@ public sealed record ManualChaseRecord(
 
 public interface ICaseDueWorkQueries
 {
-    Task<CaseDueWork?> GetAsync(Guid caseId, CancellationToken cancellationToken);
-
     Task<IReadOnlyList<CaseDueWork>> GetDueAsync(
         DateTimeOffset asOfUtc,
         int page,

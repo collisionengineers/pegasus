@@ -1143,9 +1143,6 @@ public sealed class DashboardBoundaryTests
     {
         public IReadOnlyList<CaseDueWork> Due { get; init; } = [];
 
-        public Task<CaseDueWork?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
-            Task.FromResult(Due.FirstOrDefault(work => work.CaseId == caseId));
-
         public Task<IReadOnlyList<CaseDueWork>> GetDueAsync(
             DateTimeOffset asOfUtc,
             int page,
