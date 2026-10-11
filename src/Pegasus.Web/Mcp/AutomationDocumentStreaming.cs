@@ -66,8 +66,8 @@ internal static class AutomationDocumentStreaming
         }
 
         httpContext.Response.Headers.ETag = $"\"{metadata.Sha256}\"";
-        return Results.File(
-            download.Content.ToArray(),
+        return Results.Bytes(
+            download.Content,
             metadata.MediaType,
             metadata.FileName,
             enableRangeProcessing: true);

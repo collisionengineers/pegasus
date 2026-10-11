@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Xml;
 using System.Xml.Linq;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Infrastructure.Glass;
@@ -327,7 +328,7 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
         XElement root;
         try
         {
-            using var stream = new MemoryStream(content.ToArray(), writable: false);
+            using var stream = DocumentContentCachePublisherExtensions.StreamOf(content);
             using var reader = XmlReader.Create(stream, settings);
             root = XDocument.Load(reader).Root
                 ?? throw new EstimateParseRejectedException(

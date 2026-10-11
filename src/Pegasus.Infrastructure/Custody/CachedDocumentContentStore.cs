@@ -1891,9 +1891,7 @@ internal sealed class ImageThumbnailRenderer : IRenderImageThumbnail
         CaseAssetCrop crop,
         CancellationToken cancellationToken)
     {
-        using var stream = System.Runtime.InteropServices.MemoryMarshal.TryGetArray(content, out var segment)
-            ? new MemoryStream(segment.Array!, segment.Offset, segment.Count, writable: false)
-            : new MemoryStream(content.ToArray(), writable: false);
+        using var stream = DocumentContentCachePublisherExtensions.StreamOf(content);
         return await ImageThumbnailRendering.TryRenderAsync(stream, content.Length, rotation, crop, cancellationToken);
     }
 }

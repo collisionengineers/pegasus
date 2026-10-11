@@ -66,10 +66,11 @@ public sealed class DownloadIntakeSource(
             retained,
             logical.ContentLength,
             cancellationToken);
-        var content = retained.ToArray();
-        var actualHash = Convert.ToHexString(SHA256.HashData(content));
-        if (content.LongLength != sourceAsset.ContentLength
-            || content.LongLength != receipt.SourceLength
+        // The buffer was sized to the verified length, so the slice is the whole array.
+        var content = retained.GetBuffer().AsMemory(0, (int)retained.Length);
+        var actualHash = Convert.ToHexString(SHA256.HashData(content.Span));
+        if (content.Length != sourceAsset.ContentLength
+            || content.Length != receipt.SourceLength
             || !FixedTimeHashEquals(actualHash, logical.Sha256)
             || !FixedTimeHashEquals(actualHash, sourceAsset.ContentHash)
             || !FixedTimeHashEquals(actualHash, receipt.SourceHash))

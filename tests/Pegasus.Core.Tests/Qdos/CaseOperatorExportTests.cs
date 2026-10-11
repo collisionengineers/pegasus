@@ -83,7 +83,7 @@ public sealed class CaseOperatorExportTests
         Assert.Equal("QDOS26011.zip", bundle.FileName);
 
         // The indented JSON and Images/, with no companion file.
-        using var archive = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);
+        using var archive = new ZipArchive(new MemoryStream(bundle.Content.ToArray()), ZipArchiveMode.Read);
         Assert.Equal(
             ["QDOS26011.json", "Images/002 1_CLVoffside-V1.jpg"],
             archive.Entries.Select(entry => entry.FullName));
