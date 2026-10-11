@@ -345,6 +345,7 @@ public sealed partial class CreateModel(
             ImagesComplete: InstructionEvidenceImages.Select(Receipt.AssetRecords).Count > 0);
 
         var allocationStarted = false;
+        var receiptReloaded = false;
         try
         {
             // 1. The corrected draft. Always run, never skipped on a
@@ -462,10 +463,13 @@ public sealed partial class CreateModel(
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
             LogCaseCreationFailed(logger, Receipt.Id, exception);
-            if (allocationStarted
-                && await RedirectIfAcceptanceCommittedAsync(cancellationToken) is { } committed)
+            if (allocationStarted)
             {
-                return committed;
+                if (await RedirectIfAcceptanceCommittedAsync(cancellationToken) is { } committed)
+                {
+                    return committed;
+                }
+                receiptReloaded = true;
             }
             ModelState.AddModelError(
                 string.Empty,
@@ -476,7 +480,10 @@ public sealed partial class CreateModel(
         // so pressing the button again resumes the sequence rather than
         // starting a second one. The address snapshot below is reloaded, so a
         // step that did commit is not asked for twice.
-        await LoadAsync(ReceiptId, cancellationToken);
+        if (!receiptReloaded)
+        {
+            await LoadAsync(ReceiptId, cancellationToken);
+        }
         return Page();
     }
 
@@ -793,7 +800,7 @@ public sealed partial class CreateModel(
         ReceiptId = receipt.Id;
         if (getRetainedMail is not null && receipt.SourceIdentity.Channel == IntakeSourceChannel.Mailbox)
         {
-            SourceMessageId = (await getRetainedMail.ExecuteByOriginReceiptAsync(actor, receipt.Id, cancellationToken))?.Summary.Id;
+            SourceMessageId = await getRetainedMail.FindIdByOriginReceiptAsync(actor, receipt.Id, cancellationToken);
         }
 
         var auditEvidence = await standaloneAuditEvidenceQueries.GetForReceiptAsync(
