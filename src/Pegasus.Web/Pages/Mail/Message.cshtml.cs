@@ -888,7 +888,7 @@ public sealed class MessageModel(
                     operationKey,
                     Reason),
                 cancellationToken);
-            AssociationNotice = "Message linked to the confirmed case.";
+            AssociationNotice = $"Message linked to the confirmed case. {OperatorLabels.Upload.AppearUnderFiles}";
             return RedirectToMessage(id);
         }
         catch (StaffAuthorizationException)

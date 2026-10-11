@@ -134,8 +134,9 @@ The decision table, judged against the current retained material:
    upload. The operator sees the Case reference and the existing reversal
    path. No second association mechanism is offered. The material is on
    the Case: a staff link files the source, its documents and its selected
-   photographs on the Case in the same request, and resolves the material's
-   Unidentified item to it ([FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association)).
+   photographs on the Case, and resolves the material's Unidentified item to
+   it; filing resumes through intake and custody work, so the files appear
+   under Files once processed (operator, 11 October 2026) ([FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association)).
 2. **Registered as a new Image-initiated Case** (`ImageIntakeRegistered`).
    Registration is automatic for usable image identity kept pending a staff
    decision, including when a manual upload has one existing-Case match. It

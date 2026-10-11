@@ -418,6 +418,9 @@ public sealed class UnidentifiedReconciliationTests
                 operationKey,
                 "Staff linked the retained material to the case."),
             CancellationToken.None);
+        // A staff link hands filing and the Unidentified item to the Worker's
+        // replay of the receipt's work.
+        await IntakeWebDriver.ReplayLinkedFilingAsync(services, receiptId);
     }
 
     private static async Task ReverseAsync(
