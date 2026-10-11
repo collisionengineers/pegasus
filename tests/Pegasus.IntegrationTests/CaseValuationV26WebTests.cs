@@ -1132,6 +1132,44 @@ public sealed class CaseValuationV26WebTests
     }
 
     /// <summary>
+    /// A plate Glass's does not know (its plate search answers no type number)
+    /// answers the card's own information sentence (operator, 10 October 2026;
+    /// issue 1109), not "unavailable", after one search and with nothing
+    /// stocked or filed.
+    /// </summary>
+    [Fact]
+    public async Task AGlassesPlateNotKnownAnswersItsOwnSentenceAndFilesNothing()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var mva = ScriptedGlassFor42000Miles();
+        const string search = "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/42000";
+        mva.Set(search, new(HttpStatusCode.OK, GlassProviderFixture.UnknownPlate));
+        var filing = new RecordingReportFiling();
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ICaseDataQueries>(services, store);
+            ConnectGlass(services, mva);
+            services.AddScoped<IFileGuideValuationReport>(_ => filing);
+        });
+
+        using var response = await PostGetValuationAsync(workspace, ValuationSource.Glasses, "2026-08", asJson: true);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var answer = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("not_valued", answer.RootElement.GetProperty("status").GetString());
+        Assert.Equal(
+            "Glass's cannot value this vehicle: it holds no data for its registration.",
+            answer.RootElement.GetProperty("message").GetString());
+        Assert.Equal(1, mva.Count(search));
+        Assert.Equal(0, mva.Count("GET /three-phase-vehicle/get-values"));
+        Assert.Equal(0, mva.Count("GET /index/create-new-vehicle"));
+        Assert.False(filing.Filed.Task.IsCompleted);
+        Assert.Empty(store.Saves);
+    }
+
+    /// <summary>
     /// A registration Cazana holds no data for answers the card's own approved
     /// sentence (operator, 9 October 2026), not "unavailable", and records nothing.
     /// </summary>

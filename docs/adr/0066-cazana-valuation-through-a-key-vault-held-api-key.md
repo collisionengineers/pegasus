@@ -69,8 +69,9 @@ own error words and never the key). When Cazana answers 404, it holds no data
 for the registration and nothing is broken, so the card shows the operator's
 sentence as an info notice instead (`cazana.valuation.not_found`; 9 October
 2026). The provider port's not-valued answer carries its reason, so Glass's
-vehicle-age answer and this one share one route to the card and to
-`pegasus_valuation_get` (outcome `NoVehicleData`).
+vehicle-age answer, Glass's plate search without a type number (10 October
+2026) and this one share one route to the card and to `pegasus_valuation_get`
+(outcome `NoVehicleData`, worded with the source's name).
 
 ## Consequences
 

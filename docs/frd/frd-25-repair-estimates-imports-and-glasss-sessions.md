@@ -289,8 +289,10 @@ one per launch and never reused, proves it, selects it and opens the
 estimator as usual. The Engineer identifies the real vehicle inside the
 estimator with its Alternative vehicle selection. The Case page shows
 nothing new: the session line reads as for any launch, and the host log says
-the launch is on a placeholder. Get valuation on such a plate stays
-unavailable; a placeholder has no value
+the launch is on a placeholder. Get valuation on such a plate answers the
+card's information sentence, as Glass's vehicle-age and Cazana's no-data
+answers do, because nothing is broken (operator, 10 October 2026); a
+placeholder has no value
 ([ADR-0062](../adr/0062-glass-placeholder-vehicle-for-unknown-plates.md)).
 
 The return of a placeholder session is checked as any other, except for the
