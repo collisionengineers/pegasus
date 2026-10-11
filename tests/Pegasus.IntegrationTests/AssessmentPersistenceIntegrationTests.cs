@@ -2212,8 +2212,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             await new GetCaseAssessment(
                     new EfCaseAssessmentStore(
                         harness.Factory,
-                        harness.Clock,
-                        harness.RepairSpecifications))
+                        harness.Clock))
                 .ExecuteAsync(caseId, CancellationToken.None));
         return assessment.Field(AssessmentVocabulary.ValueEngineer);
     }
@@ -2294,7 +2293,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                             [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider))),
                     new AcquireCaseEditLease(workflowStore),
                     new SaveAssessment(
-                        new EfCaseAssessmentStore(factory, timeProvider, repairSpecifications)),
+                        new EfCaseAssessmentStore(factory, timeProvider)),
                     repairSpecifications,
                     valuations,
                     timeProvider);
