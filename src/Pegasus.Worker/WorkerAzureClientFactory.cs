@@ -53,7 +53,7 @@ internal static class WorkerTelemetryCredential
     internal static IServiceCollection AddWorkerTelemetryCredential(this IServiceCollection services)
     {
         services.AddOptions<TelemetryConfiguration>()
-            .Configure<IServiceProvider>(Apply);
+            .Configure<IServiceProvider>((telemetry, provider) => Apply(telemetry, provider));
         return services;
     }
 
