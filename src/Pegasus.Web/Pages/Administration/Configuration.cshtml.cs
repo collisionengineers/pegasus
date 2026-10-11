@@ -54,8 +54,6 @@ public sealed class ConfigurationModel(
         new(nameof(AiDraftTargetDays), "AI draft target", CaseWorkflowConfiguration.MinimumTargetDays, CaseWorkflowConfiguration.MaximumTargetDays, Configuration.AiDraftTargetDays, AiDraftTargetDays)
     ];
 
-    public static string Days(int days) => days == 1 ? "1 day" : $"{days} days";
-
     public string WorkflowInputValue(string field, int posted) =>
         ModelState.TryGetValue(field, out var entry) && entry.AttemptedValue is { } attempted
             ? attempted

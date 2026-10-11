@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Pegasus.Core.Cases;
-using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -10,7 +8,7 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
-/// The Case workspace's document custody actions: custody retry, logical removal,
+/// The Case workspace's document custody actions: logical removal,
 /// image tags and whether the report uses an image. Every action redirects back
 /// to the workspace.
 /// </summary>
@@ -18,7 +16,6 @@ namespace Pegasus.Web.Pages.Cases;
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed class CustodyModel(
-    IRetryCaseCustody retryCaseCustody,
     ILogicallyRemoveDocument logicallyRemoveDocument,
     MarkAsOriginalReport markAsOriginalReport,
     ITagCaseImage tagCaseImage,
@@ -27,8 +24,6 @@ public sealed class CustodyModel(
     ICreateImageTag createImageTag,
     ICaseWorkflowQueries workflows,
     IAcquireCaseEditLease acquireLease,
-    IGetCaseKind getCaseKind,
-    IEditScopeLeases editScopes,
     ILogger<CustodyModel> logger) : CaseMutationPageModel(logger)
 {
     /// <summary>
@@ -41,81 +36,6 @@ public sealed class CustodyModel(
 
     private RedirectToPageResult RedirectToFiles(Guid id) =>
         RedirectToPage("/Cases/Details", new { id, section = "files", view = ReturnView });
-
-    public async Task<IActionResult> OnPostRetryCustodyAsync(
-        Guid id,
-        long expectedVersion,
-        string operationKey,
-        string reason,
-        string? editLeaseToken,
-        CustodyTargetKind targetKind,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        // A Triage Case keeps standard Case custody, so its failed custody is
-        // retried here too. Its expected version is its Triage version, and
-        // its authority is the Triage edit scope, claimed for this one save
-        // (a Triage Case has no Edit step). The retry answers a replay, a
-        // conflict, a refusal and not-found as results, and only a Pending
-        // retry consumes the scope; every other outcome releases it here. It
-        // holds no Case edit lease for this page to keep, and its page shows
-        // the outcome as its Triage status.
-        var triageCase = await getCaseKind.ExecuteAsync(id, cancellationToken) == CaseType.Triage;
-        try
-        {
-            var result = triageCase
-                ? await TriageWriteAuthority.ExecuteAsync(
-                    editScopes,
-                    id,
-                    expectedVersion,
-                    actor,
-                    operationKey,
-                    logger,
-                    token => retryCaseCustody.ExecuteAsync(
-                        new(id, expectedVersion, actor, operationKey, reason, token, targetKind),
-                        cancellationToken),
-                    cancellationToken,
-                    consumesScope: retry => retry.Outcome == RetryCaseCustodyOutcome.Pending)
-                : await retryCaseCustody.ExecuteAsync(
-                    new(id, expectedVersion, actor, operationKey, reason, editLeaseToken ?? string.Empty, targetKind),
-                    cancellationToken);
-            if (triageCase)
-            {
-                TempData["TriageStatus"] = result.Message;
-            }
-            else if (result.Outcome is RetryCaseCustodyOutcome.Pending or RetryCaseCustodyOutcome.Replay)
-            {
-                ClearLeaseState();
-                TempData["CaseStatus"] = result.Message;
-            }
-            else
-            {
-                PreserveLeaseState(id, editLeaseToken);
-                TempData["CaseError"] = result.Message;
-            }
-        }
-        catch (StaffAuthorizationException)
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCaseCommandFailed(logger, id, "retry_case_custody", exception);
-            if (!triageCase)
-            {
-                HandleLeaseFailure(id, editLeaseToken, exception);
-            }
-            TempData[triageCase ? "TriageStatus" : "CaseError"] =
-                "Custody retry was not recorded because the case changed or edit mode was lost.";
-        }
-
-        return RedirectToFiles(id);
-    }
 
     public Task<IActionResult> OnPostRemoveDocumentAsync(
         Guid id,

@@ -18,7 +18,6 @@
     var state = workflow.State;
     var isClosed = CaseLifecycleRules.IsTerminal(state);
     var isHeld = state == CaseLifecycleState.Held;
-    var isReview = state == CaseLifecycleState.Review;
     var isComplete = state == CaseLifecycleState.PostReportComplete;
     var isQuery = state == CaseLifecycleState.Query;
     var editing = Model.IsEditing;
