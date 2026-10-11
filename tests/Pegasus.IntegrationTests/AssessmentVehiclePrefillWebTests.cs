@@ -260,6 +260,7 @@ public sealed class AssessmentVehiclePrefillWebTests
             new(Empty<DateOnly>(), Empty<string>()),
             new(Empty<string>(), Empty<string>(), Empty<string>()),
             new(new DateOnly(2026, 8, 1), Empty<string>()),
-            new(Empty<DateOnly>(), Empty<DateOnly>(), Empty<string>(), Empty<CaseInspectionMode>()));
+            new(Empty<DateOnly>(), Empty<DateOnly>(), Empty<string>(), Empty<CaseInspectionMode>()),
+            AiDraftTargetDays: 1);
     }
 }

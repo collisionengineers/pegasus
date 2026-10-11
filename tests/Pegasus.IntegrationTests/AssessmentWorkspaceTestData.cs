@@ -40,7 +40,8 @@ internal static class AssessmentWorkspaceTestData
                 emptyDate, emptyDate, emptyString,
                 new CaseField<CaseInspectionMode>(null, null, null),
                 emptyString,
-                emptyString));
+                emptyString),
+            AiDraftTargetDays: 1);
 
         return new AssessmentWorkspace(
             new AssessmentWorkspaceHeader(

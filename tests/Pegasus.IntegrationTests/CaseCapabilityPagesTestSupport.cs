@@ -1088,7 +1088,8 @@ internal static partial class CaseWebTestSupport
                 Workspace: ClaimSource is null
                     ? null
                     : new(ClaimSource, null, null, null, null, null, null, null, null, null, null),
-                StandaloneAuditEvidenceId: StandaloneAuditEvidenceId);
+                StandaloneAuditEvidenceId: StandaloneAuditEvidenceId,
+                AiDraftTargetDays: 1);
 
         /// <summary>
         /// The vehicle as the case holds it. A lookup now fills empty fields as
