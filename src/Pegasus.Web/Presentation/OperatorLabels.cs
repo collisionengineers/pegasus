@@ -1653,19 +1653,6 @@ public static class OperatorLabels
     ];
 
     /// <summary>
-    /// The supplied/external/estimated classification a mileage figure carries. The
-    /// binding rule sits in Core (<see cref="VehicleMileageEvidenceClassification"/>):
-    /// a derived estimate is never presented as supplied.
-    /// </summary>
-    public static string MileageEvidence(VehicleMileageEvidenceClass value) => value switch
-    {
-        VehicleMileageEvidenceClass.Supplied => "Supplied",
-        VehicleMileageEvidenceClass.External => "External",
-        VehicleMileageEvidenceClass.Estimated => "Estimated",
-        _ => Humanise(value.ToString())
-    };
-
-    /// <summary>
     /// The operator word for how material arrived. One owner for the channel
     /// vocabulary; the string overload accepts the persisted channel code.
     /// </summary>
@@ -2399,7 +2386,6 @@ public static class OperatorLabels
             public static string EstimateState(RepairSpecificationState state) => state switch
             {
                 RepairSpecificationState.Draft => "Draft",
-                RepairSpecificationState.Discarded => "Discarded",
                 _ => throw new ArgumentOutOfRangeException(nameof(state), state, null),
             };
 

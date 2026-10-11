@@ -119,18 +119,12 @@ public partial class IndexModel(
 
     public RecentCasesFeed? NewCases { get; private set; }
 
-    /// <summary>When the current New cases content was successfully read.</summary>
-    public DateTimeOffset? NewCasesLoadedAtUtc { get; private set; }
-
     /// <summary>Where the "since you last looked" line falls; a refresh keeps the line the page opened with.</summary>
     public DateTimeOffset? DividerUtc { get; private set; }
 
     public bool NewCasesUnavailable { get; private set; }
 
     public IReadOnlyList<WorkCentreAiJobRow> AiJobs { get; private set; } = [];
-
-    /// <summary>When the current AI jobs content was successfully read.</summary>
-    public DateTimeOffset? AiJobsLoadedAtUtc { get; private set; }
 
     public bool AiJobsUnavailable { get; private set; }
 
@@ -497,7 +491,6 @@ public partial class IndexModel(
         try
         {
             NewCases = await newCasesRead;
-            NewCasesLoadedAtUtc = NowUtc;
             DividerUtc = refresh
                 && DateTimeOffset.TryParse(since, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var carried)
                     ? carried
@@ -512,7 +505,6 @@ public partial class IndexModel(
         try
         {
             AiJobs = await aiJobsRead;
-            AiJobsLoadedAtUtc = NowUtc;
         }
         catch (Exception exception) when (exception is not StaffAuthorizationException && !cancellationToken.IsCancellationRequested)
         {

@@ -8,14 +8,16 @@ namespace Pegasus.IntegrationTests;
 /// Discarded, so Accepted and Superseded rows become Draft with their Current
 /// choice kept, the unused routes become Manual, and the acceptance,
 /// supersession and frozen-calculation columns go, with the line status and
-/// its write-only off-pattern copy.
+/// its write-only off-pattern copy. The test stops at this migration:
+/// DiscardDeletesRepairSpec later deletes the discarded spec.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class RepairSpecInUseOnCreateMigrationTests
 {
-    private const string CaseWorksBaseline = "20260924090000_IntakeAssetBoxParentFolder";
+    internal const string CaseWorksBaseline = "20260924090000_IntakeAssetBoxParentFolder";
     private const string PreviousMigration = "20260925190000_EditLeaseTakeoverHistoryEvents";
-    private const string CaseId = "a5000000-0000-0000-0000-000000000001";
+    private const string ThisMigration = "20260926090000_RepairSpecInUseOnCreate";
+    internal const string CaseId = "a5000000-0000-0000-0000-000000000001";
     private const string AcceptedId = "a6000000-0000-0000-0000-000000000001";
     private const string SupersededId = "a6000000-0000-0000-0000-000000000002";
     private const string LegacyId = "a6000000-0000-0000-0000-000000000003";
@@ -51,9 +53,8 @@ public sealed class RepairSpecInUseOnCreateMigrationTests
         await context.Database.MigrateAsync(PreviousMigration);
         await database.ExecuteAsync(SpecificationsSql);
 
-        await context.Database.MigrateAsync();
+        await context.Database.MigrateAsync(ThisMigration);
 
-        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
         Assert.Equal(5, await database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseRepairSpecifications WHERE WorkId = '{CaseId}'"));
         Assert.Equal(4, await database.ScalarAsync<int>(
@@ -96,7 +97,7 @@ public sealed class RepairSpecInUseOnCreateMigrationTests
             $"UPDATE CaseRepairSpecifications SET SourceRoute = N'LegacyUnresolved' WHERE Id = '{LegacyId}'"));
     }
 
-    private const string CaseSql =
+    internal const string CaseSql =
         $"""
         INSERT INTO Organizations (Id, Name, Version)
         VALUES ('a5000000-0000-0000-0000-000000000011', N'Repair spec migration provider', 0);

@@ -284,9 +284,9 @@ public sealed class EfCreateAuditStore(
     }
 
     /// <summary>
-    /// Every live repair specification with its lines, every column: new ids,
+    /// Every repair specification with its lines, every column: new ids,
     /// with the supplementary links re-pointed at the copies.
-    /// A link to a specification that is not copied (a discarded one) is
+    /// A link to a specification no longer on the Case (a discarded one) is
     /// cleared. Specification snapshots are not copied.
     /// </summary>
     private static async Task CopySpecificationsAsync(
@@ -295,10 +295,9 @@ public sealed class EfCreateAuditStore(
         Guid auditWorkId,
         CancellationToken cancellationToken)
     {
-        const string discarded = nameof(RepairSpecificationState.Discarded);
         var specifications = await context.CaseRepairSpecifications.AsNoTracking()
             .Include(item => item.Lines)
-            .Where(item => item.WorkId == sourceWorkId && item.State != discarded)
+            .Where(item => item.WorkId == sourceWorkId)
             .OrderBy(item => item.Version)
             .ToListAsync(cancellationToken);
         var ids = specifications.ToDictionary(item => item.Id, _ => Guid.NewGuid());
@@ -337,9 +336,6 @@ public sealed class EfCreateAuditStore(
                 VatPercent = source.VatPercent,
                 IsCurrent = source.IsCurrent,
                 AiJobId = source.AiJobId,
-                DiscardedBy = source.DiscardedBy,
-                DiscardedAtUtc = source.DiscardedAtUtc,
-                DiscardReason = source.DiscardReason,
                 LastOperationKey = source.LastOperationKey,
                 SupplementaryOfSpecificationId = Remap(source.SupplementaryOfSpecificationId),
                 SupplementaryReason = source.SupplementaryReason,

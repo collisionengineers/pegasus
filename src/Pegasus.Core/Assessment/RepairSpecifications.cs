@@ -4,16 +4,15 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Core.Assessment;
 
 /// <summary>
-/// A specification is live (Draft) or discarded. Which live one the Case uses
-/// is <see cref="RepairSpecificationVersion.IsCurrent"/>: a spec a staff member
-/// creates is Current at once, and a Current spec stays editable while the
-/// Case is writable. The numbers are pinned because report snapshots store
-/// them.
+/// A specification is live (Draft) until it is discarded, which deletes it.
+/// Which one the Case uses is <see cref="RepairSpecificationVersion.IsCurrent"/>:
+/// a spec a staff member creates is Current at once, and a Current spec stays
+/// editable while the Case is writable. The numbers are pinned because report
+/// snapshots store them.
 /// </summary>
 public enum RepairSpecificationState
 {
     Draft = 0,
-    Discarded = 3,
 }
 
 /// <summary>Where a specification's figures came from; the numbers are pinned as above.</summary>
@@ -44,7 +43,6 @@ public sealed record RepairSpecificationVersion(
     EstimateDetails Details,
     bool IsCurrent = false,
     Guid? AiJobId = null,
-    string? DiscardReason = null,
     RepairSpecificationSupplementary? Supplementary = null);
 
 public static class RepairSpecificationPolicy
@@ -217,7 +215,8 @@ public interface IRepairSpecificationStore
         DuplicateEstimateRequest request,
         CancellationToken cancellationToken);
 
-    Task<RepairSpecificationVersion> DiscardEstimateAsync(
+    /// <summary>Deletes the spec with its lines and numbered versions; the Case history keeps the reason.</summary>
+    Task DiscardEstimateAsync(
         DiscardEstimateRequest request,
         CancellationToken cancellationToken);
 

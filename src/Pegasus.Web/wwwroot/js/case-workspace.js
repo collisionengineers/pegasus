@@ -1777,10 +1777,6 @@
     if (addressed && addressed.trim().toLowerCase() !== 'overview') {
         jumpTo(addressed.trim().toLowerCase(), false);
     }
-    var editingNow = record.getAttribute('data-case-editing') === 'true';
-    if (editingNow && window.location.hash === '') {
-        // Landing in an edit session after a full-POST fallback: nothing to move.
-    }
 })();
 
 
@@ -4473,8 +4469,6 @@
         if (!value) { return; }
         cardsFor(id).forEach(function (card) {
             var order = card.querySelector('[data-preparation-order]');
-            var rotationLabelElement = card.querySelector('[data-preparation-rotation-label]');
-            var cropLabelElement = card.querySelector('[data-preparation-crop-label]');
             if (order) { order.value = value.order === null ? '' : value.order; order.disabled = !value.inReport; }
             // v28 P41 and P50: the tile's Full page flag and its order cell
             // are an image in the report's.
@@ -4487,11 +4481,6 @@
             }
             var fullChip = card.querySelector('[data-image-full-chip]');
             if (fullChip) { fullChip.hidden = !value.fullPage; }
-            if (rotationLabelElement) { rotationLabelElement.textContent = rotationLabel(value.rotation); }
-            if (cropLabelElement) { cropLabelElement.textContent = cropLabel(value.crop); }
-            var box = card.querySelector('[data-preparation-preview-box]');
-            var image = card.querySelector('[data-preparation-preview-image]');
-            if (box && image) { paintTile(box, image, value); }
         });
         all(document, '[data-evidence-preparation-occurrence="' + id + '"]').forEach(function (anchor) {
             var image = anchor.querySelector('img');
@@ -4577,10 +4566,7 @@
     }
     window.pegasusCasePreparation = {
         adopt: adopt,
-        get: get,
-        set: set,
-        openCrop: function (id) { if (viewer) { viewer.openCrop(id); } },
-        toggleInReport: toggleInReport
+        openCrop: function (id) { if (viewer) { viewer.openCrop(id); } }
     };
 
     function bindPreparationCards(root) {
@@ -5180,9 +5166,7 @@
             host.dataset.viewerBound = 'true';
             viewer = buildViewer(host);
             window.pegasusCaseViewer = {
-                open: function (trigger) { viewer.open(trigger); },
-                openDocument: function (options) { viewer.openDocument(options); },
-                close: function () { viewer.close(); }
+                openDocument: function (options) { viewer.openDocument(options); }
             };
             if (viewer.standalone) {
                 // The images window opens on the image Pop out was pressed

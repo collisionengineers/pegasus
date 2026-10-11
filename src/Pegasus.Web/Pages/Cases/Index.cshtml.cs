@@ -275,7 +275,6 @@ public sealed class IndexModel(
         string DetailHref,
         string OpenLabel,
         IReadOnlyList<(string Label, string Value)> Facts,
-        CaseLifecycleState? State = null,
         IReadOnlyList<OperatorLabels.CaseRequirement>? Outstanding = null,
         Guid? OriginReceiptId = null,
         IReadOnlyList<(string Label, string Value)>? Work = null,
@@ -682,7 +681,6 @@ public sealed class IndexModel(
                 ("Vehicle", vehicle.Length > 0 ? vehicle : "Not recorded"),
                 ("Type", OperatorLabels.CaseTypeName(summary.CaseType))
             ],
-            basis.Workflow.State,
             outstanding,
             Work: work,
             StateChip: row.Chip,

@@ -138,7 +138,8 @@ is on its way to Box. Delivery is the Next action only once the report is
 stored (operator, 27 September 2026). Once the report is sent, the Next
 action is **Create audit** on an Inspection + Audit Case that has no Audit
 yet, with the Actions menu's own control (greyed with its reason where Core
-refuses it), and **Mark completed** on any other Case (operator, 2 October
+refuses it), **None** on a Completed or Query Case (operator, 11 October
+2026), and **Mark completed** on any other Case (operator, 2 October
 2026), with the Actions menu's own control that opens its dialog; where the
 menu does not offer it, the step is named without a control (operator,
 10 October 2026).
@@ -851,8 +852,7 @@ Off-pattern, and the rollup carries the off-pattern amount as specialist
 (P37). **Delete all lines** sits beside Add line and asks first; a removed
 line or lines can be put back from the toast for eight seconds (P16). No
 provider-versus-assessed savings figure is shown. Reading and editing are one
-layout (operator, 23 September 2026): a spec that cannot be changed — every
-spec while reading, and a discarded spec while editing — shows the
+layout (operator, 23 September 2026): every spec while reading shows the
 same header cells, the same grid columns and the same contract, discount and
 VAT bars as the editor, each value greyed in its control's place and a line's
 Type in the editor's words; a scaled spec's Target % of value bar stands in

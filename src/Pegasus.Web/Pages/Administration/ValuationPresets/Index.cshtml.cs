@@ -25,7 +25,6 @@ public sealed class IndexModel(
     public Guid CreatePresetId { get; private set; } = Guid.NewGuid();
     public string CreateOperationKey { get; private set; } = NewOperationKey();
     public string CreateLabel { get; private set; } = string.Empty;
-    public decimal? CreateAmount { get; private set; }
     public string CreateAmountInput { get; private set; } = string.Empty;
     public bool CreateActive { get; private set; } = true;
 
@@ -55,7 +54,6 @@ public sealed class IndexModel(
         CreatePresetId = presetId == Guid.Empty ? Guid.NewGuid() : presetId;
         CreateOperationKey = operationKey ?? string.Empty;
         CreateLabel = label?.Trim() ?? string.Empty;
-        CreateAmount = amount;
         CreateAmountInput = Request.Form["amount"].ToString();
         CreateActive = active;
         return RunAsync(

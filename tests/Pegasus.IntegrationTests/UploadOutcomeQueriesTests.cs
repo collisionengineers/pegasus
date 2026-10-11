@@ -29,7 +29,6 @@ public sealed class UploadOutcomeQueriesTests
 
         Assert.Equal(UploadOutcomeKind.Working, result.Kind);
         Assert.True(result.IsStillWorking);
-        Assert.Null(result.ChipLabel);
         Assert.Null(result.PrimaryAction);
     }
 
@@ -65,7 +64,6 @@ public sealed class UploadOutcomeQueriesTests
         var result = await BuildAsync(status, receipt);
 
         Assert.Equal(UploadOutcomeKind.Attached, result.Kind);
-        Assert.Equal("Success", result.ChipLabel);
         Assert.Contains("AB12CDE-01", result.Message, StringComparison.Ordinal);
         Assert.NotNull(result.PrimaryAction);
         Assert.Equal($"/Cases/{caseId:D}", result.PrimaryAction!.Url);

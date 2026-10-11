@@ -268,7 +268,7 @@ public sealed class CaseEstimateDocumentWebTests
             DuplicateEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<RepairSpecificationVersion> DiscardEstimateAsync(
+        public Task DiscardEstimateAsync(
             DiscardEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

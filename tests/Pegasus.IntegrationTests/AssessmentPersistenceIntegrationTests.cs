@@ -852,7 +852,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(repairer.SpecificationId, Assert.Single(listed, item => item.IsCurrent).SpecificationId);
 
         // The estimate in use is edited in place, never discarded; the copy
-        // is discarded with its reason.
+        // is discarded, which deletes it.
         var leaseRefused = await LeaseAsync(engineer, "estimate-lease-refused");
         await Assert.ThrowsAsync<InvalidOperationException>(() => discard.ExecuteAsync(
             new(caseId, leaseRefused.Version, engineer, "estimate-discard-current", "Not wanted.",
@@ -870,13 +870,13 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal("Repairer agreed", edited.Details.Name);
         Assert.True(edited.IsCurrent);
         var leaseDiscard = await LeaseAsync(engineer, "estimate-lease-discard");
-        var discarded = await discard.ExecuteAsync(
+        await discard.ExecuteAsync(
             new(caseId, leaseDiscard.Version, engineer, "estimate-discard-copy", "Superfluous copy.",
                 leaseDiscard.Token, copy.SpecificationId),
             CancellationToken.None);
         version++;
-        Assert.Equal(RepairSpecificationState.Discarded, discarded.State);
-        Assert.Equal("Superfluous copy.", discarded.DiscardReason);
+        listed = await list.ExecuteAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.DoesNotContain(listed, item => item.SpecificationId == copy.SpecificationId);
 
         // AI draft: the Automation actor cites the Estimate job it holds; the
         // draft only proposes, so it is not in use until a staff member's
@@ -923,7 +923,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.All(currentAi.Lines, line => Assert.Equal(ActorKind.Automation, line.RecordedByKind));
         Assert.Equal(AiJobState.Completed, (await jobs.GetAsync(job.JobId, CancellationToken.None))!.State);
 
-        Assert.Equal(4, (await list.ExecuteAsync(caseId, CaseWorkSelector.Current, CancellationToken.None)).Count);
+        // The engineer's, the repairer's and the AI draft; the copy is gone.
+        Assert.Equal(3, (await list.ExecuteAsync(caseId, CaseWorkSelector.Current, CancellationToken.None)).Count);
         Assert.Equal(version, (await harness.AcquireLeaseAsync(caseId, version, engineer, "estimate-lease-final")).Version);
     }
 
@@ -1486,9 +1487,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     /// <summary>
-    /// A discarded import no longer holds its source: importing the same
-    /// document again lands a fresh estimate, in use at once, rather than
-    /// replaying to the discarded one.
+    /// Discard deletes the spec with its lines and numbered versions, and the
+    /// Case history keeps the reason (operator, 11 October 2026). Importing
+    /// the same document again lands a fresh estimate, in use at once.
     /// </summary>
     [Fact]
     public async Task ReimportingADiscardedSourceMakesAFreshCurrentSpec()
@@ -1517,11 +1518,33 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 new(RepairSpecificationSourceRoute.Manual, null, null, null)),
             CancellationToken.None);
         Assert.True(typed.IsCurrent);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            Assert.True(await context.CaseRepairSpecificationSnapshots.AsNoTracking()
+                .AnyAsync(item => item.SpecificationId == first.SpecificationId));
+        }
         var discardLease = await harness.AcquireLeaseAsync(caseId, 2, engineer, "reimport-lease-discard");
-        await new DiscardEstimate(harness.RepairSpecifications).ExecuteAsync(
-            new(caseId, discardLease.Version, engineer, "reimport-discard", "Wrong document.",
-                discardLease.Token, first.SpecificationId),
-            CancellationToken.None);
+        var discardRequest = new DiscardEstimateRequest(
+            caseId, discardLease.Version, engineer, "reimport-discard", "Wrong document.",
+            discardLease.Token, first.SpecificationId);
+        await new DiscardEstimate(harness.RepairSpecifications).ExecuteAsync(discardRequest, CancellationToken.None);
+        // The same operation again replays: the spec is already gone.
+        await new DiscardEstimate(harness.RepairSpecifications).ExecuteAsync(discardRequest, CancellationToken.None);
+
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            Assert.False(await context.CaseRepairSpecifications.AsNoTracking()
+                .AnyAsync(item => item.Id == first.SpecificationId));
+            Assert.False(await context.CaseEstimateLines.AsNoTracking()
+                .AnyAsync(item => item.RepairSpecificationId == first.SpecificationId));
+            Assert.False(await context.CaseRepairSpecificationSnapshots.AsNoTracking()
+                .AnyAsync(item => item.SpecificationId == first.SpecificationId));
+            var history = await context.ActionHistory.AsNoTracking()
+                .SingleAsync(item => item.AggregateId == caseId.ToString("D")
+                    && item.EventKind == "estimate_discarded");
+            Assert.Equal("Wrong document.", history.Reason);
+            Assert.Contains(first.SpecificationId.ToString("D"), history.AfterJson, StringComparison.Ordinal);
+        }
 
         var againLease = await harness.AcquireLeaseAsync(caseId, 3, engineer, "reimport-lease-again");
         var again = await harness.RepairSpecifications.SaveImportedEstimateAsync(
@@ -1532,8 +1555,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.True(again.IsCurrent);
         var listed = await harness.RepairSpecifications.ListEstimatesAsync(
             caseId, CaseWorkSelector.Current, CancellationToken.None);
-        Assert.Equal(RepairSpecificationState.Discarded,
-            listed.Single(item => item.SpecificationId == first.SpecificationId).State);
+        Assert.DoesNotContain(listed, item => item.SpecificationId == first.SpecificationId);
         Assert.Equal(again.SpecificationId, Assert.Single(listed, item => item.IsCurrent).SpecificationId);
     }
 

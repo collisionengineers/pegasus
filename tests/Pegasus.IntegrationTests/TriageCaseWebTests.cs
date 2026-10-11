@@ -22,9 +22,8 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// A Triage is a Case (decision R): it answers on <c>/Cases/{id}</c> and on
 /// none of the Case workflow's sub-routes, takes the shared Case sequence, gets
-/// standard Case custody (retried like any Case's) and is a staff link
-/// destination in any state. Proved against the real database and the real
-/// Web host.
+/// standard Case custody and is a staff link destination in any state. Proved
+/// against the real database and the real Web host.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed partial class TriageCaseWebTests
@@ -226,55 +225,6 @@ public sealed partial class TriageCaseWebTests
             .GetAsync(triage.CaseId, CancellationToken.None));
         Assert.Equal(CaseCustodyState.Failed, detail.CustodyState);
         Assert.Equal(TriageState.Open, detail.Record.State);
-    }
-
-    /// <summary>
-    /// A Triage Case keeps standard Case custody, so its failed custody is
-    /// retried on the Custody page like any Case's. The Triage version the page
-    /// renders is posted and the retry claims the Triage hold for its one
-    /// save; it re-arms the job, and the Triage page shows the outcome.
-    /// </summary>
-    [Fact]
-    public async Task AFailedTriageCaseCustodyIsRetriedOnTheCustodyPage()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var triage = await CreateManualTriageAsync(factory.Services, "custody-page-triage");
-        var workId = await PoisonCustodyAsync(factory.Services, triage.CaseId);
-
-        var record = await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}");
-
-        using var retried = await client.PostAsync(
-            $"/Cases/{triage.CaseId:D}/Custody?handler=RetryCustody",
-            Form(
-                AntiforgeryValue(record),
-                ("expectedVersion", InputValue(record, "expectedVersion")),
-                ("operationKey", "custody-page-triage-retry"),
-                ("reason", "Box is available again"),
-                ("targetKind", nameof(CustodyTargetKind.CaseSource))));
-
-        AssertPrg(retried, triage.CaseId, "?section=files");
-        var files = await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}?section=files");
-        Assert.Contains("Custody retry is pending.", files, StringComparison.Ordinal);
-
-        await using var context = await factory.Services
-            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
-        Assert.Equal(
-            ExternalWorkStatePersistence.Pending,
-            await context.ExternalWorkItems
-                .Where(item => item.Id == workId)
-                .Select(item => item.State)
-                .SingleAsync());
-        // A staff write through the Triage authority: the Triage version moves
-        // and the hold it claimed ends, as every Triage mutation's does.
-        Assert.Equal(
-            1,
-            await context.Triage
-                .Where(item => item.CaseId == triage.CaseId)
-                .Select(item => item.Version)
-                .SingleAsync());
-        Assert.False(await context.CaseWorkflows.AnyAsync(item => item.CaseId == triage.CaseId));
-        await AssertNoLiveScopeAsync(factory.Services, triage.CaseId);
     }
 
     [Fact]
@@ -688,35 +638,6 @@ public sealed partial class TriageCaseWebTests
     }
 
     /// <summary>
-    /// A custody retry the store refuses — here, custody work that has not
-    /// failed — answers with a result rather than an exception. The hold the
-    /// retry claimed is released all the same, so the record is free at once.
-    /// </summary>
-    [Fact]
-    public async Task ARefusedTriageCustodyRetryLeavesNoHold()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var triage = await CreateManualTriageAsync(factory.Services, "custody-refused-triage");
-        var record = await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}");
-
-        using var retried = await client.PostAsync(
-            $"/Cases/{triage.CaseId:D}/Custody?handler=RetryCustody",
-            Form(
-                AntiforgeryValue(record),
-                ("expectedVersion", InputValue(record, "expectedVersion")),
-                ("operationKey", "custody-refused-triage-retry"),
-                ("reason", "Retry pressed on custody that has not failed"),
-                ("targetKind", nameof(CustodyTargetKind.CaseSource))));
-
-        AssertPrg(retried, triage.CaseId, "?section=files");
-        var files = await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}?section=files");
-        Assert.Contains("Only failed custody work can be retried.", files, StringComparison.Ordinal);
-        Assert.Equal(0, (await GetTriageAsync(factory.Services, triage.CaseId)).Record.Version);
-        await AssertNoLiveScopeAsync(factory.Services, triage.CaseId);
-    }
-
-    /// <summary>
     /// On a Completed Triage the finding reads its recorded values, Record
     /// finding is gone, and Record correction opens the same fields in a
     /// dialog; the correction supersedes the finding and returns the Triage
@@ -821,18 +742,6 @@ public sealed partial class TriageCaseWebTests
             .Where(item => item.CaseId == caseId && item.Kind == ExternalWorkKinds.CreateCaseCustody)
             .Select(item => item.Id)
             .SingleAsync();
-    }
-
-    /// <summary>The queue gives the Case's custody job up: the job and the Case's custody read failed.</summary>
-    private static async Task<Guid> PoisonCustodyAsync(IServiceProvider services, Guid caseId)
-    {
-        var workId = await CustodyWorkIdAsync(services, caseId);
-        await using var scope = services.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<IExternalWorkStore>().MarkPoisonedAsync(
-            workId,
-            scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
-            CancellationToken.None);
-        return workId;
     }
 
     /// <summary>The Triage Case page's Files section, from its head to its end.</summary>

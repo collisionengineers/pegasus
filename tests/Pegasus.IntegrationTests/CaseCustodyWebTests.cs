@@ -6,7 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
-using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -19,18 +18,17 @@ using static Pegasus.IntegrationTests.CaseWebTestSupport;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The Custody page: custody retry, logical removal and image tags.
+/// The Custody page: logical removal and image tags.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class CaseCustodyWebTests
 {
     [Fact]
-    public async Task CustodyPageBindsRetryRemovalAndImageTags()
+    public async Task CustodyPageBindsRemovalAndImageTags()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, services =>
         {
-            Substitute<IRetryCaseCustody>(services, store);
             Substitute<ILogicallyRemoveDocument>(services, store);
             Substitute<ITagCaseImage>(services, store);
             Substitute<IUntagCaseImage>(services, store);
@@ -38,9 +36,6 @@ public sealed class CaseCustodyWebTests
         var occurrenceId = Guid.NewGuid();
         var tagId = ImageTagVocabulary.ThirdPartyId;
 
-        using var retried = await workspace.PostAsync(
-            "Custody?handler=RetryCustody",
-            workspace.MutationForm("retry-custody", "Provider storage is back", ("targetKind", "CaseSource")));
         using var removed = await workspace.PostAsync(
             "Custody?handler=RemoveDocument",
             workspace.MutationForm("remove-document", "Duplicate scan", ("occurrenceId", occurrenceId.ToString("D"))));
@@ -59,24 +54,13 @@ public sealed class CaseCustodyWebTests
                 ("occurrenceId", occurrenceId.ToString("D")),
                 ("tagId", tagId.ToString("D"))));
         // v26: the Custody page returns to the Files section.
-        foreach (var response in new[] { retried, removed })
-        {
-            AssertPrg(response, store.CaseId, "?section=files");
-        }
+        AssertPrg(removed, store.CaseId, "?section=files");
 
         // The tag and untag posts return to the Files section's Images tab —
         // not Overview — so the operator lands back on the tile they just
         // acted on (issue: the tab and the hash were dropped on every POST).
         AssertPrgToFilesImages(tagged, store.CaseId);
         AssertPrgToFilesImages(untagged, store.CaseId);
-
-        var retry = Assert.Single(store.CustodyRetries);
-        AssertClaimant(workspace, retry.Actor);
-        Assert.Equal(store.CaseVersion, retry.ExpectedCaseVersion);
-        Assert.Equal(store.LeaseToken, retry.EditLeaseToken);
-        Assert.Equal("retry-custody", retry.OperationKey);
-        Assert.Equal("Provider storage is back", retry.Reason);
-        Assert.Equal(CustodyTargetKind.CaseSource, retry.TargetKind);
 
         var removal = Assert.Single(store.DocumentRemovals);
         AssertClaimant(workspace, removal.Actor);
@@ -602,7 +586,7 @@ public sealed class CaseCustodyWebTests
 
 
     [Fact]
-    public async Task CustodyRetryAndExportRoutesBindAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey()
+    public async Task ExportRouteBindsAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         // Capture Review with an eligible native handoff. No external action
@@ -655,13 +639,10 @@ public sealed class CaseCustodyWebTests
             html,
             StringComparison.Ordinal);
 
-        foreach (var route in new[] { "Custody?handler=RetryCustody", "Documents/Export?handler=Bundle" })
-        {
-            using var denied = await client.PostAsync(
-                $"/Cases/{store.CaseId:D}/{route}",
-                new FormUrlEncodedContent([]));
-            Assert.Equal(HttpStatusCode.BadRequest, denied.StatusCode);
-        }
+        using var denied = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}/Documents/Export?handler=Bundle",
+            new FormUrlEncodedContent([]));
+        Assert.Equal(HttpStatusCode.BadRequest, denied.StatusCode);
 
         // A GET on the export route cannot produce the package: there is no GET
         // that exports, only one that returns a stale bookmark to the case.

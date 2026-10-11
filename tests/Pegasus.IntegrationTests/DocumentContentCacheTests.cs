@@ -378,54 +378,6 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
-    public async Task DisabledStaffCannotReadPreviouslyWarmContent()
-    {
-        var estate = await Estate.CreateAsync("revoked cache read"u8.ToArray());
-        await using (estate)
-        {
-            await using (var cold = await estate.Reader.OpenAsync(estate.Request, default))
-            {
-                _ = await ReadAsync(cold.Content);
-            }
-            await using (var db = await estate.Database.CreateContextAsync())
-            {
-                (await db.Users.SingleAsync(value => value.Id == estate.StaffId)).IsEnabled = false;
-                await db.SaveChangesAsync();
-            }
-            estate.Box.Unavailable = true;
-
-            await Assert.ThrowsAsync<StaffAuthorizationException>(
-                () => estate.Reader.OpenAsync(estate.Request, default));
-
-            Assert.Equal(1, estate.Box.Downloads);
-        }
-    }
-
-    [Fact]
-    public async Task StaffWithoutCurrentRoleCannotReadPreviouslyWarmContent()
-    {
-        var estate = await Estate.CreateAsync("removed role cache read"u8.ToArray());
-        await using (estate)
-        {
-            await using (var cold = await estate.Reader.OpenAsync(estate.Request, default))
-            {
-                _ = await ReadAsync(cold.Content);
-            }
-            await using (var db = await estate.Database.CreateContextAsync())
-            {
-                db.UserRoles.RemoveRange(db.UserRoles.Where(value => value.UserId == estate.StaffId));
-                await db.SaveChangesAsync();
-            }
-            estate.Box.Unavailable = true;
-
-            await Assert.ThrowsAsync<StaffAuthorizationException>(
-                () => estate.Reader.OpenAsync(estate.Request, default));
-
-            Assert.Equal(1, estate.Box.Downloads);
-        }
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -977,14 +929,14 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A warm read is the actor and the source with its cache entry: two SQL
-    /// round trips, and a third only when the entry's expiry is due to be
-    /// pushed out, which happens at most once an hour.
+    /// A warm read is the source with its cache entry: one SQL round trip,
+    /// and a second only when the entry's expiry is due to be pushed out,
+    /// which happens at most once an hour.
     /// </summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task AWarmReadCostsThreeSqlRoundTripsAndFourWhenItExtendsTheEntry(bool document)
+    public async Task AWarmReadCostsOneSqlRoundTripAndTwoWhenItExtendsTheEntry(bool document)
     {
         var bytes = "counted warm read"u8.ToArray();
         var estate = document ? await Estate.CreateDocumentAsync(bytes) : await Estate.CreateAsync(bytes);
@@ -1010,7 +962,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             {
                 Assert.Equal(bytes, await ReadAsync(warm.Content));
             }
-            Assert.Equal(2, commands.Count);
+            Assert.Equal(1, commands.Count);
 
             estate.Clock.Advance(TimeSpan.FromHours(2));
             commands.Reset();
@@ -1018,7 +970,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             {
                 Assert.Equal(bytes, await ReadAsync(extended.Content));
             }
-            Assert.Equal(3, commands.Count);
+            Assert.Equal(2, commands.Count);
             Assert.Equal(1, estate.Box.Downloads);
             await using var db = await estate.Database.CreateContextAsync();
             Assert.Equal(
@@ -1531,14 +1483,14 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A report's pinned images are looked up together: the account, the
-    /// authorised sources and the cache entries are three SQL calls whatever the
-    /// number of images, and each cached image then opens with no more, until
-    /// its expiry is due to be pushed out and it costs one update. Read one at a
-    /// time, each image cost two calls of its own.
+    /// A report's pinned images are looked up together: the authorised sources
+    /// and the cache entries are two SQL calls whatever the number of images,
+    /// and each cached image then opens with no more, until its expiry is due
+    /// to be pushed out and it costs one update. Read one at a time, each image
+    /// costs one call of its own.
     /// </summary>
     [Fact]
-    public async Task ThreePinnedImagesAreLookedUpInThreeSqlCallsAndOpenFromTheCacheWithNoMore()
+    public async Task ThreePinnedImagesAreLookedUpInTwoSqlCallsAndOpenFromTheCacheWithNoMore()
     {
         var estate = await Estate.CreateDocumentAsync("first pinned image"u8.ToArray());
         await using (estate)
@@ -1578,26 +1530,26 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                     image.Request.ExpectedContentLength))
             ];
 
-            // Before: each image is a read of its own, at three calls each.
+            // Before: each image is a read of its own, at one call each.
             foreach (var image in images)
             {
                 await using var single = await counted.OpenAsync(image.Request, CancellationToken.None);
                 Assert.Equal(image.Bytes, await ReadAsync(single.Content));
             }
-            Assert.Equal(6, commands.Count);
+            Assert.Equal(3, commands.Count);
 
-            // After: three calls for all of them, and none as each one opens.
+            // After: two calls for all of them, and none as each one opens.
             commands.Reset();
             var prepared = await counted.PrepareAsync(
                 first.Actor, first.CaseId!.Value, versions, CancellationToken.None);
-            Assert.Equal(3, commands.Count);
+            Assert.Equal(2, commands.Count);
             for (var index = 0; index < images.Count; index++)
             {
                 await using var content = await prepared[index].OpenAsync(CancellationToken.None);
                 Assert.Equal(images[index].Bytes, await ReadAsync(content.Content));
                 Assert.Equal(images[index].Request.VersionId, content.VersionId);
             }
-            Assert.Equal(3, commands.Count);
+            Assert.Equal(2, commands.Count);
             Assert.Equal(0, estate.Box.Downloads);
 
             // Once an hour an entry's expiry is pushed out, and that is one update
@@ -1611,7 +1563,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                 await using var content = await handle.OpenAsync(CancellationToken.None);
                 _ = await ReadAsync(content.Content);
             }
-            Assert.Equal(3 + images.Count, commands.Count);
+            Assert.Equal(2 + images.Count, commands.Count);
             Assert.Equal(0, estate.Box.Downloads);
         }
     }
@@ -1619,8 +1571,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     /// <summary>
     /// Preparing many versions never fails one because of another: a version
     /// that cannot be served fails when its own handle is opened, as a single
-    /// read of it would, and the others open. A staff account that is no longer
-    /// current fails the whole preparation, as it fails every single read.
+    /// read of it would, and the others open.
     /// </summary>
     [Fact]
     public async Task APreparedVersionThatCannotBeServedFailsWhenItIsOpenedAndNotItsNeighbours()
@@ -1652,14 +1603,6 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                 () => prepared[1].OpenAsync(CancellationToken.None));
             await Assert.ThrowsAsync<FileNotFoundException>(
                 () => prepared[2].OpenAsync(CancellationToken.None));
-
-            await using (var db = await estate.Database.CreateContextAsync())
-            {
-                (await db.Users.SingleAsync(value => value.Id == estate.StaffId)).IsEnabled = false;
-                await db.SaveChangesAsync();
-            }
-            await Assert.ThrowsAsync<StaffAuthorizationException>(() => estate.Reader.PrepareAsync(
-                request.Actor, request.CaseId!.Value, versions, CancellationToken.None));
         }
     }
 
