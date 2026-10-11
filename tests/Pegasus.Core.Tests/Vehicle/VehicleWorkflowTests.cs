@@ -119,30 +119,6 @@ public sealed class VehicleWorkflowTests
         ]));
     }
 
-    [Fact]
-    public void LookupSourcedMileageClassifiesAsEstimatedAndNeverAsSupplied()
-    {
-        // Accepting a vehicle suggestion stores the derived MOT calculation, so a
-        // lookup-sourced case mileage is the derived estimate; the operator rule is
-        // that a derived estimate is never relabelled as supplied mileage.
-        var classification = VehicleMileageEvidenceClassification.Classify(
-            CaseDataSourceKind.VehicleLookup);
-
-        Assert.Equal(VehicleMileageEvidenceClass.Estimated, classification);
-        Assert.NotEqual(VehicleMileageEvidenceClass.Supplied, classification);
-    }
-
-    [Theory]
-    [InlineData(CaseDataSourceKind.IntakeEvidence)]
-    [InlineData(CaseDataSourceKind.MailRoute)]
-    [InlineData(CaseDataSourceKind.CaseAcceptance)]
-    [InlineData(CaseDataSourceKind.StaffCorrection)]
-    [InlineData(CaseDataSourceKind.PrincipalSetting)]
-    public void DirectlyAttributedMileageClassifiesAsSupplied(CaseDataSourceKind sourceKind) =>
-        Assert.Equal(
-            VehicleMileageEvidenceClass.Supplied,
-            VehicleMileageEvidenceClassification.Classify(sourceKind));
-
     [Theory]
     [MemberData(nameof(QueueOutcomes))]
     public async Task VehicleProcessorPersistsEveryTypedOutcome(

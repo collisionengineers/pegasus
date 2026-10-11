@@ -52,9 +52,6 @@ public static class CaseListColumns
     public static IReadOnlyList<string> DefaultKeys { get; } =
         [.. All.Where(column => column.Group == CaseListColumnGroup.Case).Select(column => column.Key)];
 
-    public static bool TryGet(string key, out CaseListColumn column) =>
-        ByKey.TryGetValue(key, out column!);
-
     /// <summary>
     /// Chosen keys as columns in catalogue order, each once. At least one is
     /// required and every key must be in the catalogue.

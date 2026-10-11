@@ -297,7 +297,7 @@ public sealed partial class ThirdPartyReportExtractionTests
         // at all; filing a finding against that row would persist a statement
         // about a document while naming no part of it (C05-R-10).
         var findings = result.Candidates
-            .Where(row => ThirdPartyReportFields.IsFinding(row.Field))
+            .Where(row => row.Field.StartsWith(ThirdPartyReportFields.FindingPrefix, StringComparison.Ordinal))
             .ToList();
         Assert.NotEmpty(findings);
         Assert.All(

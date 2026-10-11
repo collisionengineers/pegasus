@@ -52,15 +52,6 @@ public static class OriginalReportPrefillPolicy
     /// </summary>
     public const string RecorderId = "original-report-extraction";
 
-    /// <summary>The four cells a reading fills, in section order.</summary>
-    public static IReadOnlyList<string> Paths { get; } =
-    [
-        AssessmentVocabulary.OriginalReportAssessor,
-        AssessmentVocabulary.OriginalReportDate,
-        AssessmentVocabulary.OriginalReportRoadworthiness,
-        AssessmentVocabulary.OriginalReportOutcome
-    ];
-
     private static readonly Regex Whitespace = new(
         @"\s+", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
 

@@ -7,6 +7,17 @@ namespace Pegasus.Core.Tests.Reports;
 
 public sealed class CaseReportFreshnessTests
 {
+    /// <summary>The workspace verdict when only the printed Case data differs.</summary>
+    private static CaseReportFreshnessDecision ClassifyCaseData(CaseEditableData before, CaseEditableData after) =>
+        CaseReportFreshness.ClassifyWorkspace(
+            before,
+            after,
+            wordingChanged: false,
+            new Dictionary<string, string?>(),
+            new Dictionary<string, string?>(),
+            null,
+            null);
+
     [Fact]
     public void UnprintedWorkspaceChangesDoNotStaleTheGeneration()
     {
@@ -212,7 +223,7 @@ public sealed class CaseReportFreshnessTests
             ClientNotes: "Same note");
         var after = before with { VehicleMileage = 12_001 };
 
-        var decision = CaseReportFreshness.ClassifyCaseData(before, after);
+        var decision = ClassifyCaseData(before, after);
 
         Assert.True(decision.IsStale);
         Assert.Equal(CaseReportStaleReasons.AssessmentFactsChanged, decision.ReasonCode);
@@ -228,7 +239,7 @@ public sealed class CaseReportFreshnessTests
         var before = new CaseEditableData(InspectionDate: new DateOnly(2026, 8, 3));
         var after = before with { InspectionDate = new DateOnly(2026, 8, 4) };
 
-        var decision = CaseReportFreshness.ClassifyCaseData(before, after);
+        var decision = ClassifyCaseData(before, after);
         var workspace = CaseReportFreshness.ClassifyWorkspace(
             before,
             after,
@@ -253,7 +264,7 @@ public sealed class CaseReportFreshnessTests
         var before = new CaseEditableData(InspectionDeadline: new DateOnly(2026, 8, 10));
         var after = before with { InspectionDeadline = new DateOnly(2026, 8, 11) };
 
-        var decision = CaseReportFreshness.ClassifyCaseData(before, after);
+        var decision = ClassifyCaseData(before, after);
 
         Assert.False(decision.IsStale);
         Assert.Null(decision.ReasonCode);

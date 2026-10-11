@@ -498,8 +498,8 @@ public sealed class CaseAssetPreparationWebTests
         public Task<IReadOnlyList<ImageTag>> ListAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<ImageTag>>(
             [
-                new(ImageTagVocabulary.OverviewId, ImageTagVocabulary.OverviewName, ImageTagColour.Blue, true, 1),
-                new(ImageTagVocabulary.ThirdPartyId, ImageTagVocabulary.ThirdPartyName, ImageTagColour.Amber, true, 1)
+                new(ImageTagVocabulary.OverviewId, "Overview",ImageTagColour.Blue, true, 1),
+                new(ImageTagVocabulary.ThirdPartyId, "Third party",ImageTagColour.Amber, true, 1)
             ]);
     }
 

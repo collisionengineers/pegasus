@@ -53,7 +53,7 @@ public sealed class CaseReportGenerationPersistenceTests
                     targetGenerationId: report.Generation!.Id), default);
 
         var generation = Assert.IsType<CaseReportGenerationRecord>(result.Generation);
-        Assert.Contains(StaffRole.User, generation.Snapshot.GeneratedBy.ToActor().Roles);
+        Assert.Contains(StaffRole.User.ToString(), generation.Snapshot.GeneratedBy.Roles);
         Assert.Contains(generation.Artifacts, artifact => artifact.Kind == kind);
     }
 

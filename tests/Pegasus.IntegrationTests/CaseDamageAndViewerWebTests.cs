@@ -389,7 +389,7 @@ public sealed class CaseDamageAndViewerWebTests
             GetCaseSectionQuery query,
             CancellationToken cancellationToken) =>
             Task.FromResult<CasePageFrame?>(query.CaseId == CaseId
-                ? new(Frame(), [], [], CaseRecordNotes.None, Data())
+                ? new(Frame(), [], [], new(null, null), Data())
                 : null);
 
         public Task<AssessmentWorkspace?> ExecuteAsync(
