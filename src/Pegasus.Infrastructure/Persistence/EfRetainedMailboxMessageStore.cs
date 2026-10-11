@@ -1,4 +1,5 @@
 using System.Data;
+using System.Linq.Expressions;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -193,37 +194,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         var rows = await ordered
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(item => new SummaryRow(
-                item.Id,
-                item.MailboxId ?? UploadedCorrespondence.MailboxId,
-                item.MailboxAddress,
-                item.SenderAddress,
-                item.SenderDisplayName,
-                item.Subject,
-                item.BodyExcerpt,
-                item.ReceivedAtUtc,
-                item.IsRead,
-                item.Attachments.Count,
-                item.ExternalReceiptToken,
-                searchTerm != null
-                    && context.IntakeReceipts.Any(receipt =>
-                        receipt.SourceChannel == "mailbox"
-                        && receipt.ExternalReceiptToken == item.ExternalReceiptToken
-                        && receipt.SearchDocuments.Any(document =>
-                            document.AttachmentFileName == null
-                            && document.Text != null
-                            && document.Text.Contains(searchTerm))),
-                context.RetainedMailFolderMoves
-                    .Where(move => move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded")
-                    .OrderByDescending(move => move.RecordedAtUtc)
-                    .ThenByDescending(move => move.Id)
-                    .Select(move => move.FolderType)
-                    .FirstOrDefault(),
-                item.BodyPlainText == null
-                    ? null
-                    : item.BodyPlainText.Substring(0, 600),
-                null,
-                item.DismissedAtUtc))
+            .Select(SummaryProjection(context, searchTerm))
             .ToListAsync(cancellationToken);
 
         if (searchTerm is not null && rows.Count > 0)
@@ -267,23 +238,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             .OrderByDescending(item => item.ReceivedAtUtc)
             .ThenByDescending(item => item.Id)
             .Take(limit + 1)
-            .Select(item => new SummaryRow(
-                item.Id, item.MailboxId ?? UploadedCorrespondence.MailboxId, item.MailboxAddress, item.SenderAddress,
-                item.SenderDisplayName, item.Subject, item.BodyExcerpt, item.ReceivedAtUtc,
-                item.IsRead, item.Attachments.Count, item.ExternalReceiptToken,
-                searchTerm != null && context.IntakeReceipts.Any(receipt =>
-                    receipt.SourceChannel == "mailbox"
-                    && receipt.ExternalReceiptToken == item.ExternalReceiptToken
-                    && receipt.SearchDocuments.Any(document =>
-                        document.AttachmentFileName == null && document.Text != null
-                        && document.Text.Contains(searchTerm))),
-                context.RetainedMailFolderMoves
-                    .Where(move => move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded")
-                    .OrderByDescending(move => move.RecordedAtUtc).ThenByDescending(move => move.Id)
-                    .Select(move => move.FolderType).FirstOrDefault(),
-                item.BodyPlainText == null ? null : item.BodyPlainText.Substring(0, 600),
-                null,
-                item.DismissedAtUtc))
+            .Select(SummaryProjection(context, searchTerm))
             .ToListAsync(cancellationToken);
         var hasMore = rows.Count > limit;
         var pageHadRows = rows.Count > 0;
@@ -1532,6 +1487,45 @@ internal sealed class EfRetainedMailboxMessageStore(
         IntakeMailClassificationDecisionEntity? Classification,
         string? EffectiveSenderAddress,
         string? BodyHead);
+
+    /// <summary>
+    /// The one list-row projection, shared by the page and cursor lists so the
+    /// two cannot read different columns.
+    /// </summary>
+    private static Expression<Func<RetainedMailboxMessageEntity, SummaryRow>> SummaryProjection(
+        PegasusDbContext context,
+        string? searchTerm) =>
+        item => new SummaryRow(
+            item.Id,
+            item.MailboxId ?? UploadedCorrespondence.MailboxId,
+            item.MailboxAddress,
+            item.SenderAddress,
+            item.SenderDisplayName,
+            item.Subject,
+            item.BodyExcerpt,
+            item.ReceivedAtUtc,
+            item.IsRead,
+            item.Attachments.Count,
+            item.ExternalReceiptToken,
+            searchTerm != null
+                && context.IntakeReceipts.Any(receipt =>
+                    receipt.SourceChannel == "mailbox"
+                    && receipt.ExternalReceiptToken == item.ExternalReceiptToken
+                    && receipt.SearchDocuments.Any(document =>
+                        document.AttachmentFileName == null
+                        && document.Text != null
+                        && document.Text.Contains(searchTerm))),
+            context.RetainedMailFolderMoves
+                .Where(move => move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded")
+                .OrderByDescending(move => move.RecordedAtUtc)
+                .ThenByDescending(move => move.Id)
+                .Select(move => move.FolderType)
+                .FirstOrDefault(),
+            item.BodyPlainText == null
+                ? null
+                : item.BodyPlainText.Substring(0, 600),
+            null,
+            item.DismissedAtUtc);
 
     private sealed record SummaryRow(
         Guid Id,
