@@ -57,35 +57,35 @@ public sealed class DiscardDeletesRepairSpecMigrationTests
 
     // The primary work's id is the Case's own (CaseWorksAndTriageCases).
     private const string SpecificationsSql =
-        $"""
+        $$"""
         INSERT INTO CaseRepairSpecifications
             (Id, WorkId, Version, State, SourceRoute, Name, IsCurrent, RepairerVatStatus, VatPercent,
              RegionalUplift, SupplementaryExplainOnReport, CreatedBy, CreationOperationKey, CreatedAtUtc,
              DiscardedBy, DiscardedAtUtc, DiscardReason)
         VALUES
-            ('{LiveId}', '{CaseId}', 1, N'Draft', N'Manual', N'In use', 1, N'Unknown', 20,
-             0, 0, N'engineer', N'spec-1', '{Recorded}',
+            ('{{LiveId}}', '{{CaseId}}', 1, N'Draft', N'Manual', N'In use', 1, N'Unknown', 20,
+             0, 0, N'engineer', N'spec-1', '{{Recorded}}',
              NULL, NULL, NULL),
-            ('{DiscardedId}', '{CaseId}', 2, N'Discarded', N'Manual', N'Wrong', 0, N'Unknown', 20,
-             0, 0, N'engineer', N'spec-2', '{Recorded}',
-             N'engineer', '{Recorded}', N'Entered in error');
+            ('{{DiscardedId}}', '{{CaseId}}', 2, N'Discarded', N'Manual', N'Wrong', 0, N'Unknown', 20,
+             0, 0, N'engineer', N'spec-2', '{{Recorded}}',
+             N'engineer', '{{Recorded}}', N'Entered in error');
 
         INSERT INTO CaseEstimateLines
             (Id, WorkId, RepairSpecificationId, Position, LineType, Description, Price, Unpriced,
              RecordedByKind, RecordedBy, RecordedAtUtc)
         VALUES
-            (NEWID(), '{CaseId}', '{LiveId}', 1, N'new_part', N'Front bumper', 125.00, 0,
-             N'Staff', N'engineer', '{Recorded}'),
-            (NEWID(), '{CaseId}', '{DiscardedId}', 1, N'new_part', N'Rear bumper', 90.00, 0,
-             N'Staff', N'engineer', '{Recorded}');
+            (NEWID(), '{{CaseId}}', '{{LiveId}}', 1, N'new_part', N'Front bumper', 125.00, 0,
+             N'Staff', N'engineer', '{{Recorded}}'),
+            (NEWID(), '{{CaseId}}', '{{DiscardedId}}', 1, N'new_part', N'Rear bumper', 90.00, 0,
+             N'Staff', N'engineer', '{{Recorded}}');
 
         INSERT INTO CaseRepairSpecificationSnapshots
             (Id, WorkId, SpecificationId, Number, Kind, Origin, CreatedBy, CreatedAtUtc,
              DetailsJson, LinesJson, SupplementaryJson, ContentHash, Gross, SentOnReport)
         VALUES
-            (NEWID(), '{CaseId}', '{LiveId}', 1, N'Imported', N'import', N'engineer', '{Recorded}',
-             N'{{}}', N'[]', N'{{}}', REPLICATE(N'9', 64), 150.00, 0),
-            (NEWID(), '{CaseId}', '{DiscardedId}', 1, N'Imported', N'import', N'engineer', '{Recorded}',
-             N'{{}}', N'[]', N'{{}}', REPLICATE(N'8', 64), 108.00, 0);
+            (NEWID(), '{{CaseId}}', '{{LiveId}}', 1, N'Imported', N'import', N'engineer', '{{Recorded}}',
+             N'{}', N'[]', N'{}', REPLICATE(N'9', 64), 150.00, 0),
+            (NEWID(), '{{CaseId}}', '{{DiscardedId}}', 1, N'Imported', N'import', N'engineer', '{{Recorded}}',
+             N'{}', N'[]', N'{}', REPLICATE(N'8', 64), 108.00, 0);
         """;
 }
