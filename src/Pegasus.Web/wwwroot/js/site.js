@@ -5,6 +5,7 @@
 // deployed Content-Security-Policy is `default-src 'self'` with no nonce or
 // hash allowance, so an inline script is silently discarded in Production. The
 // enhancements below therefore ran only in Development until they moved here.
+
 // Helpers shared by the page scripts. site.js loads first on every page that
 // loads another script, so the others read these from window.pegasusUi.
 (function () {
