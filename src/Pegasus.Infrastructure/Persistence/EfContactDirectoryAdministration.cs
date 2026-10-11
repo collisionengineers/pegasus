@@ -56,43 +56,58 @@ public sealed class EfContactDirectoryAdministration(
         var contacts = context.Organizations.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(prefix)) contacts = contacts.Where(item => item.Name.StartsWith(prefix));
         if (role is not null) contacts = contacts.Where(item => item.ContactRoles.Any(item => item.Role == role));
-        var latestByOrganization = LatestCaseRows(context);
-        var rows = from contact in contacts
-                   join latest in latestByOrganization on contact.Id equals latest.OrganizationId into latestGroup
-                   from latest in latestGroup.DefaultIfEmpty()
-                   select new ContactListRow
-                   {
-                       OrganizationId = contact.Id,
-                       Name = contact.Name,
-                       FirstRole = context.Set<ContactRoleEntity>()
-                           .Where(item => item.OrganizationId == contact.Id)
-                           .OrderBy(item => item.Role)
-                           .Select(item => item.Role)
-                           .FirstOrDefault(),
-                       ReceivedAtUtc = (DateTimeOffset?)latest.ReceivedAtUtc,
-                       Reference = latest.Reference
-                   };
-        var ordered = query.Sort switch
+        var rows = contacts.Select(contact => new ContactListRow
         {
-            ContactSort.Type => rows.OrderBy(item => item.FirstRole).ThenBy(item => item.Name).ThenBy(item => item.OrganizationId),
-            ContactSort.LastCase => rows.OrderByDescending(item => item.ReceivedAtUtc.HasValue)
+            OrganizationId = contact.Id,
+            Name = contact.Name,
+            FirstRole = context.Set<ContactRoleEntity>()
+                .Where(item => item.OrganizationId == contact.Id)
+                .OrderBy(item => item.Role)
+                .Select(item => item.Role)
+                .FirstOrDefault()
+        });
+        if (query.Sort == ContactSort.LastCase)
+        {
+            // The order depends on the latest Case, so the aggregate must run before paging.
+            var withLatest = from row in rows
+                             join latest in LatestCaseRows(context) on row.OrganizationId equals latest.OrganizationId into latestGroup
+                             from latest in latestGroup.DefaultIfEmpty()
+                             select new ContactListRow
+                             {
+                                 OrganizationId = row.OrganizationId,
+                                 Name = row.Name,
+                                 FirstRole = row.FirstRole,
+                                 ReceivedAtUtc = (DateTimeOffset?)latest.ReceivedAtUtc,
+                                 Reference = latest.Reference
+                             };
+            var selected = await withLatest.OrderByDescending(item => item.ReceivedAtUtc.HasValue)
                 .ThenByDescending(item => item.ReceivedAtUtc).ThenBy(item => item.Reference)
-                .ThenBy(item => item.Name).ThenBy(item => item.OrganizationId),
-            _ => rows.OrderBy(item => item.Name).ThenBy(item => item.OrganizationId)
-        };
-        var selected = await ordered.Take(limit).ToArrayAsync(cancellationToken);
-        return await LoadRecordsAsync(
-            context,
-            selected.Select(item => item.OrganizationId).ToArray(),
-            selected.Where(item => item.ReceivedAtUtc.HasValue && item.Reference is not null)
-                .ToDictionary(item => item.OrganizationId,
-                    item => new LatestCaseRow
-                    {
-                        OrganizationId = item.OrganizationId,
-                        ReceivedAtUtc = item.ReceivedAtUtc!.Value,
-                        Reference = item.Reference!
-                    }),
-            cancellationToken);
+                .ThenBy(item => item.Name).ThenBy(item => item.OrganizationId)
+                .Take(limit).ToArrayAsync(cancellationToken);
+            return await LoadRecordsAsync(
+                context,
+                selected.Select(item => item.OrganizationId).ToArray(),
+                selected.Where(item => item.ReceivedAtUtc.HasValue && item.Reference is not null)
+                    .ToDictionary(item => item.OrganizationId,
+                        item => new LatestCaseRow
+                        {
+                            OrganizationId = item.OrganizationId,
+                            ReceivedAtUtc = item.ReceivedAtUtc!.Value,
+                            Reference = item.Reference!
+                        }),
+                cancellationToken);
+        }
+
+        var ordered = query.Sort == ContactSort.Type
+            ? rows.OrderBy(item => item.FirstRole).ThenBy(item => item.Name).ThenBy(item => item.OrganizationId)
+            : rows.OrderBy(item => item.Name).ThenBy(item => item.OrganizationId);
+        var pageIds = await ordered.Take(limit).Select(item => item.OrganizationId).ToArrayAsync(cancellationToken);
+        var pageLatest = pageIds.Length == 0
+            ? new Dictionary<Guid, LatestCaseRow>()
+            : await LatestCaseRows(context)
+                .Where(item => pageIds.Contains(item.OrganizationId))
+                .ToDictionaryAsync(item => item.OrganizationId, cancellationToken);
+        return await LoadRecordsAsync(context, pageIds, pageLatest, cancellationToken);
     }
 
     public async Task<IReadOnlyList<ContactDirectoryRecord>> FindPossibleMatchesAsync(ActionActor actor, string name, CancellationToken cancellationToken)
@@ -247,6 +262,7 @@ public sealed class EfContactDirectoryAdministration(
         return result;
     }
 
+    /// <summary>Only the Contacts list shows the latest Case, so lookups pass null and skip the aggregate.</summary>
     private static async Task<IReadOnlyList<ContactDirectoryRecord>> LoadRecordsAsync(
         PegasusDbContext context,
         Guid[] orderedIds,
@@ -260,12 +276,9 @@ public sealed class EfContactDirectoryAdministration(
             .Include(item => item.PrincipalLinks)
             .Include(item => item.Principals)
             .ToDictionaryAsync(item => item.Id, cancellationToken);
-        var actualLatestCases = latestCases ?? await LatestCaseRows(context)
-            .Where(item => orderedIds.Contains(item.OrganizationId))
-            .ToDictionaryAsync(item => item.OrganizationId, cancellationToken);
         return orderedIds.Select(id => ToRecord(
                 entities[id],
-                actualLatestCases.GetValueOrDefault(id)))
+                latestCases?.GetValueOrDefault(id)))
             .ToArray();
     }
 
