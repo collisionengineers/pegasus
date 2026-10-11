@@ -401,15 +401,16 @@ public sealed class MailWorkspaceWebTests
         var previewCommands = counter.Count;
         var previewDescription = counter.Describe();
 
-        // The Inbox list and Message page trims (#1181) took the message page to 28 and
+        // The Inbox list and Message page trims (#1181) took the message page to 28 (27 with #1179) and
         // spared the list its unretained-history check and its preview a second read.
         // Measured with LocalDB in this scenario. Before Lane D (2ee268507) the message
         // page sent 52, the list 39 and the preview 18. After the Lane D reads they sent
         // 30, 24 and 11. The message page then sent 29 once its read of the message took
         // the receipt's classification decision for the classification dossier too,
         // rather than reading that decision a second time. The #1181 trims then left the
-        // message page two reads of that decision: the summary mapping (the row's own
-        // label) and the intake read (the receipt aggregate).
+        // message page two reads of that decision: the message read's receipt projection
+        // (which now also feeds the row's own label) and the intake read (the receipt
+        // aggregate); with #1179's rail trim the page is 27.
         Assert.True(
             messageCommands == InboxMessageCommands,
             $"The Inbox message page sent {messageCommands} SQL commands; it is pinned at {InboxMessageCommands}."
