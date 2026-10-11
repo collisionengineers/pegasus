@@ -232,18 +232,14 @@ internal sealed class EfIntakeLogQueries(
             .ToListAsync(cancellationToken);
         var uploadersByToken = uploaders.GroupBy(item => item.ExternalReceiptToken).ToDictionary(group => group.Key, group => group.First().Actor);
         var associations = await CurrentIntakeAssociations.ReadAsync(context, ids, cancellationToken);
-        var allocationCases = await context.IntakeAllocationAttempts.AsNoTracking()
-            .Where(item => ids.Contains(item.IntakeReceiptId) && item.CaseId != null)
-            .OrderByDescending(item => item.AttemptNumber)
-            .Select(item => new { item.IntakeReceiptId, item.CaseId, item.CaseReference })
-            .ToListAsync(cancellationToken);
-        var allocationCaseByReceipt = allocationCases.GroupBy(item => item.IntakeReceiptId).ToDictionary(group => group.Key, group => group.First());
-        var allocationPrincipals = await context.IntakeAllocationAttempts.AsNoTracking()
+        var allocations = await context.IntakeAllocationAttempts.AsNoTracking()
             .Where(item => ids.Contains(item.IntakeReceiptId))
             .OrderByDescending(item => item.AttemptNumber)
-            .Select(item => new { item.IntakeReceiptId, item.PrincipalCode })
+            .Select(item => new { item.IntakeReceiptId, item.CaseId, item.CaseReference, item.PrincipalCode })
             .ToListAsync(cancellationToken);
-        var principalByReceipt = allocationPrincipals.GroupBy(item => item.IntakeReceiptId).ToDictionary(group => group.Key, group => group.First().PrincipalCode);
+        var principalByReceipt = allocations.GroupBy(item => item.IntakeReceiptId).ToDictionary(group => group.Key, group => group.First().PrincipalCode);
+        var allocationCaseByReceipt = allocations.Where(item => item.CaseId != null)
+            .GroupBy(item => item.IntakeReceiptId).ToDictionary(group => group.Key, group => group.First());
 
         return entries.Select(entry =>
         {

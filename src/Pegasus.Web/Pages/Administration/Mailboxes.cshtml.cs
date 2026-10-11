@@ -107,7 +107,7 @@ public sealed class MailboxesModel(
         }
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedMailboxes);
-        await LoadAsync(actor, cancellationToken);
+        await LoadMailboxesAsync(actor, cancellationToken);
         var input = RequireForm(MailboxForm, value => MailboxForm = value);
         ValidateForm(input, nameof(MailboxForm));
         var routeScopes = ParseRouteScopes(input.SelectedRouteScopes);
@@ -236,7 +236,7 @@ public sealed class MailboxesModel(
         }
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedMailboxes);
-        await LoadAsync(actor, cancellationToken);
+        await LoadMailboxesAsync(actor, cancellationToken);
         var input = RequireForm(MailboxForm, value => MailboxForm = value);
         ValidateForm(input, nameof(MailboxForm));
         var mailbox = Mailboxes.SingleOrDefault(item => item.Id == input.MailboxId);
@@ -309,7 +309,6 @@ public sealed class MailboxesModel(
         }
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedMailboxes);
-        await LoadAsync(actor, cancellationToken);
         IsDefaultEditorOpen = true;
         var input = RequireForm(DefaultMailboxForm, value => DefaultMailboxForm = value);
         ValidateForm(input, nameof(DefaultMailboxForm));
@@ -662,11 +661,14 @@ public sealed class MailboxesModel(
         }
     }
 
+    private async Task LoadMailboxesAsync(ActionActor actor, CancellationToken cancellationToken) =>
+        Mailboxes = await listApprovedMailboxes.ExecuteAsync(actor, cancellationToken);
+
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
         AutomationComposed =
             HttpContext.RequestServices.GetService<AutomationClientRegistry>() is not null;
-        Mailboxes = await listApprovedMailboxes.ExecuteAsync(actor, cancellationToken);
+        await LoadMailboxesAsync(actor, cancellationToken);
         PollStatuses = await pollStatusQueries.ListAsync(cancellationToken);
         Subscriptions = await subscriptionStore.ListAsync(cancellationToken);
         Categories = await listCategories.ExecuteAsync(actor, cancellationToken);
