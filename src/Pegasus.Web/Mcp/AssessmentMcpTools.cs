@@ -113,7 +113,7 @@ internal sealed record EstimateGetToolResult(
 internal sealed record EstimateActToolResult(
     Guid CaseId,
     long CaseVersion,
-    EstimateToolItem Estimate,
+    EstimateToolItem? Estimate,
     string OperationKey,
     string CorrelationId);
 
@@ -413,7 +413,7 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Performs one of the Repair Spec acts a member of staff performs on an estimate: duplicate (a new copy; needs a reason), discard (needs a reason; the estimate in use cannot be discarded), scale (scale the estimate to targetPercentOfValue of the Engineer's Value, with optional labour-rate and price floors), remove_scaling, or restore (back to a snapshot from pegasus_estimate_get). Putting an estimate in use stays a staff act. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command).")]
+    [Description("Performs one of the Repair Spec acts a member of staff performs on an estimate: duplicate (a new copy; needs a reason), discard (deletes the estimate, so the result carries none; needs a reason; the estimate in use cannot be discarded), scale (scale the estimate to targetPercentOfValue of the Engineer's Value, with optional labour-rate and price floors), remove_scaling, or restore (back to a snapshot from pegasus_estimate_get). Putting an estimate in use stays a staff act. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command).")]
     public async Task<EstimateActToolResult> ActOnEstimateAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
@@ -443,31 +443,37 @@ internal sealed class AssessmentMcpTools(
                 string Reason() => string.IsNullOrWhiteSpace(reason)
                     ? throw new McpException("Duplicating or discarding an estimate needs a reason.")
                     : reason;
+                // A discarded estimate is deleted, so the result carries none.
+                async Task<RepairSpecificationVersion?> DiscardAsync(string token)
+                {
+                    await discardEstimate.ExecuteAsync(
+                        new(caseId, expectedVersion, actor, key, Reason(), token, estimateId),
+                        cancellationToken);
+                    return null;
+                }
                 var result = await leases.RunCaseAsync(
                     caseId,
                     expectedVersion,
                     editLeaseToken,
                     actor,
                     key,
-                    token => action?.Trim() switch
+                    async token => action?.Trim() switch
                     {
-                        "duplicate" => duplicateEstimate.ExecuteAsync(
+                        "duplicate" => await duplicateEstimate.ExecuteAsync(
                             new(caseId, expectedVersion, actor, key, Reason(), token, estimateId),
                             cancellationToken),
-                        "discard" => discardEstimate.ExecuteAsync(
-                            new(caseId, expectedVersion, actor, key, Reason(), token, estimateId),
-                            cancellationToken),
-                        "scale" => scaleEstimate.ExecuteAsync(
+                        "discard" => await DiscardAsync(token),
+                        "scale" => await scaleEstimate.ExecuteAsync(
                             new(caseId, expectedVersion, actor, key, token, estimateId,
                                 targetPercentOfValue
                                     ?? throw new McpException("Scaling needs targetPercentOfValue."),
                                 new(floorLabourRate ?? ScalingFloors.Default.LabourRatePerHour,
                                     floorPricePercent ?? ScalingFloors.Default.PricePercent)),
                             cancellationToken),
-                        "remove_scaling" => removeEstimateScaling.ExecuteAsync(
+                        "remove_scaling" => await removeEstimateScaling.ExecuteAsync(
                             new(caseId, expectedVersion, actor, key, token, estimateId),
                             cancellationToken),
-                        "restore" => restoreEstimateSnapshot.ExecuteAsync(
+                        "restore" => await restoreEstimateSnapshot.ExecuteAsync(
                             new(caseId, expectedVersion, actor, key, token, estimateId,
                                 snapshotId ?? throw new McpException("Restoring needs snapshotId.")),
                             cancellationToken),
@@ -480,7 +486,7 @@ internal sealed class AssessmentMcpTools(
                 return new EstimateActToolResult(
                     caseId,
                     workflow.Version,
-                    MapEstimate(result),
+                    result is null ? null : MapEstimate(result),
                     key,
                     AutomationMcpAuditor.CorrelationId(context, key));
             }),

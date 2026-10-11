@@ -2143,17 +2143,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("DiscardReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTimeOffset?>("DiscardedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("DiscardedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
                     b.Property<string>("GlassEstimateId")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -2303,13 +2292,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_CaseRepairSpecifications_Current", "[IsCurrent] = 0 OR [State] = 'Draft'");
 
-                            t.HasCheckConstraint("CK_CaseRepairSpecifications_Discard", "([State] = 'Draft' AND [DiscardedBy] IS NULL AND [DiscardedAtUtc] IS NULL AND [DiscardReason] IS NULL) OR ([State] = 'Discarded' AND [DiscardedBy] IS NOT NULL AND [DiscardedAtUtc] IS NOT NULL AND [DiscardReason] IS NOT NULL)");
-
                             t.HasCheckConstraint("CK_CaseRepairSpecifications_Glass", "([GlassVehicleId] IS NULL AND [GlassEstimateId] IS NULL AND [GlassNatCode] IS NULL AND [GlassPlaceholder] IS NULL AND [GlassRegistration] IS NULL AND [GlassMileageMiles] IS NULL) OR ([GlassVehicleId] IS NOT NULL AND [GlassEstimateId] IS NOT NULL AND [GlassNatCode] IS NOT NULL AND [GlassPlaceholder] IS NOT NULL AND [GlassRegistration] IS NOT NULL AND [GlassMileageMiles] IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_CaseRepairSpecifications_SourceRoute", "[SourceRoute] IN ('Manual', 'Glasses', 'AudatexPdf', 'Json', 'AiDraft')");
 
-                            t.HasCheckConstraint("CK_CaseRepairSpecifications_State", "[State] IN ('Draft', 'Discarded')");
+                            t.HasCheckConstraint("CK_CaseRepairSpecifications_State", "[State] IN ('Draft')");
 
                             t.HasCheckConstraint("CK_CaseRepairSpecifications_VatPercent", "[VatPercent] BETWEEN 0 AND 100");
 
@@ -5092,10 +5079,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("SourceChannel", "ExternalReceiptToken")
                         .IsUnique();
 
+                    b.HasIndex("SourceChannel", "ReceivedAtUtc");
+
                     b.HasIndex("SourceChannel", "ProcessedAtUtc", "Id")
                         .IsDescending(false, true, false);
-
-                    b.HasIndex("SourceChannel", "ReceivedAtUtc");
 
                     b.ToTable("IntakeReceipts", (string)null);
                 });

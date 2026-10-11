@@ -107,7 +107,6 @@ public sealed record EstimateDocumentSnapshot(
     public string Status => IsCurrent ? "CURRENT" : State switch
     {
         RepairSpecificationState.Draft => "DRAFT",
-        RepairSpecificationState.Discarded => "DISCARDED",
         _ => throw new ReportRenderRejectedException("The estimate document has an unsupported state."),
     };
 

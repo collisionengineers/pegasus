@@ -495,7 +495,7 @@ public sealed class RepairSpecificationActTests
             throw new NotSupportedException();
         public Task<RepairSpecificationVersion> DuplicateEstimateAsync(DuplicateEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
-        public Task<RepairSpecificationVersion> DiscardEstimateAsync(DiscardEstimateRequest request, CancellationToken cancellationToken) =>
+        public Task DiscardEstimateAsync(DiscardEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
         public Task<RepairSpecificationVersion> SetCurrentEstimateAsync(SetCurrentEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();

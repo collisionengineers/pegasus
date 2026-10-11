@@ -365,25 +365,6 @@ public sealed class EstimateTests
     }
 
     /// <summary>
-    /// Every live estimate is editable, whoever edits it: a Manual estimate,
-    /// an AI draft and the spec in use alike (operator, 25 September and 7
-    /// October 2026). Only a discarded estimate is refused.
-    /// </summary>
-    [Fact]
-    public void EveryLiveEstimateIsEditableAndADiscardedOneIsNot()
-    {
-        var manual = Estimate(Details(), Line("repair", workUnits: 1m));
-        var aiDraft = manual with { Source = new(RepairSpecificationSourceRoute.AiDraft, null, null, null) };
-        EstimatePolicy.ValidateEditable(manual);
-        EstimatePolicy.ValidateEditable(manual with { IsCurrent = true });
-        EstimatePolicy.ValidateEditable(aiDraft);
-        EstimatePolicy.ValidateEditable(aiDraft with { IsCurrent = true });
-
-        var discarded = manual with { State = RepairSpecificationState.Discarded };
-        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateEditable(discarded));
-    }
-
-    /// <summary>
     /// A line's evidence label, justification, guide code and betterment are
     /// the save's own where it supplies them, and the stored line's where it
     /// does not; a To be confirmed line the save prices is priced.
@@ -435,16 +416,12 @@ public sealed class EstimateTests
     }
 
     [Fact]
-    public void TheEstimateInUseCannotBeDiscardedAndDiscardedCannotBeDuplicated()
+    public void TheEstimateInUseCannotBeDiscarded()
     {
         var current = Estimate(Details(), Line("repair", workUnits: 1m)) with { IsCurrent = true };
         var inUse = Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateDiscard(current));
         Assert.Equal("The repair spec in use cannot be discarded.", inUse.Message);
-        var discarded = Estimate(Details(), Line("repair", workUnits: 1m)) with { State = RepairSpecificationState.Discarded };
-        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateDiscard(discarded));
-        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateDuplicate(discarded));
         EstimatePolicy.ValidateDiscard(Estimate(Details(), Line("repair", workUnits: 1m)));
-        EstimatePolicy.ValidateDuplicate(current);
     }
 
     [Fact]
@@ -513,8 +490,6 @@ public sealed class EstimateTests
         // use, and report readiness then names what it lacks.
         EstimatePolicy.ValidateSetCurrent(Estimate(Details()), actor);
 
-        var discarded = draft with { State = RepairSpecificationState.Discarded };
-        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateSetCurrent(discarded, actor));
         Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateSetCurrent(draft, Client));
     }
 
@@ -1199,30 +1174,6 @@ public sealed class EstimateTests
         Assert.Empty(save.Saved);
     }
 
-    [Fact]
-    public async Task ADiscardedImportNoLongerHoldsItsSource()
-    {
-        var save = new FakeSpecificationStore();
-        var discarded = Estimate(Details()) with
-        {
-            State = RepairSpecificationState.Discarded,
-            Source = new(RepairSpecificationSourceRoute.AudatexPdf, "estimate-import:first", "v1", ImportSha256),
-        };
-        var documents = new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf");
-        var import = new ImportRawEstimate(
-            [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
-            Retained,
-            documents,
-            new StubList(discarded),
-            save, NoCards);
-
-        await import.ExecuteAsync(ImportRequest(operationKey: "op-import-again"), CancellationToken.None);
-
-        Assert.Empty(save.SourceReplayBindings);
-        Assert.Single(documents.Requests);
-        Assert.Equal(ImportSha256, Assert.Single(save.Saved).Source.Sha256);
-    }
-
     private static readonly GlassEstimateLink GlassEstimate =
         new("33584499", "1954488", "10203040", Placeholder: false, "AB12CDE", 33000);
 
@@ -1272,22 +1223,20 @@ public sealed class EstimateTests
     public async Task AGlassReturnForADiscardedSpecLandsAsANewSpecThatBelongsToTheEstimate()
     {
         var save = new FakeSpecificationStore();
-        var discarded = Estimate(Details()) with
-        {
-            State = RepairSpecificationState.Discarded,
-            Source = new(RepairSpecificationSourceRoute.AudatexPdf, "estimate-import:first", "v1", new string('b', 64)),
-        };
+        // Discard deleted the spec the session started on, so the Case no
+        // longer lists it.
+        var discardedId = Guid.NewGuid();
         var import = new ImportRawEstimate(
             [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
             Retained,
             new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
-            new StubList(discarded),
+            new StubList(),
             save, NoCards);
 
         await import.ExecuteAsync(
             ImportRequest(operationKey: "op-import-fresh") with
             {
-                EstimateId = discarded.SpecificationId,
+                EstimateId = discardedId,
                 GlassEstimate = GlassEstimate,
             },
             CancellationToken.None);
@@ -1759,10 +1708,10 @@ public sealed class EstimateTests
             return Task.FromResult(Current);
         }
 
-        public Task<RepairSpecificationVersion> DiscardEstimateAsync(DiscardEstimateRequest request, CancellationToken cancellationToken)
+        public Task DiscardEstimateAsync(DiscardEstimateRequest request, CancellationToken cancellationToken)
         {
             Discards.Add(request);
-            return Task.FromResult(Current);
+            return Task.CompletedTask;
         }
 
         public List<RepairSpecificationVersion> Estimates { get; } = [];
