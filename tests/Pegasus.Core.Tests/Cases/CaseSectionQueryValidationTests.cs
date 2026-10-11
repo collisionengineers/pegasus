@@ -257,6 +257,9 @@ public sealed class CaseSectionQueryValidationTests
         public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(IReadOnlyCollection<Guid> staffIds, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }

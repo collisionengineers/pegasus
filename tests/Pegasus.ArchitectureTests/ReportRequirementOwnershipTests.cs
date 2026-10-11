@@ -438,7 +438,7 @@ public sealed class ReportRequirementOwnershipTests
         {
             EligibleSignOffEngineers =
             [
-                new SignOffEngineerProfile(Guid.NewGuid(), "Ed Mawdsley", null, [1, 2, 3], "image/png", IsDefault: false),
+                new SignOffEngineerProfile(Guid.NewGuid(), "Ed Mawdsley", null, IsDefault: false),
             ],
         };
         yield return NothingElseRecorded(complete) with

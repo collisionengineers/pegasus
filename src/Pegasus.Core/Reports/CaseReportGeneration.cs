@@ -836,10 +836,10 @@ public static class CaseReportReadiness
     public static DateOnly ResolveReportDate(DateOnly? recorded, DateOnly generatedOn) =>
         recorded ?? generatedOn;
 
+    // An eligible account always has a PNG signature (the query requires one),
+    // so only the printed name can be missing.
     private static bool IsComplete(SignOffEngineerProfile profile) =>
-        !string.IsNullOrWhiteSpace(profile.PrintedName)
-        && profile.Signature is { Length: > 0 }
-        && ReportImageEvidence.IsAcceptedContentType(profile.SignatureContentType);
+        !string.IsNullOrWhiteSpace(profile.PrintedName);
 
     private static bool MatchesConfirmedSource(
         PreparedReportImage image,

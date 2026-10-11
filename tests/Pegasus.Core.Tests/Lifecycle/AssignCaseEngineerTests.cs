@@ -148,7 +148,7 @@ public sealed class AssignCaseEngineerTests
     }
 
     private static SignOffEngineerProfile Profile(Guid staffId, bool isDefault) =>
-        new(staffId, "Named Signatory", null, [1], "image/png", isDefault);
+        new(staffId, "Named Signatory", null, isDefault);
 
     private static AssignCaseEngineerRequest CreateAssignmentRequest() =>
         new(
@@ -346,6 +346,9 @@ public sealed class AssignCaseEngineerTests
     private sealed class StubStaffAccounts(IReadOnlyList<SignOffEngineerProfile> profiles)
         : IStaffAccountQueries
     {
+        public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) => Task.FromResult(profiles);
 
