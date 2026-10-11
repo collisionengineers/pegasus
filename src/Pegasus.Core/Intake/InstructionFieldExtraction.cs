@@ -85,8 +85,14 @@ internal static partial class InstructionFieldEngine
             Regex[] candidate,
             Regex[] explicitCandidate,
             Regex[] startsWith,
-            Regex[] followingLabel)
+            Regex[] followingLabel,
+            string[] normalizedLabels,
+            string[]? normalizedFormFields)
         {
+            internal string[] NormalizedLabels => normalizedLabels;
+
+            internal string[]? NormalizedFormFields => normalizedFormFields;
+
             internal Regex Candidate(int index, bool requiresExplicitSeparator) =>
                 (requiresExplicitSeparator ? explicitCandidate : candidate)[index];
 
@@ -96,6 +102,7 @@ internal static partial class InstructionFieldEngine
         }
 
         private readonly Dictionary<FieldDefinition, DefinitionPatterns> patterns = [];
+        private readonly HashSet<string> knownLabels = new(StringComparer.Ordinal);
 
         internal LabelRegexCache(IReadOnlyList<FieldDefinition> definitions)
         {
@@ -130,9 +137,26 @@ internal static partial class InstructionFieldEngine
                         TimeSpan.FromMilliseconds(100));
                 }
 
-                patterns.Add(definition, new(candidate, explicitCandidate, startsWith, followingLabel));
+                var normalizedLabels = definition.Labels.Select(Normalize).ToArray();
+                knownLabels.UnionWith(normalizedLabels);
+                patterns.Add(definition, new(
+                    candidate,
+                    explicitCandidate,
+                    startsWith,
+                    followingLabel,
+                    normalizedLabels,
+                    definition.FormFields is { Length: > 0 } names ? names.Select(Normalize).ToArray() : null));
             }
         }
+
+        internal string[] NormalizedLabels(FieldDefinition definition) =>
+            patterns[definition].NormalizedLabels;
+
+        internal string[]? NormalizedFormFields(FieldDefinition definition) =>
+            patterns[definition].NormalizedFormFields;
+
+        /// <summary>Whether the normalised text is any definition's label.</summary>
+        internal bool IsKnownLabel(string normalized) => knownLabels.Contains(normalized);
 
         internal Regex Candidate(
             FieldDefinition definition,
@@ -165,9 +189,13 @@ internal static partial class InstructionFieldEngine
         private readonly List<(IntakeContentFragment Fragment, int Rank)> formFields = [];
         private readonly List<TableIndex> tables = [];
 
-        internal SourceStructure(IReadOnlyList<IntakeContentFragment> fragments)
+        private readonly LabelRegexCache regexCache;
+
+        internal SourceStructure(IReadOnlyList<IntakeContentFragment> fragments, LabelRegexCache regexCache)
         {
             ArgumentNullException.ThrowIfNull(fragments);
+            ArgumentNullException.ThrowIfNull(regexCache);
+            this.regexCache = regexCache;
             var byTable = new Dictionary<(string Document, int Table), TableIndex>();
             for (var rank = 0; rank < fragments.Count; rank++)
             {
@@ -181,7 +209,7 @@ internal static partial class InstructionFieldEngine
                         var identity = (InstructionExtractionPolicySelector.DocumentIdentity(fragment.SourceLabel), table);
                         if (!byTable.TryGetValue(identity, out var index))
                         {
-                            index = new();
+                            index = new(regexCache);
                             byTable.Add(identity, index);
                             this.tables.Add(index);
                         }
@@ -201,13 +229,11 @@ internal static partial class InstructionFieldEngine
         /// flattened line scan.
         /// </summary>
         internal IEnumerable<(InstructionFieldCandidate Candidate, int FragmentRank)> Bind(
-            FieldDefinition definition,
-            IReadOnlyList<FieldDefinition> definitions)
+            FieldDefinition definition)
         {
             ArgumentNullException.ThrowIfNull(definition);
-            ArgumentNullException.ThrowIfNull(definitions);
             var occurrence = 0;
-            foreach (var bound in BindFormFields(definition).Concat(BindCells(definition, definitions)))
+            foreach (var bound in BindFormFields(definition).Concat(BindCells(definition)))
             {
                 // Occurrence counts the repetitions of one field within one
                 // source, so two printings of the same value stay two readings.
@@ -231,7 +257,7 @@ internal static partial class InstructionFieldEngine
         {
             foreach (var (fragment, rank) in this.formFields)
             {
-                if (!MatchesFormField(definition, fragment.Locator!.FormField!))
+                if (!MatchesFormField(definition, fragment.Locator!.FormField!, this.regexCache))
                 {
                     continue;
                 }
@@ -244,14 +270,13 @@ internal static partial class InstructionFieldEngine
         }
 
         private IEnumerable<(InstructionFieldCandidate Candidate, int FragmentRank)> BindCells(
-            FieldDefinition definition,
-            IReadOnlyList<FieldDefinition> definitions)
+            FieldDefinition definition)
         {
             foreach (var table in this.tables)
             {
                 foreach (var label in table.LabelCells(definition))
                 {
-                    foreach (var value in table.ValueCellsFor(label, definition, definitions))
+                    foreach (var value in table.ValueCellsFor(label, definition))
                     {
                         if (Bound(value.Fragment, definition) is { } candidate)
                         {
@@ -269,7 +294,10 @@ internal static partial class InstructionFieldEngine
         /// to its printed labels, which is how a form whose fields are named
         /// after the labels beside them still reads.
         /// </summary>
-        private static bool MatchesFormField(FieldDefinition definition, string formField)
+        private static bool MatchesFormField(
+            FieldDefinition definition,
+            string formField,
+            LabelRegexCache regexCache)
         {
             var normalized = Normalize(formField);
             if (normalized.Length == 0)
@@ -277,10 +305,8 @@ internal static partial class InstructionFieldEngine
                 return false;
             }
 
-            return definition.FormFields is { Length: > 0 } names
-                ? names.Any(name => string.Equals(Normalize(name), normalized, StringComparison.Ordinal))
-                : definition.Labels.Any(
-                    label => string.Equals(Normalize(label), normalized, StringComparison.Ordinal));
+            return (regexCache.NormalizedFormFields(definition) ?? regexCache.NormalizedLabels(definition))
+                .Contains(normalized, StringComparer.Ordinal);
         }
 
         /// <summary>
@@ -326,12 +352,11 @@ internal static partial class InstructionFieldEngine
             return builder.ToString();
         }
 
-        private static bool IsLabelOf(string text, FieldDefinition definition)
+        private static bool IsLabelOf(string text, FieldDefinition definition, LabelRegexCache regexCache)
         {
             var normalized = Normalize(text);
             return normalized.Length > 0
-                && definition.Labels.Any(
-                    label => string.Equals(Normalize(label), normalized, StringComparison.Ordinal));
+                && regexCache.NormalizedLabels(definition).Contains(normalized, StringComparer.Ordinal);
         }
 
         /// <summary>
@@ -339,22 +364,23 @@ internal static partial class InstructionFieldEngine
         /// not itself one of the document's known labels — a label cell is never
         /// another label's value.
         /// </summary>
-        private static bool IsValueCell(string text, IReadOnlyList<FieldDefinition> definitions)
+        private static bool IsValueCell(string text, LabelRegexCache regexCache)
         {
             if (string.IsNullOrWhiteSpace(text))
             {
                 return false;
             }
 
-            var normalized = Normalize(text);
-            return !definitions.Any(definition => definition.Labels.Any(
-                label => string.Equals(Normalize(label), normalized, StringComparison.Ordinal)));
+            return !regexCache.IsKnownLabel(Normalize(text));
         }
 
         private sealed class TableIndex
         {
+            private readonly LabelRegexCache regexCache;
             private readonly Dictionary<(int Row, int Column), (IntakeContentFragment Fragment, int Rank)> cells = [];
             private int headerRow = int.MaxValue;
+
+            internal TableIndex(LabelRegexCache regexCache) => this.regexCache = regexCache;
 
             internal void Add(int row, int column, IntakeContentFragment fragment, int rank)
             {
@@ -364,15 +390,14 @@ internal static partial class InstructionFieldEngine
 
             internal IEnumerable<(int Row, int Column)> LabelCells(FieldDefinition definition) =>
                 this.cells
-                    .Where(entry => IsLabelOf(entry.Value.Fragment.Text, definition))
+                    .Where(entry => IsLabelOf(entry.Value.Fragment.Text, definition, this.regexCache))
                     .Select(entry => entry.Key)
                     .OrderBy(key => key.Row)
                     .ThenBy(key => key.Column);
 
             internal (IntakeContentFragment Fragment, int Rank)[] ValueCellsFor(
                 (int Row, int Column) label,
-                FieldDefinition definition,
-                IReadOnlyList<FieldDefinition> definitions)
+                FieldDefinition definition)
             {
                 // A header labels its own column: its values are aligned beneath
                 // it, never beside it.
@@ -383,7 +408,7 @@ internal static partial class InstructionFieldEngine
                         .. this.cells
                             .Where(entry => entry.Key.Column == label.Column
                                 && entry.Key.Row > label.Row
-                                && IsValueCell(entry.Value.Fragment.Text, definitions))
+                                && IsValueCell(entry.Value.Fragment.Text, this.regexCache))
                             .OrderBy(entry => entry.Key.Row)
                             .Select(entry => entry.Value)
                     ];
@@ -397,7 +422,7 @@ internal static partial class InstructionFieldEngine
                 var siblings = this.cells
                     .Where(entry => entry.Key.Row == label.Row
                         && entry.Key.Column > label.Column
-                        && IsValueCell(entry.Value.Fragment.Text, definitions)
+                        && IsValueCell(entry.Value.Fragment.Text, this.regexCache)
                         && (definition.ColumnHeader is null
                             || HeaderMatches(entry.Key.Column, definition.ColumnHeader)))
                     .OrderBy(entry => entry.Key.Column)
@@ -413,7 +438,7 @@ internal static partial class InstructionFieldEngine
                 // satisfied by that, so it stays unbound.
                 return definition.ColumnHeader is null
                     && this.cells.TryGetValue((label.Row + 1, label.Column), out var below)
-                    && IsValueCell(below.Fragment.Text, definitions)
+                    && IsValueCell(below.Fragment.Text, this.regexCache)
                         ? [below]
                         : [];
             }
@@ -440,7 +465,10 @@ internal static partial class InstructionFieldEngine
         // Built once for the whole document: which fragments are table cells and
         // which are PDF form fields, indexed so a label can find the cell beside
         // or beneath it without re-scanning the document for every field.
-        var structure = new SourceStructure(fragments);
+        var structure = new SourceStructure(fragments, regexCache);
+        // Each fragment is normalised and split into lines at most once, however
+        // many definitions scan it.
+        var fragmentLines = new string[fragments.Count][];
 
         foreach (var definition in definitions)
         {
@@ -450,14 +478,21 @@ internal static partial class InstructionFieldEngine
             // at the same flattened row is not offered beside it. This is what
             // stops a neighbouring column's value being read as this field's.
             var structured = structure
-                .Bind(definition, definitions)
+                .Bind(definition)
                 .DistinctBy(entry => entry.Candidate.Value, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             var discovered = structured.Length > 0
                 ? structured
                 : fragments
-                    .SelectMany((fragment, rank) => FindCandidates(fragment, definition, definitions, regexCache)
-                        .Select(candidate => (Candidate: candidate, FragmentRank: rank)))
+                    .SelectMany((fragment, rank) => IsLineScanned(fragment)
+                        ? FindCandidates(
+                                fragment,
+                                fragmentLines[rank] ??= FragmentLines(fragment.Text),
+                                definition,
+                                definitions,
+                                regexCache)
+                            .Select(candidate => (Candidate: candidate, FragmentRank: rank))
+                        : Enumerable.Empty<(InstructionFieldCandidate Candidate, int FragmentRank)>())
                     .DistinctBy(entry => entry.Candidate.Value, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
             var candidates = discovered
@@ -558,30 +593,32 @@ internal static partial class InstructionFieldEngine
         return (fields, missing, evidence);
     }
 
+    /// <summary>
+    /// A cell or a form field is already bounded by the document's own
+    /// structure. Line-scanning it again would re-create exactly the
+    /// flattening this path exists to work around, so structured fragments
+    /// are left to SourceStructure.
+    /// </summary>
+    private static bool IsLineScanned(IntakeContentFragment fragment) =>
+        fragment.Locator?.Kind is not (IntakeLocatorKind.TableCell or IntakeLocatorKind.FormField);
+
+    // The real correspondence writes typographic apostrophes (\u2019); labels
+    // and lookaheads reason in ASCII, so the line text is normalized once per
+    // fragment here.
+    private static string[] FragmentLines(string text) => text
+        .Replace('\u2019', '\'')
+        .Replace('\u2018', '\'')
+        .Replace("\r\n", "\n", StringComparison.Ordinal)
+        .Replace('\r', '\n')
+        .Split('\n', StringSplitOptions.TrimEntries);
+
     private static IEnumerable<InstructionFieldCandidate> FindCandidates(
         IntakeContentFragment fragment,
+        string[] lines,
         FieldDefinition definition,
         IReadOnlyList<FieldDefinition> definitions,
         LabelRegexCache regexCache)
     {
-        // A cell or a form field is already bounded by the document's own
-        // structure. Line-scanning it again would re-create exactly the
-        // flattening this path exists to work around, so structured fragments
-        // are left to SourceStructure.
-        if (fragment.Locator?.Kind is IntakeLocatorKind.TableCell or IntakeLocatorKind.FormField)
-        {
-            yield break;
-        }
-
-        // The real correspondence writes typographic apostrophes (\u2019); labels
-        // and lookaheads reason in ASCII, so the line text is normalized once here.
-        var lines = fragment.Text
-            .Replace('\u2019', '\'')
-            .Replace('\u2018', '\'')
-            .Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace('\r', '\n')
-            .Split('\n', StringSplitOptions.TrimEntries);
-
         for (var index = 0; index < lines.Length; index++)
         {
             for (var labelIndex = 0; labelIndex < definition.Labels.Length; labelIndex++)

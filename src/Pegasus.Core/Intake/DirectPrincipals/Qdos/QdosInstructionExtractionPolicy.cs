@@ -272,6 +272,14 @@ public sealed partial class QdosInstructionExtractionPolicy
             GuardedPrefixes = [.. ThirdPartyRowPrefixes.Concat(definition.GuardedPrefixes ?? [])]
         })];
 
+    /// <summary>
+    /// Every definition label as a row prefix, built once for the party-block
+    /// row test. Declared after <see cref="FieldDefinitions"/>: static
+    /// initialisers run in textual order.
+    /// </summary>
+    private static readonly string[] DefinitionLabelPrefixes =
+        [.. FieldDefinitions.SelectMany(definition => definition.Labels).Select(label => label + ":")];
+
     private static readonly InstructionFieldEngine.LabelRegexCache FieldRegexCache =
         new(FieldDefinitions);
 
@@ -363,20 +371,22 @@ public sealed partial class QdosInstructionExtractionPolicy
         IntakeSourceReadResult readResult)
     {
         var extended = new List<IntakeContentFragment>(readResult.Content);
-        foreach (var fragment in readResult.Content)
+        var fragmentLines = readResult.Content.Select(fragment => SplitLines(fragment.Text)).ToArray();
+        for (var index = 0; index < readResult.Content.Count; index++)
         {
+            var fragment = readResult.Content[index];
             // The circumstances prompt is its own test: only the letter asks
             // the question, so a report yields nothing here anyway. Gating
             // this on the report test as well meant broadening that test
             // could silently cost a letter its circumstances.
-            if (CircumstancesParagraph(fragment) is { } circumstances)
+            if (CircumstancesParagraph(fragment, fragmentLines[index]) is { } circumstances)
             {
                 extended.Add(circumstances);
             }
         }
-        foreach (var fragment in readResult.Content)
+        for (var index = 0; index < readResult.Content.Count; index++)
         {
-            extended.AddRange(LetterBlocks(fragment));
+            extended.AddRange(LetterBlocks(readResult.Content[index], fragmentLines[index]));
         }
         foreach (var fragment in readResult.Content.Concat(readResult.CompanionContent))
         {
@@ -502,9 +512,9 @@ public sealed partial class QdosInstructionExtractionPolicy
     /// circumstances. It ends where the letter's next block begins.
     /// </summary>
     private static IntakeContentFragment? CircumstancesParagraph(
-        IntakeContentFragment fragment)
+        IntakeContentFragment fragment,
+        string[] lines)
     {
-        var lines = SplitLines(fragment.Text);
         // The reader sometimes wraps the prompt across physical lines, so the
         // anchor is the phrase's final word closing the question.
         var prompt = Array.FindIndex(lines, CircumstancesPromptRegex().IsMatch);
@@ -646,14 +656,14 @@ public sealed partial class QdosInstructionExtractionPolicy
     /// page a value came from survives into the recorded candidate.
     /// </summary>
     private static IEnumerable<IntakeContentFragment> LetterBlocks(
-        IntakeContentFragment fragment)
+        IntakeContentFragment fragment,
+        string[] lines)
     {
-        if (DamageArea(fragment) is { } damageArea)
+        if (DamageArea(lines) is { } damageArea)
         {
             yield return Labelled(fragment, DamageAreaField, damageArea.Replace('\n', ' '));
         }
 
-        var lines = SplitLines(fragment.Text);
         var requestedWork = lines.FirstOrDefault(RequestedWorkHeadingRegex().IsMatch);
         if (requestedWork is not null)
         {
@@ -733,9 +743,8 @@ public sealed partial class QdosInstructionExtractionPolicy
     /// Moderate" — and the block ends at the third-party rows. Returns the text
     /// after the label, or null when the fragment has no damage-area row.
     /// </summary>
-    private static string? DamageArea(IntakeContentFragment fragment)
+    private static string? DamageArea(string[] lines)
     {
-        var lines = SplitLines(fragment.Text);
         var index = Array.FindIndex(lines, line =>
             DamageAreaRowRegex().IsMatch(line));
         if (index < 0)
@@ -881,9 +890,8 @@ public sealed partial class QdosInstructionExtractionPolicy
     private static bool IsPlausibleClaimantName(string value) =>
         value.Length > 0 && char.IsUpper(value[0]);
 
-    private static bool IsDefinitionLabelledRow(string line) => FieldDefinitions
-        .SelectMany(definition => definition.Labels)
-        .Any(label => line.StartsWith(label + ":", StringComparison.OrdinalIgnoreCase));
+    private static bool IsDefinitionLabelledRow(string line) => DefinitionLabelPrefixes
+        .Any(prefix => line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// The column boundary a flattened page leaves behind: a run of two or
