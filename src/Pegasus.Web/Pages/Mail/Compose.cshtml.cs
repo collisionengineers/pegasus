@@ -425,7 +425,19 @@ public sealed class ComposeModel(
         }
     }
 
-    private async Task<CaseHeader?> ResolveCaseAsync(
+    private Task<CaseHeader?> ResolveCaseAsync(
+        ActionActor actor,
+        string? reference,
+        CancellationToken cancellationToken) =>
+        ResolveCaseAsync(searchCases, getCaseHeader, actor, reference, cancellationToken);
+
+    /// <summary>
+    /// The Case a typed Case / PO reference names exactly, for this page and the
+    /// message page's Reply and Forward composer; null when it names none.
+    /// </summary>
+    internal static async Task<CaseHeader?> ResolveCaseAsync(
+        ISearchCases searchCases,
+        IGetCaseHeader getCaseHeader,
         ActionActor actor,
         string? reference,
         CancellationToken cancellationToken)
@@ -464,7 +476,7 @@ public sealed class ComposeModel(
         return !string.IsNullOrWhiteSpace(normalized) && normalized.Length <= 300;
     }
 
-    private static bool TryNormalizeCaseReference(string? value, out string? normalized)
+    internal static bool TryNormalizeCaseReference(string? value, out string? normalized)
     {
         normalized = value?.Trim();
         return !string.IsNullOrWhiteSpace(normalized) && normalized.Length <= 100;

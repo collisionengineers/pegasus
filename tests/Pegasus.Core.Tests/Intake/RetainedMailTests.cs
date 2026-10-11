@@ -570,6 +570,47 @@ public sealed class RetainedMailTests
         Assert.Equal(RetainedMailFolderMoveOutcome.Uncertain, unresolved.LatestFolderMove!.Outcome);
     }
 
+    [Theory]
+    [InlineData("outlook-folder-instructions", true)]
+    [InlineData("another-outlook-folder", false)]
+    public async Task GetReadsTheCurrentLocationAndMailboxesOnceFromASucceededLatestMove(
+        string destinationFolderId,
+        bool atBinding)
+    {
+        var detail = ClassifiedDetail(
+            "mailbox-a",
+            MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
+            classificationVersion: 4);
+        var mailboxes = new MailboxStore(ApprovedMailbox(
+            "mailbox-a",
+            ApprovedMailboxState.Approved,
+            version: 7,
+            new ApprovedMailboxFolderBinding(
+                MailLogicalFolderType.Instructions,
+                "outlook-folder-instructions")));
+        var folderMoves = new FolderMoveState
+        {
+            Latest = new(
+                RetainedMailFolderMoveOutcome.Succeeded,
+                MailLogicalFolderType.Instructions,
+                "Moved.",
+                NowUtc,
+                DestinationFolderId: destinationFolderId)
+        };
+
+        var result = await new GetRetainedMail(
+            new Queries { DetailToReturn = detail },
+            new NoStaffAccounts(),
+            mailboxes,
+            folderMoves,
+            folderMoves).ExecuteAsync(Caseworker(), detail.Summary.Id);
+
+        Assert.Equal(atBinding, result!.SuggestedMove is null);
+        Assert.Equal(0, folderMoves.IsCurrentLocationCount);
+        Assert.Equal(1, mailboxes.ListCount);
+        Assert.Single(result.ListedMailboxes!);
+    }
+
     [Fact]
     public async Task GetDoesNotConsultMailboxBindingsWhenClassificationAbstains()
     {
@@ -1114,6 +1155,7 @@ public sealed class RetainedMailTests
     {
         internal bool IsAtDestination { get; set; } = isAtDestination;
         internal RetainedMailFolderMoveResult? Latest { get; set; }
+        internal int IsCurrentLocationCount { get; private set; }
         public bool IsAvailable => true;
 
         public Task<RetainedMailFolderMoveResult?> GetLatestAsync(
@@ -1124,8 +1166,11 @@ public sealed class RetainedMailTests
         public Task<bool> IsCurrentLocationAsync(
             Guid messageId,
             string folderIdentity,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(IsAtDestination);
+            CancellationToken cancellationToken)
+        {
+            IsCurrentLocationCount++;
+            return Task.FromResult(IsAtDestination);
+        }
 
         public Task<RetainedMailFolderMoveResult?> MoveAsync(
             ActionActor actor,
