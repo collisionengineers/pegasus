@@ -381,16 +381,16 @@
                             }
                         </div>
                     </div>
-                    @if (principal is null)
-                    {
-                        <div class="table-wrap section-gap"><table class="table table--compact"><thead><tr><th scope="col">Principal</th><th scope="col" class="num">Currently held</th><th scope="col">Oldest held since</th><th scope="col" class="num">Triages</th><th scope="col">Oldest Triage since</th></tr></thead><tbody><tr><td colspan="5" class="muted">Unavailable</td></tr></tbody></table></div>
-                    }
-                    else if (queueRows.Length > 0)
-                    {
-                        <div class="table-wrap section-gap">
-                            <table class="table table--compact">
-                                <thead><tr><th scope="col">Principal</th><th scope="col" class="num">Currently held</th><th scope="col">Oldest held since</th><th scope="col" class="num">Triages</th><th scope="col">Oldest Triage since</th></tr></thead>
-                                <tbody>
+                    <div class="table-wrap section-gap">
+                        <table class="table table--compact">
+                            <thead><tr><th scope="col">Principal</th><th scope="col" class="num">Currently held</th><th scope="col">Oldest held since</th><th scope="col" class="num">Triages</th><th scope="col">Oldest Triage since</th></tr></thead>
+                            <tbody>
+                            @if (principal is null)
+                            {
+                                <tr><td colspan="5" class="muted">Unavailable</td></tr>
+                            }
+                            else
+                            {
                                 @foreach (var row in queueRows)
                                 {
                                     <tr>
@@ -401,10 +401,11 @@
                                         <td>@OperatorLabels.OfficeTime(row.OldestCurrentTriageCreatedAtUtc, "—")</td>
                                     </tr>
                                 }
-                                </tbody>
-                            </table>
-                        </div>
-                    }
+                                @if (queueRows.Length == 0) { <tr><td colspan="5" class="muted">Nothing is currently held.</td></tr> }
+                            }
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
         }
