@@ -947,7 +947,9 @@ linked, so an idle ten-second tick sends no row.
 `SqlDependencyTelemetryFilter` still drops a successful SQL call, but keeps one that
 took 250 ms or more, and every failed one. It runs before sampling, so a dropped
 call does not count towards the sampling rate. `AppDependencies` therefore shows a
-lock wait or a slow statement on an intake run, unless sampling dropped it.
+lock wait or a slow statement on an intake run, unless sampling dropped it. The
+dependency carries no statement text; [Query Store](#statement-level-evidence-from-query-store)
+names the statement.
 
 Dependencies are sampled. The worker process samples everything it sends itself.
 `AddApplicationInsightsTelemetryWorkerService` in `src/Pegasus.Worker/Program.cs`
@@ -963,6 +965,55 @@ Use the two together. A run that took 26 s with no dependency shows its spans by
 stage, and a slow statement in the same trace shows as a dependency. Sampling keeps
 or drops a whole operation, but events and the other types are sampled apart. Under
 load a run can keep its spans and lose its slow statement, or the reverse.
+
+### Statement-level evidence from Query Store
+
+SQL dependency telemetry carries no statement text, so a per-statement claim needs
+Query Store on the production database. The check is read-only:
+
+```sql
+SELECT actual_state_desc FROM sys.database_query_store_options;
+```
+
+`READ_WRITE` is the working state. Any other value is reported to the operator;
+do not change the database to make it so.
+
+The statement query is also read-only. Set the window in the two variables:
+
+```sql
+DECLARE @from datetimeoffset = DATEADD(day, -1, SYSDATETIMEOFFSET());
+DECLARE @to datetimeoffset = SYSDATETIMEOFFSET();
+
+SELECT t.query_sql_text,
+       SUM(rs.count_executions) AS executions,
+       SUM(rs.count_executions * rs.avg_duration) / SUM(rs.count_executions) AS avg_duration_us,
+       SUM(rs.count_executions * rs.avg_duration) AS total_duration_us
+FROM sys.query_store_query AS q
+JOIN sys.query_store_query_text AS t ON t.query_text_id = q.query_text_id
+JOIN sys.query_store_plan AS p ON p.query_id = q.query_id
+JOIN sys.query_store_runtime_stats AS rs ON rs.plan_id = p.plan_id
+JOIN sys.query_store_runtime_stats_interval AS i
+  ON i.runtime_stats_interval_id = rs.runtime_stats_interval_id
+WHERE i.start_time >= @from AND i.end_time <= @to
+GROUP BY t.query_sql_text
+HAVING SUM(rs.count_executions) > 0
+ORDER BY total_duration_us DESC;
+```
+
+Durations are microseconds.
+
+**Who runs it.** The Entra admin identity, which holds `VIEW DATABASE STATE`. The
+Web and Worker runtime roles are not granted it.
+
+**When.** Before and after each release that changes data access or telemetry,
+save the output under `artifacts/performance/` (gitignored) and name the files in
+the release record.
+
+**Limits.** Query Store has no per-request attribution: it says which statements
+ran and how long they took, not which request issued them. Its capture mode can
+skip rare, cheap statements. Parameters appear as `@p0`, not as values. For one
+slow request, use the [Worker's spans and slow SQL](#the-workers-own-spans-and-slow-sql)
+above and the request's own trace.
 
 ### A failing sweep step names its cause
 
