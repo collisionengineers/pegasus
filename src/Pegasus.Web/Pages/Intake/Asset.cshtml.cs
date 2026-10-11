@@ -49,25 +49,24 @@ public sealed partial class AssetModel(
         {
             var wantsTile = string.Equals(
                 size, Pegasus.Core.Documents.CaseDocumentThumbnails.ThumbSizeToken, StringComparison.Ordinal);
-            if (wantsTile
-                && await readPreCaseThumbnail.OpenAsync(new PreCaseImageThumbnailQuery(id, assetId, actor), cancellationToken) is { } tile)
+            IntakeSourceDownload? asset;
+            if (wantsTile)
             {
-                var rendering = tile.Rendering;
-                if (IntakeImageAddress.NamesContent(v, rendering.SourceSha256)
-                    && IntakeImageAddress.NamesPreparation(prep, renderer, tile.PreparationVersion))
+                var read = await readPreCaseThumbnail.OpenAsync(new PreCaseImageThumbnailQuery(id, assetId, actor), cancellationToken);
+                if (read.Tile is { } tile)
                 {
-                    Response.Headers.CacheControl = IntakeImageAddress.KeptCacheControl;
-                    Response.Headers.ETag = IntakeImageAddress.TileETag(
-                        rendering.SourceSha256, tile.PreparationVersion);
+                    return TileResult(tile, v, prep, renderer);
                 }
-                Response.Headers.XContentTypeOptions = "nosniff";
-                Response.Headers.ContentDisposition = new ContentDispositionHeaderValue("inline").ToString();
-                return File(rendering.Content, rendering.MediaType);
+                // The tile read already holds the verified original.
+                asset = read.Original;
+            }
+            else
+            {
+                asset = await downloadAsset.ExecuteAsync(
+                    new DownloadIntakeAssetQuery(id, assetId, actor),
+                    cancellationToken);
             }
 
-            var asset = await downloadAsset.ExecuteAsync(
-                new DownloadIntakeAssetQuery(id, assetId, actor),
-                cancellationToken);
             if (asset is null)
             {
                 return NotFound();
@@ -126,6 +125,22 @@ public sealed partial class AssetModel(
             };
         }
     }
+
+    private FileStreamResult TileResult(PreCaseImageThumbnail tile, string? v, string? prep, string? renderer)
+    {
+        var rendering = tile.Rendering;
+        if (IntakeImageAddress.NamesContent(v, rendering.SourceSha256)
+            && IntakeImageAddress.NamesPreparation(prep, renderer, tile.PreparationVersion))
+        {
+            Response.Headers.CacheControl = IntakeImageAddress.KeptCacheControl;
+            Response.Headers.ETag = IntakeImageAddress.TileETag(
+                rendering.SourceSha256, tile.PreparationVersion);
+        }
+        Response.Headers.XContentTypeOptions = "nosniff";
+        Response.Headers.ContentDisposition = new ContentDispositionHeaderValue("inline").ToString();
+        return File(rendering.Content, rendering.MediaType);
+    }
+
 
     private static ContentResult CustodyUnavailable() => new()
     {

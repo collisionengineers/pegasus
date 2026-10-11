@@ -22,13 +22,15 @@ public sealed class PreCaseImageThumbnailTests
         var crop = new CaseAssetCrop(0.1m, 0.2m, 0.5m, 0.6m);
         var fixture = new Fixture(new PreCaseImagePreparation(assetId, CaseAssetRotation.Clockwise90, crop, [], 3));
 
-        await using var thumbnail = await fixture.Sut.OpenAsync(new PreCaseImageThumbnailQuery(receiptId, assetId, Staff));
+        await using var read = await fixture.Sut.OpenAsync(new PreCaseImageThumbnailQuery(receiptId, assetId, Staff));
+        var thumbnail = read.Tile;
 
         Assert.NotNull(thumbnail);
         Assert.Equal(CaseDocumentThumbnails.MediaType, thumbnail.Rendering.MediaType);
         Assert.Equal("source-sha", thumbnail.Rendering.SourceSha256);
         Assert.Equal(3, thumbnail.PreparationVersion);
         Assert.Equal((receiptId, assetId), fixture.Download.Read);
+        Assert.Equal(1, fixture.Download.Reads);
         Assert.Equal((CaseAssetRotation.Clockwise90, crop), fixture.Renderer.Rendered);
     }
 
@@ -42,8 +44,10 @@ public sealed class PreCaseImageThumbnailTests
         // whole frame, so it is named exactly as an image never prepared is.
         var cleared = new Fixture(PreCaseImagePreparation.Original(assetId) with { Version = 2 });
 
-        await using var neverPrepared = await never.Sut.OpenAsync(new PreCaseImageThumbnailQuery(receiptId, assetId, Staff));
-        await using var afterClear = await cleared.Sut.OpenAsync(new PreCaseImageThumbnailQuery(receiptId, assetId, Staff));
+        await using var neverRead = await never.Sut.OpenAsync(new PreCaseImageThumbnailQuery(receiptId, assetId, Staff));
+        await using var clearedRead = await cleared.Sut.OpenAsync(new PreCaseImageThumbnailQuery(receiptId, assetId, Staff));
+        var neverPrepared = neverRead.Tile;
+        var afterClear = clearedRead.Tile;
 
         Assert.NotNull(neverPrepared);
         Assert.NotNull(afterClear);
@@ -79,12 +83,35 @@ public sealed class PreCaseImageThumbnailTests
         var unrenderable = new Fixture(prepared, renders: false);
         var unpreparedUnrenderable = new Fixture(null, renders: false);
 
-        Assert.Null(await svg.Sut.OpenAsync(new PreCaseImageThumbnailQuery(Guid.NewGuid(), assetId, Staff)));
+        var svgRead = await svg.Sut.OpenAsync(new PreCaseImageThumbnailQuery(Guid.NewGuid(), assetId, Staff));
+        var unpreparedSvgRead = await unpreparedSvg.Sut.OpenAsync(new PreCaseImageThumbnailQuery(Guid.NewGuid(), assetId, Staff));
+        var unrenderableRead = await unrenderable.Sut.OpenAsync(new PreCaseImageThumbnailQuery(Guid.NewGuid(), assetId, Staff));
+        var unpreparedUnrenderableRead = await unpreparedUnrenderable.Sut.OpenAsync(new PreCaseImageThumbnailQuery(Guid.NewGuid(), assetId, Staff));
+
+        Assert.Null(svgRead.Tile);
         Assert.Null(svg.Renderer.Rendered);
-        Assert.Null(await unpreparedSvg.Sut.OpenAsync(new PreCaseImageThumbnailQuery(Guid.NewGuid(), assetId, Staff)));
+        Assert.Null(unpreparedSvgRead.Tile);
         Assert.Null(unpreparedSvg.Renderer.Rendered);
-        Assert.Null(await unrenderable.Sut.OpenAsync(new PreCaseImageThumbnailQuery(Guid.NewGuid(), assetId, Staff)));
-        Assert.Null(await unpreparedUnrenderable.Sut.OpenAsync(new PreCaseImageThumbnailQuery(Guid.NewGuid(), assetId, Staff)));
+        Assert.Null(unrenderableRead.Tile);
+        Assert.Null(unpreparedUnrenderableRead.Tile);
+        // The fallback is the original that one read already verified, so the
+        // route does not download it a second time.
+        Assert.Equal("source-sha", svgRead.Original?.Sha256);
+        Assert.Equal("source-sha", unrenderableRead.Original?.Sha256);
+        Assert.Equal(1, svg.Download.Reads);
+        Assert.Equal(1, unrenderable.Download.Reads);
+    }
+
+    [Fact]
+    public async Task AMissingAssetHasNoTileAndNoOriginal()
+    {
+        var assetId = Guid.NewGuid();
+        var fixture = new Fixture(null, found: false);
+
+        var read = await fixture.Sut.OpenAsync(new PreCaseImageThumbnailQuery(Guid.NewGuid(), assetId, Staff));
+
+        Assert.Null(read.Tile);
+        Assert.Null(read.Original);
     }
 
     [Fact]
@@ -100,9 +127,9 @@ public sealed class PreCaseImageThumbnailTests
 
     private sealed class Fixture
     {
-        public Fixture(PreCaseImagePreparation? preparation, string contentType = "image/png", bool renders = true)
+        public Fixture(PreCaseImagePreparation? preparation, string contentType = "image/png", bool renders = true, bool found = true)
         {
-            Download = new RecordingDownload(contentType);
+            Download = new RecordingDownload(contentType, found);
             Renderer = new RecordingRenderer(renders);
             Sut = new ReadPreCaseImageThumbnail(Download, new Store(preparation), Renderer);
         }
@@ -114,15 +141,19 @@ public sealed class PreCaseImageThumbnailTests
         public ReadPreCaseImageThumbnail Sut { get; }
     }
 
-    private sealed class RecordingDownload(string contentType) : IDownloadIntakeAsset
+    private sealed class RecordingDownload(string contentType, bool found) : IDownloadIntakeAsset
     {
+        public int Reads { get; private set; }
+
         public (Guid ReceiptId, Guid AssetId)? Read { get; private set; }
 
         public Task<IntakeSourceDownload?> ExecuteAsync(DownloadIntakeAssetQuery query, CancellationToken cancellationToken = default)
         {
             StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
             Read = (query.ReceiptId, query.AssetId);
-            return Task.FromResult<IntakeSourceDownload?>(new IntakeSourceDownload(new byte[] { 1, 2, 3 }, "photo.png", contentType, 3, "source-sha"));
+            Reads++;
+            return Task.FromResult<IntakeSourceDownload?>(
+                found ? new IntakeSourceDownload(new byte[] { 1, 2, 3 }, "photo.png", contentType, 3, "source-sha") : null);
         }
     }
 
