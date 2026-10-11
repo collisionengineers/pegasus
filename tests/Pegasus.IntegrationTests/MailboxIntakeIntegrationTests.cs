@@ -361,9 +361,8 @@ public sealed class MailboxIntakeIntegrationTests
             .Where(item => item.IntakeReceiptId == stored.Id)
             .OrderBy(item => item.Ordinal)
             .ToListAsync();
-        Assert.Equal(
-            new string?[] { "second body text", "second attachment text" },
-            rows.Select(item => item.Text).ToArray());
+        string?[] expectedText = ["second body text", "second attachment text"];
+        Assert.Equal(expectedText, rows.Select(item => item.Text).ToArray());
         Assert.Equal([0, 1], rows.Select(item => item.Ordinal).ToArray());
     }
 
