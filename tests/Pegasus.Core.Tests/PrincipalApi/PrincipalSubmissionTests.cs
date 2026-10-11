@@ -733,6 +733,9 @@ public sealed class PrincipalSubmissionTests
         public Task<int> CountAsync(IReadOnlyCollection<TriageState>? state, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<TriageRecord?> GetRecordAsync(Guid caseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

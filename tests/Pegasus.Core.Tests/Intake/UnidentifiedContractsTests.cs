@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
@@ -281,6 +282,36 @@ public sealed class CloseUnidentifiedTests
         Assert.True(result.Item.IsClosed);
         await Assert.ThrowsAnyAsync<ArgumentException>(
             () => sut.ExecuteAsync(new(ItemId, 0, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), "close-4", " ", Now)));
+    }
+
+    [Theory]
+    [InlineData(CaseType.Inspection, true)]
+    [InlineData(CaseType.InspectionAndAudit, true)]
+    [InlineData(CaseType.Triage, false)]
+    [InlineData(null, false)]
+    public async Task AnInstructionCaseDestinationExistsWhenItsRowIsNotATriageCase(
+        CaseType? kind,
+        bool exists)
+    {
+        var sut = new ResolveUnidentified(new ClosingStore(), new FixedCaseKind(kind));
+        var request = new ResolveUnidentifiedRequest(
+            ItemId, 0, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), "resolve-case",
+            "Matched.", UnidentifiedResolutionTargetKind.InstructionCase, Guid.NewGuid().ToString(), null, Now);
+
+        if (exists)
+        {
+            Assert.False((await sut.ExecuteAsync(request)).IsReplay);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<UnidentifiedResolutionTargetNotFoundException>(() => sut.ExecuteAsync(request));
+        }
+    }
+
+    private sealed class FixedCaseKind(CaseType? kind) : ICaseKindQueries
+    {
+        public Task<CaseType?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult(kind);
     }
 
     private static UnidentifiedItem Closed(ResolveUnidentifiedRequest request) => new(
