@@ -94,16 +94,6 @@ public sealed class EfCaseWorkflowStore(
             .AnyAsync(cancellationToken);
     }
 
-    async Task<CaseDueWork?> ICaseDueWorkQueries.GetAsync(Guid caseId, CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.CaseDueWork.AsNoTracking()
-            .Include(item => item.Workflow)
-            .ThenInclude(workflow => workflow.Case)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
-        return entity is null ? null : Map(entity);
-    }
-
     public async Task<IReadOnlyList<CaseDueWork>> GetDueAsync(
         DateTimeOffset asOfUtc,
         int page,

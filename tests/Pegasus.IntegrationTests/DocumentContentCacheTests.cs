@@ -585,6 +585,8 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         var rendered = await ImageThumbnailRendering.TryRenderAsync(
             source,
             sourceBytes.LongLength,
+            CaseAssetRotation.None,
+            CaseAssetCrop.Full,
             CancellationToken.None);
 
         Assert.NotNull(rendered);
@@ -607,6 +609,8 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         var rendered = await ImageThumbnailRendering.TryRenderAsync(
             source,
             sourceBytes.LongLength,
+            CaseAssetRotation.None,
+            CaseAssetCrop.Full,
             CancellationToken.None);
 
         Assert.NotNull(rendered);
@@ -630,10 +634,14 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         Assert.Null(await ImageThumbnailRendering.TryRenderAsync(
             malformed,
             malformed.Length,
+            CaseAssetRotation.None,
+            CaseAssetCrop.Full,
             CancellationToken.None));
         Assert.Null(await ImageThumbnailRendering.TryRenderAsync(
             oversized,
             32L * 1024 * 1024 + 1,
+            CaseAssetRotation.None,
+            CaseAssetCrop.Full,
             CancellationToken.None));
     }
 
@@ -648,6 +656,8 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             ImageThumbnailRendering.TryRenderAsync(
                 source,
                 sourceBytes.LongLength,
+                CaseAssetRotation.None,
+                CaseAssetCrop.Full,
                 cancellation.Token));
     }
 
@@ -665,7 +675,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             using var memory = new MemoryStream(sourceBytes, writable: false);
             Assert.Equal(
                 expected,
-                await ImageThumbnailRendering.TryRenderAsync(memory, sourceBytes.LongLength, CancellationToken.None));
+                await ImageThumbnailRendering.TryRenderAsync(memory, sourceBytes.LongLength, CaseAssetRotation.None, CaseAssetCrop.Full, CancellationToken.None));
 
             var path = Path.Combine(Path.GetTempPath(), $"pegasus-thumbnail-test-{Guid.NewGuid():N}.tmp");
             await using var file = new FileStream(
@@ -679,7 +689,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             file.Position = 0;
             Assert.Equal(
                 expected,
-                await ImageThumbnailRendering.TryRenderAsync(file, sourceBytes.LongLength, CancellationToken.None));
+                await ImageThumbnailRendering.TryRenderAsync(file, sourceBytes.LongLength, CaseAssetRotation.None, CaseAssetCrop.Full, CancellationToken.None));
         }
     }
 
@@ -716,6 +726,8 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         Assert.NotNull(await ImageThumbnailRendering.TryRenderAsync(
             source,
             sourceBytes.LongLength,
+            CaseAssetRotation.None,
+            CaseAssetCrop.Full,
             CancellationToken.None));
 
         Assert.True(source.CanRead);
@@ -728,6 +740,8 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         await Assert.ThrowsAsync<ArgumentException>(() => ImageThumbnailRendering.TryRenderAsync(
             forwardOnly,
             sourceBytes.LongLength,
+            CaseAssetRotation.None,
+            CaseAssetCrop.Full,
             CancellationToken.None));
     }
 
@@ -1671,7 +1685,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                 new CacheContainer(estate.Blob),
                 estate.Clock);
 
-            await cache.WriteAsync(versionId, "plain rendering"u8.ToArray(), CancellationToken.None);
+            await cache.WriteAsync(versionId, DocumentThumbnailCache.Variant, "plain rendering"u8.ToArray(), CancellationToken.None);
             await using (var db = await estate.Database.CreateContextAsync())
             {
                 var plain = await db.Set<DocumentContentCacheEntryEntity>().SingleAsync();

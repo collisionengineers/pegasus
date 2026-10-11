@@ -1461,12 +1461,6 @@ internal sealed class DocumentThumbnailCache(
     /// the entry's expiry before the object is read, at most once an hour, by
     /// the same conditional update as the content cache.
     /// </remarks>
-    public Task<byte[]?> TryReadAsync(
-        ActionActor actor,
-        Guid versionId,
-        CancellationToken cancellationToken) =>
-        TryReadAsync(actor, versionId, Variant, cancellationToken);
-
     public async Task<byte[]?> TryReadAsync(
         ActionActor actor,
         Guid versionId,
@@ -1523,12 +1517,6 @@ internal sealed class DocumentThumbnailCache(
     /// Records one rendering. Best effort: the caller already holds the bytes,
     /// so a lost race writes nothing rather than failing the preview.
     /// </summary>
-    public Task WriteAsync(
-        Guid versionId,
-        byte[] content,
-        CancellationToken cancellationToken) =>
-        WriteAsync(versionId, Variant, content, cancellationToken);
-
     public async Task WriteAsync(
         Guid versionId,
         string variant,
@@ -1858,12 +1846,6 @@ internal static class ImageThumbnailRendering
     internal const long MaximumSourceBytes = 32L * 1024 * 1024;
 
     private static readonly SemaphoreSlim DecodeGate = new(2, 2);
-
-    internal static Task<byte[]?> TryRenderAsync(
-        Stream content,
-        long contentLength,
-        CancellationToken cancellationToken) =>
-        TryRenderAsync(content, contentLength, CaseAssetRotation.None, CaseAssetCrop.Full, cancellationToken);
 
     internal static async Task<byte[]?> TryRenderAsync(
         Stream content,
