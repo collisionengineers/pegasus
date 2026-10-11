@@ -792,7 +792,6 @@ public static class CaseWorkspaceLabels
         public const string OtherAddition = "Other…";
         public const string NoneYet = "None yet";
         public const string Applied = "Applied";
-        public const string NotApplied = "Not applied";
         public const string GuideMonth = "Guide month";
 
         /// <summary>

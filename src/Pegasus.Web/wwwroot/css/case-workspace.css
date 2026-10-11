@@ -591,18 +591,8 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 .tag-picker-body form.tag-picker-new{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px;border-top:1px solid var(--line);margin-top:4px;padding-top:6px}
 .tag-picker-new input,.tag-picker-new select{min-height:28px;border:1px solid var(--line-strong);border-radius:var(--radius);padding:2px 6px;font-size:11.5px;min-width:0}
 
-/* Report image preparation cards (B06/v26): the staged region is drawn on the card. */
-.report-images{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.report-image{border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;display:grid;gap:8px;min-width:0;background:#fff}
-.report-image h3{font:600 11px var(--mono);margin:0;text-transform:none;letter-spacing:0;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.report-image-preview{cursor:default;background:#2b3035}
-.report-image .detail-list>div{grid-template-columns:72px minmax(0,1fr);font-size:11.5px}
-.report-image .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}
-.report-image .field label{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
-.report-image .button-row .btn{min-height:28px;padding:3px 8px;font-size:11px}
-@media(max-width:1100px){.report-images{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:1180px){.thumbs{grid-template-columns:repeat(6,minmax(0,1fr))}.thumbs.evidence{grid-template-columns:repeat(4,minmax(0,1fr))}}
-@media(max-width:760px){.thumbs,.thumbs.evidence{grid-template-columns:repeat(3,minmax(0,1fr))}.doc-row{grid-template-columns:28px minmax(0,1fr)}.doc-row-tags,.doc-row-actions{grid-column:2;justify-content:flex-start}.report-images{grid-template-columns:1fr}}
+@media(max-width:760px){.thumbs,.thumbs.evidence{grid-template-columns:repeat(3,minmax(0,1fr))}.doc-row{grid-template-columns:28px minmax(0,1fr)}.doc-row-tags,.doc-row-actions{grid-column:2;justify-content:flex-start}}
 
 /* ---- The Case viewer (v26 § Image viewer): full screen, crop on the stage ---- */
 .case-viewer{position:fixed;inset:0;z-index:1200;background:rgba(14,17,19,.96);display:grid;grid-template-rows:auto minmax(0,1fr) 88px;grid-template-columns:56px minmax(0,1fr) 56px;color:#fff;outline:0}

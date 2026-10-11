@@ -85,27 +85,6 @@ public sealed record UploadOutcomeView(
         or UploadOutcomeKind.PossibleMatch
         or UploadOutcomeKind.ReadyToCreate
         or UploadOutcomeKind.ImageCaseRegistered;
-
-    /// <summary>
-    /// The label passed to <c>Shared/_StatusChip</c> for this outcome's tone
-    /// and icon — always one of that partial's existing recognised words
-    /// ("the single place a business or query state chooses its visual
-    /// treatment"), never a new one added just for this surface, and never a
-    /// settled term reused for a different meaning ("needs sorting" is used
-    /// only for the branch that genuinely routes through the Unidentified/
-    /// needs-sorting mechanism). Null while still working — that state stays
-    /// plain text, matching the page's existing pre-confirmation copy.
-    /// </summary>
-    public string? ChipLabel => Kind switch
-    {
-        UploadOutcomeKind.Working => null,
-        UploadOutcomeKind.Attached or UploadOutcomeKind.ImageCaseRegistered => "Success",
-        UploadOutcomeKind.NeedsReview => "Unidentified",
-        UploadOutcomeKind.Resolved => "Resolved Unidentified",
-        UploadOutcomeKind.PossibleMatch or UploadOutcomeKind.ReadyToCreate => "Pending",
-        UploadOutcomeKind.CannotBecomeCase or UploadOutcomeKind.Failed => "Failed",
-        _ => null
-    };
 }
 
 public interface IUploadOutcomeQueries

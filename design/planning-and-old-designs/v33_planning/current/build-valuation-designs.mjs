@@ -18,15 +18,13 @@ const local = (relative) => readFile(path.join(current, relative), 'utf8');
 const esc = (value) => String(value)
   .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
-const [regular, italic, mark] = await Promise.all([
+const [regular, mark] = await Promise.all([
   bytes('src/Pegasus.Web/wwwroot/fonts/inter/InterVariable.woff2'),
-  bytes('src/Pegasus.Web/wwwroot/fonts/inter/InterVariable-Italic.woff2'),
   bytes('src/Pegasus.Web/wwwroot/images/pegasus-mark-refined-128.png'),
 ]);
 const site = (await text('src/Pegasus.Web/wwwroot/css/site.css'))
   // site.css names the font by its static-assets fingerprint.
-  .replace(/url\(\.\.\/fonts\/inter\/InterVariable\.[0-9a-z]+\.woff2\)/, `url(data:font/woff2;base64,${regular.toString('base64')})`)
-  .replace('url(../fonts/inter/InterVariable-Italic.woff2)', `url(data:font/woff2;base64,${italic.toString('base64')})`);
+  .replace(/url\(\.\.\/fonts\/inter\/InterVariable\.[0-9a-z]+\.woff2\)/, `url(data:font/woff2;base64,${regular.toString('base64')})`);
 const liveCss = `${site}\n${await text('src/Pegasus.Web/wwwroot/css/case-workspace.css')}`;
 const designCss = await local('lib/valuation-designs.css');
 const runtime = await local('lib/valuation-designs-runtime.js');
