@@ -14,7 +14,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfCaseQueryStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : ICaseQueryStore, ICaseKindQueries, ICaseDocumentQueries
+    TimeProvider timeProvider) : ICaseQueryStore, ICaseKindQueries, ICaseDocumentQueries, IAvailableReportSentEvidenceQueries
 {
     /// <inheritdoc />
     async Task<IReadOnlyList<CaseDocument>> ICaseDocumentQueries.ListAsync(Guid caseId, CancellationToken cancellationToken)
@@ -341,6 +341,7 @@ public sealed class EfCaseQueryStore(
     /// </summary>
     public async Task<CasePageFrameData?> GetPageFrameAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -360,20 +361,19 @@ public sealed class EfCaseQueryStore(
         var summary = MapSearchItem(await SearchRows(context)
             .SingleAsync(item => item.CaseId == caseId, cancellationToken), timeProvider.GetUtcNow());
         var documents = await ReadDocumentsAsync(context, caseId, cancellationToken);
-        var availableReportSentEvidence = await context.CaseReportSentEvidence
-            .AsNoTracking()
-            .Where(item => item.CaseId == null && item.DiscoveredByKind == nameof(ActorKind.SystemWorker))
-            .OrderByDescending(item => item.SentAtUtc)
-            .ThenBy(item => item.Id)
-            .Take(100)
-            .ToArrayAsync(cancellationToken);
+        // Only the ribbon's and dialog's Confirm-sent control draws these; its
+        // gate (Inspection view or Report preparation) is a subset of this one.
+        var availableReportSentEvidence = work == CaseWorkSelector.Primary
+            || workflow.State == nameof(CaseLifecycleState.ReportPreparation)
+                ? await ReadAvailableReportSentEvidenceAsync(context, cancellationToken)
+                : [];
         var recordNotes = await ReadRecordNotesAsync(context, workflow, caseId, cancellationToken);
         var frame = CreateSectionFrame(
             summary, workflow, await CaseWorkScope.LoadSetAsync(context, caseId, cancellationToken));
         return new(
             frame,
             documents,
-            availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(),
+            availableReportSentEvidence,
             recordNotes,
             // The Next action's cancellation row reads the linked mail's current
             // classification on every render (FRD-13 "Cancellation messages"),
@@ -382,6 +382,27 @@ public sealed class EfCaseQueryStore(
                 ? await ReadLinkedCancellationMessageIdAsync(context, caseId, cancellationToken)
                 : null,
             await ReadLinkedTriageAsync(context, caseId, cancellationToken));
+    }
+
+    async Task<IReadOnlyList<RetainedApprovedMailboxReportSentEvidence>> IAvailableReportSentEvidenceQueries.ListAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await ReadAvailableReportSentEvidenceAsync(context, cancellationToken);
+    }
+
+    private static async Task<IReadOnlyList<RetainedApprovedMailboxReportSentEvidence>> ReadAvailableReportSentEvidenceAsync(
+        PegasusDbContext context,
+        CancellationToken cancellationToken)
+    {
+        var rows = await context.CaseReportSentEvidence
+            .AsNoTracking()
+            .Where(item => item.CaseId == null && item.DiscoveredByKind == nameof(ActorKind.SystemWorker))
+            .OrderByDescending(item => item.SentAtUtc)
+            .ThenBy(item => item.Id)
+            .Take(100)
+            .ToArrayAsync(cancellationToken);
+        return rows.Select(MapRetainedEvidence).ToArray();
     }
 
     /// <summary>

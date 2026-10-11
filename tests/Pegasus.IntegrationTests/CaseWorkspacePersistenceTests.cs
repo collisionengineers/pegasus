@@ -28,6 +28,58 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class CaseWorkspacePersistenceTests
 {
+    [Theory]
+    [InlineData("a", "Current", "ReportPreparation", true)]
+    [InlineData("b", "Primary", "ReportPreparation", true)]
+    [InlineData("c", "Primary", "PostReportComplete", true)]
+    [InlineData("d", "Current", "PostReportComplete", false)]
+    public async Task PageFrameReadsUnlinkedSentEvidenceOnlyForPrimaryWorkOrReportPreparation(
+        string row, string work, string state, bool expectEvidence)
+    {
+        Assert.NotEmpty(row);
+        await using var harness = await Harness.CreateAsync();
+        var evidenceId = Guid.NewGuid();
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseWorkflows SET State = {state} WHERE CaseId = {harness.CaseId}");
+            context.Add(new CaseReportSentEvidenceEntity
+            {
+                Id = evidenceId,
+                CaseId = null,
+                MailboxIdentity = "test-mailbox",
+                SentFolderIdentity = "sent",
+                ImmutableItemIdentity = "sent-item",
+                InternetMessageIdentity = "sent@test.invalid",
+                ConversationIdentity = "conversation",
+                ReplyChainIdentity = "reply-chain",
+                SourceOccurrenceIdentity = "sent-source",
+                SourceSha256 = new string('A', 64),
+                MimeSha256 = new string('B', 64),
+                SentAtUtc = harness.TimeProvider.GetUtcNow(),
+                DiscoveredAtUtc = harness.TimeProvider.GetUtcNow(),
+                DiscoveredByKind = nameof(ActorKind.SystemWorker),
+                DiscoveredBySubjectId = "test",
+                RetentionOperationKey = "retained-sent-gate",
+                RetentionRequestHash = new string('C', 64)
+            });
+            await context.SaveChangesAsync();
+        }
+
+        var store = new EfCaseQueryStore(harness.Factory, harness.TimeProvider);
+        var selector = work == "Primary" ? CaseWorkSelector.Primary : CaseWorkSelector.Current;
+        var frame = Assert.IsType<CasePageFrameData>(
+            await store.GetPageFrameAsync(harness.CaseId, selector, CancellationToken.None));
+
+        Assert.Equal(
+            expectEvidence ? [evidenceId] : [],
+            frame.AvailableReportSentEvidence.Select(item => item.EvidenceId));
+        Assert.Equal(
+            [evidenceId],
+            (await ((IAvailableReportSentEvidenceQueries)store).ListAsync(CancellationToken.None))
+                .Select(item => item.EvidenceId));
+    }
+
     [Fact]
     public async Task FocusedPageAndFilesReadsKeepHistoryAndTypedCaseDataOutOfTheirBodies()
     {
@@ -105,7 +157,7 @@ public sealed class CaseWorkspacePersistenceTests
             .Options;
         var pageFactory = new PooledDbContextFactory<PegasusDbContext>(pageOptions);
         var frame = await new EfCaseQueryStore(pageFactory, harness.TimeProvider)
-            .GetPageFrameAsync(harness.CaseId, CancellationToken.None);
+            .GetPageFrameAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         var pageFrame = Assert.IsType<CasePageFrameData>(frame).Frame;
 
         var directFilesOptions = new DbContextOptionsBuilder<PegasusDbContext>()

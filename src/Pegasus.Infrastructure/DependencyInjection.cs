@@ -432,6 +432,8 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<ICaseDocumentQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
+        services.AddScoped<IAvailableReportSentEvidenceQueries>(
+            provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<IGetCaseKind, GetCaseKind>();
         services.AddScoped<ISearchCases, SearchCases>();
         services.AddScoped<ISearchCasesByCursor, SearchCasesByCursor>();
