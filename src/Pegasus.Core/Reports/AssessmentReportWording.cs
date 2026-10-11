@@ -1,4 +1,3 @@
-using System.Globalization;
 
 namespace Pegasus.Core.Reports;
 
@@ -105,11 +104,6 @@ public static class AssessmentReportWording
     /// <summary>The report's footer as one line.</summary>
     public static string Footer(AssessmentReportSnapshot snapshot, bool feeNote) =>
         string.Join(FooterSeparator, FooterParts(snapshot, feeNote));
-
-    /// <summary>"Page 1 of 7".</summary>
-    public static string PageNumber(int page, int pages) =>
-        PageNumberLead + page.ToString(CultureInfo.InvariantCulture)
-        + PageNumberJoin + pages.ToString(CultureInfo.InvariantCulture);
 
     // ---- Page 1 ------------------------------------------------------------
 

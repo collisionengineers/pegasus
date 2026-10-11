@@ -2300,7 +2300,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             GetCaseSectionQuery query,
             CancellationToken cancellationToken) =>
             Task.FromResult<CasePageFrame?>(Frame(query.CaseId) is { } frame
-                ? new(frame, Documents(), [], CaseRecordNotes.None, Data(frame))
+                ? new(frame, Documents(), [], new(null, null), Data(frame))
                 : null);
 
         Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(

@@ -26,6 +26,9 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "Corpus")]
 public sealed class ThirdPartyReportCorpusTests(ITestOutputHelper output)
 {
+    private static bool IsFinding(string field) =>
+        field.StartsWith(ThirdPartyReportFields.FindingPrefix, StringComparison.Ordinal);
+
     private static readonly DateTimeOffset ReceivedAtUtc =
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
@@ -392,7 +395,7 @@ public sealed class ThirdPartyReportCorpusTests(ITestOutputHelper output)
             // It carries the source identity of the rows it is about, so it is
             // read back with them rather than floating free of the document.
             var value = result.Candidates.First(candidate =>
-                !ThirdPartyReportFields.IsFinding(candidate.Field));
+                !IsFinding(candidate.Field));
             Assert.Equal(value.Sha256, row.Sha256);
             Assert.Equal(value.Occurrence, row.Occurrence);
             Assert.Equal(value.IntakeAssetId, row.IntakeAssetId);
@@ -419,7 +422,7 @@ public sealed class ThirdPartyReportCorpusTests(ITestOutputHelper output)
             Assert.Equal(
                 result.Findings.Select(finding => finding.Code),
                 result.Candidates
-                    .Where(row => ThirdPartyReportFields.IsFinding(row.Field))
+                    .Where(row => IsFinding(row.Field))
                     .Select(row => row.NormalizedValue!));
         }
     }
@@ -449,7 +452,7 @@ public sealed class ThirdPartyReportCorpusTests(ITestOutputHelper output)
             }
 
             var codes = result.Candidates
-                .Where(row => ThirdPartyReportFields.IsFinding(row.Field))
+                .Where(row => IsFinding(row.Field))
                 .Select(row => row.NormalizedValue!)
                 .ToList();
             var isScanOnly =
@@ -495,7 +498,7 @@ public sealed class ThirdPartyReportCorpusTests(ITestOutputHelper output)
                 "1");
             Assert.Contains(
                 recorded,
-                row => ThirdPartyReportFields.IsFinding(row.Field));
+                row => IsFinding(row.Field));
             Assert.All(
                 recorded,
                 row => Assert.False(

@@ -425,7 +425,7 @@ public sealed partial class SendToAiIntegrationTests
             GetCaseSectionQuery query,
             CancellationToken cancellationToken) =>
             Task.FromResult<CasePageFrame?>(Frame(query.CaseId) is { } frame
-                ? new(frame, [], [], CaseRecordNotes.None, CreateData())
+                ? new(frame, [], [], new(null, null), CreateData())
                 : null);
 
         Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(

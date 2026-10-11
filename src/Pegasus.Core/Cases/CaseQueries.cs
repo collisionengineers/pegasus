@@ -183,10 +183,7 @@ public sealed record CaseCorrespondenceEmail(
 /// read live from the records when the Case is read and never copied onto it, so a change
 /// to a record shows on every Case at once.
 /// </summary>
-public sealed record CaseRecordNotes(string? PrincipalNotes, string? ClaimSourceNotes)
-{
-    public static readonly CaseRecordNotes None = new(null, null);
-}
+public sealed record CaseRecordNotes(string? PrincipalNotes, string? ClaimSourceNotes);
 
 public sealed record GetCaseQuery(
     Guid CaseId,

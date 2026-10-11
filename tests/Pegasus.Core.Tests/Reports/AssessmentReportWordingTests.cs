@@ -62,7 +62,6 @@ public sealed class AssessmentReportWordingTests
         Assert.Equal(
             AssessmentReportWording.Footer(snapshot, feeNote: false),
             AssessmentReportWording.Footer("PK12 TMZ", "ap.qdos261789", feeNote: false));
-        Assert.Equal("Page 1 of 7", AssessmentReportWording.PageNumber(1, 7));
         Assert.Equal(
             "Page 1 of 7",
             AssessmentReportWording.PageNumberLead + "1" + AssessmentReportWording.PageNumberJoin + "7");

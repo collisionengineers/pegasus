@@ -449,11 +449,7 @@ public static class DependencyInjection
         services.AddScoped<IValidateCaseRenderLease, ValidateCaseRenderLease>();
         services.AddScoped<IListCaseReferences, ListCaseReferences>();
         services.AddScoped<ICaseDataQueries, EfCaseDataStore>();
-        services.AddScoped<InspectionAddressChoicesQueries>();
-        services.AddScoped<IInspectionAddressChoicesQueries>(
-            provider => provider.GetRequiredService<InspectionAddressChoicesQueries>());
-        services.AddScoped<IInspectionLocationChoices>(
-            provider => provider.GetRequiredService<InspectionAddressChoicesQueries>());
+        services.AddScoped<IInspectionAddressChoicesQueries, InspectionAddressChoicesQueries>();
         services.AddScoped<ICaseNoteStore, EfCaseNoteStore>();
         services.AddScoped<IAddCaseNote, AddCaseNote>();
         services.AddScoped<ICaseWorkspaceStore, EfCaseWorkspaceStore>();
