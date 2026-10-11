@@ -310,7 +310,7 @@ public sealed class GetCaseList(ICaseListQueries queries, IStaffAccountQueries s
 
         var names = await ActorDisplayNames.ResolveStaffNamesAsync(
             staffAccounts,
-            records.SelectMany(StaffIds),
+            columns.Any(column => column.ShowsStaff) ? records.SelectMany(StaffIds) : [],
             cancellationToken);
         var profiles = columns.Any(column => column.Key == CaseListColumns.SignOffEngineer)
             ? await staffAccounts.ListSignOffEngineersAsync(cancellationToken)
