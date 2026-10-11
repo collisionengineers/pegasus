@@ -72,6 +72,23 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.DoesNotContain(EreSession, estimator.AbsoluteUri, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The estimate reads the vehicle's details after the portal's own
+    /// fragments, as it opens one; only Get valuation's VIN read goes without.
+    /// </summary>
+    [Fact]
+    public async Task ALaunchReadsTheVehicleDetailsAfterTheirFragments()
+    {
+        var harness = Harness.Create();
+
+        await harness.LaunchAsync();
+
+        var mva = harness.Mva;
+        Assert.True(mva.IndexOf("/index/vehicle-details/") >= 0);
+        Assert.True(mva.IndexOf("/index/vehicle-details/") < mva.IndexOf("/index/vehicle-detail-inline-fragment/"));
+        Assert.True(mva.IndexOf("/index/vehicle-detail-inline-fragment/") < mva.IndexOf("/index/vehicle-details-value/"));
+    }
+
     [Fact]
     public async Task TheSessionExistsBeforeAnythingIsCreatedInsideTheGlassAccount()
     {
