@@ -7,7 +7,7 @@ public sealed class PrefetchedExternalWorkTests
     [Fact]
     public void TheOfferedRowIsHandedOverOnceAndOnlyToItsOwnIdentifier()
     {
-        var row = new ExternalWorkItemEntity { Id = Guid.NewGuid() };
+        var row = new ExternalWorkItemEntity { Id = Guid.NewGuid(), Kind = "create_case_custody", OperationKey = "k", State = "Queued" };
         var slot = new PrefetchedExternalWork();
 
         slot.Offer(row);
