@@ -20,7 +20,8 @@ public sealed class AcceptIntake(
     ICommittedExternalWorkPublisher committedExternalWorkPublisher,
     ITriageCasePairing triageCasePairing,
     IImageIntakeCasePairing? imageIntakeCasePairing = null,
-    IReadOriginalReport? originalReport = null) : IAcceptIntake
+    IReadOriginalReport? originalReport = null,
+    RecordedOriginalReportReading? recordedReading = null) : IAcceptIntake
 {
     public async Task<CaseAcceptanceOutcome> ExecuteAsync(
         AcceptIntakeRequest request,
@@ -101,8 +102,8 @@ public sealed class AcceptIntake(
             // acceptance transaction opens, so the Case is created with its
             // Original report cells filled (v28 P51) and a slow or unreadable
             // report never holds that transaction or refuses the Case.
-            request.StandaloneAuditEvidenceId is { } evidenceId && originalReport is not null
-                ? await originalReport.ForIntakeAsync(request.ReceiptId, evidenceId, cancellationToken)
+            request.StandaloneAuditEvidenceId is { } evidenceId
+                ? await ReadingAsync(request.ReceiptId, evidenceId, cancellationToken)
                 : null);
 
         var outcome = await acceptanceStore.AcceptAsync(acceptance, cancellationToken);
@@ -148,5 +149,26 @@ public sealed class AcceptIntake(
         Activity.Current?.SetTag("triage.pairing_failures", triagePairing.Failures);
         Activity.Current?.SetTag("triage.failure_type", triagePairing.FirstFailure);
         return outcome;
+    }
+
+    /// <summary>
+    /// The reading that seeds a standalone Audit: the one intake recorded of
+    /// the same report, and only when none was recorded the report itself,
+    /// read once (operator, 11 October 2026).
+    /// </summary>
+    private async Task<OriginalReportReading?> ReadingAsync(
+        Guid receiptId,
+        Guid evidenceId,
+        CancellationToken cancellationToken)
+    {
+        if (recordedReading is not null
+            && await recordedReading.FindAsync(receiptId, evidenceId, cancellationToken) is { } recorded)
+        {
+            return recorded;
+        }
+
+        return originalReport is null
+            ? null
+            : await originalReport.ForIntakeAsync(receiptId, evidenceId, cancellationToken);
     }
 }

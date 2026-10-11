@@ -50,7 +50,11 @@ Every intake path must:
   before and after values for every transition, plus a reason where that
   transition needs one;
 - never let untrusted content become an instruction, a policy, an identity,
-  or an authority.
+  or an authority;
+- seed a standalone Audit's Original report cells at acceptance from the
+  reading intake already recorded of that report, reading the report again
+  only when none was recorded (operator, 11 October 2026; see
+  [Original report](frd-16-case-record-workspace.md#original-report)).
 
 ### Ways intake starts
 
