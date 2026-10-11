@@ -53,6 +53,7 @@ internal static class GraphMailWebhook
         }
 
         using var delivery = new CancellationTokenSource(DeliveryBound, timeProvider);
+        var subscriptionsById = new Dictionary<string, ApprovedMailboxSubscription?>(StringComparer.Ordinal);
         foreach (var notification in batch.Value)
         {
             if (!MatchesSecret(notification.ClientState, expectedClientState)
@@ -62,13 +63,22 @@ internal static class GraphMailWebhook
                 continue;
             }
 
-            var subscription = await subscriptions.GetActiveAsync(
-                notification.SubscriptionId,
-                timeProvider.GetUtcNow(),
-                delivery.Token);
+            if (!TryParseWakeKind(notification, out var wakeKind))
+            {
+                continue;
+            }
+
+            if (!subscriptionsById.TryGetValue(notification.SubscriptionId, out var subscription))
+            {
+                subscription = await subscriptions.GetActiveAsync(
+                    notification.SubscriptionId,
+                    timeProvider.GetUtcNow(),
+                    delivery.Token);
+                subscriptionsById[notification.SubscriptionId] = subscription;
+            }
+
             if (subscription is null
-                || !MatchesSubscribedMailbox(subscription.Resource, notification.Resource)
-                || !TryParseWakeKind(notification, out var wakeKind))
+                || !MatchesSubscribedMailbox(subscription.Resource, notification.Resource))
             {
                 continue;
             }

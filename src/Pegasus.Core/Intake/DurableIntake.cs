@@ -173,6 +173,20 @@ public interface IIntakeSubmission
         StreamedIntakeSource source,
         string operationKey,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// <see cref="ExecuteStreamedAsync"/> up to the commit: the receipt is
+    /// durable but its work is not yet published, so a caller receiving several
+    /// files can publish them together with <see cref="PublishCommittedAsync"/>.
+    /// </summary>
+    Task<ReceivedIntake> ReceiveStreamedAsync(
+        StreamedIntakeSource source,
+        string operationKey,
+        CancellationToken cancellationToken = default);
+
+    Task PublishCommittedAsync(
+        ReceivedIntake received,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IIntakeWorkStore
@@ -407,6 +421,14 @@ public sealed class ReceiveIntake(
     public async Task<ReceivedIntake> ExecuteStreamedAsync(StreamedIntakeSource source, string operationKey,
         CancellationToken cancellationToken = default)
     {
+        var received = await ReceiveStreamedAsync(source, operationKey, cancellationToken);
+        await PublishCommittedAsync(received, cancellationToken);
+        return received;
+    }
+
+    public async Task<ReceivedIntake> ReceiveStreamedAsync(StreamedIntakeSource source, string operationKey,
+        CancellationToken cancellationToken = default)
+    {
         var safeFileName = ValidateStreamedSource(source, operationKey);
         var hash = await StreamHashAsync(source, cancellationToken);
         var existing = await workStore.FindBySourceIdentityAsync(
@@ -420,9 +442,7 @@ public sealed class ReceiveIntake(
             }
             RequireSameDeclaredDestination(existing, source.DeclaredCaseId);
 
-            var replay = await workStore.ReceiveAsync(existing, operationKey, cancellationToken);
-            await PublishCommittedAsync(replay, cancellationToken);
-            return replay;
+            return await workStore.ReceiveAsync(existing, operationKey, cancellationToken);
         }
 
         var id = Guid.NewGuid();
@@ -456,9 +476,7 @@ public sealed class ReceiveIntake(
             staged.StorageKey,
             now,
             source.DeclaredCaseId);
-        var received = await workStore.ReceiveAsync(receipt, operationKey, cancellationToken);
-        await PublishCommittedAsync(received, cancellationToken);
-        return received;
+        return await workStore.ReceiveAsync(receipt, operationKey, cancellationToken);
     }
 
     /// <summary>
@@ -552,9 +570,9 @@ public sealed class ReceiveIntake(
     }
 
 
-    private Task PublishCommittedAsync(
+    public Task PublishCommittedAsync(
         ReceivedIntake received,
-        CancellationToken cancellationToken) =>
+        CancellationToken cancellationToken = default) =>
         committedWorkPublisher.PublishAsync(received.StagedReceiptId, cancellationToken);
 
     private static void ValidateLength(string value, int maximumLength, string parameterName)
