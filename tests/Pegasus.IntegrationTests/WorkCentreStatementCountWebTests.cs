@@ -50,5 +50,5 @@ public sealed class WorkCentreStatementCountWebTests
             $"A full Work Centre load sent {counter.Count} SQL commands; it is pinned at {WorkCentreCommands}." + Environment.NewLine + counter.Describe());
     }
 
-    private const int WorkCentreCommands = 28;
+    private const int WorkCentreCommands = 24; // 28 before #1179: shared Triage and Case reads, no rail Triage or Awaiting count.
 }

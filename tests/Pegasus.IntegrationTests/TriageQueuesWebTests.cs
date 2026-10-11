@@ -125,7 +125,8 @@ public sealed class TriageQueuesWebTests
         var stages = await services.GetRequiredService<IDashboardQueries>()
             .GetCaseStageCountsAsync(CancellationToken.None);
         Assert.Equal(1, stages.NotReady);
-        Assert.Equal(1, stages.AwaitingInstruction);
+        Assert.Equal(1, await services.GetRequiredService<IDashboardQueries>()
+            .GetAwaitingInstructionCountAsync(CancellationToken.None));
         Assert.Equal(0, stages.Query);
         Assert.Equal(0, stages.Review);
         Assert.Equal(0, stages.Held);
@@ -234,7 +235,8 @@ public sealed class TriageQueuesWebTests
             .GetCaseStageCountsAsync(CancellationToken.None);
         Assert.Equal(1, stages.NotReady);
         Assert.Equal(1, stages.Query);
-        Assert.Equal(1, stages.AwaitingInstruction);
+        Assert.Equal(1, await services.GetRequiredService<IDashboardQueries>()
+            .GetAwaitingInstructionCountAsync(CancellationToken.None));
         Assert.Equal(0, stages.Review);
         Assert.Equal(0, stages.Held);
         Assert.Equal(0, stages.WithEngineer);

@@ -98,6 +98,7 @@ public sealed class RailCountsWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Enter your current password.", html, StringComparison.Ordinal);
         Assert.Equal(1, dashboard.Calls);
+        Assert.Equal(0, dashboard.AwaitingCalls);
     }
 
     private sealed class RecordingDashboardQueries(CaseStageCounts result) : IDashboardQueries
@@ -110,7 +111,20 @@ public sealed class RailCountsWebTests
             return Task.FromResult(result);
         }
 
-        public void Reset() => Calls = 0;
+        /// <summary>The shell must never read the Cases page's own figure.</summary>
+        public int AwaitingCalls { get; private set; }
+
+        public Task<int> GetAwaitingInstructionCountAsync(CancellationToken cancellationToken)
+        {
+            AwaitingCalls++;
+            return Task.FromResult(0);
+        }
+
+        public void Reset()
+        {
+            Calls = 0;
+            AwaitingCalls = 0;
+        }
 
         public Task<IReadOnlyList<PairedVehicleImagesCase>> ListPairedVehicleImagesAwaitingStaffAsync(
             CancellationToken cancellationToken) =>
@@ -145,6 +159,9 @@ public sealed class RailCountsWebTests
     private sealed class UnexpectedDashboardQueries : IDashboardQueries
     {
         public Task<CaseStageCounts> GetCaseStageCountsAsync(CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("A redirect must not query the rendered-page shell.");
+
+        public Task<int> GetAwaitingInstructionCountAsync(CancellationToken cancellationToken) =>
             throw new InvalidOperationException("A redirect must not query the rendered-page shell.");
 
         public Task<IReadOnlyList<PairedVehicleImagesCase>> ListPairedVehicleImagesAwaitingStaffAsync(
