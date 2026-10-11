@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Infrastructure.Intake;
@@ -424,7 +425,8 @@ public sealed class AzureBlobIntakeArtifactStore
         string expectedConcurrencyToken,
         CancellationToken cancellationToken)
     {
-        var hash = GetStagedStorageKeyHash(storageKey);
+        // Validates the key shape; the delete's ETag and Completed tag conditions guard the rest.
+        _ = GetStagedStorageKeyHash(storageKey);
         if (string.IsNullOrWhiteSpace(expectedConcurrencyToken))
         {
             return false;
@@ -434,24 +436,9 @@ public sealed class AzureBlobIntakeArtifactStore
         var blob = container.GetBlobClient(storageKey);
         try
         {
-            var properties = await blob.GetPropertiesAsync(
-                new BlobRequestConditions { IfMatch = expected },
-                cancellationToken);
-            var tags = await blob.GetTagsAsync(
-                cancellationToken: cancellationToken);
-            var current = MapStaged(
-                storageKey,
-                hash,
-                properties.Value.ContentLength,
-                properties.Value.CreatedOn,
-                properties.Value.ETag,
-                properties.Value.Metadata,
-                tags.Value.Tags);
-            if (current.Disposition != StagedArtifactDisposition.Completed)
-            {
-                return false;
-            }
-
+            // The caller holds the item it just read or set Completed. The ETag
+            // and the Completed tag condition on the delete itself reject a
+            // blob that changed or is not Completed, so no re-read is needed.
             var deleted = await blob.DeleteIfExistsAsync(
                 DeleteSnapshotsOption.IncludeSnapshots,
                 new BlobRequestConditions
@@ -507,7 +494,7 @@ public sealed class AzureBlobIntakeArtifactStore
         IDictionary<string, string>? tags,
         CancellationToken cancellationToken)
     {
-        using var stream = new MemoryStream(content.ToArray(), writable: false);
+        using var stream = DocumentContentCachePublisherExtensions.StreamOf(content);
         try
         {
             await blob.UploadAsync(stream, new BlobUploadOptions
@@ -551,7 +538,6 @@ public sealed class AzureBlobIntakeArtifactStore
             return false;
         }
 
-        await VerifyBlobAsync(blob, expectedHash, expectedLength, cancellationToken);
         return true;
     }
 

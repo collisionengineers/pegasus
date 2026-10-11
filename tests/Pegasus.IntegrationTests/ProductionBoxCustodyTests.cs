@@ -247,6 +247,28 @@ public sealed class ProductionBoxCustodyTests
     }
 
     /// <summary>
+    /// Creating a fresh owned folder lists its parent once before the create,
+    /// where it listed the parent for the final name and again for the staging
+    /// name.
+    /// </summary>
+    [Fact]
+    public async Task CreatingAnOwnedFolderListsItsParentBeforeTheCreateOnce()
+    {
+        var box = new StatefulBox();
+        var custody = new BoxCaseCustody(new MemoryArtifactStore(Array.Empty<byte>()), CreateClient(box));
+        var before = box.Requests.Count;
+
+        await custody.CreateCaseRootAsync(
+            Guid.NewGuid(), "AB12CDE-01", "0123456789ABCDEFGHJKMNPQRS", "image-root", default);
+
+        var requests = box.Requests.Skip(before).ToArray();
+        var firstCreate = Array.FindIndex(requests, request => request.StartsWith("POST /2.0/folders", StringComparison.Ordinal));
+        Assert.True(firstCreate > 0, string.Join("\n", requests));
+        Assert.Equal(1, requests.Take(firstCreate).Count(request =>
+            request.Contains("/items", StringComparison.Ordinal)));
+    }
+
+    /// <summary>
     /// Files filed at the same time share the one proof of their root: however
     /// many arrive together, the Case folder is read once.
     /// </summary>

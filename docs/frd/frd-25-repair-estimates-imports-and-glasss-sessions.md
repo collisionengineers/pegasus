@@ -289,8 +289,10 @@ one per launch and never reused, proves it, selects it and opens the
 estimator as usual. The Engineer identifies the real vehicle inside the
 estimator with its Alternative vehicle selection. The Case page shows
 nothing new: the session line reads as for any launch, and the host log says
-the launch is on a placeholder. Get valuation on such a plate stays
-unavailable; a placeholder has no value
+the launch is on a placeholder. Get valuation on such a plate answers the
+card's information sentence, as Glass's vehicle-age and Cazana's no-data
+answers do, because nothing is broken (operator, 10 October 2026); a
+placeholder has no value
 ([ADR-0062](../adr/0062-glass-placeholder-vehicle-for-unknown-plates.md)).
 
 The return of a placeholder session is checked as any other, except for the
@@ -311,6 +313,17 @@ the recorded vehicle: the portal answers a start on a vehicle with the
 estimate that vehicle holds, so no second vehicle or estimate is made
 (captures of 6 October 2026). These actions sit in the Case estimate section
 and do not need credentials reset.
+
+**An estimator that does not open (issue 1065).** Glass's editor sometimes
+stalls at start-up inside its own frames, before any pane loads; the stall is
+the provider's and Pegasus patches none of its code. The Case page keeps the
+estimator window in view after the handoff: it may read how deep the window's
+frames nest and whether it is closed, nothing more. When the frames have not
+grown past the provider's skeleton within 30 seconds, the page presses
+**Glass's** again once itself, which is the same continuation as the staff
+member's press. If that start stalls too, or the window is closed without a
+return while the session is open, the page says so and the next press is the
+staff member's (operator, 10 October 2026).
 
 **Interrupted background work.** Work can stop part-way: the host restarts,
 or the work runs past its time limit. A session found waiting with no work
@@ -366,7 +379,10 @@ external closure before starting a new session. A corrected mileage does not
 stop it: the vehicle keeps the mileage it was made with, and is proved and its
 export read against that. A placeholder holds no registration or mileage at
 Glass's, so it continues whatever the Case now records, and its return is read
-against the Case's current facts (operator, 9 October 2026). A valid
+against the Case's current facts (operator, 9 October 2026). A session that
+has recorded no vehicle yet holds nothing at Glass's either, so a corrected
+registration or mileage continues it on what the Case now records (operator,
+10 October 2026). A valid
 continuation replaces the protected import authority with the authority just
 proved. Credential generation must still match the account used at launch.
 
@@ -527,18 +543,41 @@ Browser evidence covers save-before-launch, refusal without provider work,
 waiting in the Glass's window, fresh controls, stale Close and preservation of
 edits during return.
 
-The hosted editor must also pass live acceptance on the deployed artifact:
-three fresh launches across two vehicle models (cold and warm browser), three
-reopens (before and after a save) including reload and host restart,
-deliberate estimate changes followed by Save & Exit and an automatic import
-that lands as the Current spec, a reopen of the returned spec whose second
-Save & Exit updates that spec and leaves one stock vehicle at Glass's, a
-second Glass's spec started from **New repair spec**, a reopen by a second
-staff member after a take-over, a reopen from an Audit's copy, replay
-producing one spec, expired-lease recovery, original-window closure, and a
-second Case refused while the account is held. Chrome is primary; Edge also
-covers a fresh launch and a reopen. Manual export/import does not satisfy this integration's
-acceptance. Supplier startup failures remain open until that journey passes
+The hosted editor must also pass live acceptance on the deployed artifact.
+The walk is issue 1066's, on Cases created after the last wipe; Chrome is
+primary, Edge covers one fresh launch and one reopen, and each step is
+recorded in operations as it passes:
+
+1. Three fresh launches across two vehicle models, cold and warm browser;
+   the estimator title names the Case vehicle each time. A launch that meets
+   the provider's start-up stall and opens on the page's own second press, or
+   on the staff member's, passes with the stall noted.
+2. Lines added, Save & Exit: one repair spec, Current, with retained XML and
+   PDF; replay of the callback creates nothing further.
+3. Glass's again on that spec: the same lines open and one stock row stands
+   at Glass's; a changed line and Save & Exit update the same spec in place.
+4. Reopens before a save and after a save, including a page reload and a
+   host restart in between.
+5. Fetch again on a session whose export could not be read.
+6. New repair spec, then Glass's: a second, separate estimate.
+7. A second Engineer takes the Case over and reopens the first spec. Whether
+   a second Glass's login can open another login's stock record needs a
+   second login; both stored credentials are one login today, so the
+   take-over alone is recorded as not proving it.
+8. Create audit, then Glass's on the Audit's copy: the same estimate.
+9. One estimator session longer than 30 minutes returning its export.
+10. A Glass's return after an Assign Engineer hand-off and re-claim.
+11. Expired-lease recovery, Close from the original Case window after a
+    reopen, and a second Case refused while the account is held.
+12. The checks owed since Releases 82 to 90: a placeholder launch, return
+    and reopen on a plate Glass's does not know; a return that fills an empty
+    VIN and never replaces one; the Repair Spec still full screen after a
+    return; busy buttons on the Glass's paths; and a changed registration
+    refused on a real stock vehicle while a session with no recorded vehicle
+    follows the Case.
+
+Manual export/import does not satisfy this integration's acceptance.
+Supplier startup failures remain open until that journey passes
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links

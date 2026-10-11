@@ -401,18 +401,21 @@ public sealed class MailWorkspaceWebTests
         var previewCommands = counter.Count;
         var previewDescription = counter.Describe();
 
+        // The Inbox list and Message page trims (#1181) took the message page to 28 (27 with #1179) and
+        // spared the list its unretained-history check and its preview a second read.
         // Measured with LocalDB in this scenario. Before Lane D (2ee268507) the message
         // page sent 52, the list 39 and the preview 18. After the Lane D reads they sent
         // 30, 24 and 11. The message page then sent 29 once its read of the message took
         // the receipt's classification decision for the classification dossier too,
-        // rather than reading that decision a second time. The other two commands that
-        // join it are the summary mapping (the row's own label) and the intake read (the
-        // receipt aggregate).
+        // rather than reading that decision a second time. The #1181 trims then left the
+        // message page two reads of that decision: the message read's receipt projection
+        // (which now also feeds the row's own label) and the intake read (the receipt
+        // aggregate); with #1179's rail trim the page is 27.
         Assert.True(
             messageCommands == InboxMessageCommands,
             $"The Inbox message page sent {messageCommands} SQL commands; it is pinned at {InboxMessageCommands}."
             + Environment.NewLine + messageDescription);
-        Assert.Equal(3, classificationDecisionReads);
+        Assert.Equal(2, classificationDecisionReads);
         Assert.True(
             listCommands == InboxListCommands,
             $"The Inbox list sent {listCommands} SQL commands; it is pinned at {InboxListCommands}."
@@ -423,11 +426,13 @@ public sealed class MailWorkspaceWebTests
             + Environment.NewLine + previewDescription);
     }
 
-    private const int InboxMessageCommands = 29;
+    // 29 before #1179 (the rail no longer counts Awaiting instruction) and #1181 (the Message page trims).
+    private const int InboxMessageCommands = 27;
 
-    private const int InboxListCommands = 24;
+    // 24 before #1179 (the rail no longer counts Awaiting instruction) and #1181 (the Inbox list trims).
+    private const int InboxListCommands = 20;
 
-    private const int InboxPreviewCommands = 11;
+    private const int InboxPreviewCommands = 10;
 
     [Fact]
     public async Task ExactMessageCanBeSearchedLinkedUnlinkedAndLinkedToAReplacement()

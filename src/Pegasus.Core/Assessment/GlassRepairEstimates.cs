@@ -35,7 +35,7 @@ public static class GlassRepairEstimateSessionPolicy
         string recordedRegistration, long recordedMileage, bool placeholder, bool vehicleRecorded,
         string registration, long mileage) =>
         ContinuingVehicle(
-            recordedRegistration, recordedMileage, placeholder, followsCase: placeholder || !vehicleRecorded,
+            recordedRegistration, recordedMileage, followsCase: placeholder || !vehicleRecorded,
             registration, mileage,
             "The Case registration has changed since this Glass's session started. "
             + "The session still holds the account. Restore the original vehicle details to resume, "
@@ -50,16 +50,16 @@ public static class GlassRepairEstimateSessionPolicy
     public static (string Registration, long MileageMiles) RequireUnchangedEstimateVehicle(
         GlassEstimateLink link, string registration, long mileage) =>
         ContinuingVehicle(
-            link.Registration, link.MileageMiles, link.Placeholder, followsCase: link.Placeholder,
+            link.Registration, link.MileageMiles, followsCase: link.Placeholder,
             registration, mileage,
             "The Case registration has changed since this Glass's estimate was started. "
             + "Restore the original vehicle details to reopen it.");
 
     private static (string Registration, long MileageMiles) ContinuingVehicle(
-        string recordedRegistration, long recordedMileage, bool placeholder, bool followsCase,
+        string recordedRegistration, long recordedMileage, bool followsCase,
         string registration, long mileage, string refusal)
     {
-        if (!placeholder && !SameRegistration(recordedRegistration, registration))
+        if (!followsCase && !SameRegistration(recordedRegistration, registration))
         {
             throw new GlassRepairEstimateRefusalException(refusal);
         }

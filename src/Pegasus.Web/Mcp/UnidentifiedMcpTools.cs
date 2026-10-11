@@ -222,13 +222,18 @@ internal sealed class UnidentifiedMcpTools(
 
         var group = await groupStore.GetAsync(item.Origin.Id, cancellationToken)
             ?? throw new McpException("The retained Unidentified submission group was not found.");
-        var members = await groupStore.ListMembersAsync(group.Id, cancellationToken);
+        var members = group.Members.OrderBy(member => member.Ordinal).ToList();
+        var receipts = (await getIntake.ExecuteManyAsync(
+                members.Select(member => member.StagedReceiptId).ToArray(), actor, cancellationToken))
+            .ToDictionary(receipt => receipt.Id);
         var result = new List<UnidentifiedSourceToolItem>(members.Count);
-        foreach (var member in members.OrderBy(member => member.Ordinal))
+        foreach (var member in members)
         {
-            var receipt = await getIntake.ExecuteAsync(new(member.StagedReceiptId, actor), cancellationToken)
-                ?? throw new McpException("A retained Unidentified group member was not found.");
-            result.Add(MapSource(receipt, member.Ordinal));
+            result.Add(MapSource(
+                receipts.TryGetValue(member.StagedReceiptId, out var receipt)
+                    ? receipt
+                    : throw new McpException("A retained Unidentified group member was not found."),
+                member.Ordinal));
         }
         return result;
     }

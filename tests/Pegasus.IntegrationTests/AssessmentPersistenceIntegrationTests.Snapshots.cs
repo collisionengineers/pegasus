@@ -253,7 +253,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
 
         var scaleLease = await harness.AcquireLeaseAsync(caseId, 3, engineer, "spec-scale-lease-2");
-        var assessment = new EfCaseAssessmentStore(harness.Factory, harness.Clock, harness.RepairSpecifications);
+        var assessment = new EfCaseAssessmentStore(harness.Factory, harness.Clock);
         // Apply scales the saved spec (one Save, 23 September 2026).
         var scaled = await new ScaleRepairSpecification(assessment, harness.RepairSpecifications).ExecuteAsync(
             new(

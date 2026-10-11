@@ -123,7 +123,6 @@ public sealed partial class DetailsModel
             var generation = reads.Start(token =>
                 reportGenerations.GetCurrentAsync(actor, id, work, token));
             var caseAiJobs = reads.Start(token => aiJobs.ListForSubjectAsync(id, token));
-            var configuration = reads.Start(token => workflowConfiguration.GetCurrentAsync(token));
             var holder = activeLease is { } lease && !viewerHoldsLease
                 ? reads.Start(token => describeEditAuthorityHolder.ExecuteAsync(
                     lease.HolderKind,
@@ -156,7 +155,7 @@ public sealed partial class DetailsModel
                 SelectedSignOffEngineerId = readinessResult.Signatory?.StaffId;
             }
             CurrentReportGeneration = await generation;
-            AiDrafts = AiDraftPolicy.Drafts(await caseAiJobs, (await configuration).AiDraftTargetDays);
+            AiDrafts = AiDraftPolicy.Drafts(await caseAiJobs, Case.Data.RequiredAiDraftTargetDays);
             if (activeLease is not null)
             {
                 ViewerHoldsEditAuthority = viewerHoldsLease;

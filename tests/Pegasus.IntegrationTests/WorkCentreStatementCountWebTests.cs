@@ -45,10 +45,14 @@ public sealed class WorkCentreStatementCountWebTests
         // the stage counts and the Unidentified count it has already read. New
         // cases reading new Cases only (8 October 2026) took it from 30 to 28:
         // no count or read of the Automation actor's changes.
+        // Counting each Activity figure in SQL on its own context (10 October 2026)
+        // sends two COUNT commands per figure, ten rather than five: 28 to 33.
         Assert.True(
             counter.Count == WorkCentreCommands,
             $"A full Work Centre load sent {counter.Count} SQL commands; it is pinned at {WorkCentreCommands}." + Environment.NewLine + counter.Describe());
     }
 
-    private const int WorkCentreCommands = 28;
+    // 28 - 4 (#1179: shared Triage and Case reads, no rail Triage or Awaiting count)
+    // + 5 (#1178: two COUNT commands per Activity figure, ten rather than five).
+    private const int WorkCentreCommands = 29;
 }

@@ -900,14 +900,16 @@ nothing, so the next one checks again.
 
 The Worker host used to write about 90% of the telemetry Pegasus ingested,
 mostly its own lines. `src/Pegasus.Worker/host.json` now keeps only Warning
-and Error lines for these host categories:
+and Error lines for these categories:
 
 - `Function`, the "Executing" and "Executed" lines of every function;
 - `Host.Startup` and `Host.Triggers`;
 - `Host.Aggregator`, the per-function metric series;
 - `Microsoft.Azure.WebJobs.Hosting.OptionsLoggingService`, the option dumps;
 - `Microsoft.Azure.WebJobs.Script.Description.FunctionGroupListenerDecorator`;
-- `Microsoft.Azure.WebJobs.Host.DrainModeManager`.
+- `Microsoft.Azure.WebJobs.Host.DrainModeManager`;
+- `Azure.Core` and `Azure.Identity`, the token and storage request lines;
+- `Microsoft.AspNetCore`, the `Executing StatusCodeResult` line.
 
 `Pegasus.Worker` stays at Information. In the seven days to 30 September 2026,
 the trace categories in that list were 83% of the Worker's trace bytes.
@@ -983,7 +985,7 @@ sweep uploaded it too, Box would refuse one of the two uploads with
 ## Web start
 
 Web binds its port before any remote read. The data-protection key ring, the
-Automation OAuth certificates and the verification account are read after it
+Automation OAuth certificates are read after it
 listens, because each waits on a managed-identity token. The first Web telemetry
 has arrived about 100 s after container start, beginning with `/msi/token`; the
 phase timings below show where that time goes. `/health/warm` (the App Service start-up
@@ -994,8 +996,7 @@ Every start prints `[startup] +<ms since process start> ms (+<ms since previous
 mark>) <phase>` lines to stdout (`Main entered`, `configuration loaded`,
 `services composed`, `host built`, `telemetry bridge resolved`, `OAuth
 certificate store resolved`, `static assets mapped`, `Razor Pages and MCP
-mapped`, `pipeline built`, `listening`, then `verification account
-reconciled`). The four marks between `host built` and `pipeline built` split the
+mapped`, `pipeline built`, `listening`). The four marks between `host built` and `pipeline built` split the
 one phase that took 17 s on two starts of 29 September 2026. When `APPLICATIONINSIGHTS_CONNECTION_STRING`
 is set, the same phases are one trace, "Web is listening. Startup phases: ...",
 and each warm-up step logs `Startup warm-up step <name> finished in <ms> ms`
@@ -1302,8 +1303,8 @@ it stopped.
   the stock entry no longer reads as the placeholder: its registration is set,
   or its type number changed.
 - A Get valuation logged at `glass.lookup.notfound … natcode=absent` means
-  Glass's does not know the plate; the card's notice is the approved one and
-  there is no placeholder for a valuation.
+  Glass's does not know the plate; the card says so as information, nothing
+  needs reporting, and there is no placeholder for a valuation.
 - "Module checksum failed" at the first Box sign-in means a Box SDK FIPS
   assembly was compiled ReadyToRun. The Web project excludes them and
   `Build-ReleaseArtifacts.ps1` refuses a publish that compiles them.
@@ -1321,11 +1322,21 @@ retain the session and collect provider startup evidence before closing it:
    order, origin, whether the parent construction ran, and the parent's
    `dialog` value at child lookup. Compare a successful portal launch and
    Pegasus launch for the same vehicle/account under controlled browser state.
-4. The supplied September 2026 captures show the child searches synchronously
-   for `parent.dialog`, then `openModeless` dereferences the missing result.
-   They do not prove why the parent object was absent. Ask the supplier to
-   identify the first failed startup dependency and establish explicit readiness
-   before child dialog access. Do not patch provider JavaScript from Pegasus.
+4. The September and October 2026 captures show a load-order race inside
+   Glass's own frames: the child `acofr2.php` builds its dialog client at
+   parse time and searches its parents for `dialog`, which the parent
+   `acofr.php` creates only after inserting that child frame; `openModeless`
+   then dereferences the missing result. The provider code is byte-identical
+   across the one successful start and five stalls, and two of the stalls were
+   launched by Glass's own portal, so neither the Pegasus window nor its caller
+   rewrite is involved (deep dive, 5 October 2026). Ask the supplier to
+   establish dialog readiness before the child reads `parent.dialog`. Do not
+   patch provider JavaScript from Pegasus. The retry is pressing **Glass's**
+   again: it continues the same session on the same stock vehicle with a fresh
+   start, and makes no second vehicle or estimate. The Case page does this
+   once itself when the estimator's frames have not loaded within 30 seconds
+   of the handoff, and says so if the second start stalls too or the window is
+   closed without a return (operator, 10 October 2026; issue 1065).
 5. Continuing a session, and reopening a spec's estimate, require an
    unchanged registration on a real stock vehicle plus current Case edit
    authority; a corrected mileage, or any change on a placeholder, continues.
@@ -1341,5 +1352,6 @@ retain the session and collect provider startup evidence before closing it:
 
 The [FRD-25 live acceptance matrix](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#acceptance-evidence)
 remains required after the supplier correction and authorized deployment.
-Issue #861 remains open until automatic launch, edit, Save & Exit and Draft
-import pass on the deployed bytes. Manual file import is not this proof.
+Issue #1066 holds that walk and stays open until automatic launch, edit,
+Save & Exit and import pass on the deployed bytes. Manual file import is not
+this proof.

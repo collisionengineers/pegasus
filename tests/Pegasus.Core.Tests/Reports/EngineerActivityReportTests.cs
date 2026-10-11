@@ -150,6 +150,9 @@ public sealed class EngineerActivityReportTests
                     ? [new(knownId, userName, true, false, StaffRole.Engineer)]
                     : []);
 
+        public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by the report.");

@@ -1,6 +1,6 @@
-using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -49,25 +49,24 @@ public sealed partial class AssetModel(
         {
             var wantsTile = string.Equals(
                 size, Pegasus.Core.Documents.CaseDocumentThumbnails.ThumbSizeToken, StringComparison.Ordinal);
-            if (wantsTile
-                && await readPreCaseThumbnail.OpenAsync(new PreCaseImageThumbnailQuery(id, assetId, actor), cancellationToken) is { } tile)
+            IntakeSourceDownload? asset;
+            if (wantsTile)
             {
-                var rendering = tile.Rendering;
-                if (IntakeImageAddress.NamesContent(v, rendering.SourceSha256)
-                    && IntakeImageAddress.NamesPreparation(prep, renderer, tile.PreparationVersion))
+                var read = await readPreCaseThumbnail.OpenAsync(new PreCaseImageThumbnailQuery(id, assetId, actor), cancellationToken);
+                if (read.Tile is { } tile)
                 {
-                    Response.Headers.CacheControl = IntakeImageAddress.KeptCacheControl;
-                    Response.Headers.ETag = IntakeImageAddress.TileETag(
-                        rendering.SourceSha256, tile.PreparationVersion);
+                    return TileResult(tile, v, prep, renderer);
                 }
-                Response.Headers.XContentTypeOptions = "nosniff";
-                Response.Headers.ContentDisposition = new ContentDispositionHeaderValue("inline").ToString();
-                return File(rendering.Content, rendering.MediaType);
+                // The tile read already holds the verified original.
+                asset = read.Original;
+            }
+            else
+            {
+                asset = await downloadAsset.ExecuteAsync(
+                    new DownloadIntakeAssetQuery(id, assetId, actor),
+                    cancellationToken);
             }
 
-            var asset = await downloadAsset.ExecuteAsync(
-                new DownloadIntakeAssetQuery(id, assetId, actor),
-                cancellationToken);
             if (asset is null)
             {
                 return NotFound();
@@ -86,7 +85,7 @@ public sealed partial class AssetModel(
                 && !mediaType.MediaType.Equals("image/webp", StringComparison.OrdinalIgnoreCase))
             {
                 return File(
-                    ContentStream(asset.Content),
+                    DocumentContentCachePublisherExtensions.StreamOf(asset.Content),
                     "application/octet-stream",
                     SafeFileName(asset.FileName));
             }
@@ -101,7 +100,7 @@ public sealed partial class AssetModel(
             {
                 FileName = asset.FileName
             }.ToString();
-            return File(ContentStream(asset.Content), asset.ContentType);
+            return File(DocumentContentCachePublisherExtensions.StreamOf(asset.Content), asset.ContentType);
         }
         catch (StaffAuthorizationException)
         {
@@ -127,15 +126,21 @@ public sealed partial class AssetModel(
         }
     }
 
-    /// <summary>
-    /// The verified bytes as a read-only stream over the array they already
-    /// sit in, so the response is not a second copy of the file. Only bytes
-    /// that are not held in an array are copied.
-    /// </summary>
-    private static MemoryStream ContentStream(ReadOnlyMemory<byte> content) =>
-        MemoryMarshal.TryGetArray(content, out var segment)
-            ? new MemoryStream(segment.Array!, segment.Offset, segment.Count, writable: false)
-            : new MemoryStream(content.ToArray(), writable: false);
+    private FileStreamResult TileResult(PreCaseImageThumbnail tile, string? v, string? prep, string? renderer)
+    {
+        var rendering = tile.Rendering;
+        if (IntakeImageAddress.NamesContent(v, rendering.SourceSha256)
+            && IntakeImageAddress.NamesPreparation(prep, renderer, tile.PreparationVersion))
+        {
+            Response.Headers.CacheControl = IntakeImageAddress.KeptCacheControl;
+            Response.Headers.ETag = IntakeImageAddress.TileETag(
+                rendering.SourceSha256, tile.PreparationVersion);
+        }
+        Response.Headers.XContentTypeOptions = "nosniff";
+        Response.Headers.ContentDisposition = new ContentDispositionHeaderValue("inline").ToString();
+        return File(rendering.Content, rendering.MediaType);
+    }
+
 
     private static ContentResult CustodyUnavailable() => new()
     {

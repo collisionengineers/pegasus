@@ -158,18 +158,56 @@ public sealed class EfStaffAccountQueries(IDbContextFactory<PegasusDbContext> co
             from user in context.Users.AsNoTracking()
             where user.IsEnabled
                 && user.IsSignOffEngineer
-                && user.SignOffSignature != null
+                && EF.Functions.DataLength(user.SignOffSignature) > 0
             orderby user.SignOffPrintedName, user.Id
-            select user)
+            select new
+            {
+                user.Id,
+                user.SignOffPrintedName,
+                user.SignOffQualifications,
+                user.IsDefaultSignOffEngineer
+            })
             .ToListAsync(cancellationToken);
 
         return candidates
-            .Where(user => SignOffEngineerEligibility.IsEligible(
-                user.IsEnabled,
-                user.IsSignOffEngineer,
-                user.SignOffSignature))
-            .Select(Profile)
+            .Select(user => new SignOffEngineerProfile(
+                user.Id,
+                user.SignOffPrintedName ?? throw new InvalidOperationException(
+                    "An eligible sign-off Engineer has no printed name."),
+                user.SignOffQualifications,
+                user.IsDefaultSignOffEngineer))
             .ToArray();
+    }
+
+    public async Task<SignOffSignature?> GetSignOffSignatureAsync(
+        Guid staffId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await GetSignOffSignatureAsync(context, staffId, cancellationToken);
+    }
+
+    /// <summary>
+    /// The signature bytes of one eligible sign-off Engineer, read where a
+    /// report is composed or compared and nowhere else.
+    /// </summary>
+    internal static async Task<SignOffSignature?> GetSignOffSignatureAsync(
+        PegasusDbContext context,
+        Guid staffId,
+        CancellationToken cancellationToken)
+    {
+        var signature = await (
+            from user in context.Users.AsNoTracking()
+            where user.Id == staffId
+                && user.IsEnabled
+                && user.IsSignOffEngineer
+                && EF.Functions.DataLength(user.SignOffSignature) > 0
+            select user.SignOffSignature)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return signature is null
+            ? null
+            : new SignOffSignature(signature, SignOffSignaturePolicy.MediaType);
     }
 
     /// <summary>
@@ -256,17 +294,6 @@ public sealed class EfStaffAccountQueries(IDbContextFactory<PegasusDbContext> co
                 row.HasSignature,
                 row.IsDefaultSignOffEngineer)
         };
-
-    private static SignOffEngineerProfile Profile(PegasusIdentityUser user) =>
-        new(
-            user.Id,
-            user.SignOffPrintedName ?? throw new InvalidOperationException(
-                "An eligible sign-off Engineer has no printed name."),
-            user.SignOffQualifications,
-            user.SignOffSignature?.ToArray() ?? throw new InvalidOperationException(
-                "An eligible sign-off Engineer has no signature."),
-            SignOffSignaturePolicy.MediaType,
-            user.IsDefaultSignOffEngineer);
 
     /// <summary>Shared with <see cref="EfStaffAccountAdministration"/> so the mapping lives once.</summary>
     internal static StaffRole ParseRole(string roleName) => roleName switch

@@ -741,6 +741,9 @@ internal static partial class CaseWebTestSupport
             Task.FromResult<IReadOnlyList<StaffAccountSummary>>(
                 staffIds.Contains(staffId) ? [account] : []);
 
+        public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<SignOffEngineerProfile>>([]);
@@ -1088,7 +1091,8 @@ internal static partial class CaseWebTestSupport
                 Workspace: ClaimSource is null
                     ? null
                     : new(ClaimSource, null, null, null, null, null, null, null, null, null, null),
-                StandaloneAuditEvidenceId: StandaloneAuditEvidenceId);
+                StandaloneAuditEvidenceId: StandaloneAuditEvidenceId,
+                AiDraftTargetDays: 1);
 
         /// <summary>
         /// The vehicle as the case holds it. A lookup now fills empty fields as

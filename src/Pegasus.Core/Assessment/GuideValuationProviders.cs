@@ -85,7 +85,11 @@ public enum GuideValuationNotValuedReason
     /// <summary>Glass's does not value a vehicle of this age (operator, 2 October 2026).</summary>
     VehicleAge,
 
-    /// <summary>Cazana holds no data for the registration (operator, 9 October 2026).</summary>
+    /// <summary>
+    /// The provider holds no data for the registration: Cazana's 404
+    /// (operator, 9 October 2026) and Glass's plate search without a type
+    /// number (operator, 10 October 2026).
+    /// </summary>
     NoVehicleData,
 }
 

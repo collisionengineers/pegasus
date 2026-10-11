@@ -142,13 +142,6 @@ public sealed class StreamedGroupedIntakeTests
             return Task.FromResult(group);
         }
 
-        public Task<IntakeSubmissionGroupMember?> FindMemberAsync(
-            Guid requestedGroupId,
-            int ordinal,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IntakeSubmissionGroupMember?>(
-                members.SingleOrDefault(member => member.GroupId == requestedGroupId && member.Ordinal == ordinal));
-
         public Task<IntakeSubmissionGroupMember> AddMemberAsync(
             Guid requestedGroupId,
             int ordinal,

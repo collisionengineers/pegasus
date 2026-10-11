@@ -218,7 +218,11 @@ internal sealed class CaseEditMcpTools(
                         var current = await getCaseEditBasis.ExecuteAsync(
                             new(caseId, context.Actor), cancellationToken)
                             ?? throw new McpException("The case was not found.");
-                        var assessment = await getAssessment.ExecuteAsync(caseId, cancellationToken);
+                        // Only the inspection, vehicle and report parts read the
+                        // recorded assessment; an overview-only call never loads it.
+                        CaseAssessmentProjection? assessment = null;
+                        async Task LoadAssessmentAsync() =>
+                            assessment ??= await getAssessment.ExecuteAsync(caseId, cancellationToken);
                         string? Recorded(string path) => assessment?.Field(path)?.Value;
                         decimal? Money(string path) => decimal.TryParse(
                             Recorded(path), NumberStyles.Number, CultureInfo.InvariantCulture, out var value)
@@ -311,6 +315,7 @@ internal sealed class CaseEditMcpTools(
                         CaseWorkspaceInspection? inspection = null;
                         if (Any(inspectionAddress, inspectionMode, storageLocation, inspectionDate, inspectionDeadline))
                         {
+                            await LoadAssessmentAsync();
                             var address = Text(inspectionAddress, Accepted(data.Inspection.Address));
                             var treatment = mode is not null
                                 ? Treatment(mode)
@@ -339,6 +344,7 @@ internal sealed class CaseEditMcpTools(
                         if (Any(vehicleRegistration, vehicleMake, vehicleModel, vehicleYear, vehicleMileageUnit)
                             || vehicleMileage is not null)
                         {
+                            await LoadAssessmentAsync();
                             var mileage = vehicleMileage ?? Accepted(data.Vehicle.Mileage);
                             var unitText = Text(vehicleMileageUnit, Accepted(data.Vehicle.MileageUnit));
                             CaseOdometerUnit? unit = null;
@@ -360,6 +366,10 @@ internal sealed class CaseEditMcpTools(
                                 Text(vehicleYear, Accepted(data.Vehicle.Year)));
                         }
 
+                        if (signOffEngineerId is not null)
+                        {
+                            await LoadAssessmentAsync();
+                        }
                         CaseWorkspaceReport? report = signOffEngineerId is not { } engineerId
                             ? null
                             : new(
@@ -594,7 +604,7 @@ internal sealed class CaseEditMcpTools(
                         catch (GuideValuationNotValuedException notValued)
                         {
                             return new FetchedValuation(
-                                notValued.Reason.ToString(), CaseWorkspaceLabels.Valuation.NotValued(notValued.Reason), null, null);
+                                notValued.Reason.ToString(), CaseWorkspaceLabels.Valuation.NotValued(valuationSource, notValued.Reason), null, null);
                         }
 
                         // The fetched figures are recorded as the card's Save records them.

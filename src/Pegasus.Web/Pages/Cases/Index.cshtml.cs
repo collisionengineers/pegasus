@@ -83,6 +83,12 @@ public sealed class IndexModel(
     private readonly TimeProvider _timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
+    /// <summary>
+    /// The staff names the queue rows resolved, kept so the selected row's
+    /// detail does not read the same Engineer again.
+    /// </summary>
+    private IReadOnlyDictionary<Guid, string> _engineerNames = new Dictionary<Guid, string>();
+
     /// <summary>One rail entry: its key, label and icon.</summary>
     public sealed record Tab(string Key, string Label, string Icon);
 
@@ -173,6 +179,8 @@ public sealed class IndexModel(
 
     public int TriageCount { get; private set; }
 
+    public int AwaitingInstructionCount { get; private set; }
+
     /// <summary>Open Unidentified items only; a closed item is never counted.</summary>
     public int UnidentifiedCount { get; private set; }
 
@@ -183,7 +191,7 @@ public sealed class IndexModel(
         "with_engineer" => StageCounts.WithEngineer,
         "query" => StageCounts.Query,
         "triage" => TriageCount,
-        "awaiting" => StageCounts.AwaitingInstruction,
+        "awaiting" => AwaitingInstructionCount,
         "held" => StageCounts.Held,
         "unidentified" => UnidentifiedCount,
         _ => 0
@@ -377,13 +385,15 @@ public sealed class IndexModel(
         // Every group carries its count whichever one is open. The three
         // count queries use their own DbContext each, so they run together.
         var stageCountsTask = _dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
+        var awaitingTask = _dashboardQueries.GetAwaitingInstructionCountAsync(cancellationToken);
         var triageTask = _listTriage.CountAsync(
             actor,
             TriageLifecycleRules.ActiveStates,
             cancellationToken);
         var openUnidentifiedCountTask = _unidentifiedStore.CountOpenAsync(cancellationToken);
-        await Task.WhenAll(stageCountsTask, triageTask, openUnidentifiedCountTask);
+        await Task.WhenAll(stageCountsTask, awaitingTask, triageTask, openUnidentifiedCountTask);
         StageCounts = stageCountsTask.Result;
+        AwaitingInstructionCount = awaitingTask.Result;
         TriageCount = triageTask.Result;
         UnidentifiedCount = openUnidentifiedCountTask.Result;
         RailCountsPageFilter.SetCaseCounts(
@@ -500,8 +510,8 @@ public sealed class IndexModel(
         HasNextPage = result.HasNextPage;
         var items = result.Items.ToArray();
         Principals = PrincipalOptions(items);
-        var engineers = await EngineerNamesAsync(items, cancellationToken);
-        return items.Select(item => CaseRow(item, engineers)).ToArray();
+        _engineerNames = await EngineerNamesAsync(items, cancellationToken);
+        return items.Select(item => CaseRow(item, _engineerNames)).ToArray();
     }
 
     /// <summary>
@@ -531,8 +541,8 @@ public sealed class IndexModel(
             })
             .ToArray();
         Principals = PrincipalOptions(matchingCases);
-        var engineers = await EngineerNamesAsync(matchingCases, cancellationToken);
-        return matchingCases.Select(item => CaseRow(item, engineers)).ToArray();
+        _engineerNames = await EngineerNamesAsync(matchingCases, cancellationToken);
+        return matchingCases.Select(item => CaseRow(item, _engineerNames)).ToArray();
     }
 
     private async Task<IReadOnlyList<QueueRow>> LoadAwaitingAsync(CancellationToken cancellationToken)
@@ -549,7 +559,7 @@ public sealed class IndexModel(
 
     private async Task<IReadOnlyList<QueueRow>> LoadTriageAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        var page = await _listTriage.ExecuteAsync(new(actor, TriageLifecycleRules.ActiveStates, CurrentPage, PageSize), cancellationToken);
+        var page = await _listTriage.ExecuteAsync(new(actor, TriageLifecycleRules.ActiveStates, TriageCount, CurrentPage, PageSize), cancellationToken);
         HasPreviousPage = page.Page > 1;
         HasNextPage = page.Page < page.TotalPages;
         var assignees = await ActorDisplayNames.ResolveStaffNamesAsync(
@@ -615,13 +625,19 @@ public sealed class IndexModel(
         CaseReportGenerationRecord? currentReport = null;
         if (CaseNextAction.ReadsTheReport(basis.Workflow))
         {
-            if (AssessmentAccessPolicy.For(actor, basis.Workflow).CanOpen
-                && await _reportSnapshotSource.GetAsync(caseId, actor, CaseWorkSelector.Current, reuse: null, cancellationToken) is { } reportInputs)
+            // The snapshot and the current report are independent reads.
+            using var reads = new BoundedReads(cancellationToken);
+            var snapshotTask = AssessmentAccessPolicy.For(actor, basis.Workflow).CanOpen
+                ? reads.Start(token => _reportSnapshotSource.GetAsync(caseId, actor, CaseWorkSelector.Current, reuse: null, token))
+                : null;
+            var currentTask = reads.Start(token => _reportGenerations.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, token));
+            await reads.WhenAllAsync();
+            if (snapshotTask?.Result is { } reportInputs)
             {
                 reportBlockers = CaseWorkspaceLabels.Report.InPageOrder(
                     CaseReportReadiness.Evaluate(reportInputs.Readiness).Reasons);
             }
-            currentReport = await _reportGenerations.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, cancellationToken);
+            currentReport = currentTask.Result;
         }
         var next = CaseNextAction.Of(
             basis.Workflow,
@@ -637,7 +653,11 @@ public sealed class IndexModel(
         var engineer = "Not assigned";
         if (basis.Workflow.AssignedEngineerId is { } engineerId)
         {
-            var names = await ActorDisplayNames.ResolveStaffNamesAsync(_staffAccounts, [engineerId], cancellationToken);
+            // The queue rows already resolved this name; only an id the rows
+            // did not carry is read.
+            var names = _engineerNames.ContainsKey(engineerId)
+                ? _engineerNames
+                : await ActorDisplayNames.ResolveStaffNamesAsync(_staffAccounts, [engineerId], cancellationToken);
             engineer = ActorDisplayNames.Resolve(ActorKind.Staff, engineerId.ToString("D"), names);
         }
         work.Add(("Engineer", engineer));

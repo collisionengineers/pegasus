@@ -31,9 +31,11 @@ public sealed class GetAdministrationAiJobs(
         StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
         ArgumentOutOfRangeException.ThrowIfLessThan(page, 1);
 
-        var rows = await queries.ListAsync((page - 1) * PageSize, PageSize + 1, cancellationToken);
-        var counts = await jobs.GetCountsAsync(cancellationToken);
-        var enabled = await sendToAi.IsEnabledAsync(cancellationToken);
-        return new(rows.Take(PageSize).ToArray(), counts, enabled, rows.Count > PageSize);
+        var rowsRead = queries.ListAsync((page - 1) * PageSize, PageSize + 1, cancellationToken);
+        var countsRead = jobs.GetCountsAsync(cancellationToken);
+        var enabledRead = sendToAi.IsEnabledAsync(cancellationToken);
+        await Task.WhenAll(rowsRead, countsRead, enabledRead);
+        var rows = await rowsRead;
+        return new(rows.Take(PageSize).ToArray(), await countsRead, await enabledRead, rows.Count > PageSize);
     }
 }

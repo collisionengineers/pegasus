@@ -188,6 +188,56 @@ public sealed class RetainedMailPersistenceTests
         Assert.Contains(
             IntakeSearchProjection.Create(canonical, routeDecision: null),
             document => document.AttachmentOrdinal == 3 && document.IsSearchable);
+
+        // The source reader parses the message once and reuses the attachment
+        // decodes it made, so the root email carries exactly the lengths the
+        // display reader measures on its own.
+        Assert.Equal(display.Attachments, canonical.RootEmail!.Attachments);
+        Assert.Equal(display.Body, canonical.RootEmail.BodyPlainText);
+        Assert.Equal(display.ThreadIdentity, canonical.RootEmail.ThreadIdentity);
+    }
+
+    [Fact]
+    public async Task TheDisplayViewOfAParsedMessageMatchesReadingItFromBytes()
+    {
+        var message = new MimeMessage();
+        message.From.Add(MimeKit.MailboxAddress.Parse("sender@example.invalid"));
+        message.To.Add(MimeKit.MailboxAddress.Parse(MailboxAddress));
+        message.Subject = "Parse once";
+        message.MessageId = "<parse-once@example.invalid>";
+        var attachment = new MimePart("application", "octet-stream")
+        {
+            Content = new MimeContent(new MemoryStream([1, 2, 3, 4, 5])),
+            ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+            ContentTransferEncoding = ContentEncoding.Base64,
+            FileName = "five.bin"
+        };
+        message.Body = new Multipart("mixed")
+        {
+            new TextPart("plain") { Text = "Body" },
+            attachment
+        };
+        await using var stream = new MemoryStream();
+        await message.WriteToAsync(stream);
+        stream.Position = 0;
+        var parsed = await MimeMessage.LoadAsync(stream);
+
+        var fromBytes = await LocalEmailDisplayReader.ReadAsync(
+            new MemoryStream(stream.ToArray()), CancellationToken.None);
+        var fromMessage = LocalEmailDisplayReader.Read(parsed);
+
+        Assert.Equal(fromBytes.Subject, fromMessage.Subject);
+        Assert.Equal(fromBytes.Body, fromMessage.Body);
+        Assert.Equal(fromBytes.ThreadIdentity, fromMessage.ThreadIdentity);
+        Assert.Equal(fromBytes.Attachments, fromMessage.Attachments);
+        var five = Assert.Single(fromMessage.Attachments!);
+        Assert.Equal(5L, five.ContentLength);
+
+        // A length the caller already measured for a part is used as given.
+        var part = Assert.Single(parsed.Attachments);
+        var reused = LocalEmailDisplayReader.Read(
+            parsed, new Dictionary<MimeEntity, long> { [part] = 99 });
+        Assert.Equal(99L, Assert.Single(reused.Attachments!).ContentLength);
     }
 
     [Fact]
@@ -902,7 +952,7 @@ public sealed class RetainedMailPersistenceTests
         // reversed association or on no association.
         var frame = await scope.ServiceProvider
             .GetRequiredService<ICaseQueryStore>()
-            .GetPageFrameAsync(caseId, CancellationToken.None);
+            .GetPageFrameAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal(sharedFirstId, frame!.LinkedCancellationMessageId);
     }
 

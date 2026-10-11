@@ -90,6 +90,18 @@ public sealed class ReadOriginalReportTests
     }
 
     [Fact]
+    public async Task AFiledDocumentShorterThanItsRecordedLengthIsNotRead()
+    {
+        // The read buffer is sized from the recorded length; fewer bytes than that
+        // must still fail the hash check rather than be read as the report.
+        var harness = new Harness(storedBytes: Encoding.UTF8.GetBytes("tampered"));
+
+        Assert.Null(await harness.Sut.ForDocumentAsync(
+            Staff, harness.CaseId, harness.OccurrenceId, harness.VersionId, default));
+        Assert.Empty(harness.Reader.Sources);
+    }
+
+    [Fact]
     public async Task AnotherVersionOfTheDocumentReadsNothing()
     {
         var harness = new Harness();
@@ -193,7 +205,7 @@ public sealed class ReadOriginalReportTests
         {
             var assetId = Guid.NewGuid();
             Reader = new(readerFailure, text ?? Report, scannedPages);
-            Documents = new(Bytes);
+            Documents = new(storedBytes ?? Bytes);
             Asset = new(
                 assetId, "attachment 2: report.pdf", "report.pdf", "application/pdf",
                 IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment,

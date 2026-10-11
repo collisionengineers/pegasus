@@ -198,7 +198,7 @@ public sealed class ImageIntakeAutomation(
             return null;
         }
 
-        var members = await groupStore.ListMembersAsync(group.Id, cancellationToken);
+        var members = group.Members;
         if (members.Count < group.ExpectedMemberCount)
         {
             // Fewer member rows exist than the originating submission

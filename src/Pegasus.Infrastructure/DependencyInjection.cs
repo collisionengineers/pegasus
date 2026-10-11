@@ -396,6 +396,7 @@ public static class DependencyInjection
         services.AddScoped<ResolveApprovedOutlookCategory>();
         services.AddScoped<EfCaseWorkflowStore>();
         services.AddScoped<ICaseWorkflowStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
+        services.AddScoped<IReleaseAutomationLeases>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<IAutoLinkReportEvidenceStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseWorkflowQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
@@ -430,6 +431,8 @@ public static class DependencyInjection
         services.AddScoped<ICaseKindQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<ICaseDocumentQueries>(
+            provider => provider.GetRequiredService<EfCaseQueryStore>());
+        services.AddScoped<IAvailableReportSentEvidenceQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<IGetCaseKind, GetCaseKind>();
         services.AddScoped<ISearchCases, SearchCases>();

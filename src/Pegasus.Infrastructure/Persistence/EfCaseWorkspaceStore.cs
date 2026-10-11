@@ -37,7 +37,8 @@ public sealed class EfCaseWorkspaceStore(
 
     public async Task<SaveCaseWorkspaceResult> SaveAsync(
         SaveCaseWorkspaceRequest request,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<SignOffEngineerProfile>? signOffProfiles = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         request = CaseWorkspacePolicy.ValidateAndNormalize(request);
@@ -54,10 +55,14 @@ public sealed class EfCaseWorkspaceStore(
                 requestHash,
                 cancellationToken))
         {
+            // A replay has read neither the configuration nor the work yet.
+            var replayWorkId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken);
+            var replayConfiguration = await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken);
             return await ProjectAsync(
                 context,
                 request.CaseId,
-                request.Work,
+                replayWorkId,
+                replayConfiguration,
                 await ReplayedEstimateIdAsync(context, request.CaseId, request.OperationKey, cancellationToken),
                 wasReplay: true,
                 cancellationToken);
@@ -302,7 +307,8 @@ public sealed class EfCaseWorkspaceStore(
                 cancellationToken)
             : null;
 
-        var signOffEngineerProfiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken);
+        var signOffEngineerProfiles = signOffProfiles
+            ?? await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken);
         var beforeSignOffEngineerId = CaseSignOffEngineerResolver.Resolve(
             workflow.SignOffEngineerId,
             workflow.AssignedEngineerId,
@@ -514,7 +520,8 @@ public sealed class EfCaseWorkspaceStore(
         return await ProjectAsync(
             context,
             request.CaseId,
-            request.Work,
+            workId,
+            configuration,
             estimateEdit?.Entity.Id,
             wasReplay: false,
             cancellationToken);
@@ -528,12 +535,12 @@ public sealed class EfCaseWorkspaceStore(
     private static async Task<SaveCaseWorkspaceResult> ProjectAsync(
         PegasusDbContext context,
         Guid caseId,
-        CaseWorkSelector work,
+        Guid workId,
+        CaseWorkflowConfiguration configuration,
         Guid? estimateId,
         bool wasReplay,
         CancellationToken cancellationToken)
     {
-        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
         var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
             .SingleAsync(item => item.WorkId == workId, cancellationToken);
         var workflow = await context.CaseWorkflows.AsNoTracking()
@@ -557,8 +564,7 @@ public sealed class EfCaseWorkspaceStore(
                 .OrderBy(item => item.Position)
                 .ToArrayAsync(cancellationToken);
         return new(
-            EfCaseDataStore.ApplyConfiguration(EfCaseDataStore.Map(snapshot, workflow),
-                await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)),
+            EfCaseDataStore.ApplyConfiguration(EfCaseDataStore.Map(snapshot, workflow), configuration),
             EfCaseAssessmentStore.Map(
                 workflow,
                 fields,

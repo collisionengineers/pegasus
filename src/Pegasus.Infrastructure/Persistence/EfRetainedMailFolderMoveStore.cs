@@ -304,7 +304,8 @@ internal sealed class EfRetainedMailFolderMoveStore(
             operation.ExpectedClassificationVersion,
             operation.ExpectedRecommendationPolicyKey,
             operation.ExpectedRecommendationPolicyVersion,
-            operation.ExpectedMailboxVersion);
+            operation.ExpectedMailboxVersion,
+            operation.DestinationFolderId);
 
     private static string Hash(MoveRetainedMailFolderRequest request, ActionActor actor)
     {

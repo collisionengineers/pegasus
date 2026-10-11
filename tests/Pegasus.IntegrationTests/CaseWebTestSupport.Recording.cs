@@ -269,7 +269,9 @@ internal static partial class CaseWebTestSupport
         public int MetadataReads { get; private set; }
 
         Task<SaveCaseWorkspaceResult> ICaseWorkspaceStore.SaveAsync(
-            SaveCaseWorkspaceRequest request, CancellationToken cancellationToken) =>
+            SaveCaseWorkspaceRequest request,
+            CancellationToken cancellationToken,
+            IReadOnlyList<SignOffEngineerProfile>? signOffProfiles) =>
             ((ISaveCaseWorkspace)this).ExecuteAsync(request, cancellationToken);
 
         /// <summary>The Engineer's Value the Case holds, for a test that needs one saved.</summary>
