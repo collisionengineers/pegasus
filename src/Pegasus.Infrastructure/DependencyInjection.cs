@@ -13,7 +13,6 @@ using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Intake.Unidentified;
-using Pegasus.Core.ReferenceData;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Notifications;
