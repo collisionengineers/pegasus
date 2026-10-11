@@ -34,6 +34,8 @@ public sealed class EfIntakeSubmissionGroupStore(
                            && receipt.InstructionDraft == null && receipt.FieldsJson == emptyFields
                            && !context.UnidentifiedItems.Any(item => item.OriginKind == groupOrigin && item.OriginId == submissionGroup.Id)
                            && !context.UnidentifiedItems.Any(item => item.OriginKind == receiptOrigin && item.OriginId == receipt.Id)
+                           && !context.IntakeManualAssociations.Any(association => association.IntakeReceiptId == receipt.Id && association.IsActive)
+                           && !context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == receipt.Id)
                        select new { submissionGroup.Id, submissionGroup.ReceivedAtUtc, ReceiptId = receipt.Id, member.Ordinal };
         var candidates = await eligible.ToArrayAsync(cancellationToken);
         var receiptIds = candidates.Select(candidate => candidate.ReceiptId).Distinct().ToArray();
