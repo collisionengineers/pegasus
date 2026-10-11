@@ -2024,8 +2024,13 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Empty(harness.Import.Requests);
     }
 
+    /// <summary>
+    /// A session that has recorded a stock vehicle holds it at Glass's under
+    /// the registration it was made with; the Launching row stopped after
+    /// the vehicle was recorded. A Prepared session holds nothing and is
+    /// covered by <see cref="AResumeOfAPreparedSessionFollowsAChangedCaseRegistration"/>.
+    /// </summary>
     [Theory]
-    [InlineData("Prepared")]
     [InlineData("Launching")]
     [InlineData("Active")]
     [InlineData("AwaitingImport")]
@@ -2034,14 +2039,12 @@ public sealed class GlassRepairEstimateGatewayTests
     {
         var harness = Harness.Create();
         GlassRepairEstimateSession session;
-        if (state is "Prepared" or "Launching")
+        if (state == "Launching")
         {
             using var interrupted = new GatedStore(harness.Store);
             var checkpoints = 0;
-            interrupted.Refuse = material => (state == "Prepared"
-                ? material.Session.State == GlassRepairEstimateSessionState.Prepared
-                : material.Session.State == GlassRepairEstimateSessionState.Launching
-                    && material.Session.ProviderVehicleId is not null && ++checkpoints == 2)
+            interrupted.Refuse = material => material.Session.State == GlassRepairEstimateSessionState.Launching
+                    && material.Session.ProviderVehicleId is not null && ++checkpoints == 2
                 ? new InvalidOperationException("Stopped before provider work") : null;
             await Assert.ThrowsAsync<InvalidOperationException>(() => Restarted(harness, interrupted).LaunchAsync());
             session = Assert.Single(harness.Store.Sessions.Values).Session;
@@ -2072,6 +2075,32 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(imports, harness.Import.Requests.Count);
         Assert.Equal(beforeResume, await harness.Store.GetAsync(session.Id, default));
         Assert.True(GlassRepairEstimateSessionPolicy.OccupiesAccount(session.State));
+    }
+
+    /// <summary>
+    /// A Prepared session has recorded no vehicle, so nothing at Glass's holds
+    /// a registration: a corrected Case registration is not refused, and the
+    /// resume is prepared before any provider work (operator, 10 October
+    /// 2026; issue 1155).
+    /// </summary>
+    [Fact]
+    public async Task AResumeOfAPreparedSessionFollowsAChangedCaseRegistration()
+    {
+        var harness = Harness.Create();
+        using var interrupted = new GatedStore(harness.Store);
+        interrupted.Refuse = material => material.Session.State == GlassRepairEstimateSessionState.Prepared
+            ? new InvalidOperationException("Stopped before provider work") : null;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Restarted(harness, interrupted).LaunchAsync());
+        var session = Assert.Single(harness.Store.Sessions.Values).Session;
+        Assert.Equal(GlassRepairEstimateSessionState.Prepared, session.State);
+        harness.CaseAuthority.Facts = new("XY99ZZZ", MileageMiles);
+        var requests = harness.Mva.Requests.Count;
+
+        var step = await harness.Gateway.PrepareResumeAsync(
+            new(harness.Engineer, session.Id, session.Version, Harness.CaseVersion, Harness.LeaseToken), default);
+
+        Assert.Equal(session.Id, step.Session.Id);
+        Assert.Equal(requests, harness.Mva.Requests.Count);
     }
 
     /// <summary>
