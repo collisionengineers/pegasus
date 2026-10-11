@@ -186,7 +186,7 @@ public static class CaseWorkspaceLabels
 
         // Built once from the six dictionaries above, first dictionary wins, so
         // a lookup is one probe instead of a scan that formats every FormName.
-        private static readonly IReadOnlyDictionary<string, string> LabelsByFormName = BuildLabelsByFormName();
+        private static readonly Dictionary<string, string> LabelsByFormName = BuildLabelsByFormName();
 
         private static Dictionary<string, string> BuildLabelsByFormName()
         {
