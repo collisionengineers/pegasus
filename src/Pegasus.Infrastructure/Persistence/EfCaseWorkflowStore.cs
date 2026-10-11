@@ -712,7 +712,14 @@ public sealed class EfCaseWorkflowStore(
             // The current work's report is approved from Report preparation.
             // The Inspection report of a Case that has its Audit is approved on
             // its own work, whatever the Case's state (operator, 1 October 2026).
-            var pastWork = await PastWorkAsync(context, workflow.CaseId, request.Work, cancellationToken);
+            // The Primary selector resolves the current work once; the id serves
+            // both the past-work test and the generation check below.
+            var selectedCurrentWorkId = request.Work == CaseWorkSelector.Primary
+                ? await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken)
+                : (Guid?)null;
+            var pastWork = selectedCurrentWorkId is { } currentId
+                ? await PastWorkAsync(context, workflow.CaseId, currentId, cancellationToken)
+                : null;
             if (pastWork is null && workflow.State != nameof(CaseLifecycleState.ReportPreparation))
             {
                 throw new InvalidOperationException(
@@ -723,6 +730,7 @@ public sealed class EfCaseWorkflowStore(
             // A generated report is approved on the work it was made for.
             var approvedSha256 = approval.ArtifactSha256.ToLowerInvariant();
             var workId = pastWork?.Id
+                ?? selectedCurrentWorkId
                 ?? await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
             if (await (
                     from artifact in context.Set<GeneratedCaseArtifactEntity>().AsNoTracking()
@@ -800,9 +808,19 @@ public sealed class EfCaseWorkflowStore(
             return null;
         }
 
-        var currentWorkId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
-        return currentWorkId == caseId ? null : await TrackedWorkAsync(context, caseId, cancellationToken);
+        return await PastWorkAsync(
+            context,
+            caseId,
+            await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken),
+            cancellationToken);
     }
+
+    private static async Task<CaseWorkEntity?> PastWorkAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        Guid currentWorkId,
+        CancellationToken cancellationToken) =>
+        currentWorkId == caseId ? null : await TrackedWorkAsync(context, caseId, cancellationToken);
 
     /// <summary>
     /// The past work a Pegasus report send proves, from the generation the
@@ -1065,16 +1083,16 @@ public sealed class EfCaseWorkflowStore(
             return Map(replayedDue);
         }
 
-        var workflow = await context.CaseWorkflows.SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
+        var workflow = await context.CaseWorkflows
+                .Include(item => item.Case)
+                .Include(item => item.DueWork)
+                .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         ArchivedCaseGuard.RequireMutable(workflow);
         RequireLease(workflow, request.Actor, request.EditLeaseToken, timeProvider.GetUtcNow());
         RequireVersionUnderLease(workflow, request.ExpectedCaseVersion);
-        var due = await context.CaseDueWork
-                .Include(item => item.Workflow)
-                .ThenInclude(workflow => workflow.Case)
-                .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
+        var due = workflow.DueWork
             ?? throw new InvalidOperationException("The case has no due work to chase.");
         if (due.State != nameof(CaseDueWorkState.Scheduled))
         {

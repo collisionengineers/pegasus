@@ -22,7 +22,11 @@ internal static class ArchivedCaseGuard
         RequireOpenState(workflow.CaseId, workflow.State);
     }
 
-    public static async Task RequireMutableAsync(
+    /// <summary>
+    /// Loads the Case's workflow tracked and requires it mutable, so a caller
+    /// that goes on to change it reads it once.
+    /// </summary>
+    public static async Task<CaseWorkflowEntity> RequireMutableAsync(
         PegasusDbContext context,
         Guid caseId,
         CancellationToken cancellationToken)
@@ -33,18 +37,11 @@ internal static class ArchivedCaseGuard
             throw new ArgumentException("A case identifier is required.", nameof(caseId));
         }
 
-        var mutationState = await context.CaseWorkflows
-            .AsNoTracking()
-            .Where(item => item.CaseId == caseId)
-            .Select(item => new { item.ArchivedAtUtc, item.State })
-            .SingleOrDefaultAsync(cancellationToken)
+        var workflow = await context.CaseWorkflows
+            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");
-        if (mutationState.ArchivedAtUtc is not null)
-        {
-            throw new CaseArchivedException(caseId);
-        }
-
-        RequireOpenState(caseId, mutationState.State);
+        RequireMutable(workflow);
+        return workflow;
     }
 
     private static void RequireOpenState(Guid caseId, string state)

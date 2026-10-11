@@ -221,6 +221,18 @@ internal static class CaseOperationReplay
         Guid caseId,
         string operationKey,
         string requestHash,
+        CancellationToken cancellationToken) =>
+        await FindEventTypeAsync(context, caseId, operationKey, requestHash, cancellationToken) is not null;
+
+    /// <summary>
+    /// The event type of the operation already applied under this key, null
+    /// when none; a different request under the key is a conflict.
+    /// </summary>
+    public static async Task<string?> FindEventTypeAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        string operationKey,
+        string requestHash,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -230,7 +242,7 @@ internal static class CaseOperationReplay
                 cancellationToken);
         if (replay is null)
         {
-            return false;
+            return null;
         }
 
         if (!FixedTimeEquals(replay.RequestHash, requestHash))
@@ -238,7 +250,7 @@ internal static class CaseOperationReplay
             throw new CaseOperationConflictException(caseId, operationKey);
         }
 
-        return true;
+        return replay.EventType;
     }
 
     public static string Hash(string value) =>
