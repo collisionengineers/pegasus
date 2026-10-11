@@ -16,6 +16,8 @@
   [FRD-26](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md).
 - Automatic Case association happens only when the registration or the exact
   thread points at exactly one Case.
+- Interrupted intake work is resumed by the reconcile sweep within a minute
+  (operator, 11 October 2026).
 
 What Unidentified means, and when mail goes there, is defined in
 [FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference).

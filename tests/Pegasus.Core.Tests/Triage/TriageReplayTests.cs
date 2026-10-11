@@ -61,7 +61,7 @@ public sealed class TriageReplayTests
     }
 
     /// <summary>
-    /// The Worker asks for Triage pairing every ten seconds and usually nothing is
+    /// The Worker asks for Triage pairing every minute and usually nothing is
     /// waiting. Such a pass opens no span; a pass with a candidate opens one. A
     /// candidate read that fails opens none and is still counted as a failure.
     /// </summary>

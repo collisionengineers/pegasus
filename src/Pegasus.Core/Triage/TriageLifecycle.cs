@@ -55,7 +55,7 @@ public sealed class TriageCasePairing(ITriageStore store) : ITriageCasePairing
         }
         if (candidates.Count == 0)
         {
-            // The Worker asks every ten seconds and usually nothing is waiting.
+            // The Worker asks every minute and usually nothing is waiting.
             // A span is opened only for a pass that has something to link.
             return new(0, 0, 0);
         }
