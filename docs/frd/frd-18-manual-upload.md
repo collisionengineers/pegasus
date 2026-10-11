@@ -17,7 +17,9 @@
   declared destination of Add evidence is that confirmation, made first.
 - Confirming a destination files the material on the Case in the same
   request and resolves its Unidentified item.
-- Cancel changes nothing. The material stays kept and honestly labelled.
+- Cancel changes nothing, except for images that matched an existing Case:
+  leaving those undecided registers them as an Image-initiated Case
+  (operator, 11 October 2026). The material stays kept and honestly labelled.
 
 ## Purpose
 
@@ -137,9 +139,14 @@ The decision table, judged against the current retained material:
    photographs on the Case in the same request, and resolves the material's
    Unidentified item to it ([FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association)).
 2. **Registered as a new Image-initiated Case** (`ImageIntakeRegistered`).
-   Registration is automatic for usable image identity kept pending a staff
-   decision, including when a manual upload has one existing-Case match. It
-   is reported with a link to its own searchable record and never re-offered
+   Usable image identity that matches no existing Case registers
+   automatically as an Image-initiated Case. When it matches one or more
+   existing Cases, nothing is registered and no Box folder is made while the
+   upload waits: the surface offers the matched Cases and Add to an existing
+   case files the images on the chosen Case. Rejecting the match, Cancel, or
+   leaving it undecided for two hours registers the Image-initiated Case and
+   its Box folder then (operator, 11 October 2026). A registration is
+   reported with a link to its own searchable record and never re-offered
    as a manual creation; an Image-initiated Case's reference is keyed to the
    registration and cannot be hand-made without one. While the registration
    is still Awaiting instruction, the surface also offers **Add to an
@@ -188,7 +195,9 @@ Where the decision is genuinely open (rows 2 and 3) the surface carries it:
   lease, an unavailable destination, or an incomplete group reports an honest
   conflict and changes nothing.
 - **Cancel.** Returns to Upload and changes nothing. The material stays
-  kept and its state stays honestly reported.
+  kept and its state stays honestly reported. For images that matched an
+  existing Case, Cancel is the decline: it registers them as an
+  Image-initiated Case and its Box folder (operator, 11 October 2026).
 
 For a group the operator makes one submission-level choice. Completed
 members must prove the same decision. Missing, elsewhere-associated, or
@@ -213,7 +222,8 @@ matches. A response for an earlier query cannot replace newer input.
 - Content-Length missing or understated: actual bytes are counted and an
   oversized body never reaches custody.
 - Exactly one Case matches a manual upload: still a suggestion; staff must
-  confirm.
+  confirm. For images, nothing is registered and no Box folder is made while
+  the suggestion waits (operator, 11 October 2026).
 - Group with some unreadable members: readable members get their decision;
   unreadable ones are reported beside their names.
 - Stale version, competing lease, or incomplete group on confirm: a
@@ -227,7 +237,9 @@ edit lease and binds to reviewed versions; that confirmation files the
 material on the Case and resolves its Unidentified item in the same
 request; that a declared upload ends with the PDF and its photographs on
 the Case, no Unidentified item and the operator on the Case's Files panel;
-and that Cancel and reject change nothing. Deployment and live evidence
+and that Cancel and reject change nothing, except that for images that
+matched a Case they register the Image-initiated Case and its folder
+(operator, 11 October 2026). Deployment and live evidence
 are separate tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
@@ -273,7 +285,8 @@ right part carries the upload's one decision and nothing else:
   intake registration is a subordinate record link (reference and state)
   under the decision, never a second decision; there is no manual
   registration or reason form. **Leave undecided** returns to Upload and
-  changes nothing; **Discard upload** opens its own confirmation with the
+  changes nothing, except that for images that matched a Case it registers
+  them as an Image-initiated Case (operator, 11 October 2026); **Discard upload** opens its own confirmation with the
   acknowledgement that the source and processing record are retained, and
   is offered only once every file has completed.
 - A file that could not be read is marked on its row and in the filmstrip

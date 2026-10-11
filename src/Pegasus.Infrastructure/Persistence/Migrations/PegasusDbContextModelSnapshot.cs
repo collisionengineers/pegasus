@@ -5342,6 +5342,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<int>("ExpectedMemberCount")
                         .HasColumnType("int");
 
+                    b.Property<DateTimeOffset?>("ImageMatchDeclinedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ImageMatchDeclinedByActorSubjectId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<Guid?>("ParentReceiptId")
                         .HasColumnType("uniqueidentifier");
 

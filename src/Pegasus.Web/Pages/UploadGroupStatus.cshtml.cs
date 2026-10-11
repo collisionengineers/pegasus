@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Web.Presentation;
 using Labels = Pegasus.Web.Presentation.OperatorLabels.Upload;
@@ -23,6 +24,7 @@ public sealed class UploadGroupStatusModel(
     IGetIntake intake,
     ISearchCases searchCases,
     IDiscardIntakeSubmissionGroup discardSubmission,
+    IDeclineImageMatch declineImageMatch,
     TimeProvider timeProvider) : UploadConfirmationPageModel(caseDecision)
 {
     private readonly IUploadCaseDecision _caseDecision = caseDecision;
@@ -302,6 +304,25 @@ public sealed class UploadGroupStatusModel(
         return RedirectToSurface(id);
     }
 
+    public async Task<IActionResult> OnPostLeaveAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            await declineImageMatch.ExecuteAsync(id, actor, cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+
+        return RedirectToPage("/Upload");
+    }
+
     public async Task<IActionResult> OnPostDiscardGroupAsync(
         Guid id,
         long? groupVersion,
@@ -553,6 +574,10 @@ public sealed class UploadGroupStatusModel(
             Confirmation = ReviewConfirmation(UploadCaseConfirmation, known),
             CouldNotBeReadCount = CouldNotBeReadCount,
             CanDiscard = CanDiscard,
+            LeaveDeclinesImageMatch = phase == UploadReviewPhase.Decision
+                && Outcomes.Values.All(outcome => outcome is { Kind: UploadOutcomeKind.PossibleMatch })
+                && Receipts.Values.All(receipt => receipt is not null
+                    && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)),
             GroupVersion = Group.Version,
             DiscardVersions = GroupMemberReceiptVersions,
             OpenDiscard = discard && CanDiscard

@@ -18,7 +18,9 @@ public sealed class EfIntakeAssociationDestinations(
     IDbContextFactory<PegasusDbContext> contextFactory,
     ICaseQueryStore caseQueries,
     IImageIntakeQueries imageIntakeQueries,
-    IImageIntakeCaseCandidates imageIntakeCaseCandidates) : IIntakeAssociationDestinationQueries
+    IImageIntakeCaseCandidates imageIntakeCaseCandidates,
+    IIntakeSubmissionGroupStore submissionGroups,
+    IVrmSuggestionStore vrmSuggestions) : IIntakeAssociationDestinationQueries
 {
     private const int SearchLimit = 8;
     // The broad Case search is only an input set. Continue through its pages
@@ -58,6 +60,17 @@ public sealed class EfIntakeAssociationDestinations(
                 imageIntake.Record.NormalizedVehicleRegistration, cancellationToken);
             candidateIds.AddRange(imageCandidates.Select(candidate => candidate.CaseId));
         }
+        else if (receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload
+            && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)
+            && await ReadUnregisteredImageRegistrationAsync(receipt, cancellationToken) is { } registration)
+        {
+            // A manual upload whose images matched Cases waits unregistered
+            // (operator, 11 October 2026): offer the Cases its confident read
+            // would have registered against.
+            var imageCandidates = await imageIntakeCaseCandidates.FindEligibleByRegistrationAsync(
+                registration, cancellationToken);
+            candidateIds.AddRange(imageCandidates.Select(candidate => candidate.CaseId));
+        }
         if (candidateIds.Count == 0)
         {
             return [];
@@ -74,6 +87,30 @@ public sealed class EfIntakeAssociationDestinations(
             }
         }
         return suggestions;
+    }
+
+    /// <summary>
+    /// The one registration the upload's image members confidently read, or
+    /// null when they read none or disagree.
+    /// </summary>
+    private async Task<string?> ReadUnregisteredImageRegistrationAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        var group = await submissionGroups.FindForMemberSourceAsync(receipt.SourceIdentity, cancellationToken);
+        var receiptIds = group is null
+            ? [receipt.Id]
+            : group.Members.Select(member => member.ProcessedReceiptId).OfType<Guid>().ToArray();
+        var suggestions = new List<ImageVrmSuggestion>();
+        foreach (var receiptId in receiptIds)
+        {
+            suggestions.AddRange(await vrmSuggestions.ListForReceiptAsync(receiptId, cancellationToken));
+        }
+
+        var registrations = VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(suggestions);
+        return registrations.Length == VrmRecognitionProvisionalBar.RequiredDistinctRegistrations
+            ? registrations[0]
+            : null;
     }
 
     public async Task<IReadOnlyList<IntakeAssociationDestination>> SearchAsync(

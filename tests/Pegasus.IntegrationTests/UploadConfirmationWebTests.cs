@@ -3,6 +3,7 @@ using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -537,7 +538,7 @@ public sealed class UploadConfirmationWebTests
     }
 
     [Fact]
-    public async Task ManualUploadWithAUniqueImageMatchStillRequiresStaffConfirmation()
+    public async Task ManualUploadWithAUniqueImageMatchWaitsUnregisteredForStaffConfirmation()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
@@ -556,15 +557,164 @@ public sealed class UploadConfirmationWebTests
         var stagedReceiptId = IntakeWebDriver.ReceiptId(upload);
         _ = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
 
+        // The matched Case holds the images: no Image intake record and no
+        // folder exist while the upload waits (operator, 11 October 2026).
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "ImageIntakes"));
+        await AssertNoRecordFolderQueuedAsync(factory);
+
         var caseReference = await CaseReferenceAsync(factory, caseId);
         var statusPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
-        Assert.Contains("data-upload-record", statusPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-upload-record", statusPage, StringComparison.Ordinal);
         Assert.Contains("Review and add to Case", statusPage, StringComparison.Ordinal);
         // The unique match is a candidate, never a selection.
         Assert.Contains($"data-upload-candidate=\"{caseReference}\"", statusPage, StringComparison.Ordinal);
         Assert.DoesNotContain("checked=\"checked\"", statusPage, StringComparison.Ordinal);
         Assert.DoesNotContain("automatically associated with case", statusPage, StringComparison.Ordinal);
         Assert.DoesNotContain($"href=\"/Cases/{caseId:D}\"", statusPage, StringComparison.OrdinalIgnoreCase);
+        // Leaving it undecided is the decline: a form post, not a link.
+        Assert.Contains(">Leave undecided</button>", statusPage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AddToACaseFilesAWaitingImageUploadWithNoRecordOrFolder()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "WAIT-ADD-01");
+
+        var upload = await IntakeWebDriver.UploadAsync(
+            client,
+            "vehicle.png",
+            "image/png",
+            Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
+            Guid.NewGuid().ToString("N"));
+        var stagedReceiptId = IntakeWebDriver.ReceiptId(upload);
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var receiptId = IntakeWebDriver.ReceiptId(processed);
+        var (receiptVersion, caseVersion) = await AttachmentVersionsAsync(factory, receiptId, caseId);
+
+        var redirect = await PostAttachAsync(
+            client,
+            $"/Upload/Status/{stagedReceiptId:D}?handler=Attach",
+            receiptId,
+            caseId: caseId,
+            operationId: Guid.NewGuid(),
+            receiptVersion: receiptVersion,
+            caseVersion: caseVersion);
+        Assert.Equal(HttpStatusCode.Redirect, redirect);
+
+        await AssertLinkedAsync(factory, receiptId, caseId);
+        await using (var replay = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReplayCompletedWorkAsync(replay.ServiceProvider, receiptId);
+        }
+
+        await AssertFiledOnCaseAsync(factory, receiptId, caseId, minimumDocuments: 1);
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "ImageIntakes"));
+        await AssertNoRecordFolderQueuedAsync(factory);
+    }
+
+    [Fact]
+    public async Task AddToACaseFilesAWaitingImageGroupWithNoRecordOrFolder()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "WAIT-GROUP-01");
+        var caseReference = await CaseReferenceAsync(factory, caseId);
+
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(
+            client,
+            form.AntiforgeryToken,
+            form.ExternalReceiptToken,
+            [
+                ("overview.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64)),
+                ("close-up.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64))
+            ]);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+        _ = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        await using (var sweep = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(sweep.ServiceProvider);
+        }
+
+        // Both images read the matched Case's registration: the group waits.
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "ImageIntakes"));
+        var confirmation = await ConfirmGroupAttachAsync(factory, client, groupId, caseId, caseReference);
+        Assert.Equal(HttpStatusCode.Redirect, confirmation.StatusCode);
+
+        foreach (var receiptId in confirmation.ReceiptVersions.Keys)
+        {
+            await AssertLinkedAsync(factory, receiptId, caseId);
+            await using var replay = factory.Services.CreateAsyncScope();
+            await IntakeWebDriver.ReplayCompletedWorkAsync(replay.ServiceProvider, receiptId);
+            await AssertFiledOnCaseAsync(factory, receiptId, caseId, minimumDocuments: 1);
+        }
+
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "ImageIntakes"));
+        await AssertNoRecordFolderQueuedAsync(factory);
+    }
+
+    [Fact]
+    public async Task LeavingAWaitingImageUploadUndecidedRegistersItsRecordAndQueuesItsFolder()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        _ = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "WAIT-LEAVE-01");
+
+        var upload = await IntakeWebDriver.UploadAsync(
+            client,
+            "vehicle.png",
+            "image/png",
+            Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
+            Guid.NewGuid().ToString("N"));
+        var stagedReceiptId = IntakeWebDriver.ReceiptId(upload);
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var receiptId = IntakeWebDriver.ReceiptId(processed);
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "ImageIntakes"));
+
+        var leave = await PostGroupHandlerAsync(
+            client, $"/Upload/Status/{stagedReceiptId:D}?handler=Leave", new Dictionary<string, string>());
+        Assert.Equal(HttpStatusCode.Redirect, leave);
+        await using (var replay = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReplayCompletedWorkAsync(replay.ServiceProvider, receiptId);
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var detail = await scope.ServiceProvider.GetRequiredService<IImageIntakeQueries>()
+            .GetByOriginReceiptAsync(receiptId, CancellationToken.None);
+        Assert.NotNull(detail);
+        Assert.Equal(ImageInitiatedCaseState.AwaitingInstruction, detail!.State);
+        await using var context = await factory.Database.CreateContextAsync();
+        var work = await context.ExternalWorkItems.AsNoTracking()
+            .SingleAsync(item => item.ImageIntakeId == detail.Record.Id
+                && item.Kind == ExternalWorkKinds.CreateImageCaseCustody);
+        Assert.Equal("pending", work.State);
+        var receipt = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None);
+        var group = await scope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>()
+            .FindForMemberSourceAsync(receipt!.SourceIdentity, CancellationToken.None);
+        Assert.NotNull(group!.ImageMatchDeclined);
+    }
+
+    private static async Task AssertNoRecordFolderQueuedAsync(IntakeWebApplicationFactory factory)
+    {
+        await using var context = await factory.Database.CreateContextAsync();
+        Assert.False(await context.ExternalWorkItems.AsNoTracking()
+            .AnyAsync(item => item.Kind == ExternalWorkKinds.CreateImageCaseCustody));
     }
 
     [Fact]

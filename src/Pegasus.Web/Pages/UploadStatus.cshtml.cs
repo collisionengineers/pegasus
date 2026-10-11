@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Web.Presentation;
 using Labels = Pegasus.Web.Presentation.OperatorLabels.Upload;
@@ -21,6 +22,7 @@ public sealed class UploadStatusModel(
     IGetIntake getIntake,
     ISearchCases searchCases,
     IIntakeSubmissionGroupStore submissionGroups,
+    IDeclineImageMatch declineImageMatch,
     TimeProvider timeProvider) : UploadConfirmationPageModel(caseDecision)
 {
     public QueuedIntakeStatus Status { get; private set; } = null!;
@@ -113,6 +115,38 @@ public sealed class UploadStatusModel(
         return Page();
     }
 
+    public async Task<IActionResult> OnPostLeaveAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        var status = await queries.GetAsync(id, cancellationToken);
+        if (status is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var receipt = await getIntake.ExecuteAsync(
+                new(status.ProcessedReceiptId ?? status.StagedReceiptId, actor), cancellationToken);
+            var group = receipt is null
+                ? null
+                : await submissionGroups.FindForMemberSourceAsync(receipt.SourceIdentity, cancellationToken);
+            if (group is not null)
+            {
+                await declineImageMatch.ExecuteAsync(group.Id, actor, cancellationToken);
+            }
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+
+        return RedirectToPage("/Upload");
+    }
+
     private async Task BuildReviewAsync(Guid id, CancellationToken cancellationToken)
     {
         var haveActor = TryGetActor(out var actor);
@@ -200,6 +234,10 @@ public sealed class UploadStatusModel(
             Report = report,
             Confirmation = ReviewConfirmation(UploadCaseConfirmation, known),
             CouldNotBeReadCount = unreadable ? 1 : 0,
+            LeaveDeclinesImageMatch = phase == UploadReviewPhase.Decision
+                && Outcome is { Kind: UploadOutcomeKind.PossibleMatch }
+                && Receipt is not null
+                && ImageIntakeLifecycleRules.IsImageOnlyMaterial(Receipt),
             SingleReceiptId = attachReceiptId
         };
     }

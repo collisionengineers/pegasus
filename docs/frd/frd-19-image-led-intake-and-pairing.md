@@ -11,10 +11,11 @@
 - A multi-image submission is judged as one group. The group, not any one
   image, gets one outcome: attached to a Case, registered as one
   Image-initiated Case, or one Unidentified item.
-- When exactly one eligible Case carries the registration, the images
-  attach automatically. Manual uploads are the exception: staff must
-  confirm even a single match among the Cases that existed when the images
-  registered. A Case created afterwards pairs automatically.
+- When exactly one eligible Case carries the registration of mailed images,
+  they are filed on that Case with no Image reference (operator, 11 October
+  2026). Manual uploads are the exception: staff must confirm even a single
+  match, and nothing registers while the upload waits. A Case created after
+  an image registered pairs with it automatically.
 - An Image-initiated Case merges into one formal Case, or staff close it
   with a reason. Nothing is deleted or reused.
 - It falls due for chasing after the same interval as a Not ready Case
@@ -59,11 +60,11 @@ A usable registration settles into one of two outcomes the operator sees:
 
 - It matches no existing Case. The Image-initiated Case is the visible,
   searchable, Awaiting instruction record until something changes it.
-- It matches exactly one eligible Case at registration time. The reference
-  is still allocated, but the automatic merge runs in the same pipeline
-  pass, so the operator finds the images already attached to that Case as
-  evidence and the Image reference kept as linked history rather than an
-  open record.
+- It matches exactly one eligible Case. Mailed images allocate no reference
+  and are filed on the Case as evidence (operator, 11 October 2026). A
+  manual upload that matches waits, unregistered, for a staff destination.
+  Records registered before 11 October 2026 keep their Image reference as
+  linked history.
 
 Every association, reversal, or correction records the same attributable
 relationship evidence without closing or creating a Case. The Case, its
@@ -71,6 +72,13 @@ Case/PO, the Image reference, the source relationships, and the chronology
 all stay intact.
 
 ### Pairing and merge
+
+Images matched to an existing Case before they register never become an
+Image-initiated Case; they are filed on the Case directly (operator, 11
+October 2026). The merge and fold below apply to an Image-initiated Case
+registered because no Case matched or staff rejected, cancelled or left the
+match, and to records registered before 11 October 2026, which keep their
+Box folders.
 
 An Image-initiated Case stays Awaiting instruction until it is associated
 with a Case. Automatic association needs exactly one eligible, pre-report,
@@ -141,8 +149,9 @@ instruction ([FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching
 Manual-upload image material needs explicit staff confirmation even for one
 eligible match among the Cases that existed when it registered: those are the
 destinations the upload offered
-([FRD-18](frd-18-manual-upload.md#upload-confirmation-surface)). Its Image
-reference may be registered automatically. A Case created after it registered
+([FRD-18](frd-18-manual-upload.md#upload-confirmation-surface)). Its
+Image-initiated Case registers only when staff reject, cancel or leave the
+match, or no Case matched (operator, 11 October 2026). A Case created after it registered
 pairs with it under the automatic rules above, on the Case's acceptance, on
 the reconciliation timer and on replay (operator, 28 September 2026). A Case
 that existed and a later Case carrying the same registration are not a unique
@@ -216,11 +225,16 @@ never an individual image, is what reaches an association, a registration,
 or an Unidentified outcome.
 
 For manual upload, staff confirmation replaces automatic attachment:
-matching supplies suggestions, usable image identity may register, and the
-group waits for one explicit staff destination even when exactly one Case
-matches. Only a Case created after the group registered pairs with it
-automatically ([Pairing and merge](#pairing-and-merge)). The precedence below
-applies to non-manual routes. Recognition,
+matching supplies suggestions. A group with a usable registration that
+matches one or more existing Cases is not registered while it waits: no
+Image intake record and no Box folder exist, the upload offers the matched
+Cases, and the group waits for one explicit staff destination even when
+exactly one Case matches. Add to an existing case files the images on that
+Case. Rejecting the match, Cancel, or leaving it undecided registers the
+group as one Image-initiated Case with its Box folder at that point
+(operator, 11 October 2026). Only a Case created after the group registered
+pairs with it automatically ([Pairing and merge](#pairing-and-merge)). The
+precedence below applies to non-manual routes. Recognition,
 complete membership, and fail-closed source-identity rules apply to both.
 
 - **PDF and mailbox photograph entry.** Otherwise-unrouted standalone PDFs
@@ -287,7 +301,9 @@ complete membership, and fail-closed source-identity rules apply to both.
      exactly one eligible pre-report instructed Case carries it: every
      member associates to that Case as evidence, under the same unambiguous
      normalised-match rule (including its confirmed-registration completion
-     for a one-character-missing read) that governs single images.
+     for a one-character-missing read) that governs single images. Mailed
+     images associate and file on the Case; no record and no folder are made
+     (operator, 11 October 2026).
   3. Exactly one distinct accepted registration, but zero or more than one
      eligible Case carries it: the registration is usable but not uniquely
      matched. The group registers as **one** Image-initiated Case with

@@ -822,6 +822,18 @@ public sealed class ProcessQueuedIntake(
             var replayImageOutcome = await ApplyImageIntakeAutomationAsync(
                 completedReceipt,
                 cancellationToken);
+            if (replayImageOutcome.AssociatedCase)
+            {
+                // Images filed on a matched Case: no record, so file them there.
+                replayPromotion = await PromoteAssociatedCaseEvidenceAsync(
+                    replayImageOutcome.Receipt, cancellationToken);
+            }
+            if (replayImageOutcome.AwaitingStaffDecision)
+            {
+                // Waiting for staff: nothing is held or made Unidentified, and
+                // the sweep (not GroupPending) re-drives it at the window.
+                return QueuedIntakeProcessingOutcome.NoOp;
+            }
             completedReceipt = await RetainHoldingIfRequiredAsync(
                 replayImageOutcome.Receipt, replayPromotion, cancellationToken);
             if (replayImageOutcome.GroupPending)
@@ -949,9 +961,14 @@ public sealed class ProcessQueuedIntake(
 
             var imageOutcome = await ApplyImageIntakeAutomationAsync(processed, cancellationToken);
             groupPending = imageOutcome.GroupPending;
-            processed = await RetainHoldingIfRequiredAsync(
-                imageOutcome.Receipt, promotion, cancellationToken);
-            if (!imageOutcome.GroupPending)
+            if (imageOutcome.AssociatedCase)
+            {
+                promotion = await PromoteAssociatedCaseEvidenceAsync(imageOutcome.Receipt, cancellationToken);
+            }
+            processed = imageOutcome.AwaitingStaffDecision
+                ? imageOutcome.Receipt
+                : await RetainHoldingIfRequiredAsync(imageOutcome.Receipt, promotion, cancellationToken);
+            if (!imageOutcome.GroupPending && !imageOutcome.AwaitingStaffDecision)
             {
                 await SynchronizeUnidentifiedAsync(
                     processed,

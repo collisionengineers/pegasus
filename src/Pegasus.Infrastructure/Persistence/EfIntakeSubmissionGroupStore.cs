@@ -21,15 +21,19 @@ public sealed class EfIntakeSubmissionGroupStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var emptyFields = EfIntakeReceiptStore.SerializeFields([]);
         var groupOrigin = nameof(UnidentifiedOriginKind.SubmissionGroup);
+        var receiptOrigin = nameof(UnidentifiedOriginKind.Receipt);
+        var manualChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload);
         var eligible = from submissionGroup in context.IntakeSubmissionGroups
                        join member in context.IntakeSubmissionGroupMembers on submissionGroup.Id equals member.GroupId
                        join work in context.IntakeWorkItems on member.StagedReceiptId equals work.StagedReceiptId
                        join receipt in context.IntakeReceipts on work.ProcessedReceiptId equals (Guid?)receipt.Id
                        where submissionGroup.DiscardedAtUtc == null
-                           && submissionGroup.ExpectedMemberCount > 1 && work.State == "completed"
+                           && (submissionGroup.ExpectedMemberCount > 1 || submissionGroup.SourceChannel == manualChannel)
+                           && work.State == "completed"
                            && receipt.Decision == "needs_sorting"
                            && receipt.InstructionDraft == null && receipt.FieldsJson == emptyFields
                            && !context.UnidentifiedItems.Any(item => item.OriginKind == groupOrigin && item.OriginId == submissionGroup.Id)
+                           && !context.UnidentifiedItems.Any(item => item.OriginKind == receiptOrigin && item.OriginId == receipt.Id)
                        select new { submissionGroup.Id, submissionGroup.ReceivedAtUtc, ReceiptId = receipt.Id, member.Ordinal };
         var candidates = await eligible.ToArrayAsync(cancellationToken);
         var receiptIds = candidates.Select(candidate => candidate.ReceiptId).Distinct().ToArray();
@@ -415,6 +419,50 @@ public sealed class EfIntakeSubmissionGroupStore(
         return new(true, false, "This submission was discarded. Its retained source and processing record remain available.");
     }
 
+    public async Task DeclineImageMatchAsync(
+        Guid groupId,
+        string staffSubjectId,
+        DateTimeOffset declinedAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(staffSubjectId);
+        var operationKey = $"image-match-decline:{groupId:N}";
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var group = await context.IntakeSubmissionGroups
+            .SingleOrDefaultAsync(item => item.Id == groupId, cancellationToken);
+        if (group is null || group.DiscardedAtUtc is not null || group.ImageMatchDeclinedAtUtc is not null)
+        {
+            return;
+        }
+
+        var fingerprint = Convert.ToHexString(SHA256.HashData(
+                Encoding.UTF8.GetBytes($"{groupId:N}|image_match_declined|{staffSubjectId}")))
+            .ToLowerInvariant();
+        var beforeVersion = group.Version;
+        group.Version++;
+        group.ImageMatchDeclinedAtUtc = declinedAtUtc;
+        group.ImageMatchDeclinedByActorSubjectId = staffSubjectId;
+        context.IntakeSubmissionGroupHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            Group = group,
+            EventType = "image_match_declined",
+            ActorKind = "Staff",
+            ActorSubjectId = staffSubjectId,
+            ActorRolesJson = "[]",
+            OperationKey = operationKey,
+            RequestFingerprint = fingerprint,
+            OccurredAtUtc = declinedAtUtc,
+            BeforeVersion = beforeVersion,
+            AfterVersion = group.Version
+        });
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
     private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch
     {
         SqlException { Number: 1205 or 2601 or 2627 } => true,
@@ -463,7 +511,10 @@ public sealed class EfIntakeSubmissionGroupStore(
                 entity.DiscardedByActorSubjectId!,
                 entity.DiscardedAtUtc.Value,
                 entity.DiscardOperationKey!,
-                entity.DiscardRequestFingerprint!));
+                entity.DiscardRequestFingerprint!),
+            entity.ImageMatchDeclinedAtUtc is null ? null : new(
+                entity.ImageMatchDeclinedByActorSubjectId!,
+                entity.ImageMatchDeclinedAtUtc.Value));
     }
 
     private static async Task<IntakeSubmissionGroupMember> MapMemberAsync(

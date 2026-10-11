@@ -202,6 +202,81 @@ public sealed class GroupedImageIntakeConcurrencyTests
     }
 
     [Fact]
+    public async Task AWaitingUploadIsRegisteredBySweepPastTheWindowAndNeverEscapedToUnidentified()
+    {
+        var clock = new AdvanceableTimeProvider(new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero));
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            timeProvider: clock,
+            recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        _ = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "WAIT-SWEEP-01");
+        var upload = await IntakeWebDriver.UploadAsync(
+            client,
+            "vehicle.png",
+            "image/png",
+            Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
+            Guid.NewGuid().ToString("N"));
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var receiptId = IntakeWebDriver.ReceiptId(processed);
+
+        // Inside the window the upload waits: the sweep lists it, re-drives it
+        // and registers nothing, neither an Image intake nor an Unidentified item.
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var pending = await scope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>()
+                .ListPendingImageGroupReceiptsAsync(10);
+            Assert.Equal(receiptId, Assert.Single(pending));
+            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(scope.ServiceProvider);
+            Assert.Empty(await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>().ListAsync());
+        }
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "ImageIntakes"));
+
+        clock.Advance(ReconcileGroupedImageIntake.EscapeAfter + TimeSpan.FromMinutes(1));
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(scope.ServiceProvider);
+            Assert.NotNull(await scope.ServiceProvider.GetRequiredService<IImageIntakeQueries>()
+                .GetByOriginReceiptAsync(receiptId, CancellationToken.None));
+            Assert.Empty(await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>().ListAsync());
+        }
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "ImageIntakes"));
+    }
+
+    [Fact]
+    public async Task ADeclinedMatchRoundTripsAndIsRecordedOnce()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(client,
+            form.AntiforgeryToken, form.ExternalReceiptToken,
+            [("overview.png", "image/png", TinyPngBytes), ("close-up.png", "image/png", TinyPngBytes)]);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var groups = scope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>();
+        Assert.Null((await groups.GetAsync(groupId))!.ImageMatchDeclined);
+        var firstAt = new DateTimeOffset(2031, 5, 6, 11, 0, 0, TimeSpan.Zero);
+
+        await groups.DeclineImageMatchAsync(groupId, "staff-1", firstAt);
+        await groups.DeclineImageMatchAsync(groupId, "staff-2", firstAt.AddMinutes(5));
+
+        var declined = (await groups.GetAsync(groupId))!.ImageMatchDeclined;
+        Assert.Equal(new ImageMatchDeclined("staff-1", firstAt), declined);
+        await using var context = await factory.Database.CreateContextAsync();
+        var history = await context.IntakeSubmissionGroupHistory.AsNoTracking()
+            .Where(item => item.GroupId == groupId && item.EventType == "image_match_declined")
+            .ToListAsync();
+        Assert.Equal($"image-match-decline:{groupId:N}", Assert.Single(history).OperationKey);
+    }
+
+    [Fact]
     public async Task ReconciliationRecoversAStrandedGroupMember()
     {
         // Mirrors the production shape exactly: one member registers its own

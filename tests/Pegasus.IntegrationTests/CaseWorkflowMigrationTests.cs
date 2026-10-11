@@ -462,7 +462,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20261009120000_DropGlassSessionExpiry",
                 "20261009120000_RemoveUnprintedAssessmentFields",
                 "20261009120000_WorkCentreActivityIndexes",
-                "20261011112442_DiscardDeletesRepairSpec"
+                "20261011112442_DiscardDeletesRepairSpec",
+                "20261011140000_ImageMatchDecline"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

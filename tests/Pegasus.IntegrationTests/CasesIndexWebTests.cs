@@ -40,6 +40,9 @@ public sealed class CasesIndexWebTests
         var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
         var receiptId = IntakeWebDriver.ReceiptId(processed);
         await using var scope = factory.Services.CreateAsyncScope();
+        // The matched Case holds the upload unregistered until staff leave it
+        // undecided; registering is what makes the awaiting record.
+        await IntakeWebDriver.DeclineImageMatchAndReplayAsync(scope.ServiceProvider, receiptId);
         var image = await scope.ServiceProvider.GetRequiredService<IImageIntakeQueries>()
             .GetByOriginReceiptAsync(receiptId, CancellationToken.None);
         Assert.NotNull(image);
