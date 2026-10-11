@@ -86,9 +86,6 @@ internal sealed class CaseRepairSpecificationEntity
     public decimal VatPercent { get; set; }
     public bool IsCurrent { get; set; }
     public Guid? AiJobId { get; set; }
-    public string? DiscardedBy { get; set; }
-    public DateTimeOffset? DiscardedAtUtc { get; set; }
-    public string? DiscardReason { get; set; }
     public string? LastOperationKey { get; set; }
 
     // What this specification says about the one it supplements (v28 P20).

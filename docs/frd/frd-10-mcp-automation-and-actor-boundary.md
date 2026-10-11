@@ -383,7 +383,7 @@ stopped automation client is refused before any tool runs.
 | `pegasus_estimate_save` | `automation.assessment` | Create an estimate on a Case, which lands as an AI-draft `Draft`, or edit any live estimate in place, the Current one included; citing the Estimate job it fulfils is optional |
 | `pegasus_estimate_list` | `automation.assessment` | List a Case's estimates with their state and source |
 | `pegasus_estimate_get` | `automation.assessment` | One estimate in full: its header, every line with its `lineId` and evidence, its totals and the snapshots it can be restored to |
-| `pegasus_estimate_act` | `automation.assessment` | One Repair Spec act with an `action`: duplicate or discard (each with a reason; the estimate in use cannot be discarded), scale to a percentage of the Engineer's Value, remove_scaling, or restore a snapshot |
+| `pegasus_estimate_act` | `automation.assessment` | One Repair Spec act with an `action`: duplicate or discard (each with a reason; the estimate in use cannot be discarded, and a discard deletes the estimate, so the result carries none), scale to a percentage of the Engineer's Value, remove_scaling, or restore a snapshot |
 | `pegasus_estimate_import` | `automation.assessment` | Import one retained raw estimate through the canonical Core command using its name, Case and document occurrence/version identities, SHA-256, typed actor, expected Case version, edit lease and operation key; return the estimate identity or the same structured refusal as the Case caller |
 
 `pegasus_estimate_import` and **Import estimate** on the Repair Spec section

@@ -2641,7 +2641,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             DuplicateEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<RepairSpecificationVersion> DiscardEstimateAsync(
+        public Task DiscardEstimateAsync(
             DiscardEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
@@ -2769,17 +2769,13 @@ public sealed partial class AssessmentEstimateImportWebTests
             return Task.FromResult(copy);
         }
 
-        public Task<RepairSpecificationVersion> ExecuteAsync(
+        public Task ExecuteAsync(
             DiscardEstimateRequest request,
             CancellationToken cancellationToken = default)
         {
             DiscardedEstimates.Add(request);
-            var discarded = (WorkingEstimate ?? DraftSpecification(caseId)) with
-            {
-                State = RepairSpecificationState.Discarded,
-            };
             WorkingEstimate = null;
-            return Task.FromResult(discarded);
+            return Task.CompletedTask;
         }
 
         public Task<RepairSpecificationVersion> ExecuteAsync(

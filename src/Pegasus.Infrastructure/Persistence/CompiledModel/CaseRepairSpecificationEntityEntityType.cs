@@ -19,7 +19,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.CaseRepairSpecificationEntity",
                 typeof(CaseRepairSpecificationEntity),
                 baseEntityType,
-                propertyCount: 43,
+                propertyCount: 40,
                 navigationCount: 2,
                 foreignKeyCount: 1,
                 unnamedIndexCount: 4,
@@ -65,32 +65,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 fieldInfo: typeof(CaseRepairSpecificationEntity).GetField("<CreationOperationKey>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 maxLength: 100);
             creationOperationKey.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
-            var discardReason = runtimeEntityType.AddProperty(
-                "DiscardReason",
-                typeof(string),
-                propertyInfo: typeof(CaseRepairSpecificationEntity).GetProperty("DiscardReason", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(CaseRepairSpecificationEntity).GetField("<DiscardReason>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                nullable: true,
-                maxLength: 500);
-            discardReason.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
-            var discardedAtUtc = runtimeEntityType.AddProperty(
-                "DiscardedAtUtc",
-                typeof(DateTimeOffset?),
-                propertyInfo: typeof(CaseRepairSpecificationEntity).GetProperty("DiscardedAtUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(CaseRepairSpecificationEntity).GetField("<DiscardedAtUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                nullable: true);
-            discardedAtUtc.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
-            var discardedBy = runtimeEntityType.AddProperty(
-                "DiscardedBy",
-                typeof(string),
-                propertyInfo: typeof(CaseRepairSpecificationEntity).GetProperty("DiscardedBy", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(CaseRepairSpecificationEntity).GetField("<DiscardedBy>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                nullable: true,
-                maxLength: 200);
-            discardedBy.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var glassEstimateId = runtimeEntityType.AddProperty(
                 "GlassEstimateId",

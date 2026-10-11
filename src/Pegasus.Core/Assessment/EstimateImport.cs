@@ -47,8 +47,8 @@ public sealed record ImportRawEstimateRequest(
     /// <summary>
     /// The live spec that belongs to <see cref="GlassEstimate"/>, updated in
     /// place: the same Glass's estimate saved again is the same repair spec
-    /// (operator, 6 October 2026). A spec discarded since no longer takes the
-    /// return, which lands as a new one.
+    /// (operator, 6 October 2026). A spec discarded since is gone, so the
+    /// return lands as a new one.
     /// </summary>
     public Guid? EstimateId { get; init; }
 }
@@ -269,15 +269,13 @@ public sealed class ImportRawEstimate(
         }
         var existing = await estimates.ExecuteAsync(request.CaseId, request.Work, cancellationToken);
         var target = request is { EstimateId: { } targetId, GlassEstimate: not null }
-            ? existing.FirstOrDefault(estimate =>
-                estimate.SpecificationId == targetId && estimate.State != RepairSpecificationState.Discarded)
+            ? existing.FirstOrDefault(estimate => estimate.SpecificationId == targetId)
             : null;
         // A spec being updated answers only for its own source: the same
         // export replays to it, and another spec holding that hash is not it.
         if ((target is null
                 ? existing.FirstOrDefault(estimate =>
-                    estimate.State != RepairSpecificationState.Discarded
-                    && string.Equals(estimate.Source.Sha256, sha256, StringComparison.Ordinal))
+                    string.Equals(estimate.Source.Sha256, sha256, StringComparison.Ordinal))
                 : string.Equals(target.Source.Sha256, sha256, StringComparison.Ordinal) ? target : null)
             is { } replayed)
         {

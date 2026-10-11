@@ -852,8 +852,7 @@ Off-pattern, and the rollup carries the off-pattern amount as specialist
 (P37). **Delete all lines** sits beside Add line and asks first; a removed
 line or lines can be put back from the toast for eight seconds (P16). No
 provider-versus-assessed savings figure is shown. Reading and editing are one
-layout (operator, 23 September 2026): a spec that cannot be changed — every
-spec while reading, and a discarded spec while editing — shows the
+layout (operator, 23 September 2026): every spec while reading shows the
 same header cells, the same grid columns and the same contract, discount and
 VAT bars as the editor, each value greyed in its control's place and a line's
 Type in the editor's words; a scaled spec's Target % of value bar stands in
