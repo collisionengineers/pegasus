@@ -22,7 +22,6 @@
     var summary = details.Summary;
     var data = details.Data;
     var mayEdit = Model.CanEditCaseData && data is not null;
-    var state = workflow.State;
     var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "overview");
     var notes = details.RecordNotes;
     var caseNotes = data?.Workspace;

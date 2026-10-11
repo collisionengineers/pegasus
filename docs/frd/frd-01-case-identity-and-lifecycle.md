@@ -102,9 +102,9 @@ Inspection report has been sent
   Files and one Notes, with the same Principal and Engineers;
 - starts as a copy of the Inspection's values: Case data and fields
   (each with its provenance), assessment fields including the fee,
-  damage and decisions, every live estimate with its lines, guide valuations
-  and the applied Engineer's Value, and report wording. Open AI proposals,
-  discarded estimates and estimate revision snapshots are not copied; files
+  damage and decisions, every estimate with its lines, guide valuations
+  and the applied Engineer's Value, and report wording. Open AI proposals
+  and estimate revision snapshots are not copied; files
   are shared, not copied;
 - is edited on its own. Audit edits change only the Audit's values, and the
   Inspection's values and its sent report become read-only;

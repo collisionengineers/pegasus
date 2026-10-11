@@ -243,11 +243,13 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     // - 1 (the unlinked sent-evidence read, now only for Primary work or Report preparation, #1174)
     // - 1 (the rail no longer counts Awaiting instruction, #1179)
     // - 2 (the Case data and the workflow configuration are one command and the AI draft target comes from them, #1176).
-    private const int CasePageCommands = 42;
+    // - 1 (the password-change redirect reads the account the cookie check read, not the database, #1198).
+    private const int CasePageCommands = 41;
 
     // 35 - 3 (the Save reuses the rows the request already holds, #1173)
     // - 1 (one command for the Case data and none for the AI draft target, #1176).
-    private const int CaseSaveCommands = 31;
+    // - 1 (the password-change redirect reads the account the cookie check read, not the database, #1198).
+    private const int CaseSaveCommands = 30;
 
     /// <summary>
     /// Roadmap Lane H (FRD-16): a commit the page script posts is answered with

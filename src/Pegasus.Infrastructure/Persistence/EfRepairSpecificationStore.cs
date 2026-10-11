@@ -182,7 +182,6 @@ public sealed class EfRepairSpecificationStore(
         var specificationId = request.SpecificationId;
         var entity = await RequiredEstimateAsync(context, workId, specificationId, cancellationToken);
         var edited = Map(entity);
-        EstimatePolicy.ValidateEditable(edited);
         entity.LastOperationKey = request.OperationKey;
 
         var result = RepairSpecificationScaling.Scale(
@@ -249,7 +248,6 @@ public sealed class EfRepairSpecificationStore(
         var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken);
         var entity = await RequiredEstimateAsync(context, workId, request.SpecificationId, cancellationToken);
         var specification = Map(entity);
-        EstimatePolicy.ValidateEditable(specification);
         var versionRow = await context.CaseRepairSpecificationSnapshots
             .SingleOrDefaultAsync(
                 item => item.WorkId == workId && item.Id == request.SnapshotId,
@@ -357,7 +355,6 @@ public sealed class EfRepairSpecificationStore(
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
         var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken);
         var entity = await RequiredEstimateAsync(context, workId, request.SpecificationId, cancellationToken);
-        EstimatePolicy.ValidateEditable(Map(entity));
         var before = EfRepairSpecificationSnapshotStore.Map(beforeRow);
 
         context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
@@ -419,17 +416,15 @@ public sealed class EfRepairSpecificationStore(
         var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken);
         if (importedDocument)
         {
-            var discarded = RepairSpecificationState.Discarded.ToString();
             CaseMutationGuard.Require(workflow, request.Actor, request.ExpectedVersion, request.EditLeaseToken, now);
             RequireAssessmentEditable(workflow);
             // The workflow lock and source census share this transaction: two
             // concurrent completions cannot create two estimates for one
-            // Case/hash. A discarded import no longer holds its source. A
+            // Case/hash. A discarded import is gone, so its source is free. A
             // Glass's return that updates its spec answers only for that
             // spec's own source.
             var existingImport = await context.CaseRepairSpecifications.Include(item => item.Lines)
                 .FirstOrDefaultAsync(item => item.WorkId == workId
-                    && item.State != discarded
                     && item.SourceSha256 == request.Source.Sha256
                     && (request.EstimateId == null || item.Id == request.EstimateId), cancellationToken);
             if (existingImport is not null)
@@ -530,7 +525,6 @@ public sealed class EfRepairSpecificationStore(
             entity = await RequiredEstimateAsync(context, workId, estimateId, cancellationToken);
             editingCurrent = entity.IsCurrent;
             existing = Map(entity);
-            EstimatePolicy.ValidateEditable(existing);
             eventType = "estimate_updated";
         }
         else
@@ -632,7 +626,6 @@ public sealed class EfRepairSpecificationStore(
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
         var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken);
         var original = await RequiredEstimateAsync(context, workId, request.EstimateId, cancellationToken);
-        EstimatePolicy.ValidateDuplicate(Map(original));
 
         // A copy is the staff member's own working estimate: it keeps the figures
         // and lines but not the document provenance or the AI job of the
@@ -671,7 +664,7 @@ public sealed class EfRepairSpecificationStore(
         return Map(entity);
     }
 
-    public async Task<RepairSpecificationVersion> DiscardEstimateAsync(
+    public async Task DiscardEstimateAsync(
         DiscardEstimateRequest request,
         CancellationToken cancellationToken)
     {
@@ -683,7 +676,7 @@ public sealed class EfRepairSpecificationStore(
         var requestHash = Hash(request);
         if (await CaseOperationReplay.FindAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
         {
-            return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
+            return;
         }
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
@@ -691,24 +684,20 @@ public sealed class EfRepairSpecificationStore(
         var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken);
         var entity = await RequiredEstimateAsync(context, workId, request.EstimateId, cancellationToken);
         EstimatePolicy.ValidateDiscard(Map(entity));
-        var discardingCurrent = entity.IsCurrent;
-        entity.State = RepairSpecificationState.Discarded.ToString();
-        entity.DiscardedBy = request.Actor.SubjectId;
-        entity.DiscardedAtUtc = now;
-        entity.DiscardReason = RequiredReason(request.Reason);
-        entity.LastOperationKey = request.OperationKey;
-        if (discardingCurrent)
-        {
-            // Discarding the current estimate removes the breakdown a frozen
-            // report pinned; discarding a Draft changes nothing it froze.
-            await EfCaseReportGenerationStore.MarkWorkStaleAsync(
-                context, request.CaseId, workId, "current_estimate_discarded", now, cancellationToken);
-        }
+        // Discard deletes the spec with its lines and numbered versions
+        // (operator, 11 October 2026); the history below keeps who, when and
+        // why. The Current spec cannot be discarded, so no report it feeds
+        // changes.
+        context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
+        context.CaseRepairSpecificationSnapshots.RemoveRange(
+            await context.CaseRepairSpecificationSnapshots
+                .Where(item => item.WorkId == workId && item.SpecificationId == entity.Id)
+                .ToListAsync(cancellationToken));
+        context.CaseRepairSpecifications.Remove(entity);
         AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
             "estimate_discarded", requestHash, new { entity.Id, entity.Version, entity.Name }, now);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return Map(entity);
     }
 
     public async Task<RepairSpecificationVersion> SetCurrentEstimateAsync(
@@ -1069,7 +1058,9 @@ public sealed class EfRepairSpecificationStore(
                 cancellationToken);
         if (estimate is null)
         {
-            throw new InvalidDataException("The source-hash replay binding does not point to an estimate on its case.");
+            // The spec the import made has since been discarded and deleted;
+            // the old key no longer has a result to answer with.
+            throw new CaseOperationConflictException(caseId, binding.CorrelationId);
         }
 
         return new(snapshot.EstimateId);
@@ -1262,7 +1253,7 @@ public sealed class EfRepairSpecificationStore(
                 line.AmendedBy, line.AmendedAtUtc)).ToArray(),
             entity.CreatedBy, entity.CreatedAtUtc,
             details,
-            entity.IsCurrent, entity.AiJobId, entity.DiscardReason,
+            entity.IsCurrent, entity.AiJobId,
             entity.SupplementaryOfSpecificationId is { } supplementaryOf
                 ? new(supplementaryOf, entity.SupplementaryReason ?? string.Empty,
                     entity.SupplementaryExplainOnReport, entity.SupplementaryStatement ?? string.Empty)

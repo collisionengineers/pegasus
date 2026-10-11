@@ -515,16 +515,14 @@ public sealed class CaseReportGenerationPersistenceTests
     /// generation froze, with the same identities and in the same order, and
     /// each prints its own bytes. Every image was cached when it was filed, so
     /// none is read from Box. The reader's own SQL proves the lookups were made
-    /// together: three commands for all four images, where a single read of
-    /// each would cost three apiece.
+    /// together: two commands for all four images, where a single read of
+    /// each would cost two apiece.
     /// </summary>
     [Fact]
     public async Task GenerateReadsThePinnedImagesThroughTheBatchLookupInTheOrderTheyWereFrozen()
     {
         await using var harness = await Harness.CreateAsync(supportingImages: 2);
-        // The production reader checks the account behind a read and the folder
-        // the Case's files are filed in.
-        await harness.RecordStaffAccountAsync();
+        // The production reader checks the folder the Case's files are filed in.
         await harness.RecordCaseFolderAsync("report-case-folder");
         Harness.SeededDocument[] pinned = [harness.Overview, harness.CloseUp, .. harness.Supporting];
         Assert.Equal(pinned.Length, pinned.Select(image => image.Sha256).Distinct().Count());
@@ -595,10 +593,9 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(pinned.Select(image => (Guid?)image.VersionId), printed.Select(item => item.VersionId));
         Assert.Equal(pinned.Select(image => image.Content), printed.Select(item => item.Bytes));
         Assert.Equal(new DocumentContentCacheMetricSnapshot(pinned.Length, 0), metrics.Snapshot());
-        // The account, the authorised versions and their cache entries, once
-        // for every image. The entries were written just now, so no hit
-        // extends one.
-        Assert.Equal(3, readerCommands.Count);
+        // The authorised versions and their cache entries, once for every
+        // image. The entries were written just now, so no hit extends one.
+        Assert.Equal(2, readerCommands.Count);
     }
 
     /// <summary>
@@ -2100,7 +2097,8 @@ public sealed class CaseReportGenerationPersistenceTests
             await using var scope = database.CreateAsyncScope();
             var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
             var store = new EfStaffAccountAdministration(context,
-                scope.ServiceProvider.GetRequiredService<UserManager<PegasusIdentityUser>>(), Clock);
+                scope.ServiceProvider.GetRequiredService<UserManager<PegasusIdentityUser>>(),
+                new StaffAccountReads(Clock), Clock);
             var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
             var account = await context.Users.SingleAsync(
                 item => item.Id == FakeSnapshotSource.SignatoryId);
@@ -2154,33 +2152,6 @@ public sealed class CaseReportGenerationPersistenceTests
             });
             await context.SaveChangesAsync();
             return staffId;
-        }
-
-        /// <summary>
-        /// Records the generating staff member's own account, enabled and an
-        /// Engineer, but not a sign-off Engineer: the production reader checks
-        /// the account behind every read.
-        /// </summary>
-        public async Task RecordStaffAccountAsync()
-        {
-            await using var context = await Factory.CreateDbContextAsync();
-            var staffId = Guid.Parse(StaffActor.SubjectId);
-            var engineerRole = await context.Roles.SingleAsync(role => role.NormalizedName == "ENGINEER");
-            context.Users.Add(new PegasusIdentityUser
-            {
-                Id = staffId,
-                UserName = $"report-generator-{staffId:N}",
-                NormalizedUserName = $"REPORT-GENERATOR-{staffId:N}",
-                SecurityStamp = Guid.NewGuid().ToString(),
-                ConcurrencyStamp = Guid.NewGuid().ToString(),
-                IsEnabled = true,
-            });
-            context.UserRoles.Add(new IdentityUserRole<Guid>
-            {
-                UserId = staffId,
-                RoleId = engineerRole.Id,
-            });
-            await context.SaveChangesAsync();
         }
 
         public async Task MarkReviewReadyAsync()

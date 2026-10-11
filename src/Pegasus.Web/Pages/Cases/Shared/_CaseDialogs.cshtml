@@ -17,11 +17,9 @@
 @{
     var details = Model.Case!;
     var workflow = details.Workflow;
-    var summary = details.Summary;
     var state = workflow.State;
     var isClosed = CaseLifecycleRules.IsTerminal(state);
     var isHeld = state == CaseLifecycleState.Held;
-    var isReview = state == CaseLifecycleState.Review;
     var isComplete = state == CaseLifecycleState.PostReportComplete;
     var isQuery = state == CaseLifecycleState.Query;
     // The same offers as the ribbon's Actions menu (operator, 29 September

@@ -6,7 +6,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
-/// The Case workspace's post-report and lifecycle outcomes: report approval, the four named
+/// The Case workspace's post-report and lifecycle outcomes: the four named
 /// terminal outcomes, reopening through the destination gates, and archiving. Every action
 /// redirects back to the workspace.
 /// </summary>
@@ -14,7 +14,6 @@ namespace Pegasus.Web.Pages.Cases;
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed class ClosureModel(
-    IRecordCaseReportApproval recordCaseReportApproval,
     ICloseCase closeCase,
     IReopenCase reopenCase,
     IReturnCaseToEngineer returnToEngineer,
@@ -30,35 +29,6 @@ public sealed class ClosureModel(
     protected override (ICaseWorkflowQueries Workflows, IAcquireCaseEditLease Leases)? LeaseReclaim => (workflows, acquireLease);
 
     public IActionResult OnGet() => NotFound();
-
-    public Task<IActionResult> OnPostRecordReportApprovalAsync(
-        Guid id,
-        long expectedVersion,
-        string operationKey,
-        string reason,
-        string editLeaseToken,
-        Guid approvalId,
-        string artifactIdentity,
-        string artifactSha256,
-        CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
-            id,
-            editLeaseToken,
-            "record_report_approval",
-            actor => recordCaseReportApproval.ExecuteAsync(
-                new(
-                    id,
-                    expectedVersion,
-                    actor,
-                    operationKey,
-                    reason,
-                    editLeaseToken,
-                    new(
-                        approvalId,
-                        artifactIdentity,
-                        artifactSha256)),
-                cancellationToken),
-            "The immutable report artifact was approved; this does not claim it was sent.");
 
     /// <summary>
     /// The Case workspace's adverse disposition. The outcome is nullable and

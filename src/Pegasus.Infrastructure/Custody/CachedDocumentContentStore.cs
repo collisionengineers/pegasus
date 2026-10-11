@@ -128,14 +128,13 @@ internal sealed partial class CachedDocumentContentStore(
     {
         ValidateRequest(request);
         RequireStaffRight(request.Actor);
-        await RequireCurrentActorAsync(request.Actor, cancellationToken);
         var (source, entry) = await ResolveAuthorizedSourceAsync(request, cancellationToken);
         return await ServeAsync(request, source, CachedReader(entry, source), cancellationToken);
     }
 
     /// <summary>
-    /// The lookups for several versions of one Case in three SQL calls whatever
-    /// their number: the account, the authorised sources and the cache entries.
+    /// The lookups for several versions of one Case in two SQL calls whatever
+    /// their number: the authorised sources and the cache entries.
     /// Each handle then serves its own version as <see cref="OpenAsync"/> does,
     /// one at a time, so a render still holds one source image at a time. A
     /// version that cannot be served fails when its handle is opened, as a
@@ -170,7 +169,6 @@ internal sealed partial class CachedDocumentContentStore(
             ValidateRequest(requests[index]);
         }
         RequireStaffRight(actor);
-        await RequireCurrentActorAsync(actor, cancellationToken);
 
         var versionIds = requests.Select(request => request.VersionId!.Value).Distinct().ToArray();
         var authorized = await ResolveAuthorizedVersionsAsync(caseId, versionIds, cancellationToken);
@@ -428,71 +426,6 @@ internal sealed partial class CachedDocumentContentStore(
             }
         }
         return new(candidates.Length, deleted, retained, failures);
-    }
-
-    private Task RequireCurrentActorAsync(
-        ActionActor actor,
-        CancellationToken cancellationToken) =>
-        RequireCurrentActorAsync(dbContextFactory, actor, cancellationToken);
-
-    /// <summary>
-    /// The staff account behind a logical read is still enabled and still
-    /// holds a casework role, read from the database rather than from the
-    /// cookie the request arrived with.
-    /// </summary>
-    /// <remarks>
-    /// The derived-thumbnail read serves from its own cache entry
-    /// without opening the durable content, so it applies this same check
-    /// itself instead of inheriting it from a read it no longer makes.
-    /// </remarks>
-    internal static async Task RequireCurrentActorAsync(
-        IDbContextFactory<PegasusDbContext> dbContextFactory,
-        ActionActor actor,
-        CancellationToken cancellationToken)
-    {
-        if (actor.Kind != ActorKind.Staff)
-        {
-            return;
-        }
-        if (!Guid.TryParse(actor.SubjectId, out var staffId))
-        {
-            throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
-        }
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        // One round trip: the account and its current role names together.
-        var account = await db.Users.AsNoTracking()
-            .Where(value => value.Id == staffId)
-            .Select(value => new
-            {
-                value.IsEnabled,
-                RoleNames = (
-                    from userRole in db.UserRoles
-                    join role in db.Roles on userRole.RoleId equals role.Id
-                    where userRole.UserId == value.Id
-                    select role.Name).ToList()
-            })
-            .SingleOrDefaultAsync(cancellationToken);
-        if (account is not { IsEnabled: true })
-        {
-            throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
-        }
-        var roles = account.RoleNames
-            .Select(value => value switch
-            {
-                StaffRoleNames.Administrator => (StaffRole?)StaffRole.Administrator,
-                StaffRoleNames.Engineer => StaffRole.Engineer,
-                StaffRoleNames.User => StaffRole.User,
-                _ => null
-            })
-            .OfType<StaffRole>()
-            .ToArray();
-        if (roles.Length == 0)
-        {
-            throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
-        }
-        StaffAuthorization.Require(
-            ActionActor.Staff(staffId, roles),
-            StaffAccessRight.PerformCasework);
     }
 
     /// <summary>
@@ -1546,8 +1479,6 @@ internal sealed class DocumentThumbnailCache(
             actor.Kind == ActorKind.SystemWorker
                 ? StaffAccessRight.ExecuteSystemWork
                 : StaffAccessRight.PerformCasework);
-        await CachedDocumentContentStore.RequireCurrentActorAsync(
-            dbContextFactory, actor, cancellationToken);
         var now = timeProvider.GetUtcNow();
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var entry = await Query(db, versionId, variant).AsNoTracking()

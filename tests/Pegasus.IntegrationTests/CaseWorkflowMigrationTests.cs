@@ -461,7 +461,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20261009100000_MergeDisputesIntoQueries",
                 "20261009120000_DropGlassSessionExpiry",
                 "20261009120000_RemoveUnprintedAssessmentFields",
-                "20261009120000_WorkCentreActivityIndexes"
+                "20261009120000_WorkCentreActivityIndexes",
+                "20261011112442_DiscardDeletesRepairSpec"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

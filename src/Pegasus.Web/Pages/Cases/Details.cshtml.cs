@@ -496,7 +496,7 @@ public sealed partial class DetailsModel(
     public bool SelectedEstimateCanBeDuplicated =>
         !AssessmentIsReadOnly
         && AssessmentCanOpen
-        && SelectedEstimate is { State: not RepairSpecificationState.Discarded };
+        && SelectedEstimate is not null;
 
     public bool SelectedEstimateCanBeCurrent =>
         !AssessmentIsReadOnly
@@ -557,8 +557,7 @@ public sealed partial class DetailsModel(
                 SelectedEstimate?.CreatedAtUtc ?? DateTimeOffset.UtcNow,
                 details,
                 SelectedEstimate?.IsCurrent ?? false,
-                SelectedEstimate?.AiJobId,
-                SelectedEstimate?.DiscardReason));
+                SelectedEstimate?.AiJobId));
         }
     }
 
@@ -957,7 +956,6 @@ public sealed partial class DetailsModel(
         Guid id,
         string? estimate,
         string? dialog,
-        [FromServices] TriageCasePorts triagePorts,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -972,7 +970,11 @@ public sealed partial class DetailsModel(
         // unknown id is not found by the Case frame read below.
         if (await getCaseKind.ExecuteAsync(id, cancellationToken) == CaseType.Triage)
         {
-            return await GetTriageCaseAsync(id, actor, triagePorts, cancellationToken);
+            return await GetTriageCaseAsync(
+                id,
+                actor,
+                HttpContext.RequestServices.GetRequiredService<TriageCasePorts>(),
+                cancellationToken);
         }
 
         using var activity = DocumentReadTelemetry.Start("web.case.main");
@@ -2236,11 +2238,6 @@ public sealed partial class DetailsModel(
     /// report followed by its fee note.
     /// </summary>
     public Task<IActionResult> OnGetPreviewReportDraftAsync(
-        Guid id,
-        CancellationToken cancellationToken) =>
-        PreviewReportDraftAsync(id, CaseReportArtifactKind.AssessmentReport, cancellationToken);
-
-    public Task<IActionResult> OnPostPreviewReportDraftAsync(
         Guid id,
         CancellationToken cancellationToken) =>
         PreviewReportDraftAsync(id, CaseReportArtifactKind.AssessmentReport, cancellationToken);
@@ -4000,8 +3997,6 @@ public sealed partial class DetailsModel(
             id,
             estimateId?.ToString("D"),
             null,
-            Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
-                .GetRequiredService<TriageCasePorts>(HttpContext.RequestServices),
             cancellationToken);
         if (Case is null)
         {
@@ -4364,9 +4359,8 @@ public sealed partial class DetailsModel(
             }
 
             var importedBefore = (await listEstimates.ExecuteAsync(id, WorkSelector, cancellationToken))
-                .Any(estimate => estimate.State != RepairSpecificationState.Discarded
-                    && string.Equals(
-                        estimate.Source.Sha256, source.Version.Sha256, StringComparison.OrdinalIgnoreCase));
+                .Any(estimate => string.Equals(
+                    estimate.Source.Sha256, source.Version.Sha256, StringComparison.OrdinalIgnoreCase));
             var resultingVersion = checked(importVersion + (importedBefore ? 0 : 1));
             return await ImportRetainedEstimateAsync(new(actor!, id, importVersion, importLeaseToken,
                 source.Occurrence.Id, source.Version.Id, source.Version.Sha256, operationKey, string.Empty) { Work = WorkSelector },

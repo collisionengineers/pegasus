@@ -710,6 +710,7 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddSingleton<StaffAccountReads>();
         services.AddScoped<EfStaffAccountAdministration>();
         services.AddScoped<ICreateStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
