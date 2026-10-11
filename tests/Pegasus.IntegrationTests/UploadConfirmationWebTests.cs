@@ -920,6 +920,7 @@ public sealed class UploadConfirmationWebTests
         foreach (var receiptId in confirmation.ReceiptVersions.Keys)
         {
             await AssertLinkedAsync(factory, receiptId, caseId);
+            Assert.Empty(await FiledDocumentsAsync(factory, receiptId, caseId));
             await IntakeWebDriver.ReplayLinkedFilingAsync(linkScope.ServiceProvider, receiptId);
         }
         var groupItem = await linkScope.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
