@@ -121,11 +121,7 @@ public sealed class ProductionGraphSourceTests
         var handler = new DelegateHandler(request =>
         {
             if (request.Method != HttpMethod.Get) writes++;
-            return Response(HttpStatusCode.OK, System.Text.Json.JsonSerializer.Serialize(new
-            {
-                value = new[] { new { name = "report.pdf", size = 4, contentType = "application/pdf",
-                    contentBytes = Convert.ToBase64String(bytes) } }
-            }));
+            return Response(HttpStatusCode.OK, ReconciliationBody(request, bytes));
         });
         var progress = new UploadProgressFake
         {
@@ -140,6 +136,71 @@ public sealed class ProductionGraphSourceTests
             Guid.NewGuid(), "draft", attachment, new MemoryStream(bytes), CancellationToken.None);
 
         Assert.Equal(0, writes);
+        Assert.True(progress.Completed);
+    }
+
+    [Fact]
+    public async Task AttachmentReconciliationReadsMetadataFirstAndContentOnlyForAMatch()
+    {
+        var bytes = new byte[] { 4, 3, 2, 1 };
+        var attachment = new StaffMailAttachment(Guid.NewGuid(), Guid.NewGuid(),
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)),
+            bytes.Length, "report.pdf", "application/pdf");
+        var requests = new List<string>();
+        var handler = new DelegateHandler(request =>
+        {
+            requests.Add(request.RequestUri!.PathAndQuery);
+            return Response(HttpStatusCode.OK, ReconciliationBody(request, bytes));
+        });
+        var progress = new UploadProgressFake { Current = new(null, DateTimeOffset.MaxValue, 0) };
+        var options = Options();
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())), progress);
+
+        await sender.AttachAsync(new(Guid.NewGuid(), "mailbox-id", 1, 10_000_000),
+            Guid.NewGuid(), "draft", attachment, new MemoryStream(bytes), CancellationToken.None);
+
+        Assert.Equal(2, requests.Count);
+        Assert.DoesNotContain("contentBytes", requests[0]);
+        Assert.Contains("$select=id,name,size,contentType", requests[0]);
+        Assert.Contains("/attachments/att-1?$select=contentBytes", requests[1]);
+    }
+
+    [Fact]
+    public async Task AttachmentReconciliationIgnoresLargeNonMatchingAttachmentsWithoutFetchingContent()
+    {
+        var bytes = new byte[] { 4, 3, 2, 1 };
+        var attachment = new StaffMailAttachment(Guid.NewGuid(), Guid.NewGuid(),
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)),
+            bytes.Length, "report.pdf", "application/pdf");
+        var requests = 0;
+        var paths = new List<string>();
+        var handler = new DelegateHandler(request =>
+        {
+            paths.Add(request.RequestUri!.AbsolutePath);
+            if (request.Method == HttpMethod.Get && request.RequestUri!.AbsolutePath.EndsWith("/attachments", StringComparison.Ordinal))
+            {
+                requests++;
+                return Response(HttpStatusCode.OK, System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    value = new[] { new { id = "big", name = "photos.zip", size = 900_000_000L,
+                        contentType = "application/zip" } }
+                }));
+            }
+            return Response(HttpStatusCode.Created, "{}");
+        });
+        var progress = new UploadProgressFake { Current = new(new Uri("https://graph.microsoft.com/upload/session"), DateTimeOffset.MaxValue, 0) };
+        var options = Options();
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())), progress);
+
+        await sender.AttachAsync(new(Guid.NewGuid(), "mailbox-id", 1, 10_000_000),
+            Guid.NewGuid(), "draft", attachment, new MemoryStream(bytes), CancellationToken.None);
+
+        Assert.Equal(1, requests);
+        Assert.DoesNotContain(paths, path => path.Contains("/attachments/big"));
         Assert.True(progress.Completed);
     }
 
@@ -1724,6 +1785,16 @@ public sealed class ProductionGraphSourceTests
 
     private static GraphApprovedMailboxOptions Options() =>
         GraphApprovedMailboxOptions.Create("https://graph.microsoft.com/v1.0/");
+
+    /// <summary>The Graph attachment listing (metadata only) or one attachment's content.</summary>
+    private static string ReconciliationBody(HttpRequestMessage request, byte[] bytes) =>
+        request.RequestUri!.AbsolutePath.EndsWith("/attachments", StringComparison.Ordinal)
+            ? System.Text.Json.JsonSerializer.Serialize(new
+            {
+                value = new[] { new { id = "att-1", name = "report.pdf", size = bytes.Length,
+                    contentType = "application/pdf" } }
+            })
+            : System.Text.Json.JsonSerializer.Serialize(new { contentBytes = Convert.ToBase64String(bytes) });
 
     private static HttpResponseMessage Response(HttpStatusCode status, string body, string mediaType = "application/json") =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, mediaType) };

@@ -457,6 +457,23 @@ public sealed class StaffMailSendTests
         Assert.Equal(StaffMailState.Submitted, (await winner).State);
     }
 
+    [Fact]
+    public async Task FirstAttemptCreatesTheDraftWithoutLookingForOne()
+    {
+        var command = Command(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]));
+        var transport = new Transport();
+        var send = new StaffMailSend(
+            new Store(),
+            new Mailboxes(command.ApprovedMailboxId, command.ExpectedMailboxGeneration),
+            null!, transport, TimeProvider.System, new ExecutionLock());
+
+        var result = await send.SendAsync(command, CancellationToken.None);
+
+        Assert.Equal(StaffMailState.Submitted, result.State);
+        Assert.Equal(0, transport.FindCount);
+        Assert.Equal(1, transport.CreateCount);
+    }
+
     private static StaffMailSendCommand Command(ActionActor actor) => new(
         actor,
         Guid.NewGuid(),
@@ -506,6 +523,7 @@ public sealed class StaffMailSendTests
     private sealed class Transport : IStaffMailTransport
     {
         public int CreateCount { get; private set; }
+        public int FindCount { get; private set; }
         public int SendCount { get; private set; }
         public bool BlockSend { get; init; }
         public Exception? RejectCreate { get; init; }
@@ -514,8 +532,11 @@ public sealed class StaffMailSendTests
         public List<byte[]> Attached { get; } = [];
         public List<string> AttachedNames { get; } = [];
         public Task ValidateEncodedSizeAsync(ApprovedStaffSendMailbox mailbox, StaffMailOperation operation, StaffMailSendCommand command, IReadOnlyList<StaffMailAttachmentContent> attachments, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task<StaffMailDraftLookupResult> FindDraftAsync(ApprovedStaffSendMailbox mailbox, StaffMailOperation operation, CancellationToken cancellationToken) =>
-            Task.FromResult(new StaffMailDraftLookupResult(null, null, true));
+        public Task<StaffMailDraftLookupResult> FindDraftAsync(ApprovedStaffSendMailbox mailbox, StaffMailOperation operation, CancellationToken cancellationToken)
+        {
+            FindCount++;
+            return Task.FromResult(new StaffMailDraftLookupResult(null, null, true));
+        }
         public Task<StaffMailDraftResult> CreateDraftAsync(ApprovedStaffSendMailbox mailbox, StaffMailOperation operation, StaffMailSendCommand command, CancellationToken cancellationToken)
         {
             CreateCount++;

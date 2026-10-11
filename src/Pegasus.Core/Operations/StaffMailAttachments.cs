@@ -17,6 +17,16 @@ public sealed record StaffMailAttachmentOption(
 public sealed class StaffMailAttachmentSelectionException(string message)
     : InvalidOperationException(message);
 
+/// <summary>
+/// A Case's sendable files and what a selection of them resolved to. A refused
+/// selection leaves <see cref="Attachments"/> empty and its reason in
+/// <see cref="SelectionError"/>, so a redisplay still has the options.
+/// </summary>
+public sealed record StaffMailCaseSelection(
+    IReadOnlyList<StaffMailAttachmentOption> Options,
+    IReadOnlyList<StaffMailAttachment> Attachments,
+    string? SelectionError);
+
 public interface IStaffMailAttachmentResolver
 {
     Task<IReadOnlyList<StaffMailAttachmentOption>> ListCaseAsync(
@@ -25,6 +35,25 @@ public interface IStaffMailAttachmentResolver
     Task<IReadOnlyList<StaffMailAttachment>> ResolveCaseAsync(
         ActionActor actor, Guid caseId, IReadOnlyList<string> selections,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The Case's options together with the selections resolved against them,
+    /// from one read of the Case's documents.
+    /// </summary>
+    async Task<StaffMailCaseSelection> SelectCaseAsync(
+        ActionActor actor, Guid caseId, IReadOnlyList<string> selections,
+        CancellationToken cancellationToken)
+    {
+        var options = await ListCaseAsync(actor, caseId, cancellationToken);
+        try
+        {
+            return new(options, await ResolveCaseAsync(actor, caseId, selections, cancellationToken), null);
+        }
+        catch (StaffMailAttachmentSelectionException exception)
+        {
+            return new(options, [], exception.Message);
+        }
+    }
 
     Task<IReadOnlyList<StaffMailAttachmentOption>> ListIntakeAsync(
         ActionActor actor, Guid receiptId, CancellationToken cancellationToken);
@@ -55,6 +84,23 @@ public sealed class StaffMailAttachmentResolver(ICaseDocumentQueries caseDocumen
     {
         ArgumentNullException.ThrowIfNull(selections);
         return Resolve(await ReadCaseAsync(actor, caseId, cancellationToken), selections);
+    }
+
+    public async Task<StaffMailCaseSelection> SelectCaseAsync(
+        ActionActor actor, Guid caseId, IReadOnlyList<string> selections,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(selections);
+        var available = await ReadCaseAsync(actor, caseId, cancellationToken);
+        var options = available.Select(ToOption).ToArray();
+        try
+        {
+            return new(options, Resolve(available, selections), null);
+        }
+        catch (StaffMailAttachmentSelectionException exception)
+        {
+            return new(options, [], exception.Message);
+        }
     }
 
     public async Task<IReadOnlyList<StaffMailAttachmentOption>> ListIntakeAsync(
