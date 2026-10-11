@@ -75,9 +75,10 @@ public sealed class AcceptIntake(
                 nameof(request));
         }
 
+        var workflowConfiguration = await configuration.GetCurrentAsync(cancellationToken);
         var completenessEvaluation = CaseCompletenessPolicy.EvaluateAcceptanceCommand(
             request.Completeness,
-            await configuration.GetCurrentAsync(cancellationToken));
+            workflowConfiguration);
         var principalInspectionMode = await inspectionModeStore.GetForPrincipalAsync(
                 principalCode,
                 cancellationToken)
@@ -92,6 +93,7 @@ public sealed class AcceptIntake(
             principalCode,
             request.Completeness,
             completenessEvaluation,
+            workflowConfiguration,
             principalInspectionMode,
             request.StandaloneAuditEvidenceId,
             request.AcceptedInspectionDeadline,

@@ -38,6 +38,7 @@ public sealed class EfCaseAcceptanceStore(
         }
         ArgumentNullException.ThrowIfNull(request.Completeness);
         ArgumentNullException.ThrowIfNull(request.CompletenessEvaluation);
+        ArgumentNullException.ThrowIfNull(request.WorkflowConfiguration);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.CompletenessEvaluation.PolicyKey);
         if (request.CompletenessEvaluation.PolicyVersion < 1)
         {
@@ -216,7 +217,7 @@ public sealed class EfCaseAcceptanceStore(
 
         var caseId = Guid.NewGuid();
         var custodyWorkId = Guid.NewGuid();
-        var workflowConfiguration = await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken);
+        var workflowConfiguration = request.WorkflowConfiguration;
         var completenessEvaluation = CaseCompletenessPolicy.Evaluate(request.Completeness, workflowConfiguration);
         var initialState = completenessEvaluation.SatisfiesPolicy
             ? CaseInitialState.Review

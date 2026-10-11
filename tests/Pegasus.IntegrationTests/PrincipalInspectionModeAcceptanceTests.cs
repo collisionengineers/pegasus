@@ -182,6 +182,7 @@ public sealed class PrincipalInspectionModeAcceptanceTests
     {
         await using var harness = await Harness.CreateAsync();
 
+        var configuration = await new FixedConfiguration().GetCurrentAsync(CancellationToken.None);
         var staleModeAcceptance = new CaseAcceptanceRequest(
             harness.ReceiptId,
             0,
@@ -190,9 +191,8 @@ public sealed class PrincipalInspectionModeAcceptanceTests
             CaseType.Inspection,
             "QDOS",
             new(true, true),
-            CaseCompletenessPolicy.Evaluate(
-                new(true, true),
-                await new FixedConfiguration().GetCurrentAsync(CancellationToken.None)),
+            CaseCompletenessPolicy.Evaluate(new(true, true), configuration),
+            configuration,
             CaseInspectionMode.PhysicalAddress,
             AcceptedInspectionDeadline: FixtureInspectionDate);
 

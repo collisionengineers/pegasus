@@ -335,7 +335,7 @@ public sealed class ImmediateExternalPublicationTests
                 : new ImageIntakePairingResult(1, 1, 0));
         }
 
-        public Task<ImageIntakePairingResult> PairRegisteredReceiptAsync(Guid receiptId, CancellationToken cancellationToken) =>
+        public Task<ImageIntakePairingResult> PairRegisteredReceiptAsync(Guid receiptId, CancellationToken cancellationToken, ImageIntakeDetail? registered = null) =>
             throw new NotSupportedException();
         public Task<ImageIntakePairingResult> ReconcileAsync(int maximumItems, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
