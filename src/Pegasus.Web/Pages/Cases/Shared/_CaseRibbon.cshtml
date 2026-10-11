@@ -37,7 +37,7 @@
     var canConfirmReportSent = mayAct
         && details.AvailableReportSentEvidence.Count > 0
         && (Model.IsInspectionView || state == CaseLifecycleState.ReportPreparation);
-    var canMarkCompleted = mayAct && state == CaseLifecycleState.PostReport;
+    var canMarkCompleted = Model.CanMarkCompleted;
     var canReturnToReview = mayActOnCaseData
         && state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
     var canReturnToEngineer = mayAct && (isComplete || isQuery);
