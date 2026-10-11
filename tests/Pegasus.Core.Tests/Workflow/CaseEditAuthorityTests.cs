@@ -384,6 +384,9 @@ public sealed class CaseEditAuthorityTests
             throw new NotSupportedException(
                 "Disclosing one holder must not enumerate the staff directory.");
 
+        public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");

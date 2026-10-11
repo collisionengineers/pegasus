@@ -133,6 +133,10 @@ internal sealed class EfAssessmentReportProjectionSource(
             workflow.SignOffEngineerId,
             workflow.AssignedEngineerId,
             profiles);
+        // The signature read needs the resolved Engineer, so it follows the profiles.
+        var signature = signOffEngineer is null
+            ? null
+            : await staffAccountQueries.GetSignOffSignatureAsync(signOffEngineer.StaffId, cancellationToken);
         var sources = ReportSources(confirmed);
 
         // Only the operator's prepared images, in the report's own order.
@@ -198,13 +202,13 @@ internal sealed class EfAssessmentReportProjectionSource(
             photos,
             sources,
             CurrentEstimate: workspace.CurrentSpecification,
-            Signatory: signOffEngineer is null
+            Signatory: signOffEngineer is null || signature is null
                 ? null
                 : new ReportSignatory(
                     signOffEngineer.PrintedName,
                     signOffEngineer.Qualifications,
-                    signOffEngineer.Signature,
-                    signOffEngineer.SignatureContentType),
+                    signature.Content,
+                    signature.ContentType),
             Guides: guides,
             ValuationCommentary: AssessmentReportProjection.ValuationCommentaryOf(
                 workspace.Assessment, latestApplied?.Reason),

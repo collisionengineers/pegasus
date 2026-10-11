@@ -317,11 +317,14 @@ public sealed class CaseListReportTests
                     new(Signatory, "signatory", true, false, StaffRole.Engineer)
                 }.Where(account => staffIds.Contains(account.Id)).ToArray());
 
+        public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<SignOffEngineerProfile>>(
             [
-                new(Engineer, "Engineer", null, [1], "image/png", IsDefault: false),
-                new(Signatory, "Signatory", null, [1], "image/png", IsDefault: true)
+                new(Engineer, "Engineer", null, IsDefault: false),
+                new(Signatory, "Signatory", null, IsDefault: true)
             ]);
     }
 }

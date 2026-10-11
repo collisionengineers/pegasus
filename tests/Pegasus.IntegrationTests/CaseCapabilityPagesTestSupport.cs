@@ -741,6 +741,9 @@ internal static partial class CaseWebTestSupport
             Task.FromResult<IReadOnlyList<StaffAccountSummary>>(
                 staffIds.Contains(staffId) ? [account] : []);
 
+        public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<SignOffEngineerProfile>>([]);
