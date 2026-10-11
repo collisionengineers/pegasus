@@ -1,5 +1,6 @@
 @*
-    Leave undecided returns to Upload and changes nothing (FRD-18 Cancel);
+    Leave undecided returns to Upload (FRD-18 Cancel) and, for image material
+    that matched Cases, records the decline so the images register;
     Discard upload is separate from the primary flow and opens its own
     confirmation, offered only when the whole submission can be discarded.
 
@@ -8,7 +9,16 @@
 @model Pegasus.Web.Presentation.UploadReviewView
 @using Labels = Pegasus.Web.Presentation.OperatorLabels.Upload
 <div class="up-leave">
-    <a class="btn" asp-page="/Upload" data-upload-leave>@Labels.LeaveUndecided</a>
+    @if (Model.LeaveDeclinesImageMatch)
+    {
+        <form method="post" asp-page-handler="Leave">
+            <button type="submit" class="btn" data-upload-leave>@Labels.LeaveUndecided</button>
+        </form>
+    }
+    else
+    {
+        <a class="btn" asp-page="/Upload" data-upload-leave>@Labels.LeaveUndecided</a>
+    }
     @if (Model.OffersDiscard)
     {
         <a class="up-discard" href="@Model.PageUrl?discard=true" data-upload-dialog="upload-discard">@Labels.Discard</a>
