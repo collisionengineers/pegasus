@@ -773,20 +773,13 @@ public sealed class EfUnidentifiedStore(
             return null;
         }
 
-        var token = await context.IntakeReceipts.AsNoTracking()
-            .Where(item => item.Id == origin.Id && item.SourceChannel == "mailbox")
-            .Select(item => item.ExternalReceiptToken)
+        return await (
+            from receipt in context.IntakeReceipts.AsNoTracking()
+            where receipt.Id == origin.Id && receipt.SourceChannel == "mailbox"
+            join message in context.RetainedMailboxMessages.AsNoTracking()
+                on receipt.ExternalReceiptToken equals message.ExternalReceiptToken
+            select (Guid?)message.Id)
             .FirstOrDefaultAsync(cancellationToken);
-        if (token is null)
-        {
-            return null;
-        }
-
-        var messageId = await context.RetainedMailboxMessages.AsNoTracking()
-            .Where(item => item.ExternalReceiptToken == token)
-            .Select(item => (Guid?)item.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-        return messageId;
     }
 
     private static string Fingerprint(RegisterUnidentifiedRequest request)

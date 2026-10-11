@@ -66,7 +66,21 @@ internal static class IntakePromotionTarget
             association.ActorKind, nameof(ActorKind.SystemWorker), StringComparison.Ordinal);
         var caseRow = await db.Cases.AsNoTracking()
             .Where(item => item.Id == caseId)
-            .Select(item => new { item.OriginIntakeReceiptId })
+            .Select(item => new
+            {
+                item.OriginIntakeReceiptId,
+                Workflow = db.CaseWorkflows
+                    .Where(row => row.CaseId == caseId)
+                    .Select(row => new
+                    {
+                        row.Version,
+                        row.ArchivedAtUtc,
+                        row.State,
+                        row.ReportSentEvidenceId,
+                        row.EditLeaseExpiresAtUtc
+                    })
+                    .FirstOrDefault()
+            })
             .SingleOrDefaultAsync(cancellationToken);
         if (caseRow is null || caseRow.OriginIntakeReceiptId == receiptId)
         {
@@ -75,17 +89,7 @@ internal static class IntakePromotionTarget
             return new(PromotionTargetDisposition.NotApplicable);
         }
 
-        var workflow = await db.CaseWorkflows.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
-            .Select(item => new
-            {
-                item.Version,
-                item.ArchivedAtUtc,
-                item.State,
-                item.ReportSentEvidenceId,
-                item.EditLeaseExpiresAtUtc
-            })
-            .SingleOrDefaultAsync(cancellationToken);
+        var workflow = caseRow.Workflow;
         if (workflow is not null)
         {
             if (workflow.ArchivedAtUtc is not null
