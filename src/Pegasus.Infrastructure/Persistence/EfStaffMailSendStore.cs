@@ -98,9 +98,11 @@ internal sealed class EfStaffMailSendStore(
                 "The retained message already has an active staff mail operation.");
         }
 
+        // The marker names the durable operation, not a separate random identity.
+        var operationId = Guid.NewGuid();
         var entity = new StaffMailSendOperationEntity
         {
-            Id = Guid.NewGuid(),
+            Id = operationId,
             ActorKind = command.Actor.Kind,
             ActorSubjectId = command.Actor.SubjectId,
             MailboxId = command.ApprovedMailboxId,
@@ -120,14 +122,12 @@ internal sealed class EfStaffMailSendStore(
             Body = command.Body,
             AttachmentsJson = JsonSerializer.Serialize(command.Attachments),
             State = StaffMailState.Prepared,
-            CorrelationMarker = $"x-pegasus-operation-id:{Guid.NewGuid():D}",
+            CorrelationMarker = $"x-pegasus-operation-id:{operationId:D}",
             CreatedAtUtc = nowUtc,
             RequestedAtUtc = nowUtc,
             Version = 1,
             ConcurrencyToken = Guid.NewGuid()
         };
-        // The marker names the durable operation, not a separate random identity.
-        entity.CorrelationMarker = $"x-pegasus-operation-id:{entity.Id:D}";
         rows.Add(entity);
         db.ActionHistory.Add(History(entity, command.Actor.Kind, command.Actor.SubjectId,
             command.Actor.Roles.Select(value => value.ToString()), "staff-mail-prepared", nowUtc,

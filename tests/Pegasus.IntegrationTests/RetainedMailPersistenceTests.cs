@@ -2140,8 +2140,6 @@ public sealed class RetainedMailPersistenceTests
                     services.AddScoped<ReceiveIntake>();
                     services.AddLocalApprovedInbox(_ => new(
                         LocalApprovedInboxOptions.RequiredRuntimeProfile,
-                        MailboxId,
-                        MailboxAddress,
                         inboxRoot));
                 });
             await ActivateSeededMailboxAsync(database);
@@ -2469,8 +2467,6 @@ public sealed class RetainedMailPersistenceTests
             services.AddScoped<ReceiveIntake>();
             services.AddLocalApprovedInbox(_ => new(
                 LocalApprovedInboxOptions.RequiredRuntimeProfile,
-                MailboxId,
-                MailboxAddress,
                 Path.GetTempPath()));
             services.AddSingleton(source);
         });

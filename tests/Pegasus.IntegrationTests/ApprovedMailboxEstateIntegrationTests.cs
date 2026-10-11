@@ -617,8 +617,6 @@ public sealed class ApprovedMailboxEstateIntegrationTests
                 services.AddScoped<ReceiveIntake>();
                 services.AddLocalApprovedInbox(_ => new(
                     LocalApprovedInboxOptions.RequiredRuntimeProfile,
-                    "instructions",
-                    SeededAddress,
                     workspace.Root,
                     DefaultFolder));
             });

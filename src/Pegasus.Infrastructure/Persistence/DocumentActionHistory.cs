@@ -41,27 +41,6 @@ internal static class DocumentActionHistory
     public static string Serialize<T>(T value) =>
         JsonSerializer.Serialize(value, SerializerOptions);
 
-    public static T Deserialize<T>(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new InvalidDataException("The persisted document action snapshot is missing.");
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize<T>(value, SerializerOptions)
-                ?? throw new InvalidDataException(
-                    "The persisted document action snapshot is invalid.");
-        }
-        catch (JsonException exception)
-        {
-            throw new InvalidDataException(
-                "The persisted document action snapshot is invalid.",
-                exception);
-        }
-    }
-
     public static void RequireExactReplay(
         ActionHistoryEntity existing,
         string aggregateType,
