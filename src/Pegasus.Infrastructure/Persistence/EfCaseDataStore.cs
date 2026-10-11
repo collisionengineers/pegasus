@@ -32,41 +32,47 @@ public sealed class EfCaseDataStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         // The selected work is resolved inside the snapshot read.
         var selectedWorkIds = CaseWorkScope.SelectedIds(context, caseId, work);
-        var snapshot = await SnapshotQuery(context, tracking: false)
-            .SingleOrDefaultAsync(item => selectedWorkIds.Contains(item.WorkId), cancellationToken);
-        if (snapshot is null)
-        {
-            return null;
-        }
-
-        // The workflow's version and state and the workflow configuration the
-        // completeness is evaluated under are one command.
-        var basis = await context.CaseWorkflows.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+        // The snapshot, the workflow's version and state and the workflow
+        // configuration the completeness is evaluated under are one command.
+        var row = await SnapshotQuery(context, tracking: false)
+            .Where(item => selectedWorkIds.Contains(item.WorkId))
             .Select(item => new
             {
-                item.Version,
-                item.State,
+                Snapshot = item,
+                Workflow = context.CaseWorkflows
+                    .Where(workflow => workflow.CaseId == caseId)
+                    .Select(workflow => new { workflow.Version, workflow.State })
+                    .FirstOrDefault(),
                 Configuration = context.Set<WorkflowConfigurationEntity>()
                     .FirstOrDefault(configuration =>
                         configuration.Id == AdministrationPolicyModelConfiguration.WorkflowPolicyKey)
             })
-            .SingleOrDefaultAsync(cancellationToken)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (row is null)
+        {
+            return null;
+        }
+
+        var workflow = row.Workflow
             ?? throw new InvalidDataException(
                 "The accepted case data snapshot has no workflow record.");
-        var configuration = basis.Configuration
+        var configuration = row.Configuration
             ?? throw new InvalidOperationException(
                 "The current workflow configuration has not been initialized.");
         return ApplyConfiguration(
-            Map(snapshot, basis.Version, basis.State),
+            Map(row.Snapshot, workflow.Version, workflow.State),
             EfWorkflowConfigurationStore.Map(configuration));
     }
 
     internal static CaseDataProjection ApplyConfiguration(CaseDataProjection data, CaseWorkflowConfiguration configuration) =>
-        data with { Completeness = data.Completeness with
+        data with
         {
-            Evaluation = CaseCompletenessPolicy.Evaluate(data.Completeness.Values, configuration)
-        } };
+            AiDraftTargetDays = configuration.AiDraftTargetDays,
+            Completeness = data.Completeness with
+            {
+                Evaluation = CaseCompletenessPolicy.Evaluate(data.Completeness.Values, configuration)
+            }
+        };
 
     internal static IQueryable<CaseDataSnapshotEntity> SnapshotQuery(
         PegasusDbContext context,

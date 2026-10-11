@@ -218,7 +218,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         // fewer once a host with no Glass's composed reads no Glass's credential for the
         // Estimate section (this host composes the unavailable gateway); two fewer once the
         // EVA route and submission reads went with EVA; one more for the frame's
-        // linked-Triage read for the aside's Linked cases card. That is 46.
+        // linked-Triage read for the aside's Linked cases card. That is 46; 44 once the Case data and the workflow configuration are one command and the page takes the AI draft target from them (10 October 2026).
         // The save sent 43 until the lease it reclaims read only the Case's workflow row,
         // then 37, 35 once its edit basis read the data in two fewer commands, and 34 once
         // the save writes the work the request names and stales that work's report alone
@@ -241,10 +241,13 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     // 48 - 1 (no Glass's credential read, #1086) - 2 (EVA reads removed, #1091)
     // + 1 (the frame's linked-Triage read for the Linked cases card, #1087).
     // - 1 (the unlinked sent-evidence read, now only for Primary work or Report preparation, #1174)
-    // - 1 (the rail no longer counts Awaiting instruction, #1179).
-    private const int CasePageCommands = 44;
+    // - 1 (the rail no longer counts Awaiting instruction, #1179)
+    // - 2 (the Case data and the workflow configuration are one command and the AI draft target comes from them, #1176).
+    private const int CasePageCommands = 42;
 
-    private const int CaseSaveCommands = 32;
+    // 35 - 3 (the Save reuses the rows the request already holds, #1173)
+    // - 1 (one command for the Case data and none for the AI draft target, #1176).
+    private const int CaseSaveCommands = 31;
 
     /// <summary>
     /// Roadmap Lane H (FRD-16): a commit the page script posts is answered with
@@ -333,7 +336,9 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         // (the save and 32); the save at 34 makes them 82 and 66, and at 35 (the workflow
         // mutation lock) 83 and 67. Removing EVA's two reads and adding the linked-Triage
         // read (7 October 2026) make the answer 31 and the answered commit 66.
-        // The save at 32 (10 October 2026) makes the answered commit 63.
+        // The save at 32 (10 October 2026, #1173) makes the answered commit 63; one command
+        // for the Case data and none for the AI draft target (#1176) take the save to 31,
+        // the answer to 28 and the answered commit to 59.
         Assert.True(
             firstCommands < redirectedCommands,
             $"An answered commit sent {firstCommands} SQL commands; the save and its redirected page send {redirectedCommands}.");
@@ -356,8 +361,9 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     /// linked-Triage read, one statement each.
     /// </summary>
     // 32 - 2 (EVA reads removed, #1091) + 1 (the linked-Triage read, #1087).
-    // - 1 (the unlinked sent-evidence read, now only for Primary work or Report preparation, #1174).
-    private const int CommitAnswerCommands = 30;
+    // - 1 (the unlinked sent-evidence read, now only for Primary work or Report preparation, #1174)
+    // - 2 (the Case data and the workflow configuration are one command and the AI draft target comes from them, #1176).
+    private const int CommitAnswerCommands = 28;
 
     private static async Task<(HttpStatusCode Status, string Body, string? Location)> CommitAsync(
         HttpClient client,

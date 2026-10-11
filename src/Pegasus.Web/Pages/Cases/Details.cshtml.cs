@@ -94,7 +94,6 @@ public sealed partial class DetailsModel(
     GlassRepairEstimateAvailability glassAvailability,
     ICreateAudit createAudit,
     IAiJobQueries aiJobs,
-    ICaseWorkflowConfiguration workflowConfiguration,
     IStartMarketResearch startMarketResearch,
     IFetchGuideValuation fetchGuideValuation,
     IListValuationPresets listValuationPresets,
@@ -1611,7 +1610,6 @@ public sealed partial class DetailsModel(
                 token))
             : null;
         var caseAiJobs = reads.Start(token => aiJobs.ListForSubjectAsync(id, token));
-        var configuration = reads.Start(token => workflowConfiguration.GetCurrentAsync(token));
         await reads.WhenAllAsync();
 
         if (claimSources is not null)
@@ -1641,7 +1639,7 @@ public sealed partial class DetailsModel(
             EditAuthorityHolder = holder is null ? CaseEditAuthorityHolder.Unnamed : await holder;
         }
         var jobs = await caseAiJobs;
-        AiDrafts = AiDraftPolicy.Drafts(jobs, (await configuration).AiDraftTargetDays);
+        AiDrafts = AiDraftPolicy.Drafts(jobs, details.Data.RequiredAiDraftTargetDays);
         PendingMarketResearch = MarketResearchPolicy.PendingOf(jobs);
     }
 
