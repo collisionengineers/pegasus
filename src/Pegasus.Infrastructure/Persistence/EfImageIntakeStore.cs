@@ -1921,15 +1921,6 @@ public sealed class EfImageVrmSuggestionStore(
         return rows.Select(Map).ToArray();
     }
 
-    public async Task<ImageVrmSuggestion?> GetAsync(Guid id, CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.ImageVrmSuggestions
-            .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-        return entity is null ? null : Map(entity);
-    }
-
     public async Task<ImageVrmSuggestion> SetDispositionAsync(
         ImageVrmSuggestionDispositionRequest request,
         CancellationToken cancellationToken)

@@ -256,11 +256,6 @@ public interface IIntakeWorkStore
         int maximumItems,
         CancellationToken cancellationToken);
 
-    Task ScheduleReevaluationAsync(
-        Guid stagedReceiptId,
-        DateTimeOffset dueAtUtc,
-        CancellationToken cancellationToken);
-
     /// <summary>
     /// The staged receipt id for a persisted intake receipt's latest
     /// evaluation, or null when none is retained. Read-only: the
