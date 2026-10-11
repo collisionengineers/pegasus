@@ -54,9 +54,11 @@ included, but never puts a spec in use (operator, 7 October 2026;
 [FRD-10](frd-10-mcp-automation-and-actor-boundary.md#ai-job-and-estimate-tools)).
 The Current spec stays editable while the Case is writable; each change marks
 a generated report stale, and the numbered versions below keep the history.
-Create audit copies every live estimate, with its lines and its Current
-choice, into the Audit; discarded estimates and revision snapshots are not
-copied
+**Discard** deletes a spec that is not Current, with its lines and numbered
+versions; the Case history keeps who discarded it, when and why (operator,
+11 October 2026). A report already generated or sent keeps its own copy.
+Create audit copies every estimate, with its lines and its Current choice,
+into the Audit; revision snapshots are not copied
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
 From then on the Inspection and the Audit each have their own Current spec,
 feeding their own report. Every estimate edit, import, Glass's return and
@@ -71,8 +73,8 @@ source are replaced. Its name, labour-rate card, VAT, discounts and
 supplementary statement are kept. Edits made in Pegasus since the last return
 are overwritten, and nothing is frozen before the update; the updated content
 is frozen as an imported version, as a new import is. The updated spec is
-Current. A spec discarded since no longer takes the return, which lands as a
-new spec that belongs to the same estimate. Create audit copies the tie, so
+Current. A spec discarded since is gone, so the return lands as a new spec
+that belongs to the same estimate. Create audit copies the tie, so
 the Audit's copy belongs to the same Glass's estimate. A duplicated spec
 belongs to none. A spec made before this rule carries no tie and starts a new
 estimate.
@@ -90,8 +92,8 @@ either caller of the shared import command uses that key. The same Case with
 the same hash is a replay that returns the existing live spec and leaves the
 spec in use as it was; the page reports that the file was already imported
 and shows that spec, and a Glass's return reports its estimate as recorded
-rather than as the spec in use. A discarded spec no longer holds its source,
-so importing that file again creates a new one. A different artifact creates
+rather than as the spec in use. A discarded spec is gone with its source, so
+importing that file again creates a new one. A different artifact creates
 the next spec. A Glass's return that updates its spec answers only for that
 spec: the same export replays to it, and another spec holding that hash is
 not it. The provider and parser are detected from the registered types; an
@@ -513,7 +515,7 @@ the same import. A staff Import makes the imported spec Current.
 
 | Thing | States |
 | --- | --- |
-| Repair specification | Draft (live) or Discarded. At most one live spec is Current: a staff-created spec is Current at once, and Use repair spec switches. Edits keep the spec; imports, scales, restores and sent reports freeze numbered versions |
+| Repair specification | Draft (live) until discarded, which deletes it. At most one spec is Current: a staff-created spec is Current at once, and Use repair spec switches. Edits keep the spec; imports, scales, restores and sent reports freeze numbered versions |
 | Glass's session | prepared (work running in the background), launched, `Unknown` (holds the account), continued, closed by the owning staff member with a reason, or ended when a colleague holding the Case reopens the same estimate. Interrupted work settles Prepared as resumable and anything past it as `Unknown`. A `Failed` session whose export was unreadable, or could not be fetched after a successful relay, can fetch that estimate again |
 
 ## Edge cases and fail-closed behaviour

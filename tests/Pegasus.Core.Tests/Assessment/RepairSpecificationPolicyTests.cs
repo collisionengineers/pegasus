@@ -12,10 +12,7 @@ public sealed class RepairSpecificationPolicyTests
     public void TheStatesAndRoutesKeepTheirStoredNumbers()
     {
         Assert.Equal(0, (int)RepairSpecificationState.Draft);
-        Assert.Equal(3, (int)RepairSpecificationState.Discarded);
-        Assert.Equal(
-            [RepairSpecificationState.Draft, RepairSpecificationState.Discarded],
-            Enum.GetValues<RepairSpecificationState>());
+        Assert.Equal([RepairSpecificationState.Draft], Enum.GetValues<RepairSpecificationState>());
 
         Assert.Equal(1, (int)RepairSpecificationSourceRoute.Manual);
         Assert.Equal(2, (int)RepairSpecificationSourceRoute.Glasses);
