@@ -1302,8 +1302,8 @@ it stopped.
   the stock entry no longer reads as the placeholder: its registration is set,
   or its type number changed.
 - A Get valuation logged at `glass.lookup.notfound … natcode=absent` means
-  Glass's does not know the plate; the card's notice is the approved one and
-  there is no placeholder for a valuation.
+  Glass's does not know the plate; the card says so as information, nothing
+  needs reporting, and there is no placeholder for a valuation.
 - "Module checksum failed" at the first Box sign-in means a Box SDK FIPS
   assembly was compiled ReadyToRun. The Web project excludes them and
   `Build-ReleaseArtifacts.ps1` refuses a publish that compiles them.
