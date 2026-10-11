@@ -159,39 +159,54 @@ public sealed partial class IndexModel(
 
         try
         {
-            if (RecordKindFilter != "instructions")
-            {
-                await LoadImageIntakeResultsAsync(cancellationToken);
-            }
+            // The Image Intake lookups and the Case search read independently, so they run together.
+            var imageIntakeLoad = RecordKindFilter != "instructions"
+                ? LoadImageIntakeResultsAsync(cancellationToken)
+                : Task.CompletedTask;
 
             if (RecordKindFilter == "images")
             {
+                await imageIntakeLoad;
                 LoadedAtUtc = timeProvider.GetUtcNow();
                 return Page();
             }
 
-            Results = await searchCases.ExecuteAsync(
-                new(
-                    actor,
+            Task<SearchCasesResult> caseSearch;
+            try
+            {
+                caseSearch = searchCases.ExecuteAsync(
                     new(
-                        CaseReference,
-                        Registration,
-                        Claimant,
-                        ClaimNumber,
-                        Principal,
-                        // The State filter is a stage: With Engineer finds both of its states (D3).
-                        State is { } state ? OperatorLabels.CaseStageStates(state) : null,
-                        EngineerId,
-                        ReceivedDate,
-                        FromDate,
-                        ToDate,
-                        Origin,
-                        Query,
-                        // Search is the one list that finds Triage Cases (decision W).
-                        IncludeTriage: true),
-                    PageNumber,
-                    ResultsPerPage),
-                cancellationToken);
+                        actor,
+                        new(
+                            CaseReference,
+                            Registration,
+                            Claimant,
+                            ClaimNumber,
+                            Principal,
+                            // The State filter is a stage: With Engineer finds both of its states (D3).
+                            State is { } state ? OperatorLabels.CaseStageStates(state) : null,
+                            EngineerId,
+                            ReceivedDate,
+                            FromDate,
+                            ToDate,
+                            Origin,
+                            Query,
+                            // Search is the one list that finds Triage Cases (decision W).
+                            IncludeTriage: true),
+                        PageNumber,
+                        ResultsPerPage,
+                        IncludeAccidentCircumstances: true),
+                    cancellationToken);
+            }
+            catch
+            {
+                // Validation throws before any task starts: the Image Intake results still land first.
+                await imageIntakeLoad;
+                throw;
+            }
+
+            await imageIntakeLoad;
+            Results = await caseSearch;
             // Paging counts Cases: the page's Cases expand into their entries here.
             Rows = await ComposeRowsAsync(cancellationToken);
 
@@ -238,14 +253,12 @@ public sealed partial class IndexModel(
     {
         var results = new List<ImageIntakeSummary>();
         var seen = new HashSet<Guid>();
-        foreach (var raw in new[] { CaseReference, Query })
+        foreach (var candidate in new[] { CaseReference, Query }
+            .Select(raw => raw?.Trim().ToUpperInvariant())
+            .Where(candidate => !string.IsNullOrEmpty(candidate))
+            .OfType<string>()
+            .Distinct())
         {
-            var candidate = raw?.Trim().ToUpperInvariant();
-            if (string.IsNullOrEmpty(candidate))
-            {
-                continue;
-            }
-
             var byReference = await imageIntakeQueries.GetByReferenceAsync(
                 candidate,
                 cancellationToken);
@@ -270,17 +283,14 @@ public sealed partial class IndexModel(
             }
         }
 
-        foreach (var raw in new[] { Registration, Query })
-        {
-            var compact = new string((raw ?? string.Empty)
+        foreach (var compact in new[] { Registration, Query }
+            .Select(raw => new string((raw ?? string.Empty)
                 .ToUpperInvariant()
                 .Where(character => char.IsAsciiLetterUpper(character) || char.IsAsciiDigit(character))
-                .ToArray());
-            if (compact.Length == 0)
-            {
-                continue;
-            }
-
+                .ToArray()))
+            .Where(compact => compact.Length > 0)
+            .Distinct())
+        {
             foreach (var summary in await imageIntakeQueries.SearchByRegistrationAsync(
                 compact,
                 cancellationToken))

@@ -56,6 +56,10 @@ public sealed class EfCaseQueryStore(
             .Take(query.PageSize)
             .Select(item => MapSearchItem(item, now))
             .ToArray();
+        if (query.IncludeAccidentCircumstances)
+        {
+            items = await WithAccidentCircumstancesAsync(context, items, cancellationToken);
+        }
 
         return new(
             items,
@@ -878,6 +882,40 @@ public sealed class EfCaseQueryStore(
     }
 
     /// <summary>
+    /// The page's accident circumstances, read for its Cases alone: the draft's
+    /// when the Case came from an instruction draft, else the confirmed field.
+    /// Only the Search preview shows them, so the shared search rows leave them out.
+    /// </summary>
+    private static async Task<CaseSearchItem[]> WithAccidentCircumstancesAsync(
+        PegasusDbContext context,
+        CaseSearchItem[] items,
+        CancellationToken cancellationToken)
+    {
+        var caseIds = items.Select(item => item.CaseId).ToArray();
+        var circumstances = await (
+            from caseEntity in context.Set<CaseEntity>().AsNoTracking()
+            where caseIds.Contains(caseEntity.Id)
+            join draftCandidate in context.Set<InstructionDraftEntity>().AsNoTracking()
+                on caseEntity.OriginIntakeReceiptId equals draftCandidate.IntakeReceiptId into drafts
+            from draft in drafts.DefaultIfEmpty()
+            join confirmedCandidate in context.CaseDataFields.AsNoTracking()
+                    .Where(item => item.FieldName == CaseDataFieldNames.AccidentCircumstances
+                        && item.ValueKind == CaseDataCodes.Confirmed)
+                on caseEntity.Id equals confirmedCandidate.WorkId into confirmedRows
+            from confirmed in confirmedRows.DefaultIfEmpty()
+            select new
+            {
+                caseEntity.Id,
+                Value = draft == null ? confirmed!.Value : draft.AccidentCircumstances
+            }).ToDictionaryAsync(row => row.Id, row => row.Value, cancellationToken);
+        return items
+            .Select(item => circumstances.TryGetValue(item.CaseId, out var value)
+                ? item with { AccidentCircumstances = value }
+                : item)
+            .ToArray();
+    }
+
+    /// <summary>
     /// The search rows, with Triage Cases only when the caller asks for them.
     /// </summary>
     private static IQueryable<SearchRow> SearchRows(PegasusDbContext context, bool includeTriage) =>
@@ -931,11 +969,6 @@ public sealed class EfCaseQueryStore(
                     && item.ValueKind == CaseDataCodes.Confirmed)
             on caseEntity.Id equals confirmedModelCandidate.WorkId into confirmedModels
         from confirmedModel in confirmedModels.DefaultIfEmpty()
-        join confirmedCircumstancesCandidate in context.CaseDataFields.AsNoTracking()
-                .Where(item => item.FieldName == CaseDataFieldNames.AccidentCircumstances
-                    && item.ValueKind == CaseDataCodes.Confirmed)
-            on caseEntity.Id equals confirmedCircumstancesCandidate.WorkId into confirmedCircumstanceRows
-        from confirmedCircumstances in confirmedCircumstanceRows.DefaultIfEmpty()
         select new SearchRow
         {
             CaseId = caseEntity.Id,
@@ -952,9 +985,6 @@ public sealed class EfCaseQueryStore(
             ClaimNumber = draft == null ? confirmedClaimNumber!.Value : draft.ClaimNumber,
             VehicleMake = draft == null ? confirmedMake!.Value : draft.VehicleMake,
             VehicleModel = draft == null ? confirmedModel!.Value : draft.VehicleModel,
-            AccidentCircumstances = draft == null
-                ? confirmedCircumstances!.Value
-                : draft.AccidentCircumstances,
             ReceivedAtUtc = receipt == null ? caseEntity.CreatedAtUtc : receipt.ReceivedAtUtc,
             Origin = receipt == null ? "manual" : receipt.SourceChannel,
             CreatedAtUtc = caseEntity.CreatedAtUtc,
@@ -1007,11 +1037,6 @@ public sealed class EfCaseQueryStore(
                     && item.ValueKind == CaseDataCodes.Confirmed)
             on caseEntity.Id equals confirmedModelCandidate.WorkId into confirmedModels
         from confirmedModel in confirmedModels.DefaultIfEmpty()
-        join confirmedCircumstancesCandidate in context.CaseDataFields.AsNoTracking()
-                .Where(item => item.FieldName == CaseDataFieldNames.AccidentCircumstances
-                    && item.ValueKind == CaseDataCodes.Confirmed)
-            on caseEntity.Id equals confirmedCircumstancesCandidate.WorkId into confirmedCircumstanceRows
-        from confirmedCircumstances in confirmedCircumstanceRows.DefaultIfEmpty()
         select new SearchRow
         {
             CaseId = caseEntity.Id,
@@ -1026,9 +1051,6 @@ public sealed class EfCaseQueryStore(
             ClaimNumber = draft == null ? confirmedClaimNumber!.Value : draft.ClaimNumber,
             VehicleMake = draft == null ? confirmedMake!.Value : draft.VehicleMake,
             VehicleModel = draft == null ? confirmedModel!.Value : draft.VehicleModel,
-            AccidentCircumstances = draft == null
-                ? confirmedCircumstances!.Value
-                : draft.AccidentCircumstances,
             ReceivedAtUtc = receipt == null ? caseEntity.CreatedAtUtc : receipt.ReceivedAtUtc,
             Origin = receipt == null ? "manual" : receipt.SourceChannel,
             CreatedAtUtc = caseEntity.CreatedAtUtc,
@@ -1319,8 +1341,7 @@ public sealed class EfCaseQueryStore(
         item.CreatedAtUtc,
         CaseDuePolicy.DueAt(item.NextChaseAtUtc, item.DueBy),
         item.VehicleMake,
-        item.VehicleModel,
-        item.AccidentCircumstances)
+        item.VehicleModel)
     {
         InstructionComplete = item.InstructionComplete,
         ImagesComplete = item.ImagesComplete,
@@ -1545,7 +1566,6 @@ public sealed class EfCaseQueryStore(
         public DateOnly? DueBy { get; init; }
         public string? VehicleMake { get; init; }
         public string? VehicleModel { get; init; }
-        public string? AccidentCircumstances { get; init; }
         public bool InstructionComplete { get; init; }
         public bool ImagesComplete { get; init; }
         public DateOnly? HoldReviewOn { get; init; }

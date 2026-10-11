@@ -139,7 +139,17 @@ public sealed class GroupedIntakeTests
             return Task.FromResult(new ReceivedIntake(Guid.NewGuid(), false));
         }
 
-        public async Task<ReceivedIntake> ExecuteStreamedAsync(
+        public Task<ReceivedIntake> ExecuteStreamedAsync(
+            StreamedIntakeSource source,
+            string operationKey,
+            CancellationToken cancellationToken = default) =>
+            ReceiveStreamedAsync(source, operationKey, cancellationToken);
+
+        public Task PublishCommittedAsync(
+            ReceivedIntake received,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public async Task<ReceivedIntake> ReceiveStreamedAsync(
             StreamedIntakeSource source,
             string operationKey,
             CancellationToken cancellationToken = default)

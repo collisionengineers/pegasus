@@ -344,6 +344,7 @@ public sealed class SubmitGroupedIntake(
             request.ParentReceiptId,
             cancellationToken);
         var duplicates = new Dictionary<int, bool>(files.Length);
+        var committed = new List<ReceivedIntake>(files.Length);
         foreach (var file in files)
         {
             var existing = group.Members.FirstOrDefault(member => member.Ordinal == file.Ordinal);
@@ -366,13 +367,18 @@ public sealed class SubmitGroupedIntake(
                     GroupedIntakeMemberToken.Create(request.SubmissionToken, file.Ordinal)),
                 DeclaredCaseId = request.DeclaredCaseId
             };
-            var received = await submission.ExecuteStreamedAsync(
+            var received = await submission.ReceiveStreamedAsync(
                 source,
                 $"{OperationPrefix(request.Channel)}:{request.SubmissionToken}:{file.Ordinal}",
                 cancellationToken);
             await groupStore.AddMemberAsync(group.Id, file.Ordinal, received, cancellationToken);
             duplicates[file.Ordinal] = received.IsDuplicate;
+            committed.Add(received);
         }
+
+        // Publication follows the last member so the committed receipts publish together.
+        await Task.WhenAll(committed.Select(received =>
+            submission.PublishCommittedAsync(received, cancellationToken)));
 
         var members = await groupStore.ListMembersAsync(group.Id, cancellationToken);
         if (members.Count != files.Length)
