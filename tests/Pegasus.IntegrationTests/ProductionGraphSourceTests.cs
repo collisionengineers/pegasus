@@ -784,6 +784,107 @@ public sealed class ProductionGraphSourceTests
     }
 
     [Fact]
+    public async Task DeletedSearchReadsAtMostTwoMessagesAtOnceAndKeepsReceivedOrder()
+    {
+        var inFlight = 0;
+        var peak = 0;
+        var handler = new AsyncHandler(async request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.EndsWith("/mailFolders/deleteditems", StringComparison.Ordinal))
+            {
+                return Response(HttpStatusCode.OK, """{"id":"deleted-folder"}""");
+            }
+            if (path.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                var now = Interlocked.Increment(ref inFlight);
+                int seen;
+                while ((seen = Volatile.Read(ref peak)) < now
+                    && Interlocked.CompareExchange(ref peak, now, seen) != seen)
+                {
+                }
+                await Task.Delay(50);
+                Interlocked.Decrement(ref inFlight);
+                return Response(
+                    HttpStatusCode.OK,
+                    "From: sender@example.test
+Subject: Deleted
+"
+                    + "MIME-Version: 1.0
+Content-Type: text/plain
+
+The needle is here.
+",
+                    "message/rfc822");
+            }
+            return Response(
+                HttpStatusCode.OK,
+                """{"value":[
+                {"id":"m1","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T10:00:00Z","isRead":false},
+                {"id":"m2","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T11:00:00Z","isRead":false},
+                {"id":"m3","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T12:00:00Z","isRead":false},
+                {"id":"m4","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T13:00:00Z","isRead":false},
+                {"id":"m5","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T14:00:00Z","isRead":false}]}""");
+        });
+        var options = Options();
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new MailboxEstate([Mailbox(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId)]),
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+
+        var result = await source.SearchAsync(null, "needle", 100, CancellationToken.None);
+
+        Assert.Equal(["m5", "m4", "m3", "m2", "m1"], result.Items.Select(item => item.ImmutableMessageId));
+        Assert.Equal(2, peak);
+    }
+
+    [Fact]
+    public async Task DeletedSearchBecomesUnavailableWhenAnyMessageReadIsThrottled()
+    {
+        var handler = new AsyncHandler(async request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.EndsWith("/mailFolders/deleteditems", StringComparison.Ordinal))
+            {
+                return Response(HttpStatusCode.OK, """{"id":"deleted-folder"}""");
+            }
+            if (path.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                await Task.Delay(10);
+                return path.Contains("/m2/", StringComparison.Ordinal)
+                    ? Response(HttpStatusCode.TooManyRequests, "{}")
+                    : Response(
+                        HttpStatusCode.OK,
+                        "From: sender@example.test
+Subject: Deleted
+"
+                        + "MIME-Version: 1.0
+Content-Type: text/plain
+
+The needle is here.
+",
+                        "message/rfc822");
+            }
+            return Response(
+                HttpStatusCode.OK,
+                """{"value":[
+                {"id":"m1","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T10:00:00Z","isRead":false},
+                {"id":"m2","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T11:00:00Z","isRead":false},
+                {"id":"m3","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T12:00:00Z","isRead":false}]}""");
+        });
+        var options = Options();
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new MailboxEstate([Mailbox(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId)]),
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+
+        var result = await source.SearchAsync(null, "needle", 100, CancellationToken.None);
+
+        Assert.Equal(DeletedMailSearchState.Unavailable, result.State);
+        Assert.Empty(result.Items);
+    }
+
+    [Fact]
     public async Task DeletedSearchDoesNotCallGraphForAMailboxOutsideTheApprovedEstate()
     {
         var calls = 0;
@@ -1826,6 +1927,12 @@ public sealed class ProductionGraphSourceTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(handler(request));
+    }
+
+    private sealed class AsyncHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> handler) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            handler(request);
     }
 
     /// <summary>
