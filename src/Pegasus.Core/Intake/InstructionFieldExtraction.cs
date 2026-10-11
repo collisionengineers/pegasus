@@ -137,7 +137,7 @@ internal static partial class InstructionFieldEngine
                         TimeSpan.FromMilliseconds(100));
                 }
 
-                var normalizedLabels = definition.Labels.Select(Normalize).ToArray();
+                var normalizedLabels = definition.Labels.Select(SourceStructure.Normalize).ToArray();
                 knownLabels.UnionWith(normalizedLabels);
                 patterns.Add(definition, new(
                     candidate,
@@ -145,7 +145,7 @@ internal static partial class InstructionFieldEngine
                     startsWith,
                     followingLabel,
                     normalizedLabels,
-                    definition.FormFields is { Length: > 0 } names ? names.Select(Normalize).ToArray() : null));
+                    definition.FormFields is { Length: > 0 } names ? names.Select(SourceStructure.Normalize).ToArray() : null));
             }
         }
 
@@ -338,7 +338,7 @@ internal static partial class InstructionFieldEngine
         /// punctuation and whitespace; they may not match a substring, which is
         /// what would let a neighbouring column's header be read as this label.
         /// </summary>
-        private static string Normalize(string value)
+        internal static string Normalize(string value)
         {
             var builder = new StringBuilder(value.Length);
             foreach (var character in value)
