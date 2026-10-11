@@ -846,9 +846,6 @@ public sealed class AutomaticImageIntakeTests
             Task.FromResult<IReadOnlyList<ImageVrmSuggestion>>(
                 Records.Where(record => record.IntakeReceiptId == intakeReceiptId).ToArray());
 
-        public Task<ImageVrmSuggestion?> GetAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult(Records.FirstOrDefault(record => record.Id == id));
-
         public Task<ImageVrmSuggestion> SetDispositionAsync(
             ImageVrmSuggestionDispositionRequest request,
             CancellationToken cancellationToken)

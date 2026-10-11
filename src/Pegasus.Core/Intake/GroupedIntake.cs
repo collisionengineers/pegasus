@@ -50,10 +50,6 @@ public sealed record IntakeSubmissionGroupMember(
     public Guid? ProcessedReceiptId { get; init; }
 }
 
-public sealed record GroupedIntakeFile(
-    int Ordinal,
-    IntakeSource Source);
-
 public sealed record StreamedGroupedIntakeFile(int Ordinal, StreamedIntakeSource Source);
 
 /// <param name="DeclaredCaseId">
@@ -64,15 +60,6 @@ public sealed record StreamedGroupedIntakeFile(int Ordinal, StreamedIntakeSource
 public sealed record StreamedGroupedIntakeSubmissionRequest(string SubmissionToken, string Actor,
     DateTimeOffset ReceivedAtUtc, IReadOnlyList<StreamedGroupedIntakeFile> Files,
     IntakeSourceChannel Channel, Guid? ParentReceiptId = null, Guid? DeclaredCaseId = null);
-
-public sealed record GroupedIntakeSubmissionRequest(
-    string SubmissionToken,
-    string Actor,
-    DateTimeOffset ReceivedAtUtc,
-    IReadOnlyList<GroupedIntakeFile> Files,
-    IntakeSourceChannel Channel,
-    Guid? ParentReceiptId = null,
-    Guid? DeclaredCaseId = null);
 
 public sealed record GroupedIntakeSubmissionResult(
     IntakeSubmissionGroup Group,
@@ -149,10 +136,6 @@ public interface IIntakeSubmissionGroupStore
 
 public interface IGroupedIntakeSubmission
 {
-    Task<GroupedIntakeSubmissionResult> ExecuteAsync(
-        GroupedIntakeSubmissionRequest request,
-        CancellationToken cancellationToken = default);
-
     Task<GroupedIntakeSubmissionResult> ExecuteStreamedAsync(
         StreamedGroupedIntakeSubmissionRequest request,
         CancellationToken cancellationToken = default);
@@ -204,82 +187,6 @@ public sealed class SubmitGroupedIntake(
     IIntakeSubmissionGroupStore groupStore,
     TimeProvider timeProvider) : IGroupedIntakeSubmission
 {
-    public async Task<GroupedIntakeSubmissionResult> ExecuteAsync(
-        GroupedIntakeSubmissionRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.SubmissionToken);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.Actor);
-        if (request.Files is null || request.Files.Count == 0)
-        {
-            throw new ArgumentException("At least one file is required.", nameof(request));
-        }
-
-        var files = request.Files.OrderBy(file => file.Ordinal).ToArray();
-        if (files.Select(file => file.Ordinal).Distinct().Count() != files.Length
-            || files[0].Ordinal != 0
-            || files.Select((file, index) => file.Ordinal == index).Any(isContiguous => !isContiguous))
-        {
-            throw new ArgumentException("Group file ordinals must be contiguous from zero.", nameof(request));
-        }
-
-        var groupId = Guid.NewGuid();
-        var group = await groupStore.GetOrCreateAsync(
-            groupId,
-            request.Channel,
-            request.SubmissionToken,
-            files.Length,
-            request.Actor,
-            request.ReceivedAtUtc == default ? timeProvider.GetUtcNow() : request.ReceivedAtUtc,
-            request.ParentReceiptId,
-            cancellationToken);
-
-        // ListMembersAsync has no per-call knowledge of duplication, so this
-        // call's own replay/duplicate outcome per ordinal is tracked here and
-        // stamped onto the members it returns.
-        var isDuplicateByOrdinal = new Dictionary<int, bool>(files.Length);
-        foreach (var file in files)
-        {
-            var existing = group.Members.FirstOrDefault(member => member.Ordinal == file.Ordinal);
-            if (existing is not null)
-            {
-                var expectedHash = Convert.ToHexString(
-                    System.Security.Cryptography.SHA256.HashData(file.Source.Content.Span));
-                if (!string.Equals(existing.SourceHash, expectedHash, StringComparison.Ordinal))
-                {
-                    throw new IntakeSourceIdentityConflictException(existing.SourceHash, expectedHash);
-                }
-
-                isDuplicateByOrdinal[file.Ordinal] = true;
-                continue;
-            }
-
-            var childToken = GroupedIntakeMemberToken.Create(request.SubmissionToken, file.Ordinal);
-            var childOperation = $"{OperationPrefix(request.Channel)}:{request.SubmissionToken}:{file.Ordinal}";
-            var source = file.Source with
-            {
-                SourceIdentity = new(request.Channel, childToken),
-                DeclaredCaseId = request.DeclaredCaseId
-            };
-            var received = await submission.ExecuteAsync(source, childOperation, cancellationToken);
-            await groupStore.AddMemberAsync(group.Id, file.Ordinal, received, cancellationToken);
-            isDuplicateByOrdinal[file.Ordinal] = received.IsDuplicate;
-        }
-
-        var members = await groupStore.ListMembersAsync(group.Id, cancellationToken);
-        if (members.Count != files.Length)
-        {
-            throw new InvalidDataException("The submission group is missing a file member.");
-        }
-
-        members = members
-            .Select(member => member with { IsDuplicate = isDuplicateByOrdinal[member.Ordinal] })
-            .ToArray();
-
-        return new(group with { Members = members }, members);
-    }
-
     public async Task<GroupedIntakeSubmissionResult> ExecuteStreamedAsync(StreamedGroupedIntakeSubmissionRequest request,
         CancellationToken cancellationToken = default)
     {

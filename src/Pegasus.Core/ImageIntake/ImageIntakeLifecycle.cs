@@ -194,17 +194,6 @@ public static class ImageIntakeLifecycleRules
         || mediaType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)
         || EmailSourceFormat.IsMailMessage(fileName: null, mediaType);
 
-    public static bool IsImageOnlyMaterial(
-        bool hasInstructionDraft,
-        int extractedFieldCount,
-        IEnumerable<IntakeAssetRecord> retainedAssets)
-    {
-        ArgumentNullException.ThrowIfNull(retainedAssets);
-        return !hasInstructionDraft
-            && extractedFieldCount == 0
-            && InstructionEvidenceImages.Select(retainedAssets).Count != 0;
-    }
-
     public static void ValidateRegister(RegisterImageIntakeRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);

@@ -13,23 +13,6 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfUnidentifiedStore(
     IDbContextFactory<PegasusDbContext> contextFactory) : IUnidentifiedStore
 {
-    public async Task<UnidentifiedRegisterResult?> ProbeRegisterReplayAsync(
-        RegisterUnidentifiedRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        UnidentifiedValidation.ValidateRegister(request);
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.Set<UnidentifiedItemEntity>().AsNoTracking()
-            .SingleOrDefaultAsync(item => item.RegistrationOperationKey == request.OperationKey.Trim(), cancellationToken);
-        if (entity is null)
-        {
-            return null;
-        }
-
-        EnsureRegistrationReplay(entity, request);
-        return new(Map(entity), true);
-    }
-
     public async Task<UnidentifiedRegisterResult> RegisterAsync(
         RegisterUnidentifiedRequest request,
         CancellationToken cancellationToken = default)

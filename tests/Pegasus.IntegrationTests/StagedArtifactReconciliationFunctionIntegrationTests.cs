@@ -532,12 +532,6 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
-        public Task ScheduleReevaluationAsync(
-            Guid stagedReceiptId,
-            DateTimeOffset dueAtUtc,
-            CancellationToken cancellationToken) =>
-            throw UnexpectedCall();
-
         public Task<Guid?> FindStagedReceiptIdForReceiptAsync(
             Guid intakeReceiptId,
             CancellationToken cancellationToken) =>
@@ -630,11 +624,6 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
     private sealed class EmptyUnidentifiedStore : IUnidentifiedStore
     {
         public Task<UnidentifiedRegisterResult> RegisterAsync(
-            RegisterUnidentifiedRequest request,
-            CancellationToken cancellationToken = default) =>
-            throw UnexpectedCall();
-
-        public Task<UnidentifiedRegisterResult?> ProbeRegisterReplayAsync(
             RegisterUnidentifiedRequest request,
             CancellationToken cancellationToken = default) =>
             throw UnexpectedCall();
