@@ -101,6 +101,7 @@ public sealed partial class DetailsModel(
     IListAppliedValuations listAppliedValuations,
     ILogger<DetailsModel> logger,
     IGetCaseKind getCaseKind,
+    IGetCaseHasAuditWork getCaseHasAuditWork,
     IValidateCaseRenderLease? validateCaseRenderLease = null,
     IStaffMailSend? staffMailSend = null) : CaseMutationPageModel(logger)
 {
@@ -2877,7 +2878,7 @@ public sealed partial class DetailsModel(
         // Audit acts on the Inspection's own work whatever the Case's state:
         // the Case's read-only states are the Audit's (operator, 1 October
         // 2026).
-        if (access.IsReadOnly && !await PostedFromInspectionViewAsync(id, actor, cancellationToken))
+        if (access.IsReadOnly && !await PostedFromInspectionViewAsync(id, cancellationToken))
         {
             TempData["CaseError"] = "The case is read-only once Complete.";
             return redirect();
@@ -2898,12 +2899,12 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// Whether a posted command names the Inspection view of a Case that has
-    /// its Audit, read from the Case header; the view alone names nothing on
+    /// its Audit, read from the Case's works; the view alone names nothing on
     /// a Case with one work.
     /// </summary>
-    private async Task<bool> PostedFromInspectionViewAsync(Guid id, ActionActor actor, CancellationToken cancellationToken) =>
+    private async Task<bool> PostedFromInspectionViewAsync(Guid id, CancellationToken cancellationToken) =>
         WorkSelector == CaseWorkSelector.Primary
-        && (await getCaseHeader.ExecuteAsync(new GetCaseHeaderQuery(id, actor), cancellationToken))?.Works is { HasAudit: true };
+        && await getCaseHasAuditWork.ExecuteAsync(id, cancellationToken);
 
     /// <summary>Back to the Report section, in the view the request came from.</summary>
     private RedirectToPageResult RedirectToReport(Guid id) =>

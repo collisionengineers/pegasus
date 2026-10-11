@@ -510,6 +510,13 @@ public interface ITriageQueries
     Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// The Triage's record alone, for a caller that needs only whether it
+    /// exists or what state it is in; <see cref="GetAsync"/> reads the
+    /// findings, evidence, history and files besides.
+    /// </summary>
+    Task<TriageRecord?> GetRecordAsync(Guid caseId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// The Triage Case this receipt opened, if it opened one. Mirrors
     /// <c>IImageIntakeQueries.GetByOriginReceiptAsync</c>: an origin receipt
     /// has at most one, and the Unidentified supersession rule needs to ask.

@@ -517,7 +517,7 @@ public sealed class RegisterUnidentified(IUnidentifiedStore store) : IRegisterUn
 /// </summary>
 public sealed class ResolveUnidentified(
     IUnidentifiedStore store,
-    ICaseQueryStore? caseQueries = null,
+    ICaseKindQueries? caseKinds = null,
     IImageIntakeQueries? imageIntakeQueries = null,
     ITriageQueries? triageQueries = null) : IResolveUnidentified
 {
@@ -538,14 +538,15 @@ public sealed class ResolveUnidentified(
         var exists = request.TargetKind switch
         {
             UnidentifiedResolutionTargetKind.InstructionCase => Guid.TryParse(targetId, out var caseId)
-                && caseQueries is not null
-                && await caseQueries.GetSectionFrameAsync(caseId, cancellationToken) is not null,
+                && caseKinds is not null
+                && await caseKinds.GetAsync(caseId, cancellationToken) is { } kind
+                && kind != CaseType.Triage,
             UnidentifiedResolutionTargetKind.ImageIntake => Guid.TryParse(targetId, out var imageIntakeId)
                 && imageIntakeQueries is not null
                 && await imageIntakeQueries.GetAsync(imageIntakeId, cancellationToken) is not null,
             UnidentifiedResolutionTargetKind.Triage => Guid.TryParse(targetId, out var triageId)
                 && triageQueries is not null
-                && await triageQueries.GetAsync(triageId, cancellationToken) is not null,
+                && await triageQueries.GetRecordAsync(triageId, cancellationToken) is not null,
             // Free-form external reference; no Core-owned destination to validate.
             UnidentifiedResolutionTargetKind.ExternalReference => true,
             // Close with reason names no destination: the reason is the record.
