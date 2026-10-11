@@ -93,7 +93,7 @@ public sealed class AzureBlobIntakeArtifactStoreTests
     }
 
     [Fact]
-    public async Task DeleteRequiresCompletedMetadataAndTagUnderTheExpectedETag()
+    public async Task DeleteRequiresCompletedTagUnderTheExpectedETagWithoutRereadingTheBlob()
     {
         var etag = new ETag("\"etag-1\"");
         var pending = new StubBlobClient(
@@ -132,6 +132,8 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             completed.LastDeleteConditions?.TagConditions);
         Assert.Equal(0, pending.DownloadCount);
         Assert.Equal(0, completed.DownloadCount);
+        Assert.Equal(0, pending.ReadCount);
+        Assert.Equal(0, completed.ReadCount);
     }
 
     [Fact]
@@ -228,6 +230,7 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         internal RequestFailedException? DownloadFailure { get; init; }
         internal int DownloadCount { get; private set; }
         internal int DeleteCount { get; private set; }
+        internal int ReadCount { get; private set; }
         internal BlobRequestConditions? LastConditionalGetPropertiesConditions { get; private set; }
         internal BlobRequestConditions? LastSetMetadataConditions { get; private set; }
         internal BlobRequestConditions? LastSetTagsConditions { get; private set; }
@@ -237,6 +240,7 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             BlobRequestConditions? conditions = null,
             CancellationToken cancellationToken = default)
         {
+            ReadCount++;
             if (conditions is not null)
             {
                 LastConditionalGetPropertiesConditions = conditions;
@@ -254,10 +258,13 @@ public sealed class AzureBlobIntakeArtifactStoreTests
 
         public override Task<Response<GetBlobTagResult>> GetTagsAsync(
             BlobRequestConditions? conditions = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(Response.FromValue(
+            CancellationToken cancellationToken = default)
+        {
+            ReadCount++;
+            return Task.FromResult(Response.FromValue(
                 BlobsModelFactory.GetBlobTagResult(Tags),
                 new StubResponse()));
+        }
 
         public override Task<Response<BlobInfo>> SetMetadataAsync(
             IDictionary<string, string> metadata,
@@ -287,8 +294,14 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             BlobRequestConditions? conditions = null,
             CancellationToken cancellationToken = default)
         {
-            DeleteCount++;
             LastDeleteConditions = conditions;
+            if (conditions?.TagConditions is { } tagCondition
+                && !tagCondition.Contains($"'{Tags["PegasusDisposition"]}'", StringComparison.Ordinal))
+            {
+                throw new RequestFailedException(412, "Tag condition not met.");
+            }
+
+            DeleteCount++;
             return Task.FromResult(Response.FromValue(true, new StubResponse()));
         }
 

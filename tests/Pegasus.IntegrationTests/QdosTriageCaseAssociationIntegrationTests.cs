@@ -110,6 +110,34 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.False(string.IsNullOrWhiteSpace(lease.Token));
     }
 
+    [Fact]
+    public async Task AutomaticLinkCandidatesForAnAcceptedCaseAreScopedToItsPrincipal()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-link-principal-scope.eml");
+        _ = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
+        var triage = (await GetOnlyTriageAsync(factory.Services)).Record;
+        var caseId = await SeedMatchingFormalCaseAsync(factory.Services, triage.Origin!.ReceiptId);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<ITriageStore>();
+
+        var scoped = Assert.Single(await store.ListAutomaticLinkCandidatesAsync(null, caseId, 5, CancellationToken.None));
+        Assert.Equal(caseId, scoped.InstructionCaseId);
+        Assert.Empty(await store.ListAutomaticLinkCandidatesAsync(null, Guid.NewGuid(), 5, CancellationToken.None));
+
+        var contexts = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using (var context = await contexts.CreateDbContextAsync())
+        {
+            var instruction = await context.Cases.SingleAsync(item => item.Id == caseId);
+            var otherPrincipal = await context.Principals.AsNoTracking()
+                .FirstAsync(item => item.Id != instruction.PrincipalId);
+            instruction.PrincipalId = otherPrincipal.Id;
+            await context.SaveChangesAsync();
+        }
+
+        Assert.Empty(await store.ListAutomaticLinkCandidatesAsync(null, caseId, 5, CancellationToken.None));
+    }
+
     internal static async Task<Guid> SeedMatchingFormalCaseAsync(
         IServiceProvider services, Guid originReceiptId, int sequence = 1)
     {
