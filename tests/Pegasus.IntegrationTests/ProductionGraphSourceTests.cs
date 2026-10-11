@@ -812,12 +812,7 @@ public sealed class ProductionGraphSourceTests
             }
             return Response(
                 HttpStatusCode.OK,
-                """{"value":[
-                {"id":"m1","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T10:00:00Z","isRead":false},
-                {"id":"m2","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T11:00:00Z","isRead":false},
-                {"id":"m3","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T12:00:00Z","isRead":false},
-                {"id":"m4","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T13:00:00Z","isRead":false},
-                {"id":"m5","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T14:00:00Z","isRead":false}]}""");
+                """{"value":[{"id":"m1","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T10:00:00Z","isRead":false},{"id":"m2","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T11:00:00Z","isRead":false},{"id":"m3","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T12:00:00Z","isRead":false},{"id":"m4","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T13:00:00Z","isRead":false},{"id":"m5","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T14:00:00Z","isRead":false}]}""");
         });
         var options = Options();
         var source = new GraphDeletedMailSearchSource(
@@ -853,10 +848,7 @@ public sealed class ProductionGraphSourceTests
             }
             return Response(
                 HttpStatusCode.OK,
-                """{"value":[
-                {"id":"m1","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T10:00:00Z","isRead":false},
-                {"id":"m2","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T11:00:00Z","isRead":false},
-                {"id":"m3","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T12:00:00Z","isRead":false}]}""");
+                """{"value":[{"id":"m1","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T10:00:00Z","isRead":false},{"id":"m2","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T11:00:00Z","isRead":false},{"id":"m3","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T12:00:00Z","isRead":false}]}""");
         });
         var options = Options();
         var source = new GraphDeletedMailSearchSource(
