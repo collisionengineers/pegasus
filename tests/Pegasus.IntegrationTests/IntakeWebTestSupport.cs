@@ -170,6 +170,8 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             // Core route tests have proved its exact-ID call contract.
             services.RemoveAll<ICommittedIntakeWorkPublisher>();
             services.AddScoped<ICommittedIntakeWorkPublisher, DiscardingCommittedWorkPublisher>();
+            services.RemoveAll<IIntakeWorkEnqueuer>();
+            services.AddScoped<IIntakeWorkEnqueuer, IntakeWebDriver.NoOpIntakeWorkEnqueuer>();
             services.RemoveAll<ICommittedExternalWorkPublisher>();
             services.AddScoped<ICommittedExternalWorkPublisher, DiscardingCommittedWorkPublisher>();
             services.AddSingleton(timeProvider);

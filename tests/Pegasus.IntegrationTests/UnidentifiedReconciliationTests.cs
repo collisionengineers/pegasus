@@ -127,7 +127,7 @@ public sealed class UnidentifiedReconciliationTests
         var reconciler = services.GetRequiredService<ReconcileUnidentifiedDestinations>();
 
         // Forward direction: the staff link on a still-NeedsSorting receipt
-        // resolved the item in its own request (LinkIntake, FRD-22). The sweep
+        // resolved the item through the link's Worker replay (FRD-22). The sweep
         // then only completes the fresh resolution's recheck watermark and
         // writes nothing.
         var resolvedToA = await store.GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId));
@@ -167,7 +167,7 @@ public sealed class UnidentifiedReconciliationTests
                 && entry.NewState == UnidentifiedState.Open);
 
         // Relink to a different case: the open item follows it, again in the
-        // link's own request; the sweep only rechecks the moved association.
+        // link's Worker replay; the sweep only rechecks the moved association.
         await LinkAsync(factory.Services, receiptId, caseB, actor, "recon-link-b");
         var resolvedToB = await store.GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId));
         Assert.Equal(UnidentifiedState.Resolved, resolvedToB!.State);

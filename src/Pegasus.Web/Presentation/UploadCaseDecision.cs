@@ -580,9 +580,9 @@ public sealed class UploadCaseDecision(
             return new(false, "Nothing from this submission could be added to that case.");
         }
 
-        // Each member's link (LinkIntake) files its evidence and settles the
-        // group-owned Unidentified item once the complete roster reaches one
-        // Case; the worker sweep repeats that safely if a request is cut short.
+        // Each member's link (LinkIntake) commits the association and hands
+        // filing and the group-owned Unidentified settlement to the Worker's
+        // replay of that member's work.
         var message = OperatorLabels.AssociatedWithCase(
             destination?.Reference ?? firstReceipt.CurrentCaseReference,
             byStaffDecision: true);
