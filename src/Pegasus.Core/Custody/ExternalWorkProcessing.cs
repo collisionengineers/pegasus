@@ -152,10 +152,7 @@ public sealed class UnknownExternalWorkKindException(Guid workItemId, string? ki
 
 public sealed record PendingWorkDispatchResult(
     int IntakeWorkCount,
-    int ExternalWorkCount)
-{
-    public int TotalCount => checked(IntakeWorkCount + ExternalWorkCount);
-}
+    int ExternalWorkCount);
 
 /// <summary>
 /// The single timer-facing Core use case for both durable work outboxes.

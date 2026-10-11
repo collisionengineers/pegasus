@@ -329,7 +329,6 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         public int Purges { get; private set; }
         public Task<StaffNotification> AddAsync(NewStaffNotification notification, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<StaffNotification>> ListAsync(Guid staffId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<int> CountUnreadAsync(Guid staffId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<StaffNotification?> MarkReadAsync(Guid staffId, Guid notificationId, DateTimeOffset readAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<int> MarkAllReadAsync(Guid staffId, DateTimeOffset readAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<int> PurgeOlderThanAsync(DateTimeOffset cutoffUtc, CancellationToken cancellationToken)
