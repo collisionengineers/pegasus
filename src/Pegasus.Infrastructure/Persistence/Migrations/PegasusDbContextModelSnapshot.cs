@@ -586,10 +586,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedAtUtc");
 
-                    b.HasIndex("MarketResearchDocumentOccurrenceId");
-
-                    b.HasIndex("MarketResearchValuationId");
-
                     b.HasIndex("OperationKey")
                         .IsUnique();
 

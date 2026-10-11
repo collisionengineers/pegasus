@@ -19,7 +19,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 typeof(AiJobEntity),
                 baseEntityType,
                 propertyCount: 36,
-                unnamedIndexCount: 6,
+                unnamedIndexCount: 4,
                 keyCount: 1);
 
             var jobId = runtimeEntityType.AddProperty(
@@ -338,19 +338,13 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 new[] { createdAtUtc });
 
             var index0 = runtimeEntityType.AddIndex(
-                new[] { marketResearchDocumentOccurrenceId });
-
-            var index1 = runtimeEntityType.AddIndex(
-                new[] { marketResearchValuationId });
-
-            var index2 = runtimeEntityType.AddIndex(
                 new[] { operationKey },
                 unique: true);
 
-            var index3 = runtimeEntityType.AddIndex(
+            var index1 = runtimeEntityType.AddIndex(
                 new[] { subjectId });
 
-            var index4 = runtimeEntityType.AddIndex(
+            var index2 = runtimeEntityType.AddIndex(
                 new[] { state, leaseExpiresAtUtc });
 
             return runtimeEntityType;
