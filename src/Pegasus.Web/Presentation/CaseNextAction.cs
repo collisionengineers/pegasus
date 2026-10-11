@@ -9,15 +9,16 @@ namespace Pegasus.Web.Presentation;
 /// <summary>
 /// One step of a Case's Next action: its words, the section its link opens,
 /// the blocker it names while the report is not ready, and whether it opens
-/// the Actions menu's Create audit or Assign Engineer dialog rather than a
-/// section.
+/// the Actions menu's Create audit, Assign Engineer or Mark completed dialog
+/// rather than a section.
 /// </summary>
 public sealed record CaseNextActionStep(
     string Label,
     string SectionKey,
     AssessmentReadinessItem? Blocker = null,
     bool OpensCreateAudit = false,
-    bool OpensAssignEngineer = false);
+    bool OpensAssignEngineer = false,
+    bool OpensMarkCompleted = false);
 
 /// <summary>
 /// The one Next action of a Case: the Case page's aside states it and the
@@ -36,7 +37,7 @@ public static class CaseNextAction
     /// has none, and carries that blocker. Delivery is the next action only
     /// once the report is stored. Once the report is sent, an Inspection + Audit
     /// Case without its Audit creates it next (operator, 2 October 2026); any
-    /// other Case is marked completed.
+    /// other Case is marked completed, through the Actions menu's dialog.
     /// </summary>
     /// <param name="caseType">The Case's type: Create audit follows the sent report of an Inspection + Audit Case.</param>
     /// <param name="works">The Case's works; null reads as the primary work alone.</param>
@@ -160,5 +161,5 @@ public static class CaseNextAction
     private static CaseNextActionStep AfterTheSend(CaseWorkflowRecord workflow, CaseType caseType, CaseWorkSet? works) =>
         AuditPolicy.Refusal(caseType, workflow, works) is null or AuditRefusal.NoAssignedEngineer
             ? new(CaseWorkspaceLabels.Frame.CreateAudit, "overview", OpensCreateAudit: true)
-            : new(CaseWorkspaceLabels.Frame.MarkCompleted, "overview");
+            : new(CaseWorkspaceLabels.Frame.MarkCompleted, "overview", OpensMarkCompleted: true);
 }
