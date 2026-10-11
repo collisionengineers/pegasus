@@ -245,9 +245,9 @@ No required evidence or action is hidden at any width or at 200% zoom.
 ### Display labels
 
 Case states and transition meanings are owned by
-[FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels). Completed
-and Query are reversible work states. No terminal Closed presentation is
-permitted. `Audit`, `Triage` and `Unidentified` keep their settled meanings.
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels). Report
+sent is the last stage and a Case with an open query reads Query, in purple.
+No terminal Closed presentation is permitted. `Audit`, `Triage` and `Unidentified` keep their settled meanings.
 Screens never show the word "intake" except the Administrator's **Intake
 log** tab. Vehicle-images records are called that, and their reference is
 the Image reference.

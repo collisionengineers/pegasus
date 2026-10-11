@@ -2,6 +2,7 @@
 @using Pegasus.Core.Intake
 @using Pegasus.Web.Presentation
 @using FilesLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Files
+@using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
 @{
     var emails = Model.Emails;
 }
@@ -13,7 +14,10 @@
    a dialog over the Case, its content fetched from the Inbox record on
    first open, with the record's Reply, Reply all and Forward for this Case
    where the record offers them; without script the link opens that record.
-   The Case record and the Triage Case both draw it. *@
+   Tag as query (operator, 11 October 2026) corrects a received message's
+   classification to a query in one click, through the Inbox record's own
+   correction, and comes back here. The Case record and the Triage Case both
+   draw the tab; only the Case record offers the tag. *@
 <div class="correspondence" data-correspondence>
     @if (Model.OffersCompose)
     {
@@ -44,6 +48,10 @@
                 <tbody>
                     @foreach (var row in emails)
                     {
+                        var offersTag = Model.TagAsQueryCaseId is { } tagCaseId
+                            && row.Direction == MailDirection.Received
+                            && row.ClassificationVersion is { } classificationVersion
+                            && row.Classification is not { IsPostReport: true };
                         <tr data-correspondence-row="@row.RetainedMessageId">
                             <td><time datetime="@row.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.ReceivedAtUtc)</time></td>
                             <td>@(row.EffectiveSenderAddress ?? row.SenderDisplayName ?? row.SenderAddress)</td>
@@ -55,7 +63,20 @@
                                 : row.Direction == MailDirection.Sent
                                     ? Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(MailFolderScope.Sent)
                                     : OperatorLabels.CaseWorkspace.AbsentValue)</td>
-                            <td class="row-actions nowrap"><a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" data-dialog-open="case-message-@row.RetainedMessageId.ToString("N")">@OperatorLabels.CaseWorkspace.OpenMessage</a></td>
+                            <td class="row-actions nowrap">
+                                <a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" data-dialog-open="case-message-@row.RetainedMessageId.ToString("N")">@OperatorLabels.CaseWorkspace.OpenMessage</a>
+                                @if (offersTag)
+                                {
+                                    <form method="post" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" asp-page-handler="CorrectClassification"
+                                          class="inline-form" data-no-inplace data-tag-as-query="@row.RetainedMessageId">
+                                        <input type="hidden" name="ClassificationKey" value="@MailClassificationSelection.QueryKey" />
+                                        <input type="hidden" name="ExpectedClassificationVersion" value="@row.ClassificationVersion" />
+                                        <input type="hidden" name="CorrectionReason" value="@MailClassificationSelection.TaggedAsQueryReason" />
+                                        <input type="hidden" name="ReturnCaseId" value="@Model.TagAsQueryCaseId" />
+                                        <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Tagging">@Frame.TagAsQuery</button>
+                                    </form>
+                                }
+                            </td>
                         </tr>
                     }
                 </tbody>
@@ -63,27 +84,7 @@
         </div>
         @foreach (var row in emails)
         {
-            var dialogId = $"case-message-{row.RetainedMessageId:N}";
-            <div id="@dialogId" class="dialog-backdrop" data-dialog="@dialogId" data-case-message-dialog
-                 data-case-message-url="@Url.Page("/Mail/Message", "Content", new { id = row.RetainedMessageId, correspondenceCaseReference = Model.CaseReference })" hidden>
-                <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="@dialogId-title">
-                    <div class="dialog-head">
-                        <h2 id="@dialogId-title" class="wrap" tabindex="-1">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(row.Subject)</h2>
-                        <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                        </button>
-                    </div>
-                    <div class="dialog-body" data-case-message-body aria-busy="true">
-                        <div class="spinner" aria-hidden="true"></div>
-                    </div>
-                    <div class="dialog-foot" data-case-message-foot>
-                        <a class="btn btn--dark" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" data-case-message-record>
-                            <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
-                            <span>@OperatorLabels.Inbox.OpenFullMessage</span>
-                        </a>
-                    </div>
-                </section>
-            </div>
+            <partial name="Cases/Shared/_CaseMessageDialog" model="@(new Pegasus.Web.Pages.Cases.CaseMessageDialogView(row, Model.CaseReference))" />
         }
     }
 </div>

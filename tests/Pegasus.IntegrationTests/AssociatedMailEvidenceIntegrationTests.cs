@@ -210,7 +210,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
     [Theory]
     [InlineData("unlink")]
     [InlineData("archive")]
-    [InlineData("post-report")]
+    [InlineData("report-sent-state")]
     [InlineData("report-sent")]
     [InlineData("editor")]
     public async Task DelayedCustodyRechecksAssociationCaseEligibilityAndActiveEditor(string change)
@@ -236,8 +236,8 @@ public sealed class AssociatedMailEvidenceIntegrationTests
                     workflow.ArchivedByRolesJson = "[\"Administrator\"]";
                     workflow.ArchiveReason = "Archived during pending custody.";
                     break;
-                case "post-report":
-                    workflow.State = nameof(CaseLifecycleState.PostReportComplete);
+                case "report-sent-state":
+                    workflow.State = nameof(CaseLifecycleState.ReportSent);
                     break;
                 case "report-sent":
                     workflow.ReportSentEvidence = new CaseReportSentEvidenceEntity

@@ -202,8 +202,13 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(railCount, int.Parse(tileMatch.Groups[1].Value, CultureInfo.InvariantCulture));
     }
 
+    /// <summary>
+    /// A Report sent Case with no open query has no queue and is found
+    /// through Search; Query lists every open Case with an open query, whatever
+    /// its state, and its chip reads Query (operator, 11 October 2026).
+    /// </summary>
     [Fact]
-    public async Task CompletedCasesHaveNoQueueAndAreFoundThroughSearchWhileQueryKeepsItsQueue()
+    public async Task ReportSentCasesHaveNoQueueAndAreFoundThroughSearchWhileQueryKeepsItsQueue()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
@@ -212,23 +217,24 @@ public sealed class TriageQueuesWebTests
         var services = scope.ServiceProvider;
         var suffix = DateTime.UtcNow.Ticks % 1_000_000;
         var notReadyReference = $"QDOSN{suffix}";
-        var completeReference = $"QDOSC{suffix}";
+        var sentReference = $"QDOSC{suffix}";
         var queryReference = $"QDOSQ{suffix}";
 
         await SeedNotReadyCaseAsync(
             services,
             await StoreMinimalReceiptAsync(services, "query-not-ready.pdf"),
             notReadyReference);
-        var completeId = await SeedNotReadyCaseAsync(
+        var sentId = await SeedNotReadyCaseAsync(
             services,
             await StoreMinimalReceiptAsync(services, "query-complete.pdf"),
-            completeReference);
+            sentReference);
         var queryId = await SeedNotReadyCaseAsync(
             services,
             await StoreMinimalReceiptAsync(services, "query-open.pdf"),
             queryReference);
-        await SetWorkflowStateAsync(services, completeId, CaseLifecycleState.PostReportComplete);
-        await SetWorkflowStateAsync(services, queryId, CaseLifecycleState.Query);
+        await SetWorkflowStateAsync(services, sentId, CaseLifecycleState.ReportSent);
+        await SetWorkflowStateAsync(services, queryId, CaseLifecycleState.ReportSent);
+        await MarkOpenQueryAsync(services, queryId);
         await RegisterImageIntakeAsync(factory, client, services, "AB12CDE");
 
         var stages = await services.GetRequiredService<IDashboardQueries>()
@@ -258,20 +264,21 @@ public sealed class TriageQueuesWebTests
             + stages.Held
             + triageCount
             + openUnidentifiedCount;
-        // Completed and Awaiting instruction intentionally are not shell work.
+        // Report sent and Awaiting instruction intentionally are not shell work.
         Assert.Equal(3, expectedShellCount);
 
         using var queryResponse = await client.GetAsync("/Cases?tab=query");
         var queryHtml = await queryResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, queryResponse.StatusCode);
         Assert.Contains(queryReference, queryHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(completeReference, queryHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(sentReference, queryHtml, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"status status--purple\">Query</span>", queryHtml, StringComparison.Ordinal);
         Assert.Equal(1, QueueCount(queryHtml, "Query"));
         Assert.Equal(expectedShellCount, ShellCasesCount(queryHtml));
 
-        // Issue 1046: Completed has no queue. The rail offers none, the old
-        // route is not found and no Case queue lists the Completed Case.
-        Assert.DoesNotContain("<span>Completed</span>", queryHtml, StringComparison.Ordinal);
+        // Issue 1046: a finished Case has no queue. The rail offers none, the
+        // old route is not found and no Case queue lists the Report sent Case.
+        Assert.DoesNotContain("<span>Report sent</span>", queryHtml, StringComparison.Ordinal);
         using var completeResponse = await client.GetAsync("/Cases?tab=complete");
         Assert.Equal(HttpStatusCode.NotFound, completeResponse.StatusCode);
         foreach (var queue in new[] { "not_ready", "review", "with_engineer", "held" })
@@ -279,18 +286,23 @@ public sealed class TriageQueuesWebTests
             using var queueResponse = await client.GetAsync($"/Cases?tab={queue}");
             Assert.Equal(HttpStatusCode.OK, queueResponse.StatusCode);
             Assert.DoesNotContain(
-                completeReference,
+                sentReference,
                 await queueResponse.Content.ReadAsStringAsync(),
                 StringComparison.Ordinal);
         }
 
-        // Search's State filter still finds it.
+        // Search's State filter finds each by its stage key.
         using var searchResponse = await client.GetAsync(
-            $"/Search?state={CaseLifecycleState.PostReportComplete}");
+            $"/Search?state={CaseLifecycleState.ReportSent}");
         var searchHtml = await searchResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, searchResponse.StatusCode);
-        Assert.Contains(completeReference, searchHtml, StringComparison.Ordinal);
+        Assert.Contains(sentReference, searchHtml, StringComparison.Ordinal);
         Assert.DoesNotContain(queryReference, searchHtml, StringComparison.Ordinal);
+        using var querySearchResponse = await client.GetAsync("/Search?state=Query");
+        var querySearchHtml = await querySearchResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, querySearchResponse.StatusCode);
+        Assert.Contains(queryReference, querySearchHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(sentReference, querySearchHtml, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1310,6 +1322,15 @@ public sealed class TriageQueuesWebTests
             .Where(item => item.Id == caseId)
             .Select(item => item.Reference)
             .SingleAsync();
+    }
+
+    /// <summary>The Case holds an open query, as the query ledger marks it.</summary>
+    private static async Task MarkOpenQueryAsync(IServiceProvider services, Guid caseId)
+    {
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE CaseWorkflows SET HasOpenQuery = 1 WHERE CaseId = {caseId}");
     }
 
     private static async Task SetWorkflowStateAsync(

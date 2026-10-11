@@ -44,6 +44,7 @@ public sealed partial class DetailsModel(
     IGetCaseValuationSection getCaseValuationSection,
     IGetCaseNotesSection getCaseNotesSection,
     IGetCaseFilesSection getCaseFilesSection,
+    IGetCaseQueriesSection getCaseQueriesSection,
     ICaseDocumentQueries caseDocuments,
     IListCaseReferences listCaseReferences,
     IGetAssessmentAccess getAssessmentAccess,
@@ -256,7 +257,8 @@ public sealed partial class DetailsModel(
             ["vehicle"] = "/Pages/Cases/Shared/_CaseVehicle.cshtml",
             ["valuation"] = "/Pages/Cases/Shared/_CaseValuation.cshtml",
             ["files"] = "/Pages/Cases/Shared/_CaseFiles.cshtml",
-            ["notes"] = "/Pages/Cases/Shared/_CaseHistory.cshtml"
+            ["notes"] = "/Pages/Cases/Shared/_CaseHistory.cshtml",
+            ["queries"] = "/Pages/Cases/Shared/_CaseQueries.cshtml"
         };
 
     /// <summary>
@@ -273,7 +275,7 @@ public sealed partial class DetailsModel(
         && !string.Equals(key, SectionLinkKey, StringComparison.Ordinal)
         && !(string.Equals(Section, "vehicle", StringComparison.Ordinal) && IsNestedSection(key))
         && LazySectionViews.ContainsKey(key)
-        && (LeaseToken is null || key is "files" or "notes");
+        && (LeaseToken is null || key is "files" or "notes" or "queries");
 
     /// <summary>
     /// A lease token supplied only for rendering an asynchronously mounted
@@ -351,11 +353,13 @@ public sealed partial class DetailsModel(
     public CaseValuationSection? ValuationSection { get; private set; }
     public CaseNotesSection? NotesSection { get; private set; }
     public CaseFilesSection? FilesSection { get; private set; }
+    public CaseQueriesSection? QueriesSection { get; private set; }
 
     public CaseSectionFrame? SectionFrame => VehicleSection?.Frame
         ?? ValuationSection?.Frame
         ?? NotesSection?.Frame
-        ?? FilesSection?.Frame;
+        ?? FilesSection?.Frame
+        ?? QueriesSection?.Frame;
 
     public CaseWorkflowRecord? CurrentWorkflow => Case?.Workflow ?? SectionFrame?.Workflow;
     public CaseSearchItem? CurrentSummary => Case?.Summary ?? SectionFrame?.Summary;
@@ -603,11 +607,7 @@ public sealed partial class DetailsModel(
             ? value
             : Labels.CaseWorkspace.AbsentValue;
 
-    public bool IsPostReportReadOnly => CurrentWorkflow?.State is
-        CaseLifecycleState.PostReportComplete or CaseLifecycleState.Query;
-
-    public bool CanEditCaseData => !IsPostReportReadOnly
-        && !string.IsNullOrWhiteSpace(RenderLeaseToken)
+    public bool CanEditCaseData => !string.IsNullOrWhiteSpace(RenderLeaseToken)
         && CurrentWorkflow?.Archive is null;
 
     public bool CanEditEngineering => CanEditCaseData && AssessmentCanOpen && !AssessmentIsReadOnly;
@@ -1417,6 +1417,13 @@ public sealed partial class DetailsModel(
                         return FragmentNotFound();
                     }
                     break;
+                case "queries":
+                    QueriesSection = await getCaseQueriesSection.ExecuteAsync(new(id, actor), cancellationToken);
+                    if (QueriesSection is null)
+                    {
+                        return FragmentNotFound();
+                    }
+                    break;
                 case "files":
                     FilesSection = await getCaseFilesSection.ExecuteAsync(new(id, actor), cancellationToken);
                     if (FilesSection is null)
@@ -1542,6 +1549,9 @@ public sealed partial class DetailsModel(
         var notes = rendered.Contains("notes")
             ? reads.Start(token => getCaseNotesSection.ExecuteAsync(query, token))
             : null;
+        var queries = rendered.Contains("queries")
+            ? reads.Start(token => getCaseQueriesSection.ExecuteAsync(query, token))
+            : null;
         // Report Preview is part of the initial Case response even when the
         // heavier Files gallery is deferred.
         var preparations = reads.Start(token => caseAssetPreparationQueries.ListForCaseAsync(id, token));
@@ -1571,6 +1581,11 @@ public sealed partial class DetailsModel(
         {
             NotesSection = await notes
                 ?? throw new InvalidOperationException("The Case notes section is unavailable.");
+        }
+        if (queries is not null)
+        {
+            QueriesSection = await queries
+                ?? throw new InvalidOperationException("The Case queries section is unavailable.");
         }
         AssetPreparations = await preparations;
         if (valuationReads is not null)
@@ -1924,12 +1939,9 @@ public sealed partial class DetailsModel(
                 {
                     throw new InvalidOperationException("Engineering fields are read-only in this Case state.");
                 }
-                if (preparationSubmitted
-                    && (current.Workflow.State is CaseLifecycleState.PostReportComplete
-                            or CaseLifecycleState.Query
-                        || current.Workflow.Archive is not null))
+                if (preparationSubmitted && current.Workflow.Archive is not null)
                 {
-                    throw new InvalidOperationException("The case is read-only once Complete.");
+                    throw new InvalidOperationException("The case is read-only once archived.");
                 }
                 var assessment = (await workspaceRead)?.Assessment;
                 string? Recorded(string path) => assessment?.Field(path)?.Value;

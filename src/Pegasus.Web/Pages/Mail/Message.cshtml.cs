@@ -164,6 +164,27 @@ public sealed class MessageModel(
     public Guid? CorrespondenceOperationId { get; set; }
 
     /// <summary>
+    /// The reply composer's "Also resolve query" tick (operator, 11 October
+    /// 2026): the Case's open queries resolve when the Sent item is observed.
+    /// Pre-ticked only when the composer was reached from the Case's Resolve
+    /// query Next action.
+    /// </summary>
+    [BindProperty(SupportsGet = true, Name = "resolveQuery")]
+    public bool ResolveQuery { get; set; }
+
+    /// <summary>
+    /// The Case page the Correspondence tab's Tag as query returns to after
+    /// its one-click correction; absent on the Inbox record's own dialog.
+    /// </summary>
+    [BindProperty]
+    public Guid? ReturnCaseId { get; set; }
+
+    /// <summary>Whether the reply form offers the tick: a reply to a Case that holds an open query.</summary>
+    public bool OffersResolveQuery =>
+        CorrespondenceMode is "reply" or "reply-all"
+        && CorrespondenceCase is { Workflow.HasOpenQuery: true };
+
+    /// <summary>
     /// The one Case / PO field of the Reply/Forward composer: it searches as
     /// staff type and takes a typed reference as it is. Choosing a Case from
     /// its list fixes that Case and its version.
@@ -1028,6 +1049,12 @@ public sealed class MessageModel(
         }
 
         ClassificationNotice = "Classification corrected. The previous decision and evidence remain in permanent history.";
+        if (ReturnCaseId is { } returnCaseId && returnCaseId != Guid.Empty)
+        {
+            // Tag as query from the Case's Correspondence tab lands back on
+            // that tab (operator, 11 October 2026).
+            return RedirectToPage("/Cases/Details", new { id = returnCaseId, section = "files" });
+        }
         return RedirectToPage(new
         {
             id,
@@ -1339,7 +1366,8 @@ public sealed class MessageModel(
                     CorrespondenceSubject!.Trim(),
                     CorrespondenceBody!.Trim(),
                     attachments,
-                    CorrespondenceOperationKey!.Trim()),
+                    CorrespondenceOperationKey!.Trim(),
+                    ResolvesCaseQueries: ResolveQuery && OffersResolveQuery),
                 cancellationToken);
             CorrespondenceOperation = operation;
             if (operation.State == StaffMailState.Sent)

@@ -55,10 +55,15 @@ public sealed class ReturnCaseToReview(ICaseWorkflowStore store) : IReturnCaseTo
     {
         CaseLifecycleRules.ValidateReturnToReview(request);
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if (current.State != CaseLifecycleState.NotReady
+        // Return to Review is offered on With Engineer and Report sent, where it
+        // sends the Case back for another Engineer handoff (operator, 11 October 2026).
+        if (current.State is not (CaseLifecycleState.NotReady
+                or CaseLifecycleState.ReportPreparation
+                or CaseLifecycleState.ReportSent)
             && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
         {
-            throw new InvalidOperationException("A case can enter Review only from Not ready.");
+            throw new InvalidOperationException(
+                "A case can enter Review only from Not ready, With Engineer or Report sent.");
         }
 
         return await _store.ReturnToReviewAsync(request, cancellationToken);
@@ -339,9 +344,9 @@ public sealed class AutoLinkReportEvidence(IAutoLinkReportEvidenceStore store)
                 || result.Link is not { } link
                 || link.CaseId != request.CaseId
                 || link.EvidenceId != request.EvidenceId
-                // The current work's evidence moves the Case to Post report; the
+                // The current work's evidence moves the Case to Report sent; the
                 // Inspection's, once the Audit exists, leaves the state alone.
-                || (link.OfCurrentWork && link.State != CaseLifecycleState.PostReport)
+                || (link.OfCurrentWork && link.State != CaseLifecycleState.ReportSent)
                 || !Enum.IsDefined(link.State)
                 || link.Version < 0)
             {
@@ -479,11 +484,10 @@ public sealed class ReturnCaseToEngineer(
             request.CaseId,
             request.OperationKey,
             cancellationToken);
-        if (current.State is not (CaseLifecycleState.PostReportComplete or CaseLifecycleState.Query)
-            && !isReplay)
+        if (current.State != CaseLifecycleState.ReportSent && !isReplay)
         {
             throw new InvalidOperationException(
-                "A case can return to Engineer only from Completed or Query.");
+                "A case can return to Engineer only from Report sent.");
         }
 
         if (!isReplay)
@@ -501,38 +505,6 @@ public sealed class ReturnCaseToEngineer(
 
         return await _store.ReturnToEngineerAsync(request, cancellationToken);
     }
-}
-
-/// <summary>
-/// What a post-report message joining a Case does to it (FRD-13 "Completed and
-/// Query"): nothing, Query, or Completed again because its reply was already
-/// observed. The stores apply the outcome inside the transaction that links or
-/// corrects the message.
-/// </summary>
-public enum PostReportQueryEntry
-{
-    None,
-    EnterQuery,
-    CompleteWithObservedReply
-}
-
-/// <summary>
-/// The one owner of when a post-report message moves a Case between Completed
-/// and Query. Linking or correcting a message to Post-report on a Completed Case
-/// enters Query; unlinking or correcting away the last such message before any
-/// reply was observed returns the Case to Completed.
-/// </summary>
-public static class PostReportQueryRules
-{
-    public static PostReportQueryEntry OnPostReportLinked(CaseLifecycleState state, bool replyObserved) =>
-        state != CaseLifecycleState.PostReportComplete
-            ? PostReportQueryEntry.None
-            : replyObserved
-                ? PostReportQueryEntry.CompleteWithObservedReply
-                : PostReportQueryEntry.EnterQuery;
-
-    public static bool ShouldWithdraw(CaseLifecycleState state, bool replyObserved, bool otherPostReportLinked) =>
-        state == CaseLifecycleState.Query && !replyObserved && !otherPostReportLinked;
 }
 
 public static class CaseLifecycleRules
@@ -558,12 +530,12 @@ public static class CaseLifecycleRules
         CaseLifecycleState.SourceEmailUnlinked;
 
     /// <summary>
-    /// A case nobody is still working: its report is complete or it ended in a terminal
+    /// A case nobody is still working: its report is sent or it ended in a terminal
     /// outcome. The one question asked when a staff account is about to be removed, so an
     /// open case never points at an Engineer who no longer exists.
     /// </summary>
     public static bool IsClosed(CaseLifecycleState state) =>
-        state == CaseLifecycleState.PostReportComplete || IsTerminal(state);
+        state == CaseLifecycleState.ReportSent || IsTerminal(state);
 
     /// <summary>
     /// The terminal states as the names they are persisted under, for store
@@ -700,11 +672,6 @@ public static class CaseLifecycleRules
         {
             throw new InvalidOperationException("A closed case cannot be closed again.");
         }
-
-        if (request.Outcome == CaseClosureOutcome.PostReportComplete && current.State != CaseLifecycleState.PostReport)
-        {
-            throw new InvalidOperationException("Post-report completion is available only after exact report-sent evidence enters post-report work.");
-        }
     }
 
     public static void ValidateReopen(ReopenCaseRequest request)
@@ -729,11 +696,11 @@ public static class CaseLifecycleRules
             throw new InvalidOperationException("Report preparation requires an assigned staff member.");
         }
 
-        if (request.Destination == CaseReopenDestination.PostReport
+        if (request.Destination == CaseReopenDestination.ReportSent
             && current.ReportSentEvidence is null)
         {
             throw new InvalidOperationException(
-                "Post report requires retained exact report-sent evidence from an approved mailbox.");
+                "Report sent requires retained exact report-sent evidence from an approved mailbox.");
         }
     }
 

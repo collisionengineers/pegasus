@@ -16,7 +16,7 @@ public sealed class AutoLinkReportEvidenceTests
         var evidenceId = Guid.NewGuid();
         var store = new RecordingStore(new(
             AutoLinkReportEvidenceDisposition.Linked,
-            new(caseId, evidenceId, CaseLifecycleState.PostReport, Version: 3),
+            new(caseId, evidenceId, CaseLifecycleState.ReportSent, Version: 3),
             NotLinkedReasonCode: null));
         var useCase = new AutoLinkReportEvidence(store);
         var request = new AutoLinkReportEvidenceRequest(
@@ -30,7 +30,7 @@ public sealed class AutoLinkReportEvidenceTests
 
         Assert.Equal(AutoLinkReportEvidenceDisposition.Linked, result.Disposition);
         Assert.Equal(caseId, result.Link?.CaseId);
-        Assert.Equal(CaseLifecycleState.PostReport, result.Link?.State);
+        Assert.Equal(CaseLifecycleState.ReportSent, result.Link?.State);
         Assert.Equal(evidenceId, result.Link?.EvidenceId);
         Assert.Equal(3, result.Link?.Version);
         Assert.Equal(request, Assert.Single(store.Requests));
@@ -46,7 +46,7 @@ public sealed class AutoLinkReportEvidenceTests
             new(
                 requestedCaseId,
                 Guid.NewGuid(),
-                CaseLifecycleState.PostReport,
+                CaseLifecycleState.ReportSent,
                 Version: 3),
             NotLinkedReasonCode: null));
         var useCase = new AutoLinkReportEvidence(store);

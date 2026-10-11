@@ -49,16 +49,6 @@ public sealed class MarkAsOriginalReportTests
     }
 
     [Fact]
-    public void ACompletedCaseIsRefused()
-    {
-        Assert.Throws<InvalidOperationException>(() =>
-            OriginalReportPolicy.RequireEligible(
-                CaseType.Audit,
-                CaseLifecycleState.PostReportComplete,
-                DocumentSemanticRole.Instruction));
-    }
-
-    [Fact]
     public void ANonAuditCaseIsRefused()
     {
         Assert.Throws<InvalidOperationException>(() =>
@@ -124,7 +114,7 @@ public sealed class MarkAsOriginalReportTests
     [Theory]
     [InlineData(CaseLifecycleState.NotReady, false, true)]
     [InlineData(CaseLifecycleState.Review, false, true)]
-    [InlineData(CaseLifecycleState.PostReportComplete, false, false)]
+    [InlineData(CaseLifecycleState.ReportSent, false, true)]
     [InlineData(CaseLifecycleState.PrincipalCancelled, false, false)]
     [InlineData(CaseLifecycleState.NotReady, true, false)]
     public void OnlyAnOpenAuditMissingItsReportAwaitsRecognition(

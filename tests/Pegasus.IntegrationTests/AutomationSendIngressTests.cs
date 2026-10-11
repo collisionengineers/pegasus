@@ -1,12 +1,14 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
+using Pegasus.Infrastructure.Persistence;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
 namespace Pegasus.IntegrationTests;
@@ -268,6 +270,106 @@ public sealed class AutomationSendIngressTests
               AND AggregateId = N'{caseId:D}'
               AND Outcome = N'Succeeded'
             """));
+    }
+
+    /// <summary>
+    /// resolveQuery (operator, 11 October 2026) is the composer's Also resolve
+    /// query tick: a reply carries it to the staff send command, which
+    /// resolves the Case's open queries once the Sent item is observed, and
+    /// any other mode refuses it before anything is sent.
+    /// </summary>
+    [Fact]
+    public async Task ResolveQueryRidesAReplyAndIsRefusedOnNewMail()
+    {
+        const string graphId = "mcp-reply-query";
+        const string address = "replies@collisionengineers.example";
+        var mail = new RecordingMailSend();
+        var mailbox = ReadyDefaultMailbox() with { Id = TestMailboxId.From(graphId), Address = address };
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithMailSend(factory, mail, mailbox);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        var messageId = await SeedRetainedMessageAsync(mcpFactory, graphId, address);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, SendScopes);
+        var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
+
+        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(40, "pegasus_mail_send", new
+        {
+            mode = "new", caseId, expectedVersion = version, subject = "Images", body = "Please send the images.",
+            operationKey = "mcp:mail-new-resolve", to = Handler, resolveQuery = true,
+        })))
+        {
+            Assert.Contains("resolveQuery applies to reply and reply_all only", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+        }
+        Assert.Empty(mail.Commands);
+
+        using var sent = await PostMcpAsync(client, token, ToolCallPayload(41, "pegasus_mail_send", new
+        {
+            mode = "reply",
+            caseId,
+            expectedVersion = version,
+            messageId,
+            subject = "Re: The labour rate",
+            body = "The labour rate is as reported.",
+            operationKey = "mcp:mail-reply-resolve",
+            resolveQuery = true,
+        }));
+        var result = await ReadStructuredContentAsync(sent);
+        Assert.Equal("reply", result.GetProperty("mode").GetString());
+
+        var command = Assert.Single(mail.Commands);
+        Assert.Equal(StaffMailComposeMode.Reply, command.ComposeMode);
+        Assert.Equal(messageId, command.OriginalMessage?.RetainedMessageId);
+        Assert.Equal(caseId, command.ContextId);
+        Assert.True(command.ResolvesCaseQueries);
+    }
+
+    /// <summary>One retained inbox message, written as the poller's retention path writes it.</summary>
+    private static async Task<Guid> SeedRetainedMessageAsync(
+        WebApplicationFactory<Program> factory,
+        string graphId,
+        string address)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            await TestMailboxId.EnsureApprovedAsync(context, graphId, address, SeedUtcNow.AddDays(-1));
+            await context.SaveChangesAsync();
+        }
+
+        const string identity = "mcp-reply-query-0";
+        await scope.ServiceProvider.GetRequiredService<EfRetainedMailboxMessageStore>().RetainAsync(
+            new(
+                TestMailboxId.From(graphId),
+                address,
+                identity,
+                $"{graphId.Length}:{graphId}{identity}",
+                SeedUtcNow.AddMinutes(-5),
+                1024,
+                new string('A', 64),
+                new(
+                    "inbox",
+                    "conversation-mcp-reply-query",
+                    $"<{identity}@example.invalid>",
+                    "handler@principal.example",
+                    "A Handler",
+                    [address],
+                    [],
+                    [],
+                    "The labour rate",
+                    "What labour rate did the report use?",
+                    [],
+                    IsRead: false),
+                SeedUtcNow),
+            CancellationToken.None);
+
+        await using var readContext = await contextFactory.CreateDbContextAsync();
+        return await readContext.RetainedMailboxMessages
+            .AsNoTracking()
+            .Where(item => item.MailboxId == TestMailboxId.From(graphId))
+            .Select(item => item.Id)
+            .SingleAsync();
     }
 
     /// <summary>

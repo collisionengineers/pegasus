@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
 
@@ -29,8 +30,7 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
         var review = CaseLifecycleState.Review.ToString();
         var held = CaseLifecycleState.Held.ToString();
         var reportPreparation = CaseLifecycleState.ReportPreparation.ToString();
-        var postReport = CaseLifecycleState.PostReport.ToString();
-        var query = CaseLifecycleState.Query.ToString();
+        var terminal = CaseLifecycleRules.TerminalStateNames();
 
         var counts = await context.CaseWorkflows
             .AsNoTracking()
@@ -38,12 +38,15 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
                 workflow.State == notReady
                 || workflow.State == review
                 || workflow.State == held
-                || workflow.State == reportPreparation
-                || workflow.State == postReport
-                || workflow.State == query)
+                || workflow.State == reportPreparation)
             .GroupBy(workflow => workflow.State)
             .Select(group => new { State = group.Key, Count = group.Count() })
             .ToArrayAsync(cancellationToken);
+        // Query is a queue of open Cases with an open query, whatever their
+        // state (operator, 11 October 2026).
+        var query = await context.CaseWorkflows
+            .AsNoTracking()
+            .CountAsync(workflow => workflow.HasOpenQuery && !terminal.Contains(workflow.State), cancellationToken);
 
         int For(string state) =>
             counts.SingleOrDefault(item => item.State == state)?.Count ?? 0;
@@ -52,8 +55,8 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
             For(notReady),
             For(review),
             For(held),
-            For(reportPreparation) + For(postReport),
-            For(query));
+            For(reportPreparation),
+            query);
     }
 
     public async Task<int> GetAwaitingInstructionCountAsync(CancellationToken cancellationToken)

@@ -198,8 +198,9 @@ Images, Files (Documents and Correspondence) and Notes tabs with the finding
 read-only, Record finding in a dialog and the composer for replies.
 
 The **Actions** menu holds exactly the progressions the state permits — Assign
-Engineer, Export case, Mark report sent, Mark completed, Return to Review
-or Engineer, Archive, Place on Hold or Release Hold, Correct principal — and,
+Engineer, Export case, Mark report sent, Log query, Resolve query, Return
+to Review or Engineer, Archive, Place on Hold or Release Hold, Correct
+principal — and,
 on an Inspection + Audit Case, Create audit in every state: a disabled
 `.btn` inside a `.menu-gated` span whose `title` states Core's refusal on
 hover when it is not permitted (operator, 1 October 2026) — then, after a
@@ -280,8 +281,9 @@ shared `.dismiss` × so it can be put away before it expires.
 - Product states are distinct: amber for incomplete/pending,
   restrained navy for **Review**, blue for informational
   and in-progress external work, green for an operation or outcome that
-  succeeded (Case created, Linked, Sent, Saved, Approved, Roadworthy), red for one that did not (Failed, Could not be read, Unavailable, Rejected, Unroadworthy), and red for
-  danger and blocked, neutral for everything else.
+  succeeded (Case created, Linked, Sent, Report sent, Saved, Approved, Roadworthy), red for one that did not (Failed, Could not be read, Unavailable, Rejected, Unroadworthy), red for
+  danger and blocked, purple for a Case with an open **Query** (operator,
+  11 October 2026), neutral for everything else.
 - State is never conveyed by colour alone; every `.status` chip carries text.
 - 3px corners, 1px hairline borders, `--shadow` only where the prototype
   raises a surface on hover or overlay, and a 12px gap rhythm.
@@ -343,8 +345,8 @@ shared `.dismiss` × so it can be put away before it expires.
   An inert control is a defect.
 
 Use the glossary's exact business terms and FRD-01's lifecycle labels.
-Completed and Query are reversible work states; no formal Case is terminally
-Closed. The single presentation map translates Core states to those labels;
+Report sent is the last stage and Query marks an open query; no formal Case
+is terminally Closed. The single presentation map translates Core states to those labels;
 no page defines its own map or generic Close action.
 
 ## Tokens
@@ -379,6 +381,7 @@ design-dev` bundle, the 2026-07 warm palette) are superseded and not retained.
 | `--green` / `--green-bg` | `#2b643d` / `#e9f4ec` | Confirmed completion |
 | `--blue` / `--blue-bg` | `#285f88` / `#eaf3f8` | Informational, With Engineer, external work in progress |
 | `--danger` / `--danger-bg` | `#98272c` / `#fff0f1` | Danger actions, blocked, failed |
+| `--purple` / `--purple-bg` | `#5b3f8f` / `#f1ecf9` | A Case with an open query (operator, 11 October 2026) |
 | `--focus` | `#d3232a` | Keyboard focus ring |
 | `--shadow` | `0 8px 24px rgba(25,39,45,.09)` | Hover-raised cards, palette dropdown, toast |
 
@@ -397,7 +400,8 @@ State chips are `.status` with one tone modifier and always a text label:
 | `.status--amber` | `--amber` on `--amber-bg` | Not ready, Held, Unidentified, pending |
 | `.status--navy` | `--navy` on `--navy-bg` | Review |
 | `.status--blue` | `--blue` on `--blue-bg` | With Engineer, running, sent |
-| `.status--green` | `--green` on `--green-bg` | Completed, confirmed |
+| `.status--green` | `--green` on `--green-bg` | Report sent, confirmed |
+| `.status--purple` | `--purple` on `--purple-bg` | Query |
 | `.status--red` | `--danger` on `--danger-bg` | Failed, could not be read, correction required |
 | `.status--neutral` | `--muted` on `--surface-3` | Closed, cancelled, unknown |
 

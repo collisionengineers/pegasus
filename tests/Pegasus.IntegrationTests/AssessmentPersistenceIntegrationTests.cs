@@ -379,8 +379,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [InlineData(CaseLifecycleState.Review, true, false)]
     [InlineData(CaseLifecycleState.Held, false, true)]
     [InlineData(CaseLifecycleState.ReportPreparation, true, false)]
-    [InlineData(CaseLifecycleState.PostReport, true, false)]
-    [InlineData(CaseLifecycleState.PostReportComplete, true, true)]
+    [InlineData(CaseLifecycleState.ReportSent, true, false)]
     [InlineData(CaseLifecycleState.CreatedInError, false, true)]
     public async Task AssessmentAccessUsesNativeStateAndRetainsWorkspaceWithoutAnExport(
         CaseLifecycleState state,
@@ -928,11 +927,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(version, (await harness.AcquireLeaseAsync(caseId, version, engineer, "estimate-lease-final")).Version);
     }
 
-    [Theory]
-    [InlineData(CaseLifecycleState.PostReportComplete)]
-    [InlineData(CaseLifecycleState.Query)]
-    public async Task CompletedAndQueryCasesRejectGuideValuationsAndOrdinaryEstimates(
-        CaseLifecycleState state)
+    // Report sent is writable (operator, 11 October 2026); Held is the one
+    // open state whose assessment is read-only. A closed Case refuses earlier,
+    // as closed.
+    [Fact]
+    public async Task AHeldCaseRejectsGuideValuationsAndOrdinaryEstimates()
     {
         await using var harness = await Harness.CreateAsync();
         var caseId = (await harness.AcceptAsync("assessment-read-only-case")).Identity.CaseId;
@@ -940,7 +939,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await using (var setup = await harness.Factory.CreateDbContextAsync())
         {
             var workflow = await setup.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
-            workflow.State = state.ToString();
+            workflow.State = nameof(CaseLifecycleState.Held);
             await setup.SaveChangesAsync();
         }
 
@@ -978,7 +977,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     lease.Version,
                     engineer,
                     "assessment-read-only-ordinary-estimate",
-                    "Attempted ordinary estimate after report completion.",
+                    "Attempted ordinary estimate on a read-only Case.",
                     lease.Token,
                     null,
                     new("Read-only estimate", 40m, null, 20m),
@@ -1012,7 +1011,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             Guid.NewGuid(), Guid.NewGuid(), hash, request.OperationKey, request.Details.Name);
         // Not ready and Review are assessment-writable since the 17 September
         // ruling; the import is refused only where the assessment is read-only.
-        foreach (var state in new[] { CaseLifecycleState.Held, CaseLifecycleState.PostReportComplete })
+        foreach (var state in new[] { CaseLifecycleState.Held })
         {
             await using var setup = await harness.Factory.CreateDbContextAsync();
             var workflow = await setup.CaseWorkflows.SingleAsync(row => row.CaseId == caseId);

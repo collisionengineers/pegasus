@@ -140,7 +140,7 @@ receipt still qualifies and no Case holds it. Staff press it; nothing runs on
 its own, and a Case or Triage already opened from the message stays as it is
 when the message is corrected away (operator, 1 October 2026). A correction
 to or from a post-report classification on a linked Case follows
-[FRD-13](frd-13-case-lifecycle-and-workflow.md#completed-and-query).
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries).
 
 Case linking starts with a deliberate Case search, then shows the target
 summary, asks for a reason and needs explicit confirmation. Linking may

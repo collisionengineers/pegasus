@@ -79,7 +79,103 @@ public sealed class CaseClosureWebTests
         await AssertRefusalKeepsEditModeAsync(
             workspace,
             "Closure?handler=Close",
-            workspace.MutationForm("close-case-2", "Already closed", ("outcome", "PostReportComplete")));
+            workspace.MutationForm("close-case-2", "Already closed", ("outcome", "CollisionEngineersRejected")));
+    }
+
+    /// <summary>
+    /// Log query (operator, 11 October 2026): its dialog takes the channel the
+    /// query came by and what it is, and posts both to the one Core command
+    /// under the session's lease; the details also stand as the history reason.
+    /// </summary>
+    [Fact]
+    public async Task LogQueryPostsTheChannelAndDetailsToRaiseCaseQuery()
+    {
+        const string details = "Handler asked when the supplementary goes out";
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportSent };
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<IRaiseCaseQuery>(services, store));
+
+        var html = await workspace.GetWorkspaceAsync();
+        Assert.Contains(
+            "data-dialog-open=\"case-log-query-dialog\" data-log-query",
+            RecordBar(html),
+            StringComparison.Ordinal);
+        var dialog = Section(html, "case-log-query-dialog-title");
+        Assert.Contains($"/Cases/{store.CaseId:D}/Closure?handler=LogQuery", dialog, StringComparison.OrdinalIgnoreCase);
+        Assert.Matches("<select[^>]*name=\"channel\"", dialog);
+        foreach (var channel in Enum.GetValues<CaseQueryChannel>())
+        {
+            Assert.Contains(
+                $"<option value=\"{channel}\">{CaseWorkspaceLabels.Queries.Channel(channel)}</option>",
+                dialog,
+                StringComparison.Ordinal);
+        }
+        Assert.Matches("<textarea[^>]*name=\"details\"", dialog);
+        Assert.Contains($"value=\"{store.LeaseToken}\"", dialog, StringComparison.Ordinal);
+
+        using var logged = await workspace.PostAsync(
+            "Closure?handler=LogQuery",
+            workspace.MutationForm("log-query", string.Empty, ("channel", "Phone"), ("details", details)));
+
+        AssertPrg(logged, store.CaseId);
+        var raised = Assert.Single(store.QueryRaises);
+        AssertLeasedMutation(workspace, raised, "log-query", details);
+        Assert.Equal(CaseQueryChannel.Phone, raised.Channel);
+        Assert.Equal(details, raised.Details);
+        Assert.Empty(store.QueryResolutions);
+    }
+
+    /// <summary>
+    /// Resolve query is one direct post, no dialog and no reason, that closes
+    /// every open query on the Case through the one Core command (operator,
+    /// 11 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task ResolveQueryPostsToResolveCaseQueries()
+    {
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportSent, HasOpenQuery = true };
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<IResolveCaseQueries>(services, store));
+
+        var bar = RecordBar(await workspace.GetWorkspaceAsync());
+        Assert.Contains("data-resolve-query-form", bar, StringComparison.Ordinal);
+        Assert.Contains($"/Cases/{store.CaseId:D}/Closure?handler=ResolveQuery", bar, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(CaseWorkspaceLabels.Frame.ResolveQuery, bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("case-resolve-query-dialog", bar, StringComparison.Ordinal);
+
+        using var resolved = await workspace.PostAsync(
+            "Closure?handler=ResolveQuery",
+            workspace.MutationForm("resolve-query", string.Empty));
+
+        AssertPrg(resolved, store.CaseId);
+        var resolution = Assert.Single(store.QueryResolutions);
+        AssertLeasedMutation(workspace, resolution, "resolve-query", string.Empty);
+        Assert.Empty(store.QueryRaises);
+    }
+
+    /// <summary>
+    /// The Actions menu offers Log query on a Report sent Case and Resolve
+    /// query on any open Case that holds an open query (operator, 11 October
+    /// 2026); a closed Case offers neither.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.ReportSent, false, true, false)]
+    [InlineData(CaseLifecycleState.ReportSent, true, true, true)]
+    [InlineData(CaseLifecycleState.ReportPreparation, true, false, true)]
+    [InlineData(CaseLifecycleState.ReportPreparation, false, false, false)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled, true, false, false)]
+    public async Task TheActionsMenuOffersLogQueryOnceTheReportIsSentAndResolveQueryWhileOneIsOpen(
+        CaseLifecycleState state, bool hasOpenQuery, bool offersLog, bool offersResolve)
+    {
+        var store = new RecordingCaseDetailsStore { State = state, HasOpenQuery = hasOpenQuery };
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var bar = RecordBar(await workspace.GetWorkspaceAsync());
+
+        Assert.Equal(offersLog, bar.Contains("data-log-query", StringComparison.Ordinal));
+        Assert.Equal(offersLog, bar.Contains(CaseWorkspaceLabels.Frame.LogQuery, StringComparison.Ordinal));
+        Assert.Equal(offersResolve, bar.Contains("data-resolve-query-form", StringComparison.Ordinal));
+        Assert.Equal(offersResolve, bar.Contains(CaseWorkspaceLabels.Frame.ResolveQuery, StringComparison.Ordinal));
     }
 
 
@@ -88,9 +184,7 @@ public sealed class CaseClosureWebTests
     [InlineData(CaseLifecycleState.NotReady, true)]
     [InlineData(CaseLifecycleState.Review, true)]
     [InlineData(CaseLifecycleState.ReportPreparation, true)]
-    [InlineData(CaseLifecycleState.PostReport, true)]
-    [InlineData(CaseLifecycleState.PostReportComplete, true)]
-    [InlineData(CaseLifecycleState.Query, true)]
+    [InlineData(CaseLifecycleState.ReportSent, true)]
     [InlineData(CaseLifecycleState.PrincipalCancelled, false)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected, false)]
     [InlineData(CaseLifecycleState.CreatedInError, false)]
@@ -128,7 +222,7 @@ public sealed class CaseClosureWebTests
         Assert.Contains("data-dialog-open=\"case-close-dialog\"", adverse, StringComparison.Ordinal);
         Assert.Contains("btn--danger", adverse, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.CaseWorkspace.CloseCase, adverse, StringComparison.Ordinal);
-        foreach (var progression in new[] { "Assign Engineer", "Mark completed", "Return to Engineer", "Place on Hold", "Correct principal" })
+        foreach (var progression in new[] { "Assign Engineer", "Log query", "Resolve query", "Return to Engineer", "Place on Hold", "Correct principal" })
         {
             Assert.DoesNotContain(progression, adverse, StringComparison.Ordinal);
         }
@@ -140,10 +234,17 @@ public sealed class CaseClosureWebTests
             StringComparison.OrdinalIgnoreCase);
         Assert.Contains("value=\"PrincipalCancelled\"", dialog, StringComparison.Ordinal);
         Assert.Contains("value=\"CollisionEngineersRejected\"", dialog, StringComparison.Ordinal);
-        foreach (var unavailable in new[] { "CreatedInError", "SourceEmailUnlinked", "PostReportComplete" })
+        foreach (var unavailable in new[] { "CreatedInError", "SourceEmailUnlinked" })
         {
             Assert.DoesNotContain($"value=\"{unavailable}\"", dialog, StringComparison.Ordinal);
         }
+        // Completed is no closure outcome (operator, 11 October 2026): every
+        // offered outcome is a named terminal one.
+        var offered = System.Text.RegularExpressions.Regex.Matches(dialog, "<option value=\"(?<value>[A-Za-z]+)\"")
+            .Select(match => match.Groups["value"].Value)
+            .ToArray();
+        Assert.NotEmpty(offered);
+        Assert.All(offered, value => Assert.Contains(value, Enum.GetNames<CaseClosureOutcome>()));
 
         Assert.Matches("<select[^>]*name=\"outcome\"[^>]*required", dialog);
         Assert.Matches("<textarea[^>]*name=\"reason\"[^>]*rows=\"3\"", dialog);
@@ -167,19 +268,19 @@ public sealed class CaseClosureWebTests
     [Fact]
     public async Task TheCloseActionDoesNotDisplaceTheProgressionActions()
     {
-        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.PostReport };
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportSent };
         using var workspace = await EnterEditModeAsync(store, services =>
             Substitute<ICloseCase>(services, new CoreCheckedCloseCase(store)));
 
         var bar = RecordBar(await workspace.GetWorkspaceAsync());
         var adverseStart = bar.IndexOf("data-dialog-open=\"case-close-dialog\"", StringComparison.Ordinal);
 
-        Assert.Contains("Mark completed", bar, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkspaceLabels.Frame.LogQuery, bar, StringComparison.Ordinal);
         Assert.Contains("Place on Hold", bar, StringComparison.Ordinal);
         Assert.True(adverseStart > 0, "The Close item is not rendered.");
         // The progression items and the hold group are drawn before the
         // divider that sets Close apart at the end of the menu.
-        Assert.InRange(bar.IndexOf("Mark completed", StringComparison.Ordinal), 0, adverseStart);
+        Assert.InRange(bar.IndexOf(CaseWorkspaceLabels.Frame.LogQuery, StringComparison.Ordinal), 0, adverseStart);
         Assert.InRange(bar.IndexOf("Place on Hold", StringComparison.Ordinal), 0, adverseStart);
         Assert.InRange(bar.LastIndexOf("menu-sep", StringComparison.Ordinal), 0, adverseStart);
     }
@@ -239,8 +340,6 @@ public sealed class CaseClosureWebTests
     // Each of these is reached through its own action, never through Close.
     [InlineData(CaseLifecycleState.Review, "CreatedInError", "The principal was wrong")]
     [InlineData(CaseLifecycleState.Review, "SourceEmailUnlinked", "The e-mail was unlinked")]
-    // Progression, and not from this state.
-    [InlineData(CaseLifecycleState.Review, "PostReportComplete", "Post-report work is done")]
     // A closed Case cannot be closed again.
     [InlineData(CaseLifecycleState.PrincipalCancelled, "CollisionEngineersRejected", "Rejected after all")]
     // The reason is required.

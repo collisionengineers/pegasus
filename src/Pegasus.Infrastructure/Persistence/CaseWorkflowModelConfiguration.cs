@@ -49,11 +49,48 @@ internal static class CaseWorkflowModelConfiguration
             entity.HasIndex(item => item.OriginalCaseId).IsUnique();
             // The Work Centre reads every queue by workflow state.
             entity.HasIndex(item => item.State);
+            entity.Property(item => item.HasOpenQuery).HasDefaultValue(false);
+            // The Query queue and its count read the few Cases with an open query.
+            entity.HasIndex(item => item.HasOpenQuery).HasFilter("[HasOpenQuery] = 1");
             entity.HasOne(item => item.Case).WithOne().HasForeignKey<CaseWorkflowEntity>(item => item.CaseId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.ReplacementCase).WithMany().HasForeignKey(item => item.ReplacementCaseId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.OriginalCase).WithMany().HasForeignKey(item => item.OriginalCaseId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.ReportApproval).WithMany().HasForeignKey(item => item.ReportApprovalId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.ReportSentEvidence).WithMany().HasForeignKey(item => item.ReportSentEvidenceId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<CaseQueryEntity>(entity =>
+        {
+            entity.ToTable("CaseQueries", table =>
+            {
+                table.HasCheckConstraint("CK_CaseQueries_Source", "[Source] IN ('Mail', 'Staff')");
+                table.HasCheckConstraint(
+                    "CK_CaseQueries_SourceShape",
+                    "([Source] = 'Mail' AND [IntakeReceiptId] IS NOT NULL AND [Channel] IS NULL AND [Details] IS NULL) OR ([Source] = 'Staff' AND [IntakeReceiptId] IS NULL AND [Channel] IS NOT NULL)");
+                table.HasCheckConstraint(
+                    "CK_CaseQueries_Channel",
+                    "[Channel] IS NULL OR [Channel] IN ('Email', 'Phone', 'WhatsApp', 'Other')");
+                table.HasCheckConstraint(
+                    "CK_CaseQueries_Closure",
+                    "([ClosedAs] IS NULL AND [ClosedAtUtc] IS NULL AND [ClosedByKind] IS NULL AND [ClosedBySubjectId] IS NULL AND [ResolvedByMailOperationId] IS NULL) OR ([ClosedAs] IN ('Resolved', 'Withdrawn') AND [ClosedAtUtc] IS NOT NULL AND [ClosedByKind] IS NOT NULL AND [ClosedBySubjectId] IS NOT NULL)");
+            });
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Source).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.Channel).HasMaxLength(20);
+            entity.Property(item => item.RaisedByKind).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.RaisedBySubjectId).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.RaisedOperationKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.ClosedAs).HasMaxLength(20);
+            entity.Property(item => item.ClosedByKind).HasMaxLength(40);
+            entity.Property(item => item.ClosedBySubjectId).HasMaxLength(200);
+            entity.HasIndex(item => new { item.CaseId, item.RaisedAtUtc });
+            // One open query per tagged message on a Case; a withdrawn or
+            // resolved one may be raised again by a later tag.
+            entity.HasIndex(item => new { item.CaseId, item.IntakeReceiptId })
+                .IsUnique()
+                .HasFilter("[ClosedAtUtc] IS NULL AND [IntakeReceiptId] IS NOT NULL");
+            entity.HasOne(item => item.Workflow).WithMany().HasForeignKey(item => item.CaseId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<IntakeReceiptEntity>().WithMany().HasForeignKey(item => item.IntakeReceiptId).OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<CaseWorkflowEventEntity>(entity =>

@@ -115,6 +115,14 @@ outbound capability is composed into the application. Otherwise those
 surfaces show no send control and no composer. The technical decision is
 [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md).
 
+**Also resolve query.** A Reply or Reply all filed against a Case that holds
+an open query offers one tick, **Also resolve query** (operator, 11 October
+2026). It is ticked by default only when the composer was opened from the
+Case's Resolve query Next action. The tick is kept on the send; when the
+Sent item is observed, every open query on the Case resolves
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
+A reply without it resolves nothing. Forward and new mail take no tick.
+
 **Who may send.** A signed-in staff member with the casework right, or the
 Automation Actor through `pegasus_mail_send` and `pegasus_report_send` under
 its `automation.send` scope (operator, 7 October 2026;

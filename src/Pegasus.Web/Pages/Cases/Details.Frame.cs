@@ -78,16 +78,29 @@ public sealed partial class DetailsModel
     public bool CanAssignEngineer =>
         Case is { Workflow.State: CaseLifecycleState.Review }
         && !ColleagueIsEditing
-        && !IsPostReportReadOnly
         && AssignEngineerChoices is { EngineerOptions.Count: > 0 };
 
     /// <summary>
-    /// Mark completed is live: a Post-report Case no colleague is editing. The
-    /// Actions menu and the Next action both open its dialog.
+    /// Log query is live: a Report sent Case no colleague is editing
+    /// (operator, 11 October 2026). The Actions menu opens its dialog.
     /// </summary>
-    public bool CanMarkCompleted =>
-        Case is { Workflow.State: CaseLifecycleState.PostReport }
+    public bool CanLogQuery =>
+        Case is { } details
+        && CaseQueryRules.CanLog(details.Workflow)
         && !ColleagueIsEditing;
+
+    /// <summary>
+    /// Resolve query is live while the Case holds an open query and no
+    /// colleague is editing. The Actions menu and the Next action both post it.
+    /// </summary>
+    public bool CanResolveQuery =>
+        Case is { } details
+        && CaseQueryRules.CanResolve(details.Workflow)
+        && !CaseLifecycleRules.IsTerminal(details.Workflow.State)
+        && !ColleagueIsEditing;
+
+    /// <summary>The oldest open query, which the Next action's Resolve query routes to.</summary>
+    public CaseOpenQueryRoute? OldestOpenQuery => Case?.OldestOpenQuery;
 
     /// <summary>The Audit reference the dialog announces: <c>a.{Case/PO}</c>.</summary>
     public string? ProposedAuditReference =>
@@ -124,10 +137,6 @@ public sealed partial class DetailsModel
         {
             return null;
         }
-        if (IsPostReportReadOnly)
-        {
-            return CaseWorkspaceLabels.Frame.ReturnToEngineerToEdit;
-        }
         return null;
     }
 
@@ -143,9 +152,8 @@ public sealed partial class DetailsModel
     public bool SectionOffersEdit(string key) =>
         !IsEditing
         && CurrentEditLease is null
-        && !IsPostReportReadOnly
         && CurrentWorkflow?.Archive is null
-        && key is not ("files" or "notes")
+        && key is not ("files" or "notes" or "queries")
         // An Engineer section offers Edit only where this viewer's session
         // would edit it (v36 item W, 9 October 2026): claiming the lease from
         // a section that then locks helps no one.
@@ -157,7 +165,7 @@ public sealed partial class DetailsModel
         get
         {
             var workflow = Case!.Workflow;
-            var stage = OperatorLabels.CaseStage(workflow.State);
+            var stage = OperatorLabels.CaseStage(workflow.State, workflow.HasOpenQuery);
             return workflow.State == CaseLifecycleState.Held && workflow.HoldReviewOn is { } reviewOn
                 ? $"{stage} · review on {reviewOn:d MMM}"
                 : stage;

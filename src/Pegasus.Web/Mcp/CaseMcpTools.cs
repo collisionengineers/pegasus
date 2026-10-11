@@ -19,7 +19,8 @@ internal sealed record CaseSearchToolItem(
     string? Claimant,
     string? ClaimNumber,
     DateTimeOffset ReceivedAtUtc,
-    string Origin);
+    string Origin,
+    [property: Description("Whether the Case holds an open query (operator, 11 October 2026); such a Case reads as the Query stage.")] bool HasOpenQuery = false);
 
 internal sealed record CaseSearchToolResult(
     IReadOnlyList<CaseSearchToolItem> Items,
@@ -234,5 +235,6 @@ internal sealed class CaseMcpTools(
         item.Claimant,
         item.ClaimNumber,
         item.ReceivedAtUtc,
-        item.Origin);
+        item.Origin,
+        item.HasOpenQuery);
 }

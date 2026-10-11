@@ -568,7 +568,7 @@ public sealed class MailWorkspaceWebTests
             factory.Services,
             receiptId,
             "AUTO14001",
-            nameof(CaseLifecycleState.PostReport));
+            nameof(CaseLifecycleState.ReportSent));
         using var client = CreateClient(factory);
 
         var target = await GetHtmlAsync(
