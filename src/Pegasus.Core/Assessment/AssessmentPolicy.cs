@@ -240,7 +240,7 @@ public static class AssessmentPolicy
         state is CaseLifecycleState.NotReady
             or CaseLifecycleState.Review
             or CaseLifecycleState.ReportPreparation
-            or CaseLifecycleState.PostReport;
+            or CaseLifecycleState.ReportSent;
 
     /// <summary>
     /// The readiness rail: every requirement the screen names, with its

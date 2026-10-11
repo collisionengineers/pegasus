@@ -258,7 +258,7 @@ public sealed class CreateAuditPersistenceTests
             olderLink with { OperationKey = "link-newer", EvidenceId = newer.EvidenceId },
             default);
 
-        Assert.Equal(CaseLifecycleState.PostReport, linked.State);
+        Assert.Equal(CaseLifecycleState.ReportSent, linked.State);
         Assert.Equal(newer.EvidenceId, linked.ReportSentEvidence?.EvidenceId);
         await using var context = await harness.ContextAsync();
         var primary = await context.CaseWorks.AsNoTracking().SingleAsync(item => item.Id == harness.CaseId);
@@ -856,7 +856,7 @@ public sealed class CreateAuditPersistenceTests
                 {
                     CaseId = caseId,
                     Case = caseEntity,
-                    State = nameof(CaseLifecycleState.PostReport),
+                    State = nameof(CaseLifecycleState.ReportSent),
                     StateEnteredAtUtc = now.AddDays(-2),
                     AssignedEngineerId = engineerId,
                     SignOffEngineerId = engineerId,

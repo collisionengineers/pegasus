@@ -254,7 +254,7 @@ public sealed class AiJobTests
                 new(AiJobKind.QueryResponse, harness.CaseId, null, "Draft a reply to message M-1.", null, Staff, "op-1"),
                 CancellationToken.None));
 
-        harness = new Harness { CaseState = CaseLifecycleState.PostReport };
+        harness = new Harness { CaseState = CaseLifecycleState.ReportSent };
         var query = await harness.Create.ExecuteAsync(
             new(AiJobKind.QueryResponse, harness.CaseId, null, "Draft a reply to message M-1.", null, Staff, "op-1"),
             CancellationToken.None);
@@ -282,11 +282,10 @@ public sealed class AiJobTests
 
     [Theory]
     [InlineData(CaseLifecycleState.ReportPreparation, true)]
-    [InlineData(CaseLifecycleState.PostReport, true)]
+    [InlineData(CaseLifecycleState.ReportSent, true)]
     [InlineData(CaseLifecycleState.NotReady, false)]
     [InlineData(CaseLifecycleState.Held, false)]
     [InlineData(CaseLifecycleState.Review, false)]
-    [InlineData(CaseLifecycleState.PostReportComplete, false)]
     [InlineData(CaseLifecycleState.PrincipalCancelled, false)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected, false)]
     [InlineData(CaseLifecycleState.CreatedInError, false)]

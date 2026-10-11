@@ -326,6 +326,17 @@
                             <textarea asp-for="CorrespondenceBody" rows="8"></textarea>
                             <span asp-validation-for="CorrespondenceBody"></span>
                         </div>
+                        @if (Model.OffersResolveQuery)
+                        {
+                            @* The Case holds an open query: this reply may resolve it,
+                               on observed Sent (operator, 11 October 2026). *@
+                            <div class="field">
+                                <label>
+                                    <input type="checkbox" asp-for="ResolveQuery" data-resolve-query />
+                                    @OperatorLabels.StaffMail.AlsoResolveQuery
+                                </label>
+                            </div>
+                        }
                         @if (Model.AvailableAttachments.Count > 0)
                         {
                             <fieldset class="field">
@@ -616,7 +627,7 @@
                                         <dt>Claim number</dt>
                                         <dd>@(currentCase.Summary.ClaimNumber ?? "Not recorded")</dd>
                                     </dl>
-                                    <dl class="definition"><dt>State</dt><dd>@OperatorLabels.CaseStage(currentCase.Summary.State)</dd></dl>
+                                    <dl class="definition"><dt>State</dt><dd>@OperatorLabels.CaseStage(currentCase.Summary.State, currentCase.Summary.HasOpenQuery)</dd></dl>
                                 }
                                 else
                                 {
@@ -821,7 +832,7 @@
                                             <dt>Claim number</dt>
                                             <dd>@(targetCase.Summary.ClaimNumber ?? "Not recorded")</dd>
                                         </dl>
-                                        <dl class="definition"><dt>State</dt><dd>@OperatorLabels.CaseStage(targetCase.Summary.State)</dd></dl>
+                                        <dl class="definition"><dt>State</dt><dd>@OperatorLabels.CaseStage(targetCase.Summary.State, targetCase.Summary.HasOpenQuery)</dd></dl>
                                     }
                                     else
                                     {

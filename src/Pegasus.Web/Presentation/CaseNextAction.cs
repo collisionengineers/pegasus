@@ -9,8 +9,8 @@ namespace Pegasus.Web.Presentation;
 /// <summary>
 /// One step of a Case's Next action: its words, the section its link opens,
 /// the blocker it names while the report is not ready, and whether it opens
-/// the Actions menu's Create audit, Assign Engineer or Mark completed dialog
-/// rather than a section.
+/// the Actions menu's Create audit or Assign Engineer dialog, or is Resolve
+/// query, rather than a section.
 /// </summary>
 public sealed record CaseNextActionStep(
     string Label,
@@ -18,7 +18,7 @@ public sealed record CaseNextActionStep(
     AssessmentReadinessItem? Blocker = null,
     bool OpensCreateAudit = false,
     bool OpensAssignEngineer = false,
-    bool OpensMarkCompleted = false);
+    bool ResolvesQuery = false);
 
 /// <summary>
 /// The one Next action of a Case: the Case page's aside states it and the
@@ -31,14 +31,13 @@ public static class CaseNextAction
     /// <summary>
     /// The next permitted lifecycle action and the section it links to. In
     /// Review it is Assign Engineer, which opens the Actions menu's dialog
-    /// (issue 1025). With
-    /// Engineer, while the report is not ready, it names the first blocker at
-    /// the section that clears it, and at the Report section when that blocker
-    /// has none, and carries that blocker. Delivery is the next action only
-    /// once the report is stored. Once the report is sent, an Inspection + Audit
-    /// Case without its Audit creates it next (operator, 2 October 2026); a
-    /// Completed or Query Case has none (operator, 11 October 2026); any
-    /// other Case is marked completed, through the Actions menu's dialog.
+    /// (issue 1025). A Report sent Case with an open query resolves it
+    /// (operator, 11 October 2026). With Engineer, while the report is not
+    /// ready, it names the first blocker at the section that clears it, and
+    /// at the Report section when that blocker has none, and carries that
+    /// blocker. Delivery is the next action only once the report is stored.
+    /// Once the report is sent, an Inspection + Audit Case without its Audit
+    /// creates it next (operator, 2 October 2026); any other Case has none.
     /// </summary>
     /// <param name="caseType">The Case's type: Create audit follows the sent report of an Inspection + Audit Case.</param>
     /// <param name="works">The Case's works; null reads as the primary work alone.</param>
@@ -60,6 +59,10 @@ public static class CaseNextAction
         if (BeforeTheReport(workflow, firstRequirement) is { } early)
         {
             return early;
+        }
+        if (workflow.State == CaseLifecycleState.ReportSent && workflow.HasOpenQuery)
+        {
+            return new(CaseWorkspaceLabels.Frame.ResolveQuery, "queries", ResolvesQuery: true);
         }
         return ReportStep(reportBlockers, blockerSection, currentReport)
             ?? (workflow.ReportSentEvidence is not null
@@ -94,7 +97,8 @@ public static class CaseNextAction
     public static bool ReadsTheReport(CaseWorkflowRecord workflow)
     {
         ArgumentNullException.ThrowIfNull(workflow);
-        return BeforeTheReport(workflow, null) is null;
+        return BeforeTheReport(workflow, null) is null
+            && !(workflow.State == CaseLifecycleState.ReportSent && workflow.HasOpenQuery);
     }
 
     // The steps the Case takes before the report is its next concern.
@@ -158,12 +162,9 @@ public static class CaseNextAction
 
     // What follows the sent report: Create audit on an Inspection + Audit Case
     // that has no Audit yet (offered even without an Engineer, where the item
-    // is greyed with that reason), else none on a Completed or Query Case,
-    // which cannot be marked completed, else Mark completed.
+    // is greyed with that reason), else none (operator, 11 October 2026).
     private static CaseNextActionStep AfterTheSend(CaseWorkflowRecord workflow, CaseType caseType, CaseWorkSet? works) =>
         AuditPolicy.Refusal(caseType, workflow, works) is null or AuditRefusal.NoAssignedEngineer
             ? new(CaseWorkspaceLabels.Frame.CreateAudit, "overview", OpensCreateAudit: true)
-            : workflow.State is CaseLifecycleState.PostReportComplete or CaseLifecycleState.Query
-                ? new("None", "notes")
-                : new(CaseWorkspaceLabels.Frame.MarkCompleted, "overview", OpensMarkCompleted: true);
+            : new("None", "notes");
 }

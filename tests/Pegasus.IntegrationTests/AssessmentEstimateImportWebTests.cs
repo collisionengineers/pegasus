@@ -780,8 +780,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
         using var engineerClient = CreateEngineerClient(factory);
-        store.CaseState = CaseLifecycleState.PostReportComplete;
-        store.AssessmentState = CaseLifecycleState.PostReportComplete;
+        store.CaseState = CaseLifecycleState.PrincipalCancelled;
+        store.AssessmentState = CaseLifecycleState.PrincipalCancelled;
         var readOnlyHtml = await GetHtmlAsync(engineerClient, $"/Cases/{caseId:D}?section=estimate");
         using (var readOnlyForm = ImportForm(AntiforgeryValue(readOnlyHtml), caseId, NewOperationKey(), AudatexEstimateFixture.Build()))
         using (var readOnlyResponse = await engineerClient.PostAsync($"/Cases/{caseId:D}?handler=ImportEstimate", readOnlyForm))

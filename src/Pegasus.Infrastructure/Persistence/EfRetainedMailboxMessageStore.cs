@@ -711,7 +711,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             workflow = await context.CaseWorkflows
                 .SingleOrDefaultAsync(item => item.CaseId == linkedCase.CaseId, cancellationToken);
         }
-        var wasPostReport = PostReportQueryTransitions.IsPostReport(receipt);
+        var wasPostReport = CaseQueryLedger.IsPostReport(receipt);
 
         Apply(after, decision);
         decision.Version++;
@@ -739,51 +739,36 @@ internal sealed class EfRetainedMailboxMessageStore(
             CorrectedAtUtc = correctedAtUtc
         });
 
-        // FRD-13 "Completed and Query": a message corrected to Post-report joins
-        // the Case as a query would; one corrected away leaves it as an unlink
-        // would. The same rule and the same lock as the link paths.
-        var queryEntry = PostReportQueryEntry.None;
+        // FRD-13 "Report sent and queries": a message corrected to Post-report
+        // joins the Case as a tagged query; one corrected away withdraws the
+        // query it raised. The same rule and the same lock as the link paths.
+        var queryRaised = false;
         var queryWithdrawn = false;
         if (workflow is not null)
         {
-            var isPostReport = PostReportQueryTransitions.IsPostReport(receipt);
+            var isPostReport = CaseQueryLedger.IsPostReport(receipt);
             var beforeCaseVersion = workflow.Version;
+            var beforeStateJson = CaseQueryLedger.SnapshotState(workflow);
             var operationKey = $"mail-correction:{receipt.Id:N}:v{decision.Version}";
             var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(afterJson)));
             if (isPostReport && !wasPostReport)
             {
-                var beforeStateJson = PostReportQueryTransitions.SnapshotState(workflow);
-                var entry = await PostReportQueryTransitions.EnterAsync(
-                    context, receipt, workflow, correctedAtUtc, cancellationToken);
-                queryEntry = entry.Kind;
-                if (entry.Kind != PostReportQueryEntry.None)
-                {
-                    CaseMutationGuard.Advance(workflow);
-                    if (entry.Kind == PostReportQueryEntry.EnterQuery)
-                    {
-                        PostReportQueryTransitions.AddQueryHistory(
-                            context, workflow, beforeCaseVersion, PostReportQueryTransitions.QueryReceivedEvent,
-                            actor, operationKey, requestHash, reason, correctedAtUtc, beforeStateJson);
-                    }
-                    else
-                    {
-                        PostReportQueryTransitions.AddObservedReplyHistory(
-                            context, workflow, beforeCaseVersion, entry.ObservedReply!, entry.BeforeReplyJson!);
-                    }
-                }
+                queryRaised = await CaseQueryLedger.RaiseForMailAsync(
+                    context, receipt, workflow, actor.Kind, actor.SubjectId,
+                    operationKey, correctedAtUtc, cancellationToken);
             }
             else if (wasPostReport && !isPostReport)
             {
-                var beforeStateJson = await PostReportQueryTransitions.WithdrawAsync(
-                    context, receipt, workflow, correctedAtUtc, cancellationToken);
-                if (beforeStateJson is not null)
-                {
-                    queryWithdrawn = true;
-                    CaseMutationGuard.Advance(workflow);
-                    PostReportQueryTransitions.AddQueryHistory(
-                        context, workflow, beforeCaseVersion, PostReportQueryTransitions.QueryWithdrawnEvent,
-                        actor, operationKey, requestHash, reason, correctedAtUtc, beforeStateJson);
-                }
+                queryWithdrawn = await CaseQueryLedger.WithdrawForMailAsync(
+                    context, receipt, workflow, actor.Kind, actor.SubjectId, correctedAtUtc, cancellationToken);
+            }
+            if (queryRaised || queryWithdrawn)
+            {
+                CaseMutationGuard.Advance(workflow);
+                CaseQueryLedger.AddQueryHistory(
+                    context, workflow, beforeCaseVersion,
+                    queryRaised ? CaseQueryLedger.QueryReceivedEvent : CaseQueryLedger.QueryWithdrawnEvent,
+                    actor, operationKey, requestHash, reason, correctedAtUtc, beforeStateJson);
             }
         }
 
@@ -798,7 +783,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         }
 
         var dossier = (await LoadClassificationAsync(context, messageId, cancellationToken))!;
-        return new(dossier, linkedCase?.CaseId, queryEntry, queryWithdrawn);
+        return new(dossier, linkedCase?.CaseId, queryRaised, queryWithdrawn);
     }
 
     private static async Task<MailClassificationDossier?> LoadClassificationAsync(

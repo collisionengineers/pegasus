@@ -31,8 +31,8 @@ public sealed class CaseWorkspacePersistenceTests
     [Theory]
     [InlineData("a", "Current", "ReportPreparation", true)]
     [InlineData("b", "Primary", "ReportPreparation", true)]
-    [InlineData("c", "Primary", "PostReportComplete", true)]
-    [InlineData("d", "Current", "PostReportComplete", false)]
+    [InlineData("c", "Primary", "ReportSent", true)]
+    [InlineData("d", "Current", "ReportSent", false)]
     public async Task PageFrameReadsUnlinkedSentEvidenceOnlyForPrimaryWorkOrReportPreparation(
         string row, string work, string state, bool expectEvidence)
     {
@@ -894,7 +894,7 @@ public sealed class CaseWorkspacePersistenceTests
 
     [Theory]
     [InlineData(CaseLifecycleState.ReportPreparation)]
-    [InlineData(CaseLifecycleState.PostReport)]
+    [InlineData(CaseLifecycleState.ReportSent)]
     public async Task SettlementAndReportSaveTogetherPreservingUnsubmittedFactsAndInvalidatingTheReport(
         CaseLifecycleState state)
     {

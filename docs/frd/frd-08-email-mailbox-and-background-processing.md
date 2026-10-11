@@ -266,9 +266,9 @@ discovery times. Equal content alone never erases an occurrence or creates a
 new Case. [ADR-0044](../adr/0044-mail-occurrence-and-business-identity.md) records the
 technical separation.
 
-A query received for or attached to a Completed Case, and the reply that
-returns it, follow
-[FRD-13](frd-13-case-lifecycle-and-workflow.md#completed-and-query). The
+A query received for or attached to a Report sent Case, and the reply
+that resolves it, follow
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries). The
 received query and the actual reply are retained as Case correspondence.
 
 ## States and transitions

@@ -31,7 +31,8 @@ public sealed record CaseSearchFilters(
     DateOnly? ToDate = null,
     string? Origin = null,
     string? Query = null,
-    bool IncludeTriage = false);
+    bool IncludeTriage = false,
+    bool? HasOpenQuery = null);
 
 /// <summary>
 /// The sort a case list renders in. Newest received first is the default
@@ -107,6 +108,9 @@ public sealed record CaseSearchItem(
     /// <summary>When the Case entered its current state, so Review ageing counts from the transition.</summary>
     public DateTimeOffset? StateEnteredAtUtc { get; init; }
 
+    /// <summary>Whether the Case holds an open query, which a list reads as the Query stage.</summary>
+    public bool HasOpenQuery { get; init; }
+
     /// <summary>
     /// The Triage state of a Triage Case row (<see cref="CaseType"/> is
     /// <see cref="CaseType.Triage"/>), which has no Case workflow: the
@@ -175,7 +179,46 @@ public sealed record CaseCorrespondenceEmail(
     string? Subject,
     MailCategory? Classification,
     string? SourceSha256 = null,
-    MailDirection Direction = MailDirection.Received);
+    MailDirection Direction = MailDirection.Received)
+{
+    /// <summary>
+    /// The current classification's version, which a correction posted from
+    /// the row (Tag as query) must name; null for a message with no decision.
+    /// </summary>
+    public long? ClassificationVersion { get; init; }
+}
+
+/// <summary>
+/// One query on a Case (FRD-13 "Report sent and queries"): a tagged e-mail,
+/// shown through its message, or a staff-logged query with its channel and
+/// details. Open while <see cref="ClosedAs"/> is null.
+/// </summary>
+public sealed record CaseQueryItem(
+    Guid Id,
+    CaseQuerySource Source,
+    CaseQueryChannel? Channel,
+    string? Details,
+    CaseCorrespondenceEmail? Message,
+    DateTimeOffset RaisedAtUtc,
+    string RaisedByKind,
+    string RaisedBy,
+    CaseQueryClosure? ClosedAs,
+    DateTimeOffset? ClosedAtUtc,
+    string? ClosedByKind,
+    string? ClosedBy)
+{
+    public bool IsOpen => ClosedAs is null;
+
+    public string RaisedByDisplayName { get; init; } = RaisedBy;
+
+    public string? ClosedByDisplayName { get; init; } = ClosedBy;
+}
+
+/// <summary>
+/// The open query the Next action routes to: a mail query leads to that
+/// message's reply, a staff query to the Resolve query control.
+/// </summary>
+public sealed record CaseOpenQueryRoute(CaseQuerySource Source, Guid? RetainedMessageId);
 
 /// <summary>
 /// The record-level notes shown read-only on a Case's Overview beside the Case's own:
@@ -246,6 +289,9 @@ public sealed record CasePageFrame(
     public CaseSearchItem Summary => Frame.Summary;
     public CaseWorkflowRecord Workflow => Frame.Workflow;
     public CaseEditLeaseSnapshot? ActiveEditLease => Frame.ActiveEditLease;
+
+    /// <summary>The oldest open query, read only while the Case has one; null otherwise.</summary>
+    public CaseOpenQueryRoute? OldestOpenQuery { get; init; }
 }
 
 /// <summary>
@@ -260,7 +306,11 @@ public sealed record CasePageFrameData(
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
     CaseRecordNotes RecordNotes,
     Guid? LinkedCancellationMessageId = null,
-    IReadOnlyList<CaseLinkedTriage>? LinkedTriage = null);
+    IReadOnlyList<CaseLinkedTriage>? LinkedTriage = null)
+{
+    /// <summary>The oldest open query, read only while the workflow says the Case has one.</summary>
+    public CaseOpenQueryRoute? OldestOpenQuery { get; init; }
+}
 
 /// <summary>
 /// A Triage Case linked to this Case (FRD-03 "Linking"), as the Case aside
@@ -286,7 +336,7 @@ public static class CaseCancellationNotice
     public static bool Applies(CaseWorkflowRecord workflow)
     {
         ArgumentNullException.ThrowIfNull(workflow);
-        return workflow.Archive is null && !CaseLifecycleRules.IsClosed(workflow.State);
+        return workflow.Archive is null && !CaseLifecycleRules.IsTerminal(workflow.State);
     }
 }
 
@@ -304,6 +354,14 @@ public sealed record CaseValuationSection(
 public sealed record CaseNotesSection(
     CaseSectionFrame Frame,
     IReadOnlyList<CaseHistoryEntry> History);
+
+/// <summary>
+/// The Queries body: every query raised on the Case, open ones first, each
+/// newest first, then the resolved ones. Withdrawn queries are not listed.
+/// </summary>
+public sealed record CaseQueriesSection(
+    CaseSectionFrame Frame,
+    IReadOnlyList<CaseQueryItem> Queries);
 
 /// <summary>
 /// The Files body source. Documents and correspondence belong together because
@@ -376,6 +434,14 @@ public interface ICaseQueryStore
 
     /// <summary>Reads only the ordered history body used by Notes.</summary>
     Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryAsync(
+        Guid caseId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads the Case's queries for the Queries section: every open or
+    /// resolved query, a mail query carrying its message, in no set order.
+    /// </summary>
+    Task<IReadOnlyList<CaseQueryItem>> ListCaseQueriesAsync(
         Guid caseId,
         CancellationToken cancellationToken);
 
@@ -556,6 +622,11 @@ public interface IGetCaseNotesSection
     Task<CaseNotesSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken);
 }
 
+public interface IGetCaseQueriesSection
+{
+    Task<CaseQueriesSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken);
+}
+
 public interface IGetCaseFilesSection
 {
     Task<CaseFilesSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken);
@@ -684,6 +755,44 @@ public sealed class GetCaseNotesSection(
                 : ActorDisplayNames.UnknownStaff
         }).ToArray());
     }
+}
+
+public sealed class GetCaseQueriesSection(
+    ICaseQueryStore store,
+    IStaffAccountQueries staffAccounts) : IGetCaseQueriesSection
+{
+    public async Task<CaseQueriesSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
+    {
+        CaseSectionQueries.Validate(query);
+        var frame = query.Frame ?? await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        if (frame is null)
+        {
+            return null;
+        }
+
+        var queries = await store.ListCaseQueriesAsync(query.CaseId, cancellationToken);
+        var staffIds = queries
+            .SelectMany(item => new[] { (item.RaisedByKind, item.RaisedBy), (item.ClosedByKind, item.ClosedBy) })
+            .Where(pair => pair.Item1 == nameof(ActorKind.Staff) && Guid.TryParse(pair.Item2, out _))
+            .Select(pair => Guid.Parse(pair.Item2!));
+        var names = await ActorDisplayNames.ResolveStaffNamesAsync(staffAccounts, staffIds, cancellationToken);
+        return new(frame, queries
+            .OrderBy(item => item.IsOpen ? 0 : 1)
+            .ThenByDescending(item => item.RaisedAtUtc)
+            .Select(item => item with
+            {
+                RaisedByDisplayName = Display(item.RaisedByKind, item.RaisedBy, names),
+                ClosedByDisplayName = item.ClosedByKind is null || item.ClosedBy is null
+                    ? null
+                    : Display(item.ClosedByKind, item.ClosedBy, names)
+            })
+            .ToArray());
+    }
+
+    private static string Display(string kind, string subject, IReadOnlyDictionary<Guid, string> names) =>
+        Enum.TryParse<ActorKind>(kind, out var parsed)
+            ? ActorDisplayNames.Resolve(parsed, subject, names)
+            : ActorDisplayNames.UnknownStaff;
 }
 
 public sealed class GetCaseFilesSection(ICaseQueryStore store) : IGetCaseFilesSection

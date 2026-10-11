@@ -47,6 +47,7 @@ internal static partial class CaseWebTestSupport
                 Substitute<IGetCaseValuationSection>(services, store);
                 Substitute<IGetCaseNotesSection>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetCaseQueriesSection>(services, store);
                 Substitute<IValidateCaseRenderLease>(services, store);
                 Substitute<IAcquireCaseEditLease>(services, store);
                 Substitute<ICaseWorkflowQueries>(services, store);
@@ -231,6 +232,7 @@ internal static partial class CaseWebTestSupport
                 Substitute<IGetCaseValuationSection>(services, store);
                 Substitute<IGetCaseNotesSection>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetCaseQueriesSection>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
                 substitutePorts?.Invoke(services);
             }));
@@ -708,6 +710,7 @@ internal static partial class CaseWebTestSupport
         Substitute<IGetCaseValuationSection>(services, store);
         Substitute<IGetCaseNotesSection>(services, store);
         Substitute<IGetCaseFilesSection>(services, store);
+        Substitute<IGetCaseQueriesSection>(services, store);
         Substitute<IGetAssessmentWorkspace>(services, store);
         Substitute<IResumeCaseEditLease>(services, store);
     }
@@ -917,7 +920,10 @@ internal static partial class CaseWebTestSupport
                 AvailableReportSentEvidence,
                 RecordNotes,
                 DataOverride ?? CreateData(),
-                LinkedTriage: LinkedTriage));
+                LinkedTriage: LinkedTriage)
+            {
+                OldestOpenQuery = HasOpenQuery ? OldestOpenQuery : null
+            });
         }
 
         Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
@@ -1004,7 +1010,10 @@ internal static partial class CaseWebTestSupport
             "CLM-42",
             _now.AddDays(-2),
             "Email",
-            _now.AddDays(-2));
+            _now.AddDays(-2))
+        {
+            HasOpenQuery = workflow.HasOpenQuery
+        };
 
         private CaseEditLeaseSnapshot? ActiveLease() => _leaseHolder is null
             ? null
@@ -1232,7 +1241,9 @@ internal static partial class CaseWebTestSupport
             {
                 HoldReviewOn = HoldReviewOn,
                 AssignedEngineerId = AssignedEngineerId,
-                ReportSentEvidence = ReportSentEvidence
+                ReportSentEvidence = ReportSentEvidence,
+                HasOpenQuery = HasOpenQuery,
+                Archive = Archive
             };
 
         Task<CaseDueWork> IRecordManualCaseChase.ExecuteAsync(
@@ -1329,6 +1340,7 @@ internal static partial class CaseWebTestSupport
                 Substitute<IGetCaseValuationSection>(services, store);
                 Substitute<IGetCaseNotesSection>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetCaseQueriesSection>(services, store);
                 Substitute<IValidateCaseRenderLease>(services, store);
                 Substitute<IAcquireCaseEditLease>(services, store);
                 Substitute<ICaseWorkflowQueries>(services, store);

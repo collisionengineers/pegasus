@@ -18,16 +18,14 @@
     var state = workflow.State;
     var isClosed = CaseLifecycleRules.IsTerminal(state);
     var isHeld = state == CaseLifecycleState.Held;
-    var isComplete = state == CaseLifecycleState.PostReportComplete;
-    var isQuery = state == CaseLifecycleState.Query;
     var editing = Model.IsEditing;
-    var editingCaseData = editing && !Model.IsPostReportReadOnly;
+    var editingCaseData = editing;
     // The Actions menu is offered in and out of an edit session (operator,
     // 29 September 2026): an item taken outside one runs under a lease
     // claimed for it. While a colleague holds the lease nothing that needs
     // one is offered; the ribbon names them and offers Take over.
     var mayAct = !Model.ColleagueIsEditing;
-    var mayActOnCaseData = mayAct && !Model.IsPostReportReadOnly;
+    var mayActOnCaseData = mayAct;
     var canAssignEngineer = Model.CanAssignEngineer;
     // The confirmation is a lease-carrying Core action; without detected
     // evidence there is nothing to confirm (D10: a send is never asserted here).
@@ -36,10 +34,13 @@
     var canConfirmReportSent = mayAct
         && details.AvailableReportSentEvidence.Count > 0
         && (Model.IsInspectionView || state == CaseLifecycleState.ReportPreparation);
-    var canMarkCompleted = Model.CanMarkCompleted;
+    // Log query on a Report sent Case; Resolve query while a query is open
+    // (operator, 11 October 2026).
+    var canLogQuery = Model.CanLogQuery;
+    var canResolveQuery = Model.CanResolveQuery;
     var canReturnToReview = mayActOnCaseData
-        && state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
-    var canReturnToEngineer = mayAct && (isComplete || isQuery);
+        && state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.ReportSent;
+    var canReturnToEngineer = mayAct && state == CaseLifecycleState.ReportSent;
     var canArchive = mayAct && isClosed && workflow.Archive is null;
     var canUnlinkEvidence = mayActOnCaseData && workflow.ReportSentEvidence is not null
         && state is not CaseLifecycleState.Held && !isClosed;
@@ -180,18 +181,15 @@
                 <span>@Frame.Done</span>
             </button>
         }
-        else if ((!Model.IsPostReportReadOnly || Model.ColleagueIsEditing)
-            && (details.ActiveEditLease is null || details.ActiveEditLease.HolderKind == Pegasus.Core.Identity.ActorKind.Staff))
+        else if (details.ActiveEditLease is null || details.ActiveEditLease.HolderKind == Pegasus.Core.Identity.ActorKind.Staff)
         {
             @* A colleague's staff lease can be taken over by an authorised
                editor; the operation rotates its token and records the prior
                holder. The viewer's own lease is resumed, never taken over.
-               Both views offer Edit (operator, 2 October 2026); a Completed
-               or Query Case does not: its sections read, and Return to
-               Engineer is an Actions-menu item that needs no session. A
-               colleague's lease there is still offered Take over
-               (operator, 29 September 2026), since the Actions menu is
-               withheld while it holds the Case. *@
+               Both views offer Edit (operator, 2 October 2026), a Report sent
+               Case included (operator, 11 October 2026). A colleague's lease
+               is offered Take over (operator, 29 September 2026), since the
+               Actions menu is withheld while it holds the Case. *@
             <form method="post" asp-page-handler="ClaimLease" data-case-edit-form>
                 <input type="hidden" name="id" value="@summary.CaseId" />
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
@@ -239,12 +237,16 @@
                         <span>@Frame.MarkReportSent</span>
                     </button>
                 }
-                @if (canMarkCompleted)
+                @if (canLogQuery)
                 {
-                    <button type="button" class="btn" data-dialog-open="case-complete-dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
-                        <span>@Frame.MarkCompleted</span>
+                    <button type="button" class="btn" data-dialog-open="case-log-query-dialog" data-log-query>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-reply" /></svg>
+                        <span>@Frame.LogQuery</span>
                     </button>
+                }
+                @if (canResolveQuery)
+                {
+                    <partial name="Cases/Shared/_ResolveQueryForm" model="Model" />
                 }
                 @if (canReturnToReview)
                 {

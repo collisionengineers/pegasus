@@ -445,6 +445,7 @@ public static class DependencyInjection
         services.AddScoped<IGetCaseVehicleSection, GetCaseVehicleSection>();
         services.AddScoped<IGetCaseValuationSection, GetCaseValuationSection>();
         services.AddScoped<IGetCaseNotesSection, GetCaseNotesSection>();
+        services.AddScoped<IGetCaseQueriesSection, GetCaseQueriesSection>();
         services.AddScoped<IGetCaseFilesSection, GetCaseFilesSection>();
         services.AddScoped<IValidateCaseRenderLease, ValidateCaseRenderLease>();
         services.AddScoped<IListCaseReferences, ListCaseReferences>();
@@ -577,6 +578,8 @@ public static class DependencyInjection
         services.AddScoped<ICloseCase, CloseCase>();
         services.AddScoped<IReopenCase, ReopenCase>();
         services.AddScoped<IReturnCaseToEngineer, ReturnCaseToEngineer>();
+        services.AddScoped<IRaiseCaseQuery, RaiseCaseQuery>();
+        services.AddScoped<IResolveCaseQueries, ResolveCaseQueries>();
         services.AddScoped<IArchiveCase, ArchiveCase>();
         services.AddScoped<IRecordManualCaseChase, RecordManualCaseChase>();
 

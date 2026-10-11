@@ -68,7 +68,7 @@ public sealed class WorkCentreActivityTests
 
         public DateTimeOffset WeekStartUtc { get; private set; }
 
-        public WorkCentreActivityCounts Counts { get; } = new(new(3, 5), new(6, 17), new(3, 11), new(2, 9), new(18, 64));
+        public WorkCentreActivityCounts Counts { get; } = new(new(3, 5), new(6, 17), new(3, 11), new(18, 64));
 
         public Task<WorkCentreActivityCounts> GetAsync(DateTimeOffset dayStartUtc, DateTimeOffset weekStartUtc, CancellationToken cancellationToken)
         {

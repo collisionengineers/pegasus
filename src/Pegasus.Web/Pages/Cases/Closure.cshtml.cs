@@ -17,6 +17,8 @@ public sealed class ClosureModel(
     ICloseCase closeCase,
     IReopenCase reopenCase,
     IReturnCaseToEngineer returnToEngineer,
+    IRaiseCaseQuery raiseQuery,
+    IResolveCaseQueries resolveQueries,
     IArchiveCase archiveCase,
     ICaseWorkflowQueries workflows,
     IAcquireCaseEditLease acquireLease,
@@ -68,29 +70,45 @@ public sealed class ClosureModel(
             ? selected
             : throw new InvalidOperationException("A closure outcome is required.");
 
-    public Task<IActionResult> OnPostCompleteAsync(
+    /// <summary>
+    /// Log query (operator, 11 October 2026): a query that reached the office
+    /// outside Pegasus's mail, by the channel chosen, with what it is. The
+    /// envelope's reason is the details, so history reads them.
+    /// </summary>
+    public Task<IActionResult> OnPostLogQueryAsync(
         Guid id,
         long expectedVersion,
         string operationKey,
-        string reason,
+        string? editLeaseToken,
+        CaseQueryChannel channel,
+        string? details,
+        CancellationToken cancellationToken) =>
+        ExecuteCaseCommandUnderLeaseAsync(
+            id,
+            expectedVersion,
+            editLeaseToken,
+            "log_query",
+            (actor, lease) => raiseQuery.ExecuteAsync(
+                new(id, expectedVersion, actor, operationKey, details?.Trim() ?? string.Empty, lease, channel, details),
+                cancellationToken),
+            "The query was logged.");
+
+    /// <summary>Resolve query: every open query on the Case closes at once.</summary>
+    public Task<IActionResult> OnPostResolveQueryAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
         string? editLeaseToken,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandUnderLeaseAsync(
             id,
             expectedVersion,
             editLeaseToken,
-            "complete_case",
-            (actor, lease) => closeCase.ExecuteAsync(
-                new(
-                    id,
-                    expectedVersion,
-                    actor,
-                    operationKey,
-                    reason,
-                    lease,
-                    CaseClosureOutcome.PostReportComplete),
+            "resolve_query",
+            (actor, lease) => resolveQueries.ExecuteAsync(
+                new(id, expectedVersion, actor, operationKey, string.Empty, lease),
                 cancellationToken),
-            "The case is now Completed.");
+            "The query was resolved.");
 
     public Task<IActionResult> OnPostReopenAsync(
         Guid id,
