@@ -36,7 +36,8 @@ public static class CaseNextAction
     /// the section that clears it, and at the Report section when that blocker
     /// has none, and carries that blocker. Delivery is the next action only
     /// once the report is stored. Once the report is sent, an Inspection + Audit
-    /// Case without its Audit creates it next (operator, 2 October 2026); any
+    /// Case without its Audit creates it next (operator, 2 October 2026); a
+    /// Completed or Query Case has none (operator, 11 October 2026); any
     /// other Case is marked completed, through the Actions menu's dialog.
     /// </summary>
     /// <param name="caseType">The Case's type: Create audit follows the sent report of an Inspection + Audit Case.</param>
@@ -157,9 +158,12 @@ public static class CaseNextAction
 
     // What follows the sent report: Create audit on an Inspection + Audit Case
     // that has no Audit yet (offered even without an Engineer, where the item
-    // is greyed with that reason), else Mark completed.
+    // is greyed with that reason), else none on a Completed or Query Case,
+    // which cannot be marked completed, else Mark completed.
     private static CaseNextActionStep AfterTheSend(CaseWorkflowRecord workflow, CaseType caseType, CaseWorkSet? works) =>
         AuditPolicy.Refusal(caseType, workflow, works) is null or AuditRefusal.NoAssignedEngineer
             ? new(CaseWorkspaceLabels.Frame.CreateAudit, "overview", OpensCreateAudit: true)
-            : new(CaseWorkspaceLabels.Frame.MarkCompleted, "overview", OpensMarkCompleted: true);
+            : workflow.State is CaseLifecycleState.PostReportComplete or CaseLifecycleState.Query
+                ? new("None", "notes")
+                : new(CaseWorkspaceLabels.Frame.MarkCompleted, "overview", OpensMarkCompleted: true);
 }
