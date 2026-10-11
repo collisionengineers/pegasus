@@ -1712,13 +1712,24 @@ not code changes. Critical incidents are acknowledged immediately while Alex is
 in the staffed office; outside staffed hours, response is as soon as reasonably
 possible. This records the support arrangement, not an invented 24/7 SLA.
 
-Two Azure Monitor rules page the action group (`infra/modules/platform.bicep`):
+Three Azure Monitor rules page the action group (`infra/modules/platform.bicep`):
 `pegasus-prod-web-http5xx` (Sev1) fires when the Web App returns more than
 one HTTP 5xx in a five-minute window, and `pegasus-prod-application-exceptions`
 (Sev2 since 15 September 2026) fires on a correlated Web or Worker exception
 signature in a fifteen-minute window. Both auto-resolve. Before the tuning
 each fired on a single event and paged several times a day on transient
 faults.
+
+The third rule, `pegasus-prod-telemetry-daily-cap` (Sev3, added 11 October
+2026), fires when billable ingestion since 00:00Z reaches 80 percent of the
+daily cap, which `telemetryDailyCapGb` sets for the component and the
+workspace. It watches the component cap that resets at 00:00Z, not the workspace
+cap that resets at 03:00Z, and does not auto-resolve. It fires daily until the
+`AppTraces` volume is cut. The portal 90 percent warning email stays as it is.
+
+Read-back on 11 October 2026 (18:52Z), read-only,
+`az monitor app-insights component billing show`: cap 0.5 GB, `resetTime` 0,
+`warningThreshold` 90, `stopSendNotificationWhenHitCap` false.
 
 Causes seen in the 7–14 September window and their disposition: the Case
 list's "Confirmed vehicle fields exist without a confirmed vehicle
