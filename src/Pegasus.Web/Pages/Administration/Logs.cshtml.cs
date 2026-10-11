@@ -140,10 +140,21 @@ public sealed class LogsModel(
         catch (ArgumentOutOfRangeException)
         {
             // The metrics panel is not shown for an invalid page; observe the read so a fault is not left unobserved.
-            _ = metricsRead?.ContinueWith(static read => read.Exception, TaskContinuationOptions.OnlyOnFaulted);
+            ObserveMetricsRead(metricsRead);
             ModelState.AddModelError(nameof(page), "Choose a valid page.");
         }
+        catch
+        {
+            // Any other failure after the metrics read started leaves it observed too.
+            ObserveMetricsRead(metricsRead);
+            throw;
+        }
         return Page();
+    }
+
+    private static void ObserveMetricsRead(Task<AdministrationHealthMetrics>? metricsRead)
+    {
+        _ = metricsRead?.ContinueWith(static read => read.Exception, TaskContinuationOptions.OnlyOnFaulted);
     }
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
