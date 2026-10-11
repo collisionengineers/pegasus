@@ -604,6 +604,46 @@ public sealed class CaseViewsWebTests
     }
 
     /// <summary>
+    /// A Completed or Query Case cannot be marked completed, so once its report
+    /// is sent its Next action is None; a Completed Inspection + Audit Case
+    /// without its Audit still creates it next (operator, 11 October 2026;
+    /// issue 1163).
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.Query, CaseType.Inspection)]
+    [InlineData(CaseLifecycleState.PostReportComplete, CaseType.Inspection)]
+    [InlineData(CaseLifecycleState.PostReportComplete, CaseType.InspectionAndAudit)]
+    public async Task CompletedOrQueryCaseIsNotMarkedCompletedOnceTheReportIsSent(
+        CaseLifecycleState state, CaseType caseType)
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = state,
+            SummaryCaseType = caseType,
+            AssignedEngineerId = Guid.NewGuid(),
+            ReportSentEvidence = SentEvidence(InspectionSentAtUtc)
+        };
+        using var host = new ReadingHost(store, services =>
+        {
+            Substitute<ICaseReportGenerationStore>(services, new ReportsPerWork(store.CaseId));
+            Substitute<ICaseReportSnapshotSource>(
+                services,
+                new AssessmentReportDraftWebTests.FakeProjectionSource(AssessmentReportDraftWebTests.ReadyInput(store.CaseId)));
+        });
+
+        var next = NextAction(await host.ReadAsync($"/Cases/{store.CaseId:D}"));
+
+        Assert.DoesNotContain("data-next-mark-completed", next, StringComparison.Ordinal);
+        Assert.DoesNotContain($">{Frame.MarkCompleted}<", next, StringComparison.Ordinal);
+        if (caseType == CaseType.InspectionAndAudit)
+        {
+            Assert.Contains("data-next-create-audit>", next, StringComparison.Ordinal);
+            return;
+        }
+        Assert.Contains("<strong data-next-label>None</strong>", next, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Generate report posted from the Inspection view makes the Inspection
     /// report, lands back on the Inspection view with that report marked to
     /// open once, and the Next action there moves on to its delivery

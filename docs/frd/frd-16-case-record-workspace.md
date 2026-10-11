@@ -138,7 +138,8 @@ is on its way to Box. Delivery is the Next action only once the report is
 stored (operator, 27 September 2026). Once the report is sent, the Next
 action is **Create audit** on an Inspection + Audit Case that has no Audit
 yet, with the Actions menu's own control (greyed with its reason where Core
-refuses it), and **Mark completed** on any other Case (operator, 2 October
+refuses it), **None** on a Completed or Query Case (operator, 11 October
+2026), and **Mark completed** on any other Case (operator, 2 October
 2026), with the Actions menu's own control that opens its dialog; where the
 menu does not offer it, the step is named without a control (operator,
 10 October 2026).
