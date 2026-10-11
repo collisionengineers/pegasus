@@ -442,7 +442,7 @@ internal sealed class EfIntakeMutationStore(
             expectedCaseId: null,
             expectedCaseVersion: null,
             editLeaseToken: null,
-            (context, receipt, _, _) =>
+            (context, receipt, _, _, _) =>
             {
                 var correctedDraft = request.CorrectedDraft
                     ?? throw new ArgumentException(
