@@ -580,12 +580,6 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken = default) =>
             throw UnexpectedCall();
 
-        public Task<IntakeSubmissionGroupMember?> FindMemberAsync(
-            Guid groupId,
-            int ordinal,
-            CancellationToken cancellationToken = default) =>
-            throw UnexpectedCall();
-
         public Task<IntakeSubmissionGroupMember> AddMemberAsync(
             Guid groupId,
             int ordinal,

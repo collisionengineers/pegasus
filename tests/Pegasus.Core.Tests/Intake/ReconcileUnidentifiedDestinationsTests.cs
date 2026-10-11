@@ -1307,14 +1307,6 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             Guid? parentReceiptId,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
-        public Task<IntakeSubmissionGroupMember?> FindMemberAsync(
-            Guid groupId,
-            int ordinal,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(Groups.TryGetValue(groupId, out var group)
-                ? group.Members.SingleOrDefault(member => member.Ordinal == ordinal)
-                : null);
-
         public Task<IntakeSubmissionGroupMember> AddMemberAsync(
             Guid groupId,
             int ordinal,
