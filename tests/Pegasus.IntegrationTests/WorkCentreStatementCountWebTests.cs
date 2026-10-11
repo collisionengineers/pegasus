@@ -54,5 +54,6 @@ public sealed class WorkCentreStatementCountWebTests
 
     // 28 - 4 (#1179: shared Triage and Case reads, no rail Triage or Awaiting count)
     // + 5 (#1178: two COUNT commands per Activity figure, ten rather than five).
-    private const int WorkCentreCommands = 29;
+    // - 1 (#1198: the password-change redirect reads the account the cookie check read).
+    private const int WorkCentreCommands = 28;
 }
