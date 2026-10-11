@@ -986,7 +986,7 @@ DECLARE @to datetimeoffset = SYSDATETIMEOFFSET();
 
 SELECT t.query_sql_text,
        SUM(rs.count_executions) AS executions,
-       SUM(rs.count_executions * rs.avg_duration) / SUM(rs.count_executions) AS avg_duration_us,
+       SUM(rs.count_executions * rs.avg_duration) / NULLIF(SUM(rs.count_executions), 0) AS avg_duration_us,
        SUM(rs.count_executions * rs.avg_duration) AS total_duration_us
 FROM sys.query_store_query AS q
 JOIN sys.query_store_query_text AS t ON t.query_text_id = q.query_text_id
