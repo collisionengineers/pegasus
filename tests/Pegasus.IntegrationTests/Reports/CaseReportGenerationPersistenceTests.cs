@@ -330,6 +330,18 @@ public sealed class CaseReportGenerationPersistenceTests
         var selectedId = selection == "replacement"
             ? await harness.AddEligibleSignatoryAsync()
             : FakeSnapshotSource.SignatoryId;
+        await using (var seed = await harness.Factory.CreateDbContextAsync())
+        {
+            seed.CaseDataSnapshots.Add(new CaseDataSnapshotEntity
+            {
+                WorkId = harness.CaseId,
+                OriginReceivedAtUtc = Harness.StartUtc,
+                CompletenessPolicyKey = "test",
+                CompletenessPolicyVersion = 1,
+                AcceptedAtUtc = Harness.StartUtc
+            });
+            await seed.SaveChangesAsync();
+        }
 
         await new EfCaseWorkspaceStore(harness.Factory, Harness.Clock).SaveAsync(
             new SaveCaseWorkspaceRequest(
