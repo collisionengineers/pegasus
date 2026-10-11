@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -10,8 +9,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// the columns are written on completion and read back in memory. The two
 /// indexes only cost writes, so they go. Forward-only: no data change.
 /// </summary>
-[DbContext(typeof(PegasusDbContext))]
-[Migration("20261011130000_DropAiJobMarketResearchIndexes")]
 public partial class DropAiJobMarketResearchIndexes : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
