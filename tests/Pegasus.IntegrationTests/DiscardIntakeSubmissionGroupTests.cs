@@ -164,7 +164,7 @@ public sealed class DiscardIntakeSubmissionGroupTests
 
         public LocalDbTestDatabase Database { get; }
         public IDbContextFactory<PegasusDbContext> Factory { get; }
-        public IIntakeSubmissionGroupStore Store { get; }
+        public EfIntakeSubmissionGroupStore Store { get; }
         public Guid GroupId { get; } = Guid.NewGuid();
         public Guid StagedReceiptId { get; } = Guid.NewGuid();
         public Guid ReceiptId { get; } = Guid.NewGuid();
