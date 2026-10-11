@@ -42,9 +42,7 @@ SHOTS.mkdir(exist_ok=True)
 def css():
     site = (WEB / 'css' / 'site.css').read_text(encoding='utf8')
     regular = base64.b64encode((WEB / 'fonts' / 'inter' / 'InterVariable.woff2').read_bytes()).decode()
-    italic = base64.b64encode((WEB / 'fonts' / 'inter' / 'InterVariable-Italic.woff2').read_bytes()).decode()
     site = re.sub(r'url\(\.\./fonts/inter/InterVariable\.[0-9a-z]+\.woff2\)', lambda m: f'url(data:font/woff2;base64,{regular})', site)
-    site = site.replace('url(../fonts/inter/InterVariable-Italic.woff2)', f'url(data:font/woff2;base64,{italic})')
     return site + '\n' + (WEB / 'css' / 'case-workspace.css').read_text(encoding='utf8')
 
 
