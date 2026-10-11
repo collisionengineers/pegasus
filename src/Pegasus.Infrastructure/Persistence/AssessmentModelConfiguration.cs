@@ -308,8 +308,6 @@ internal static class AssessmentModelConfiguration
             entity.HasIndex(item => new { item.State, item.LeaseExpiresAtUtc });
             entity.HasIndex(item => item.SubjectId);
             entity.HasIndex(item => item.CreatedAtUtc);
-            entity.HasIndex(item => item.MarketResearchDocumentOccurrenceId);
-            entity.HasIndex(item => item.MarketResearchValuationId);
         });
 
         builder.Entity<SendToAiControlEntity>(entity =>

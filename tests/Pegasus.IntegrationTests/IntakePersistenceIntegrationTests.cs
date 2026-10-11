@@ -230,7 +230,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261009120000_DropGlassSessionExpiry",
                 "20261009120000_RemoveUnprintedAssessmentFields",
                 "20261009120000_WorkCentreActivityIndexes",
-                "20261011112442_DiscardDeletesRepairSpec"
+                "20261011112442_DiscardDeletesRepairSpec",
+                "20261011130000_DropAiJobMarketResearchIndexes"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
