@@ -538,7 +538,6 @@ public sealed class AzureBlobIntakeArtifactStore
             return false;
         }
 
-        await VerifyBlobAsync(blob, expectedHash, expectedLength, cancellationToken);
         return true;
     }
 
