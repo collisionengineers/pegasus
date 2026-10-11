@@ -27,9 +27,10 @@ namespace Pegasus.Infrastructure.Glass;
 /// <b>Every failure is "unavailable".</b> The card says the same approved
 /// sentence whatever stopped the valuation — the account, the plate, the
 /// provider or the network — and the reason goes to the host log by its
-/// failure code. The one exception is Glass's answering that it does not
-/// value a vehicle of this age, which nothing can fix: the card says that
-/// instead (operator, 2 October 2026). Configuration is read on each valuation, never when the
+/// failure code. The two exceptions are Glass's answering that it does not
+/// value a vehicle of this age (operator, 2 October 2026) and Glass's holding
+/// no data for the registration (operator, 10 October 2026), which nothing
+/// can fix: the card says that instead. Configuration is read on each valuation, never when the
 /// provider is built: every Case page builds it, including on a host whose
 /// Glass's settings are not yet resolved.
 /// </para>
