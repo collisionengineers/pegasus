@@ -2399,7 +2399,6 @@ public static class OperatorLabels
             public static string EstimateState(RepairSpecificationState state) => state switch
             {
                 RepairSpecificationState.Draft => "Draft",
-                RepairSpecificationState.Discarded => "Discarded",
                 _ => throw new ArgumentOutOfRangeException(nameof(state), state, null),
             };
 

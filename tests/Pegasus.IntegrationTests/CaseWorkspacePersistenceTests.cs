@@ -1293,7 +1293,7 @@ public sealed class CaseWorkspacePersistenceTests
             engineer,
             "lease-partial");
         var historyBefore = await harness.HistoryCountAsync();
-        var discarded = await DiscardAnEstimateAsync(harness);
+        var discarded = DiscardedEstimateId();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             harness.WorkspaceStore.SaveAsync(
@@ -1318,8 +1318,8 @@ public sealed class CaseWorkspacePersistenceTests
                         [AssessmentVocabulary.EngineersComments] = "Never written",
                         [AssessmentVocabulary.AgreedFee] = "120.00"
                     }, null, new DateOnly(2031, 5, 20)),
-                    // A discarded spec cannot be changed: the refusal comes
-                    // after the Case facts were written.
+                    // A discarded spec is gone: the refusal comes after the
+                    // Case facts were written.
                     Estimate = new(discarded, new("Discarded estimate", null, null, 20m), [])
                 },
                 CancellationToken.None));
@@ -1336,7 +1336,7 @@ public sealed class CaseWorkspacePersistenceTests
     {
         await using var harness = await Harness.CreateAsync();
         var initial = await harness.GetRequiredDataAsync();
-        var discarded = await DiscardAnEstimateAsync(harness);
+        var discarded = DiscardedEstimateId();
         var engineer = Engineer(harness);
         var lease = await harness.AcquireLeaseAsync(
             initial.Version,
@@ -1350,7 +1350,7 @@ public sealed class CaseWorkspacePersistenceTests
                     Estimate = new(discarded, new("Discarded estimate", null, null, 20m), [])
                 },
                 CancellationToken.None));
-        Assert.Contains("A discarded estimate cannot be changed", refusal.Message, StringComparison.Ordinal);
+        Assert.Contains("The estimate was not found on this case", refusal.Message, StringComparison.Ordinal);
 
         await MarkTerminalAsync(harness);
         await Assert.ThrowsAsync<CaseTerminalMutationException>(() =>
@@ -2258,24 +2258,11 @@ public sealed class CaseWorkspacePersistenceTests
         Guid.Parse(harness.StaffActor.SubjectId),
         [role]);
 
-    private static async Task<Guid> DiscardAnEstimateAsync(Harness harness)
-    {
-        var id = Guid.NewGuid();
-        await using var context = await harness.Factory.CreateDbContextAsync();
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"""
-            INSERT INTO CaseRepairSpecifications
-                (Id, WorkId, Version, State, SourceRoute, CreatedBy, CreationOperationKey,
-                 CreatedAtUtc, Name, VatPercent, RepairerVatStatus, IsCurrent,
-                 DiscardedBy, DiscardedAtUtc, DiscardReason)
-            VALUES
-                ({id}, {harness.CaseId}, {1}, {"Discarded"}, {"Manual"},
-                 {harness.StaffActor.SubjectId}, {"discarded-estimate"},
-                 {DateTimeOffset.UtcNow}, {"Discarded estimate"}, {20m}, {"Unknown"}, {false},
-                 {harness.StaffActor.SubjectId}, {DateTimeOffset.UtcNow}, {"Entered in error"})
-            """);
-        return id;
-    }
+    /// <summary>
+    /// Discard deletes a spec (operator, 11 October 2026), so a discarded one
+    /// is an id the Case no longer holds.
+    /// </summary>
+    private static Guid DiscardedEstimateId() => Guid.NewGuid();
 
     private static async Task<Guid> SeedCurrentGenerationAsync(Harness harness, long caseVersion, Guid? workId = null)
     {

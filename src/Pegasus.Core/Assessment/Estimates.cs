@@ -983,37 +983,15 @@ public static class EstimatePolicy
     }
 
     /// <summary>
-    /// Every live estimate is edited in place, the Current one included; the
-    /// report it feeds goes stale instead.
+    /// Discard deletes a spec, so the one the Case uses cannot be discarded;
+    /// switch to another first.
     /// </summary>
-    public static void ValidateEditable(RepairSpecificationVersion estimate)
-    {
-        ArgumentNullException.ThrowIfNull(estimate);
-        if (estimate.State == RepairSpecificationState.Discarded)
-        {
-            throw new InvalidOperationException("A discarded estimate cannot be changed.");
-        }
-    }
-
-    public static void ValidateDuplicate(RepairSpecificationVersion estimate)
-    {
-        ArgumentNullException.ThrowIfNull(estimate);
-        if (estimate.State == RepairSpecificationState.Discarded)
-        {
-            throw new InvalidOperationException("A discarded estimate cannot be duplicated.");
-        }
-    }
-
     public static void ValidateDiscard(RepairSpecificationVersion estimate)
     {
         ArgumentNullException.ThrowIfNull(estimate);
         if (estimate.IsCurrent)
         {
             throw new InvalidOperationException("The repair spec in use cannot be discarded.");
-        }
-        if (estimate.State == RepairSpecificationState.Discarded)
-        {
-            throw new InvalidOperationException("The estimate is already discarded.");
         }
     }
 
@@ -1026,10 +1004,6 @@ public static class EstimatePolicy
     {
         ArgumentNullException.ThrowIfNull(estimate);
         RepairSpecificationPolicy.RequireStaffAuthor(actor);
-        if (estimate.State == RepairSpecificationState.Discarded)
-        {
-            throw new InvalidOperationException("A discarded estimate cannot be put in use.");
-        }
     }
 
     private static void Money(decimal? value, string description)
@@ -1110,7 +1084,7 @@ public sealed record DuplicateEstimateRequest(
     public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
 }
 
-/// <summary>The reason is the discard reason and is recorded on the estimate.</summary>
+/// <summary>The reason is the discard reason and is recorded in the Case history.</summary>
 public sealed record DiscardEstimateRequest(
     Guid CaseId,
     long ExpectedVersion,
@@ -1149,7 +1123,7 @@ public interface IDuplicateEstimate
 
 public interface IDiscardEstimate
 {
-    Task<RepairSpecificationVersion> ExecuteAsync(DiscardEstimateRequest request, CancellationToken cancellationToken);
+    Task ExecuteAsync(DiscardEstimateRequest request, CancellationToken cancellationToken);
 }
 
 public interface ISetCurrentEstimate
@@ -1239,7 +1213,7 @@ public sealed class DuplicateEstimate(IRepairSpecificationStore store) : IDuplic
 
 public sealed class DiscardEstimate(IRepairSpecificationStore store) : IDiscardEstimate
 {
-    public Task<RepairSpecificationVersion> ExecuteAsync(
+    public Task ExecuteAsync(
         DiscardEstimateRequest request,
         CancellationToken cancellationToken)
     {

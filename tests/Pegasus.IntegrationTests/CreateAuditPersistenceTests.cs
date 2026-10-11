@@ -501,7 +501,6 @@ public sealed class CreateAuditPersistenceTests
             .Where(item => item.WorkId == auditWorkId)
             .ToListAsync();
         Assert.Equal(CopiedSpecificationVersions, auditSpecifications.Select(item => item.Version).Order());
-        Assert.DoesNotContain(auditSpecifications, item => item.State == nameof(RepairSpecificationState.Discarded));
         Assert.Empty(auditSpecifications.Select(item => item.Id).Intersect(sourceSpecifications.Select(item => item.Id)));
         var earlier = Assert.Single(auditSpecifications, item => item.Version == 1);
         var current = Assert.Single(auditSpecifications, item => item.Version == 2);
@@ -988,8 +987,8 @@ public sealed class CreateAuditPersistenceTests
         };
 
         /// <summary>
-        /// Four specifications: an earlier v1, the v2 in use, a discarded v3,
-        /// and a draft v4 supplementing the discarded one.
+        /// Three specifications: an earlier v1, the v2 in use and a draft v4
+        /// supplementing v3, which was discarded and so deleted.
         /// </summary>
         private static void SeedSpecifications(PegasusDbContext context, Guid caseId, Guid aiJobId, DateTimeOffset now)
         {
@@ -1005,15 +1004,12 @@ public sealed class CreateAuditPersistenceTests
             current.GlassRegistration = "AB12CDE";
             current.GlassMileageMiles = 33000;
             current.Lines.Add(Line(caseId, current.Id, now));
-            var discarded = Specification(caseId, 3, nameof(RepairSpecificationState.Discarded), now);
-            discarded.DiscardedBy = "engineer";
-            discarded.DiscardedAtUtc = now.AddDays(-5);
-            discarded.DiscardReason = "Entered in error";
+            var discardedId = Guid.NewGuid();
             var draft = Specification(caseId, 4, nameof(RepairSpecificationState.Draft), now);
-            draft.SupplementaryOfSpecificationId = discarded.Id;
+            draft.SupplementaryOfSpecificationId = discardedId;
             draft.SupplementaryReason = "additional";
             draft.SupplementaryStatement = "Further damage found.";
-            context.CaseRepairSpecifications.AddRange(earlier, current, discarded, draft);
+            context.CaseRepairSpecifications.AddRange(earlier, current, draft);
             context.CaseRepairSpecificationSnapshots.Add(new CaseRepairSpecificationSnapshotEntity
             {
                 Id = Guid.NewGuid(),

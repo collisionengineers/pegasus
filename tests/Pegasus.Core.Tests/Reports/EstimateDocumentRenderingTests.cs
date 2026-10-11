@@ -129,22 +129,21 @@ public sealed class EstimateDocumentRenderingTests
     public void EveryEstimateProjectsItsLiveCalculation()
     {
         // No calculation is frozen on the estimate: the printed spec is what
-        // the lines and header cost now, whatever its state.
+        // the lines and header cost now, in use or not.
         var draft = Estimate(Details(rate: 40m), Line("repair", 1, workUnits: 2m));
-        var discarded = draft with { State = RepairSpecificationState.Discarded, Details = Details(rate: 100m) };
+        var current = draft with { IsCurrent = true, Details = Details(rate: 100m) };
 
         Assert.Equal(80m, Snapshot(draft).Totals.Printed.Net);
-        Assert.Equal(200m, Snapshot(discarded).Totals.Printed.Net);
+        Assert.Equal(200m, Snapshot(current).Totals.Printed.Net);
     }
 
     [Fact]
-    public void TheStatusNamesTheSpecInUseADraftOrADiscardedSpec()
+    public void TheStatusNamesTheSpecInUseOrADraft()
     {
         var draft = Estimate(Details(rate: 40m), Line("repair", 1, workUnits: 2m));
 
         Assert.Equal("CURRENT", Snapshot(draft with { IsCurrent = true }).Status);
         Assert.Equal("DRAFT", Snapshot(draft).Status);
-        Assert.Equal("DISCARDED", Snapshot(draft with { State = RepairSpecificationState.Discarded }).Status);
     }
 
     [Theory]

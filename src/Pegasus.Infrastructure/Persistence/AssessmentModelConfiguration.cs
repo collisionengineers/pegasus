@@ -98,10 +98,6 @@ internal static class AssessmentModelConfiguration
                 table.HasCheckConstraint("CK_CaseRepairSpecifications_SourceRoute", $"[SourceRoute] IN ({routes})");
                 table.HasCheckConstraint("CK_CaseRepairSpecifications_Version", "[Version] > 0");
                 table.HasCheckConstraint(
-                    "CK_CaseRepairSpecifications_Discard",
-                    "([State] = 'Draft' AND [DiscardedBy] IS NULL AND [DiscardedAtUtc] IS NULL AND [DiscardReason] IS NULL) OR "
-                    + "([State] = 'Discarded' AND [DiscardedBy] IS NOT NULL AND [DiscardedAtUtc] IS NOT NULL AND [DiscardReason] IS NOT NULL)");
-                table.HasCheckConstraint(
                     "CK_CaseRepairSpecifications_Current",
                     "[IsCurrent] = 0 OR [State] = 'Draft'");
                 table.HasCheckConstraint(
@@ -132,8 +128,6 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.OverallDiscountPercent).HasPrecision(7, 4);
             entity.Property(item => item.RepairerVatStatus).HasMaxLength(20);
             entity.Property(item => item.VatPercent).HasPrecision(5, 2);
-            entity.Property(item => item.DiscardedBy).HasMaxLength(200);
-            entity.Property(item => item.DiscardReason).HasMaxLength(500);
             entity.Property(item => item.LastOperationKey).HasMaxLength(100);
             entity.Property(item => item.SupplementaryReason).HasMaxLength(20);
             entity.Property(item => item.SupplementaryStatement).HasMaxLength(4000);

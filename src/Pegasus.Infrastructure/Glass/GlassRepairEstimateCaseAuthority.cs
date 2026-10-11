@@ -125,12 +125,8 @@ public sealed class EfGlassRepairEstimateCaseAuthority(
     }
 
     private static IQueryable<CaseRepairSpecificationEntity> LiveSpecifications(
-        PegasusDbContext context, Guid workId)
-    {
-        const string draft = nameof(RepairSpecificationState.Draft);
-        return context.CaseRepairSpecifications.AsNoTracking()
-            .Where(item => item.WorkId == workId && item.State == draft);
-    }
+        PegasusDbContext context, Guid workId) =>
+        context.CaseRepairSpecifications.AsNoTracking().Where(item => item.WorkId == workId);
 
     private static string RequireRegistration(IReadOnlyList<CaseDataFieldEntity> fields) =>
         CaseDataFieldValues.Current(fields, CaseDataFieldNames.VehicleRegistration) is { Length: > 0 } registration
