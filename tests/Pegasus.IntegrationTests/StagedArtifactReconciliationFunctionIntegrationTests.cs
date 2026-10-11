@@ -702,6 +702,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         public Task<Pegasus.Core.Triage.TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
+        public Task<Pegasus.Core.Triage.TriageRecord?> GetRecordAsync(Guid id, CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
         public Task<Pegasus.Core.Triage.TriageSummary?> GetByOriginReceiptAsync(
             Guid originReceiptId,
             CancellationToken cancellationToken) =>
