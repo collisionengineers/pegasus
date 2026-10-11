@@ -362,7 +362,7 @@ public sealed class MailboxIntakeIntegrationTests
             .OrderBy(item => item.Ordinal)
             .ToListAsync();
         Assert.Equal(
-            ["second body text", "second attachment text"],
+            new string?[] { "second body text", "second attachment text" },
             rows.Select(item => item.Text).ToArray());
         Assert.Equal([0, 1], rows.Select(item => item.Ordinal).ToArray());
     }
