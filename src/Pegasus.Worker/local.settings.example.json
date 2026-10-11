@@ -7,7 +7,7 @@
     "ConnectionStrings__Pegasus": "Server=(localdb)\\MSSQLLocalDB;Database=PegasusDevelopment;Integrated Security=True;Encrypt=False;MultipleActiveResultSets=True",
     "Intake__LocalArtifactPath": "../../artifacts/local-development/default/intake",
     "PendingWorkRecoverySchedule": "0 * * * * *",
-    "IntakeStagedArtifactReconciliationSchedule": "*/10 * * * * *",
+    "IntakeStagedArtifactReconciliationSchedule": "0 * * * * *",
     "SentEvidencePollSchedule": "0 * * * * *",
     "ApprovedInbox__MailboxId": "instructions",
     "ApprovedInbox__MailboxAddress": "instructions@collisionengineers.co.uk",
