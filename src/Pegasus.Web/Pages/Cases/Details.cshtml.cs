@@ -956,7 +956,6 @@ public sealed partial class DetailsModel(
         Guid id,
         string? estimate,
         string? dialog,
-        [FromServices] TriageCasePorts triagePorts,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -971,7 +970,11 @@ public sealed partial class DetailsModel(
         // unknown id is not found by the Case frame read below.
         if (await getCaseKind.ExecuteAsync(id, cancellationToken) == CaseType.Triage)
         {
-            return await GetTriageCaseAsync(id, actor, triagePorts, cancellationToken);
+            return await GetTriageCaseAsync(
+                id,
+                actor,
+                HttpContext.RequestServices.GetRequiredService<TriageCasePorts>(),
+                cancellationToken);
         }
 
         using var activity = DocumentReadTelemetry.Start("web.case.main");
@@ -2235,11 +2238,6 @@ public sealed partial class DetailsModel(
     /// report followed by its fee note.
     /// </summary>
     public Task<IActionResult> OnGetPreviewReportDraftAsync(
-        Guid id,
-        CancellationToken cancellationToken) =>
-        PreviewReportDraftAsync(id, CaseReportArtifactKind.AssessmentReport, cancellationToken);
-
-    public Task<IActionResult> OnPostPreviewReportDraftAsync(
         Guid id,
         CancellationToken cancellationToken) =>
         PreviewReportDraftAsync(id, CaseReportArtifactKind.AssessmentReport, cancellationToken);
@@ -3999,8 +3997,6 @@ public sealed partial class DetailsModel(
             id,
             estimateId?.ToString("D"),
             null,
-            Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
-                .GetRequiredService<TriageCasePorts>(HttpContext.RequestServices),
             cancellationToken);
         if (Case is null)
         {

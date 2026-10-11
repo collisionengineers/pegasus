@@ -82,20 +82,9 @@ public sealed record UploadCaseAttachmentDraft(
 /// </summary>
 public interface IUploadCaseDecision
 {
-    Task<IReadOnlyList<UploadCaseSuggestion>> SearchForUploadAsync(
-        Guid receiptId,
-        string term,
-        ActionActor actor,
-        CancellationToken cancellationToken = default);
-
     Task<IReadOnlyList<UploadCaseSuggestion>> SearchForUploadsAsync(
         IReadOnlyList<Guid> receiptIds,
         string term,
-        ActionActor actor,
-        CancellationToken cancellationToken = default);
-
-    Task<IReadOnlyList<UploadCaseSuggestion>> GetSuggestionsForUploadAsync(
-        Guid receiptId,
         ActionActor actor,
         CancellationToken cancellationToken = default);
 
@@ -165,15 +154,6 @@ public sealed class UploadCaseDecision(
     IIntakeAssociationDestinationQueries destinations,
     IEditScopeLeases editScopes) : IUploadCaseDecision
 {
-    public async Task<IReadOnlyList<UploadCaseSuggestion>> SearchForUploadAsync(
-        Guid receiptId,
-        string term,
-        ActionActor actor,
-        CancellationToken cancellationToken = default)
-    {
-        return await SearchForUploadsAsync([receiptId], term, actor, cancellationToken);
-    }
-
     public async Task<IReadOnlyList<UploadCaseSuggestion>> SearchForUploadsAsync(
         IReadOnlyList<Guid> receiptIds,
         string term,
@@ -208,12 +188,6 @@ public sealed class UploadCaseDecision(
 
         return common!.Values.Select(UploadCaseSuggestion.From).ToArray();
     }
-
-    public async Task<IReadOnlyList<UploadCaseSuggestion>> GetSuggestionsForUploadAsync(
-        Guid receiptId,
-        ActionActor actor,
-        CancellationToken cancellationToken = default) =>
-        await GetSuggestionsForUploadsAsync([receiptId], actor, cancellationToken);
 
     public async Task<IReadOnlyList<UploadCaseSuggestion>> GetSuggestionsForUploadsAsync(
         IReadOnlyList<Guid> receiptIds,

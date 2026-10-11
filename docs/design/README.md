@@ -403,7 +403,7 @@ State chips are `.status` with one tone modifier and always a text label:
 
 ### Typography
 
-Application text uses **Inter Variable** (upright and italic), vendored under
+Application text uses **Inter Variable** (upright), vendored under
 `src/Pegasus.Web/wwwroot/fonts/inter/` as woff2 with the SIL Open Font
 License 1.1 text beside it. The face is self-hosted and declared with
 `font-display: swap`; no external font stylesheet or CDN is referenced, and
@@ -422,7 +422,6 @@ face degrades to a comparable sans-serif on every platform.
 | File | Licence | SHA-256 |
 | --- | --- | --- |
 | `fonts/inter/InterVariable.woff2` | SIL OFL 1.1 (`fonts/inter/LICENSE.txt`, SHA-256 `262481E844521B326F5ECD053E59B98C8B2DA78C8EE1BDBB6E8174305E54935A`) | `693B77D4F32EE9B8BFC995589B5FAD5E99ADF2832738661F5402F9978429A8E3` |
-| `fonts/inter/InterVariable-Italic.woff2` | SIL OFL 1.1 | `E564F652916DB6C139570FEFB9524A77C4D48F30C92928DE9DB19B6B5C7A262A` |
 
 Rules:
 
@@ -533,7 +532,6 @@ checksum-pinned repository copy is the durable source.
 
 | Asset | Upstream source & SHA-256 | Web runtime destination & SHA-256 | Mapping & usage |
 | --- | --- | --- | --- |
-| Primary logo | `docs/design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte governed copy kept in the Web runtime; no page or script references it. The report renderer embeds the master `docs/design/brand/logos/logo_no_margin.png` directly (`Pegasus.Infrastructure.csproj`). |
 | Refined rail mark (128px) | `docs/design/brand/logos/pegasus-mark-refined-128.png`<br>`1D6758A5F9D90EA4539DBB498BF0171A93C23B85E9C3868BDDC7D6ABC724A1CB` | `src/Pegasus.Web/wwwroot/images/pegasus-mark-refined-128.png`<br>`1D6758A5F9D90EA4539DBB498BF0171A93C23B85E9C3868BDDC7D6ABC724A1CB` | Byte-for-byte copy embedded by `_Layout.cshtml` in the authenticated rail. |
 | Refined auth mark (256px) | `docs/design/brand/logos/pegasus-mark-refined-256.png`<br>`E3C9712DE05E18D93BD21857F3961A8832941D91D942FA1E34F513944B545E1D` | `src/Pegasus.Web/wwwroot/images/pegasus-mark-refined-256.png`<br>`E3C9712DE05E18D93BD21857F3961A8832941D91D942FA1E34F513944B545E1D` | Byte-for-byte copy embedded by `_LayoutAuth.cshtml` as the `auth-brand` of the sign-in card. |
 
@@ -552,15 +550,14 @@ symbols. The prototype's hand-drawn `iconPaths` are not adopted; every glyph
 it names maps to the Lucide id below, and the prototype's inline sparkle is
 not adopted. Use the provider-neutral label `Send to AI`.
 
-The checksummed sprite `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` is
-the governed glyph record; no page requests it.
-`src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml` inlines the glyphs once per
-page as `<symbol viewBox="0 0 24 24">` elements; pages reference glyphs as
+`src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml` is the governed glyph
+record. It inlines the glyphs once per page as `<symbol viewBox="0 0 24 24">`
+elements; pages reference glyphs as
 `<svg class="icon"><use href="#icon-…"/></svg>`. The `.icon` rule applies the
-stroke and caps because a `<use>` clone does not inherit them. The sprite
-holds the sixty glyphs below (the original seventeen plus the
-forty-three later added from Lucide v0.344.0); each glyph checksum is the
-SHA-256 of its `<g id="icon-…">…</g>` element in the sprite.
+stroke and caps because a `<use>` clone does not inherit them. The partial
+holds the seventy-five glyphs in the two tables below; each glyph checksum is
+the SHA-256 of the glyph's UTF-8 `<symbol id="icon-…">…</symbol>` element in
+that partial.
 
 An icon paired with a visible text label is decorative and carries
 `aria-hidden="true"`. An icon that is the whole control carries
@@ -571,114 +568,84 @@ icon-system authority.
 #### Lucide icons source-to-runtime mapping
 
 Upstream source: Lucide official SVG vectors release (v0.344.0). Runtime
-sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` (SHA-256 of the
-committed LF blob `90FEB7AB7E40931DDE9B011CEC06F4E8B4DCD058695DEC09DB5E0965AC7A0992`,
-sixty glyphs; the earlier seventeen-glyph sprite was
-`24360787DB7A58F1B0ACA7E2F66405749C9D5742A2ADA91C07BDFF03202872D0`).
+sprite: `src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml`.
 
 | Prototype name | Lucide id | Glyph SHA-256 | Usage |
 | --- | --- | --- | --- |
-| `dashboard` | `layout-dashboard` | `F8A9AFA8D2245E34D3DAEB88C9FF80A2AA546D1F8671212896E743E596F3752B` | Rail: Work Centre |
-| `inbox` | `inbox` | `0817485BFAE1A740458AA3FC1E6E4542047FA890C547D35B17C771E6D352E901` | Rail: Inbox; Inbox scopes |
-| `upload` | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Rail: Upload; the picker's drop target |
-| `queues` | `list` | `E7AF143D4992901731088F11F4AFDC0342361D5B85DB3841D252A9DCA5D97E45` | Rail: Cases (as the prototype draws it) |
-| `cases` | `folder-open` | `11EDC315700BAA321B840623A707A8571C28D511815EEB505516EAC795194BB9` | Rail: Search (as the prototype draws it); Case tabs |
-| `image` | `image` | `309035AB9321F61F17336BD1B23E869BDE47EA07BA16CF72BE38762EF8922067` | Image record; gallery; image-initiated rows |
-| `operations` | `loader` | `D606C955171E2BF83DA877BBC155127B0AB899007A3A16D0B90EE3C00C1926EF` | Running jobs |
-| `admin` | `layout-grid` | `DCF60CA3B7FC36D4C69ED1A6EBC4CAD464CE850786B7AEE5BD1AB0A542C0D0BE` | Rail: Administration |
-| `search` | `search` | `832472670DB14C3420D64D80271A04FE90AE32D47F4834F4E70E9A8E2678EE7E` | Utility search; palette; Search buttons; DVLA & MOT lookup |
-| `plus` | `plus` | `A1190965745A47ED26827784BBAE8B9291D5170501A02FB335D82247EA276108` | Add, Create, New estimate |
-| `refresh` | `refresh-cw` | `C795E4B7F739E9CF2D5C5996CBDF8A0541734F0DC99EBE169BAE945FD04E2AA2` | The one Refresh control (`Shared/_RefreshButton`) |
-| `chevron-right` | `chevron-right` | `07C6F850908E2A9ABA2AD8B7B91AA8E525D463398D479DAD5EF10CB534FE3710` | Row affordance, stepper |
-| `chevron-left` | `chevron-left` | `1E4CC2B6933AEDC73D77B080ABC988D9A4ED319191AC4AB2F0BD417C8E91BCE1` | Back, pagination |
-| `chevron-down` | `chevron-down` | `07FA08D36ABFC560E7901833347764591406C71C2E8974BAF3EE518866D549C3` | Disclosure, select |
-| `arrow` | `arrow-right` | `D8B246C7FDBAB41053F2016892C0664BB64C0C6D1ED4594C9D80470C1B219C70` | Open full record, transitions |
-| `user` | `user` | `F12759D8CA6B092DCA70B2E265F4CD8921C6DC61B408C9DA3FFFC8650BE76AA2` | Rail user, account dialog; Triage Assign |
-| `more` | `more-horizontal` | `2124DA66776313BB29ED93D2CC06BBF1307EF8C8DBE672B3EE3AF4975F5E56D1` | Overflow menus |
-| `clock` | `clock` | `EE847E37391A579398EA5CB111A4893642085DEA959EF3812F210ED69EABC5C6` | Freshness, due |
-| `alert` | `alert-circle` | `69DA72930B08F89FA5C1AFDA3D5813BFAFA124D3E86F66B2100300F2B7DEB415` | Error summary, blocked |
-| `warning` | `alert-triangle` | `40DEB35C6E3562DB12C1962989A7D9E24C758489247929C156DEDD8476DBE233` | Warning notice, Unidentified queue |
-| `check` | `check` | `DE2A367F6B80B94E85E56CF01EFB198FB835039FEC3C0B4E643EAE54E9C857C6` | Save, confirm, checks |
-| `check-circle` | `check-circle` | `CB9B89AA467B527393B51229F14E0314DB15D75792D2071C5FE599AB595C7678` | Confirmed completion |
-| `file` | `file` | `1A3C36C8758354AA3FBE172B2F9AA864C898B425AEF310970A2A30C706899C4A` | Document rows |
-| `mail` | `mail` | `1F2FF3622BA89D178DAC9BB0FBADE33862AF73E2AA627D7B8B682D8FA23B9C81` | Mail rows, Correspondence |
-| `link` | `link` | `6D49DABEC5033468AD49114CA79422BC8CB2F1C1AE3696A34FD98EA5B1E93A1E` | Case link |
-| `edit` | `pencil` | `63FD491D3A18940F7DDDD179F617729039871DBB01E42FCF6CEF81D6315A6C39` | Edit Case, inline edit |
-| `save` | `save` | `BEEDEA57260C30DD0B222C239B536C1EFD8B8DD7BDD3BB5311CFB5DD325677A3` | Save |
-| `close` | `x` | `FE4FAFDA78C537A7218FC7EDE65B1A01BE9BD5DF253C75805309D1EA2E6152DC` | Dialog close, tab close, remove |
-| `hold` | `pause` | `1A4247062E4B9E29A38E9C6C0867F6D85351F8B058606EA1FC89768495734773` | Place on Hold, Held |
-| `play` | `play` | `197D4369B982F7DBA348DCD5BD06F4C003A2C345C40CE2AC44719238463844D5` | Release Hold, Start automation, Retry this work |
-| `report`, `document` | `file-text` | `A6AF7723E87920CF322C8C39F0A1080075BFA19B3E966A8E21D2D81A93772936` | Report, instruction evidence |
-| `settings` | `settings` | `F6CE9F023EC1C2720723672887014349E1D3A68DF9555CA3795C5FEF95265B4A` | Principal settings, configuration |
-| `filter` | `filter` | `C4319C676F5B160213319934EB2DEC6F60DD6F73C344C0D6C84AE1699430D45C` | Filter bars |
-| `lock` | `lock` | `1F0A0861A3752428E1D5CABDAC22608E645A008229EF58415EC0C0E112F5BF2D` | Edit lease, idle lock |
-| `external` | `external-link` | `27EB1A4F2FC62CA8E0B422442016854B17A5178EC7EE0DE23EB894BD5E5C5DF3` | Retained source |
-| `eye` | `eye` | `73D6B13F2AE0E9AA498E371618CF4CC6392C75F1A4C23FCDF1B981451368EF7A` | Preview, Open report, Show key |
-| `bell` | `bell` | `5B315496E663ECA0E7465EDAD43FCD54BF00577C1737A5E8F9CC5352D185E79F` | Utility bar notifications |
-| `signout` | `log-out` | `20B23EB0AF17FE443827B2E64EC23057092180CDE64B3FAC5F2A9DC210A70880` | Sign out |
-| `calendar` | `calendar` | `9164C7178F10683EF0FB999F773149CD7AF5964875E6E896C6826F5A8988C67F` | Date filters, due |
-| `history` | `history` | `ECC48B15E6A405F12C901A460C5D9745A09C84439AA1359EA3F846B8C28EF802` | Timeline, History panel |
-| `copy` | `copy` | `10CBC775CD0ACEBBB15F863348821192DBD4A2858380CC295BEB020AB4144DCB` | Copy reference |
-| `download` | `download` | `C5BB0DCFCE72DDFCD8BAC34C368CDE4E2013FF05C175318324D40776DF0C457C` | Save as, Export case in the Actions menu |
-| `folder` | `folder` | `6E9E30D6DB22DC0118AC8C8466659342AFAE90784EFD65B5E2929BE1BA7B0C16` | Folder scopes, Case Files |
-| `info` | `info` | `9B266C26D53D1F6661CD45D11E5138FE00AF4289EA4EC8D4C320D41AB272CC3F` | Informational notice |
-| `car` | `car` | `36AE3DC22866D02D1159AB8D6256BB09E91B2D98C03BC7126EE576437BECF0C5` | Vehicle section |
+| `dashboard` | `layout-dashboard` | `4AF770710618BE583D08835DCD2A993D820E9363C632558300E631A5018B3000` | Rail: Work Centre |
+| `inbox` | `inbox` | `D16DB1E408C93693286D9237456965B2EFAD4C279F8D935E5A3AF672A0AF5CB9` | Rail: Inbox; Inbox scopes |
+| `upload` | `upload` | `0C0151067F1B30B85AAF6805022C7FE3C7EB99F3F792705F0B41DB85558C5E30` | Rail: Upload; the picker's drop target |
+| `queues` | `list` | `0DB51A810849580D442E62E8ABD4E7A60063419AAB19DE94ABE6932938FAAF5B` | Rail: Cases (as the prototype draws it) |
+| `cases` | `folder-open` | `67F58774BB9437769B01DB639BFCD1D36C474C3ED0F54A784180ED28DEA243A3` | Rail: Search (as the prototype draws it); Case tabs |
+| `image` | `image` | `CEEBF527AED25201398D2C1E31DCFE6267CB7CAD95873771A5371DC4A6BF8721` | Image record; gallery; image-initiated rows |
+| `operations` | `loader` | `465B8F3CB2BF55A7E24020ED0DBBB8889B459067F0726CA9823096D966CEF049` | Running jobs |
+| `admin` | `layout-grid` | `4E1BD5FDEDB37C02C0F269937F3F3FC692DC4EE269DB0DD217BCCDE2281785F0` | Rail: Administration |
+| `search` | `search` | `952DB09E029919CD450AD0FEB8CC55F5BAACD91D807C976A7A0E28A9575E893F` | Utility search; palette; Search buttons; DVLA & MOT lookup |
+| `plus` | `plus` | `C73FC35CF2FB795464D0C22E80F1813767F46CC8B90E318A4EA48407C50632E1` | Add, Create, New estimate |
+| `refresh` | `refresh-cw` | `3C170FEBF30E95F23CEFEC720790C6054E0E008079F6B07E6C40D8F8D6BEFE65` | The one Refresh control (`Shared/_RefreshButton`) |
+| `chevron-right` | `chevron-right` | `9E0C76988880A796061C1B7C22AABF234E0DDD486F5FE590B2EFBE378168C616` | Row affordance, stepper |
+| `chevron-left` | `chevron-left` | `15600F6026449B1774765FC1D3FEB031B138A5BBBBDCAE093BBF74916FC9FC1C` | Back, pagination |
+| `chevron-down` | `chevron-down` | `1F53994823DCEF6CADA4CEC22977DA374C990426263586E4EC311A143D7DBAEC` | Disclosure, select |
+| `arrow` | `arrow-right` | `8D71DDF9FA45179F46B6BBF17B1F6EFE7E75CE2268A52339C57D63F254F01543` | Open full record, transitions |
+| `user` | `user` | `F65ADAD280F676F332453250E16AA79746715C589E370973D9457DF176742E56` | Rail user, account dialog; Triage Assign |
+| `more` | `more-horizontal` | `C1A4C4920823A69EC2AC52D857C011D4EEF7E4BDE6051F3D8A2665EEAB25BE60` | Overflow menus |
+| `clock` | `clock` | `A6C097EC634E7D5B12F7455B463F77B3B96FD57C00585F8780BFC90A683701CB` | Freshness, due |
+| `alert` | `alert-circle` | `563457371665FE2C918D74439CBD5CCFF0382D39B39691DBB7228EEAC26F6F42` | Error summary, blocked |
+| `warning` | `alert-triangle` | `B90088818042B44505F214F711BB9D79F5751ED6D3E489699D5DC9BF01C2989C` | Warning notice, Unidentified queue |
+| `check` | `check` | `A3E47237FD915A5F988C75EE90F1E85EA2C3E682E7301829C87CA627DB4E4F27` | Save, confirm, checks |
+| `check-circle` | `check-circle` | `D2F9F42C4597323E817B24647215BC97274BCECF121B2FEBA78328976FC43953` | Confirmed completion |
+| `file` | `file` | `E9F859A5D8F33262E1D99A22ECDBBD38C861D10F27E4E64F4FB440B12C9D7E31` | Document rows |
+| `mail` | `mail` | `1B61B1C98D63DE2270AA1B5E498115F209A86EB4B9C8EACB64D973EC8D14A367` | Mail rows, Correspondence |
+| `link` | `link` | `419DB6E93B579C03EB3E8FFD3498C344C54DA7938C6F8EFB11C69BDE4C012AAC` | Case link |
+| `edit` | `pencil` | `08192262945F01FEBD377BF1787E4E4D419BB648BF7B752C5591CB82D0D0017F` | Edit Case, inline edit |
+| `save` | `save` | `0B1F6DF1117FFB3E57BBA5988DD06ED944BCCE696F5391A7B94729E3BE90006C` | Save |
+| `close` | `x` | `EEAAD857AC2A8C02C12BACD1232559E6190E739218BA0CA3457861C8B250F5A5` | Dialog close, tab close, remove |
+| `hold` | `pause` | `43EDFC801EEACF83F9FEE24E626EEF5CBECB912DF129A5F29169D9AF623D2839` | Place on Hold, Held |
+| `play` | `play` | `64A039BF1E3597839C384747686ABC3C47E23270CD65AD964A545061049B01D4` | Release Hold, Start automation, Retry this work |
+| `report`, `document` | `file-text` | `C75ABDDDD4E58A169641EC70691CC9A80BE27C6930BE2C7B39CCD7786B2E9EB6` | Report, instruction evidence |
+| `settings` | `settings` | `226BD5FD178DA1D5EB8734369D6BF56870809FA8D2D1C7A4966AFB5C739E8130` | Principal settings, configuration |
+| `lock` | `lock` | `E4A1E7A018F319FF030CDBDBC117F1CE534A0ED88927A1FCD23E01D42672882F` | Edit lease, idle lock |
+| `external` | `external-link` | `99C14E88809325736E0A0A9F0B6FE25595D2FF2F1C591D6233A7B6307C695492` | Retained source |
+| `eye` | `eye` | `57B4281848CB50D30ACA66B35D19EA218869C1D801C49F68950A0E4553C145B0` | Preview, Open report, Show key |
+| `bell` | `bell` | `E4137E4553F7468B1ECA9CE3D1721D0D64D32DDDED6CFE39B9645AAE624FCA4C` | Utility bar notifications |
+| `signout` | `log-out` | `3FD7B9C0DA0180F45E195BD78DEE6C7616830D5108B7D06C71095073C66498B3` | Sign out |
+| `history` | `history` | `0A079AF07AF7B2180D62C54555376688E9E59B76ECE6B00069882C2D6B7608CF` | Timeline, History panel |
+| `copy` | `copy` | `57C19CB0D47669A9209EE0E97D952D169EC16340A50A1A5F6E0C48300A3FD45D` | Copy reference |
+| `download` | `download` | `23C34A5D75EE3B4256A7EC2D89C92E7FF20F83C500D753D878AC6956795D8710` | Save as, Export case in the Actions menu |
+| `folder` | `folder` | `AA09149FD90B101E57C3EE895B3B8E26A637DE49054FC3934ADB04D44391129B` | Folder scopes, Case Files |
+| `info` | `info` | `F8A3505045B576526C28DD34580C9F5FCE03E8162A44439B54FF3013729AA5E5` | Informational notice |
+| `car` | `car` | `95D81365198304961775C6F6D8AF7336155B479E0B83999ECF2DDEB3B6385659` | Vehicle section |
 | `person` | `user` | (as `user`) | Claimant, parties |
-| `task` | `check-square` | `D84CA64CC54CFF1C150D4D31618203F054470D80DFD59989B3EE52009574CE31` | Work items, checks |
-| `archive` | `archive` | `37BA14C8285BE494749A4DA9E213B37048ABCEF5DB0D65B1C65DE959A135AD84` | Archive, Deleted Items |
-| `send` | `send` | `63B04BD6FA6A68DEC5F9492B1D0926D00EE28C3F1332E10F47565AF49FB4649D` | Send, **Send to AI** (the prototype's `btn(…,'primary','send')`) |
-| `paperclip` | `paperclip` | `65E2F64F2264077A89E3D0DB428C3DF5E3C175BAB1A1C05561209B023EC2CED8` | Attachments |
-| `home` | `home` | `7ABDB2720CEBD3A9AFBFAC581DCC7807C6E7A8E3229621EC5AA5B9583B060BDF` | Work Centre tab |
-| `map` | `map-pin` | `93DF1DF4794C821825D59FC9550292FAB3504802B3EC767B9246E057CE499F29` | Inspection address |
-| `key` | `key` | `9C4745F5604E0E32D887381FF5AE40DDA8BF4DF163D98025823CBBC0A06391C4` | API key |
-| `shield` | `shield` | `456B29F0717F73785AE1CA5A492EF0B21693BDA13045B509E845BA38F08717AE` | Roles, access |
-| — | `trash-2` | `2D59EB8F9393ABDFEE674BFC1A67A3ABD81146C1525F12DF7E753ACB40CB0773` | Delete estimate, remove line, Delete message |
-| — | `rotate-cw` | `5DE57E248094872B06E8408E710E05E1D89BDEB2243DDF780254C8632FC6DDFB` | Rotate view right (paired with `rotate-ccw`) |
-| `activity` (undefined in the prototype) | `activity` | `8E33259DA8A236EBC5D6C96F27DFAB90CE1F69D78F9D935FA28A143443F2380B` | Service health, presence |
-| `spark` (undefined) | `sparkles` | `D412CDDF7D44B1EED79ACB99F7D64A85E99BB77E9780FE49770883301EE63652` | Automation & AI nav entry, AI job rows |
-| `reply` (undefined) | `reply` | `60A232864F635C41D9D82E6FDDB744EB8ABC8A1CAF369B1772B7F0CAF8C6D3FA` | Reply; Triage Reply with finding |
-| `flag` (undefined) | `flag` | `A55F63EE07DFA4078A73AC54401544201065765B3DDB64C23B39CAC355A8AAE9` | Flag message |
-| `sort` (undefined) | `arrow-up-down` | `9F9C9571C4A30B5642E7D6BBA19E58C836CC57F8ECDC5D044EB0819065C534BC` | Sort toggle |
+| `archive` | `archive` | `5E37C25B5019E3BEC630670AF534085D0EC8A7DED60A527CA5E5D0189FC86BE1` | Archive, Deleted Items |
+| `send` | `send` | `567F1008963A9513C9F8F40EC8E4F8E981A697747E95C92707ED3C0B153D4CDB` | Send, **Send to AI** (the prototype's `btn(…,'primary','send')`) |
+| `map` | `map-pin` | `7E6FDC7F65C5E3BFE64A72C8067348C5E7F2C255D21AF332698D1F72C314C844` | Inspection address |
+| `key` | `key` | `0A496C495CF20E3EB681AD8FFAADE7D9B4CA9A22869C842D1DA833430A9861B7` | API key |
+| `shield` | `shield` | `DC47E83DA00C351F99CB71550D9C473778E5B9ED77EA53C5C6363E6DB5797572` | Roles, access |
+| — | `trash-2` | `BDC20CCC528299464BC8852314626B17A8247752FB07181C8E4472CD55BF3211` | Delete estimate, remove line, Delete message |
+| — | `rotate-cw` | `D716E6418C8814CA369A43E86BF60C03D0D7F2C85B9C53309F62063532B0BB3E` | Rotate view right (paired with `rotate-ccw`) |
+| `spark` (undefined) | `sparkles` | `08C2C4D0FF60EACA5067A5BE176C844952C55FC81B9047CF1FB105C80C0CE6D4` | Automation & AI nav entry, AI job rows |
+| `reply` (undefined) | `reply` | `375ED4D581B49E8229371F88865AE3443A367891A401DDE63D810BDB7AB9AB38` | Reply; Triage Reply with finding |
+| `flag` (undefined) | `flag` | `708EC43687246B094825BB270B7183154D6193FC2F7763FBE6FED4D9ED32CBDA` | Flag message |
 
-The v26 shell and Case record glyphs below are inlined only by
-`_LucideSprite.cshtml`, which now carries ninety-nine symbols: the sixty above
-plus these thirty-nine. Each checksum is the SHA-256 of the glyph's UTF-8
-`<symbol id="icon-…">…</symbol>` element in that partial. "No caller" marks a
-glyph the v26 mockups reference that no current page draws.
+The v26 shell and Case record glyphs below complete the partial's seventy-five
+symbols: the fifty-three above plus these twenty-two.
 
 | Prototype name | Lucide id | Glyph SHA-256 | Usage |
 | --- | --- | --- | --- |
 | — | `list-checks` | `3F03C3F128C5C21F348860C63561EB430BC7F3FD152F07B5499C4FADE643E13A` | Rail: Cases |
-| — | `chevron-up` | `6176204E2A795D8FDC0E61565A475096A4F9FA09CF1CEBB091A57254D2034845` | No caller |
-| — | `arrow-left` | `680C4FAE5D68949E00882E6C8A20D7AE0B201ADFFEC508E870E1F7FA02A9C2F3` | No caller |
-| — | `arrow-up` | `F434D050FA5820052226CC0B907F1C949DE8163EDCCB3D2C2DEBB1397A11AC22` | No caller |
-| — | `arrow-down` | `B9674C6E5CC4B78425D60908D272290AE7BC799A61A8B8842525A7ABECD5AA87` | No caller |
-| — | `users` | `EEE334506429CAE176E7E392A686D8C504C856F11349B2D47D0450D772200FB6` | No caller |
+| — | `arrow-up` | `F434D050FA5820052226CC0B907F1C949DE8163EDCCB3D2C2DEBB1397A11AC22` | Report wording: Move up |
+| — | `arrow-down` | `B9674C6E5CC4B78425D60908D272290AE7BC799A61A8B8842525A7ABECD5AA87` | Report wording: Move down |
 | — | `images` | `3736526CF1887288E9D504986D739ADFE2BF83FA0A5411F37529ECD5E87F0285` | Cases Awaiting instruction; Search vehicle images |
-| — | `forward` | `966C6DDDFF8EDD62B3F529C90209A061685034199BB8670F1FF6A0281979AD26` | Forward message |
 | — | `unlink` | `FA6C00D4700751303B08AF8A35E90B3CE581A77DA80F428F585130BACB39DAE4` | Unlink a message from its Case; Triage Unlink case |
-| — | `file-output` | `C109CACE75A7483445BF22061B3141C5210AB2706012502180288644E3917F62` | No caller |
-| — | `eye-off` | `56982F58FC81CBE4EB066E455259234DE2F2FE4B120631693BA0FA5544EB516F` | No caller |
-| — | `key-round` | `5E7E3CD234E740B048195FBEF0B1C66E7CA85500AE1C7ACA7F35117496576E83` | No caller |
 | — | `rotate-ccw` | `B734EDCBA8DF037C834EAB8A45DC181625008FEEBD20C4109D8F2486A33C27BE` | Rotate view left (paired with `rotate-cw`) |
 | — | `crop` | `D6D10FFBF5D570C7F3CE47D5BA7C34C1ADA38EABD5C18F26164BB1A64A16A109` | Viewer Crop (Case record and pre-Case records); image tile Crop |
-| — | `zap` | `998D4DC807CBE0CE4AF837D6282BCB925F8B169A1CE6DF4B1A2B06D6210474A0` | No caller |
 | — | `grip-vertical` | `93D0BBD15AB6203E42D45A911F90B3BAB3D287E56AD4140804311B15FA062074` | Image tile: drag to reorder |
-| — | `shield-check` | `1A0678C6E00913D6FFAB22299D518EC906BA4FB8AE3F17E8C5801C212FE21DBA` | No caller |
-| — | `building` | `F8C777CE38931ABE01FAE9E46B1DC5527989F3152D9730EA941C7DA9D4DC9EFE` | No caller |
-| — | `sliders` | `BC19EF5E6751EAE7634C7CA956BB16A0C0A6AB9ECCB8935811B63849FF7D9BFF` | No caller |
 | — | `clipboard-list` | `F3B645C69B9060E6FA73E840EF5C864A2E4E4AB24750EB32A045D7DDBD4421C6` | Open the Triage; Triage Record finding |
 | — | `zoom-in` | `F32744E452483FCC60A24618A5C05630138A6C07806F647D510CE82726F0E8B2` | Case viewer Zoom |
-| — | `corner-up-left` | `B7FDDB91FDBC7FDF2A1BFB36864024219751277B9C9AD0F4630306925778E08F` | No caller |
 | — | `bar-chart` | `DB920FF9B7CE38B0D2703AE4B696B0682A3DCFE46B9BADE4260DFCF685BABB42` | Administration nav: Management Reports |
 | — | `bot` | `91A0B1650FB3AE4CAC2615A264F8F023989CEFB119F21012937B322B5F941CCC` | Administration nav: Automation & AI |
-| — | `circle` | `AB7E0A3948E0C6B703E06CAA4239196D6D9CFF245DBCC0C1E3C1BCD711EE19A8` | No caller |
-| — | `circle-dot` | `D79F6EC939AEE821B5233C5346D93E70C02C61B8753C54F4469BFEB3712AD5C0` | No caller |
-| — | `circle-slash` | `3183172285B4647F19E3945F408C9833806124D621159E99257BA3360501BA91` | No caller |
-| — | `file-spreadsheet` | `16CF1ECDEF4DF9F53F2B22B78B633FBB9754BEC4ACF9D3BB9FEAEF3B0EB00DD9` | No caller |
+| — | `file-spreadsheet` | `16CF1ECDEF4DF9F53F2B22B78B633FBB9754BEC4ACF9D3BB9FEAEF3B0EB00DD9` | Management Reports: Download workbook |
 | — | `heart-pulse` | `995A8F1F889A4EC78A7CD23E35DC50DAA9B7983AD78FDAA370D70F6608EC2718` | Administration nav: Service health |
-| — | `move` | `DD97195C8B941325142543232DF562FFBD97461C7BCCAC06D21D2E971B880D88` | Case viewer crop: move handle |
-| — | `phone` | `D3B43D179F6118EDF825342F9ED68F0AAF9840EA2DC63A13E72BE1B12567909F` | No caller |
 | — | `pound-sterling` | `72454D0BBC72046B76787C89101DC263E6060D4F4AF8B2DDD47EF2BB9976171A` | Administration nav: Valuation presets |
 | — | `scroll-text` | `9AD7578BF07319745EE8D157FDE09551A4AD21445317910C61AA569A2BB550F5` | Administration nav and hub: Logs |
 | — | `square` | `7FA36224EAE826CF7CE1320F27BB389EF13B3FA5D359948A7A78720FEF80E8ED` | Case record: an unticked item; image tile: In report, off |

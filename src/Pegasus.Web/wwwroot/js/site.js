@@ -362,7 +362,7 @@
         }
         endControl(target, options);
     }
-    window.pegasusBusy = { start: startBusy, end: endBusy, isBusy: function (form) { return busyForms.has(form); } };
+    window.pegasusBusy = { start: startBusy, end: endBusy };
     // A post made with form.submit() fires no submit event: the pressed
     // control starts the state, and a second press while it runs is refused.
     // True when the form was already busy.
@@ -1912,26 +1912,6 @@
     }
 
     window.pegasusToast = toast;
-
-    // An act that can be put back for eight seconds: the toast carries the
-    // one Undo (v28 P16, P41).
-    window.pegasusUndoToast = function (title, restore, label) {
-        var element = document.createElement('div');
-        element.className = 'toast toast--undo';
-        element.setAttribute('role', 'status');
-        var strong = document.createElement('strong');
-        strong.textContent = title;
-        var undo = document.createElement('button');
-        undo.type = 'button';
-        undo.className = 'btn btn--small';
-        undo.textContent = label || 'Undo';
-        undo.addEventListener('click', function () { restore(); element.remove(); });
-        element.appendChild(strong);
-        element.appendChild(undo);
-        dismissable(element);
-        region.appendChild(element);
-        window.setTimeout(function () { element.remove(); }, 8000);
-    };
 
     var confirmation = document.querySelector('[data-confirmation]');
     if (confirmation) {
