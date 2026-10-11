@@ -52,6 +52,7 @@ public sealed class ConcurrencyTokenPersistenceTests
                 "QDOS",
                 new(true, true),
                 new(true, "concurrency-test-policy", 1),
+                await new EfWorkflowConfigurationStore(factory, timeProvider).GetCurrentAsync(CancellationToken.None),
                 CaseInspectionMode.ImageBasedAssessment),
             CancellationToken.None);
 
