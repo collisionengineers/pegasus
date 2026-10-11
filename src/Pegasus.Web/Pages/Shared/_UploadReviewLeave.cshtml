@@ -12,7 +12,7 @@
     @if (Model.LeaveDeclinesImageMatch)
     {
         <form method="post" asp-page-handler="Leave">
-            <button type="submit" class="btn" data-upload-leave>@Labels.LeaveUndecided</button>
+            <button type="submit" class="btn" data-upload-leave data-busy-label="@Pegasus.Web.Presentation.OperatorLabels.Busy.Registering">@Labels.LeaveUndecided</button>
         </form>
     }
     else
