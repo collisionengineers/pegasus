@@ -214,7 +214,6 @@ public static class DependencyInjection
         services.AddScoped<IExactEmailResponseEvidenceQueries>(
             provider => provider.GetRequiredService<EfEmailEvidenceStore>());
         services.AddScoped<ISentEvidencePollOutcomeQueries, EfSentEvidencePollOutcomeQueries>();
-        services.AddScoped<IPrincipalReferenceCatalog, EfPrincipalReferenceCatalog>();
         services.AddSingleton<IMailRoutePolicy, PrincipalMailRoutePolicy>();
         services.AddSingleton<IEnumerable<IMailClassificationPolicy>>(provider =>
             provider.GetServices<IInstructionExtractionPolicy>()
