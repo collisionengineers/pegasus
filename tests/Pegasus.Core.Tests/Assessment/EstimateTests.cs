@@ -1090,6 +1090,22 @@ public sealed class EstimateTests
     }
 
     [Fact]
+    public async Task FindingOneEstimateReturnsItOrNullWhenTheIdIsNotOnTheWork()
+    {
+        var first = Estimate(Details() with { Name = "First" });
+        var second = Estimate(Details() with { Name = "Second" });
+        var list = new ListCaseEstimates(new FakeSpecificationStore { Estimates = { first, second } });
+
+        var found = await list.FindAsync(
+            CaseId, CaseWorkSelector.Current, second.SpecificationId, CancellationToken.None);
+        var missing = await list.FindAsync(
+            CaseId, CaseWorkSelector.Current, Guid.NewGuid(), CancellationToken.None);
+
+        Assert.Equal(second.SpecificationId, found?.SpecificationId);
+        Assert.Null(missing);
+    }
+
+    [Fact]
     public async Task AnImportStartsOnTheOneEnabledRateCardAndNeverOnTheDocumentsRate()
     {
         var card = new LabourRateCard(Guid.NewGuid(), "80", 80m, true, 4);
@@ -1749,8 +1765,10 @@ public sealed class EstimateTests
             return Task.FromResult(Current);
         }
 
+        public List<RepairSpecificationVersion> Estimates { get; } = [];
+
         public Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            Task.FromResult<IReadOnlyList<RepairSpecificationVersion>>(Estimates);
 
         public Task<IReadOnlyList<CaseEstimatePageItem>> ListByCursorAsync(
             Guid caseId, int? afterVersion, Guid? afterId, int fetchCount, CancellationToken cancellationToken) =>

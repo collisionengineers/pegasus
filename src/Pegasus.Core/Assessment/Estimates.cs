@@ -1163,6 +1163,18 @@ public interface IListCaseEstimates
         Guid caseId,
         CaseWorkSelector work,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// One estimate on the selected work, or null when the id is not one of
+    /// them. The default lists and picks.
+    /// </summary>
+    async Task<RepairSpecificationVersion?> FindAsync(
+        Guid caseId,
+        CaseWorkSelector work,
+        Guid estimateId,
+        CancellationToken cancellationToken) =>
+        (await ExecuteAsync(caseId, work, cancellationToken))
+            .SingleOrDefault(estimate => estimate.SpecificationId == estimateId);
 }
 
 /// <summary>
@@ -1290,6 +1302,19 @@ public sealed class ListCaseEstimates(IRepairSpecificationStore store) : IListCa
             throw new ArgumentException("A case identifier is required.", nameof(caseId));
         }
         return store.ListEstimatesAsync(caseId, work, cancellationToken);
+    }
+
+    public Task<RepairSpecificationVersion?> FindAsync(
+        Guid caseId,
+        CaseWorkSelector work,
+        Guid estimateId,
+        CancellationToken cancellationToken)
+    {
+        if (caseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(caseId));
+        }
+        return store.GetEstimateAsync(caseId, work, estimateId, cancellationToken);
     }
 }
 
