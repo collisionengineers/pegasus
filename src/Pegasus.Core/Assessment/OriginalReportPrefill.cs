@@ -25,6 +25,13 @@ public sealed record OriginalReportReading(
     bool OutcomeUnreadable);
 
 /// <summary>
+/// A printed outcome or status as the report's reading left it: the usable
+/// value (null where the report conflicted or the value was not usable) and
+/// how the row was recorded.
+/// </summary>
+public sealed record PrintedOutcome(string? Value, SourceCandidateDisposition Disposition);
+
+/// <summary>
 /// How a filed original report fills an Audit's Original report cells (v28
 /// P51, ruled 20 September 2026; #840). The third-party report extraction is
 /// the source: a fact fills only when the report printed it once, or printed
@@ -111,15 +118,38 @@ public static class OriginalReportPrefillPolicy
             return new(sha256, null, null, null, null, OutcomeUnreadable: false);
         }
 
-        var outcome = Outcome(candidate.Damage.Outcome);
-        var status = Outcome(candidate.Damage.Repairability);
+        return Read(
+            sha256,
+            candidate.Identity.Issuer?.Value,
+            candidate.Identity.ReportDate?.Value,
+            candidate.Damage.Roadworthiness?.Value,
+            Printed(candidate.Damage.Outcome),
+            Printed(candidate.Damage.Repairability));
+    }
+
+    /// <summary>
+    /// The same reading from the printed values themselves: what a recorded
+    /// reading keeps of a report, which a standalone Audit's acceptance seeds
+    /// from instead of reading the report again.
+    /// </summary>
+    public static OriginalReportReading Read(
+        string sha256,
+        string? issuer,
+        DateOnly? reportDate,
+        string? roadworthiness,
+        PrintedOutcome? printedOutcome,
+        PrintedOutcome? printedStatus)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sha256);
+        var outcome = Outcome(printedOutcome);
+        var status = Outcome(printedStatus);
         var unreadable = outcome.Unreadable || status.Unreadable
             || (outcome.Code is not null && status.Code is not null && outcome.Code != status.Code);
         return new(
             sha256,
-            candidate.Identity.Issuer?.Value,
-            candidate.Identity.ReportDate?.Value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            RoadworthinessCode(candidate.Damage.Roadworthiness?.Value),
+            issuer,
+            reportDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            RoadworthinessCode(roadworthiness),
             unreadable ? null : outcome.Code ?? status.Code,
             unreadable);
     }
@@ -152,13 +182,16 @@ public static class OriginalReportPrefillPolicy
         return writes;
     }
 
-    private static (string? Code, bool Unreadable) Outcome(ThirdPartyReportFact<string?>? fact) =>
-        fact switch
+    private static PrintedOutcome? Printed(ThirdPartyReportFact<string?>? fact) =>
+        fact is null ? null : new(fact.Value, fact.Source.Disposition);
+
+    private static (string? Code, bool Unreadable) Outcome(PrintedOutcome? printed) =>
+        printed switch
         {
             null => (null, false),
-            { Source.Disposition: SourceCandidateDisposition.Missing } => (null, false),
+            { Disposition: SourceCandidateDisposition.Missing } => (null, false),
             { Value: null } => (null, true),
-            { Value: var printed } => OutcomeCode(printed) is { } code ? (code, false) : (null, true)
+            { Value: var word } => OutcomeCode(word) is { } code ? (code, false) : (null, true)
         };
 
     private static string? Code(IReadOnlyDictionary<string, string> words, string? printed) =>
