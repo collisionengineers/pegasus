@@ -1,4 +1,4 @@
-using System.Text.Json;
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
@@ -16,7 +16,8 @@ namespace Pegasus.Infrastructure.Persistence;
 internal sealed class EfReportOutcomeQueries(
     IDbContextFactory<PegasusDbContext> factory) : IReportOutcomeQueries
 {
-    private static readonly JsonSerializerOptions SnapshotJsonOptions = new(JsonSerializerDefaults.Web);
+    /// <summary>The outcome the report was frozen with; read in SQL so the snapshot itself never leaves the database.</summary>
+    private const string OutcomePath = "$.report.outcome";
 
     public async Task<IReadOnlyList<ReportOutcomeFact>> GetAsync(
         DateTimeOffset fromUtc,
@@ -44,7 +45,7 @@ internal sealed class EfReportOutcomeQueries(
                 @case.Type,
                 generation.Id,
                 work.Kind,
-                generation.SnapshotJson))
+                SqlJson.Value(generation.SnapshotJson, OutcomePath)))
             .ToListAsync(cancellationToken);
 
         var auditCaseIds = reports.Where(report => report.IsAudit).Select(report => report.CaseId).Distinct().ToArray();
@@ -78,29 +79,12 @@ internal sealed class EfReportOutcomeQueries(
             .ToList();
     }
 
-    private static AssessmentReportOutcome OutcomeOf(ReportRow report)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(report.SnapshotJson);
-            if (document.RootElement.ValueKind != JsonValueKind.Object
-                || !document.RootElement.TryGetProperty("report", out var frozen)
-                || frozen.ValueKind != JsonValueKind.Object
-                || !frozen.TryGetProperty("outcome", out var outcome))
-            {
-                throw new InvalidDataException(
-                    $"The frozen snapshot of report generation '{report.GenerationId}' has no outcome.");
-            }
-
-            return outcome.Deserialize<AssessmentReportOutcome>(SnapshotJsonOptions);
-        }
-        catch (JsonException exception)
-        {
-            throw new InvalidDataException(
-                $"The frozen snapshot of report generation '{report.GenerationId}' is unreadable.",
-                exception);
-        }
-    }
+    /// <summary>The snapshot writes the outcome as its number; a snapshot without one is unreadable, never a zero.</summary>
+    private static AssessmentReportOutcome OutcomeOf(ReportRow report) =>
+        int.TryParse(report.Outcome, NumberStyles.None, CultureInfo.InvariantCulture, out var outcome)
+            ? (AssessmentReportOutcome)outcome
+            : throw new InvalidDataException(
+                $"The frozen snapshot of report generation '{report.GenerationId}' has no outcome.");
 
     private sealed record ReportRow(
         Guid PrincipalId,
@@ -109,7 +93,7 @@ internal sealed class EfReportOutcomeQueries(
         string CaseType,
         Guid GenerationId,
         string WorkKind,
-        string SnapshotJson)
+        string? Outcome)
     {
         public bool IsAudit => CaseWorkKinds.IsAuditReport(CaseType, WorkKind);
     }
