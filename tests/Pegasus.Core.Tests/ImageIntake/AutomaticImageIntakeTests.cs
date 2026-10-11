@@ -1219,11 +1219,6 @@ public sealed class AutomaticImageIntakeTests
             Guid? parentReceiptId,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
-        public Task<IntakeSubmissionGroupMember?> FindMemberAsync(
-            Guid groupId,
-            int ordinal,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
         public Task<IntakeSubmissionGroupMember> AddMemberAsync(
             Guid groupId,
             int ordinal,
@@ -1233,7 +1228,8 @@ public sealed class AutomaticImageIntakeTests
         public Task<IReadOnlyList<IntakeSubmissionGroupMember>> ListMembersAsync(
             Guid groupId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(Group!.Members);
+            // The group pass reads Group.Members; it never lists them again.
+            throw new NotSupportedException();
     }
 
     /// <summary>

@@ -478,23 +478,17 @@ public sealed partial class DetailsModel(
         {
             if (SubmissionGroup is not null)
             {
-                var receipts = new List<IntakeReceipt>();
+                var receiptIds = SubmissionGroup.Members
+                    .OrderBy(member => member.Ordinal)
+                    .Select(member => member.ProcessedReceiptId)
+                    .OfType<Guid>()
+                    .Distinct()
+                    .ToArray();
+                var receipts = await getIntake.ExecuteManyAsync(receiptIds, actor, cancellationToken);
                 var readings = new List<ImageVrmSuggestion>();
-                foreach (var receiptId in SubmissionGroup.Members
-                             .OrderBy(member => member.Ordinal)
-                             .Select(member => member.ProcessedReceiptId)
-                             .OfType<Guid>()
-                             .Distinct())
+                foreach (var memberReceipt in receipts)
                 {
-                    var memberReceipt = await getIntake.ExecuteAsync(
-                        new GetIntakeQuery(receiptId, actor), cancellationToken);
-                    if (memberReceipt is null)
-                    {
-                        continue;
-                    }
-
-                    receipts.Add(memberReceipt);
-                    readings.AddRange(await vrmSuggestions.ListForReceiptAsync(receiptId, cancellationToken));
+                    readings.AddRange(await vrmSuggestions.ListForReceiptAsync(memberReceipt.Id, cancellationToken));
                 }
 
                 MaterialReceipts = receipts;

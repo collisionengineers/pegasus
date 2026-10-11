@@ -205,20 +205,6 @@ public sealed class EfIntakeSubmissionGroupStore(
         return await MapAsync(context, existing, cancellationToken);
     }
 
-    public async Task<IntakeSubmissionGroupMember?> FindMemberAsync(
-        Guid groupId,
-        int ordinal,
-        CancellationToken cancellationToken = default)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.IntakeSubmissionGroupMembers
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                item => item.GroupId == groupId && item.Ordinal == ordinal,
-                cancellationToken);
-        return entity is null ? null : await MapMemberAsync(context, entity, false, cancellationToken);
-    }
-
     public Task<IntakeSubmissionGroupMember> AddMemberAsync(
         Guid groupId,
         int ordinal,
@@ -447,13 +433,7 @@ public sealed class EfIntakeSubmissionGroupStore(
             .Where(item => item.GroupId == groupId)
             .OrderBy(item => item.Ordinal)
             .ToArrayAsync(cancellationToken);
-        var members = new List<IntakeSubmissionGroupMember>(entities.Length);
-        foreach (var entity in entities)
-        {
-            members.Add(await MapMemberAsync(context, entity, false, cancellationToken));
-        }
-
-        return members;
+        return await MapMembersAsync(context, entities, false, cancellationToken);
     }
 
     private static async Task<IntakeSubmissionGroup> MapAsync(
@@ -466,11 +446,7 @@ public sealed class EfIntakeSubmissionGroupStore(
             .Where(item => item.GroupId == entity.Id)
             .OrderBy(item => item.Ordinal)
             .ToArrayAsync(cancellationToken);
-        var mapped = new List<IntakeSubmissionGroupMember>(members.Length);
-        foreach (var member in members)
-        {
-            mapped.Add(await MapMemberAsync(context, member, false, cancellationToken));
-        }
+        var mapped = await MapMembersAsync(context, members, false, cancellationToken);
 
         return new(
             entity.Id,
@@ -494,32 +470,66 @@ public sealed class EfIntakeSubmissionGroupStore(
         PegasusDbContext context,
         IntakeSubmissionGroupMemberEntity entity,
         bool isDuplicate,
+        CancellationToken cancellationToken) =>
+        (await MapMembersAsync(context, [entity], isDuplicate, cancellationToken))[0];
+
+    /// <summary>
+    /// Maps members with two set reads however many there are: the staged
+    /// receipts, then each member's processing outcome. A member whose staged
+    /// receipt is missing still throws, and the input order is kept.
+    /// </summary>
+    private static async Task<List<IntakeSubmissionGroupMember>> MapMembersAsync(
+        PegasusDbContext context,
+        IntakeSubmissionGroupMemberEntity[] entities,
+        bool isDuplicate,
         CancellationToken cancellationToken)
     {
-        var staged = await context.IntakeStagedReceipts
-            .AsNoTracking()
-            .SingleAsync(item => item.Id == entity.StagedReceiptId, cancellationToken);
+        if (entities.Length == 0)
+        {
+            return [];
+        }
+
+        var stagedIds = entities.Select(entity => entity.StagedReceiptId).Distinct().ToArray();
+        var staged = (await context.IntakeStagedReceipts
+                .AsNoTracking()
+                .Where(item => stagedIds.Contains(item.Id))
+                .ToArrayAsync(cancellationToken))
+            .ToDictionary(item => item.Id);
         // The member's own read status, from the receipt its processing produced:
         // a file that could not be read is flagged on its row, never split off.
-        var processed = await (
-                from work in context.IntakeWorkItems.AsNoTracking()
-                join receipt in context.IntakeReceipts.AsNoTracking() on work.ProcessedReceiptId equals receipt.Id
-                where work.StagedReceiptId == entity.StagedReceiptId
-                select new { receipt.Id, receipt.Decision })
-            .FirstOrDefaultAsync(cancellationToken);
-        return new(
-            entity.GroupId,
-            entity.Ordinal,
-            entity.StagedReceiptId,
-            staged.SourceFileName,
-            staged.SourceHash,
-            isDuplicate)
+        var outcomes = (await (
+                    from work in context.IntakeWorkItems.AsNoTracking()
+                    join receipt in context.IntakeReceipts.AsNoTracking() on work.ProcessedReceiptId equals receipt.Id
+                    where stagedIds.Contains(work.StagedReceiptId)
+                    select new { work.StagedReceiptId, receipt.Id, receipt.Decision })
+                .ToArrayAsync(cancellationToken))
+            .GroupBy(item => item.StagedReceiptId)
+            .ToDictionary(group => group.Key, group => group.First());
+        var members = new List<IntakeSubmissionGroupMember>(entities.Length);
+        foreach (var entity in entities)
         {
-            ProcessedReceiptId = processed?.Id,
-            CouldNotBeRead = processed is null
-                ? null
-                : IntakeDecisionPolicy.CouldNotBeRead(EfIntakeReceiptStore.ParseDecision(processed.Decision))
-        };
+            if (!staged.TryGetValue(entity.StagedReceiptId, out var receipt))
+            {
+                throw new InvalidOperationException($"Staged receipt {entity.StagedReceiptId} for the group member was not found.");
+            }
+
+            outcomes.TryGetValue(entity.StagedReceiptId, out var processed);
+            members.Add(new(
+                entity.GroupId,
+                entity.Ordinal,
+                entity.StagedReceiptId,
+                receipt.SourceFileName,
+                receipt.SourceHash,
+                isDuplicate)
+            {
+                ProcessedReceiptId = processed?.Id,
+                CouldNotBeRead = processed is null
+                    ? null
+                    : IntakeDecisionPolicy.CouldNotBeRead(EfIntakeReceiptStore.ParseDecision(processed.Decision))
+            });
+        }
+
+        return members;
     }
 
     private static string DiscardFingerprint(DiscardIntakeSubmissionGroupRequest request)
