@@ -1250,7 +1250,10 @@ public sealed class MessageModel(
         // refused atomically.
         await LoadRetainedOperationAsync(actor, cancellationToken);
 
-        if (!await LoadCorrespondenceContextAsync(actor, initializeForm: false, cancellationToken))
+        // Every refusal reloads the context, which lists the options; the
+        // send itself never renders them.
+        if (!await LoadCorrespondenceContextAsync(
+                actor, initializeForm: false, cancellationToken, listAttachments: false))
         {
             ModelState.AddModelError(string.Empty, "Correspondence is unavailable for this message.");
             return await ReloadAsync(actor, id, cancellationToken);
@@ -1439,7 +1442,8 @@ public sealed class MessageModel(
     private async Task<bool> LoadCorrespondenceContextAsync(
         ActionActor actor,
         bool initializeForm,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool listAttachments = true)
     {
         CorrespondenceMailbox = await ResolveCorrespondenceMailboxAsync(cancellationToken);
         if (CorrespondenceMailbox is null)
@@ -1486,8 +1490,11 @@ public sealed class MessageModel(
                 FixedCorrespondenceCaseReference = CorrespondenceCase.Summary.Reference;
                 ExpectedCorrespondenceCaseVersion = CorrespondenceCase.Workflow.Version;
             }
-            AvailableAttachments = await attachmentResolver.ListCaseAsync(
-                actor, CorrespondenceCase.Summary.CaseId, cancellationToken);
+            if (listAttachments)
+            {
+                AvailableAttachments = await attachmentResolver.ListCaseAsync(
+                    actor, CorrespondenceCase.Summary.CaseId, cancellationToken);
+            }
         }
 
         if (CorrespondenceMode is not null)

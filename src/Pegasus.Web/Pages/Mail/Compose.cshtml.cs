@@ -221,16 +221,13 @@ public sealed class ComposeModel(
         if (details is not null)
         {
             Case = details.Summary;
-            AvailableAttachments = await attachmentResolver.ListCaseAsync(
-                actor, details.Summary.CaseId, cancellationToken);
-            try
+            var selection = await attachmentResolver.SelectCaseAsync(
+                actor, details.Summary.CaseId, SelectedAttachments, cancellationToken);
+            AvailableAttachments = selection.Options;
+            attachments = selection.Attachments;
+            if (selection.SelectionError is { } selectionError)
             {
-                attachments = await attachmentResolver.ResolveCaseAsync(
-                    actor, details.Summary.CaseId, SelectedAttachments, cancellationToken);
-            }
-            catch (StaffMailAttachmentSelectionException exception)
-            {
-                ModelState.AddModelError(nameof(SelectedAttachments), exception.Message);
+                ModelState.AddModelError(nameof(SelectedAttachments), selectionError);
             }
 
             // A chosen Case was fixed with its version, so a change since then
