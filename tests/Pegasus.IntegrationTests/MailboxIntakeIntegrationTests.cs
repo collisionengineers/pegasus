@@ -641,8 +641,6 @@ public sealed class MailboxIntakeIntegrationTests
                     services.AddScoped<ProcessQueuedIntake>();
                     services.AddLocalApprovedInbox(_ => new(
                         LocalApprovedInboxOptions.RequiredRuntimeProfile,
-                        "instructions",
-                        "instructions@collisionengineers.co.uk",
                         inboxRoot));
                 });
             await ActivateMailboxAsync(database, DateTimeOffset.UnixEpoch);
@@ -740,8 +738,6 @@ public sealed class MailboxIntakeIntegrationTests
                         new FakeVrmRecognitionEngine("AB12CDE"));
                     services.AddLocalApprovedInbox(_ => new(
                         LocalApprovedInboxOptions.RequiredRuntimeProfile,
-                        "instructions",
-                        "instructions@collisionengineers.co.uk",
                         inboxRoot));
                 });
             await ActivateMailboxAsync(database, DateTimeOffset.UnixEpoch);
@@ -883,8 +879,6 @@ public sealed class MailboxIntakeIntegrationTests
                     services.AddScoped<ProcessQueuedIntake>();
                     services.AddLocalApprovedInbox(_ => new(
                         LocalApprovedInboxOptions.RequiredRuntimeProfile,
-                        "instructions",
-                        "instructions@collisionengineers.co.uk",
                         inboxRoot,
                         maximumContentLength: TestMailboxContentLength));
                     services.AddScoped(provider => new PollApprovedInbox(
@@ -1011,8 +1005,6 @@ public sealed class MailboxIntakeIntegrationTests
                 services.AddSingleton<IIntakeQuarantineArtifactStore>(artifactStore);
                 services.AddLocalApprovedInbox(_ => new(
                     LocalApprovedInboxOptions.RequiredRuntimeProfile,
-                    "instructions",
-                    "instructions@collisionengineers.co.uk",
                     workingRoot,
                     maximumContentLength: TestMailboxContentLength));
                 await using var provider = services.BuildServiceProvider(validateScopes: true);
@@ -1059,8 +1051,6 @@ public sealed class MailboxIntakeIntegrationTests
                 restartedArtifactStore);
             restartedServices.AddLocalApprovedInbox(_ => new(
                 LocalApprovedInboxOptions.RequiredRuntimeProfile,
-                "instructions",
-                "instructions@collisionengineers.co.uk",
                 workingRoot,
                 maximumContentLength: TestMailboxContentLength));
             await using var restartedProvider =
@@ -1140,8 +1130,6 @@ public sealed class MailboxIntakeIntegrationTests
                     services.AddScoped<ReceiveIntake>();
                     services.AddLocalApprovedInbox(_ => new(
                         LocalApprovedInboxOptions.RequiredRuntimeProfile,
-                        "instructions",
-                        "instructions@collisionengineers.co.uk",
                         workingRoot));
                     services.AddSingleton<IApprovedInboxSource>(inboxSource);
                 });
@@ -1273,8 +1261,6 @@ public sealed class MailboxIntakeIntegrationTests
                     services.AddScoped<ReceiveIntake>();
                     services.AddLocalApprovedInbox(_ => new(
                         LocalApprovedInboxOptions.RequiredRuntimeProfile,
-                        "instructions",
-                        "instructions@collisionengineers.co.uk",
                         workingRoot));
                     services.AddSingleton<IApprovedInboxSource>(inboxSource);
                 });
@@ -1359,8 +1345,6 @@ public sealed class MailboxIntakeIntegrationTests
                     services.AddScoped<ReceiveIntake>();
                     services.AddLocalApprovedInbox(_ => new(
                         LocalApprovedInboxOptions.RequiredRuntimeProfile,
-                        "instructions",
-                        "instructions@collisionengineers.co.uk",
                         workingRoot));
                     services.AddSingleton<IApprovedInboxSource>(inboxSource);
                 });
@@ -1459,8 +1443,6 @@ public sealed class MailboxIntakeIntegrationTests
                     services.AddScoped<ReceiveIntake>();
                     services.AddLocalApprovedInbox(_ => new(
                         LocalApprovedInboxOptions.RequiredRuntimeProfile,
-                        "instructions",
-                        "instructions@collisionengineers.co.uk",
                         workingRoot));
                 });
             await ActivateMailboxAsync(database, DateTimeOffset.UnixEpoch);
@@ -1567,8 +1549,6 @@ public sealed class MailboxIntakeIntegrationTests
     {
         var exception = Assert.Throws<InvalidOperationException>(() => new LocalApprovedInboxOptions(
             "Production",
-            "instructions",
-            "instructions@collisionengineers.co.uk",
             Path.GetTempPath()));
 
         Assert.Contains("disabled", exception.Message, StringComparison.OrdinalIgnoreCase);

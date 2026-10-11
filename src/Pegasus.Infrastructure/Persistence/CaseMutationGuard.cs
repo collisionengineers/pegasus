@@ -241,9 +241,6 @@ internal static class CaseOperationReplay
         return true;
     }
 
-    public static string Hash(string value) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
-
     public static bool FixedTimeEquals(string left, string right)
     {
         if (left.Length != 64 || right.Length != 64

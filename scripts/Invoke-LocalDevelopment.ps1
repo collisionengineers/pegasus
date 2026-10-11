@@ -734,8 +734,6 @@ function Get-WorkerEnvironment {
         PendingWorkRecoverySchedule = '0 * * * * *'
         IntakeStagedArtifactReconciliationSchedule = '*/10 * * * * *'
         SentEvidencePollSchedule = '0 * * * * *'
-        ApprovedInbox__MailboxId = 'instructions'
-        ApprovedInbox__MailboxAddress = 'instructions@collisionengineers.co.uk'
         ApprovedInbox__LocalRootPath = [string]$Manifest.resources.paths.mailbox
         ApprovedSent__MailboxId = 'instructions'
         ApprovedSent__MailboxAddress = 'instructions@collisionengineers.co.uk'
