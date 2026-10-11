@@ -1716,7 +1716,7 @@ Three Azure Monitor rules page the action group (`infra/modules/platform.bicep`)
 `pegasus-prod-web-http5xx` (Sev1) fires when the Web App returns more than
 one HTTP 5xx in a five-minute window, and `pegasus-prod-application-exceptions`
 (Sev2 since 15 September 2026) fires on a correlated Web or Worker exception
-signature in a fifteen-minute window. Both auto-resolve. Before the tuning
+signature in a fifteen-minute window. The first two auto-resolve. Before the tuning
 each fired on a single event and paged several times a day on transient
 faults.
 
