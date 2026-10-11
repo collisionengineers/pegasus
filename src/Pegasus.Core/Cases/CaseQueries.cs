@@ -364,9 +364,14 @@ public interface ICaseQueryStore
         Guid caseId,
         CancellationToken cancellationToken);
 
-    /// <summary>Reads the non-deferred body of the initial Case page.</summary>
+    /// <summary>
+    /// Reads the non-deferred body of the initial Case page. The unlinked
+    /// sent evidence is read only where the page can draw it: the Primary work
+    /// or a Case in Report preparation; otherwise the list is empty.
+    /// </summary>
     Task<CasePageFrameData?> GetPageFrameAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken);
 
     /// <summary>Reads only the ordered history body used by Notes.</summary>
@@ -565,7 +570,7 @@ public sealed class GetCasePageFrame(
     public async Task<CasePageFrame?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
     {
         CaseSectionQueries.Validate(query);
-        var frame = await store.GetPageFrameAsync(query.CaseId, cancellationToken);
+        var frame = await store.GetPageFrameAsync(query.CaseId, query.Work, cancellationToken);
         if (frame is null)
         {
             return null;
@@ -737,6 +742,12 @@ public sealed class ValidateCaseRenderLease(
 public interface ICaseDocumentQueries
 {
     Task<IReadOnlyList<CaseDocument>> ListAsync(Guid caseId, CancellationToken cancellationToken);
+}
+
+/// <summary>The retained report-Sent evidence no Case has linked yet.</summary>
+public interface IAvailableReportSentEvidenceQueries
+{
+    Task<IReadOnlyList<RetainedApprovedMailboxReportSentEvidence>> ListAsync(CancellationToken cancellationToken);
 }
 
 public sealed record ListCaseReferencesQuery(ActionActor Actor, IReadOnlyCollection<Guid> CaseIds);
