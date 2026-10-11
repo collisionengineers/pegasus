@@ -18,21 +18,6 @@
         });
     }
 
-    function inertOutside(element) {
-        var madeInert = [];
-        for (var node = element; node && node !== document.body; node = node.parentElement) {
-            Array.prototype.forEach.call(node.parentElement.children, function (sibling) {
-                if (sibling !== node && sibling.tagName !== "SCRIPT" && !sibling.hasAttribute("inert")) {
-                    sibling.setAttribute("inert", "");
-                    madeInert.push(sibling);
-                }
-            });
-        }
-        return function () {
-            madeInert.forEach(function (element) { element.removeAttribute("inert"); });
-        };
-    }
-
     function focusable() {
         return Array.prototype.filter.call(
             host.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])"),
@@ -75,7 +60,7 @@
         }
         host.hidden = false;
         document.body.classList.add("mail-compose-open");
-        releaseBackground = inertOutside(host);
+        releaseBackground = window.pegasusUi.inertOutside(host);
         document.addEventListener("keydown", trapFocus, true);
         setExpanded(true);
         focusComposer();

@@ -4632,12 +4632,7 @@
 
     // ---- the viewer -------------------------------------------------------------
     var viewer = null;
-    function previewKind(value) {
-        var type = String(value || '').split(';')[0].trim().toLowerCase();
-        if (type.indexOf('image/') === 0 && type !== 'image/svg+xml') { return 'image'; }
-        if (type === 'application/pdf') { return 'document'; }
-        return type === 'video/mp4' || type === 'video/quicktime' ? 'video' : '';
-    }
+    var previewKind = window.pegasusUi.previewKind;
     function buildViewer(host) {
         var image = host.querySelector('[data-viewer-image]');
         var frame = host.querySelector('[data-viewer-document]');
