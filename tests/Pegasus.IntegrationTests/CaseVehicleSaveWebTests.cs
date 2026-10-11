@@ -239,8 +239,9 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
 
     // 48 - 1 (no Glass's credential read, #1086) - 2 (EVA reads removed, #1091)
     // + 1 (the frame's linked-Triage read for the Linked cases card, #1087).
-    // - 1 (the unlinked sent-evidence read, now only for Primary work or Report preparation, #1174).
-    private const int CasePageCommands = 45;
+    // - 1 (the unlinked sent-evidence read, now only for Primary work or Report preparation, #1174)
+    // - 1 (the rail no longer counts Awaiting instruction, #1179).
+    private const int CasePageCommands = 44;
 
     private const int CaseSaveCommands = 35;
 
