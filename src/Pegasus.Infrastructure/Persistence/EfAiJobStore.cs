@@ -377,6 +377,8 @@ public sealed class EfAiJobStore(
             .Where(item => item.SubjectId == subjectId
                 && item.Kind == kind
                 && (item.State == nameof(AiJobState.Queued) || item.State == nameof(AiJobState.Taken)))
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.JobId)
             .ToListAsync(cancellationToken);
         return MarketResearchPolicy.PendingOf(rows.Select(row => Map(row, now)));
     }
