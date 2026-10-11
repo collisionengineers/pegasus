@@ -108,6 +108,22 @@ public sealed class ListTriagePageTests
         Assert.Equal(new[] { TriageState.AwaitingInformation }, queries.LastStates);
     }
 
+    [Fact]
+    public async Task AnOffsetPageReadsOnlyItsWindowAndReportsTheTotalItWasGiven()
+    {
+        TriageSummary[] window = [Summary("t.QDOS26003", Now)];
+        var queries = new RecordingQueries(new([], null)) { Window = window };
+        var useCase = new ListTriage(queries);
+
+        var page = await useCase.ExecuteAsync(new(StaffActor(), [TriageState.Open], 51, 3, 25));
+
+        Assert.Equal(window, page.Items);
+        Assert.Equal(51, page.TotalCount);
+        Assert.Equal(3, page.TotalPages);
+        Assert.Equal((50, 25), queries.LastWindow);
+        Assert.Equal(new[] { TriageState.Open }, queries.LastStates);
+    }
+
     private static TriageSummary Summary(string reference, DateTimeOffset createdAtUtc) => new(
         Guid.NewGuid(),
         "AB12CDE",
@@ -147,6 +163,21 @@ public sealed class ListTriagePageTests
         }
 
         public IReadOnlyCollection<TriageState>? LastStates { get; private set; }
+
+        public IReadOnlyList<TriageSummary> Window { get; init; } = [];
+
+        public (int Skip, int Take) LastWindow { get; private set; }
+
+        public Task<IReadOnlyList<TriageSummary>> ListWindowAsync(
+            IReadOnlyCollection<TriageState>? states,
+            int skip,
+            int take,
+            CancellationToken cancellationToken)
+        {
+            LastStates = states;
+            LastWindow = (skip, take);
+            return Task.FromResult(Window);
+        }
 
         public Task<IReadOnlyList<TriageSummary>> ListAsync(
             IReadOnlyCollection<TriageState>? states,
