@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
 
@@ -208,6 +209,113 @@ public sealed partial class IdentityCookieLifetimeWebTests
             after.Headers.Location?.OriginalString ?? string.Empty,
             StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, principals.Builds);
+    }
+
+    /// <summary>
+    /// A disable made in Pegasus evicts the account read the session's earlier
+    /// request kept, so the next request is refused even when it asks for a
+    /// thumbnail: document reads no longer check the account themselves.
+    /// </summary>
+    [Fact]
+    public async Task ADisableRefusesAWarmSessionBeforeAnyThumbnailIsServed()
+    {
+        await using var testDatabase = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Production",
+            new Dictionary<string, string?>
+            {
+                ["Runtime:Profile"] = "Production",
+                ["ConnectionStrings:Pegasus"] = testDatabase.ConnectionString,
+                ["Features:LocalIntake"] = "false",
+                ["Features:LocalDocumentCustody"] = "false"
+            });
+        var staffId = await CreateUserAsync(factory, UserName, StaffRole.User);
+        var administratorId = await CreateUserAsync(factory, AdministratorName, StaffRole.Administrator);
+        using var client = CreateClient(factory);
+        await SignInAsync(client);
+        using var before = await client.GetAsync("/Account/PasswordChange");
+        Assert.Equal(HttpStatusCode.OK, before.StatusCode);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var version = await scope.ServiceProvider.GetRequiredService<PegasusDbContext>().Users
+                .AsNoTracking()
+                .Where(user => user.Id == staffId)
+                .Select(user => user.Version)
+                .SingleAsync();
+            await scope.ServiceProvider.GetRequiredService<IDisableStaffAccount>().ExecuteAsync(
+                new(
+                    ActionActor.Staff(administratorId, [StaffRole.Administrator]),
+                    staffId,
+                    Reason: null,
+                    OperationKey: "identity-cookie-lifetime-disable",
+                    ExpectedVersion: version),
+                default);
+        }
+
+        using var thumbnail = await client.GetAsync(
+            $"/Cases/{Guid.NewGuid():D}/Documents/{Guid.NewGuid():D}/Download?size=thumb");
+        Assert.Equal(HttpStatusCode.Redirect, thumbnail.StatusCode);
+        Assert.Contains(
+            "/Account/SignIn",
+            thumbnail.Headers.Location?.OriginalString ?? string.Empty,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// A change made outside Pegasus (direct SQL, the intake wipe) evicts
+    /// nothing: the session keeps working until the account read expires, then
+    /// the next request reads the account again and is refused.
+    /// </summary>
+    [Fact]
+    public async Task AChangeOutsidePegasusIsSeenOnceTheAccountReadExpires()
+    {
+        await using var testDatabase = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        var clock = new AdjustableTimeProvider(
+            new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero));
+        using var baseFactory = new ConfiguredWebApplicationFactory(
+            "Production",
+            new Dictionary<string, string?>
+            {
+                ["Runtime:Profile"] = "Production",
+                ["ConnectionStrings:Pegasus"] = testDatabase.ConnectionString,
+                ["Features:LocalIntake"] = "false",
+                ["Features:LocalDocumentCustody"] = "false"
+            });
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<TimeProvider>();
+                services.AddSingleton<TimeProvider>(clock);
+                services.PostConfigure<CookieAuthenticationOptions>(
+                    IdentityConstants.ApplicationScheme,
+                    options => options.TimeProvider = clock);
+            }));
+        var staffId = await CreateUserAsync(factory, UserName, StaffRole.User);
+        using var client = CreateClient(factory);
+        await SignInAsync(client);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        using var before = await client.GetAsync("/Account/PasswordChange");
+        Assert.Equal(HttpStatusCode.OK, before.StatusCode);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<PegasusDbContext>().Users
+                .Where(user => user.Id == staffId)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(user => user.IsEnabled, false));
+        }
+
+        clock.Advance(StaffSessionPolicy.AccountReadLifetime - TimeSpan.FromSeconds(1));
+        using var stillKept = await client.GetAsync("/Account/PasswordChange");
+        Assert.Equal(HttpStatusCode.OK, stillKept.StatusCode);
+
+        clock.Advance(TimeSpan.FromSeconds(1));
+        using var expired = await client.GetAsync("/Account/PasswordChange");
+        Assert.Equal(HttpStatusCode.Redirect, expired.StatusCode);
+        Assert.Contains(
+            "/Account/SignIn",
+            expired.Headers.Location?.OriginalString ?? string.Empty,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

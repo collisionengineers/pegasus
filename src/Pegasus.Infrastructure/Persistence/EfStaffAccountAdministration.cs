@@ -15,6 +15,7 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfStaffAccountAdministration(
     PegasusDbContext context,
     UserManager<PegasusIdentityUser> userManager,
+    StaffAccountReads accountReads,
     TimeProvider timeProvider)
     : ICreateStaffAccountStore,
       IDisableStaffAccountStore,
@@ -171,6 +172,7 @@ public sealed class EfStaffAccountAdministration(
         await context.SaveChangesAsync(cancellationToken);
         await InvalidateChangedSignatoriesAsync(now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        accountReads.Evict(user.Id);
         return new(
             EfStaffAccountQueries.Summary(
                 user,
@@ -304,6 +306,7 @@ public sealed class EfStaffAccountAdministration(
             await InvalidateChangedSignatoriesAsync(now, cancellationToken);
         }
         await transaction.CommitAsync(cancellationToken);
+        accountReads.Evict(user.Id);
         return new(
             EfStaffAccountQueries.Summary(
                 user,
@@ -367,6 +370,7 @@ public sealed class EfStaffAccountAdministration(
         await context.SaveChangesAsync(cancellationToken);
         await InvalidateChangedSignatoriesAsync(now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        accountReads.Evict(user.Id);
         return new(EfStaffAccountQueries.Summary(user, role), WasReplay: false);
     }
 
@@ -417,6 +421,7 @@ public sealed class EfStaffAccountAdministration(
             context, ActionActor.Staff(user.Id, [role]), cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        accountReads.Evict(user.Id);
         return new(user.Id, revoked.Authorizations, revoked.Tokens, WasReplay: false);
     }
 
@@ -474,6 +479,7 @@ public sealed class EfStaffAccountAdministration(
             context, ActionActor.Staff(user.Id, [role]), cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        accountReads.Evict(user.Id);
         return new(
             user.Id,
             temporaryPassword,
@@ -553,6 +559,7 @@ public sealed class EfStaffAccountAdministration(
         await context.SaveChangesAsync(cancellationToken);
         await InvalidateChangedSignatoriesAsync(now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        accountReads.Evict(user.Id);
         return new(
             user.Id,
             revoked.Authorizations,
