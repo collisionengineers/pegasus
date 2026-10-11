@@ -33,7 +33,6 @@ public sealed record TriageCasePorts(
     IDescribeCaseEditAuthorityHolder DescribeEditAuthorityHolder,
     ICaseEngineerChoices EngineerChoices,
     IAddTriageNote AddNote,
-    ITriageQueries TriageQueries,
     RenderEmailTemplate RenderTemplate,
     GetRetainedMail? RetainedMail = null,
     IStaffMailSend? StaffMailSend = null,

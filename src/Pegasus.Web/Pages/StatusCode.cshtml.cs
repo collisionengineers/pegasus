@@ -24,8 +24,6 @@ public sealed class StatusCodeModel : PageModel
     public string Explanation { get; private set; } =
         "Try again, and if it keeps failing, tell your administrator.";
 
-    public bool IsFault { get; private set; }
-
     public void OnGet(int code)
     {
         var isSignInSurface = IsStaffSignInSurface();
@@ -55,10 +53,6 @@ public sealed class StatusCodeModel : PageModel
             case StatusCodes.Status403Forbidden:
                 Heading = "Access denied";
                 Explanation = "Your account does not have access to this page.";
-                break;
-
-            default:
-                IsFault = code >= StatusCodes.Status500InternalServerError;
                 break;
         }
     }

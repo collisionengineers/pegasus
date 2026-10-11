@@ -10,7 +10,6 @@ using Pegasus.Core.Actors;
 using Pegasus.Core.Address;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
-using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -104,7 +103,6 @@ internal static partial class CaseWebTestSupport
     }
 
     internal sealed partial class RecordingCaseDetailsStore :
-        IRetryCaseCustody,
         IAddCaseDocument,
         ILogicallyRemoveDocument,
         ITagCaseImage,
@@ -116,7 +114,6 @@ internal static partial class CaseWebTestSupport
         /// <summary>The case's documents, when a test supplies them.</summary>
         public IReadOnlyList<CaseDocument> CaseDocuments { get; set; } = [];
 
-        public List<RetryCaseCustodyRequest> CustodyRetries { get; } = [];
         public List<AddCaseDocumentCommand> DocumentUploads { get; } = [];
         public List<LogicallyRemoveDocumentCommand> DocumentRemovals { get; } = [];
         public List<TagCaseImageCommand> ImageTagsApplied { get; } = [];
@@ -124,19 +121,6 @@ internal static partial class CaseWebTestSupport
         public List<SetCaseImageInReportCommand> ImagesSetInReport { get; } = [];
         public List<CreateImageTagCommand> ImageTagsCreated { get; } = [];
         public List<MarkAsOriginalReportCommand> OriginalReportMarks { get; } = [];
-
-        Task<RetryCaseCustodyResult> IRetryCaseCustody.ExecuteAsync(
-            RetryCaseCustodyRequest request,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            CustodyRetries.Add(request);
-            ConsumeLease();
-            return Task.FromResult(new RetryCaseCustodyResult(
-                RetryCaseCustodyOutcome.Pending,
-                CaseVersion + 1,
-                "Custody retry was queued."));
-        }
 
         Task<AddCaseDocumentResult> IAddCaseDocument.ExecuteAsync(
             AddCaseDocumentCommand command,

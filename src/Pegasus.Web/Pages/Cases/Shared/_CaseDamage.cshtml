@@ -27,7 +27,6 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
     var details = Model.Case!;
-    var workflow = details.Workflow;
     var editable = Model.SectionIsEditable("damage") && details.Data is not null;
     var rawImpacts = Model.AssessmentEditorValue(AssessmentVocabulary.DamageImpacts) ?? "[]";
     IReadOnlyList<AssessmentImpact> impacts;
