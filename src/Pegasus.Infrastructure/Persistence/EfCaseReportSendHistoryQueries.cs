@@ -25,24 +25,29 @@ internal sealed class EfCaseReportSendHistoryQueries(
         // way round (decision X).
         var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken)
             .ConfigureAwait(false);
-        var sends = await (
-                from send in context.Set<StaffMailSendOperationEntity>().AsNoTracking()
-                join generation in context.Set<CaseReportGenerationEntity>().AsNoTracking()
-                    on send.ContextId equals generation.Id
-                where generation.WorkId == workId
-                    && send.Purpose == StaffMailPurpose.CaseReport
-                    && send.State == StaffMailState.Sent
-                orderby send.ObservedSentAtUtc descending
-                select new { generation.SnapshotJson })
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-        if (sends.Count == 0)
+        var sent =
+            from send in context.Set<StaffMailSendOperationEntity>().AsNoTracking()
+            join generation in context.Set<CaseReportGenerationEntity>().AsNoTracking()
+                on send.ContextId equals generation.Id
+            where generation.WorkId == workId
+                && send.Purpose == StaffMailPurpose.CaseReport
+                && send.State == StaffMailState.Sent
+            select new { send.ObservedSentAtUtc, generation.SnapshotJson };
+        var sentCount = await sent.CountAsync(cancellationToken).ConfigureAwait(false);
+        if (sentCount == 0)
         {
             return CaseReportSendHistory.None;
         }
 
+        // Only the newest send's snapshot is read: the count and the last
+        // report date are all the history carries.
+        var latestSnapshotJson = await sent
+            .OrderByDescending(row => row.ObservedSentAtUtc)
+            .Select(row => row.SnapshotJson)
+            .FirstAsync(cancellationToken)
+            .ConfigureAwait(false);
         var latest = JsonSerializer.Deserialize<CaseReportGenerationSnapshot>(
-            sends[0].SnapshotJson, SnapshotJsonOptions);
-        return new(sends.Count, latest?.ReportDate);
+            latestSnapshotJson, SnapshotJsonOptions);
+        return new(sentCount, latest?.ReportDate);
     }
 }

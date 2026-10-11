@@ -253,9 +253,8 @@ internal sealed class CaseEditMcpTools(
                                 }
                                 else if (sourceId != claimSource?.ClaimSourceId)
                                 {
-                                    var chosen = (await contactDirectory.ListByRoleAsync(
-                                            context.Actor, ContactRole.ClaimSource, cancellationToken))
-                                        .SingleOrDefault(item => item.OrganizationId == sourceId)
+                                    var chosen = await contactDirectory.FindActiveByRoleAsync(
+                                            context.Actor, ContactRole.ClaimSource, sourceId, cancellationToken)
                                         ?? throw new McpException("The selected claim source is not an active Claim source record.");
                                     claimSource = new CaseWorkspaceClaimSource(
                                         chosen.OrganizationId, chosen.Version, chosen.Name,
@@ -278,9 +277,8 @@ internal sealed class CaseEditMcpTools(
                             // A linked directory organisation is copied onto the
                             // Case: its identity, version, name and address.
                             var linkedRepairer = repairerDirectoryId is { } directoryId && directoryId != Guid.Empty
-                                ? (await contactDirectory.ListByRoleAsync(
-                                        context.Actor, ContactRole.Repairer, cancellationToken))
-                                    .SingleOrDefault(item => item.OrganizationId == directoryId)
+                                ? await contactDirectory.FindActiveByRoleAsync(
+                                        context.Actor, ContactRole.Repairer, directoryId, cancellationToken)
                                     ?? throw new McpException("The selected repairer is not an active directory Repairer.")
                                 : null;
                             var unlinkRepairer = repairerDirectoryId == Guid.Empty;

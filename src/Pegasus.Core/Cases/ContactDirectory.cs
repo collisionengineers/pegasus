@@ -88,6 +88,23 @@ public interface IContactDirectoryQueries
         ActionActor actor, CancellationToken cancellationToken);
 }
 
+public static class ContactDirectoryQueriesExtensions
+{
+    /// <summary>
+    /// The active directory organisation holding <paramref name="role"/> with
+    /// this identifier, or null when there is none, for the case screens that
+    /// link one to a Case. Each caller keeps its own refusal.
+    /// </summary>
+    public static async Task<ContactDirectoryRecord?> FindActiveByRoleAsync(
+        this IContactDirectoryQueries queries,
+        ActionActor actor,
+        ContactRole role,
+        Guid organizationId,
+        CancellationToken cancellationToken) =>
+        (await queries.ListByRoleAsync(actor, role, cancellationToken))
+        .SingleOrDefault(item => item.OrganizationId == organizationId);
+}
+
 public interface IContactDirectoryAdministration
 {
     Task<ContactDirectoryRecord> SaveAsync(SaveContactRequest request, CancellationToken cancellationToken);
