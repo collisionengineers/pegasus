@@ -772,23 +772,17 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Empty(store.LeaseClaims);
     }
 
+    // Report sent is editable (operator, 11 October 2026), so no open state
+    // reads the assessment read-only any more; an archived Case is the one
+    // readable Case that refuses the import.
     [Fact]
-    public async Task ArchivedAndReadOnlyCasesCannotStoreAnEstimate()
+    public async Task AnArchivedCaseCannotStoreAnEstimate()
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
         using var engineerClient = CreateEngineerClient(factory);
-        store.CaseState = CaseLifecycleState.PrincipalCancelled;
-        store.AssessmentState = CaseLifecycleState.PrincipalCancelled;
-        var readOnlyHtml = await GetHtmlAsync(engineerClient, $"/Cases/{caseId:D}?section=estimate");
-        using (var readOnlyForm = ImportForm(AntiforgeryValue(readOnlyHtml), caseId, NewOperationKey(), AudatexEstimateFixture.Build()))
-        using (var readOnlyResponse = await engineerClient.PostAsync($"/Cases/{caseId:D}?handler=ImportEstimate", readOnlyForm))
-        {
-            Assert.Equal(HttpStatusCode.Redirect, readOnlyResponse.StatusCode);
-        }
-        Assert.Empty(store.DocumentCalls);
 
         store.CaseState = CaseLifecycleState.Review;
         store.AssessmentState = CaseLifecycleState.ReportPreparation;

@@ -125,7 +125,7 @@ public sealed class WorkCentreActivityPersistenceTests
         Id = Guid.NewGuid(),
         CaseId = caseId,
         EventType = eventType,
-        OperationKey = $"activity:{caseId:N}:{eventType}:{occurredAtUtc:O}",
+        OperationKey = $"activity:{caseId:N}:{eventType}:{occurredAtUtc:yyyyMMddHHmmss}",
         RequestHash = new string('b', 64),
         ActorKind = "Staff",
         ActorSubjectId = "activity-test",
