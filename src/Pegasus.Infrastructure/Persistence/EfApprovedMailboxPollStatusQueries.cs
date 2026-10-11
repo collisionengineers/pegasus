@@ -18,33 +18,15 @@ internal sealed class EfApprovedMailboxPollStatusQueries(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var rows = await context.ApprovedInboxPollStates
             .AsNoTracking()
-            .Include(item => item.ApprovedMailbox)
             .OrderBy(item => item.MailboxAddress)
             .ToListAsync(cancellationToken);
-        return rows.Select(item =>
-        {
-            var capabilities = new List<ApprovedMailboxRouteScope>(3);
-            if (item.ApprovedMailbox.AllowInboundIntake)
-            {
-                capabilities.Add(ApprovedMailboxRouteScope.InboundIntake);
-            }
-            if (item.ApprovedMailbox.AllowSentEvidence)
-            {
-                capabilities.Add(ApprovedMailboxRouteScope.SentEvidence);
-            }
-            if (item.ApprovedMailbox.AllowStaffSend)
-            {
-                capabilities.Add(ApprovedMailboxRouteScope.StaffSend);
-            }
-            return new ApprovedMailboxPollStatus(
-                item.ApprovedMailboxId,
-                item.MailboxAddress,
-                item.DueAtUtc,
-                item.LastCompletedAtUtc,
-                item.LastFailureCode,
-                item.StartBoundaryUtc,
-                item.Generation,
-                capabilities);
-        }).ToArray();
+        return rows.Select(item => new ApprovedMailboxPollStatus(
+            item.ApprovedMailboxId,
+            item.MailboxAddress,
+            item.DueAtUtc,
+            item.LastCompletedAtUtc,
+            item.LastFailureCode,
+            item.StartBoundaryUtc,
+            item.Generation)).ToArray();
     }
 }

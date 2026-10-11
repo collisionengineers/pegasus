@@ -262,11 +262,6 @@ public sealed class QdosBoundaryContractTests
     {
         var accepted = new CaseExportEvidenceValue("confirmed", CaseExportEvidenceStatus.Accepted, "staff", "1");
         return new(
-            Guid.NewGuid(),
-            1,
-            true,
-            true,
-            true,
             accepted with { Value = "QDOS-001", Source = "case", SourceVersion = "1" },
             accepted,
             accepted with { Value = "AB12 CDE" },

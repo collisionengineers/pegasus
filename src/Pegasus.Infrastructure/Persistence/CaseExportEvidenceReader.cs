@@ -28,13 +28,6 @@ public static class CaseExportEvidenceReader
             ? vehicle.Confirmed
             : null;
         return new CaseExportEvidence(
-            caseId,
-            caseData.Version,
-            caseData.AcceptedAtUtc != default,
-            caseData.Completeness.Values.InstructionComplete
-                && caseData.Completeness.Evaluation.SatisfiesPolicy,
-            caseData.Completeness.Values.ImagesComplete
-                && caseData.Completeness.Evaluation.SatisfiesPolicy,
             FromCaseField(caseData.Claim.Number, static value => value),
             FromCaseField(caseData.Principal.PrincipalCode, static value => value),
             Fallback(
