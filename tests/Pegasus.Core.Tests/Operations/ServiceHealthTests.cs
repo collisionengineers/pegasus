@@ -399,6 +399,11 @@ public sealed class ServiceHealthTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by the snapshot.");
 
+        public Task<AiJobRecord?> GetPendingMarketResearchAsync(
+            Guid subjectId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by the snapshot.");
+
         public Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(int max, CancellationToken cancellationToken)
         {
             Assert.Equal(1, max);

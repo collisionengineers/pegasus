@@ -6,20 +6,21 @@ namespace Pegasus.Core;
 /// </summary>
 public static class LondonCalendar
 {
-    private const string TimeZoneId = "Europe/London";
+    private static readonly TimeZoneInfo LondonTimeZone =
+        TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
 
     public static DateTimeOffset StartOfDay(DateOnly date) =>
-        StartOfDay(date, GetTimeZone());
+        StartOfDay(date, LondonTimeZone);
 
     public static DateTimeOffset? StartOfNextDay(DateOnly date)
     {
         return date == DateOnly.MaxValue
             ? null
-            : StartOfDay(date.AddDays(1), GetTimeZone());
+            : StartOfDay(date.AddDays(1), LondonTimeZone);
     }
 
     public static DateOnly DateAt(DateTimeOffset instant) =>
-        DateAt(instant, GetTimeZone());
+        DateAt(instant, LondonTimeZone);
 
     /// <summary>
     /// The start and end of the office's today and the start of its week, expressed in UTC.
@@ -36,7 +37,7 @@ public static class LondonCalendar
         DateTimeOffset WeekStartUtc)
         DayAndWeekBoundariesAt(DateTimeOffset instant)
     {
-        var timeZone = GetTimeZone();
+        var timeZone = LondonTimeZone;
         var date = DateAt(instant, timeZone);
         var daysSinceMonday = ((int)date.DayOfWeek + 6) % 7;
         return (
@@ -46,13 +47,13 @@ public static class LondonCalendar
     }
 
     public static DateTimeOffset ToUtc(DateTime localTime) =>
-        ToUtc(localTime, GetTimeZone());
+        ToUtc(localTime, LondonTimeZone);
 
     public static DateTime TimeAt(DateTimeOffset instant) =>
         LocalAt(instant).DateTime;
 
     public static DateTimeOffset LocalAt(DateTimeOffset instant) =>
-        TimeZoneInfo.ConvertTime(instant, GetTimeZone());
+        TimeZoneInfo.ConvertTime(instant, LondonTimeZone);
 
     private static DateTimeOffset StartOfDay(DateOnly date, TimeZoneInfo timeZone) =>
         ToUtc(date.ToDateTime(TimeOnly.MinValue), timeZone);
@@ -73,8 +74,5 @@ public static class LondonCalendar
             : timeZone.GetUtcOffset(local);
         return new DateTimeOffset(local, offset).ToUniversalTime();
     }
-
-    private static TimeZoneInfo GetTimeZone() =>
-        TimeZoneInfo.FindSystemTimeZoneById(TimeZoneId);
 
 }

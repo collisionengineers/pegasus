@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.AiWork;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -355,6 +356,29 @@ public sealed class EfAiJobStore(
             .ThenByDescending(item => item.JobId)
             .ToListAsync(cancellationToken);
         return rows.Select(row => Map(row, now)).ToArray();
+    }
+
+    public async Task<AiJobRecord?> GetPendingMarketResearchAsync(
+        Guid subjectId,
+        CancellationToken cancellationToken)
+    {
+        if (subjectId == Guid.Empty)
+        {
+            throw new ArgumentException("A subject identifier is required.", nameof(subjectId));
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var now = UtcNow();
+        var kind = nameof(AiJobKind.MarketResearch);
+        // Narrows by the persisted states a pending job can only come from
+        // (expiry and lease lapse move Queued to Expired and Taken to Queued,
+        // never the other way); the pending rule itself stays with the policy.
+        var rows = await context.AiJobs.AsNoTracking()
+            .Where(item => item.SubjectId == subjectId
+                && item.Kind == kind
+                && (item.State == nameof(AiJobState.Queued) || item.State == nameof(AiJobState.Taken)))
+            .ToListAsync(cancellationToken);
+        return MarketResearchPolicy.PendingOf(rows.Select(row => Map(row, now)));
     }
 
     public async Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(

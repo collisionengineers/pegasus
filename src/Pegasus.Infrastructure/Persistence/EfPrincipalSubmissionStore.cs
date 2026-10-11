@@ -21,12 +21,12 @@ internal sealed class EfPrincipalSubmissionStore(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(record);
-        if (await GetAsync(record.Id, cancellationToken) is { } existing)
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        if (await ReadAsync(context, record.Id, cancellationToken) is { } existing)
         {
             return existing;
         }
 
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         context.PrincipalSubmissions.Add(new PrincipalSubmissionEntity
         {
             Id = record.Id,
@@ -52,6 +52,14 @@ internal sealed class EfPrincipalSubmissionStore(
     public async Task<PrincipalSubmissionRecord?> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await ReadAsync(context, id, cancellationToken);
+    }
+
+    private static async Task<PrincipalSubmissionRecord?> ReadAsync(
+        PegasusDbContext context,
+        Guid id,
+        CancellationToken cancellationToken)
+    {
         var entity = await context.PrincipalSubmissions
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
@@ -62,6 +70,7 @@ internal sealed class EfPrincipalSubmissionStore(
 
     public async Task<IReadOnlyList<PrincipalSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
         int maximumItems,
+        DateTimeOffset receivedAtOrBeforeUtc,
         CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
@@ -90,6 +99,7 @@ internal sealed class EfPrincipalSubmissionStore(
                     on submission.Id.ToString() equals acceptedHistory.AggregateId into acceptedHistories
                 from acceptedHistory in acceptedHistories.DefaultIfEmpty()
                 where acceptedHistory == null
+                    && submission.ReceivedAtUtc <= receivedAtOrBeforeUtc
                 orderby submission.ReceivedAtUtc, submission.Id
                 select new PrincipalSubmissionAcceptCandidate(
                     submission.Id,

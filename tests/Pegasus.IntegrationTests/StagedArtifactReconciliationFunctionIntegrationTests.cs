@@ -419,6 +419,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
 
         public Task<IReadOnlyList<PrincipalSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
             int maximumItems,
+            DateTimeOffset receivedAtOrBeforeUtc,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<PrincipalSubmissionAcceptCandidate>>([]);
 
