@@ -390,8 +390,8 @@ internal sealed class EfStaffMailSendStore(
             systemActor.Roles.Select(value => value.ToString()), "staff-mail-sent-observed",
             observedAtUtc, entity.OperationKey, null, null, Map(entity)));
         await FreezeSentReportSpecificationAsync(db, entity, systemActor, observedAtUtc, cancellationToken);
-        await CompletePostReportQueryAsync(db, entity, systemActor, observedAtUtc, cancellationToken);
-        await RecordCorrespondenceSentAsync(db, entity, cancellationToken);
+        var queryWorkflow = await CompletePostReportQueryAsync(db, entity, systemActor, observedAtUtc, cancellationToken);
+        await RecordCorrespondenceSentAsync(db, entity, queryWorkflow, cancellationToken);
         await RecordSentChaserAsync(db, entity, providerSentAtUtc, observedAtUtc, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -409,6 +409,7 @@ internal sealed class EfStaffMailSendStore(
     private static async Task RecordCorrespondenceSentAsync(
         PegasusDbContext db,
         StaffMailSendOperationEntity mail,
+        CaseWorkflowEntity? readWorkflow,
         CancellationToken cancellationToken)
     {
         if (mail.Purpose != StaffMailPurpose.GeneralCorrespondence
@@ -416,8 +417,9 @@ internal sealed class EfStaffMailSendStore(
         {
             return;
         }
-        var workflow = await db.CaseWorkflows.SingleOrDefaultAsync(
-            item => item.CaseId == mail.ContextId, cancellationToken);
+        var workflow = readWorkflow
+            ?? await db.CaseWorkflows.SingleOrDefaultAsync(
+                item => item.CaseId == mail.ContextId, cancellationToken);
         if (workflow is null)
         {
             return;
@@ -516,8 +518,10 @@ internal sealed class EfStaffMailSendStore(
     /// A post-report query is resolved only by durable Sent evidence for a reply to the
     /// retained query that is still associated with this case. A prepared, submitted,
     /// unknown, or unrelated correspondence operation cannot advance the case.
+    /// Returns the Case's workflow when this read it, so the Notes line that
+    /// follows does not read it again.
     /// </summary>
-    private static async Task CompletePostReportQueryAsync(
+    private static async Task<CaseWorkflowEntity?> CompletePostReportQueryAsync(
         PegasusDbContext db,
         StaffMailSendOperationEntity mail,
         ActionActor actor,
@@ -528,7 +532,7 @@ internal sealed class EfStaffMailSendStore(
             || mail.ComposeMode is not (StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll)
             || mail.OriginalRetainedMessageId is not { } retainedMessageId)
         {
-            return;
+            return null;
         }
 
         var retained = await db.Set<RetainedMailboxMessageEntity>().AsNoTracking()
@@ -536,7 +540,7 @@ internal sealed class EfStaffMailSendStore(
                 && item.MailboxId == mail.MailboxId, cancellationToken);
         if (retained is null)
         {
-            return;
+            return null;
         }
 
         var queryReceiptIds = await db.IntakeReceipts.AsNoTracking()
@@ -546,7 +550,7 @@ internal sealed class EfStaffMailSendStore(
             .ToArrayAsync(cancellationToken);
         if (queryReceiptIds.Length != 1)
         {
-            return;
+            return null;
         }
 
         await AcquireTransactionLockAsync(
@@ -561,14 +565,14 @@ internal sealed class EfStaffMailSendStore(
         if (!associations.Current.TryGetValue(queryReceiptIds[0], out var association)
             || association.CaseId != mail.ContextId)
         {
-            return;
+            return null;
         }
 
         var workflow = await db.CaseWorkflows.SingleOrDefaultAsync(
             item => item.CaseId == mail.ContextId, cancellationToken);
         if (workflow?.State != nameof(CaseLifecycleState.Query))
         {
-            return;
+            return workflow;
         }
 
         var beforeVersion = workflow.Version;
@@ -623,6 +627,8 @@ internal sealed class EfStaffMailSendStore(
             AfterJson = afterJson,
             PolicyVersion = "case-lifecycle-v1"
         });
+
+        return workflow;
     }
 
     /// <summary>
@@ -656,12 +662,11 @@ internal sealed class EfStaffMailSendStore(
             return;
         }
 
-        var workflow = await db.CaseWorkflows.SingleOrDefaultAsync(
-            item => item.CaseId == mail.ContextId, cancellationToken);
         var due = await db.CaseDueWork
             .Include(item => item.Workflow)
             .ThenInclude(item => item.Case)
             .SingleOrDefaultAsync(item => item.CaseId == mail.ContextId, cancellationToken);
+        var workflow = due?.Workflow;
         if (workflow is null
             || due is null
             || workflow.ArchivedAtUtc is not null
