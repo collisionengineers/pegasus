@@ -184,14 +184,25 @@ public static class CaseWorkspaceLabels
 
         public static string FormName(string path) => $"assessmentFields[{path}]";
 
+        // Built once from the six dictionaries above, first dictionary wins, so
+        // a lookup is one probe instead of a scan that formats every FormName.
+        private static readonly IReadOnlyDictionary<string, string> LabelsByFormName = BuildLabelsByFormName();
+
+        private static Dictionary<string, string> BuildLabelsByFormName()
+        {
+            var labels = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var entry in Settlement.Concat(Valuation).Concat(OriginalReport).Concat(Report).Concat(Damage).Concat(Vehicle))
+            {
+                labels.TryAdd(FormName(entry.Key), entry.Value);
+            }
+            return labels;
+        }
+
         public static string? Label(string field)
         {
             if (field == FormName(AssessmentVocabulary.HistoryCheck)) return "Vehicle history";
             if (field == FormName(AssessmentVocabulary.VehicleCondition)) return "Pre-incident condition";
-            foreach (var entry in Settlement.Concat(Valuation).Concat(OriginalReport).Concat(Report).Concat(Damage).Concat(Vehicle))
-            {
-                if (field == FormName(entry.Key)) return entry.Value;
-            }
+            if (LabelsByFormName.TryGetValue(field, out var label)) return label;
             return field switch
             {
                 "storagePerDay" => "Storage per day",
