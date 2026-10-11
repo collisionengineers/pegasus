@@ -428,12 +428,12 @@ public sealed class AssociatedMailEvidenceIntegrationTests
     /// <summary>
     /// A matched follow-up's message and its one attachment are filed on the
     /// Case by the promotion the intake processor runs, into Box through the
-    /// store the Worker composes. Beside each upload, the only Box call is one
-    /// read that proves the Case folder: the name is not looked up first,
+    /// store the Worker composes. Beside the uploads, the only Box call is one
+    /// read that proves the Case folder for the whole batch: the name is not looked up first,
     /// nothing is walked afterwards, and no folder is listed.
     /// </summary>
     [Fact]
-    public async Task FilingAMailAttachmentReadsTheCaseFolderOnceBesideEachUpload()
+    public async Task FilingAMailAttachmentReadsTheCaseFolderOnceForTheBatchOfUploads()
     {
         using var factory = new IntakeWebApplicationFactory();
         var caseId = await SeedCaseAsync(factory);
@@ -486,7 +486,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         });
         Assert.Equal(2, box.Requests.Count(request => request == CaseFolderBox.Upload));
         Assert.Equal(
-            ["GET /2.0/folders/case-root", "GET /2.0/folders/case-root"],
+            ["GET /2.0/folders/case-root"],
             box.Requests.Where(request => request != CaseFolderBox.Upload).ToArray());
     }
 

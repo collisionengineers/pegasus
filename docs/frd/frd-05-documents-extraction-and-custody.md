@@ -294,9 +294,13 @@ work reads its Case folder once, however many files it files. A document filed
 on its own is different. Its folder may be the Case folder or the Audit's `a.`
 folder inside it. That folder is read, and so is each folder above it up to
 the approved root, to check that it is under that root and not in the trash.
-This is done for each document. An upload does not look for its name first.
-Box's answer to the upload must name the folder that was read as the file's
-parent. A name Box already holds comes back as Box's own refusal. Pegasus then
+This is done for each document, except that a batch of document writes into one
+folder shares a single read of that folder and its ancestry for the batch only,
+never for the 10-minute memory (operator ruling of 10 October 2026). A folder
+trashed or moved partway through a batch may therefore be noticed late; any
+fence failure on a write into the folder drops the shared read. An upload
+does not look for its name first. Box's answer to the upload must name the
+folder that was read as the file's parent. A name Box already holds comes back as Box's own refusal. Pegasus then
 accepts the file that holds it only when it is a file of the same length, in
 that folder, with the same bytes.
 Box does not report a file's type, so the type is not compared. A not-found,

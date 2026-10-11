@@ -90,6 +90,7 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
 
         var pending = false;
         var failed = false;
+        using var batch = custody.BeginDocumentBatch();
         foreach (var asset in assets)
         {
             var content = await artifactStore.ReadAsync(asset.StorageKey, cancellationToken)
