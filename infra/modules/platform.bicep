@@ -732,6 +732,7 @@ resource telemetryDailyCapAlert 'Microsoft.Insights/scheduledQueryRules@2023-12-
     scopes: [logAnalytics.id]
     targetResourceTypes: ['Microsoft.OperationalInsights/workspaces']
     windowSize: 'PT15M'
+    overrideQueryTimeRange: 'P1D'
     criteria: {
       allOf: [
         {
