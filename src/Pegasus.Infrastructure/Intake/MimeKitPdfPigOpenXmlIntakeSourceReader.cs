@@ -1,6 +1,7 @@
 using System.Net;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
@@ -310,7 +311,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
     {
         limits.ThrowIfProcessingDeadlineExceeded();
         cancellationToken.ThrowIfCancellationRequested();
-        using var document = PdfDocument.Open(bytes.ToArray());
+        using var document = PdfDocument.Open(DocumentContentCachePublisherExtensions.ArrayOf(bytes));
         var pages = new List<PdfPageResult>();
         for (var pageNumber = 1; pageNumber <= document.NumberOfPages; pageNumber++)
         {
@@ -347,8 +348,9 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             // geometry cannot tell them apart; the raster's colour can. A
             // document page keeps no image — its raster IS the page, and OCR
             // reads it — while a photograph page is an ordinary image page.
+            PdfImageRead? dominantRead = null;
             ScanPageClassification? fullPageRaster = hasInsufficientText && hasDominantRaster
-                ? ClassifyFullPageRaster(page, images, sourceLabel, result)
+                ? ClassifyFullPageRaster(page, images, sourceLabel, result, out dominantRead)
                 : null;
             var isDocumentPage = fullPageRaster?.Kind == ScanPageKind.Document;
             IPdfImage[] pageImages = isDocumentPage ? [] : images;
@@ -364,13 +366,22 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 ReadOnlyMemory<byte> imageBytes = default;
                 var mediaType = string.Empty;
                 var extension = string.Empty;
-                try
+                if (dominantRead is { } carried && ReferenceEquals(carried.Image, image))
                 {
-                    extracted = TryReadPdfImage(image, out imageBytes, out mediaType, out extension);
+                    // The classification already extracted this raster.
+                    (extracted, imageBytes, mediaType, extension) =
+                        (true, carried.Bytes, carried.MediaType, carried.Extension);
                 }
-                catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+                else
                 {
-                    // Keep processing the page. The issue below makes the missing image explicit.
+                    try
+                    {
+                        extracted = TryReadPdfImage(image, out imageBytes, out mediaType, out extension);
+                    }
+                    catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+                    {
+                        // Keep processing the page. The issue below makes the missing image explicit.
+                    }
                 }
 
                 if (!extracted)
@@ -423,15 +434,18 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         Page page,
         IReadOnlyList<IPdfImage> images,
         string sourceLabel,
-        ReadAccumulator result)
+        ReadAccumulator result,
+        out PdfImageRead? dominantRead)
     {
+        dominantRead = null;
         var visible = page.CropBox.GetVisibleBounds(page.Rotation);
         var dominant = images.MaxBy(image => Coverage(image.BoundingBox, visible))!;
         var classification = new ScanPageClassification(ScanPageKind.Document, null);
         try
         {
-            if (TryReadPdfImage(dominant, out var bytes, out _, out _))
+            if (TryReadPdfImage(dominant, out var bytes, out var dominantMediaType, out var dominantExtension))
             {
+                dominantRead = new(dominant, bytes, dominantMediaType, dominantExtension);
                 classification = ScanPageClassifier.Classify(bytes.Span);
             }
         }
@@ -470,6 +484,13 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         return (intersection?.Area ?? 0) / pageArea;
     }
 
+    /// <summary>A PDF image already extracted, with the media type and extension it was kept as.</summary>
+    private readonly record struct PdfImageRead(
+        IPdfImage Image,
+        ReadOnlyMemory<byte> Bytes,
+        string MediaType,
+        string Extension);
+
     private static bool TryReadPdfImage(
         IPdfImage image,
         out ReadOnlyMemory<byte> bytes,
@@ -507,7 +528,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
     {
         try
         {
-            using var stream = new MemoryStream(bytes.ToArray(), writable: false);
+            using var stream = DocumentContentCachePublisherExtensions.StreamOf(bytes);
             ValidateDocxPackage(stream);
             using var document = WordprocessingDocument.Open(
                 stream,
@@ -772,7 +793,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         MimeMessage message;
         try
         {
-            await using var stream = new MemoryStream(bytes.ToArray(), writable: false);
+            await using var stream = DocumentContentCachePublisherExtensions.StreamOf(bytes);
             message = await MimeMessage.LoadAsync(stream, cancellationToken);
         }
         catch (Exception exception) when (exception is FormatException or ParseException)
@@ -806,13 +827,6 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             return ReadOutcome.Readable;
         }
 
-        if (isRoot)
-        {
-            // The submitted message as correspondence, read once here so an
-            // uploaded email is retained the way a polled one is.
-            result.RootEmail = await ReadRootEmailAsync(bytes, message, cancellationToken);
-        }
-
         var limits = result.MimeLimits ??= new MimeLimitState();
         await ReadMessageAsync(
             message,
@@ -822,6 +836,14 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             0,
             senderIdentityKind,
             cancellationToken);
+        if (isRoot)
+        {
+            // The submitted message as correspondence, read from the message
+            // already parsed here so an uploaded email is retained the way a
+            // polled one is.
+            result.RootEmail = ReadRootEmail(message, result.DecodedLengths);
+        }
+
         return ReadOutcome.Readable;
     }
 
@@ -1076,6 +1098,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             await using var nestedBytes = new MemoryStream();
             await messagePart.Message.WriteToAsync(nestedBytes, cancellationToken);
             var nestedPayload = nestedBytes.ToArray();
+            result.DecodedLengths[messagePart] = nestedPayload.Length;
             if (!limits.TryAddBytes(nestedPayload.Length, result))
             {
                 return;
@@ -1183,6 +1206,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         }
 
         var payload = decoded.ToArray();
+        result.DecodedLengths[part] = payload.Length;
         if (!limits.TryAddBytes(payload.Length, result))
         {
             return;
@@ -1232,13 +1256,11 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
     /// source uses, so an upload and a polled message retain identical
     /// sender, recipient, body and attachment facts.
     /// </summary>
-    private static async Task<IntakeEmailSummary> ReadRootEmailAsync(
-        ReadOnlyMemory<byte> bytes,
+    private static IntakeEmailSummary ReadRootEmail(
         MimeMessage message,
-        CancellationToken cancellationToken)
+        IReadOnlyDictionary<MimeEntity, long> decodedLengths)
     {
-        await using var stream = new MemoryStream(bytes.ToArray(), writable: false);
-        var display = await LocalEmailDisplayReader.ReadAsync(stream, cancellationToken);
+        var display = LocalEmailDisplayReader.Read(message, decodedLengths);
         return new IntakeEmailSummary(
             display.SenderAddress,
             display.SenderDisplayName,
@@ -1375,6 +1397,12 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         public bool IsIncomplete { get; set; }
 
         public IntakeEmailSummary? RootEmail { get; set; }
+
+        /// <summary>
+        /// The decoded length of each attachment part the walk has already
+        /// decoded, so the root email's display view does not decode it again.
+        /// </summary>
+        public Dictionary<MimeEntity, long> DecodedLengths { get; } = [];
 
         public IntakeSourceReadResult ToResult(
             IntakeSourceReadStatus status,

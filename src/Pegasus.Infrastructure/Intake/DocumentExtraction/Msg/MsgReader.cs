@@ -156,7 +156,7 @@ internal static class MsgReader
                 issues.Add(new("MSG_ATTACHMENT_STORAGE_DUPLICATE", "Attachment storages have duplicate source-order suffixes.", storage.StreamId));
             ImmutableArray<MapiProperty> bag = reader.ReadPropertyBag(storage.StreamId, PropertyStreamContext.RecipientOrAttachment, codePage);
             int method = GetInt32(bag, 0x3705) ?? 0;
-            byte[] content = GetBinaryBytes(bag, 0x3701);
+            ImmutableArray<byte> content = GetBinaryBytes(bag, 0x3701);
             string? passiveReference = GetString(bag, 0x370D) ?? GetString(bag, 0x3708);
             MsgDocument? embedded = null;
             CompoundFileDirectoryEntry? embeddedStorage = reader.Storage(storage.StreamId, "__substg1.0_3701000d");
@@ -199,9 +199,8 @@ internal static class MsgReader
                 GetString(bag, 0x3001),
                 GetString(bag, 0x370E),
                 contentId,
-                GetString(bag, 0x3713),
                 hidden || renderingPosition >= 0 || contentId is not null,
-                ImmutableArray.Create(content),
+                content,
                 passiveReference,
                 embedded,
                 passiveStorages,
@@ -246,14 +245,14 @@ internal static class MsgReader
         CancellationToken cancellationToken)
     {
         string? plain = GetString(properties, 0x1000);
-        byte[] htmlBytes = GetBinaryBytes(properties, 0x1013);
-        string? html = htmlBytes.Length == 0 ? GetString(properties, 0x1013) : DecodeHtml(htmlBytes, properties, issues);
-        byte[] compressedRtf = GetBinaryBytes(properties, 0x1009);
+        ImmutableArray<byte> htmlBytes = GetBinaryBytes(properties, 0x1013);
+        string? html = htmlBytes.Length == 0 ? GetString(properties, 0x1013) : DecodeHtml(htmlBytes.AsSpan(), properties, issues);
+        ImmutableArray<byte> compressedRtf = GetBinaryBytes(properties, 0x1009);
         byte[] rtf = [];
         string? rtfText = null;
         if (compressedRtf.Length != 0)
         {
-            if (RtfCompression.TryDecompress(compressedRtf, limits.MaximumRtfBytes, out rtf, out string? error, cancellationToken))
+            if (RtfCompression.TryDecompress(compressedRtf.AsSpan(), limits.MaximumRtfBytes, out rtf, out string? error, cancellationToken))
             {
                 rtfText = PassiveRtfText.Extract(rtf, issues, cancellationToken: cancellationToken);
             }
@@ -274,10 +273,10 @@ internal static class MsgReader
         {
             issues.Add(new("MSG_BODY_VARIANTS_DIVERGE", "Plain and HTML body representations differ; both were retained."));
         }
-        return new(plain, html, ImmutableArray.Create(htmlBytes), rtfText, ImmutableArray.Create(rtf), canonical, source);
+        return new(plain, html, htmlBytes, rtfText, canonical, source);
     }
 
-    private static string DecodeHtml(byte[] bytes, ImmutableArray<MapiProperty> properties, List<MsgIssue> issues)
+    private static string DecodeHtml(ReadOnlySpan<byte> bytes, ImmutableArray<MapiProperty> properties, List<MsgIssue> issues)
     {
         int codePage = GetInt32(properties, 0x3FDE) ?? GetInt32(properties, 0x3FFD) ?? 1252;
         if (codePage == 65001) return System.Text.Encoding.UTF8.GetString(bytes).TrimEnd('\0');
@@ -411,11 +410,12 @@ internal static class MsgReader
     private static int? GetInt32(ImmutableArray<MapiProperty> properties, ushort id) => First(properties, id)?.Decoded is int value ? value : null;
     private static bool? GetBoolean(ImmutableArray<MapiProperty> properties, ushort id) => First(properties, id)?.Decoded is bool value ? value : null;
     private static DateTimeOffset? GetDate(ImmutableArray<MapiProperty> properties, ushort id) => First(properties, id)?.Decoded is DateTimeOffset value ? value : null;
-    private static byte[] GetBinaryBytes(ImmutableArray<MapiProperty> properties, ushort id)
+    // The bag's own immutable bytes are shared, not copied.
+    private static ImmutableArray<byte> GetBinaryBytes(ImmutableArray<MapiProperty> properties, ushort id)
     {
         MapiValue? value = First(properties, id);
-        return value?.Kind is MapiValueKind.Binary or MapiValueKind.OpaqueObject
-            ? value.RawBytes.ToArray()
+        return value?.Kind is MapiValueKind.Binary or MapiValueKind.OpaqueObject && !value.RawBytes.IsDefault
+            ? value.RawBytes
             : [];
     }
     private static ImmutableArray<MsgIssue> SortIssues(IEnumerable<MsgIssue> issues) => [.. issues.OrderBy(static issue => issue.StorageId).ThenBy(static issue => issue.PropertyId).ThenBy(static issue => issue.Code, StringComparer.Ordinal).ThenBy(static issue => issue.Message, StringComparer.Ordinal)];
@@ -429,5 +429,5 @@ internal static class MsgReader
     private static MsgDocument Empty(MsgReadOutcome outcome, MsgIssue issue) => new(
         outcome,
         new(MsgItemKind.Generic, "<unavailable>", ImmutableDictionary<string, string>.Empty),
-        [], [], new(null, null, [], null, [], null, "none"), [], [issue]);
+        [], [], new(null, null, [], null, null, "none"), [], [issue]);
 }

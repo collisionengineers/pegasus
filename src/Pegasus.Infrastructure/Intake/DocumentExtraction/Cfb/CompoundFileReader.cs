@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Pegasus.Infrastructure.Intake.DocumentExtraction.Cfb;
@@ -99,9 +100,8 @@ internal static class CompoundFileReader
 
             var file = new CompoundFile(
                 _header,
-                [.. fatSectorIds],
-                [.. _fat],
-                [.. _miniFat],
+                ImmutableCollectionsMarshal.AsImmutableArray(fatSectorIds),
+                ImmutableCollectionsMarshal.AsImmutableArray(_miniFat),
                 publicEntries);
             return CompoundFileReadResult.Success(file);
         }
@@ -558,7 +558,7 @@ internal static class CompoundFileReader
                     entry.StartingSector,
                     entry.StreamSize,
                     parents[entry.StreamId],
-                    [.. content]));
+                    ImmutableCollectionsMarshal.AsImmutableArray(content)));
             }
 
             publicEntries = builder.MoveToImmutable();
