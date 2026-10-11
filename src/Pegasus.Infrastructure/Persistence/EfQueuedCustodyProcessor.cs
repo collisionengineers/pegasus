@@ -16,7 +16,8 @@ internal sealed class EfQueuedCustodyProcessor(
     IExternalWorkStore workStore,
     ICaseCustody caseCustody,
     TimeProvider timeProvider,
-    IDocumentContentCachePublisher? cachePublisher = null) : IProcessQueuedCustody
+    IDocumentContentCachePublisher? cachePublisher = null,
+    PrefetchedExternalWork? prefetched = null) : IProcessQueuedCustody
 {
     private static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(5);
 
@@ -32,9 +33,10 @@ internal sealed class EfQueuedCustodyProcessor(
         while (true)
         {
             await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            var work = await context.ExternalWorkItems
-                .AsNoTracking()
-                .SingleOrDefaultAsync(value => value.Id == workId, cancellationToken)
+            var work = prefetched?.Take(workId)
+                ?? await context.ExternalWorkItems
+                    .AsNoTracking()
+                    .SingleOrDefaultAsync(value => value.Id == workId, cancellationToken)
                 ?? throw new InvalidOperationException("The custody work item is unavailable.");
             if (work.Kind is not (ExternalWorkKinds.CreateCaseCustody
                 or ExternalWorkKinds.CreateAuditReferenceCustody
@@ -447,6 +449,22 @@ internal sealed class EfQueuedCustodyProcessor(
         var recordedKeys = alreadyRecorded.ToHashSet(StringComparer.Ordinal);
         var added = false;
 
+        // The intake assets, preparations and tags of the files still to be
+        // recorded are read once for the completion, not once for each file.
+        var pendingAssetIds = retainedFiles
+            .Where(file => file.IntakeAssetId is not null && !recordedKeys.Contains(file.OperationKey))
+            .Select(file => file.IntakeAssetId!.Value)
+            .Distinct()
+            .ToArray();
+        var assetsById = pendingAssetIds.Length == 0
+            ? []
+            : await context.Set<IntakeAssetEntity>()
+                .Where(value => pendingAssetIds.Contains(value.Id))
+                .ToDictionaryAsync(value => value.Id, cancellationToken);
+        var (preparationsByAsset, tagsByAsset) =
+            await EfPreCaseImagePreparationStore.LoadForAssetsAsync(
+                context, pendingAssetIds, cancellationToken);
+
         foreach (var file in retainedFiles)
         {
             if (!recordedKeys.Add(file.OperationKey))
@@ -484,8 +502,8 @@ internal sealed class EfQueuedCustodyProcessor(
             added = true;
             if (file.IntakeAssetId is { } intakeAssetId)
             {
-                var asset = await context.Set<IntakeAssetEntity>()
-                    .SingleAsync(value => value.Id == intakeAssetId, cancellationToken);
+                var asset = assetsById.GetValueOrDefault(intakeAssetId)
+                    ?? throw new InvalidOperationException("The intake asset is unavailable.");
                 // The Case folder holds the confirmed copy: readers expect it.
                 asset.ConfirmCustody(file.BoxFileId, file.BoxVersionId, caseRootRemoteId);
                 // The version is new, and the copy intake retained is the file
@@ -514,8 +532,11 @@ internal sealed class EfQueuedCustodyProcessor(
             {
                 // Crop, rotation and tags made on the image before it had a Case
                 // travel with it onto the Case document.
-                await EfPreCaseImagePreparationStore.CopyToOccurrenceAsync(
-                    context, preparedAssetId, occurrence, cancellationToken);
+                EfPreCaseImagePreparationStore.ApplyToOccurrence(
+                    context,
+                    occurrence,
+                    preparationsByAsset.GetValueOrDefault(preparedAssetId),
+                    [.. tagsByAsset[preparedAssetId]]);
             }
         }
         if (added)
@@ -1001,10 +1022,13 @@ internal sealed class EfQueuedCustodyProcessor(
         var mergedIntoCaseId = intake.MergedIntoCaseId
             ?? throw new InvalidDataException(
                 "The image-case fold has no merged formal Case recorded.");
-        var caseEntity = await context.Cases
-            .AsNoTracking()
-            .SingleAsync(value => value.Id == mergedIntoCaseId, cancellationToken);
         var authority = await CaseMutationAuthority.LoadAsync(context, mergedIntoCaseId, cancellationToken);
+        // The authority read already holds the Case; a Case with neither a
+        // workflow nor a Triage is read by its own key.
+        var caseEntity = authority?.Case
+            ?? await context.Cases
+                .AsNoTracking()
+                .SingleAsync(value => value.Id == mergedIntoCaseId, cancellationToken);
         // The case root folder is named for the reference the create path
         // used: the Case/PO of every Case, a standalone Audit's included.
         return new(

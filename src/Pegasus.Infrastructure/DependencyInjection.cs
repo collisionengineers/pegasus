@@ -316,6 +316,7 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfStandaloneAuditEvidenceStore>());
         services.AddScoped<IStandaloneAuditEvidenceQueries>(
             provider => provider.GetRequiredService<EfStandaloneAuditEvidenceStore>());
+        services.AddScoped<PrefetchedExternalWork>();
         services.AddScoped<EfExternalWorkStore>();
         services.AddScoped<IExternalWorkStore>(
             provider => provider.GetRequiredService<EfExternalWorkStore>());

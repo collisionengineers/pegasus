@@ -62,6 +62,24 @@ public sealed class RecogniseFiledOriginalReportTests
     }
 
     [Fact]
+    public async Task FilesAfterTheSecondRecognisedOneAreNotRead()
+    {
+        var first = Pdf("first.pdf");
+        var second = Pdf("second.pdf");
+        var third = Pdf("third.pdf");
+        var harness = new Harness(Receipt(Email(), first, second, third));
+        harness.Reader.Recognise(first);
+        harness.Reader.Recognise(second);
+        harness.Reader.Recognise(third);
+
+        Assert.Equal(
+            OriginalReportRecognitionResult.SeveralRecognised,
+            await harness.Sut.ExecuteAsync(CaseId, harness.Receipt));
+        Assert.Equal(2, harness.Reader.Read.Count);
+        Assert.Empty(harness.Store.Recorded);
+    }
+
+    [Fact]
     public async Task AFileThatCouldNotBeReadRecordsNothingBecauseItMayBeASecondReport()
     {
         var report = Pdf("report.pdf");

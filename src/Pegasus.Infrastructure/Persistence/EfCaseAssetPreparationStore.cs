@@ -109,17 +109,20 @@ public sealed class EfCaseAssetPreparationStore(
         }
 
         var pinnedVersionIds = occurrences.Select(item => item.VersionId).Distinct().ToArray();
-        var pinnedVersionsById = await context.Set<DocumentVersionEntity>()
-            .Where(version => pinnedVersionIds.Contains(version.Id))
-            .ToDictionaryAsync(version => version.Id, cancellationToken);
-
         var documentIds = editsByOccurrence.Keys
             .Select(occurrenceId => occurrencesById[occurrenceId].DocumentId)
             .Distinct()
             .ToArray();
-        var currentVersionsByDocument = await context.Set<DocumentVersionEntity>()
-            .Where(version => documentIds.Contains(version.DocumentId) && version.IsCurrent)
-            .ToDictionaryAsync(version => version.DocumentId, cancellationToken);
+        // The pinned versions and the current version of each edited document
+        // are one read; the two sets are told apart in memory.
+        var versions = await context.Set<DocumentVersionEntity>()
+            .Where(version => pinnedVersionIds.Contains(version.Id)
+                || (documentIds.Contains(version.DocumentId) && version.IsCurrent))
+            .ToListAsync(cancellationToken);
+        var pinnedVersionsById = versions.ToDictionary(version => version.Id);
+        var currentVersionsByDocument = versions
+            .Where(version => version.IsCurrent && documentIds.Contains(version.DocumentId))
+            .ToDictionary(version => version.DocumentId);
 
         var confirmedSources = new Dictionary<Guid, DocumentVersion>();
         foreach (var occurrenceId in editsByOccurrence.Keys)

@@ -758,11 +758,8 @@ internal sealed class EfDocumentCustodyStore(
 
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-        var occurrence = await context.Set<DocumentOccurrenceEntity>()
-            .SingleOrDefaultAsync(
-                value => value.CaseId == command.CaseId && value.Id == command.OccurrenceId,
-                cancellationToken)
-            ?? throw new InvalidOperationException("The document occurrence is unavailable.");
+        var occurrence = await RequireOccurrenceAsync(
+            context, command.CaseId, command.OccurrenceId, cancellationToken);
         var tag = await context.Set<ImageTagEntity>()
             .SingleOrDefaultAsync(value => value.Id == command.TagId, cancellationToken)
             ?? throw new InvalidOperationException("The image tag is unavailable.");
@@ -793,8 +790,7 @@ internal sealed class EfDocumentCustodyStore(
         }
         // Only a first submission puts a tag on, so only it has to hold the
         // rule about which images may carry one.
-        await RequireTaggableImageAsync(
-            context, command.CaseId, command.OccurrenceId, cancellationToken);
+        await RequireTaggableImageAsync(context, occurrence, cancellationToken);
         if (assignment is not null)
         {
             throw new InvalidOperationException("This image already carries that tag.");
@@ -859,11 +855,8 @@ internal sealed class EfDocumentCustodyStore(
 
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-        var occurrence = await context.Set<DocumentOccurrenceEntity>()
-            .SingleOrDefaultAsync(
-                value => value.CaseId == command.CaseId && value.Id == command.OccurrenceId,
-                cancellationToken)
-            ?? throw new InvalidOperationException("The document occurrence is unavailable.");
+        var occurrence = await RequireOccurrenceAsync(
+            context, command.CaseId, command.OccurrenceId, cancellationToken);
         var tag = await context.Set<ImageTagEntity>()
             .SingleOrDefaultAsync(value => value.Id == command.TagId, cancellationToken)
             ?? throw new InvalidOperationException("The image tag is unavailable.");
@@ -948,8 +941,9 @@ internal sealed class EfDocumentCustodyStore(
             return;
         }
 
-        var occurrence = await RequireTaggableImageAsync(
+        var occurrence = await RequireOccurrenceAsync(
             context, command.CaseId, command.OccurrenceId, cancellationToken);
+        await RequireTaggableImageAsync(context, occurrence, cancellationToken);
         if (occurrence.InReport == command.InReport)
         {
             throw new InvalidOperationException(command.InReport
@@ -1108,22 +1102,27 @@ internal sealed class EfDocumentCustodyStore(
         _ => false
     };
 
+    private static async Task<DocumentOccurrenceEntity> RequireOccurrenceAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        Guid occurrenceId,
+        CancellationToken cancellationToken) =>
+        await context.Set<DocumentOccurrenceEntity>()
+            .SingleOrDefaultAsync(
+                value => value.CaseId == caseId && value.Id == occurrenceId,
+                cancellationToken)
+        ?? throw new InvalidOperationException("The document occurrence is unavailable.");
+
     /// <summary>
     /// The occurrence a tag may be put on: a custody-confirmed, current,
     /// unremoved JPEG or PNG image of this case - the same set the operator's
     /// Images tab draws.
     /// </summary>
-    private static async Task<DocumentOccurrenceEntity> RequireTaggableImageAsync(
+    private static async Task RequireTaggableImageAsync(
         PegasusDbContext context,
-        Guid caseId,
-        Guid occurrenceId,
+        DocumentOccurrenceEntity occurrence,
         CancellationToken cancellationToken)
     {
-        var occurrence = await context.Set<DocumentOccurrenceEntity>()
-            .SingleOrDefaultAsync(
-                value => value.CaseId == caseId && value.Id == occurrenceId,
-                cancellationToken)
-            ?? throw new InvalidOperationException("The document occurrence is unavailable.");
         var version = await context.Set<DocumentVersionEntity>()
             .SingleAsync(value => value.Id == occurrence.VersionId, cancellationToken);
         if (occurrence.SemanticRole != DocumentSemanticRole.Image
@@ -1135,8 +1134,6 @@ internal sealed class EfDocumentCustodyStore(
             throw new InvalidOperationException(
                 "Only a custody-confirmed current JPEG or PNG image may be tagged.");
         }
-
-        return occurrence;
     }
 
     private static async Task<CaseWorkflowEntity> RequireWorkflowAsync(
