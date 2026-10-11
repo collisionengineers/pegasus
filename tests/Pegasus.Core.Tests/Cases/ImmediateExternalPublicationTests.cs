@@ -382,7 +382,7 @@ public sealed class ImmediateExternalPublicationTests
         public FakeAnalyses Analyses { get; } = new();
         public FakeOcr Ocr { get; } = new();
 
-        public Task AcceptAsync() =>
+        public Task<CaseAcceptanceOutcome> AcceptAsync() =>
             new AcceptIntake(
                 Store,
                 new ConfigurationStore(),
