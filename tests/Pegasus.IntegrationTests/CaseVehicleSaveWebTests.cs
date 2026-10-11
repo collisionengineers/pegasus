@@ -224,6 +224,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         // the save writes the work the request names and stales that work's report alone
         // (the Inspection view edits, 2 October 2026), and 35 once it takes the workflow
         // mutation lock every claim and heartbeat takes (6 October 2026).
+        // Reusing the rows the request already holds takes it to 32 (10 October 2026).
         // Measured again at the lane's base (2ee268507) in this scenario: 62 and 43.
         Assert.True(
             pageCommands == CasePageCommands,
@@ -243,7 +244,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     // - 1 (the rail no longer counts Awaiting instruction, #1179).
     private const int CasePageCommands = 44;
 
-    private const int CaseSaveCommands = 35;
+    private const int CaseSaveCommands = 32;
 
     /// <summary>
     /// Roadmap Lane H (FRD-16): a commit the page script posts is answered with
@@ -332,6 +333,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         // (the save and 32); the save at 34 makes them 82 and 66, and at 35 (the workflow
         // mutation lock) 83 and 67. Removing EVA's two reads and adding the linked-Triage
         // read (7 October 2026) make the answer 31 and the answered commit 66.
+        // The save at 32 (10 October 2026) makes the answered commit 63.
         Assert.True(
             firstCommands < redirectedCommands,
             $"An answered commit sent {firstCommands} SQL commands; the save and its redirected page send {redirectedCommands}.");
