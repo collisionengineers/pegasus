@@ -112,8 +112,7 @@ public sealed class EfOrganizationAdministration(
             .Include(item => item.Organization)
             .SingleOrDefaultAsync(item => item.Id == request.PrincipalId, cancellationToken)
             ?? throw Error(OrganizationAdministrationError.PrincipalNotFound);
-        var contact = await RequirePrincipalContactVersionAsync(
-            context, entity, request.ExpectedContactVersion, cancellationToken);
+        var contact = RequireContactVersion(entity.Organization, request.ExpectedContactVersion);
         var before = ToPrincipal(entity);
         var result = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             before,
@@ -191,8 +190,7 @@ public sealed class EfOrganizationAdministration(
             .Include(item => item.Organization)
             .SingleOrDefaultAsync(item => item.Id == request.PrincipalId, cancellationToken)
             ?? throw Error(OrganizationAdministrationError.PrincipalNotFound);
-        var contact = await RequirePrincipalContactVersionAsync(
-            context, entity, request.ExpectedContactVersion, cancellationToken);
+        var contact = RequireContactVersion(entity.Organization, request.ExpectedContactVersion);
         var before = ToPrincipal(entity);
         var result = OrganizationAdministrationPolicy.PlanPrincipalSalvageMatrixUpdate(
             before,
@@ -528,6 +526,17 @@ public sealed class EfOrganizationAdministration(
         var contact = await context.Organizations.SingleAsync(
             item => item.Id == principal.OrganizationId,
             cancellationToken);
+        return RequireContactVersion(contact, expectedContactVersion);
+    }
+
+    /// <summary>
+    /// The contact version check for a Principal read with its Organization
+    /// included, so no second read of the same row.
+    /// </summary>
+    internal static OrganizationEntity RequireContactVersion(
+        OrganizationEntity contact,
+        long expectedContactVersion)
+    {
         if (contact.Version != expectedContactVersion)
         {
             throw Error(OrganizationAdministrationError.StaleVersion);

@@ -235,7 +235,7 @@ public sealed class EfContactDirectoryAdministration(
             .ToArrayAsync(cancellationToken);
         if (principals.Length != requestedPrincipalIds.Length || principals.Any(item => item.OrganizationId == entity.Id))
             throw new ContactDirectoryException(ContactDirectoryError.InvalidPrincipalAssociation);
-        var existingLinks = await context.Set<ContactPrincipalLinkEntity>().Where(item => item.OrganizationId == entity.Id).ToArrayAsync(cancellationToken);
+        var existingLinks = entity.PrincipalLinks.ToArray();
         var requestedLinks = request.PrincipalAssociations
             .Select(association => (association.PrincipalId, Role: ToCode(association.Role)))
             .ToHashSet();

@@ -519,7 +519,7 @@ public sealed class PrincipalSubmissionTests
 
         var result = await Reconcile(store, intake, history).ExecuteAsync(50);
 
-        Assert.Equal(1, result.Candidates);
+        Assert.Equal(0, result.Candidates);
         Assert.Equal(0, result.Repaired);
         Assert.Empty(history.Entries);
     }
@@ -592,6 +592,7 @@ public sealed class PrincipalSubmissionTests
 
         public Task<IReadOnlyList<PrincipalSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
             int maximumItems,
+            DateTimeOffset receivedAtOrBeforeUtc,
             CancellationToken cancellationToken)
         {
             var accepted = HistoryEntries
@@ -601,7 +602,8 @@ public sealed class PrincipalSubmissionTests
                 .Select(entry => Guid.Parse(entry.AggregateId))
                 .ToHashSet();
             IReadOnlyList<PrincipalSubmissionAcceptCandidate> candidates = Records.Values
-                .Where(record => Intake?.IsRetained(record.Id) == true && !accepted.Contains(record.Id))
+                .Where(record => Intake?.IsRetained(record.Id) == true && !accepted.Contains(record.Id)
+                    && record.ReceivedAtUtc <= receivedAtOrBeforeUtc)
                 .OrderBy(record => record.ReceivedAtUtc)
                 .ThenBy(record => record.Id)
                 .Take(maximumItems)
