@@ -900,14 +900,16 @@ nothing, so the next one checks again.
 
 The Worker host used to write about 90% of the telemetry Pegasus ingested,
 mostly its own lines. `src/Pegasus.Worker/host.json` now keeps only Warning
-and Error lines for these host categories:
+and Error lines for these categories:
 
 - `Function`, the "Executing" and "Executed" lines of every function;
 - `Host.Startup` and `Host.Triggers`;
 - `Host.Aggregator`, the per-function metric series;
 - `Microsoft.Azure.WebJobs.Hosting.OptionsLoggingService`, the option dumps;
 - `Microsoft.Azure.WebJobs.Script.Description.FunctionGroupListenerDecorator`;
-- `Microsoft.Azure.WebJobs.Host.DrainModeManager`.
+- `Microsoft.Azure.WebJobs.Host.DrainModeManager`;
+- `Azure.Core` and `Azure.Identity`, the token and storage request lines;
+- `Microsoft.AspNetCore`, the `Executing StatusCodeResult` line.
 
 `Pegasus.Worker` stays at Information. In the seven days to 30 September 2026,
 the trace categories in that list were 83% of the Worker's trace bytes.
