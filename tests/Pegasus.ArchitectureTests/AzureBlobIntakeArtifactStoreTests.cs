@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using Azure;
 using Azure.Core;
 using Azure.Storage.Blobs;
@@ -93,7 +94,7 @@ public sealed class AzureBlobIntakeArtifactStoreTests
     }
 
     [Fact]
-    public async Task DeleteRequiresCompletedMetadataAndTagUnderTheExpectedETag()
+    public async Task DeleteRequiresCompletedTagUnderTheExpectedETagWithoutRereadingTheBlob()
     {
         var etag = new ETag("\"etag-1\"");
         var pending = new StubBlobClient(
@@ -132,6 +133,8 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             completed.LastDeleteConditions?.TagConditions);
         Assert.Equal(0, pending.DownloadCount);
         Assert.Equal(0, completed.DownloadCount);
+        Assert.Equal(0, pending.ReadCount);
+        Assert.Equal(0, completed.ReadCount);
     }
 
     [Fact]
@@ -155,6 +158,50 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         Assert.IsType<RequestFailedException>(exception.InnerException);
         Assert.Equal(1, blob.DownloadCount);
     }
+
+    [Fact]
+    public async Task QuarantineStoreOfANewBlobUploadsOnceAndDoesNotReadItBack()
+    {
+        var content = "quarantined bytes"u8.ToArray();
+        var hash = Convert.ToHexString(SHA256.HashData(content));
+        var blob = StubFor($"sha256/{hash[..2]}/{hash}", hash, content);
+        var store = CreateStore(new StubBlobContainerClient(blob));
+
+        var artifact = await store.StoreStreamAsync(
+            new MemoryStream(content), content.Length, CancellationToken.None);
+
+        Assert.Equal(hash, artifact.ContentHash);
+        Assert.Equal(1, blob.UploadCount);
+        Assert.Equal(0, blob.DownloadCount);
+    }
+
+    [Fact]
+    public async Task QuarantineStoreOfAnExistingBlobVerifiesTheStoredBytesOnce()
+    {
+        var content = "quarantined bytes"u8.ToArray();
+        var hash = Convert.ToHexString(SHA256.HashData(content));
+        var blob = StubFor($"sha256/{hash[..2]}/{hash}", hash, content);
+        blob.UploadFailure = new RequestFailedException(409, "Blob exists.");
+        var store = CreateStore(new StubBlobContainerClient(blob));
+
+        await store.StoreStreamAsync(
+            new MemoryStream(content), content.Length, CancellationToken.None);
+
+        Assert.Equal(1, blob.UploadCount);
+        Assert.Equal(1, blob.DownloadCount);
+    }
+
+    private static StubBlobClient StubFor(string key, string hash, byte[] content) =>
+        new(
+            key,
+            hash,
+            content.Length,
+            FirstSeenAtUtc,
+            StagedArtifactDisposition.Pending,
+            new ETag("\"etag-1\""))
+        {
+            Body = content
+        };
 
     private static AzureBlobIntakeArtifactStore CreateStore(
         BlobContainerClient container) =>
@@ -227,7 +274,11 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         internal ETag NextMetadataETag { get; init; } = new("\"etag-next\"");
         internal RequestFailedException? DownloadFailure { get; init; }
         internal int DownloadCount { get; private set; }
+        internal int UploadCount { get; private set; }
+        internal RequestFailedException? UploadFailure { get; set; }
+        internal byte[] Body { get; init; } = [];
         internal int DeleteCount { get; private set; }
+        internal int ReadCount { get; private set; }
         internal BlobRequestConditions? LastConditionalGetPropertiesConditions { get; private set; }
         internal BlobRequestConditions? LastSetMetadataConditions { get; private set; }
         internal BlobRequestConditions? LastSetTagsConditions { get; private set; }
@@ -237,6 +288,7 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             BlobRequestConditions? conditions = null,
             CancellationToken cancellationToken = default)
         {
+            ReadCount++;
             if (conditions is not null)
             {
                 LastConditionalGetPropertiesConditions = conditions;
@@ -254,10 +306,13 @@ public sealed class AzureBlobIntakeArtifactStoreTests
 
         public override Task<Response<GetBlobTagResult>> GetTagsAsync(
             BlobRequestConditions? conditions = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(Response.FromValue(
+            CancellationToken cancellationToken = default)
+        {
+            ReadCount++;
+            return Task.FromResult(Response.FromValue(
                 BlobsModelFactory.GetBlobTagResult(Tags),
                 new StubResponse()));
+        }
 
         public override Task<Response<BlobInfo>> SetMetadataAsync(
             IDictionary<string, string> metadata,
@@ -287,8 +342,14 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             BlobRequestConditions? conditions = null,
             CancellationToken cancellationToken = default)
         {
-            DeleteCount++;
             LastDeleteConditions = conditions;
+            if (conditions?.TagConditions is { } tagCondition
+                && !tagCondition.Contains($"'{Tags["PegasusDisposition"]}'", StringComparison.Ordinal))
+            {
+                throw new RequestFailedException(412, "Tag condition not met.");
+            }
+
+            DeleteCount++;
             return Task.FromResult(Response.FromValue(true, new StubResponse()));
         }
 
@@ -302,6 +363,44 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             }
             throw new InvalidOperationException(
                 "Inventory and disposition operations must not download blob bodies.");
+        }
+
+        public override Task<Response<BlobContentInfo>> UploadAsync(
+            Stream content,
+            BlobUploadOptions options,
+            CancellationToken cancellationToken = default)
+        {
+            UploadCount++;
+            if (UploadFailure is not null)
+            {
+                throw UploadFailure;
+            }
+
+            return Task.FromResult(Response.FromValue(
+                BlobsModelFactory.BlobContentInfo(etag, DateTimeOffset.UtcNow, null, null, 0),
+                new StubResponse()));
+        }
+
+        public override Task<Response<BlobDownloadStreamingResult>> DownloadStreamingAsync(
+            BlobDownloadOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(StreamBody());
+
+        public override Task<Response<BlobDownloadStreamingResult>> DownloadStreamingAsync(
+            HttpRange range = default,
+            BlobRequestConditions? conditions = null,
+            bool rangeGetContentHash = false,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(StreamBody());
+
+        private Response<BlobDownloadStreamingResult> StreamBody()
+        {
+            DownloadCount++;
+            return Response.FromValue(
+                BlobsModelFactory.BlobDownloadStreamingResult(
+                    new MemoryStream(Body),
+                    BlobsModelFactory.BlobDownloadDetails(contentLength: Body.Length)),
+                new StubResponse());
         }
 
         internal BlobItem ToBlobItem() =>

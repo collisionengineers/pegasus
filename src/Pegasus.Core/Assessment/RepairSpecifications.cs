@@ -231,6 +231,19 @@ public interface IRepairSpecificationStore
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// One estimate on the selected work of the Case, or null when the id
+    /// is not one of them. The default lists and picks; the SQL store reads
+    /// the one row.
+    /// </summary>
+    async Task<RepairSpecificationVersion?> GetEstimateAsync(
+        Guid caseId,
+        CaseWorkSelector work,
+        Guid estimateId,
+        CancellationToken cancellationToken) =>
+        (await ListEstimatesAsync(caseId, work, cancellationToken))
+            .SingleOrDefault(estimate => estimate.SpecificationId == estimateId);
+
+    /// <summary>
     /// The keyset-paged sibling of <see cref="ListEstimatesAsync"/>:
     /// newest version first, then estimate id. The after-values
     /// are the decoded cursor's sort position, both null on the first page;

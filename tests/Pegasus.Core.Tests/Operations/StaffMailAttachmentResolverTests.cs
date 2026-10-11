@@ -57,6 +57,27 @@ public sealed class StaffMailAttachmentResolverTests
             ActionActor.SystemWorker("attachment-resolver-test"), receipt, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task ACaseSelectionReadsTheDocumentsOnceAndKeepsTheOptionsWhenRefused()
+    {
+        var documents = new RecordingDocuments(Document("report.pdf", DocumentCustodyStatus.Confirmed));
+        var resolver = new StaffMailAttachmentResolver(documents, new ThrowingIntake());
+        var option = Assert.Single(await resolver.ListCaseAsync(Staff, CaseId, CancellationToken.None));
+        documents.Asked.Clear();
+
+        var accepted = await resolver.SelectCaseAsync(
+            Staff, CaseId, [option.Selection], CancellationToken.None);
+        var refused = await resolver.SelectCaseAsync(
+            Staff, CaseId, ["D|gone"], CancellationToken.None);
+
+        Assert.Equal([CaseId, CaseId], documents.Asked);
+        Assert.Equal("report.pdf", Assert.Single(accepted.Attachments).FileName);
+        Assert.Null(accepted.SelectionError);
+        Assert.Empty(refused.Attachments);
+        Assert.NotNull(refused.SelectionError);
+        Assert.Equal(["report.pdf"], refused.Options.Select(item => item.FileName));
+    }
+
     private static CaseDocument Document(string fileName, DocumentCustodyStatus custody)
     {
         var documentId = Guid.NewGuid();

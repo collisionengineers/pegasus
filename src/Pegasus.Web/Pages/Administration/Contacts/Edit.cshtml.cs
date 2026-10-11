@@ -148,7 +148,7 @@ public sealed class EditModel(
             nameof(ExpectedVersion),
             nameof(ReportSettingsOperationKey));
         var expectedVersion = PrincipalExpectedVersion;
-        if (!await LoadPrincipalAsync(actor, cancellationToken)) return NotFound();
+        if (!await LoadPrincipalAsync(actor, cancellationToken, readCredential: false)) return NotFound();
         if (!IsOperationKeyValid(ReportSettingsOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
         if (ModelState.IsValid)
         {
@@ -184,7 +184,7 @@ public sealed class EditModel(
             nameof(SalvageMatrixOperationKey));
         var expectedVersion = PrincipalExpectedVersion;
         var posted = PostedSalvageRows();
-        if (!await LoadPrincipalAsync(actor, cancellationToken)) return NotFound();
+        if (!await LoadPrincipalAsync(actor, cancellationToken, readCredential: false)) return NotFound();
         if (!IsOperationKeyValid(SalvageMatrixOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
         if (ModelState.IsValid)
         {
@@ -221,7 +221,7 @@ public sealed class EditModel(
             nameof(ExpectedVersion),
             nameof(LocationOperationKey));
         var expectedVersion = PrincipalExpectedVersion;
-        if (!await LoadPrincipalAsync(actor, cancellationToken)) return NotFound();
+        if (!await LoadPrincipalAsync(actor, cancellationToken, readCredential: false)) return NotFound();
         if (!IsOperationKeyValid(LocationOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
         if (!LocationIsImageBasedAssessment && string.IsNullOrWhiteSpace(LocationAddress)) ModelState.AddModelError(nameof(LocationAddress), "An address is required.");
         if (ModelState.IsValid)
@@ -258,7 +258,7 @@ public sealed class EditModel(
             nameof(ExpectedVersion),
             nameof(ReplacementOperationKey));
         var expectedVersion = ReplacementExpectedVersion;
-        if (!await LoadPrincipalAsync(actor, cancellationToken)) return NotFound();
+        if (!await LoadPrincipalAsync(actor, cancellationToken, readCredential: false)) return NotFound();
         if (!IsOperationKeyValid(ReplacementOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
         if (string.IsNullOrWhiteSpace(SuccessorCode)) ModelState.AddModelError(nameof(SuccessorCode), "A new principal code is required.");
         if (ModelState.IsValid)
@@ -289,7 +289,7 @@ public sealed class EditModel(
             nameof(ExpectedVersion),
             nameof(CredentialOperationKey));
         var submittedVersion = CredentialVersion;
-        if (!await LoadPrincipalAsync(actor, cancellationToken)) return NotFound();
+        if (!await LoadPrincipalAsync(actor, cancellationToken, readCredential: false)) return NotFound();
         if (!IsOperationKeyValid(CredentialOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
         if (ModelState.IsValid)
         {
@@ -368,7 +368,7 @@ public sealed class EditModel(
         }
     }
 
-    private async Task<bool> LoadPrincipalAsync(ActionActor actor, CancellationToken cancellationToken)
+    private async Task<bool> LoadPrincipalAsync(ActionActor actor, CancellationToken cancellationToken, bool readCredential = true)
     {
         Contact ??= await contacts.GetAsync(actor, ContactId, cancellationToken);
         var principalIds = Contact?.OwnPrincipalIds ?? [];
@@ -379,7 +379,7 @@ public sealed class EditModel(
             .ThenBy(principal => principal.Code, StringComparer.Ordinal)
             .FirstOrDefault();
         if (Principal is null) return false;
-        Credential = await getCredential.ExecuteAsync(actor, Principal.Id, cancellationToken);
+        if (readCredential) Credential = await getCredential.ExecuteAsync(actor, Principal.Id, cancellationToken);
         return true;
     }
 

@@ -69,6 +69,7 @@ internal enum AiJobTransitionAction
 [McpServerToolType]
 internal sealed class AiJobMcpTools(
     IAiJobQueries queries,
+    IAiJobStore store,
     ICreateAiJob create,
     IStartMarketResearch startMarketResearch,
     IWorkAiJob work,
@@ -423,8 +424,7 @@ internal sealed class AiJobMcpTools(
         string key,
         CancellationToken cancellationToken)
     {
-        var job = (await queries.ListOpenAsync(cancellationToken))
-            .FirstOrDefault(candidate => candidate.JobId == jobId);
+        var job = await store.GetAsync(jobId, cancellationToken);
         if (job is null || !AiJobPolicy.CompletesByHand(job))
         {
             throw new McpException(

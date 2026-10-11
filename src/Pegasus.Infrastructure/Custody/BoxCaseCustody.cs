@@ -584,15 +584,9 @@ internal sealed class BoxContentClient(
         string fileId,
         CancellationToken cancellationToken)
     {
-        await EnsureDescendantAsync(fileId, cancellationToken, isFile: true);
-        using var response = await SendAsync(
-            HttpMethod.Get,
-            new Uri(options.BaseUri,
-                $"files/{Uri.EscapeDataString(fileId)}?fields=id,name,type,etag,file_version,size,content_type,parent,trashed_at"),
-            null,
-            cancellationToken);
-        using var document = await ReadSuccessJsonAsync(response, cancellationToken);
-        var file = ParseItem(document.RootElement);
+        // The walk's first GET is the file itself, so it carries the metadata.
+        var file = await WalkToRootAsync(fileId, isFile: true, captureItem: true, cancellationToken)
+            ?? throw new InvalidDataException("Box returned the wrong type for a custody file.");
         if (!string.Equals(file.Type, "file", StringComparison.Ordinal))
         {
             throw new InvalidDataException("Box returned the wrong type for a custody file.");
@@ -701,6 +695,27 @@ internal sealed class BoxContentClient(
         var normalizedHash = NormalizeSha256(expectedSha256);
         var startPosition = content.Position;
         await VerifyAndResetAsync(content, startPosition, contentLength, normalizedHash, cancellationToken);
+        return await UploadVerifiedAsync(
+            folder, name, content, contentLength, mediaType, normalizedHash, cancellationToken);
+    }
+
+    /// <summary>
+    /// The upload above without its own verification. The caller guarantees
+    /// that <paramref name="content"/> is readable and seekable and that
+    /// <paramref name="contentLength"/> bytes from its current position have
+    /// already been hashed to <paramref name="normalizedHash"/>, so the bytes
+    /// are not hashed a further time. Not for content nothing has verified.
+    /// </summary>
+    internal async Task<BoxUpload> UploadVerifiedAsync(
+        ProvedFolder folder,
+        string name,
+        Stream content,
+        long contentLength,
+        string mediaType,
+        string normalizedHash,
+        CancellationToken cancellationToken)
+    {
+        var startPosition = content.Position;
         try
         {
             using var multipart = new MultipartFormDataContent();
@@ -1053,7 +1068,7 @@ internal sealed class BoxContentClient(
     /// 410, a 403, a trashed or outside-root refusal, or metadata that does
     /// not describe the object asked for. A throttled or failed Box is not one.
     /// </summary>
-    private static bool IsFenceFailure(Exception exception) =>
+    internal static bool IsFenceFailure(Exception exception) =>
         exception is UnauthorizedAccessException or InvalidDataException
         || exception is HttpRequestException
         {
@@ -1211,15 +1226,27 @@ internal sealed class BoxContentClient(
         throw new HttpRequestException($"Box delete returned {(int)response.StatusCode}.");
     }
 
-    public async Task EnsureDescendantAsync(
+    public Task EnsureDescendantAsync(
         string itemId,
         CancellationToken cancellationToken,
-        bool isFile = false)
+        bool isFile = false) =>
+        WalkToRootAsync(itemId, isFile, captureItem: false, cancellationToken);
+
+    /// <summary>
+    /// The ancestry walk. Returns the item's own metadata, read by the walk's
+    /// first GET, or null when the item is the approved root itself.
+    /// </summary>
+    private async Task<BoxItem?> WalkToRootAsync(
+        string itemId,
+        bool isFile,
+        bool captureItem,
+        CancellationToken cancellationToken)
     {
         if (itemId.Equals(options.RootFolderId, StringComparison.Ordinal))
         {
-            return;
+            return null;
         }
+        BoxItem? first = null;
         var type = isFile ? "files" : "folders";
         var current = itemId;
         // Every folder this walk touches: a failed walk forgets each of them.
@@ -1233,12 +1260,16 @@ internal sealed class BoxContentClient(
             for (var depth = 0; depth < 100; depth++)
             {
                 var uri = new Uri(options.BaseUri,
-                    $"{type}/{Uri.EscapeDataString(current)}?fields=id,parent,trashed_at");
+                    $"{type}/{Uri.EscapeDataString(current)}?fields=id,name,type,etag,file_version,size,content_type,parent,trashed_at");
                 using var response = await SendAsync(HttpMethod.Get, uri, null, cancellationToken);
                 using var document = await ReadSuccessJsonAsync(response, cancellationToken);
                 if (IsTrashed(document.RootElement))
                 {
                     throw new UnauthorizedAccessException("A Box custody object is in trash.");
+                }
+                if (depth == 0 && captureItem)
+                {
+                    first = ParseItem(document.RootElement);
                 }
                 if (!document.RootElement.TryGetProperty("parent", out var parent)
                     || parent.ValueKind == JsonValueKind.Null)
@@ -1249,7 +1280,7 @@ internal sealed class BoxContentClient(
                     ?? throw new InvalidDataException("Box omitted a parent identity.");
                 if (current.Equals(options.RootFolderId, StringComparison.Ordinal))
                 {
-                    return;
+                    return first;
                 }
                 walked.Add(current);
                 type = "folders";
@@ -1758,8 +1789,7 @@ internal sealed class BoxCaseCustody(
             await client.MoveFileAsync(child.Id, destination, targetName, cancellationToken);
         }
 
-        var binding = await client.FindChildAsync(
-            imageRoot.RemoteId, CaseBindingFileName, "file", cancellationToken);
+        var binding = BoxContentClient.SelectChild(children, CaseBindingFileName, "file");
         if (binding is not null)
         {
             await RequireLeaseAsync(leaseGuard, cancellationToken);
@@ -1899,7 +1929,8 @@ internal sealed class BoxCaseCustody(
         CancellationToken cancellationToken)
     {
         ValidateCreationOwnerToken(creationOwnerToken);
-        var existing = await client.FindChildAsync(parentId, finalName, "folder", cancellationToken);
+        var children = await client.ListChildrenAsync(parentId, cancellationToken);
+        var existing = BoxContentClient.SelectChild(children, finalName, "folder");
         if (existing is not null)
         {
             await VerifyFolderIdentityAsync(existing, finalName, cancellationToken);
@@ -1907,15 +1938,18 @@ internal sealed class BoxCaseCustody(
         }
 
         var stagingName = $".pegasus-create-{creationOwnerToken}";
-        var staging = await client.FindChildAsync(parentId, stagingName, "folder", cancellationToken);
+        var staging = BoxContentClient.SelectChild(children, stagingName, "folder");
+        BoxContentClient.BoxItem? finalConflict = null;
         if (staging is null)
         {
             await RequireLeaseAsync(leaseGuard, cancellationToken);
             staging = await client.CreateFolderAsync(parentId, stagingName, cancellationToken);
+            // Creating staging is the only point where the final name could
+            // have been taken since the listing, so ask Box again only here.
+            finalConflict = await client.FindChildAsync(parentId, finalName, "folder", cancellationToken);
         }
         await VerifyFolderIdentityAsync(staging, stagingName, cancellationToken);
 
-        var finalConflict = await client.FindChildAsync(parentId, finalName, "folder", cancellationToken);
         if (finalConflict is not null)
         {
             if (string.Equals(finalConflict.Id, staging.Id, StringComparison.Ordinal))

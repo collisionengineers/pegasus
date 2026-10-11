@@ -113,11 +113,22 @@ public sealed class AssignCaseEngineerTests
 
         var raised = Assert.Single(notifier.Raised);
         Assert.Equal((Pegasus.Core.Notifications.StaffNotificationCause.CaseAssigned, CaseId), raised);
+        Assert.Equal((store.Current.Identity.Reference, (Guid?)EngineerId), notifier.Passed);
     }
 
     private sealed class RecordingNotifier : Pegasus.Core.Notifications.ICaseStaffNotifier
     {
         public List<(Pegasus.Core.Notifications.StaffNotificationCause Cause, Guid CaseId)> Raised { get; } = [];
+
+        public (string Reference, Guid? EngineerId)? Passed { get; private set; }
+
+        public Task<Pegasus.Core.Notifications.StaffNotification?> NotifyAsync(
+            Pegasus.Core.Notifications.StaffNotificationCause cause, Guid caseId, string reference, Guid? assignedEngineerId, ActionActor? actor, string? section, string? registration, CancellationToken cancellationToken)
+        {
+            Raised.Add((cause, caseId));
+            Passed = (reference, assignedEngineerId);
+            return Task.FromResult<Pegasus.Core.Notifications.StaffNotification?>(null);
+        }
 
         public Task<Pegasus.Core.Notifications.StaffNotification?> NotifyAsync(
             Pegasus.Core.Notifications.StaffNotificationCause cause, Guid caseId, ActionActor? actor, string? section, string? registration, CancellationToken cancellationToken)
@@ -137,7 +148,7 @@ public sealed class AssignCaseEngineerTests
     }
 
     private static SignOffEngineerProfile Profile(Guid staffId, bool isDefault) =>
-        new(staffId, "Named Signatory", null, [1], "image/png", isDefault);
+        new(staffId, "Named Signatory", null, isDefault);
 
     private static AssignCaseEngineerRequest CreateAssignmentRequest() =>
         new(
@@ -335,6 +346,9 @@ public sealed class AssignCaseEngineerTests
     private sealed class StubStaffAccounts(IReadOnlyList<SignOffEngineerProfile> profiles)
         : IStaffAccountQueries
     {
+        public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) => Task.FromResult(profiles);
 

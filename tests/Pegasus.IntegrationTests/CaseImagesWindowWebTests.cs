@@ -73,6 +73,11 @@ public sealed class CaseImagesWindowWebTests
         var unnamed = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}/Images?image={Guid.NewGuid():D}");
         Assert.DoesNotContain("data-evidence-start=\"true\"", unnamed, StringComparison.Ordinal);
 
+        // Like the Case page it mirrors, the window is never stored.
+        using var window = await workspace.Client.GetAsync($"/Cases/{store.CaseId:D}/Images");
+        Assert.Equal(HttpStatusCode.OK, window.StatusCode);
+        Assert.True(window.Headers.CacheControl?.NoStore == true);
+
         // Another Case is not this store's: not found. Anonymous is sent to
         // sign in.
         using var other = await workspace.Client.GetAsync($"/Cases/{Guid.NewGuid():D}/Images");

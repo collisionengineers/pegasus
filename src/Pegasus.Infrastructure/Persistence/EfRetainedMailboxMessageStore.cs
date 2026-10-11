@@ -241,7 +241,8 @@ internal sealed class EfRetainedMailboxMessageStore(
             page,
             pageSize,
             totalCount,
-            await HasUnretainedHistoryAsync(context, scope, cancellationToken));
+            // A page with rows proves the scope holds retained mail.
+            summaries.Count == 0 && await HasUnretainedHistoryAsync(context, scope, cancellationToken));
     }
 
     public async Task<RetainedMailCursorPage> ListByCursorAsync(
@@ -285,6 +286,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                 item.DismissedAtUtc))
             .ToListAsync(cancellationToken);
         var hasMore = rows.Count > limit;
+        var pageHadRows = rows.Count > 0;
         if (hasMore) rows.RemoveAt(rows.Count - 1);
         if (searchTerm is not null && rows.Count > 0)
         {
@@ -293,7 +295,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         return new(
             await MapSummariesAsync(context, rows, cancellationToken),
             hasMore,
-            await HasUnretainedHistoryAsync(context, scope, cancellationToken));
+            !pageHadRows && await HasUnretainedHistoryAsync(context, scope, cancellationToken));
     }
 
     public async Task<RetainedMailDetail?> GetAsync(
@@ -339,6 +341,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             .Select(item => new
             {
                 item.Id,
+                IntakeDecision = item.Decision,
                 Decision = item.MailClassificationDecision,
                 Route = item.MailRouteDecision!.Disposition,
                 EffectiveSenderAddress = item.MailRouteDecision!.EffectiveSenderAddress,
@@ -381,7 +384,22 @@ internal sealed class EfRetainedMailboxMessageStore(
                 searchTerm,
                 cancellationToken);
         }
-        var summary = (await MapSummariesAsync(context, summaryRows, cancellationToken))[0];
+        // The summary is built from the receipt read above, not a second read of it.
+        var summary = (await MapSummariesAsync(
+            context,
+            summaryRows,
+            cancellationToken,
+            receipt is null
+                ? []
+                : [new ReceiptFacts(
+                    receipt.Id,
+                    entity.ExternalReceiptToken,
+                    receipt.IntakeDecision,
+                    receipt.Decision,
+                    receipt.EffectiveSenderAddress,
+                    receipt.BodySearchText is { } bodyText
+                        ? bodyText[..Math.Min(bodyText.Length, BodyHeadLength)]
+                        : null)]))[0];
 
         // A staff forward is de-cluttered on read so existing (write-once) rows
         // are corrected too: the effective sender differs from the transport
@@ -470,17 +488,19 @@ internal sealed class EfRetainedMailboxMessageStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.RetainedMailboxMessages
-            .AsNoTracking()
-            .Include(item => item.Attachments)
-            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-        if (entity is null)
-        {
-            return null;
-        }
-
+        string folderScope;
+        IReadOnlyList<RetainedMailAttachment> attachments;
         if (summary is null)
         {
+            var entity = await context.RetainedMailboxMessages
+                .AsNoTracking()
+                .Include(item => item.Attachments)
+                .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+            if (entity is null)
+            {
+                return null;
+            }
+
             var currentFolderType = await ReadCurrentFolderTypeAsync(context, entity.Id, cancellationToken);
             summary = (await MapSummariesAsync(
                 context,
@@ -504,24 +524,50 @@ internal sealed class EfRetainedMailboxMessageStore(
                         entity.DismissedAtUtc)
                 ],
                 cancellationToken))[0];
+            folderScope = entity.FolderScope;
+            attachments = entity.Attachments
+                .OrderBy(item => item.Ordinal)
+                .Select(item => PreviewAttachment(item.FileName, item.MediaType, item.ContentLength))
+                .ToArray();
+        }
+        else
+        {
+            // The summary the list read already holds the body-derived fields
+            // and the classification, so only the folder scope and the
+            // attachment rows are read.
+            var held = await context.RetainedMailboxMessages
+                .AsNoTracking()
+                .Where(item => item.Id == id)
+                .Select(item => new
+                {
+                    item.FolderScope,
+                    Attachments = item.Attachments
+                        .OrderBy(attachment => attachment.Ordinal)
+                        .Select(attachment => new
+                        {
+                            attachment.FileName,
+                            attachment.MediaType,
+                            attachment.ContentLength
+                        })
+                        .ToList()
+                })
+                .SingleOrDefaultAsync(cancellationToken);
+            if (held is null)
+            {
+                return null;
+            }
+
+            folderScope = held.FolderScope;
+            attachments = held.Attachments
+                .Select(item => PreviewAttachment(item.FileName, item.MediaType, item.ContentLength))
+                .ToArray();
         }
 
-        var decision = await context.IntakeReceipts
-            .AsNoTracking()
-            .Where(item => item.SourceChannel == "mailbox"
-                && item.ExternalReceiptToken == entity.ExternalReceiptToken)
-            .Select(item => item.MailClassificationDecision)
-            .SingleOrDefaultAsync(cancellationToken);
-        return new(
-            summary,
-            entity.Attachments
-                .OrderBy(item => item.Ordinal)
-                .Select(item => new RetainedMailAttachment(
-                    item.FileName, item.MediaType, item.ContentLength, false, null))
-                .ToArray(),
-            decision is null ? null : EfIntakeReceiptStore.MapMailClassificationDecision(decision),
-            ParseFolderScope(entity.FolderScope));
+        return new(summary, attachments, summary.Classification, ParseFolderScope(folderScope));
     }
+
+    private static RetainedMailAttachment PreviewAttachment(string fileName, string mediaType, long contentLength) =>
+        new(fileName, mediaType, contentLength, false, null);
 
     private static Task<string?> ReadCurrentFolderTypeAsync(
         PegasusDbContext context,
@@ -1050,35 +1096,35 @@ internal sealed class EfRetainedMailboxMessageStore(
     private static async Task<IReadOnlyList<RetainedMailSummary>> MapSummariesAsync(
         PegasusDbContext context,
         IReadOnlyList<SummaryRow> rows,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<ReceiptFacts>? knownReceipts = null)
     {
         if (rows.Count == 0)
         {
             return [];
         }
 
-        // Six lookups for the whole page, never one per row.
+        // Six lookups for the whole page, never one per row; none for the
+        // receipts a caller has already read.
         var tokens = rows.Select(item => item.ExternalReceiptToken).Distinct().ToArray();
-        var receipts = await context.IntakeReceipts
+        var receipts = knownReceipts ?? await context.IntakeReceipts
             .AsNoTracking()
             .Where(item => item.SourceChannel == "mailbox"
                 && tokens.Contains(item.ExternalReceiptToken))
-            .Select(item => new
-            {
+            .Select(item => new ReceiptFacts(
                 item.Id,
                 item.ExternalReceiptToken,
                 item.Decision,
-                Classification = item.MailClassificationDecision,
-                EffectiveSenderAddress = item.MailRouteDecision == null
+                item.MailClassificationDecision,
+                item.MailRouteDecision == null
                     ? null
                     : item.MailRouteDecision.EffectiveSenderAddress,
                 // Enough cleaned body to excerpt from once the forwarded
                 // header block is skipped; never the whole document text.
-                BodyHead = item.SearchDocuments
+                item.SearchDocuments
                     .Where(document => document.AttachmentFileName == null && document.Text != null)
                     .Select(document => document.Text!.Substring(0, BodyHeadLength))
-                    .FirstOrDefault()
-            })
+                    .FirstOrDefault()))
             .ToListAsync(cancellationToken);
         var receiptsByToken = receipts.ToDictionary(
             item => item.ExternalReceiptToken,
@@ -1478,6 +1524,14 @@ internal sealed class EfRetainedMailboxMessageStore(
         "needs_sorting" => MailRouteDisposition.NeedsSorting,
         _ => throw new InvalidDataException($"Unknown persisted mail-route disposition '{value}'.")
     };
+
+    private sealed record ReceiptFacts(
+        Guid Id,
+        string ExternalReceiptToken,
+        string Decision,
+        IntakeMailClassificationDecisionEntity? Classification,
+        string? EffectiveSenderAddress,
+        string? BodyHead);
 
     private sealed record SummaryRow(
         Guid Id,

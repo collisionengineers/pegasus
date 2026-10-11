@@ -178,7 +178,8 @@ public sealed record RetainedMailDetail(
     MailClassificationDossier? Classification = null,
     RetainedMailFolderRecommendation? FolderRecommendation = null,
     RetainedMailFolderMoveResult? LatestFolderMove = null,
-    RetainedMailSuggestedMove? SuggestedMove = null);
+    RetainedMailSuggestedMove? SuggestedMove = null,
+    IReadOnlyList<ApprovedMailbox>? ListedMailboxes = null);
 
 /// <summary>
 /// What the Inbox preview pane renders of one message: its summary, the
@@ -802,12 +803,16 @@ public sealed class GetRetainedMail(
             return null;
         }
 
-        var recommendation = await RecommendFolderAsync(detail, cancellationToken);
         var latestMove = await folderMoveStore.GetLatestAsync(messageId, cancellationToken);
+        var (recommendation, listedMailboxes) = await RecommendFolderAsync(
+            detail,
+            latestMove,
+            cancellationToken);
         detail = detail with
         {
             FolderRecommendation = recommendation,
             LatestFolderMove = latestMove,
+            ListedMailboxes = listedMailboxes,
             SuggestedMove = recommendation is { CanMove: true, FolderType: { } folderType }
                 && latestMove?.Outcome is not RetainedMailFolderMoveOutcome.Uncertain
                 ? new(folderType, recommendation.Reason)
@@ -841,52 +846,60 @@ public sealed class GetRetainedMail(
         };
     }
 
-    private async Task<RetainedMailFolderRecommendation> RecommendFolderAsync(
+    private async Task<(RetainedMailFolderRecommendation Recommendation, IReadOnlyList<ApprovedMailbox>? Mailboxes)> RecommendFolderAsync(
         RetainedMailDetail detail,
+        RetainedMailFolderMoveResult? latestMove,
         CancellationToken cancellationToken)
     {
         if (detail.Classification is not { } dossier)
         {
-            return Unavailable(
+            return (Unavailable(
                 null,
-                "This message has no current classification decision, so no Outlook folder can be recommended.");
+                "This message has no current classification decision, so no Outlook folder can be recommended."), null);
         }
 
         var policy = MailLogicalFolderPolicy.Map(dossier.Current);
         if (policy.FolderType is not { } folderType)
         {
-            return Unavailable(policy, policy.Reason);
+            return (Unavailable(policy, policy.Reason), null);
         }
 
         var mailboxes = await approvedMailboxStore.ListAsync(cancellationToken);
         var mailbox = mailboxes.SingleOrDefault(item => item.Id == detail.Summary.MailboxId);
         if (mailbox is null || mailbox.State != ApprovedMailboxState.Approved)
         {
-            return Unavailable(
+            return (Unavailable(
                 policy,
-                "This message's mailbox is not currently approved, so its designated Outlook folder is unavailable.");
+                "This message's mailbox is not currently approved, so its designated Outlook folder is unavailable."), mailboxes);
         }
 
         var binding = mailbox.FolderBindings.SingleOrDefault(item => item.FolderType == folderType);
         if (binding is null)
         {
             var label = MailLogicalFolders.Definition(folderType).Label;
-            return Unavailable(
+            return (Unavailable(
                 policy,
-                $"The designated {label} folder is not configured for this mailbox.");
+                $"The designated {label} folder is not configured for this mailbox."), mailboxes);
         }
 
-        var isCurrentLocation = await folderMoveStore.IsCurrentLocationAsync(
-            detail.Summary.Id,
-            binding.FolderIdentity,
-            cancellationToken);
-        return new(
-            folderType,
-            policy.PolicyKey,
-            policy.PolicyVersion,
-            policy.Reason,
-            mailbox.Version,
-            folderMover?.IsAvailable == true && !isCurrentLocation);
+        // A latest move that succeeded is the current location; only a failed or
+        // uncertain one leaves an earlier success to look up.
+        var isCurrentLocation = latestMove is
+            { Outcome: RetainedMailFolderMoveOutcome.Succeeded, DestinationFolderId: { } destinationFolderId }
+            ? string.Equals(destinationFolderId, binding.FolderIdentity, StringComparison.Ordinal)
+            : await folderMoveStore.IsCurrentLocationAsync(
+                detail.Summary.Id,
+                binding.FolderIdentity,
+                cancellationToken);
+        return (
+            new(
+                folderType,
+                policy.PolicyKey,
+                policy.PolicyVersion,
+                policy.Reason,
+                mailbox.Version,
+                folderMover?.IsAvailable == true && !isCurrentLocation),
+            mailboxes);
     }
 
     private static RetainedMailFolderRecommendation Unavailable(

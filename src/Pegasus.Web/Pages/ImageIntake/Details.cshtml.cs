@@ -156,7 +156,10 @@ public sealed class DetailsModel(
                 preparationActor,
                 Images.Where(image => image.AssetId is not null).Select(image => image.AssetId!.Value).ToArray(),
                 cancellationToken);
-            ImageTags = await tagVocabulary.ListAsync(cancellationToken);
+            if (Images.Count > 0)
+            {
+                ImageTags = await tagVocabulary.ListAsync(cancellationToken);
+            }
         }
         History = await imageIntakeStore.ListHistoryAsync(id, cancellationToken);
         Suggestions = await vrmSuggestionStore.ListForReceiptAsync(
@@ -167,7 +170,11 @@ public sealed class DetailsModel(
                 detail.Record.NormalizedVehicleRegistration,
                 cancellationToken)
             : [];
-        PrincipalOptions = await imageIntakeStore.ListActivePrincipalsAsync(cancellationToken);
+        if (IsEditing)
+        {
+            PrincipalOptions = await imageIntakeStore.ListActivePrincipalsAsync(cancellationToken);
+        }
+
         AutomationWithheld = detail.State == ImageInitiatedCaseState.AwaitingInstruction
             ? ImageIntakeCasePairing.ExplainWithheld(
                 AssociationCandidates,

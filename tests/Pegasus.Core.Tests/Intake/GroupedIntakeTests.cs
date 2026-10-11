@@ -182,9 +182,6 @@ public sealed class GroupedIntakeTests
         public Task<IntakeSubmissionGroup> GetOrCreateAsync(Guid groupId, IntakeSourceChannel channel, string submissionToken, int expectedMemberCount, string actor, DateTimeOffset receivedAtUtc, Guid? parentReceiptId, CancellationToken cancellationToken = default) =>
             Task.FromResult(EnsureGroup(channel, submissionToken, expectedMemberCount, actor, receivedAtUtc, parentReceiptId));
 
-        public Task<IntakeSubmissionGroupMember?> FindMemberAsync(Guid groupId, int ordinal, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IntakeSubmissionGroupMember?>(Members.SingleOrDefault(item => item.GroupId == GroupId && item.Ordinal == ordinal));
-
         public Task<IntakeSubmissionGroupMember> AddMemberAsync(Guid groupId, int ordinal, ReceivedIntake received, CancellationToken cancellationToken = default)
         {
             var member = new IntakeSubmissionGroupMember(groupId, ordinal, received.StagedReceiptId, $"file-{ordinal}.jpg", Convert.ToHexString(SHA256.HashData([(byte)(ordinal + 1)])), received.IsDuplicate);

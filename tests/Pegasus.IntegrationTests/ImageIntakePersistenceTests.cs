@@ -613,6 +613,36 @@ public sealed class ImageIntakePersistenceTests
             bounded.Select(candidate => candidate.ConfirmedRegistration).Order(StringComparer.Ordinal));
     }
 
+    /// <summary>
+    /// The single-registration lookup returns the Cases the unbounded scan
+    /// would keep after the match rule, for an exact, one-missing-character,
+    /// lower-case and underscore read.
+    /// </summary>
+    [Theory]
+    [InlineData("AB12CDE")]
+    [InlineData("AB12CD")]
+    [InlineData("ab12cde")]
+    [InlineData("AB_2CDE")]
+    public async Task TheSingleRegistrationLookupEqualsTheUnboundedScanAfterTheMatchRule(string read)
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var context = await database.CreateContextAsync();
+        string?[] registrations = ["AB12CDE", "XAB12CDE", "AB12CD", "AB1CDE", "ABZ2CDE", "PK20YHR", null];
+        for (var index = 0; index < registrations.Length; index++)
+        {
+            await SeedEligibleCaseAsync(context, $"LKP{index:D5}", registrations[index]);
+        }
+
+        var found = await EfImageIntakeCaseCandidates.FindEligibleByRegistrationAsync(
+            context, read, CancellationToken.None);
+        var expected = (await EfImageIntakeCaseCandidates.EligibleQuery(context).ToArrayAsync())
+            .Where(candidate => VrmRegistrationMatching.IsMatch(read, candidate.ConfirmedRegistration));
+
+        Assert.Equal(
+            expected.Select(candidate => candidate.CaseId).Order(),
+            found.Select(candidate => candidate.CaseId).Order());
+    }
+
     private static int CaseReadRows(SqlStatementCounter statements) =>
         Assert.Single(statements.Reads, read =>
             read.CommandText.Contains("[CaseMatchIndex]", StringComparison.Ordinal)

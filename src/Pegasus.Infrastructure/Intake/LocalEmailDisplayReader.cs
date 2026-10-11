@@ -37,7 +37,20 @@ public static partial class LocalEmailDisplayReader
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
-        var message = await MimeMessage.LoadAsync(source, cancellationToken);
+        return Read(await MimeMessage.LoadAsync(source, cancellationToken));
+    }
+
+    /// <summary>
+    /// The display view of a message the caller has already parsed.
+    /// <paramref name="decodedLengths"/> carries attachment lengths the caller
+    /// has already measured by decoding the same parts; any part not in it is
+    /// measured here.
+    /// </summary>
+    public static LocalEmailDisplay Read(
+        MimeMessage message,
+        IReadOnlyDictionary<MimeEntity, long>? decodedLengths = null)
+    {
+        ArgumentNullException.ThrowIfNull(message);
         var body = message.TextBody;
         if (string.IsNullOrWhiteSpace(body) && !string.IsNullOrWhiteSpace(message.HtmlBody))
         {
@@ -73,7 +86,7 @@ public static partial class LocalEmailDisplayReader
         var sender = message.From.Mailboxes.FirstOrDefault();
         var hasReplyToHeader = message.Headers.Contains(HeaderId.ReplyTo);
         var replyToAddresses = Addresses(hasReplyToHeader ? message.ReplyTo : message.From);
-        var attachments = Attachments(message);
+        var attachments = Attachments(message, decodedLengths);
         return new LocalEmailDisplay(
             message.Subject ?? string.Empty,
             body ?? string.Empty,
@@ -138,7 +151,9 @@ public static partial class LocalEmailDisplayReader
     /// decoding the part, because the encoded size a transfer encoding produces is
     /// not the size of the file an operator would receive.
     /// </summary>
-    private static List<RetainedMailboxAttachment> Attachments(MimeMessage message)
+    private static List<RetainedMailboxAttachment> Attachments(
+        MimeMessage message,
+        IReadOnlyDictionary<MimeEntity, long>? decodedLengths)
     {
         var attachments = new List<RetainedMailboxAttachment>();
         foreach (var part in message.Attachments)
@@ -152,7 +167,9 @@ public static partial class LocalEmailDisplayReader
             attachments.Add(new(
                 fileName,
                 part.ContentType.MimeType,
-                MeasureDecodedLength(part)));
+                decodedLengths is not null && decodedLengths.TryGetValue(part, out var known)
+                    ? known
+                    : MeasureDecodedLength(part)));
         }
 
         return attachments;

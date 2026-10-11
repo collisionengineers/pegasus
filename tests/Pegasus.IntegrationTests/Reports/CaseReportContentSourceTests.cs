@@ -38,7 +38,7 @@ public sealed class CaseReportContentSourceTests
             pair => pair.First.VersionId, pair => pair.Second));
         var source = new EfCaseReportContentSource(
             reader,
-            new OneSignOffEngineer(new(staffId, "Ed Mawdsley", null, Signature, "image/png", true)));
+            new OneSignOffEngineer(new(staffId, "Ed Mawdsley", null, true)));
         var snapshot = SnapshotOf(caseId, staffId, images);
 
         var composed = await source.ComposeAsync(snapshot, actor, CancellationToken.None);
@@ -67,7 +67,7 @@ public sealed class CaseReportContentSourceTests
         var noImages = new PreparedReader([]);
         var feeNote = await new EfCaseReportContentSource(
                 noImages,
-                new OneSignOffEngineer(new(staffId, "Ed Mawdsley", null, Signature, "image/png", true)))
+                new OneSignOffEngineer(new(staffId, "Ed Mawdsley", null, true)))
             .ComposeAsync(SnapshotOf(caseId, staffId, []), actor, CancellationToken.None);
         Assert.Empty(feeNote.Photos);
         Assert.Equal(0, noImages.PrepareCalls);
@@ -94,7 +94,7 @@ public sealed class CaseReportContentSourceTests
         });
         var source = new EfCaseReportContentSource(
             reader,
-            new OneSignOffEngineer(new(staffId, "Ed Mawdsley", null, Signature, "image/png", true)));
+            new OneSignOffEngineer(new(staffId, "Ed Mawdsley", null, true)));
 
         var composed = await source.ComposeAsync(
             SnapshotOf(caseId, staffId, [image]),
@@ -129,7 +129,7 @@ public sealed class CaseReportContentSourceTests
         };
         var source = new EfCaseReportContentSource(
             reader,
-            new OneSignOffEngineer(new(staffId, "Ed Mawdsley", null, Signature, "image/png", true)));
+            new OneSignOffEngineer(new(staffId, "Ed Mawdsley", null, true)));
         using var compose = new CancellationTokenSource();
         var composed = await source.ComposeAsync(SnapshotOf(caseId, staffId, images), actor, compose.Token);
 
@@ -258,6 +258,9 @@ public sealed class CaseReportContentSourceTests
 
     private sealed class OneSignOffEngineer(SignOffEngineerProfile profile) : IStaffAccountQueries
     {
+        public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
+            Task.FromResult<SignOffSignature?>(new(Signature, "image/png"));
+
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<SignOffEngineerProfile>>([profile]);

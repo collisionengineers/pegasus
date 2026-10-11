@@ -16,7 +16,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfCaseWorkflowStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : ICaseWorkflowStore, IAutoLinkReportEvidenceStore, ICaseDueWorkStore, ICaseArchiveStore, ICaseArchiveReadinessQueries
+    TimeProvider timeProvider) : ICaseWorkflowStore, IAutoLinkReportEvidenceStore, ICaseDueWorkStore, ICaseArchiveStore, ICaseArchiveReadinessQueries, IReleaseAutomationLeases
 {
     private static readonly TimeSpan EditLeaseDuration = TimeSpan.FromMinutes(5);
     private const string ClaimLeaseOperationKind = "claim";
@@ -84,14 +84,14 @@ public sealed class EfCaseWorkflowStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var normalizedOperationKey = operationKey.Trim();
-        return await context.CaseWorkflowEvents.AsNoTracking().AnyAsync(
-                item => item.CaseId == caseId
-                    && item.OperationKey == normalizedOperationKey,
-                cancellationToken)
-            || await context.CaseEditLeaseOperations.AsNoTracking().AnyAsync(
-                item => item.CaseId == caseId
-                    && item.OperationKey == normalizedOperationKey,
-                cancellationToken);
+        // One round trip: the key is in the history or in the lease operations.
+        return await context.CaseWorkflowEvents.AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.OperationKey == normalizedOperationKey)
+            .Select(item => item.OperationKey)
+            .Concat(context.CaseEditLeaseOperations.AsNoTracking()
+                .Where(item => item.CaseId == caseId && item.OperationKey == normalizedOperationKey)
+                .Select(item => item.OperationKey))
+            .AnyAsync(cancellationToken);
     }
 
     async Task<CaseDueWork?> ICaseDueWorkQueries.GetAsync(Guid caseId, CancellationToken cancellationToken)
@@ -502,6 +502,30 @@ public sealed class EfCaseWorkflowStore(
             resultTokenHash: null);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task<AutomationLeasesReleased> ReleaseAllAsync(CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var automation = nameof(ActorKind.Automation);
+        var workflows = await context.CaseWorkflows
+            .Where(item => item.EditLeaseHolderKind == automation)
+            .ToListAsync(cancellationToken);
+        foreach (var workflow in workflows)
+        {
+            ClearLease(workflow);
+        }
+
+        var scopes = await EfEditScopeStore.ClearForHolderKindAsync(
+            context,
+            ActorKind.Automation,
+            cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(workflows.Select(item => item.CaseId).ToArray(), scopes);
     }
 
     public Task<CaseWorkflowRecord> ChangeStateAsync(

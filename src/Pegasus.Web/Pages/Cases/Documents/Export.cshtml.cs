@@ -69,7 +69,7 @@ public sealed partial class ExportModel(
             Response.Headers.XContentTypeOptions = "nosniff";
             Response.Headers["Content-Digest"] =
                 $"sha-256=:{Convert.ToBase64String(Convert.FromHexString(bundle.Sha256))}:";
-            return File(bundle.Content, "application/zip", fileName);
+            return File(DocumentContentCachePublisherExtensions.StreamOf(bundle.Content), "application/zip", fileName);
         }
         catch (StaffAuthorizationException)
         {

@@ -78,9 +78,9 @@ public sealed class AzureDocumentIntelligenceOcr(
 
         using var buffer = new MemoryStream();
         await content.CopyToAsync(buffer, cancellationToken);
-        var bytes = buffer.ToArray();
+        var length = (int)buffer.Length;
         if (!string.Equals(
-                Convert.ToHexStringLower(SHA256.HashData(bytes)),
+                Convert.ToHexStringLower(SHA256.HashData(buffer.GetBuffer().AsSpan(0, length))),
                 request.SourceSha256,
                 StringComparison.OrdinalIgnoreCase))
         {
@@ -93,7 +93,7 @@ public sealed class AzureDocumentIntelligenceOcr(
         }
 
         using var message = new HttpRequestMessage(HttpMethod.Post, AnalyzeUri(request));
-        using var body = new ByteArrayContent(bytes);
+        using var body = new ByteArrayContent(buffer.GetBuffer(), 0, length);
         body.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         message.Content = body;
         await AuthorizeAsync(message, cancellationToken);

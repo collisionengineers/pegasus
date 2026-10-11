@@ -139,7 +139,9 @@ stored (operator, 27 September 2026). Once the report is sent, the Next
 action is **Create audit** on an Inspection + Audit Case that has no Audit
 yet, with the Actions menu's own control (greyed with its reason where Core
 refuses it), and **Mark completed** on any other Case (operator, 2 October
-2026).
+2026), with the Actions menu's own control that opens its dialog; where the
+menu does not offer it, the step is named without a control (operator,
+10 October 2026).
 Once the Case has an Audit, the **Views** card heads the aside
 ([Inspection and Audit views](#inspection-and-audit-views)).
 While a Triage Case is linked to the Case, a **Linked cases** card follows

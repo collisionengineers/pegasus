@@ -452,6 +452,17 @@ public interface IUnidentifiedStore
     Task<int> CountOpenAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// When the oldest open item was received, or <see langword="null"/> when
+    /// the queue is empty: the Management Reports Queues figure, which needs no rows.
+    ///
+    /// Default: the earliest of the full open queue, so an in-memory double
+    /// needs no change. <c>Pegasus.Infrastructure.Persistence.EfUnidentifiedStore</c>
+    /// overrides this with one aggregate.
+    /// </summary>
+    async Task<DateTimeOffset?> OldestOpenReceivedAtUtcAsync(CancellationToken cancellationToken = default) =>
+        (await ListQueueAsync(null, cancellationToken)).Min(item => (DateTimeOffset?)item.ReceivedAtUtc);
+
+    /// <summary>
     /// The Closed filter of the Cases › Unidentified tab (Received file D5): the
     /// newest <paramref name="limit"/> items resolved by Close with reason,
     /// newest closed first. The store bounds the read; a closed item never

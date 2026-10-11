@@ -364,9 +364,14 @@ public interface ICaseQueryStore
         Guid caseId,
         CancellationToken cancellationToken);
 
-    /// <summary>Reads the non-deferred body of the initial Case page.</summary>
+    /// <summary>
+    /// Reads the non-deferred body of the initial Case page. The unlinked
+    /// sent evidence is read only where the page can draw it: the Primary work
+    /// or a Case in Report preparation; otherwise the list is empty.
+    /// </summary>
     Task<CasePageFrameData?> GetPageFrameAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken);
 
     /// <summary>Reads only the ordered history body used by Notes.</summary>
@@ -496,13 +501,18 @@ public sealed class GetCaseEditBasis(
             throw new ArgumentException("A case identifier is required.", nameof(query));
         }
 
-        var frame = await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        // The data read needs only the identity and the work, not the frame,
+        // and each store opens its own context, so the two overlap.
+        var frameTask = store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        var dataTask = caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken);
+        await Task.WhenAll(frameTask, dataTask);
+        var frame = frameTask.Result;
         if (frame is null)
         {
             return null;
         }
 
-        var data = await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
+        var data = dataTask.Result
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         if (data.Identity.CaseId != frame.Workflow.CaseId)
         {
@@ -565,13 +575,30 @@ public sealed class GetCasePageFrame(
     public async Task<CasePageFrame?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
     {
         CaseSectionQueries.Validate(query);
-        var frame = await store.GetPageFrameAsync(query.CaseId, cancellationToken);
+        // The two reads need only the Case id and work, and each opens its own
+        // context, so they run together. A missing Case is a quiet null from
+        // the frame whatever the data read returned.
+        var frameRead = store.GetPageFrameAsync(query.CaseId, query.Work, cancellationToken);
+        var dataRead = caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken);
+        try
+        {
+            // Both reads end before this method does, so neither outlives the
+            // request or faults unobserved. A frame fault is the one reported.
+            await Task.WhenAll(frameRead, dataRead);
+        }
+        catch (Exception) when (frameRead.IsCompletedSuccessfully && frameRead.Result is null)
+        {
+            // A missing Case is a quiet null; the unused data read cannot change that.
+            return null;
+        }
+
+        var frame = frameRead.Result;
         if (frame is null)
         {
             return null;
         }
 
-        var data = await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
+        var data = dataRead.Result
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         return new(
             frame.Frame,
@@ -737,6 +764,12 @@ public sealed class ValidateCaseRenderLease(
 public interface ICaseDocumentQueries
 {
     Task<IReadOnlyList<CaseDocument>> ListAsync(Guid caseId, CancellationToken cancellationToken);
+}
+
+/// <summary>The retained report-Sent evidence no Case has linked yet.</summary>
+public interface IAvailableReportSentEvidenceQueries
+{
+    Task<IReadOnlyList<RetainedApprovedMailboxReportSentEvidence>> ListAsync(CancellationToken cancellationToken);
 }
 
 public sealed record ListCaseReferencesQuery(ActionActor Actor, IReadOnlyCollection<Guid> CaseIds);

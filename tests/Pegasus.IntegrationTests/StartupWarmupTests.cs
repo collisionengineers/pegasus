@@ -248,13 +248,44 @@ public sealed class StartupWarmupTests
 
         // From here the snapshot, the recent-Cases read and the open jobs read
         // each wait until all three have been entered.
-        reads.RequireWorkCentreOverlap();
+        reads.RequireOverlap(3);
         await run.PassAsync(TimeSpan.FromMinutes(3));
 
-        Assert.True(reads.WorkCentreReadsOverlapped);
+        Assert.True(reads.ReadsOverlapped);
         Assert.DoesNotContain(
             run.Logger.Entries,
             entry => entry.Message.StartsWith("Warm-up step ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ThePostModelStepsStartBeforeAnyOfThemEnds()
+    {
+        var reads = new RecordingReads();
+        var services = new ServiceCollection();
+        services.AddSingleton<IGetOperationsSnapshot>(reads);
+        services.AddSingleton<IListRecentCases>(reads);
+        services.AddSingleton<IGetCaseKind>(reads);
+        services.AddSingleton<IGetCasePageFrame>(reads);
+        services.AddSingleton<IGetAssessmentAccess>(reads);
+        services.AddSingleton<IGetAssessmentWorkspace>(reads);
+        services.AddSingleton<IApprovedMailboxSubscriptionStore>(new OverlappingSubscriptionStore(reads));
+        await using var provider = services.BuildServiceProvider();
+        var state = new StartupWarmupState(warms: true, keepWarmInterval: TimeSpan.Zero);
+        using var warmup = new StartupWarmup(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            state,
+            TimeProvider.System,
+            NullLogger<StartupWarmup>.Instance);
+
+        // The mail-webhook, Work Centre and recent-Cases reads each wait until
+        // all three have been entered; run one after another they would time out.
+        reads.RequireOverlap(3);
+        await warmup.StartAsync(CancellationToken.None);
+        await Assert.IsAssignableFrom<Task>(warmup.ExecuteTask).WaitAsync(TimeSpan.FromMinutes(1));
+
+        Assert.True(reads.ReadsOverlapped);
+        Assert.Equal(1, reads.Calls("case-kind"));
+        await warmup.StopAsync(CancellationToken.None);
     }
 
     [Fact]
@@ -643,6 +674,7 @@ public sealed class StartupWarmupTests
         private readonly List<ActivityStamp> activities = [];
         private TaskCompletionSource? overlap;
         private int overlapEntered;
+        private int overlapReaders;
         private TaskCompletionSource? inboxHeld;
 
         /// <summary>Whether the mailbox read of the Inbox throws.</summary>
@@ -659,7 +691,7 @@ public sealed class StartupWarmupTests
 
         public ActivityStamp[] ActivitySeen => Snapshot(activities);
 
-        public bool WorkCentreReadsOverlapped => overlap is { Task.IsCompletedSuccessfully: true };
+        public bool ReadsOverlapped => overlap is { Task.IsCompletedSuccessfully: true };
 
         public int Calls(string call)
         {
@@ -669,13 +701,14 @@ public sealed class StartupWarmupTests
             }
         }
 
-        /// <summary>From now on the snapshot, recent-Cases and open-jobs reads each wait for the other two.</summary>
-        public void RequireWorkCentreOverlap()
+        /// <summary>From now on the overlapping reads each wait until <paramref name="readers"/> have been entered.</summary>
+        public void RequireOverlap(int readers)
         {
             lock (gate)
             {
                 overlap = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 overlapEntered = 0;
+                overlapReaders = readers;
             }
         }
 
@@ -702,7 +735,7 @@ public sealed class StartupWarmupTests
             NeedsAttentionQuery query, CancellationToken cancellationToken = default)
         {
             Note("snapshot");
-            await EnterWorkCentreReadAsync();
+            await EnterOverlapAsync();
             if (SnapshotFails)
             {
                 throw new InvalidOperationException("The attention read is unreadable.");
@@ -721,7 +754,7 @@ public sealed class StartupWarmupTests
                 markSeenValues.Add(markSeen);
             }
 
-            await EnterWorkCentreReadAsync();
+            await EnterOverlapAsync();
             var newest = new RecentCaseRow(
                 NewestCaseId, "QD-1", null, null, "Principal",
                 DateTimeOffset.UnixEpoch, CaseArrival.Manual);
@@ -780,7 +813,7 @@ public sealed class StartupWarmupTests
         async Task<IReadOnlyList<AiJobRecord>> IAiJobQueries.ListOpenAsync(CancellationToken cancellationToken)
         {
             Note("ai-jobs");
-            await EnterWorkCentreReadAsync();
+            await EnterOverlapAsync();
             return [];
         }
 
@@ -881,13 +914,13 @@ public sealed class StartupWarmupTests
             }
         }
 
-        private async Task EnterWorkCentreReadAsync()
+        internal async Task EnterOverlapAsync()
         {
             TaskCompletionSource? entered;
             lock (gate)
             {
                 entered = overlap;
-                if (entered is not null && ++overlapEntered == 3)
+                if (entered is not null && ++overlapEntered == overlapReaders)
                 {
                     entered.TrySetResult();
                 }
@@ -971,6 +1004,34 @@ public sealed class StartupWarmupTests
             Interlocked.Increment(ref loads);
             return new EphemeralDataProtectionProvider().CreateProtector(purpose);
         }
+    }
+
+    private sealed class OverlappingSubscriptionStore(RecordingReads reads) : IApprovedMailboxSubscriptionStore
+    {
+        public async Task<ApprovedMailboxSubscription?> GetActiveAsync(string subscriptionId,
+            DateTimeOffset nowUtc, CancellationToken cancellationToken)
+        {
+            await reads.EnterOverlapAsync();
+            return null;
+        }
+
+        public Task<IReadOnlyList<ApprovedMailboxSubscription>> ListAsync(
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ApprovedMailboxSubscriptionMaintenanceCandidate>>
+            ListMaintenanceCandidatesAsync(DateTimeOffset nowUtc,
+                CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task SaveAsync(ApprovedMailboxSubscription value,
+            string? expectedPriorSubscriptionId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task RecordMaintenanceFailureAsync(Guid approvedMailboxId, long expectedGeneration,
+            string? expectedSubscriptionId, string failureCode,
+            DateTimeOffset attemptedAtUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class CountingSubscriptionStore : IApprovedMailboxSubscriptionStore

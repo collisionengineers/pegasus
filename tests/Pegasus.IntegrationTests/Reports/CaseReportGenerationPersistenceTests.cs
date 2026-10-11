@@ -2693,7 +2693,7 @@ public sealed class CaseReportGenerationPersistenceTests
             SignatoryId,
             null,
             [new SignOffEngineerProfile(
-                SignatoryId, "Ed Mawdsley", "ATA VDA AQP", SignatureBytes, "image/png", IsDefault: true)],
+                SignatoryId, "Ed Mawdsley", "ATA VDA AQP", IsDefault: true)],
             estimate,
             fromCard ? Valuation() : null,
             [

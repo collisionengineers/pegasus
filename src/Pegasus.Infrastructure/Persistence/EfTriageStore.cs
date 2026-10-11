@@ -29,6 +29,21 @@ public sealed class EfTriageStore(
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var result = new List<TriageCaseLinkCandidate>();
+        // Only a Triage of the accepted Case's Principal can link to it (the
+        // candidate check requires the target's Principal to match), so the
+        // others are never evaluated. The unscoped worker sweep stays open.
+        Guid? instructionPrincipalId = null;
+        if (instructionCaseId is { } instructionId)
+        {
+            instructionPrincipalId = await context.Cases.AsNoTracking()
+                .Where(item => item.Id == instructionId)
+                .Select(item => (Guid?)item.PrincipalId)
+                .SingleOrDefaultAsync(cancellationToken);
+            if (instructionPrincipalId is null)
+            {
+                return result;
+            }
+        }
         DateTimeOffset? afterCreatedAtUtc = null;
         var afterCaseId = Guid.Empty;
         while (result.Count < maximumItems)
@@ -43,6 +58,11 @@ public sealed class EfTriageStore(
                     && !context.TriageHistory.Any(history => history.TriageCaseId == item.CaseId
                         && (history.EventType == "triage_case_unlinked"
                             || (history.EventType == "triage_case_linked" && history.ActorKind != "SystemWorker"))));
+            if (instructionPrincipalId is { } principalFilter)
+            {
+                pageQuery = pageQuery.Where(item => context.Cases.Any(
+                    triageCase => triageCase.Id == item.CaseId && triageCase.PrincipalId == principalFilter));
+            }
             if (afterCreatedAtUtc is { } afterCreated)
             {
                 var afterId = afterCaseId;
@@ -60,7 +80,8 @@ public sealed class EfTriageStore(
             {
                 afterCreatedAtUtc = triage.CreatedAtUtc;
                 afterCaseId = triage.CaseId;
-                var candidate = await FindAutomaticLinkCandidateAsync(context, triage, cancellationToken);
+                var candidate = await FindAutomaticLinkCandidateAsync(
+                    context, triage, historyAlreadyExcluded: true, cancellationToken);
                 if (candidate is not null && (instructionCaseId is null || candidate.InstructionCaseId == instructionCaseId))
                 {
                     result.Add(candidate);
@@ -93,7 +114,8 @@ public sealed class EfTriageStore(
         var triage = await LoadForMutationAsync(context, candidate.CaseId, candidate.TriageVersion, cancellationToken);
         // Every origin, principal, competing candidate and replacement lookup
         // below uses this transaction's context, not a preflight connection.
-        var current = await FindAutomaticLinkCandidateAsync(context, triage, cancellationToken);
+        var current = await FindAutomaticLinkCandidateAsync(
+            context, triage, historyAlreadyExcluded: false, cancellationToken);
         if (current is null || current.InstructionCaseId != candidate.InstructionCaseId
             || current.MatchPolicyKey != candidate.MatchPolicyKey
             || current.MatchPolicyVersion != candidate.MatchPolicyVersion)
@@ -158,15 +180,19 @@ public sealed class EfTriageStore(
     }
 
     private async Task<TriageCaseLinkCandidate?> FindAutomaticLinkCandidateAsync(
-        PegasusDbContext context, TriageEntity triage, CancellationToken cancellationToken)
+        PegasusDbContext context, TriageEntity triage, bool historyAlreadyExcluded,
+        CancellationToken cancellationToken)
     {
         // Automatic association matches the route evidence the Triage Case was
         // opened from; a Triage Case created directly by staff has none.
         if (triage.LinkedInstructionCaseId is not null || triage.OriginReceiptId is null
             || ParseState(triage.State) == TriageState.Cancelled
-            || await context.TriageHistory.AnyAsync(history => history.TriageCaseId == triage.CaseId
-                && (history.EventType == "triage_case_unlinked"
-                    || (history.EventType == "triage_case_linked" && history.ActorKind != "SystemWorker")), cancellationToken))
+            // The list path's page query already excluded history-blocked rows;
+            // the link transaction must re-check under its own isolation.
+            || (!historyAlreadyExcluded
+                && await context.TriageHistory.AnyAsync(history => history.TriageCaseId == triage.CaseId
+                    && (history.EventType == "triage_case_unlinked"
+                        || (history.EventType == "triage_case_linked" && history.ActorKind != "SystemWorker")), cancellationToken)))
         {
             return null;
         }
@@ -845,10 +871,33 @@ public sealed class EfTriageStore(
             stateCodes is null ? null : item => stateCodes.Contains(item.State)).ToListAsync(cancellationToken);
         // The same newest-first order the keyset page uses, so the two read
         // paths cannot disagree about what "the next row" is.
-        return rows.OrderByDescending(row => row.Item.CreatedAtUtc)
-            .ThenByDescending(row => new SqlGuid(row.Item.CaseId))
-            .Select(ToSummary)
-            .ToArray();
+        return NewestFirst(rows).Select(ToSummary).ToArray();
+    }
+
+    public async Task<IReadOnlyList<TriageSummary>> ListWindowAsync(
+        IReadOnlyCollection<TriageState>? states,
+        int skip,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(skip);
+        ArgumentOutOfRangeException.ThrowIfLessThan(take, 1);
+        var stateCodes = ToCodes(states);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // Filter, order and window on the Triage entity before the join and
+        // the history MAX, so only the page's rows pay for them.
+        var triage = context.Triage.AsNoTracking();
+        if (stateCodes is not null)
+        {
+            triage = triage.Where(item => stateCodes.Contains(item.State));
+        }
+        var window = triage
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.CaseId)
+            .Skip(skip)
+            .Take(take);
+        var rows = await ProjectWithDraft(context, window).ToListAsync(cancellationToken);
+        return NewestFirst(rows).Select(ToSummary).ToArray();
     }
 
     public async Task<int> CountAsync(
@@ -949,12 +998,7 @@ public sealed class EfTriageStore(
         // The join above may not preserve the bounded query's order, so the
         // page is put back in order here. It is at most `limit` rows and the
         // database has already chosen which ones they are.
-        var page = rows
-            .OrderByDescending(row => row.Item.CreatedAtUtc)
-            .ThenByDescending(row => new SqlGuid(row.Item.CaseId))
-            .Take(limit)
-            .Select(ToSummary)
-            .ToArray();
+        var page = NewestFirst(rows).Take(limit).Select(ToSummary).ToArray();
         var next = hasMore && page.Length > 0
             ? new TriageListPosition(page[^1].CreatedAtUtc, page[^1].CaseId)
             : null;
@@ -1011,6 +1055,14 @@ public sealed class EfTriageStore(
                 .Where(history => history.TriageCaseId == item.CaseId
                     && history.EventType.StartsWith(StateEventPrefix))
                 .Max(history => (DateTimeOffset?)history.OccurredAtUtc));
+
+    /// <summary>
+    /// The newest-first order, tied by <see cref="SqlGuid"/> so it matches the
+    /// database's <c>uniqueidentifier</c> order that chose the rows.
+    /// </summary>
+    private static IOrderedEnumerable<TriageWithDraftRow> NewestFirst(IEnumerable<TriageWithDraftRow> rows) =>
+        rows.OrderByDescending(row => row.Item.CreatedAtUtc)
+            .ThenByDescending(row => new SqlGuid(row.Item.CaseId));
 
     private static TriageSummary ToSummary(TriageWithDraftRow row) => new(
         row.Item.CaseId,

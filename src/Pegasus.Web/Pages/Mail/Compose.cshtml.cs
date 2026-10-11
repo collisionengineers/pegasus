@@ -221,16 +221,13 @@ public sealed class ComposeModel(
         if (details is not null)
         {
             Case = details.Summary;
-            AvailableAttachments = await attachmentResolver.ListCaseAsync(
-                actor, details.Summary.CaseId, cancellationToken);
-            try
+            var selection = await attachmentResolver.SelectCaseAsync(
+                actor, details.Summary.CaseId, SelectedAttachments, cancellationToken);
+            AvailableAttachments = selection.Options;
+            attachments = selection.Attachments;
+            if (selection.SelectionError is { } selectionError)
             {
-                attachments = await attachmentResolver.ResolveCaseAsync(
-                    actor, details.Summary.CaseId, SelectedAttachments, cancellationToken);
-            }
-            catch (StaffMailAttachmentSelectionException exception)
-            {
-                ModelState.AddModelError(nameof(SelectedAttachments), exception.Message);
+                ModelState.AddModelError(nameof(SelectedAttachments), selectionError);
             }
 
             // A chosen Case was fixed with its version, so a change since then
@@ -425,7 +422,19 @@ public sealed class ComposeModel(
         }
     }
 
-    private async Task<CaseHeader?> ResolveCaseAsync(
+    private Task<CaseHeader?> ResolveCaseAsync(
+        ActionActor actor,
+        string? reference,
+        CancellationToken cancellationToken) =>
+        ResolveCaseAsync(searchCases, getCaseHeader, actor, reference, cancellationToken);
+
+    /// <summary>
+    /// The Case a typed Case / PO reference names exactly, for this page and the
+    /// message page's Reply and Forward composer; null when it names none.
+    /// </summary>
+    internal static async Task<CaseHeader?> ResolveCaseAsync(
+        ISearchCases searchCases,
+        IGetCaseHeader getCaseHeader,
         ActionActor actor,
         string? reference,
         CancellationToken cancellationToken)
@@ -464,7 +473,7 @@ public sealed class ComposeModel(
         return !string.IsNullOrWhiteSpace(normalized) && normalized.Length <= 300;
     }
 
-    private static bool TryNormalizeCaseReference(string? value, out string? normalized)
+    internal static bool TryNormalizeCaseReference(string? value, out string? normalized)
     {
         normalized = value?.Trim();
         return !string.IsNullOrWhiteSpace(normalized) && normalized.Length <= 100;

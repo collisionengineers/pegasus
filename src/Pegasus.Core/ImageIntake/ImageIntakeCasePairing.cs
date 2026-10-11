@@ -200,9 +200,12 @@ public sealed class ImageIntakeCasePairing(
             var staffOriginVersion = originReceipt.AssociationWasStaffDecision
                 ? originReceipt.ManualAssociationVersion : null;
             var targetId = detail.AssociatedCaseId;
+            // The scan that chose the target also supplies the first link's Case
+            // version. Each link advances that version, so later members rescan.
+            IReadOnlyList<ImageIntakeCaseCandidate>? scanned = null;
             if (targetId is null)
             {
-                var eligible = await caseCandidates.FindEligibleByRegistrationAsync(
+                var eligible = scanned = await caseCandidates.FindEligibleByRegistrationAsync(
                     detail.Record.NormalizedVehicleRegistration, cancellationToken);
                 var target = SelectRegisteredTarget(eligible, detail.Record.NormalizedVehicleRegistration,
                     detail.Record.PrincipalId, detail.GroupExpectedMemberCount, channel, detail.RegisteredAtUtc);
@@ -248,8 +251,9 @@ public sealed class ImageIntakeCasePairing(
                 }
                 else
                 {
-                    var eligible = await caseCandidates.FindEligibleByRegistrationAsync(
+                    var eligible = scanned ?? await caseCandidates.FindEligibleByRegistrationAsync(
                         detail.Record.NormalizedVehicleRegistration, cancellationToken);
+                    scanned = null;
                     var target = SelectRegisteredTarget(eligible, detail.Record.NormalizedVehicleRegistration,
                         detail.Record.PrincipalId, detail.GroupExpectedMemberCount, channel, detail.RegisteredAtUtc);
                     if (target is null || target.CaseId != targetId)

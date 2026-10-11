@@ -81,6 +81,14 @@ public sealed partial class DetailsModel
         && !IsPostReportReadOnly
         && AssignEngineerChoices is { EngineerOptions.Count: > 0 };
 
+    /// <summary>
+    /// Mark completed is live: a Post-report Case no colleague is editing. The
+    /// Actions menu and the Next action both open its dialog.
+    /// </summary>
+    public bool CanMarkCompleted =>
+        Case is { Workflow.State: CaseLifecycleState.PostReport }
+        && !ColleagueIsEditing;
+
     /// <summary>The Audit reference the dialog announces: <c>a.{Case/PO}</c>.</summary>
     public string? ProposedAuditReference =>
         Case is { } details

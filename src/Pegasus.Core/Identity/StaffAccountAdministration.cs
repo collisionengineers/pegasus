@@ -28,13 +28,18 @@ public sealed record StaffAccountSignOffState(
         new(false, null, null, false, false);
 }
 
+/// <summary>
+/// An eligible sign-off Engineer, without the signature bytes (up to 1 MiB):
+/// those are read by <see cref="IStaffAccountQueries.GetSignOffSignatureAsync"/>
+/// only where a report is composed.
+/// </summary>
 public sealed record SignOffEngineerProfile(
     Guid StaffId,
     string PrintedName,
     string? Qualifications,
-    byte[] Signature,
-    string SignatureContentType,
     bool IsDefault);
+
+public sealed record SignOffSignature(byte[] Content, string ContentType);
 
 public sealed record ListStaffAccountsRequest(
     ActionActor Actor,
@@ -176,6 +181,11 @@ public interface IStaffAccountQueries
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
+        CancellationToken cancellationToken);
+
+    /// <summary>The signature of an eligible sign-off Engineer, or null when the account is not eligible.</summary>
+    Task<SignOffSignature?> GetSignOffSignatureAsync(
+        Guid staffId,
         CancellationToken cancellationToken);
 }
 
@@ -494,9 +504,15 @@ public static class SignOffEngineerEligibility
         bool isEnabled,
         bool isSignOffEngineer,
         byte[]? signature) =>
+        IsEligible(isEnabled, isSignOffEngineer, signature is { Length: > 0 });
+
+    public static bool IsEligible(
+        bool isEnabled,
+        bool isSignOffEngineer,
+        bool hasSignature) =>
         isEnabled
         && isSignOffEngineer
-        && signature is { Length: > 0 };
+        && hasSignature;
 }
 
 public static class StaffAccountAdministrationPolicy

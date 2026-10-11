@@ -21,7 +21,7 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// Nothing that waits on a managed-identity token may hold the port. These tests
 /// pin the pieces that keep the remote reads (the key ring, the Automation
-/// OAuth certificates, the verification account) behind the listening port.
+/// OAuth certificates) behind the listening port.
 /// </summary>
 public sealed class StartupBindingTests
 {

@@ -11,15 +11,12 @@ namespace Pegasus.Core.Operations;
 ///
 /// <see cref="NotReady"/> counts formal Cases only. Image-initiated records
 /// still awaiting instruction are counted separately by
-/// <see cref="AwaitingInstruction"/>.
+/// <see cref="IDashboardQueries.GetAwaitingInstructionCountAsync"/>.
 /// </remarks>
 /// <param name="WithEngineer">
 /// Cases in <see cref="Pegasus.Core.Workflow.CaseLifecycleState.ReportPreparation"/>
 /// or <see cref="Pegasus.Core.Workflow.CaseLifecycleState.PostReport"/>: the
 /// operator reads both as "With Engineer" (operator decision D3).
-/// </param>
-/// <param name="AwaitingInstruction">
-/// Unassociated image-initiated records still awaiting instruction.
 /// </param>
 /// <param name="Query">
 /// Cases in <see cref="Pegasus.Core.Workflow.CaseLifecycleState.Query"/>,
@@ -30,7 +27,6 @@ public sealed record CaseStageCounts(
     int Review,
     int Held,
     int WithEngineer,
-    int AwaitingInstruction = 0,
     int Query = 0);
 
 /// <summary>
@@ -56,6 +52,12 @@ public sealed record PairedVehicleImagesCase(
 public interface IDashboardQueries
 {
     Task<CaseStageCounts> GetCaseStageCountsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Unassociated image-initiated records still awaiting instruction. Only
+    /// the Cases page shows this figure, so the shell never reads it.
+    /// </summary>
+    Task<int> GetAwaitingInstructionCountAsync(CancellationToken cancellationToken);
 
     /// <summary>
     /// Pre-report, unarchived Cases with a merged Image-initiated Case and no

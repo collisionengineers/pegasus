@@ -22,8 +22,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// </summary>
 public sealed class EfCaseAssessmentStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider,
-    IRepairSpecificationStore repairSpecifications) : ICaseAssessmentStore
+    TimeProvider timeProvider) : ICaseAssessmentStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -185,10 +184,10 @@ public sealed class EfCaseAssessmentStore(
                 request.ExpectedVersion + 1);
         }
 
-        return await GetRequiredAsync(context, request.CaseId, cancellationToken);
+        return await ReadCurrentAsync(context, workflow, cancellationToken);
     }
 
-    private async Task<CaseAssessmentProjection> GetRequiredAsync(
+    private static async Task<CaseAssessmentProjection> GetRequiredAsync(
         PegasusDbContext context,
         Guid caseId,
         CancellationToken cancellationToken)
@@ -197,12 +196,23 @@ public sealed class EfCaseAssessmentStore(
             .Include(item => item.Case)
             .ThenInclude(item => item.Principal)
             .SingleAsync(item => item.CaseId == caseId, cancellationToken);
+        return await ReadCurrentAsync(context, workflow, cancellationToken);
+    }
+
+    private static async Task<CaseAssessmentProjection> ReadCurrentAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        CancellationToken cancellationToken)
+    {
+        var caseId = workflow.CaseId;
         var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
         var fields = await context.CaseAssessmentFields.AsNoTracking()
             .Where(item => item.WorkId == workId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
-        var specificationId = await CurrentSpecificationIdAsync(caseId, cancellationToken);
+        var specificationId = await EfRepairSpecificationStore.CurrentQuery(context, workId)
+            .Select(item => (Guid?)item.Id)
+            .SingleOrDefaultAsync(cancellationToken);
         var lines = await context.CaseEstimateLines.AsNoTracking()
             .Where(item => item.WorkId == workId
                 && item.RepairSpecificationId == specificationId)
@@ -271,15 +281,6 @@ public sealed class EfCaseAssessmentStore(
                 item.Quantity))
             .ToArray(),
         MapCaseOwned(workflow.Case, caseDataFields, fields, originReceivedAtUtc));
-
-    /// <summary>
-    /// The assessment reads the Current specification's lines; <see
-    /// cref="IRepairSpecificationStore"/> owns which one that is.
-    /// </summary>
-    private async Task<Guid?> CurrentSpecificationIdAsync(
-        Guid caseId,
-        CancellationToken cancellationToken) =>
-        (await repairSpecifications.GetCurrentAsync(caseId, cancellationToken))?.SpecificationId;
 
     private static AssessmentCaseOwnedData MapCaseOwned(
         CaseEntity caseEntity,

@@ -90,12 +90,13 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
 
         var pending = false;
         var failed = false;
+        using var batch = custody.BeginDocumentBatch();
         foreach (var asset in assets)
         {
             var content = await artifactStore.ReadAsync(asset.StorageKey, cancellationToken)
                 ?? throw new FileNotFoundException($"The retained intake asset '{asset.Id}' is unavailable.");
             Verify(asset, content.Span);
-            await using var stream = new MemoryStream(content.ToArray(), writable: false);
+            await using var stream = DocumentContentCachePublisherExtensions.StreamOf(content);
             var retained = await custody.RetainAsync(
                 new(
                     SystemWorkerActor,

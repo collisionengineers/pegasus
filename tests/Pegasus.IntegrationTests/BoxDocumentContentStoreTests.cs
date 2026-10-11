@@ -164,6 +164,59 @@ public sealed class BoxDocumentContentStoreTests
     }
 
     /// <summary>
+    /// A batch of writes into one folder reads the folder once, for the batch
+    /// only: the next write after the batch proves the folder again.
+    /// </summary>
+    [Fact]
+    public async Task AFolderIsProvedOncePerBatchAndAgainAfterIt()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var requests = new List<int>();
+
+        using (store.BeginFolderProofBatch())
+        {
+            for (var ordinal = 1; ordinal <= 3; ordinal++)
+            {
+                var content = Encoding.UTF8.GetBytes($"batched photograph {ordinal}");
+                var before = box.RequestCount;
+                await store.StoreVersionAsync(
+                    Address(ordinal, $"batched-{ordinal}.jpg"), content, Sha256(content), CancellationToken.None);
+                requests.Add(box.RequestCount - before);
+            }
+        }
+        var afterContent = Encoding.UTF8.GetBytes("photograph after the batch");
+        var afterBefore = box.RequestCount;
+        await store.StoreVersionAsync(
+            Address(4, "after.jpg"), afterContent, Sha256(afterContent), CancellationToken.None);
+
+        Assert.Equal([2, 1, 1], requests);
+        Assert.Equal(2, box.RequestCount - afterBefore);
+    }
+
+    /// <summary>
+    /// A verified stream is stored without being hashed or copied again, and
+    /// lands where the verifying overload would put it.
+    /// </summary>
+    [Fact]
+    public async Task AVerifiedStreamIsStoredAsItIs()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var bytes = Encoding.UTF8.GetBytes("already verified content");
+        using var content = new MemoryStream(bytes);
+
+        var written = await store.StoreVerifiedStreamAsync(
+            Address(), content, bytes.LongLength, Sha256(bytes), CancellationToken.None);
+
+        Assert.Equal(DocumentContentWriteDisposition.Created, written.Disposition);
+        Assert.True(box.PathExists($"{CaseReference}/002 evidence.jpg"));
+        Assert.Equal(0, content.Position);
+    }
+
+    /// <summary>
     /// A document of the Audit is filed in the Audit's a. folder, inside the
     /// Case folder. The store cannot tell that folder from the Case's, so it
     /// proves the folder's place under the approved root: one read more.

@@ -633,6 +633,19 @@ public static class DocumentContentCachePublisherExtensions
         System.Runtime.InteropServices.MemoryMarshal.TryGetArray(content, out var segment)
             ? new MemoryStream(segment.Array!, segment.Offset, segment.Count, writable: false)
             : new MemoryStream(content.ToArray(), writable: false);
+
+    /// <summary>
+    /// The bytes as an array for an API that takes only <c>byte[]</c>. It is the
+    /// backing array itself when the memory is exactly one, so nothing is
+    /// copied; a slice of a larger buffer is copied out. The caller must not
+    /// write to the result.
+    /// </summary>
+    public static byte[] ArrayOf(ReadOnlyMemory<byte> content) =>
+        System.Runtime.InteropServices.MemoryMarshal.TryGetArray(content, out var segment)
+            && segment is { Array: { } array, Offset: 0 }
+            && segment.Count == array.Length
+                ? array
+                : content.ToArray();
 }
 
 public sealed record ManagedDocumentContentAddress(

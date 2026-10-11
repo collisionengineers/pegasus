@@ -39,7 +39,7 @@ internal sealed class LocalLogicalDocumentVersionReader(
                 ?? throw new FileNotFoundException("The retained intake source content is unavailable.");
             Verify(bytes.Span, asset.ContentHash, asset.ContentLength);
             return new(
-                new MemoryStream(bytes.ToArray(), writable: false),
+                DocumentContentCachePublisherExtensions.StreamOf(bytes),
                 null,
                 null,
                 asset.Id,

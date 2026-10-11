@@ -76,6 +76,26 @@ public sealed class StaffNotificationTests
     }
 
     [Fact]
+    public async Task TheCaseNotifierGivenTheReferenceAndEngineerDoesNotReadTheWorkflowAndStillSkipsTheEngineerThemself()
+    {
+        var store = new FakeStore();
+        var workflows = new FakeWorkflows(Workflow(CaseLifecycleState.Review, EngineerId));
+        var notifier = new CaseStaffNotifier(new RaiseStaffNotification(store), workflows, new NoReceipts());
+
+        var told = await notifier.NotifyAsync(
+            StaffNotificationCause.EditedByOther, CaseId, "QDOS260009", EngineerId,
+            ActionActor.Staff(OtherId, [StaffRole.User]), "notes", "AB12CDE", default);
+        var own = await notifier.NotifyAsync(
+            StaffNotificationCause.EditedByOther, CaseId, "QDOS260009", EngineerId,
+            ActionActor.Staff(EngineerId, [StaffRole.Engineer]), "notes", null, default);
+
+        Assert.Equal("QDOS260009", told!.Reference);
+        Assert.Equal(EngineerId, told.StaffId);
+        Assert.Null(own);
+        Assert.Equal(0, workflows.Reads);
+    }
+
+    [Fact]
     public async Task TheCaseNotifierReadsTheEngineerAndTellsQueriesFromEmail()
     {
         var store = new FakeStore();
@@ -206,8 +226,13 @@ public sealed class StaffNotificationTests
     {
         public CaseWorkflowRecord Current { get; set; } = current;
 
-        public Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
-            Task.FromResult<CaseWorkflowRecord?>(caseId == Current.CaseId ? Current : null);
+        public int Reads { get; private set; }
+
+        public Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken)
+        {
+            Reads++;
+            return Task.FromResult<CaseWorkflowRecord?>(caseId == Current.CaseId ? Current : null);
+        }
 
         public Task<IReadOnlyDictionary<Guid, Guid?>> GetAssignedEngineersAsync(
             IReadOnlyCollection<Guid> caseIds,

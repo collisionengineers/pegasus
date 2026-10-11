@@ -677,8 +677,7 @@ internal sealed class AssessmentMcpTools(
 
     private async Task<RepairSpecificationVersion> FindEstimateAsync(
         Guid caseId, Guid estimateId, CancellationToken cancellationToken) =>
-        (await caseEstimates.ExecuteAsync(caseId, CaseWorkSelector.Current, cancellationToken))
-            .SingleOrDefault(estimate => estimate.SpecificationId == estimateId)
+        await caseEstimates.FindAsync(caseId, CaseWorkSelector.Current, estimateId, cancellationToken)
             ?? throw new McpException("The estimate was not found on this case.");
 
     private static RepairerVatStatus? ParseVatStatus(string? value) =>

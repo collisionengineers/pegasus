@@ -630,6 +630,14 @@
                     body: new FormData(form),
                     credentials: 'same-origin'
                 }).then(function (response) {
+                    // A followed redirect is the sign-in page: the session has
+                    // ended, so stop beating without a message.
+                    if (response.redirected) {
+                        stopped = true;
+                        window.clearInterval(timer);
+                        document.removeEventListener('visibilitychange', onVisible);
+                        return;
+                    }
                     if (response.ok) {
                         return;
                     }
@@ -648,11 +656,12 @@
                 stopped = true;
                 window.clearInterval(timer);
             });
-            document.addEventListener('visibilitychange', function () {
+            function onVisible() {
                 if (!document.hidden) {
                     heartbeat();
                 }
-            });
+            }
+            document.addEventListener('visibilitychange', onVisible);
         });
     }
     bindEditScopeHeartbeats(document);

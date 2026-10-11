@@ -378,7 +378,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader
                 continue;
             }
 
-            var payload = attachment.Content.ToArray();
+            // The attachment's own bytes: nothing writes to an asset payload.
+            var payload = System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsArray(attachment.Content) ?? [];
             if (!limits.TryAddBytes(payload.Length, result))
             {
                 continue;

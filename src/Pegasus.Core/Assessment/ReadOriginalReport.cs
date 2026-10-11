@@ -133,10 +133,13 @@ public sealed class ReadOriginalReport(
                 new(actor, retained.DocumentId, retained.VersionId, IntakeAssetId: null,
                     caseId, IntakeReceiptId: null, retained.Sha256, retained.ContentLength),
                 cancellationToken);
-            using var buffer = new MemoryStream();
+            // Sized to the length the version states (already bounded above), so the
+            // bytes land in one buffer that is read in place; the hash check in
+            // ReadAsync still decides whether they are the document.
+            using var buffer = new MemoryStream((int)retained.ContentLength);
             await document.Content.CopyToAsync(buffer, cancellationToken);
             return await ReadAsync(
-                buffer.ToArray(), retained.FileName, retained.MediaType, retained.Sha256,
+                buffer.GetBuffer().AsMemory(0, (int)buffer.Length), retained.FileName, retained.MediaType, retained.Sha256,
                 Guid.Empty, cancellationToken);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))

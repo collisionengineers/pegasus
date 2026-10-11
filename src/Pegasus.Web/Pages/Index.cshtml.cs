@@ -31,6 +31,7 @@ public partial class IndexModel(
     IGetOperationsSnapshot getOperationsSnapshot,
     IListRecentCases listRecentCases,
     IAiJobQueries aiJobQueries,
+    IAiJobStore aiJobStore,
     ICaseWorkflowConfiguration workflowConfiguration,
     IStaffAccountQueries staffAccounts,
     IGetCaseHeader getCaseHeader,
@@ -279,8 +280,7 @@ public partial class IndexModel(
 
         try
         {
-            var job = (await aiJobQueries.ListOpenAsync(cancellationToken))
-                .FirstOrDefault(candidate => candidate.JobId == jobId);
+            var job = await aiJobStore.GetAsync(jobId, cancellationToken);
             if (job is null || !AiJobPolicy.CompletesByHand(job))
             {
                 throw new InvalidOperationException("The job cannot be completed by hand.");
@@ -615,10 +615,10 @@ public partial class IndexModel(
         Attention = read.Snapshot.Attention;
         Metrics = read.Snapshot.Metrics;
         // The rail's Case count sums the stage counts and the open Unidentified
-        // queue the snapshot has just read. The rail's Triage count spans every
-        // state, unlike the Triages metric, so the shell still reads that one.
+        // queue the snapshot has just read. The Triages metric counts every
+        // active Triage state, as the rail does, so the shell reads none again.
         RailCountsPageFilter.SetCaseCounts(
-            HttpContext, read.Snapshot.CaseStages, triageCount: null, read.Snapshot.UnidentifiedCount);
+            HttpContext, read.Snapshot.CaseStages, read.Snapshot.Metrics.Triages, read.Snapshot.UnidentifiedCount);
         // Core counts the chips over the scope before the kind filter: one read.
         KindCounts = read.Snapshot.Attention.KindCounts;
         Selected = read.Selected;
