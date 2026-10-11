@@ -63,7 +63,7 @@ A usable registration settles into one of two outcomes the operator sees:
 - It matches exactly one eligible Case. Mailed images allocate no reference
   and are filed on the Case as evidence (operator, 11 October 2026). A
   manual upload that matches waits, unregistered, for a staff destination.
-  Records registered before 11 October 2026 keep their Image reference as
+  Records registered before this rule shipped keep their Image reference as
   linked history.
 
 Every association, reversal, or correction records the same attributable
@@ -77,7 +77,7 @@ Images matched to an existing Case before they register never become an
 Image-initiated Case; they are filed on the Case directly (operator, 11
 October 2026). The merge and fold below apply to an Image-initiated Case
 registered because no Case matched or staff rejected, cancelled or left the
-match, and to records registered before 11 October 2026, which keep their
+match, and to records registered before this rule shipped, which keep their
 Box folders.
 
 An Image-initiated Case stays Awaiting instruction until it is associated
