@@ -225,6 +225,17 @@ public sealed class ContactDirectoryPersistenceTests
                 Assert.Null(item.LastCaseReceivedAtUtc);
                 Assert.Null(item.LastCaseReference);
             });
+        foreach (var paged in new[] { byName, byType })
+        {
+            var pagedLatest = Assert.Single(paged, item => item.OrganizationId == firstPrincipal.OrganizationId);
+            Assert.Equal(receivedAtUtc, pagedLatest.LastCaseReceivedAtUtc);
+            Assert.Equal("CASE-A", pagedLatest.LastCaseReference);
+        }
+
+        var repairers = await queries.ListByRoleAsync(Administrator, ContactRole.Repairer, CancellationToken.None);
+        var listedRepairer = Assert.Single(repairers, item => item.OrganizationId == repairer.OrganizationId);
+        Assert.Null(listedRepairer.LastCaseReceivedAtUtc);
+        Assert.Null(listedRepairer.LastCaseReference);
     }
 
     private static SaveContactRequest NewPrincipal(string name, string code) => new(
