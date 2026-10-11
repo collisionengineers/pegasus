@@ -33,8 +33,21 @@ The Work Centre (`/`) shows office-wide work in one ledger (v30 design B,
 HH:MM", the page's one clock, with **Refresh** and **Create Case**; the utility bar's New case is omitted on this page and only
 this page, so the action has one home. The page refreshes itself only while
 its browser tab is visible: every five minutes, and when the tab regains focus
-after 30 seconds away. It never refreshes while a dialog is open or a field has
-focus. A refresh does not mark New cases as seen.
+after 30 seconds away. The five-minute refresh fires only when at least five
+minutes have passed since the last successful refresh; a failed or deferred
+refresh does not count. A focus refresh is therefore not followed by an
+interval refresh within seconds, and up to about 9 minutes 45 seconds can pass
+between automatic refreshes after one (operator, 11 October 2026). It never
+refreshes while a dialog is open or a field has focus. A refresh does not mark
+New cases as seen.
+
+**Saved scope on links.** When the browser's saved scope is Mine, the brand and
+Work Centre navigation links on every page carry `?scope=mine`, so a Mine user
+loads the Work Centre once, with no flash of Office content. The links render
+unscoped from the server and are rewritten in the browser. The "Since you last
+looked" divider is computed from that single load. Typed addresses, bookmarks
+and other links to `/` still load Office first and then move to Mine (operator,
+11 October 2026).
 
 **Metrics.** Five counts in one strip, label and figure on one line, in this
 order: Not ready, Review, Held, Unidentified and Triages. Each is an exact

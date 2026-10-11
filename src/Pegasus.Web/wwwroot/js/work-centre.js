@@ -341,7 +341,9 @@
     focusNamedRow();
 
     window.setInterval(function () {
-        if (document.hidden) { return; }
+        // Only when five minutes have passed since the last applied refresh, so a
+        // focus refresh is not followed by an interval refresh seconds later.
+        if (document.hidden || Date.now() - lastRefresh < FIVE_MINUTES) { return; }
         refresh();
     }, FIVE_MINUTES);
     document.addEventListener('visibilitychange', function () {

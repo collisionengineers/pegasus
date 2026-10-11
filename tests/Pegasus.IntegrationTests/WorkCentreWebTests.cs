@@ -591,6 +591,19 @@ public sealed class WorkCentreWebTests
         Assert.Equal(1, Regex.Count(html, ">Create Case</span>"));
     }
 
+    [Fact]
+    public async Task TheBrandAndWorkCentreNavLinksRenderUnscopedFromTheServer()
+    {
+        using var host = Host(new FakeSnapshot());
+        using var client = Client(host, StaffRoleNames.User);
+
+        var html = await GetOkAsync(client, "/");
+
+        // A saved Mine scope is added in the browser by site.js, never rendered.
+        Assert.Matches("<a class=\"brand\"[^>]*href=\"/\"[^>]*>", html);
+        Assert.Matches("<a class=\"nav-link\"[^>]*href=\"/\"[^>]*>", html);
+    }
+
     private static NeedsAttentionItem Item(
         NeedsAttentionKind kind,
         string reference,
