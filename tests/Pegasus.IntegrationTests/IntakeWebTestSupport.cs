@@ -708,6 +708,25 @@ internal static partial class IntakeWebDriver
     }
 
     /// <summary>
+    /// Runs the Worker's replay of a linked receipt's staged work, which a
+    /// staff link enqueues: it files the receipt's evidence on the Case and
+    /// settles its Unidentified item. A receipt with no staged work is left
+    /// alone.
+    /// </summary>
+    internal static async Task ReplayLinkedFilingAsync(
+        IServiceProvider services,
+        Guid receiptId,
+        CancellationToken cancellationToken = default)
+    {
+        var stagedReceiptId = await services.GetRequiredService<IIntakeWorkStore>()
+            .FindStagedReceiptIdForReceiptAsync(receiptId, cancellationToken);
+        if (stagedReceiptId is { } id)
+        {
+            await CreateProcessor(services).ExecuteAsync(id, cancellationToken);
+        }
+    }
+
+    /// <summary>
     /// Runs the Worker's grouped-image reconcile sweep once, standing in for
     /// its timer. A grouped upload's members can drain in an order that
     /// leaves a member's group outcome pending for this sweep (the ordinal-

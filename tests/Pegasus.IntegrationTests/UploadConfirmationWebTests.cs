@@ -3,6 +3,7 @@ using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -239,11 +240,12 @@ public sealed class UploadConfirmationWebTests
     /// <summary>
     /// The same PDF through the generic Upload page: no plate, no principal,
     /// so it becomes an Unidentified item and waits for a destination. Adding
-    /// it to a Case files the PDF and its photographs on that Case and resolves
-    /// the item in the same request; no sweep runs in this test.
+    /// it to a Case commits the link and hands filing to the Worker, whose
+    /// replay of the receipt's work files the PDF and its photographs on that
+    /// Case and resolves the item; no sweep runs in this test.
     /// </summary>
     [Fact]
-    public async Task AttachFilesAPhotographPdfOnTheChosenCaseAndResolvesItsUnidentifiedItemInRequest()
+    public async Task TheWorkerReplayFilesALinkedReceiptsEvidenceAndSettlesItsUnidentifiedItem()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -287,8 +289,17 @@ public sealed class UploadConfirmationWebTests
         Assert.Equal(HttpStatusCode.Redirect, redirect);
 
         await AssertLinkedAsync(factory, receiptId, caseId);
+        // The request filed nothing: filing is the Worker's.
+        Assert.Empty(await FiledDocumentsAsync(factory, receiptId, caseId));
+        await using (var replay = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReplayLinkedFilingAsync(replay.ServiceProvider, receiptId);
+        }
+
         var filed = await FiledDocumentsAsync(factory, receiptId, caseId);
         Assert.Equal(3, filed.Count);
+        Assert.Equal(1, filed.Count(document => document.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.OriginalSource));
+        Assert.Equal(2, filed.Count(document => document.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.Image));
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var item = await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
@@ -348,6 +359,8 @@ public sealed class UploadConfirmationWebTests
                 operationId: Guid.NewGuid(),
                 receiptVersion: receiptVersion,
                 caseVersion: caseVersion));
+            await using var replay = factory.Services.CreateAsyncScope();
+            await IntakeWebDriver.ReplayLinkedFilingAsync(replay.ServiceProvider, receiptId);
         }
 
         var filed = Assert.Single(await FiledDocumentsAsync(factory, receiptId, caseId));
@@ -423,8 +436,13 @@ public sealed class UploadConfirmationWebTests
         Assert.Equal(HttpStatusCode.Redirect, redirect);
 
         await AssertLinkedAsync(factory, receiptId, caseId);
-        // The link itself files the material on the Case, in the same request
-        // (FRD-22): no Worker pass and no sweep ran between the post and this.
+        // The link hands filing to the Worker (FRD-22): the request filed
+        // nothing, and the Worker's replay of the receipt's work files it.
+        Assert.Empty(await FiledDocumentsAsync(factory, receiptId, caseId));
+        await using (var replayScope = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReplayLinkedFilingAsync(replayScope.ServiceProvider, receiptId);
+        }
         await AssertFiledOnCaseAsync(factory, receiptId, caseId, minimumDocuments: 1);
         var afterPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
         Assert.Contains("data-upload-phase=\"attached\"", afterPage, StringComparison.Ordinal);
@@ -819,10 +837,13 @@ public sealed class UploadConfirmationWebTests
         }
 
         await using var linkScope = factory.Services.CreateAsyncScope();
+        var custodyCalls = new CustodyCallsRefused();
         using var attachmentFactory = factory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<ILinkIntake>();
+                services.RemoveAll<ICaseArtifactCustody>();
+                services.AddSingleton<ICaseArtifactCustody>(custodyCalls);
                 services.AddSingleton<ILinkIntake>(new InterruptSecondLink(
                     linkScope.ServiceProvider.GetRequiredService<ILinkIntake>(), interruptAfterFirstMember));
             }));
@@ -893,9 +914,13 @@ public sealed class UploadConfirmationWebTests
         var replay = await PostGroupHandlerAsync(
             attachmentClient, $"/Upload/Group/{groupId:D}?handler=AttachGroup", replayFields);
         Assert.Equal(HttpStatusCode.Redirect, replay);
+        // The Web request never reached custody (and so never Box): filing is the
+        // Worker's replay of each member's work.
+        Assert.Equal(0, custodyCalls.Calls);
         foreach (var receiptId in confirmation.ReceiptVersions.Keys)
         {
             await AssertLinkedAsync(factory, receiptId, caseId);
+            await IntakeWebDriver.ReplayLinkedFilingAsync(linkScope.ServiceProvider, receiptId);
         }
         var groupItem = await linkScope.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
             .GetByOriginAsync(UnidentifiedOrigin.SubmissionGroup(groupId), CancellationToken.None);
@@ -1303,6 +1328,22 @@ public sealed class UploadConfirmationWebTests
             CancellationToken.None);
         Assert.NotNull(staged);
         return staged!.Id;
+    }
+
+    /// <summary>The Web host's custody for a request that must not file: any call is counted and refused.</summary>
+    private sealed class CustodyCallsRefused : ICaseArtifactCustody
+    {
+        private int _calls;
+
+        public int Calls => Volatile.Read(ref _calls);
+
+        public Task<CaseArtifactCustodyResult> RetainAsync(
+            CaseArtifactCustodyRequest request,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _calls);
+            throw new InvalidOperationException("A staff link must not file in the Web request.");
+        }
     }
 
     private sealed class InterruptSecondLink(ILinkIntake inner, bool interrupt) : ILinkIntake
