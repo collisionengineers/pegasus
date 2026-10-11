@@ -1440,8 +1440,12 @@ public sealed partial class DetailsModel(
             }
             if (key == "files")
             {
-                ApplyFiles(await ReadFilesAsync(id, CanEditCaseData, cancellationToken));
-                await LoadAssetPreparationsAsync(id, cancellationToken);
+                // The preparations are independent of the intakes and images.
+                var files = ReadFilesAsync(id, CanEditCaseData, cancellationToken);
+                var preparations = caseAssetPreparationQueries.ListForCaseAsync(id, cancellationToken);
+                await Task.WhenAll(files, preparations);
+                ApplyFiles(files.Result);
+                AssetPreparations = preparations.Result;
             }
             if (key == "valuation")
             {
@@ -1454,11 +1458,6 @@ public sealed partial class DetailsModel(
             LogCaseDetailsQueryFailed(logger, id, exception);
             return StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
-    }
-
-    private async Task LoadAssetPreparationsAsync(Guid caseId, CancellationToken cancellationToken)
-    {
-        AssetPreparations = await caseAssetPreparationQueries.ListForCaseAsync(caseId, cancellationToken);
     }
 
     /// <summary>The Files body's image-intake records, tag vocabulary and galleries.</summary>
@@ -1479,18 +1478,29 @@ public sealed partial class DetailsModel(
         bool readsVocabulary,
         CancellationToken cancellationToken)
     {
+        // The vocabulary is independent of the intakes and their images.
+        var vocabulary = readsVocabulary
+            ? readImageTagVocabulary.ListAsync(cancellationToken)
+            : Task.FromResult<IReadOnlyList<ImageTag>>([]);
+        var intakesAndImages = ReadIntakesAndImagesAsync(caseId, cancellationToken);
+        await Task.WhenAll(vocabulary, intakesAndImages);
+        return new(intakesAndImages.Result.Intakes, vocabulary.Result, intakesAndImages.Result.Images);
+    }
+
+    private async Task<(
+        IReadOnlyList<ImageIntakeSummary> Intakes,
+        IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>> Images)>
+        ReadIntakesAndImagesAsync(Guid caseId, CancellationToken cancellationToken)
+    {
         IReadOnlyList<ImageIntakeSummary> intakes =
         [
             .. (await imageIntakeQueries.ListForCaseAsync(caseId, cancellationToken))
                 .Where(intake => !intake.PhotographsAreCaseImages)
         ];
-        IReadOnlyList<ImageTag> vocabulary = readsVocabulary
-            ? await readImageTagVocabulary.ListAsync(cancellationToken)
-            : [];
         var images = await imageIntakeQueries.ListImagesAsync(
             intakes.Select(intake => intake.Id).ToArray(),
             cancellationToken);
-        return new(intakes, vocabulary, images);
+        return (intakes, images);
     }
 
     private void ApplyFiles(FilesReads files)

@@ -2361,6 +2361,21 @@ public sealed class CaseWorkspacePersistenceTests
         return staffId;
     }
 
+    [Fact]
+    public async Task ThePageFrameOverlapsItsReadsAndStillAnswersAMissingCaseWithNull()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var store = new EfCaseQueryStore(harness.Factory, harness.TimeProvider);
+
+        var frame = await store.GetPageFrameAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
+        var missing = await store.GetPageFrameAsync(Guid.NewGuid(), CaseWorkSelector.Current, CancellationToken.None);
+
+        var present = Assert.IsType<CasePageFrameData>(frame);
+        Assert.Equal(harness.CaseId, present.Frame.Summary.CaseId);
+        Assert.Equal(harness.CaseId, present.Frame.Workflow.CaseId);
+        Assert.Null(missing);
+    }
+
     private static async Task MarkTerminalAsync(Harness harness)
     {
         await using var context = await harness.Factory.CreateDbContextAsync();

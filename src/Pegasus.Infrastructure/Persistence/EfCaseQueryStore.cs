@@ -358,8 +358,52 @@ public sealed class EfCaseQueryStore(
             return null;
         }
 
+        // The workflow decides whether the Case exists; once it does, the other
+        // reads are independent. Three chains run side by side, each on its own
+        // context: the frame (on this one), the documents with the unlinked
+        // sent evidence, and the notes with the linked Triage.
+        var framing = ReadFrameAsync(context, workflow, caseId, cancellationToken);
+        var evidence = ReadDocumentsAndSentEvidenceAsync(workflow, caseId, work, cancellationToken);
+        var related = ReadNotesAndTriageAsync(workflow, caseId, cancellationToken);
+        await Task.WhenAll(framing, evidence, related);
+        var (frame, linkedCancellationMessageId) = framing.Result;
+        return new(
+            frame,
+            evidence.Result.Documents,
+            evidence.Result.AvailableReportSentEvidence,
+            related.Result.RecordNotes,
+            linkedCancellationMessageId,
+            related.Result.LinkedTriage);
+    }
+
+    private async Task<(CaseSectionFrame Frame, Guid? LinkedCancellationMessageId)> ReadFrameAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
         var summary = MapSearchItem(await SearchRows(context)
             .SingleAsync(item => item.CaseId == caseId, cancellationToken), timeProvider.GetUtcNow());
+        var frame = CreateSectionFrame(
+            summary, workflow, await CaseWorkScope.LoadSetAsync(context, caseId, cancellationToken));
+        // The Next action's cancellation row reads the linked mail's current
+        // classification on every render (FRD-13 "Cancellation messages"),
+        // and only while the Case can show one.
+        return (
+            frame,
+            CaseCancellationNotice.Applies(frame.Workflow)
+                ? await ReadLinkedCancellationMessageIdAsync(context, caseId, cancellationToken)
+                : null);
+    }
+
+    private async Task<(IReadOnlyList<CaseDocument> Documents, IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence)>
+        ReadDocumentsAndSentEvidenceAsync(
+            CaseWorkflowEntity workflow,
+            Guid caseId,
+            CaseWorkSelector work,
+            CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var documents = await ReadDocumentsAsync(context, caseId, cancellationToken);
         // Only the ribbon's and dialog's Confirm-sent control draws these; its
         // gate (Inspection view or Report preparation) is a subset of this one.
@@ -367,21 +411,15 @@ public sealed class EfCaseQueryStore(
             || workflow.State == nameof(CaseLifecycleState.ReportPreparation)
                 ? await ReadAvailableReportSentEvidenceAsync(context, cancellationToken)
                 : [];
+        return (documents, availableReportSentEvidence);
+    }
+
+    private async Task<(CaseRecordNotes RecordNotes, IReadOnlyList<CaseLinkedTriage> LinkedTriage)>
+        ReadNotesAndTriageAsync(CaseWorkflowEntity workflow, Guid caseId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var recordNotes = await ReadRecordNotesAsync(context, workflow, caseId, cancellationToken);
-        var frame = CreateSectionFrame(
-            summary, workflow, await CaseWorkScope.LoadSetAsync(context, caseId, cancellationToken));
-        return new(
-            frame,
-            documents,
-            availableReportSentEvidence,
-            recordNotes,
-            // The Next action's cancellation row reads the linked mail's current
-            // classification on every render (FRD-13 "Cancellation messages"),
-            // and only while the Case can show one.
-            CaseCancellationNotice.Applies(frame.Workflow)
-                ? await ReadLinkedCancellationMessageIdAsync(context, caseId, cancellationToken)
-                : null,
-            await ReadLinkedTriageAsync(context, caseId, cancellationToken));
+        return (recordNotes, await ReadLinkedTriageAsync(context, caseId, cancellationToken));
     }
 
     async Task<IReadOnlyList<RetainedApprovedMailboxReportSentEvidence>> IAvailableReportSentEvidenceQueries.ListAsync(
