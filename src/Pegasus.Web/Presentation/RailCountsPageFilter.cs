@@ -139,9 +139,12 @@ public sealed partial class RailCountsPageFilter(
     /// refreshes and every POST are other handlers and keep reading the shell
     /// after their result.
     /// </summary>
+    // Razor Pages names the handler's method from the method name ("Get" for
+    // OnGetAsync), so the method is compared without regard to case.
     private static bool IsCaseFullPageGet(PageHandlerExecutingContext context) =>
         context.HandlerInstance is Pegasus.Web.Pages.Cases.DetailsModel
-        && context.HandlerMethod is { HttpMethod: "GET", Name: null or "" };
+        && context.HandlerMethod is { Name: null or "" } handler
+        && HttpMethods.IsGet(handler.HttpMethod);
 
     /// <summary>
     /// The counts, the bell and the release note share nothing and each reads
