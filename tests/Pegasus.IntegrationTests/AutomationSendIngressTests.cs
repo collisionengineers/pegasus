@@ -356,7 +356,7 @@ public sealed class AutomationSendIngressTests
                     "A Handler",
                     [address],
                     [],
-                    [],
+                    ["handler@principal.example"],
                     "The labour rate",
                     "What labour rate did the report use?",
                     [],

@@ -32,31 +32,25 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
         var reportPreparation = CaseLifecycleState.ReportPreparation.ToString();
         var terminal = CaseLifecycleRules.TerminalStateNames();
 
+        // One statement: every open Case by state and open-query mark. Query is
+        // a queue of open Cases with an open query, whatever their state
+        // (operator, 11 October 2026).
         var counts = await context.CaseWorkflows
             .AsNoTracking()
-            .Where(workflow =>
-                workflow.State == notReady
-                || workflow.State == review
-                || workflow.State == held
-                || workflow.State == reportPreparation)
-            .GroupBy(workflow => workflow.State)
-            .Select(group => new { State = group.Key, Count = group.Count() })
+            .Where(workflow => !terminal.Contains(workflow.State))
+            .GroupBy(workflow => new { workflow.State, workflow.HasOpenQuery })
+            .Select(group => new { group.Key.State, group.Key.HasOpenQuery, Count = group.Count() })
             .ToArrayAsync(cancellationToken);
-        // Query is a queue of open Cases with an open query, whatever their
-        // state (operator, 11 October 2026).
-        var query = await context.CaseWorkflows
-            .AsNoTracking()
-            .CountAsync(workflow => workflow.HasOpenQuery && !terminal.Contains(workflow.State), cancellationToken);
 
         int For(string state) =>
-            counts.SingleOrDefault(item => item.State == state)?.Count ?? 0;
+            counts.Where(item => item.State == state).Sum(item => item.Count);
 
         return new(
             For(notReady),
             For(review),
             For(held),
             For(reportPreparation),
-            query);
+            counts.Where(item => item.HasOpenQuery).Sum(item => item.Count));
     }
 
     public async Task<int> GetAwaitingInstructionCountAsync(CancellationToken cancellationToken)

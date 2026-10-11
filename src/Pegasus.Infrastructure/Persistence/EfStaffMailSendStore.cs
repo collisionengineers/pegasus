@@ -391,7 +391,7 @@ internal sealed class EfStaffMailSendStore(
             systemActor.Roles.Select(value => value.ToString()), "staff-mail-sent-observed",
             observedAtUtc, entity.OperationKey, null, null, Map(entity)));
         await FreezeSentReportSpecificationAsync(db, entity, systemActor, observedAtUtc, cancellationToken);
-        await CaseQueryLedger.ResolveForObservedReplyAsync(db, entity, systemActor, observedAtUtc, cancellationToken);
+        await CaseQueryLedger.ResolveForObservedReplyAsync(db, entity, observedAtUtc, cancellationToken);
         await RecordCorrespondenceSentAsync(db, entity, cancellationToken);
         await RecordSentChaserAsync(db, entity, providerSentAtUtc, observedAtUtc, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);

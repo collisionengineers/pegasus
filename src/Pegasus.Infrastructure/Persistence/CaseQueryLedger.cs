@@ -162,14 +162,14 @@ internal static class CaseQueryLedger
 
     /// <summary>
     /// A reply flagged "Also resolve query" reached Sent: resolves the Case's
-    /// open queries under the workflow row lock, advancing the version as any
-    /// system write does. Returns rather than throws, so the mailbox's Sent
-    /// poll never stalls on a Case that has nothing open.
+    /// open queries under the workflow row lock, attributed to the reply's
+    /// sender, advancing the version as any system write does. Returns rather
+    /// than throws, so the mailbox's Sent poll never stalls on a Case that has
+    /// nothing open.
     /// </summary>
     internal static async Task ResolveForObservedReplyAsync(
         PegasusDbContext context,
         StaffMailSendOperationEntity mail,
-        ActionActor systemActor,
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken)
     {
@@ -193,7 +193,6 @@ internal static class CaseQueryLedger
             context, workflow, beforeVersion, QueriesResolvedEvent,
             mail.ActorKind, mail.ActorSubjectId, "[]",
             $"query-reply:{mail.Id:N}", mail.PayloadHash, null, occurredAtUtc, beforeJson);
-        _ = systemActor;
     }
 
     /// <summary>One workflow event and its action-history row for a query raised, withdrawn or resolved outside a lease-carrying mutation.</summary>
