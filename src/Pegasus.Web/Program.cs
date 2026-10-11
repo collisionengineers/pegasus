@@ -1175,9 +1175,6 @@ app.Use(async (context, next) =>
     if (context.GetEndpoint()?.Metadata.GetMetadata<IAllowAnonymous>() is null
         && context.User.Identity?.IsAuthenticated == true)
     {
-        var userManager = context.RequestServices
-            .GetRequiredService<UserManager<PegasusIdentityUser>>();
-        var user = await userManager.GetUserAsync(context.User);
         var path = context.Request.Path;
         var allowedWhilePasswordChangeRequired =
             path.StartsWithSegments("/Account/PasswordChange")
@@ -1186,7 +1183,7 @@ app.Use(async (context, next) =>
             || path.StartsWithSegments("/js")
             || path.StartsWithSegments("/lib")
             || path.StartsWithSegments("/favicon.ico");
-        if (user?.MustChangePassword == true && !allowedWhilePasswordChangeRequired)
+        if (StaffPrincipalValidator.MustChangePassword(context) && !allowedWhilePasswordChangeRequired)
         {
             context.Response.Redirect("/Account/PasswordChange");
             return;
