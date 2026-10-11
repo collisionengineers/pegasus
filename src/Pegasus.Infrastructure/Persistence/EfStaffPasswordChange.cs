@@ -10,6 +10,7 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfStaffPasswordChange(
     PegasusDbContext context,
     UserManager<PegasusIdentityUser> userManager,
+    StaffAccountReads accountReads,
     TimeProvider timeProvider) : IStaffPasswordChangeStore
 {
     public async Task<ChangeStaffPasswordResult> ChangeAsync(
@@ -129,6 +130,7 @@ public sealed class EfStaffPasswordChange(
         });
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        accountReads.Evict(user.Id);
         return new(
             request.StaffId,
             RevokedAuthorizations: authorizations.Count,

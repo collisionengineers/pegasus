@@ -197,9 +197,14 @@ The temporary secret is never emailed, logged, stored in raw form or sent to
 analytics.
 
 Disable, a role change, a reset and Force logout revoke the account's
-sessions and tokens. The next request sees the current authority. Every
-change to an account's role, enabled state or password rotates its security
-stamp, and each request checks the stamp. A session is never refreshed into
+sessions and tokens. Every change to an account's role, enabled state or
+password rotates its security stamp, and each request checks the stamp
+against the account. A change made in Pegasus is seen on the next request. A
+change made outside it, such as direct SQL or the intake wipe, is seen within
+300 seconds, because each request's account read is kept for that long.
+Document and thumbnail reads rely on that request check and do not read the
+account again. A queued report render reads its images with the authority
+the account had when the render was queued. A session is never refreshed into
 new authority: it is refused and signs in again. Delete
 removes active access, the role and credential material, but keeps the
 minimal actor identity that business history and printed reports need. It
