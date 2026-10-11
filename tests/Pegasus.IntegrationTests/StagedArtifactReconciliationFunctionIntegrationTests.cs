@@ -278,7 +278,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             return Task.FromResult(new ImageIntakePairingResult(7, 3, 2, nameof(IntakeAssociationConflictException)));
         }
         public Task<ImageIntakePairingResult> PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<ImageIntakePairingResult> PairRegisteredReceiptAsync(Guid receiptId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ImageIntakePairingResult> PairRegisteredReceiptAsync(Guid receiptId, CancellationToken cancellationToken, ImageIntakeDetail? registered = null) => throw new NotSupportedException();
     }
 
 

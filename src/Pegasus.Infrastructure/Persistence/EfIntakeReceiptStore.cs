@@ -1378,7 +1378,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         _ => throw UnknownEnum(value)
     };
 
-    private static IntakeAssetKind ParseAssetKind(string value) => value switch
+    internal static IntakeAssetKind ParseAssetKind(string value) => value switch
     {
         "source" => IntakeAssetKind.Source,
         "attachment" => IntakeAssetKind.Attachment,
@@ -1396,7 +1396,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         _ => throw UnknownEnum(value)
     };
 
-    private static IntakeAssetDisposition ParseAssetDisposition(string value) => value switch
+    internal static IntakeAssetDisposition ParseAssetDisposition(string value) => value switch
     {
         "source" => IntakeAssetDisposition.Source,
         "attachment" => IntakeAssetDisposition.Attachment,

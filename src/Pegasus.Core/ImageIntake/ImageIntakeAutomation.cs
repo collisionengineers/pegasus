@@ -79,7 +79,7 @@ public sealed class ImageIntakeAutomation(
                     receipt.Id,
                     cancellationToken);
                 RecordPairingOutcome(activity,
-                    await casePairing.PairRegisteredReceiptAsync(receipt.Id, cancellationToken));
+                    await casePairing.PairRegisteredReceiptAsync(receipt.Id, cancellationToken, existing));
                 return new(await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt);
             }
             catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
@@ -658,7 +658,8 @@ public sealed class ImageIntakeAutomation(
     {
         foreach (var suggestion in suggestions)
         {
-            if (suggestion.Outcome != VrmRecognitionOutcomeKind.Suggested
+            if (suggestion.Disposition != ImageVrmSuggestionDisposition.Pending
+                || suggestion.Outcome != VrmRecognitionOutcomeKind.Suggested
                 || suggestion.SuggestedRegistration is null
                 || !VrmRegistrationMatching.IsMatch(suggestion.SuggestedRegistration, registration)
                 || suggestion.Confidence < VrmRecognitionProvisionalBar.MinimumAutomaticConfidence)
