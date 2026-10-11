@@ -145,7 +145,10 @@ report a problem.`, and offers no Get valuation (23 and 28 September 2026).
 When Glass's answers that it does not value a vehicle of that age, its card
 shows an info notice instead, `Glass's cannot value this vehicle because of
 its age: Glass's values cars and motorcycles up to 20 years old and light
-commercial vehicles up to 15.` (operator, 2 October 2026).
+commercial vehicles up to 15.` (operator, 2 October 2026). When Glass's holds
+no data for the registration, its card shows an info notice instead, `Glass's
+cannot value this vehicle: it holds no data for its registration.` (operator,
+10 October 2026).
 The card has no Save of its own: the Case's single
 workspace Save records every changed card with whatever was entered, and any
 of its month, retail and trade may be left blank (operator, 23 September
@@ -172,7 +175,7 @@ the portal does, and once the figures have answered, files that stocked
 vehicle's "Vehicle Valuation Report – Glass's Values Only" PDF on the Case's
 Documents as `Glass's valuation {registration} {yyyy-MM}.pdf` (operator, 1
 October 2026), only when the report's own text names the Case registration
-(operator, 5 October 2026). Whatever stops a Glass's valuation, the card shows its notice.
+(operator, 5 October 2026). Whatever else stops a Glass's valuation, the card shows its notice.
 Cazana's Get valuation values the Case's accepted registration at its accepted
 mileage and fills the card with Cazana's retail and trade (operator, 9 October
 2026). Cazana values on a day: a card in the current month is valued today,
