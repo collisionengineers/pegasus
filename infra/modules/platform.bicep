@@ -719,6 +719,42 @@ resource applicationExceptionAlert 'Microsoft.Insights/scheduledQueryRules@2023-
   }
 }
 
+resource telemetryDailyCapAlert 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+  name: '${prefix}-telemetry-daily-cap'
+  location: location
+  tags: tags
+  properties: {
+    displayName: 'Pegasus production telemetry approaching the daily cap'
+    description: 'Telemetry ingested since 00:00Z has reached 80 percent of the daily cap. Request telemetry is dropped once the cap trips.'
+    severity: 3
+    enabled: true
+    evaluationFrequency: 'PT5M'
+    scopes: [logAnalytics.id]
+    targetResourceTypes: ['Microsoft.OperationalInsights/workspaces']
+    windowSize: 'PT15M'
+    overrideQueryTimeRange: 'P1D'
+    criteria: {
+      allOf: [
+        {
+          query: 'Usage | where TimeGenerated >= startofday(now()) and IsBillable == true | summarize IngestedMb=sum(Quantity) | project PercentOfCap=100.0 * IngestedMb / (${telemetryDailyCapGb} * 1000.0)'
+          timeAggregation: 'Maximum'
+          metricMeasureColumn: 'PercentOfCap'
+          operator: 'GreaterThanOrEqual'
+          threshold: 80
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+        }
+      ]
+    }
+    autoMitigate: false
+    actions: {
+      actionGroups: [actionGroup.id]
+    }
+  }
+}
+
 output webAppName string = webActivationApproved ? webApp!.name : ''
 output webAppHostName string = webActivationApproved ? webApp!.properties.defaultHostName : ''
 output webPlanName string = webPlan.name
