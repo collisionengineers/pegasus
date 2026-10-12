@@ -516,8 +516,8 @@ function Get-MigrationPermissionMatrix {
     $expected.Add('pegasus_web_runtime_role|D|DELETE|UnroadworthyReasons')
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|UnroadworthyReasons')
     # 20260921080000_RepairSpecificationSnapshots: frozen repair specification
-    # versions (v28 P43). Web freezes and reads them; the Worker reads only;
-    # neither deletes one.
+    # versions (v28 P43). Web freezes and reads them; the Worker reads them
+    # (it freezes the Sent version since 20261012120000); neither deletes one.
     foreach ($permission in @('SELECT', 'INSERT')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|CaseRepairSpecificationSnapshots")
     }
@@ -614,6 +614,11 @@ function Get-MigrationPermissionMatrix {
         }
         $expected.Add("$role|D|DELETE|CaseQueries")
     }
+    # 20261012120000_WorkerObservesReportSends: the Sent poll freezes a sent
+    # report's repair specification and links the Inspection report's evidence
+    # to the primary work once the Audit exists.
+    $expected.Add('pegasus_worker_runtime_role|G|INSERT|CaseRepairSpecificationSnapshots')
+    $expected.Add('pegasus_worker_runtime_role|G|UPDATE|CaseWorks')
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier
     # migrations this matrix reads still name them, and SQL Server keeps a
     # table's permission rows across a rename, so the rows read here are the
