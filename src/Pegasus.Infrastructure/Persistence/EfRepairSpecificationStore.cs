@@ -472,13 +472,8 @@ public sealed class EfRepairSpecificationStore(
                 .OrderByDescending(item => item.Number)
                 .FirstOrDefaultAsync(cancellationToken);
             var baseSpecification = sent is null ? outgoing! : EfRepairSpecificationSnapshotStore.Map(sent).AsSpecification();
-            var reason = RepairSpecificationComparison.SupplementaryReasons[0].Code;
-            var diff = RepairSpecificationComparison.Compare(baseSpecification, Map(entity));
-            ApplySupplementary(entity, new(
-                sent?.Id ?? beforeImport!.Id,
-                reason,
-                false,
-                RepairSpecificationComparison.SupplementaryStatement(diff, reason)));
+            ApplySupplementary(entity, RepairSpecificationComparison.ForImport(
+                sent?.Id ?? beforeImport!.Id, baseSpecification, Map(entity)));
         }
         if (importedDocument)
         {

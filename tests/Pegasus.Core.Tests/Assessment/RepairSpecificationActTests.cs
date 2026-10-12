@@ -375,6 +375,31 @@ public sealed class RepairSpecificationActTests
         Assert.Contains("reduced from", statement, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AnImportOntoAnEmptySpecSupplementsNothingAndALongStatementFitsTheRecord()
+    {
+        // v38 P3: an import onto a spec with no lines adds to nothing; a
+        // statement naming more lines than the record holds is cut short with
+        // "…" and still says how the cost moved.
+        var imported = Estimate(
+            Header(rate: 48m),
+            Enumerable.Range(1, 60)
+                .Select(index => Line("new_part", price: 10m) with { Description = $"Part {index} " + new string('x', 280) })
+                .ToArray());
+
+        Assert.Null(RepairSpecificationComparison.ForImport(Guid.NewGuid(), Estimate(Header(rate: 48m)), imported));
+
+        var from = Estimate(Header(rate: 48m), Line("new_part", price: 100m) with { Description = "Bumper" });
+        var supplementary = RepairSpecificationComparison.ForImport(Guid.NewGuid(), from, imported);
+
+        Assert.NotNull(supplementary);
+        var statement = supplementary.Statement;
+        Assert.InRange(statement.Length, 1, RepairSpecificationComparison.MaximumStatementLength);
+        Assert.Contains("now required: Part 1 ", statement, StringComparison.Ordinal);
+        Assert.Contains("; …. Bumper is no longer required.", statement, StringComparison.Ordinal);
+        Assert.Contains("The estimated repair cost has increased from", statement, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// The sentence that names the sum is the report's own
     /// (<c>ReportWordingTests</c>); the sum itself is money on the Case.

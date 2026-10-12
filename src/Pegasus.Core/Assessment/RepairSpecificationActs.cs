@@ -543,7 +543,33 @@ public static class RepairSpecificationComparison
         return Compare(from.AsSpecification(), to);
     }
 
-    /// <summary>The composed paragraph: the reason's lead, then what was added, revised, no longer required and the movement of the cost.</summary>
+    /// <summary>The longest statement the specification's record holds.</summary>
+    public const int MaximumStatementLength = 4000;
+
+    /// <summary>
+    /// What an import onto a spec supplements (v38 P3): the import against
+    /// the version it is measured from, under the first reason, Explain
+    /// unticked. None when that version held no lines: an import onto an
+    /// empty spec adds to nothing.
+    /// </summary>
+    public static RepairSpecificationSupplementary? ForImport(
+        Guid ofSnapshotId, RepairSpecificationVersion from, RepairSpecificationVersion imported)
+    {
+        ArgumentNullException.ThrowIfNull(from);
+        if (from.Lines.Count == 0)
+        {
+            return null;
+        }
+        var reason = SupplementaryReasons[0].Code;
+        return new(ofSnapshotId, reason, false, SupplementaryStatement(Compare(from, imported), reason));
+    }
+
+    /// <summary>
+    /// The composed paragraph: the reason's lead, then what was added, revised,
+    /// no longer required and the movement of the cost. A change list too long
+    /// for <see cref="MaximumStatementLength"/> is cut short with an ellipsis; the
+    /// movement of the cost always stands.
+    /// </summary>
     public static string SupplementaryStatement(Diff diff, string reasonCode)
     {
         ArgumentNullException.ThrowIfNull(diff);
@@ -552,23 +578,46 @@ public static class RepairSpecificationComparison
         {
             throw new ArgumentException("The supplementary reason is not one of the four.", nameof(reasonCode));
         }
-        var text = reason.Lead + (diff.Added.Count > 0
-            ? " the following additional items are now required: " + string.Join("; ", diff.Added.Select(Name)) + "."
-            : " the repair specification has been revised.");
         var hours = diff.Changed
             .Where(change => change.ChangedFields.Contains("hours") || change.ChangedFields.Contains("paint hours"))
             .ToArray();
+        var shown = Math.Max(diff.Added.Count, Math.Max(hours.Length, diff.Removed.Count));
+        var text = Statement(diff, reason.Lead, hours, shown);
+        while (text.Length > MaximumStatementLength && shown > 0)
+        {
+            shown--;
+            text = Statement(diff, reason.Lead, hours, shown);
+        }
+        return text;
+    }
+
+    private static string Statement(Diff diff, string lead, LineChange[] hours, int shown)
+    {
+        var text = lead + (diff.Added.Count > 0
+            ? " the following additional items are now required: " + Names(diff.Added, shown, Name) + "."
+            : " the repair specification has been revised.");
         if (hours.Length > 0)
         {
-            text += " The repair time for " + string.Join("; ", hours.Select(change =>
-                $"{Name(change.To)} ({Hours(change.From)} h \u2192 {Hours(change.To)} h)")) + " has been revised.";
+            text += " The repair time for " + Names(hours, shown, change =>
+                $"{Name(change.To)} ({Hours(change.From)} h \u2192 {Hours(change.To)} h)") + " has been revised.";
         }
         if (diff.Removed.Count > 0)
         {
-            text += " " + string.Join("; ", diff.Removed.Select(Name)) + (diff.Removed.Count > 1 ? " are" : " is") + " no longer required.";
+            text += " " + Names(diff.Removed, shown, Name) + (diff.Removed.Count > 1 ? " are" : " is") + " no longer required.";
         }
         text += $" The estimated repair cost has {(diff.GrossTo >= diff.GrossFrom ? "increased" : "reduced")} from {RepairSpecificationWording.Money(diff.GrossFrom)} to {RepairSpecificationWording.Money(diff.GrossTo)}.";
         return text;
+    }
+
+    /// <summary>The first <paramref name="shown"/> items, and an ellipsis for any more.</summary>
+    private static string Names<T>(IReadOnlyList<T> items, int shown, Func<T, string> name)
+    {
+        var names = items.Take(shown).Select(name).ToList();
+        if (items.Count > shown)
+        {
+            names.Add("\u2026");
+        }
+        return string.Join("; ", names);
     }
 
     private static bool SameLine(CaseEstimateLineRecord a, CaseEstimateLineRecord b)
