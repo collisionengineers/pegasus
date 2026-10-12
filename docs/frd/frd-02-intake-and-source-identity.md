@@ -57,13 +57,15 @@ Every intake path must:
 Intake can start from staff-forwarded email, Principal material, manually
 supplied files, images, correspondence, or a future approved API route. Receiving something does not create a Case.
 
-**Tractable capture (`EXT-17`).** Guided image capture happens outside
-Pegasus. Collision Engineers sends permanent external upload links that run
-through Tractable, and Tractable then emails a PDF. Pegasus has no Tractable
-integration. The emailed PDF is ordinary inbound mail: it follows the same
-receipt, classification and extraction rules as any other attachment. Which
-fields Pegasus reads from the Tractable PDF is an
-[open decision](../open-decisions.md).
+**Tractable capture (`EXT-17`).** Tractable is a capture service outside
+Pegasus and a way information arrives, like WhatsApp or email. Pegasus has no
+Tractable integration. A completed capture makes Tractable email a PDF whose
+format is the same whichever Principal used the service. That PDF is a
+document type, not a Principal, and it is ordinary inbound mail: it follows
+the same receipt, classification and extraction rules as any other
+attachment. Pegasus reads the vehicle identity from it (registration, make
+and model, VIN, mileage and accident date) and nothing else, and takes the
+vehicle images from the PDF itself.
 
 **Direct Case creation** is a staff path that the Automation Actor also
 takes, through `pegasus_case_create`

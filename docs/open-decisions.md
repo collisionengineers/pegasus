@@ -9,13 +9,6 @@ Add a question here only when it is genuinely unresolved, with its owner,
 affected contract and the decision needed; remove it once its outcome has a
 durable owner.
 
-## Tractable PDF fields
-
-Owner: [FRD-02](frd/frd-02-intake-and-source-identity.md#ways-intake-starts)
-(`EXT-17`). Tractable emails a PDF after guided capture. Decision needed:
-which fields Pegasus reads from that PDF, and whether its images are taken
-from the PDF or from a separate attachment.
-
 ## Outlook category write
 
 Owner: [FRD-08](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue)
