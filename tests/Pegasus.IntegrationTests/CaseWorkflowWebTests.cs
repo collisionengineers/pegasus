@@ -165,7 +165,7 @@ public sealed class CaseWorkflowWebTests
     [InlineData(CaseLifecycleState.NotReady)]
     [InlineData(CaseLifecycleState.Review)]
     [InlineData(CaseLifecycleState.ReportPreparation)]
-    [InlineData(CaseLifecycleState.PostReport)]
+    [InlineData(CaseLifecycleState.ReportSent)]
     [InlineData(CaseLifecycleState.PrincipalCancelled)]
     public async Task ExportCaseIsOfferedInEveryState(CaseLifecycleState state)
     {

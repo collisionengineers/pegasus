@@ -13,7 +13,7 @@
   separate recorded event.
 - An issued report is immutable. A correction is a new version; the old one
   is kept.
-- Report sent starts post-report work. It does not close the Case.
+- Report sent is the Case's last stage. It does not close the Case.
 
 ## Purpose
 
@@ -543,13 +543,14 @@ correction history.
 
 Report sent is the exact approved-mailbox Sent-item evidence in
 [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence).
-Report sent starts post-report work; it does not close the Case.
+Report sent is the Case's last stage; it does not close the Case.
 
 Post-report queries (a dispute is a query), amendment requests and replies
 stay Case correspondence with source and reply-chain identity and permanent
-history. The Engineer answers them. The Completed → Query → Completed cycle is in
-[FRD-13](frd-13-case-lifecycle-and-workflow.md#completed-and-query). A
-mailbox adapter calls that shared transition; it never allocates a Case or a
+history. The Engineer answers them. How a query is raised and resolved on
+the Case is in
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries). A
+mailbox adapter calls that shared rule; it never allocates a Case or a
 reference.
 
 Requirements:

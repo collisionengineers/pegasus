@@ -8,6 +8,7 @@ using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Tasks;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Vehicle;
@@ -20,7 +21,7 @@ namespace Pegasus.Web.Presentation;
 /// </summary>
 /// <remarks>
 /// Raw <c>enum.ToString()</c>, snake_case event codes and PascalCase compounds
-/// never reach markup: "NotReady", "PostReportComplete", "case_created" and
+/// never reach markup: "NotReady", "ReportSent", "case_created" and
 /// "InspectionAndAudit" are all things the codebase calls itself, not things
 /// the business calls anything.
 ///
@@ -149,19 +150,17 @@ public static class OperatorLabels
     /// <summary>
     /// The case lifecycle stage as the operator reads it (operator decision D3): a
     /// display mapping only. <see cref="CaseLifecycleState.ReportPreparation"/>
-    /// and <see cref="CaseLifecycleState.PostReport"/> both read "With
-    /// Engineer", <see cref="CaseLifecycleState.PostReportComplete"/> reads
-    /// "Completed", and <see cref="CaseLifecycleState.Query"/> reads "Query".
-    /// The Core enum is untouched.
+    /// reads "With Engineer" and <see cref="CaseLifecycleState.ReportSent"/>
+    /// reads "Report sent". The Core enum is untouched. A Case with an open
+    /// query reads "Query" through <see cref="CaseStage(CaseLifecycleState, bool)"/>.
     /// </summary>
     public static string CaseStage(CaseLifecycleState state) => state switch
     {
         CaseLifecycleState.NotReady => "Not ready",
         CaseLifecycleState.Held => "Held",
         CaseLifecycleState.Review => "Review",
-        CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport => "With Engineer",
-        CaseLifecycleState.PostReportComplete => "Completed",
-        CaseLifecycleState.Query => "Query",
+        CaseLifecycleState.ReportPreparation => "With Engineer",
+        CaseLifecycleState.ReportSent => "Report sent",
         CaseLifecycleState.PrincipalCancelled => "Closed · Cancelled",
         CaseLifecycleState.CollisionEngineersRejected => "Closed · Collision Engineers rejected",
         CaseLifecycleState.CreatedInError => "Closed · Created in error",
@@ -169,23 +168,55 @@ public static class OperatorLabels
         _ => Humanise(state.ToString())
     };
 
-    /// <summary>
-    /// One state per <see cref="CaseStage(CaseLifecycleState)"/> name, in enum
-    /// order: the first state of each stage stands for it, so a state filter
-    /// lists With Engineer once.
-    /// </summary>
-    public static IReadOnlyList<CaseLifecycleState> CaseStages { get; } = Enum.GetValues<CaseLifecycleState>()
-        .DistinctBy(CaseStage)
-        .ToArray();
+    /// <summary>The stage word of an open Case that holds an open query (operator, 11 October 2026).</summary>
+    public const string QueryStage = "Query";
 
     /// <summary>
-    /// Every state that reads as <paramref name="state"/>'s stage: both With
-    /// Engineer states for either of them, otherwise the state alone.
+    /// The stage as every screen, queue and filter reads it: Query while the
+    /// Case holds an open query, otherwise the state's own word.
     /// </summary>
-    public static IReadOnlyList<CaseLifecycleState> CaseStageStates(CaseLifecycleState state) =>
-        Enum.GetValues<CaseLifecycleState>()
-            .Where(candidate => CaseStage(candidate) == CaseStage(state))
-            .ToArray();
+    public static string CaseStage(CaseLifecycleState state, bool hasOpenQuery) =>
+        CaseQueryRules.IsQueryStage(state, hasOpenQuery) ? QueryStage : CaseStage(state);
+
+    /// <summary>
+    /// One choice of the Case stage filter: the states it finds and, where the
+    /// stage is decided by the open-query mark rather than the state alone,
+    /// which mark.
+    /// </summary>
+    public sealed record CaseStageOption(
+        string Key,
+        string Label,
+        IReadOnlyList<CaseLifecycleState> States,
+        bool? HasOpenQuery = null);
+
+    /// <summary>
+    /// The stages a Case can be filtered by, in workflow order: one per stage
+    /// word. Report sent is a Case with no open query; Query is any open Case
+    /// with one.
+    /// </summary>
+    public static IReadOnlyList<CaseStageOption> CaseStageOptions { get; } =
+    [
+        new(nameof(CaseLifecycleState.NotReady), CaseStage(CaseLifecycleState.NotReady), [CaseLifecycleState.NotReady]),
+        new(nameof(CaseLifecycleState.Review), CaseStage(CaseLifecycleState.Review), [CaseLifecycleState.Review]),
+        new(nameof(CaseLifecycleState.ReportPreparation), CaseStage(CaseLifecycleState.ReportPreparation), [CaseLifecycleState.ReportPreparation]),
+        new(nameof(CaseLifecycleState.ReportSent), CaseStage(CaseLifecycleState.ReportSent), [CaseLifecycleState.ReportSent], HasOpenQuery: false),
+        new(
+            QueryStage,
+            QueryStage,
+            Enum.GetValues<CaseLifecycleState>().Where(state => !CaseLifecycleRules.IsTerminal(state)).ToArray(),
+            HasOpenQuery: true),
+        new(nameof(CaseLifecycleState.Held), CaseStage(CaseLifecycleState.Held), [CaseLifecycleState.Held]),
+        new(nameof(CaseLifecycleState.PrincipalCancelled), CaseStage(CaseLifecycleState.PrincipalCancelled), [CaseLifecycleState.PrincipalCancelled]),
+        new(nameof(CaseLifecycleState.CollisionEngineersRejected), CaseStage(CaseLifecycleState.CollisionEngineersRejected), [CaseLifecycleState.CollisionEngineersRejected]),
+        new(nameof(CaseLifecycleState.CreatedInError), CaseStage(CaseLifecycleState.CreatedInError), [CaseLifecycleState.CreatedInError]),
+        new(nameof(CaseLifecycleState.SourceEmailUnlinked), CaseStage(CaseLifecycleState.SourceEmailUnlinked), [CaseLifecycleState.SourceEmailUnlinked])
+    ];
+
+    /// <summary>The stage option a filter value names, or null for none or an unknown key.</summary>
+    public static CaseStageOption? FindCaseStageOption(string? key) =>
+        string.IsNullOrWhiteSpace(key)
+            ? null
+            : CaseStageOptions.FirstOrDefault(option => string.Equals(option.Key, key.Trim(), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// One named closure outcome, as the operator chooses it. The words are
@@ -194,7 +225,6 @@ public static class OperatorLabels
     /// </summary>
     public static string CaseClosure(CaseClosureOutcome outcome) => outcome switch
     {
-        CaseClosureOutcome.PostReportComplete => "Completed",
         CaseClosureOutcome.PrincipalCancelled => "Cancelled",
         CaseClosureOutcome.CollisionEngineersRejected => "Collision Engineers rejected",
         CaseClosureOutcome.CreatedInError => "Created in error",
@@ -476,6 +506,8 @@ public static class OperatorLabels
 
         public const string Working = "Working…";
         public const string Adding = "Adding…";
+        public const string Logging = "Logging…";
+        public const string Resolving = "Resolving…";
         public const string Applying = "Applying…";
         public const string Archiving = "Archiving…";
         public const string Assigning = "Assigning…";
@@ -847,7 +879,6 @@ public static class OperatorLabels
         public const string ThisWeek = "This week";
         public const string SentToEngineer = "Sent to Engineer";
         public const string ReportsSent = "Reports sent";
-        public const string Completed = "Completed";
         public const string EmailsReceived = "E-mails received";
         public const string ActivityUnavailable = "Activity is unavailable.";
 
@@ -1334,6 +1365,10 @@ public static class OperatorLabels
         "estimate_scaled" => "Repair spec scaled",
         "estimate_scaling_removed" => "Scaling removed",
         "estimate_restored" => "Repair spec restored",
+        "case_query_logged" => "Query logged",
+        "case_query_received" => "Query received",
+        "case_query_withdrawn" => "Query withdrawn",
+        "case_queries_resolved" => "Queries resolved",
         _ => Humanise(eventType)
     };
 
@@ -1438,7 +1473,7 @@ public static class OperatorLabels
     public static string StatusTone(string? state)
     {
         // Normalising only `_` and `-` meant a PascalCase compound reaching the
-        // chip — "NotReady", "PostReportComplete" — matched no key and fell
+        // chip — "NotReady", "ReportPreparation" — matched no key and fell
         // through to neutral grey, losing both the wording and the
         // amber/navy/green tone contract. Callers should pass an operator
         // label, but the chip must not silently mis-tone a state when one
@@ -1521,7 +1556,9 @@ public static class OperatorLabels
                 or "configured" or "succeeded" or "passed" or "roadworthy" => "green",
             "could not be read" or "case not created" or "rejected" or "refused" or "overdue"
                 or "unroadworthy" or "failure" => "red",
-            "query" or "creating case" or "not yet processed" or "draft" or "password change required"
+            // A Case with an open query (operator, 11 October 2026): its own tone.
+            "query" => "purple",
+            "creating case" or "not yet processed" or "draft" or "password change required"
                 or "overridden" or "today" => "amber",
             "repairable" => "blue",
             "dismissed" or "staff closed" or "no recorded activity" => "neutral",
@@ -1536,8 +1573,8 @@ public static class OperatorLabels
 
     /// <summary>
     /// Turns a persisted code into a sentence: <c>case_returned_to_review</c>
-    /// becomes "Case returned to review", <c>PostReportComplete</c> becomes
-    /// "Post report complete".
+    /// becomes "Case returned to review", <c>ReportPreparation</c> becomes
+    /// "Report preparation".
     /// </summary>
     public static string Humanise(string? code)
     {
@@ -1892,6 +1929,8 @@ public static class OperatorLabels
         public const string Reply = "Reply";
         public const string ReplyAll = "Reply all";
         public const string Forward = "Forward";
+        /// <summary>The reply composer's tick that resolves the Case's open queries on observed Sent (operator, 11 October 2026).</summary>
+        public const string AlsoResolveQuery = "Also resolve query";
 
         public static string State(Pegasus.Core.Operations.StaffMailState state) => state switch
         {
@@ -2297,7 +2336,8 @@ public static class OperatorLabels
             new("settlement", "Decisions", "icon-check-circle"),
             new("report", "Report", "icon-file"),
             new("files", "Files", "icon-folder"),
-            new("notes", "Notes", "icon-history")
+            new("notes", "Notes", "icon-history"),
+            new("queries", "Queries", "icon-reply")
         ];
 
         /// <summary>The section a <c>?section=</c> value the record does not own selects.</summary>

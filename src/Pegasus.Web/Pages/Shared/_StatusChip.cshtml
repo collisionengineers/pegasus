@@ -2,7 +2,7 @@
     The single place a business or query state is drawn as a chip.
 
     Model: the exact state text to display. Business labels keep their settled
-    casing (`Not ready`, `Review`, `With Engineer`, `Complete`, `Held`,
+    casing (`Not ready`, `Review`, `With Engineer`, `Report sent`, `Query`, `Held`,
     `Unidentified`); this partial never rewrites the
     caller's words, it only picks a tone for them, through the one tone table
     in OperatorLabels.StatusTone, which the Inbox preview's JSON reads too so a
@@ -10,7 +10,7 @@
 
     ViewData["StatusCount"] — optional count appended in brackets.
     ViewData["StatusTone"]  — optional explicit tone override
-                              (navy | amber | red | green | blue | neutral).
+                              (navy | amber | red | green | blue | purple | neutral).
 
     Every chip carries its text label and the chip's own leading dot, so no
     state is conveyed by colour alone.

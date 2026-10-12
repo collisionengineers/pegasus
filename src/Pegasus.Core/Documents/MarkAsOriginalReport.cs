@@ -63,7 +63,7 @@ public static class OriginalReportPolicy
         bool hasCurrentAuditReport) =>
         IsMissing(caseType, standaloneAuditEvidenceId, hasCurrentAuditReport)
         && !isArchived
-        && !CaseLifecycleRules.IsClosed(state);
+        && !CaseLifecycleRules.IsTerminal(state);
 
     /// <summary>
     /// A retained file that may be the original report: the uploaded file
@@ -121,7 +121,7 @@ public static class OriginalReportPolicy
             throw new InvalidOperationException(
                 "An original report can be recorded only for an Audit case.");
         }
-        if (CaseLifecycleRules.IsClosed(state))
+        if (CaseLifecycleRules.IsTerminal(state))
         {
             throw new InvalidOperationException(
                 "An original report can be recorded only for an open Audit case.");

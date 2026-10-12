@@ -157,7 +157,9 @@ offered while a colleague holds it. Typical entries include:
 - Export case, on every standard Case in every state: a direct download form, no dialog,
   no lease, no reason;
 - Mark report sent;
-- Mark completed;
+- Log query, on a Report sent Case (a compact dialog: channel and details, no reason), and
+  Resolve query while a query is open (a direct post, no dialog, no reason; operator, 11 October
+  2026);
 - Return to Review / Return to Engineer;
 - Archive;
 - Send chaser, on any open Case where staff mail is composed in (operator, 5 October 2026): a

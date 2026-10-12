@@ -413,8 +413,7 @@ public sealed class EvaluateIntakeCaseMatchTests
     [Theory]
     [InlineData(CaseLifecycleState.NotReady)]
     [InlineData(CaseLifecycleState.Held)]
-    [InlineData(CaseLifecycleState.PostReport)]
-    [InlineData(CaseLifecycleState.PostReportComplete)]
+    [InlineData(CaseLifecycleState.ReportSent)]
     [InlineData(CaseLifecycleState.PrincipalCancelled)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
     public async Task EveryLifecycleStateExceptCreatedInErrorRemainsEligible(

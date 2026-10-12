@@ -470,6 +470,12 @@ public sealed class StaffMailSend(
         {
             throw new ArgumentException("Reply, reply-all and forward require an original message; new mail must not name one.", nameof(command));
         }
+        if (command.ResolvesCaseQueries
+            && (command.Purpose != StaffMailPurpose.GeneralCorrespondence
+                || command.ComposeMode is not (StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll)))
+        {
+            throw new ArgumentException("Only a reply to Case correspondence can resolve the Case's queries.", nameof(command));
+        }
     }
 
     /// <summary>

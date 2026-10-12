@@ -55,6 +55,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         Set<ApprovedMailboxSubscriptionEntity>();
     internal DbSet<CaseWorkflowEntity> CaseWorkflows => Set<CaseWorkflowEntity>();
     internal DbSet<CaseWorkflowEventEntity> CaseWorkflowEvents => Set<CaseWorkflowEventEntity>();
+    internal DbSet<CaseQueryEntity> CaseQueries => Set<CaseQueryEntity>();
     internal DbSet<CaseEditLeaseOperationEntity> CaseEditLeaseOperations =>
         Set<CaseEditLeaseOperationEntity>();
     internal DbSet<CaseReportApprovalEntity> CaseReportApprovals => Set<CaseReportApprovalEntity>();

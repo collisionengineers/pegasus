@@ -63,9 +63,9 @@
             <label for="search-state">State</label>
             <select id="search-state" name="state">
                 <option value="">All states</option>
-                @foreach (var state in OperatorLabels.CaseStages)
+                @foreach (var option in OperatorLabels.CaseStageOptions)
                 {
-                    <option value="@state" selected="@(Model.State is { } chosen && OperatorLabels.CaseStage(chosen) == OperatorLabels.CaseStage(state))">@OperatorLabels.CaseStage(state)</option>
+                    <option value="@option.Key" selected="@(OperatorLabels.FindCaseStageOption(Model.State)?.Key == option.Key)">@option.Label</option>
                 }
             </select>
         </div>

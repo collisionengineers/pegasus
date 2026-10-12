@@ -16,17 +16,11 @@ internal sealed class EfWorkCentreActivityQueries(IDbContextFactory<PegasusDbCon
     /// <summary>The workflow event that moves a Case into With Engineer.</summary>
     private const string FirstSentToEngineerEvent = "state_ReportPreparation";
 
-    /// <summary>
-    /// The workflow events that put a Case into Complete: Complete itself, a
-    /// reply to a post-report query, and a query withdrawn by correction or
-    /// unlink. A Case reopened later still counts for the week it completed,
-    /// and a Case that enters Complete more than once counts once.
-    /// </summary>
-    private static readonly string[] CompletionEvents =
+    /// <summary>The workflow events that link a Case's report-Sent evidence, by staff or by the Worker.</summary>
+    private static readonly string[] ReportSentEvents =
     [
-        "case_completed",
-        PostReportQueryTransitions.QueryRepliedEvent,
-        PostReportQueryTransitions.QueryWithdrawnEvent
+        "report_evidence_linked",
+        "report_evidence_auto_linked"
     ];
 
     public async Task<WorkCentreActivityCounts> GetAsync(
@@ -34,16 +28,15 @@ internal sealed class EfWorkCentreActivityQueries(IDbContextFactory<PegasusDbCon
         DateTimeOffset weekStartUtc,
         CancellationToken cancellationToken)
     {
-        // The five figures are independent reads, each on its own context.
+        // The four figures are independent reads, each on its own context.
         var newCases = CountAsync(NewCases, dayStartUtc, weekStartUtc, cancellationToken);
         var sentToEngineer = CountAsync(SentToEngineer, dayStartUtc, weekStartUtc, cancellationToken);
         var reportsSent = CountAsync(ReportsSent, dayStartUtc, weekStartUtc, cancellationToken);
-        var completed = CountAsync(Completed, dayStartUtc, weekStartUtc, cancellationToken);
         var emailsReceived = CountAsync(EmailsReceived, dayStartUtc, weekStartUtc, cancellationToken);
 
-        await Task.WhenAll(newCases, sentToEngineer, reportsSent, completed, emailsReceived);
+        await Task.WhenAll(newCases, sentToEngineer, reportsSent, emailsReceived);
         return new WorkCentreActivityCounts(
-            await newCases, await sentToEngineer, await reportsSent, await completed, await emailsReceived);
+            await newCases, await sentToEngineer, await reportsSent, await emailsReceived);
     }
 
     // New cases counts what the New cases list counts: every Case except a
@@ -67,22 +60,19 @@ internal sealed class EfWorkCentreActivityQueries(IDbContextFactory<PegasusDbCon
             .Select(group => group.Min(item => item.OccurredAtUtc));
     }
 
-    // Reports sent counts sent report e-mails as the Engineer activity report
-    // (MI-01) counts them, so the two agree for the same week (item F).
-    private static IQueryable<DateTimeOffset> ReportsSent(PegasusDbContext context, DateTimeOffset weekStartUtc) =>
-        context.Set<StaffMailSendOperationEntity>()
-            .Where(item => item.Purpose == StaffMailPurpose.CaseReport
-                && item.State == StaffMailState.Sent
-                && item.ObservedSentAtUtc >= weekStartUtc)
-            .Select(item => item.ObservedSentAtUtc!.Value);
-
-    // Completed counts Cases, each once (item H): a Case's latest entry this
-    // week is today exactly when any of its entries is.
-    private static IQueryable<DateTimeOffset> Completed(PegasusDbContext context, DateTimeOffset weekStartUtc) =>
-        context.CaseWorkflowEvents
-            .Where(item => item.OccurredAtUtc >= weekStartUtc && CompletionEvents.Contains(item.EventType))
+    // Reports sent counts Cases whose first report was sent, each once
+    // (operator, 11 October 2026): the first link of report-Sent evidence; a
+    // later re-send is not a second report. Only this week's links are read; a
+    // Case with an earlier link was first reported before the week began.
+    private static IQueryable<DateTimeOffset> ReportsSent(PegasusDbContext context, DateTimeOffset weekStartUtc)
+    {
+        var links = context.CaseWorkflowEvents.Where(item => ReportSentEvents.Contains(item.EventType));
+        return links
+            .Where(item => item.OccurredAtUtc >= weekStartUtc
+                && !links.Any(earlier => earlier.CaseId == item.CaseId && earlier.OccurredAtUtc < weekStartUtc))
             .GroupBy(item => item.CaseId)
-            .Select(group => group.Max(item => item.OccurredAtUtc));
+            .Select(group => group.Min(item => item.OccurredAtUtc));
+    }
 
     // E-mails received counts mail arrivals only; a manual upload is also a
     // receipt and must not inflate the figure (PLAT-012).

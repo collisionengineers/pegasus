@@ -138,10 +138,10 @@ repeat every minute.
 - Staff may add manually received WhatsApp evidence with its source and
   channel provenance. That does not switch on a WhatsApp integration.
 - Case and file changes use the normal role, lease and version guards.
-  Completed does not lock correspondence or files; a query on a Completed
-  Case follows
-  [FRD-13](frd-13-case-lifecycle-and-workflow.md#completed-and-query). Box
-  offers no way around application authorisation.
+  Report sent does not lock correspondence or files; a query on a Report
+  sent Case follows
+  [FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries).
+  Box offers no way around application authorisation.
 - Default local development must not change any Outlook mailbox or Box
   location. The separately approved Box integration-test profile, and
   explicitly approved non-production test deployments, may create and update

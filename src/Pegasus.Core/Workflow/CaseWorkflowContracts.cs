@@ -14,9 +14,11 @@ public enum CaseLifecycleState
     Held,
     Review,
     ReportPreparation,
-    PostReport,
-    PostReportComplete,
-    Query,
+    /// <summary>
+    /// The report has been sent: the Case's last stage, still editable. A query
+    /// is a record on the Case, not a state (operator, 11 October 2026).
+    /// </summary>
+    ReportSent,
     PrincipalCancelled,
     CollisionEngineersRejected,
     CreatedInError,
@@ -25,7 +27,6 @@ public enum CaseLifecycleState
 
 public enum CaseClosureOutcome
 {
-    PostReportComplete,
     PrincipalCancelled,
     CollisionEngineersRejected,
     CreatedInError,
@@ -37,7 +38,33 @@ public enum CaseReopenDestination
     NotReady,
     Review,
     ReportPreparation,
-    PostReport
+    ReportSent
+}
+
+/// <summary>Where a Case query came from: a tagged e-mail or a staff member's log.</summary>
+public enum CaseQuerySource
+{
+    Mail,
+    Staff
+}
+
+/// <summary>How a staff-logged query reached the office (operator, 11 October 2026).</summary>
+public enum CaseQueryChannel
+{
+    Email,
+    Phone,
+    WhatsApp,
+    Other
+}
+
+/// <summary>
+/// How an open query closed: resolved by staff, Automation or a flagged reply,
+/// or withdrawn because its e-mail was untagged or unlinked before any resolution.
+/// </summary>
+public enum CaseQueryClosure
+{
+    Resolved,
+    Withdrawn
 }
 
 /// <summary>
@@ -170,6 +197,13 @@ public sealed record CaseWorkflowRecord(
     /// recorded before the moment was kept.
     /// </summary>
     public DateTimeOffset? StateEnteredAtUtc { get; init; }
+
+    /// <summary>
+    /// Whether the Case has at least one open query. The one fact every screen,
+    /// queue and filter reads for the Query stage; the query records themselves
+    /// are the Case's Queries section.
+    /// </summary>
+    public bool HasOpenQuery { get; init; }
 }
 
 public sealed record CaseEditLease(
@@ -449,6 +483,32 @@ public sealed record ReturnCaseToEngineerRequest(
     string EditLeaseToken)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
+/// <summary>
+/// Logs a query a staff member or Automation received outside Pegasus's mail
+/// (a phone call, a WhatsApp, an e-mail elsewhere). <paramref name="Details"/>
+/// is what the query is, as typed; the envelope's reason is optional here.
+/// </summary>
+public sealed record RaiseCaseQueryRequest(
+    Guid CaseId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    string EditLeaseToken,
+    CaseQueryChannel Channel,
+    string? Details)
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+
+/// <summary>Resolves every open query on the Case at once (operator, 11 October 2026).</summary>
+public sealed record ResolveCaseQueriesRequest(
+    Guid CaseId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    string EditLeaseToken)
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+
 public interface ICaseWorkflowQueries
 {
     Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken);
@@ -552,6 +612,16 @@ public interface ICaseWorkflowStore : ICaseWorkflowQueries, ILeaseCaseForEdit
     Task<CaseWorkflowRecord> ReturnToEngineerAsync(
         ReturnCaseToEngineerRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>Logs a staff-sourced query and marks the Case as having an open query.</summary>
+    Task<CaseWorkflowRecord> RaiseQueryAsync(
+        RaiseCaseQueryRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>Resolves every open query on the Case and clears the open-query mark.</summary>
+    Task<CaseWorkflowRecord> ResolveQueriesAsync(
+        ResolveCaseQueriesRequest request,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -634,5 +704,19 @@ public interface IReturnCaseToEngineer
 {
     Task<CaseWorkflowRecord> ExecuteAsync(
         ReturnCaseToEngineerRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IRaiseCaseQuery
+{
+    Task<CaseWorkflowRecord> ExecuteAsync(
+        RaiseCaseQueryRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IResolveCaseQueries
+{
+    Task<CaseWorkflowRecord> ExecuteAsync(
+        ResolveCaseQueriesRequest request,
         CancellationToken cancellationToken);
 }

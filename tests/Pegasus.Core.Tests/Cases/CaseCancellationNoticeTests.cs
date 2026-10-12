@@ -17,12 +17,11 @@ public sealed class CaseCancellationNoticeTests
     [Theory]
     [InlineData(CaseLifecycleState.NotReady)]
     [InlineData(CaseLifecycleState.ReportPreparation)]
-    [InlineData(CaseLifecycleState.Query)]
+    [InlineData(CaseLifecycleState.ReportSent)]
     public void AnOpenCaseCanShowACancellation(CaseLifecycleState state) =>
         Assert.True(CaseCancellationNotice.Applies(Workflow(state)));
 
     [Theory]
-    [InlineData(CaseLifecycleState.PostReportComplete)]
     [InlineData(CaseLifecycleState.PrincipalCancelled)]
     [InlineData(CaseLifecycleState.CreatedInError)]
     public void AClosedCaseShowsNoCancellation(CaseLifecycleState state) =>

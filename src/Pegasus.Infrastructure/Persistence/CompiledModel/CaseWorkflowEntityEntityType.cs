@@ -19,10 +19,10 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.CaseWorkflowEntity",
                 typeof(CaseWorkflowEntity),
                 baseEntityType,
-                propertyCount: 28,
+                propertyCount: 29,
                 navigationCount: 6,
                 foreignKeyCount: 5,
-                unnamedIndexCount: 5,
+                unnamedIndexCount: 6,
                 keyCount: 1);
 
             var caseId = runtimeEntityType.AddProperty(
@@ -179,6 +179,16 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             editLeaseTokenHash.AddAnnotation("Relational:IsFixedLength", true);
             editLeaseTokenHash.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
+            var hasOpenQuery = runtimeEntityType.AddProperty(
+                "HasOpenQuery",
+                typeof(bool),
+                propertyInfo: typeof(CaseWorkflowEntity).GetProperty("HasOpenQuery", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(CaseWorkflowEntity).GetField("<HasOpenQuery>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            hasOpenQuery.AddAnnotation("Relational:DefaultValue", false);
+            hasOpenQuery.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
             var heldAtUtc = runtimeEntityType.AddProperty(
                 "HeldAtUtc",
                 typeof(DateTimeOffset?),
@@ -274,26 +284,30 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
-                new[] { originalCaseId },
-                unique: true);
-            index.AddAnnotation("Relational:Filter", "[OriginalCaseId] IS NOT NULL");
+                new[] { hasOpenQuery });
+            index.AddAnnotation("Relational:Filter", "[HasOpenQuery] = 1");
 
             var index0 = runtimeEntityType.AddIndex(
-                new[] { replacementCaseId },
+                new[] { originalCaseId },
                 unique: true);
-            index0.AddAnnotation("Relational:Filter", "[ReplacementCaseId] IS NOT NULL");
+            index0.AddAnnotation("Relational:Filter", "[OriginalCaseId] IS NOT NULL");
 
             var index1 = runtimeEntityType.AddIndex(
-                new[] { reportApprovalId },
+                new[] { replacementCaseId },
                 unique: true);
-            index1.AddAnnotation("Relational:Filter", "[ReportApprovalId] IS NOT NULL");
+            index1.AddAnnotation("Relational:Filter", "[ReplacementCaseId] IS NOT NULL");
 
             var index2 = runtimeEntityType.AddIndex(
-                new[] { reportSentEvidenceId },
+                new[] { reportApprovalId },
                 unique: true);
-            index2.AddAnnotation("Relational:Filter", "[ReportSentEvidenceId] IS NOT NULL");
+            index2.AddAnnotation("Relational:Filter", "[ReportApprovalId] IS NOT NULL");
 
             var index3 = runtimeEntityType.AddIndex(
+                new[] { reportSentEvidenceId },
+                unique: true);
+            index3.AddAnnotation("Relational:Filter", "[ReportSentEvidenceId] IS NOT NULL");
+
+            var index4 = runtimeEntityType.AddIndex(
                 new[] { state });
 
             return runtimeEntityType;

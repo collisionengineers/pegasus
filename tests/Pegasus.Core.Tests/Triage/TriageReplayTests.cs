@@ -9,7 +9,7 @@ namespace Pegasus.Core.Tests.Triage;
 public sealed class TriageReplayTests
 {
     [Theory]
-    [InlineData(CaseLifecycleState.PostReport, false, false, true)]
+    [InlineData(CaseLifecycleState.ReportSent, false, false, true)]
     [InlineData(CaseLifecycleState.Review, true, false, false)]
     [InlineData(CaseLifecycleState.Review, false, true, false)]
     [InlineData(CaseLifecycleState.PrincipalCancelled, false, false, false)]

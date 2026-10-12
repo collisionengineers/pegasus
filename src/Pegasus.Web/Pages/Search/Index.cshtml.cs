@@ -58,8 +58,9 @@ public sealed partial class IndexModel(
     [BindProperty(SupportsGet = true)]
     public string? Principal { get; set; }
 
+    /// <summary>The Case stage filter's key (<see cref="OperatorLabels.CaseStageOptions"/>); null or unknown is every stage.</summary>
     [BindProperty(SupportsGet = true)]
-    public CaseLifecycleState? State { get; set; }
+    public string? State { get; set; }
 
     [BindProperty(SupportsGet = true)]
     public Guid? EngineerId { get; set; }
@@ -179,8 +180,8 @@ public sealed partial class IndexModel(
                         Claimant,
                         ClaimNumber,
                         Principal,
-                        // The State filter is a stage: With Engineer finds both of its states (D3).
-                        State is { } state ? OperatorLabels.CaseStageStates(state) : null,
+                        // The State filter is a stage: Query finds every open Case with an open query.
+                        OperatorLabels.FindCaseStageOption(State)?.States,
                         EngineerId,
                         ReceivedDate,
                         FromDate,
@@ -188,7 +189,8 @@ public sealed partial class IndexModel(
                         Origin,
                         Query,
                         // Search is the one list that finds Triage Cases (decision W).
-                        IncludeTriage: true),
+                        IncludeTriage: true,
+                        HasOpenQuery: OperatorLabels.FindCaseStageOption(State)?.HasOpenQuery),
                     PageNumber,
                     ResultsPerPage),
                 cancellationToken);
@@ -376,7 +378,7 @@ public sealed partial class IndexModel(
     private static string StateLabel(CaseSearchItem item) =>
         item.CaseType == CaseType.Triage && item.TriageState is { } triageState
             ? OperatorLabels.TriageState(triageState)
-            : OperatorLabels.CaseStage(item.State);
+            : OperatorLabels.CaseStage(item.State, item.HasOpenQuery);
 
     /// <summary>
     /// This page's address with the given overrides. Every bound filter
@@ -417,7 +419,7 @@ public sealed partial class IndexModel(
         AddIfPresent(values, "claimant", Claimant);
         AddIfPresent(values, "claimNumber", ClaimNumber);
         AddIfPresent(values, "principal", Principal);
-        AddIfPresent(values, "state", State?.ToString());
+        AddIfPresent(values, "state", OperatorLabels.FindCaseStageOption(State)?.Key);
         AddIfPresent(values, "engineerId", EngineerId?.ToString("D"));
         AddIfPresent(
             values,

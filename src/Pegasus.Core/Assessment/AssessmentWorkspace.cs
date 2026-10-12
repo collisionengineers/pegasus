@@ -40,8 +40,7 @@ public static class AssessmentAccessPolicy
     public static bool CanOpen(AssessmentAccessState access)
     {
         ArgumentNullException.ThrowIfNull(access);
-        return AssessmentPolicy.IsWritableState(access.State)
-            || access.State is CaseLifecycleState.PostReportComplete;
+        return AssessmentPolicy.IsWritableState(access.State);
     }
 
     public static bool IsReadOnly(AssessmentAccessState access)

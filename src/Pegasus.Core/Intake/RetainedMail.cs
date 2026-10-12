@@ -249,12 +249,13 @@ public static class RetainedMailDirection
 /// <summary>
 /// What one correction did: the dossier it produced, the Case the message is
 /// currently linked to (null when none, or a Triage Case), and whether the
-/// correction moved that Case into Query or withdrew its query.
+/// correction raised a query on that Case (a post-report classification) or
+/// withdrew the one it had raised (corrected away).
 /// </summary>
 public sealed record MailClassificationCorrectionResult(
     MailClassificationDossier Dossier,
     Guid? LinkedCaseId,
-    PostReportQueryEntry QueryEntry,
+    bool QueryRaised,
     bool QueryWithdrawn);
 
 public interface IRetainedMailClassificationStore
@@ -437,7 +438,7 @@ public sealed class CorrectRetainedMailClassification(
         {
             return;
         }
-        if (result.QueryEntry == PostReportQueryEntry.EnterQuery)
+        if (result.QueryRaised)
         {
             await notifier.NotifyAsync(
                 StaffNotificationCause.QueryReceived, caseId, actor, "correspondence", null, cancellationToken);

@@ -188,6 +188,7 @@ internal sealed class SendMcpTools(
         [Description("Cc recipients, plain e-mail addresses: new, forward and triage_reply only.")] string[]? cc = null,
         [Description("new only: send it as the Case's chaser, recorded as a chase once it is Sent.")] bool chaser = false,
         [Description("Files to attach: Case document version ids (documentVersionId from pegasus_case_get), or for triage_reply the origin item's assetIds (pegasus_intake_get).")] Guid[]? attachments = null,
+        [Description("reply and reply_all only: also resolve the Case's open queries once the Sent item is observed, as the composer's Also resolve query tick does.")] bool resolveQuery = false,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.SendScope, cancellationToken);
@@ -221,6 +222,10 @@ internal sealed class SendMcpTools(
                 {
                     throw new McpException($"{verb} takes no messageId.");
                 }
+                if (resolveQuery && verb is not ("reply" or "reply_all"))
+                {
+                    throw new McpException("resolveQuery applies to reply and reply_all only.");
+                }
 
                 var (command, message) = verb switch
                 {
@@ -244,6 +249,7 @@ internal sealed class SendMcpTools(
                             Subject = subject.Trim(),
                             Body = body.Trim(),
                             OperationKey = key,
+                            ResolvesCaseQueries = resolveQuery,
                         },
                         cancellationToken);
                 return new MailSendToolResult(

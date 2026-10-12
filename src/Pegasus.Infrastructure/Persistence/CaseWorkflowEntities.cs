@@ -19,6 +19,8 @@ internal sealed class CaseWorkflowEntity : IApplicationManagedConcurrencyToken
     public CaseReportSentEvidenceEntity? ReportSentEvidence { get; set; }
     public CaseDueWorkEntity? DueWork { get; set; }
     public string? ClosureOutcome { get; set; }
+    // Whether a CaseQueries row is open; written only by CaseQueryLedger with the rows.
+    public bool HasOpenQuery { get; set; }
     public Guid? ReplacementCaseId { get; set; }
     public CaseEntity? ReplacementCase { get; set; }
     public Guid? OriginalCaseId { get; set; }
@@ -39,6 +41,31 @@ internal sealed class CaseWorkflowEntity : IApplicationManagedConcurrencyToken
     public string? EditLeaseOperationKey { get; set; }
     public DateTimeOffset? EditLeaseExpiresAtUtc { get; set; }
     public Guid ConcurrencyToken { get; set; }
+}
+
+/// <summary>
+/// One query on a Case (FRD-13 "Report sent and queries"): a tagged post-report
+/// e-mail (its receipt) or a staff-logged query (channel and details). Open
+/// while ClosedAtUtc is null. Only <see cref="CaseQueryLedger"/> writes rows.
+/// </summary>
+internal sealed class CaseQueryEntity
+{
+    public Guid Id { get; set; }
+    public Guid CaseId { get; set; }
+    public CaseWorkflowEntity Workflow { get; set; } = null!;
+    public required string Source { get; set; }
+    public Guid? IntakeReceiptId { get; set; }
+    public string? Channel { get; set; }
+    public string? Details { get; set; }
+    public DateTimeOffset RaisedAtUtc { get; set; }
+    public required string RaisedByKind { get; set; }
+    public required string RaisedBySubjectId { get; set; }
+    public required string RaisedOperationKey { get; set; }
+    public string? ClosedAs { get; set; }
+    public DateTimeOffset? ClosedAtUtc { get; set; }
+    public string? ClosedByKind { get; set; }
+    public string? ClosedBySubjectId { get; set; }
+    public Guid? ResolvedByMailOperationId { get; set; }
 }
 
 internal sealed class CaseWorkflowEventEntity

@@ -574,7 +574,7 @@ public sealed class EfCaseWorkflowStore(
                     CaseLifecycleState.NotReady
                     or CaseLifecycleState.Review
                     or CaseLifecycleState.ReportPreparation
-                    or CaseLifecycleState.PostReport))
+                    or CaseLifecycleState.ReportSent))
             {
                 throw new InvalidOperationException(
                     "The case hold does not retain a valid previous lifecycle state.");
@@ -888,7 +888,7 @@ public sealed class EfCaseWorkflowStore(
             evidence.LinkedByRolesJson = null;
             workflow.ReportSentEvidenceId = null;
             workflow.ReportSentEvidence = null;
-            if (workflow.State == nameof(CaseLifecycleState.PostReport))
+            if (workflow.State == nameof(CaseLifecycleState.ReportSent))
             {
                 workflow.State = nameof(CaseLifecycleState.ReportPreparation);
             }
@@ -901,9 +901,7 @@ public sealed class EfCaseWorkflowStore(
         CancellationToken cancellationToken) =>
         MutateAsync(
             request,
-            request.Outcome == CaseClosureOutcome.PostReportComplete
-                ? "case_completed"
-                : $"case_closed_{request.Outcome}",
+            $"case_closed_{request.Outcome}",
             async (context, workflow, now) =>
         {
             await CaseTerminalReadinessGuard.RequireNoOpenTasksAsync(
@@ -934,6 +932,29 @@ public sealed class EfCaseWorkflowStore(
             workflow.ClosureOutcome = null;
             CaseChaseState.Stop(workflow);
             return Task.CompletedTask;
+        }, cancellationToken);
+
+    public Task<CaseWorkflowRecord> RaiseQueryAsync(RaiseCaseQueryRequest request, CancellationToken cancellationToken) =>
+        MutateAsync(request, CaseQueryLedger.QueryLoggedEvent, (context, workflow, now) =>
+        {
+            // Re-checked under the lock: a query is logged only once the report is sent.
+            if (workflow.State != nameof(CaseLifecycleState.ReportSent))
+            {
+                throw new InvalidOperationException("A query can be logged only once the report is sent.");
+            }
+            CaseQueryLedger.RaiseForStaff(context, workflow, request, now);
+            return Task.CompletedTask;
+        }, cancellationToken);
+
+    public Task<CaseWorkflowRecord> ResolveQueriesAsync(ResolveCaseQueriesRequest request, CancellationToken cancellationToken) =>
+        MutateAsync(request, CaseQueryLedger.QueriesResolvedEvent, async (context, workflow, now) =>
+        {
+            var resolved = await CaseQueryLedger.ResolveAllAsync(
+                context, workflow, request.Actor.Kind, request.Actor.SubjectId, now, null, cancellationToken);
+            if (resolved == 0)
+            {
+                throw new InvalidOperationException("The case has no open query to resolve.");
+            }
         }, cancellationToken);
 
     public Task<CaseWorkflowRecord> ReopenAsync(ReopenCaseRequest request, CancellationToken cancellationToken) =>
@@ -1290,7 +1311,7 @@ public sealed class EfCaseWorkflowStore(
                 .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken);
             if (replay.EventType == "report_evidence_auto_linked" && replayWorkflow is not null)
             {
-                if (replayWorkflow.State == nameof(CaseLifecycleState.PostReport)
+                if (replayWorkflow.State == nameof(CaseLifecycleState.ReportSent)
                     && replayWorkflow.ReportSentEvidenceId == request.EvidenceId
                     && replayWorkflow.ReportSentEvidence?.CaseId == request.CaseId)
                 {
@@ -1520,7 +1541,7 @@ public sealed class EfCaseWorkflowStore(
 
         workflow.ReportSentEvidenceId = evidence.Id;
         workflow.ReportSentEvidence = evidence;
-        workflow.State = nameof(CaseLifecycleState.PostReport);
+        workflow.State = nameof(CaseLifecycleState.ReportSent);
         workflow.StateEnteredAtUtc = linkedAtUtc;
     }
 
@@ -1538,7 +1559,7 @@ public sealed class EfCaseWorkflowStore(
 
     private static AutoLinkReportEvidenceResult AutoLinkLinked(CaseWorkflowEntity workflow)
     {
-        if (workflow.State != nameof(CaseLifecycleState.PostReport)
+        if (workflow.State != nameof(CaseLifecycleState.ReportSent)
             || workflow.ReportSentEvidenceId is not { } evidenceId
             || workflow.ReportSentEvidence is not { } evidence
             || evidence.Id != evidenceId
@@ -1553,7 +1574,7 @@ public sealed class EfCaseWorkflowStore(
             new(
                 workflow.CaseId,
                 evidenceId,
-                CaseLifecycleState.PostReport,
+                CaseLifecycleState.ReportSent,
                 workflow.Version),
             null);
     }
@@ -1947,7 +1968,8 @@ public sealed class EfCaseWorkflowStore(
         SignOffEngineerId = entity.SignOffEngineerId,
         HeldAtUtc = entity.HeldAtUtc,
         HoldReviewOn = entity.HoldReviewOn,
-        StateEnteredAtUtc = entity.StateEnteredAtUtc
+        StateEnteredAtUtc = entity.StateEnteredAtUtc,
+        HasOpenQuery = entity.HasOpenQuery
     };
     internal static ReportApprovalEvidence MapReportApproval(CaseReportApprovalEntity approval) => new(
         approval.Id,
@@ -1992,6 +2014,7 @@ public sealed class EfCaseWorkflowStore(
             entity.ReportApprovalId,
             entity.ReportSentEvidenceId,
             entity.ClosureOutcome,
+            entity.HasOpenQuery,
             entity.ArchivedAtUtc,
             entity.ArchivedBySubjectId,
             entity.ArchiveReason,
@@ -2104,6 +2127,7 @@ public sealed class EfCaseWorkflowStore(
         Guid? ReportApprovalId,
         Guid? ReportSentEvidenceId,
         string? ClosureOutcome,
+        bool HasOpenQuery,
         DateTimeOffset? ArchivedAtUtc,
         string? ArchivedBySubjectId,
         string? ArchiveReason,

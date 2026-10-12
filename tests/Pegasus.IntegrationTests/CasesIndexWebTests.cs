@@ -262,32 +262,68 @@ public sealed class CasesIndexWebTests
     }
 
     /// <summary>
-    /// With Engineer is one stage over two Core states (D3): the State filter
-    /// lists it once and finds Cases in either state, whichever of the two a
-    /// link carries.
+    /// The State filter is one option per stage, each posting its key
+    /// (operator, 11 October 2026): With Engineer finds its one state, Report
+    /// sent finds Report sent Cases with no open query, and Query finds every
+    /// open Case with an open query, whatever its state.
     /// </summary>
-    [Fact]
-    public async Task SearchStateFilterListsWithEngineerOnceAndFindsBothStates()
+    [Theory]
+    [InlineData("ReportPreparation", "With Engineer", null)]
+    [InlineData("ReportSent", "Report sent", false)]
+    [InlineData("Query", "Query", true)]
+    public async Task SearchStateFilterTakesAStageKey(string key, string label, bool? hasOpenQuery)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var search = new RecordingSearchCases();
         using var factory = Configure(baseFactory, search);
         using var client = CreateClient(factory);
 
-        using var response = await client.GetAsync("/Search?state=PostReport&query=needle");
+        using var response = await client.GetAsync($"/Search?state={key}&query=needle");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var query = Assert.Single(search.Queries, candidate => candidate.Filters.Query == "needle");
-        Assert.Equal(
-            new[] { CaseLifecycleState.ReportPreparation, CaseLifecycleState.PostReport },
-            query.Filters.States);
+        IReadOnlyList<CaseLifecycleState> expectedStates = key switch
+        {
+            "ReportPreparation" => [CaseLifecycleState.ReportPreparation],
+            "ReportSent" => [CaseLifecycleState.ReportSent],
+            _ => [.. Enum.GetValues<CaseLifecycleState>().Where(state => !Pegasus.Core.Lifecycle.CaseLifecycleRules.IsTerminal(state))]
+        };
+        Assert.Equal(expectedStates, query.Filters.States);
+        Assert.Equal(hasOpenQuery, query.Filters.HasOpenQuery);
         var option = Assert.Single(Regex.Matches(
             html,
-            "<option[^>]*>With Engineer</option>",
+            $"<option[^>]*>{label}</option>",
             RegexOptions.CultureInvariant));
-        Assert.Contains("value=\"ReportPreparation\"", option.Value, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{key}\"", option.Value, StringComparison.Ordinal);
         Assert.Contains("selected", option.Value, StringComparison.Ordinal);
+
+        // Every option posts a stage key, With Engineer once.
+        var select = Regex.Match(html, "<select id=\"search-state\"[^>]*>.*?</select>", RegexOptions.Singleline | RegexOptions.CultureInvariant);
+        Assert.True(select.Success, "The State filter is not rendered.");
+        Assert.Equal(
+            new[] { string.Empty }.Concat(Pegasus.Web.Presentation.OperatorLabels.CaseStageOptions.Select(stage => stage.Key)).ToArray(),
+            Regex.Matches(select.Value, "<option value=\"(?<key>[^\"]*)\"").Select(match => match.Groups["key"].Value).ToArray());
+        Assert.Single(Regex.Matches(select.Value, ">With Engineer</option>"));
+    }
+
+    /// <summary>
+    /// A Case with an open query reads Query in the results, whatever its state
+    /// (operator, 11 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task SearchReadsACaseWithAnOpenQueryAsQuery()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var search = new RecordingSearchCases { OpenQueryOnFirst = true };
+        using var factory = Configure(baseFactory, search);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync("/Search?query=needle");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("<span class=\"status status--purple\">Query</span>", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -544,6 +580,9 @@ public sealed class CasesIndexWebTests
 
         public bool ReturnEmpty { get; set; }
 
+        /// <summary>Gives the first (Review) Case an open query.</summary>
+        public bool OpenQueryOnFirst { get; set; }
+
         public bool ThrowUnavailable { get; set; }
 
         /// <summary>Answers with <see cref="AuditCaseId"/> and <see cref="TriageCaseId"/> instead of the default pair.</summary>
@@ -618,7 +657,10 @@ public sealed class CasesIndexWebTests
                         "CLM42",
                         new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero),
                         "Email",
-                        new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero)),
+                        new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero))
+                    {
+                        HasOpenQuery = OpenQueryOnFirst
+                    },
                     new(
                         ClosedCaseId,
                         "QDOS3100043",

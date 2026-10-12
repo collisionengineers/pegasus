@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
 
@@ -57,13 +58,21 @@ public static class StaffMailCorrelationHeaders
                 : null;
     }
 }
+/// <summary>
+/// One staff send. <paramref name="ResolvesCaseQueries"/> is the composer's
+/// "Also resolve query" tick on a reply (operator, 11 October 2026): the Case's
+/// open queries resolve when the Sent item is observed. It is left out of the
+/// payload hash while false so a plain send's replay key is unchanged.
+/// </summary>
 public sealed record StaffMailSendCommand(
     ActionActor Actor, Guid ApprovedMailboxId, long ExpectedMailboxGeneration,
     StaffMailPurpose Purpose, Guid ContextId, long ExpectedContextVersion,
     StaffMailComposeMode ComposeMode, StaffMailOriginalMessage? OriginalMessage,
     IReadOnlyList<StaffMailRecipient> To, IReadOnlyList<StaffMailRecipient> Cc,
     string Subject, string Body, IReadOnlyList<StaffMailAttachment> Attachments,
-    string OperationKey);
+    string OperationKey,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    bool ResolvesCaseQueries = false);
 public sealed record StaffReportSendCommand(
     StaffMailSendCommand Mail, ReportSendReadinessRequest Report);
 public sealed record StaffMailOperation(

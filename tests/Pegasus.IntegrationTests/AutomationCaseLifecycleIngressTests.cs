@@ -92,6 +92,106 @@ public sealed class AutomationCaseLifecycleIngressTests
         Assert.Null(workflow.EditLeaseHolder);
     }
 
+    /// <summary>
+    /// log_query and resolve_query (operator, 11 October 2026): Automation logs
+    /// a query on a Report sent Case with the channel it came by and its
+    /// details, and resolves every open query at once, each through the same
+    /// Core command as staff and attributed to the Automation actor. The
+    /// result carries whether a query is still open. complete is no act.
+    /// </summary>
+    [Fact]
+    public async Task LogAndResolveQueryThroughCaseActionAreAttributedToTheAutomationActor()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        await using (var seedScope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await using var seedDb = await seedScope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            await seedDb.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.ReportSent)} WHERE CaseId = {caseId}");
+        }
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+        var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
+
+        // Completed is no longer an act, and a malformed log_query claims nothing.
+        using (var complete = await PostMcpAsync(client, token, ToolCallPayload(30, "pegasus_case_action",
+            new { caseId, expectedVersion = version, operationKey = "mcp:complete", action = "complete", reason = "Done." })))
+        {
+            Assert.Contains("The action must be one of", await ReadErrorTextAsync(complete), StringComparison.Ordinal);
+        }
+        using (var noChannel = await PostMcpAsync(client, token, ToolCallPayload(31, "pegasus_case_action",
+            new { caseId, expectedVersion = version, operationKey = "mcp:log-no-channel", action = "log_query" })))
+        {
+            Assert.Contains("needs queryChannel", await ReadErrorTextAsync(noChannel), StringComparison.Ordinal);
+        }
+        Assert.Equal(version, await GetWorkflowVersionAsync(mcpFactory, caseId));
+
+        using var logged = await PostMcpAsync(client, token, ToolCallPayload(32, "pegasus_case_action", new
+        {
+            caseId,
+            expectedVersion = version,
+            operationKey = "mcp:log-query",
+            action = "log_query",
+            queryChannel = "Phone",
+            reason = "The handler rang about the labour rate.",
+        }));
+        var loggedResult = await ReadStructuredContentAsync(logged);
+        Assert.Equal("log_query", loggedResult.GetProperty("action").GetString());
+        Assert.Equal(nameof(CaseLifecycleState.ReportSent), loggedResult.GetProperty("state").GetString());
+        Assert.True(loggedResult.GetProperty("hasOpenQuery").GetBoolean());
+        var loggedVersion = loggedResult.GetProperty("caseVersion").GetInt64();
+        Assert.True(loggedVersion > version);
+
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await using var db = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            var query = await db.CaseQueries.AsNoTracking().SingleAsync(row => row.CaseId == caseId);
+            Assert.Equal(nameof(CaseQuerySource.Staff), query.Source);
+            Assert.Equal(nameof(CaseQueryChannel.Phone), query.Channel);
+            Assert.Equal("The handler rang about the labour rate.", query.Details);
+            Assert.Equal(nameof(ActorKind.Automation), query.RaisedByKind);
+            Assert.Equal(ClientId, query.RaisedBySubjectId);
+            Assert.Null(query.ClosedAtUtc);
+            Assert.True((await db.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId)).HasOpenQuery);
+        }
+
+        using var resolved = await PostMcpAsync(client, token, ToolCallPayload(33, "pegasus_case_action", new
+        {
+            caseId,
+            expectedVersion = loggedVersion,
+            operationKey = "mcp:resolve-query",
+            action = "resolve_query",
+        }));
+        var resolvedResult = await ReadStructuredContentAsync(resolved);
+        Assert.Equal("resolve_query", resolvedResult.GetProperty("action").GetString());
+        Assert.Equal(nameof(CaseLifecycleState.ReportSent), resolvedResult.GetProperty("state").GetString());
+        Assert.False(resolvedResult.GetProperty("hasOpenQuery").GetBoolean());
+        Assert.True(resolvedResult.GetProperty("caseVersion").GetInt64() > loggedVersion);
+
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await using var db = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            var query = await db.CaseQueries.AsNoTracking().SingleAsync(row => row.CaseId == caseId);
+            Assert.Equal(nameof(CaseQueryClosure.Resolved), query.ClosedAs);
+            Assert.Equal(nameof(ActorKind.Automation), query.ClosedByKind);
+            Assert.Equal(ClientId, query.ClosedBySubjectId);
+            var workflow = await db.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId);
+            Assert.False(workflow.HasOpenQuery);
+            Assert.Null(workflow.EditLeaseHolder);
+            var events = await db.CaseWorkflowEvents.AsNoTracking()
+                .Where(row => row.CaseId == caseId
+                    && (row.EventType == "case_query_logged" || row.EventType == "case_queries_resolved"))
+                .ToListAsync();
+            Assert.Equal(2, events.Count);
+            Assert.All(events, row => Assert.Equal(nameof(ActorKind.Automation), row.ActorKind));
+        }
+    }
+
     [Fact]
     public async Task AssignEngineerThroughCaseActionMovesTheCaseToWithEngineer()
     {

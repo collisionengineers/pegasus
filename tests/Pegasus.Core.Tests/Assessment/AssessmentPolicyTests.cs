@@ -33,9 +33,8 @@ public sealed class AssessmentPolicyTests
     [InlineData(CaseLifecycleState.Held, false)]
     [InlineData(CaseLifecycleState.CreatedInError, false)]
     [InlineData(CaseLifecycleState.ReportPreparation, true)]
-    [InlineData(CaseLifecycleState.PostReport, true)]
-    [InlineData(CaseLifecycleState.PostReportComplete, true)]
-    public void NativeAssessmentActionsRequireAWritableOrCompletedState(
+    [InlineData(CaseLifecycleState.ReportSent, true)]
+    public void NativeAssessmentActionsRequireAWritableState(
         CaseLifecycleState state,
         bool expected)
     {
@@ -46,8 +45,7 @@ public sealed class AssessmentPolicyTests
 
     [Theory]
     [InlineData(CaseLifecycleState.ReportPreparation, false)]
-    [InlineData(CaseLifecycleState.PostReport, false)]
-    [InlineData(CaseLifecycleState.PostReportComplete, true)]
+    [InlineData(CaseLifecycleState.ReportSent, false)]
     [InlineData(CaseLifecycleState.NotReady, false)]
     [InlineData(CaseLifecycleState.Review, false)]
     [InlineData(CaseLifecycleState.Held, true)]
@@ -66,9 +64,7 @@ public sealed class AssessmentPolicyTests
     [InlineData(CaseLifecycleState.Held, false, true)]
     [InlineData(CaseLifecycleState.Review, true, false)]
     [InlineData(CaseLifecycleState.ReportPreparation, true, false)]
-    [InlineData(CaseLifecycleState.PostReport, true, false)]
-    [InlineData(CaseLifecycleState.PostReportComplete, true, true)]
-    [InlineData(CaseLifecycleState.Query, false, true)]
+    [InlineData(CaseLifecycleState.ReportSent, true, false)]
     [InlineData(CaseLifecycleState.PrincipalCancelled, false, true)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected, false, true)]
     [InlineData(CaseLifecycleState.CreatedInError, false, true)]
@@ -92,7 +88,7 @@ public sealed class AssessmentPolicyTests
     [Theory]
     [InlineData(CaseLifecycleState.Review)]
     [InlineData(CaseLifecycleState.Held)]
-    [InlineData(CaseLifecycleState.PostReportComplete)]
+    [InlineData(CaseLifecycleState.ReportSent)]
     public void AReadWorkflowGivesTheAccessOfItsOwnState(CaseLifecycleState state)
     {
         Assert.Equal(
@@ -126,10 +122,8 @@ public sealed class AssessmentPolicyTests
     [InlineData(CaseLifecycleState.NotReady, true)]
     [InlineData(CaseLifecycleState.Review, true)]
     [InlineData(CaseLifecycleState.ReportPreparation, true)]
-    [InlineData(CaseLifecycleState.PostReport, true)]
+    [InlineData(CaseLifecycleState.ReportSent, true)]
     [InlineData(CaseLifecycleState.Held, false)]
-    [InlineData(CaseLifecycleState.PostReportComplete, false)]
-    [InlineData(CaseLifecycleState.Query, false)]
     [InlineData(CaseLifecycleState.PrincipalCancelled, false)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected, false)]
     [InlineData(CaseLifecycleState.CreatedInError, false)]

@@ -531,12 +531,13 @@ public sealed class CaseAssetPreparationWebTests
     }
 
     /// <summary>
-    /// The read-only end of the Case is still read-only. Once the case is
-    /// Complete nothing about the record is edited, preparation included, and
-    /// the refusal is the page's — the store never sees the save.
+    /// The read-only end of the Case is still read-only. A Report sent Case is
+    /// editable (operator, 11 October 2026); once the Case is archived nothing
+    /// about the record is edited, preparation included, and the refusal is
+    /// the page's — the store never sees the save.
     /// </summary>
     [Fact]
-    public async Task ACropIsRefusedOnceTheCaseIsComplete()
+    public async Task ACropIsRefusedOnceTheCaseIsArchived()
     {
         var fixture = new PreparedImages();
         var store = fixture.Store();
@@ -545,7 +546,11 @@ public sealed class CaseAssetPreparationWebTests
             Substitute<ICaseAssetPreparationQueries>(services, store);
             Substitute<ISaveCaseWorkspace>(services, store);
         });
-        store.State = CaseLifecycleState.PostReportComplete;
+        store.State = CaseLifecycleState.PrincipalCancelled;
+        store.Archive = new(
+            DateTimeOffset.UtcNow,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+            "Retention period reached");
 
         using var response = await workspace.Client.PostAsync(
             $"/Cases/{store.CaseId:D}?handler=Save",

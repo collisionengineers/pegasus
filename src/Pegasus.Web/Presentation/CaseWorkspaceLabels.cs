@@ -3,6 +3,7 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Reports;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Presentation;
 
@@ -73,7 +74,11 @@ public static class CaseWorkspaceLabels
         public const string CreateAudit = "Create audit";
         public const string MarkReportSent = "Mark report sent";
         public const string ExportCase = "Export case";
-        public const string MarkCompleted = "Mark completed";
+        public const string LogQuery = "Log query";
+        public const string ResolveQuery = "Resolve query";
+        public const string TagAsQuery = "Tag as query";
+        public const string Channel = "Channel";
+        public const string Details = "Details";
         public const string ReturnToReview = "Return to Review";
         public const string ReturnToEngineer = "Return to Engineer";
         public const string ArchiveCase = "Archive case";
@@ -1225,6 +1230,31 @@ public static class CaseWorkspaceLabels
         public const string NoCorrespondence = "No retained correspondence is associated with this Case.";
         public const string ImageIntake = "Image intake";
         public const string Photographs = "photographs";
+    }
+
+    /// <summary>
+    /// The Queries section (operator, 11 October 2026): its one empty
+    /// sentence, as the operator gave it, and its column words.
+    /// </summary>
+    public static class Queries
+    {
+        public const string Empty = "No active queries on this case";
+        public const string State = "State";
+        public const string Raised = "Raised";
+        public const string RaisedBy = "Raised by";
+        public const string Resolved = "Resolved";
+        public const string ResolvedBy = "Resolved by";
+        public const string Open = "Query";
+        public const string Message = "Message";
+
+        public static string Channel(CaseQueryChannel channel) => channel switch
+        {
+            CaseQueryChannel.Email => "E-mail",
+            CaseQueryChannel.Phone => "Phone",
+            CaseQueryChannel.WhatsApp => "WhatsApp",
+            CaseQueryChannel.Other => "Other",
+            _ => channel.ToString()
+        };
     }
 
     /// <summary>
