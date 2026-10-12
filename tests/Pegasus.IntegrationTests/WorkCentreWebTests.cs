@@ -805,6 +805,9 @@ public sealed class WorkCentreWebTests
         public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(Guid subjectId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AiJobRecord>>([]);
 
+        public Task<AiJobRecord?> GetPendingMarketResearchAsync(Guid subjectId, CancellationToken cancellationToken) =>
+            Task.FromResult<AiJobRecord?>(null);
+
         public Task<AiJobCounts> GetCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new AiJobCounts(Open.Count, Recent.Count));
     }

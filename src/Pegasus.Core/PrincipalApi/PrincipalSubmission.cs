@@ -128,10 +128,13 @@ public interface IPrincipalSubmissionStore
     /// A bare reservation is excluded by the query itself rather than skipped
     /// by the sweep: nothing ever removes one, so a bounded oldest-first window
     /// that admitted them would fill with rows it can never repair and starve
-    /// the ones it can.
+    /// the ones it can. A submission received after
+    /// <paramref name="receivedAtOrBeforeUtc"/> is still inside the inline
+    /// request's grace period and is not listed.
     /// </summary>
     Task<IReadOnlyList<PrincipalSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
         int maximumItems,
+        DateTimeOffset receivedAtOrBeforeUtc,
         CancellationToken cancellationToken);
 }
 
@@ -396,15 +399,20 @@ public sealed class GetPrincipalSubmissionResult(
         // A paused credential still reads its own receipts and results
         // (operator decision); only MaySubmit is withheld.
         StaffAuthorization.Require(actor, StaffAccessRight.SubmitPrincipalInstruction);
-        var record = await store.GetAsync(submissionId, cancellationToken);
+        // The status read is keyed by the id alone, so it overlaps the record
+        // read; the ownership check still decides whether the answer is used.
+        var recordRead = store.GetAsync(submissionId, cancellationToken);
+        var statusRead = statusQueries.FindBySourceIdentityAsync(
+            PrincipalSubmissionPolicy.SourceIdentity(submissionId),
+            cancellationToken);
+        await Task.WhenAll(recordRead, statusRead);
+        var record = await recordRead;
         if (record is null || record.PrincipalId != credential.PrincipalId)
         {
             return null;
         }
 
-        var status = await statusQueries.FindBySourceIdentityAsync(
-            PrincipalSubmissionPolicy.SourceIdentity(record.Id),
-            cancellationToken);
+        var status = await statusRead;
         var receipt = status?.ProcessedReceiptId is { } processedId
             ? await receiptQueries.GetAsync(processedId, cancellationToken)
             : null;
