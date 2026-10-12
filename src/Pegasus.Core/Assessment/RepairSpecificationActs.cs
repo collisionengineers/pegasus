@@ -433,10 +433,11 @@ public sealed record RepairSpecificationSupplementary(
 
 /// <summary>
 /// Richer Compare (v28 P19) and the Supplementary statement (P20): two
-/// specifications line by line. A line is the same line when its type
-/// matches and either its part number or the start of its description does.
-/// A frozen version compares through <see cref="RepairSpecificationSnapshot.AsSpecification"/>
-/// (v38 P2).
+/// specifications line by line. A line is the same line when its part number
+/// or the start of its description matches; lines that kept their type pair
+/// first, then a line whose type changed pairs with one left over and says
+/// what its type was (v38 P2). A frozen version compares through
+/// <see cref="RepairSpecificationSnapshot.AsSpecification"/> (v38 P2).
 /// </summary>
 public static class RepairSpecificationComparison
 {
@@ -496,26 +497,48 @@ public static class RepairSpecificationComparison
         ArgumentNullException.ThrowIfNull(from);
         ArgumentNullException.ThrowIfNull(to);
         var fromLines = from.Lines.OrderBy(line => line.Position).ToList();
+        var toLines = to.Lines.OrderBy(line => line.Position).ToList();
         // A frozen version's lines keep the ids they had when frozen, which the
         // live spec's replaced lines no longer share; a line is matched once.
+        // Lines that kept their type pair first, so a line whose type changed
+        // takes only a line no same-type line claimed (one panel's Replace,
+        // Paint and R&I lines share a description).
         var used = new HashSet<int>();
+        var matches = new int[toLines.Count];
+        Array.Fill(matches, -1);
+        foreach (var sameType in new[] { true, false })
+        {
+            for (var position = 0; position < toLines.Count; position++)
+            {
+                if (matches[position] >= 0)
+                {
+                    continue;
+                }
+                var line = toLines[position];
+                var index = fromLines.FindIndex(candidate => SameLine(candidate, line, sameType));
+                while (index >= 0 && used.Contains(index))
+                {
+                    index = fromLines.FindIndex(index + 1, candidate => SameLine(candidate, line, sameType));
+                }
+                if (index >= 0)
+                {
+                    used.Add(index);
+                    matches[position] = index;
+                }
+            }
+        }
         var added = new List<CaseEstimateLineRecord>();
         var changed = new List<LineChange>();
         var unchanged = new List<LineChange>();
-        foreach (var line in to.Lines.OrderBy(line => line.Position))
+        for (var position = 0; position < toLines.Count; position++)
         {
-            var index = fromLines.FindIndex(candidate => SameLine(candidate, line));
-            while (index >= 0 && used.Contains(index))
-            {
-                index = fromLines.FindIndex(index + 1, candidate => SameLine(candidate, line));
-            }
-            if (index < 0)
+            var line = toLines[position];
+            if (matches[position] < 0)
             {
                 added.Add(line);
                 continue;
             }
-            used.Add(index);
-            var match = fromLines[index];
+            var match = fromLines[matches[position]];
             var fields = ChangedFields(match, line);
             if (fields.Count > 0)
             {
@@ -620,13 +643,13 @@ public static class RepairSpecificationComparison
         return string.Join("; ", names);
     }
 
-    private static bool SameLine(CaseEstimateLineRecord a, CaseEstimateLineRecord b)
+    private static bool SameLine(CaseEstimateLineRecord a, CaseEstimateLineRecord b, bool sameType)
     {
         if (a.Id != Guid.Empty && a.Id == b.Id)
         {
             return true;
         }
-        if (a.Type != b.Type)
+        if (sameType && a.Type != b.Type)
         {
             return false;
         }
@@ -643,6 +666,8 @@ public static class RepairSpecificationComparison
     private static List<string> ChangedFields(CaseEstimateLineRecord from, CaseEstimateLineRecord to)
     {
         var fields = new List<string>();
+        // In the editor's vocabulary, as an amendment is judged.
+        if (EstimateOperations.FromLineType(from.Type) != EstimateOperations.FromLineType(to.Type)) fields.Add("type");
         if (!string.Equals(from.Description?.Trim(), to.Description?.Trim(), StringComparison.Ordinal)) fields.Add("description");
         if (!string.Equals(from.PartNumber?.Trim(), to.PartNumber?.Trim(), StringComparison.OrdinalIgnoreCase)) fields.Add("part number");
         if ((from.Quantity ?? 1) != (to.Quantity ?? 1)) fields.Add("quantity");
