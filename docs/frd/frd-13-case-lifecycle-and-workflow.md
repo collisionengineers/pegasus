@@ -204,16 +204,20 @@ The Engineer answers queries from the Principal, a third-party insurer or
 the claimant; a dispute is a query. A query is a record on the Case
 (operator, 11 October 2026). It is raised in three ways:
 
-- a received e-mail classified as post-report that joins a Report sent Case,
+- a received e-mail classified as Query that joins a Report sent Case,
   by automatic association, a staff link or a classification correction
   (the Correspondence tab's **Tag as query** is that correction in one
   click, recorded with the reason "Tagged as query"); staff and the
   Automation Actor both tag this way;
 - **Log query**, from the Actions menu or `pegasus_case_action`, on a Report
   sent Case: the channel it came by and its details;
-- nothing else yet: no e-mail criteria raise a query by themselves.
+- a received e-mail with no classification of its own that joins a Report
+  sent Case: [case-state classification](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)
+  makes it Query in the same transaction, so an automatic association or a
+  staff link raises the query without a separate correction (operator,
+  8 October 2026).
 
-A post-report e-mail joining a Case in any other state raises nothing. The
+A Query e-mail joining a Case in any other state raises nothing. The
 Case's Engineer is told of a query raised from mail
 ([FRD-12](frd-12-operator-experience.md#the-shell)).
 
@@ -232,7 +236,7 @@ reply's Sent item is observed ([FRD-21](frd-21-outbound-correspondence-and-sent-
 or `pegasus_case_action` resolve_query and `pegasus_mail_send` resolveQuery.
 A reply without the tick resolves nothing; a draft or an acknowledgement is
 not a reply. Unlinking a tagged e-mail, or correcting its classification
-away from post-report, withdraws the open query it raised and no other;
+away from Query, withdraws the open query it raised and no other;
 a withdrawn query is not listed. Every raise, withdrawal and resolution is
 Case history, and none erases earlier history. Pegasus keeps the received
 query and the actual reply as Case correspondence. Further engineering
@@ -251,9 +255,10 @@ audit created from it."; Created in error keeps its own refusal), an
 archived Case, a Case that already has its Audit, and while a colleague
 holds the edit lease (the sections' own editing wording). A held Case is
 live again after Release Hold. It uses the same staff authorisation as the
-other Actions-menu progressions. Once the Inspection report is sent, Create
-audit is the Case's Next action, stated in the aside and the Cases quick
-detail with the same control (operator, 2 October 2026).
+other Actions-menu progressions. Once the Inspection report is stored,
+whether or not it is sent, Create audit is the Case's Next action, stated in
+the aside and the Cases quick detail with the same control (operator, 2 and
+12 October 2026).
 With no assigned Engineer it is refused with Return to Engineer's refusal,
 "Report preparation requires an assigned Engineer.", and the assigned
 Engineer must still be eligible, as for Return to Engineer. It asks for no
@@ -326,10 +331,14 @@ delivered. Each chaser keeps its recipient, channel, prepared draft or draft
 reference, staff disposition and timestamps. Free-text notes may sit beside a
 chaser without implying it was sent or answered.
 
-**Send chaser** on the Case record opens the composer with the Case chaser
-template ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)) and
-the Case's recorded addresses, and staff send it
-([FRD-16](frd-16-case-record-workspace.md#actions-menu)). When that send's
+**Send chaser** on the Case record opens the chaser composer with the Case
+chaser template ([FRD-17](frd-17-administration-workspace.md#e-mail-templates))
+and the Case's recorded addresses, and staff send it
+([FRD-16](frd-16-case-record-workspace.md#actions-menu)): a reply to the
+Case's instruction email from the mailbox it arrived in, or a new message
+from the Outgoing mailbox staff choose when there is no usable instruction
+email
+([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)). When that send's
 exact Sent evidence is observed and the Case is Not ready with a chase
 scheduled, Pegasus records the chase itself — channel E-mail, the addresses
 sent to, outcome Sent, at the provider's sent time, by the staff member or
@@ -343,12 +352,31 @@ missing-material reason, Due by, the next chase, the most recent channel and
 outcome, an optional note, and the next permitted action. Prepared or copied
 text always looks different from sent, delivered, answered or completed work.
 
-**General Case tasks are unfinished (`CASE-20`).** `Pegasus.Core` holds a
-Case task record with Open, Completed and Cancelled states, an optional
-assignee, and create, assign, complete and cancel use cases. No screen shows
-or uses them, which is why the Case record has no tasks panel
-([FRD-16](frd-16-case-record-workspace.md)). A task has no due date, and
-there are no reminders. Chasing above is the only due work staff see today.
+**General Case tasks (`CASE-20`).** A Case task has a description, an
+optional assignee and the states Open, Completed and Cancelled. Staff add,
+complete, cancel and assign tasks in the Tasks section of the Case record, in
+the edit session and under its lease
+([FRD-16](frd-16-case-record-workspace.md#tasks)). A Case with an open task
+cannot be archived until each task is completed or cancelled. Once Report
+sent is recorded, the Case's Next action lists its open tasks, and Archive is
+greyed with the reason "Complete or cancel every open task first." (operator,
+6 October 2026). A task has no due date
+yet, and there are no reminders.
+
+**After-send tasks.** A report send records the list of after-send task
+descriptions that the Principal's sending rules produce
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules)).
+When Report sent is recorded, by the Worker's automatic link or by staff Mark
+report sent, and the linked Sent item is a Pegasus report send, one open,
+unassigned task per description is created in the same transaction that
+records the link, with a `case_task_created` event each, in the name of the
+staff member who sent the report. The task ids come
+from the Sent evidence and the position in the list, so a replay creates none
+more. A Mark report sent on a Sent item that is not a Pegasus report send
+creates none. Creating them is system work, which keeps the session
+([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)): they are a
+consequence of a recorded Sent item, not a staff edit, and the Worker's link
+holds no lease. Chasing above is the only due work.
 
 ### Cancellation messages
 
@@ -387,7 +415,7 @@ Automation Actor action.
 | Report sent | With Engineer | Return to Engineer (reason), or Unlink report evidence |
 | With Engineer, Report sent | Review | Return to Review (reason) |
 | Not ready, Review, With Engineer, Report sent | With Engineer before the report | Create audit, once, on an Inspection + Audit Case |
-| any open state | same state, query open | A post-report e-mail joining a Report sent Case; Log query on a Report sent Case |
+| any open state | same state, query open | A Query e-mail joining a Report sent Case; Log query on a Report sent Case |
 | any open state, query open | same state, no query open | Resolve query; a reply with Also resolve query reaching Sent; the last tagged e-mail unlinked or corrected away |
 | pre-report states | Principal cancelled, Collision Engineers rejected | Close case (reason) |
 | any open state | Created in error | Corrected-Principal replacement action |

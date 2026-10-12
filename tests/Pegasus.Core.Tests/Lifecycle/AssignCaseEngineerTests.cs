@@ -305,7 +305,7 @@ public sealed class AssignCaseEngineerTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<CaseWorkflowRecord> LinkReportEvidenceAsync(
+        public Task<LinkReportEvidenceResult> LinkReportEvidenceAsync(
             LinkReportEvidenceRequest request,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();

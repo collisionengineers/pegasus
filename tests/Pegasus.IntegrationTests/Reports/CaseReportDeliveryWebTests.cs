@@ -805,6 +805,324 @@ public sealed partial class AssessmentReportDraftWebTests
     /// <summary>
     /// One step (operator, 6 October 2026): the delivery form's fields reach
     /// the send under the server's actor, the held lease and the form's own
+    /// operation key, with what the Principal's rules asked of staff on the
+    /// same form: the fingerprint the form was drawn from, each answer posted
+    /// as decision-{rule}-{condition}, the ticked holds and the reason for
+    /// overriding a Stop. A field that is not an answer is not read as one.
+    /// </summary>
+    [Fact]
+    public async Task SendReportCarriesTheAnswersTheTickedHoldsAndTheOverrideReason()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var send = new RecordingSendReport(StaffMailState.Submitted);
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            sendReport: send);
+        using var client = Client(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=SendReport&section=report",
+            Form(
+                AntiforgeryValue(html),
+                ("id", caseId.ToString("D")),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("editLeaseToken", "held-report-lease"),
+                ("expectedCaseVersion", "0"),
+                ("generationId", Guid.NewGuid().ToString("D")),
+                ("expectedGenerationVersion", "13"),
+                ("coveringMessage", "Edited by staff."),
+                ("toRecipients", "reviewed@recipient.example"),
+                ("dispatchFingerprint", "FORM-FINGERPRINT"),
+                ("decision-0-0", "true"),
+                ("decision-1-2", "false"),
+                ("decision-x-y", "true"),
+                ("decision-2-0", "maybe"),
+                ("stopOverrideReason", "Agreed by phone."),
+                ("holdsDone", "Authorise the garage."),
+                ("holdsDone", "Check the WhatsApp group.")));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var request = Assert.Single(send.Requests);
+        Assert.Equal("FORM-FINGERPRINT", request.DispatchFingerprint);
+        Assert.Equal(
+            [new ReportRuleDecision(0, 0, true), new ReportRuleDecision(1, 2, false)],
+            request.Decisions!.OrderBy(decision => decision.RuleIndex).ToArray());
+        Assert.Equal("Agreed by phone.", request.StopOverrideReason);
+        Assert.Equal(["Authorise the garage.", "Check the WhatsApp group."], request.AcknowledgedHolds);
+    }
+
+    /// <summary>
+    /// When Core refuses the send, the refusal it states is shown on the
+    /// Case, so staff read why the report was not sent.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedSendStatesWhyOnTheCase()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            sendReport: new RefusingSendReport(CaseReportDeliveryPolicy.DispatchChanged));
+        using var client = Client(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=SendReport&section=report",
+            Form(
+                AntiforgeryValue(html),
+                ("id", caseId.ToString("D")),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("editLeaseToken", "held-report-lease"),
+                ("expectedCaseVersion", "0"),
+                ("generationId", Guid.NewGuid().ToString("D")),
+                ("expectedGenerationVersion", "1"),
+                ("coveringMessage", "Please find attached our report."),
+                ("toRecipients", "reviewed@recipient.example"),
+                ("dispatchFingerprint", "STALE")));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var reloaded = WebUtility.HtmlDecode(await GetHtmlAsync(client, response.Headers.Location!.OriginalString!));
+        Assert.Contains(CaseReportDeliveryPolicy.DispatchChanged, reloaded, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The delivery form follows the Principal's rules as one plan: it says
+    /// when the work's report was already sent and from which mailbox this
+    /// one leaves, asks each question the Case cannot answer as a Yes/No
+    /// pair, offers an override reason for a Stop an answer could still
+    /// apply, seeds To and Cc from the plan and says what set the Cc and what
+    /// the rules removed, states its warnings and what staff do after sending,
+    /// and gives each hold its Done tick. The form carries the fingerprint it
+    /// was drawn from. There is no Prepare step and no Still to do list.
+    /// </summary>
+    [Fact]
+    public async Task TheDeliveryFormFollowsThePrincipalsRules()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var facts = new ReportDispatchFacts(
+            "QDOS26001", "PK12TMZ", "Principal Ltd",
+            PrincipalReportSendingRules.Default with
+            {
+                Cc = ["office@principal.example"],
+                NeverCc = ["noreply@principal.example"],
+                Attach = ReportSendingAttachments.Default with { Audatex = true },
+                Hold = "Authorise the garage.",
+                Reminders = ["Send the WhatsApp."],
+                GarageFigures = true,
+                Rules =
+                [
+                    new(ReportSendingRuleMatch.All,
+                        [new(ReportSendingConditionKind.Mentions, ["Luton"])],
+                        new(["luton@principal.example"], [])),
+                    new(ReportSendingRuleMatch.All,
+                        [new(ReportSendingConditionKind.ImagesFrom, ["Garage"])],
+                        new([], [], Hold: "Check the images.", Stop: "Images must come from the assessor."))
+                ]
+            },
+            new ReportInstructionMessage(
+                Guid.NewGuid(), Guid.NewGuid(), "engineers@collisionengineers.example", "immutable-1",
+                null, null, "handler@principal.example",
+                ["noreply@principal.example", "copy@principal.example"], "Claim for PK12TMZ"),
+            Outcome: "repairable");
+        var history = new CaseReportSendHistory(
+            1, null,
+            LastSentAtUtc: new DateTimeOffset(2026, 10, 3, 13, 2, 0, TimeSpan.Zero),
+            LastRecipients: ["a@principal.example", "b@principal.example"]);
+        // The report replies to the instruction email from the mailbox it
+        // arrived in (operator, 12 October 2026).
+        var engineers = OutgoingMailbox("engineers@collisionengineers.example");
+        using var factory = WithDispatchFacts(
+            baseFactory, caseId, new FakeCurrentGeneration(caseId), facts, history,
+            new CaseInstructionEmail(
+                Guid.NewGuid(), engineers.Id, "immutable-1", null, null,
+                "Claim for PK12TMZ", "handler@principal.example", null),
+            engineers);
+        using var client = Client(factory);
+
+        var html = WebUtility.HtmlDecode(await EnterEditModeAsync(client, caseId));
+
+        var form = FormHtml(html, "SendReport");
+        Assert.Contains(
+            "<p class=\"muted\" data-report-already-sent>Already sent on 3 Oct 2026 14:02 to a@principal.example, b@principal.example.</p>",
+            form,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "data-report-from>engineers@collisionengineers.example</div>",
+            form,
+            StringComparison.Ordinal);
+        // The Stop is only possible until the images question is answered.
+        Assert.DoesNotContain("data-report-stop>", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("required", InputTag(form, "data-report-stop-override"), StringComparison.Ordinal);
+        Assert.Equal(2, Regex.Count(form, "data-report-question"));
+        Assert.Contains("Does the instruction mention \"Luton\"?", form, StringComparison.Ordinal);
+        Assert.Contains("Are the images from Garage?", form, StringComparison.Ordinal);
+        foreach (var name in new[] { "decision-0-0", "decision-1-0" })
+        {
+            Assert.Contains($"<input type=\"radio\" name=\"{name}\" value=\"true\" required />", form, StringComparison.Ordinal);
+            Assert.Contains($"<input type=\"radio\" name=\"{name}\" value=\"false\" required />", form, StringComparison.Ordinal);
+        }
+        Assert.Equal(["handler@principal.example"], InputValues(form, "toRecipients"));
+        Assert.Equal(["copy@principal.example", "office@principal.example"], InputValues(form, "ccRecipients"));
+        Assert.Contains(
+            "data-report-cc-hint>Cc set by: Instruction Cc; Principal Cc; removed: noreply@principal.example (never cc)</span>",
+            form,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"data-report-warning>{ReportDispatchPolicy.NoFiledEstimateWarning}</span>",
+            form,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"data-report-warning>{ReportDispatchPolicy.NoSeparateFeeNoteWarning}</span>",
+            form,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-filed-estimates", form, StringComparison.Ordinal);
+        var afterSending = Regex.Match(form, "<div class=\"stack\" data-report-after-sending>.*?</div>\\s*</div>", RegexOptions.Singleline);
+        Assert.True(afterSending.Success, "The form must list what staff do after sending.");
+        Assert.Contains("Send the WhatsApp.", afterSending.Value, StringComparison.Ordinal);
+        Assert.Contains(ReportDispatchPolicy.GarageFiguresTask, afterSending.Value, StringComparison.Ordinal);
+        Assert.Contains(
+            "<input type=\"checkbox\" name=\"holdsDone\" value=\"Authorise the garage.\" required data-report-hold />",
+            form,
+            StringComparison.Ordinal);
+        // The images rule's hold is offered with its tick, not yet required.
+        Assert.Contains(
+            "<input type=\"checkbox\" name=\"holdsDone\" value=\"Check the images.\" data-report-hold />",
+            form,
+            StringComparison.Ordinal);
+        Assert.Equal(facts.Fingerprint, InputValue(form, "dispatchFingerprint"));
+        Assert.Contains(
+            $">{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendReport}<",
+            form,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-missing-companion", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=PrepareReportDelivery", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-still-to-do", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A rule's Stop that the Case already meets is stated and its override
+    /// reason is required. With no instruction email to reply to, the From
+    /// choice starts at the Principal's Send from mailbox, and the filed
+    /// estimate the rules attach is named.
+    /// </summary>
+    [Fact]
+    public async Task AStopThatAppliesIsStatedAndItsOverrideReasonIsRequired()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var claimSourceId = Guid.NewGuid();
+        var estimate = new StaffMailAttachment(
+            Guid.NewGuid(), Guid.NewGuid(), new string('e', 64), 500, "PK12TMZ estimate.pdf", "application/pdf");
+        var facts = new ReportDispatchFacts(
+            "QDOS26001", "PK12TMZ", "Principal Ltd",
+            PrincipalReportSendingRules.Default with
+            {
+                SendFromMailbox = "principal-desk@collisionengineers.example",
+                Attach = ReportSendingAttachments.Default with { Audatex = true },
+                Rules =
+                [
+                    new(ReportSendingRuleMatch.All,
+                        [new(ReportSendingConditionKind.ClaimSource, [claimSourceId.ToString("D")])],
+                        new([], [], Stop: "Do not send reports for this Claim Source."))
+                ]
+            },
+            null,
+            ClaimSourceId: claimSourceId,
+            ClaimSourceName: "Claims Direct")
+        {
+            OriginalSender = "handler@principal.example",
+            FiledEstimates = [new FiledEstimateAttachment(estimate, Pegasus.Core.Assessment.EstimateFormats.AudatexProvider)]
+        };
+        var reports = OutgoingMailbox("reports@collisionengineers.example");
+        var desk = OutgoingMailbox("principal-desk@collisionengineers.example");
+        using var factory = WithDispatchFacts(
+            baseFactory, caseId, new FakeCurrentGeneration(caseId, feeNoteStatus: CaseReportArtifactStatus.Confirmed),
+            facts, CaseReportSendHistory.None, null, reports, desk);
+        using var client = Client(factory);
+
+        var html = WebUtility.HtmlDecode(await EnterEditModeAsync(client, caseId));
+
+        var form = FormHtml(html, "SendReport");
+        Assert.Contains(
+            $"<option value=\"{desk.Id:D}\" selected=\"selected\">principal-desk@collisionengineers.example</option>",
+            form,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"<option value=\"{reports.Id:D}\">reports@collisionengineers.example</option>",
+            form,
+            StringComparison.Ordinal);
+        Assert.Matches("data-report-stop>\\s*<span><strong>Stopped\\.</strong> Do not send reports for this Claim Source\\.</span>", form);
+        Assert.Contains("required", InputTag(form, "data-report-stop-override"), StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-question", form, StringComparison.Ordinal);
+        Assert.Contains("data-report-filed-estimates>PK12TMZ estimate.pdf</div>", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-warning", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-after-sending", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-hold", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-already-sent", form, StringComparison.Ordinal);
+        Assert.Equal(["handler@principal.example"], InputValues(form, "toRecipients"));
+    }
+
+    /// <summary>
+    /// A companion the Principal requires is attached as a fixed value and
+    /// labelled as required once it is generated; one that is not generated
+    /// yet is named and withholds Send report.
+    /// </summary>
+    [Fact]
+    public async Task ARequiredCompanionNotYetGeneratedWithholdsSendReport()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var facts = new ReportDispatchFacts(
+            "QDOS26001", "PK12TMZ", "Principal Ltd",
+            PrincipalReportSendingRules.Default with
+            {
+                Attach = ReportSendingAttachments.Default with { VehicleImagesDocument = true, FigureBreakdown = true }
+            },
+            null)
+        {
+            OriginalSender = "handler@principal.example"
+        };
+        using var factory = WithDispatchFacts(
+            baseFactory,
+            caseId,
+            new FakeCurrentGeneration(caseId, repairSpecStatus: CaseReportArtifactStatus.Confirmed),
+            facts,
+            CaseReportSendHistory.None);
+        using var client = Client(factory);
+
+        var html = WebUtility.HtmlDecode(await EnterEditModeAsync(client, caseId));
+
+        var form = FormHtml(html, "SendReport");
+        Assert.Contains("data-report-missing-companion=\"ImagePack\"", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-missing-companion=\"RepairSpecification\"", form, StringComparison.Ordinal);
+        var repairSpec = AttachChoice(form, CaseReportArtifactKind.RepairSpecification);
+        Assert.StartsWith("<span class=\"choice is-static\"", repairSpec, StringComparison.Ordinal);
+        Assert.Contains("data-on=\"true\"", repairSpec, StringComparison.Ordinal);
+        Assert.Contains(
+            $"{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.AttachRepairSpec} {Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.RequiredForPrincipal}",
+            form,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "<input type=\"hidden\" name=\"attach\" value=\"RepairSpecification\" />",
+            form,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("type=\"submit\"", form, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// One step (operator, 6 October 2026): the delivery form's fields reach
+    /// the send under the server's actor, the held lease and the form's own
     /// operation key.
     /// </summary>
     [Fact]
@@ -814,6 +1132,7 @@ public sealed partial class AssessmentReportDraftWebTests
         var caseId = Guid.NewGuid();
         var generationId = Guid.NewGuid();
         var operationKey = Guid.NewGuid().ToString("N");
+        var fromMailboxId = Guid.NewGuid();
         var send = new RecordingSendReport(StaffMailState.Submitted);
         using var factory = Compose(
             baseFactory,
@@ -837,11 +1156,15 @@ public sealed partial class AssessmentReportDraftWebTests
                 ("expectedGenerationVersion", "13"),
                 ("coveringMessage", "Edited by staff.\r\n\r\nKind regards"),
                 ("toRecipients", "reviewed@recipient.example"),
-                ("ccRecipients", "copy@recipient.example")));
+                ("ccRecipients", "copy@recipient.example"),
+                ("fromMailboxId", fromMailboxId.ToString("D"))));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var request = Assert.Single(send.Requests);
         Assert.Equal(caseId, request.CaseId);
+        // With no instruction email to reply to, the From staff chose reaches
+        // the send; Core decides whether it may send.
+        Assert.Equal(fromMailboxId, request.FromMailboxId);
         Assert.Equal(0, request.ExpectedCaseVersion);
         Assert.Equal("held-report-lease", request.LeaseToken);
         Assert.Equal(generationId, request.GenerationId);
@@ -853,6 +1176,58 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal(ActorKind.Staff, request.Actor.Kind);
         Assert.Equal("reviewed@recipient.example", Assert.Single(request.ReviewedRecipients!.To));
         Assert.Equal("copy@recipient.example", Assert.Single(request.ReviewedRecipients.Cc));
+        Assert.Null(request.SecondReport);
+        Assert.Equal(CaseWorkSelector.Current, request.Work);
+        // A form that asked nothing posts no answers, holds or reason.
+        Assert.Null(request.DispatchFingerprint);
+        Assert.Empty(request.Decisions!);
+        Assert.Empty(request.AcknowledgedHolds!);
+        Assert.Null(request.StopOverrideReason);
+    }
+
+    /// <summary>
+    /// The other work's report ticked (operator, 12 October 2026) reaches the
+    /// send as the second report: its generation at the version the form
+    /// showed, its report and the documents of it ticked.
+    /// </summary>
+    [Fact]
+    public async Task SendReportCarriesTheOtherWorksReportWhenItsTickIsOn()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var otherGenerationId = Guid.NewGuid();
+        var send = new RecordingSendReport(StaffMailState.Submitted);
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            sendReport: send);
+        using var client = Client(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=SendReport&section=report",
+            Form(
+                AntiforgeryValue(html),
+                ("id", caseId.ToString("D")),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("editLeaseToken", "held-report-lease"),
+                ("expectedCaseVersion", "0"),
+                ("generationId", Guid.NewGuid().ToString("D")),
+                ("expectedGenerationVersion", "13"),
+                ("coveringMessage", "Both reports attached."),
+                ("toRecipients", "reviewed@recipient.example"),
+                ("secondGenerationId", otherGenerationId.ToString("D")),
+                ("secondExpectedGenerationVersion", "4"),
+                ("secondAttach", nameof(CaseReportArtifactKind.FeeNote))));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var second = Assert.IsType<SecondCaseReport>(Assert.Single(send.Requests).SecondReport);
+        Assert.Equal(otherGenerationId, second.GenerationId);
+        Assert.Equal(4, second.ExpectedGenerationVersion);
+        Assert.Equal([CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.FeeNote], second.Attach);
     }
 
     /// <summary>
@@ -958,6 +1333,9 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Contains("data-send-report", form, StringComparison.Ordinal);
         Assert.Contains("name=\"toRecipients\"", form, StringComparison.Ordinal);
         Assert.Contains("name=\"coveringMessage\"", form, StringComparison.Ordinal);
+        // The Case has no instruction email to reply to, so staff choose From.
+        Assert.Contains("name=\"fromMailboxId\"", form, StringComparison.Ordinal);
+        Assert.Contains("data-report-from", form, StringComparison.Ordinal);
         Assert.Contains(
             $">{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendReport}<",
             form,
@@ -1089,6 +1467,41 @@ public sealed partial class AssessmentReportDraftWebTests
                 services.AddSingleton<ICaseReportGenerationStore>(generation);
             }));
 
+    /// <summary>
+    /// The Case page over one current generation, with the dispatch facts
+    /// and the send history the delivery form is drawn from and, when given,
+    /// the Case's instruction email and the approved mailboxes its From row
+    /// is drawn from.
+    /// </summary>
+    private static WebApplicationFactory<Program> WithDispatchFacts(
+        IntakeWebApplicationFactory baseFactory,
+        Guid caseId,
+        FakeCurrentGeneration generation,
+        ReportDispatchFacts facts,
+        CaseReportSendHistory history,
+        CaseInstructionEmail? instruction = null,
+        params ApprovedMailbox[] mailboxes) =>
+        WithCurrentGeneration(baseFactory, caseId, generation)
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IReportRecipientSuggestionQueries>();
+                services.AddSingleton<IReportRecipientSuggestionQueries>(new FakeDispatchFacts(caseId, facts));
+                services.RemoveAll<ICaseReportSendHistoryQueries>();
+                services.AddSingleton<ICaseReportSendHistoryQueries>(new FakeSendHistory(history));
+                if (mailboxes.Length > 0)
+                {
+                    services.RemoveAll<ICaseInstructionEmailQueries>();
+                    services.AddSingleton<ICaseInstructionEmailQueries>(new FixedInstructionEmail(caseId, instruction));
+                    services.RemoveAll<IApprovedMailboxStore>();
+                    services.AddSingleton<IApprovedMailboxStore>(new FixedMailboxes(mailboxes));
+                }
+            }));
+
+    /// <summary>An Approved, activated and identified Outgoing mailbox: one that can send.</summary>
+    private static ApprovedMailbox OutgoingMailbox(string address) => new(
+        Guid.NewGuid(), address, [ApprovedMailboxRouteScope.Outgoing], ApprovedMailboxState.Approved,
+        "identity", "inbox", "sent", IdentityIsBound: true, ActivatedAtUtc: ReportFixtureAtUtc, Version: 1, Generation: 1);
+
     /// <summary>The Case page over a generation the page itself asks for and then reads back.</summary>
     private static WebApplicationFactory<Program> WithGenerationJourney(
         IntakeWebApplicationFactory baseFactory,
@@ -1156,6 +1569,27 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.True(value.Success, $"The input {name} must have a value.");
         return WebUtility.HtmlDecode(value.Groups["value"].Value);
     }
+
+    /// <summary>The one input tag carrying <paramref name="mark"/>.</summary>
+    private static string InputTag(string html, string mark)
+    {
+        var tag = Regex.Match(
+            html,
+            $"<input[^>]*{Regex.Escape(mark)}[^>]*>",
+            RegexOptions.CultureInvariant);
+        Assert.True(tag.Success, $"The form must render an input carrying {mark}.");
+        return tag.Value;
+    }
+
+    /// <summary>The values of every input named <paramref name="name"/>, in page order.</summary>
+    private static string[] InputValues(string html, string name) =>
+    [
+        .. Regex.Matches(
+                html,
+                $"<input[^>]*name=\"{Regex.Escape(name)}\"[^>]*value=\"(?<value>[^\"]*)\"[^>]*>",
+                RegexOptions.CultureInvariant)
+            .Select(match => WebUtility.HtmlDecode(match.Groups["value"].Value))
+    ];
 
     private static string FormHtml(string html, string handler)
     {
@@ -1477,6 +1911,52 @@ public sealed partial class AssessmentReportDraftWebTests
                 StaffMailPurpose.CaseReport, request.GenerationId,
                 request.ExpectedGenerationVersion, null));
         }
+    }
+
+    /// <summary>A send that Core refuses with <paramref name="refusal"/>.</summary>
+    private sealed class RefusingSendReport(string refusal) : ISendCaseReport
+    {
+        public Task<StaffMailOperation> ExecuteAsync(
+            SendCaseReportRequest request,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(refusal);
+    }
+
+    /// <summary>The dispatch facts of one Case, as the delivery form reads them.</summary>
+    private sealed class FakeDispatchFacts(Guid caseId, ReportDispatchFacts facts) : IReportRecipientSuggestionQueries
+    {
+        public Task<ReportDispatchFacts?> GetAsync(
+            Guid ownerCaseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
+            Task.FromResult<ReportDispatchFacts?>(ownerCaseId == caseId ? facts : null);
+    }
+
+    private sealed class FakeSendHistory(CaseReportSendHistory history) : ICaseReportSendHistoryQueries
+    {
+        public Task<CaseReportSendHistory> GetAsync(
+            Guid ownerCaseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
+            Task.FromResult(history);
+    }
+
+    private sealed class FixedInstructionEmail(Guid caseId, CaseInstructionEmail? instruction) : ICaseInstructionEmailQueries
+    {
+        public Task<CaseInstructionEmail?> GetAsync(Guid ownerCaseId, CancellationToken cancellationToken) =>
+            Task.FromResult(ownerCaseId == caseId ? instruction : null);
+    }
+
+    private sealed class FixedMailboxes(ApprovedMailbox[] mailboxes) : IApprovedMailboxStore
+    {
+        public Task<IReadOnlyList<ApprovedMailbox>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ApprovedMailbox>>(mailboxes);
+
+        public Task<ApprovedMailbox> UpdateAsync(
+            UpdateApprovedMailboxRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<bool> IsApprovedAsync(
+            string mailboxAddress, ApprovedMailboxRouteScope routeScope, CancellationToken cancellationToken) =>
+            Task.FromResult(mailboxes.Any(mailbox =>
+                mailbox.RouteScopes.Contains(routeScope)
+                && string.Equals(mailbox.Address, mailboxAddress, StringComparison.OrdinalIgnoreCase)));
     }
 
     private sealed class RecordingRepairSpecificationSnapshots : IRepairSpecificationSnapshotStore

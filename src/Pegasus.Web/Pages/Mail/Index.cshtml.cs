@@ -25,10 +25,14 @@ public sealed class IndexModel(
     SearchDeletedMail searchDeletedMail,
     IDismissRetainedMail dismissRetainedMail,
     IRestoreRetainedMail restoreRetainedMail,
+    IApprovedMailboxStore approvedMailboxes,
     IStaffMailSend? staffMailSend = null) : StaffPageModel
 {
     public bool StaffMailAvailable => staffMailSend is not null
         && staffMailSend is not UnavailableStaffMailSend;
+
+    /// <summary>The approved mailboxes a reply can leave from; a received message held by one offers Reply.</summary>
+    public IReadOnlySet<Guid> ReplyMailboxIds { get; private set; } = new HashSet<Guid>();
     internal const int PageSize = 25;
 
     /// <summary>The folder route value of the Dismissed scope.</summary>
@@ -69,9 +73,11 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true, Name = "selected")]
     public string? SelectedMessage { get; set; }
 
-    public MailOperationalDestination? DestinationFilter { get; private set; }
+    /// <summary>The one mail category the list narrows to, from <c>queue</c>.</summary>
+    public MailCategory? CategoryFilter { get; private set; }
 
-    public MailCategory? DetailedClassificationFilter { get; private set; }
+    /// <summary>The Unidentified scope (<c>queue=unidentified</c>): mail no classification has decided.</summary>
+    public bool UnidentifiedFilter { get; private set; }
 
     public MailFolderScope Folder { get; private set; } = MailFolderScope.Inbox;
 
@@ -149,10 +155,17 @@ public sealed class IndexModel(
                 ? LoadScopeCountsAsync(actor, mailbox, cancellationToken)
                 : Task.FromResult<IReadOnlyList<MailScopeOption>>([]));
             var freshnessRead = ReadAsync(() => getFreshness.ExecuteAsync(actor, cancellationToken));
-            await Task.WhenAll(mailboxesRead, listRead, scopesRead, freshnessRead);
+            var replyRead = ReadAsync(() => StaffMailAvailable
+                ? approvedMailboxes.ListAsync(cancellationToken)
+                : Task.FromResult<IReadOnlyList<ApprovedMailbox>>([]));
+            await Task.WhenAll(mailboxesRead, listRead, scopesRead, freshnessRead, replyRead);
             Mailboxes = await mailboxesRead;
             Scopes = await scopesRead;
             Freshness = await freshnessRead;
+            ReplyMailboxIds = (await replyRead)
+                .Where(item => item.CanSend)
+                .Select(item => item.Id)
+                .ToHashSet();
         }
         catch (StaffAuthorizationException)
         {
@@ -167,6 +180,16 @@ public sealed class IndexModel(
     }
 
     private static async Task<T> ReadAsync<T>(Func<Task<T>> read) => await read();
+
+    /// <summary>
+    /// Whether a received message offers Reply from the list: its mailbox can
+    /// send and it has a sender to answer. Reply opens the message record's own
+    /// reply, from the mailbox the message arrived in.
+    /// </summary>
+    public bool OffersReply(RetainedMailSummary item) =>
+        Folder != MailFolderScope.Sent
+        && ReplyMailboxIds.Contains(item.MailboxId)
+        && !string.IsNullOrWhiteSpace(item.SenderAddress);
 
     /// <summary>
     /// The list itself and, with it, the message the preview pane renders. The
@@ -202,8 +225,8 @@ public sealed class IndexModel(
                 mailbox,
                 Folder,
                 SearchTerm,
-                DestinationFilter,
-                DetailedClassificationFilter,
+                CategoryFilter,
+                UnidentifiedFilter,
                 UnreadOnly: false,
                 OldestFirst,
                 DismissedOnly: Dismissed),
@@ -306,8 +329,8 @@ public sealed class IndexModel(
             || !TryParseQueue(
                 QueueFilter,
                 out var normalizedQueue,
-                out var destination,
-                out var detailedClassification)
+                out var category,
+                out var unidentified)
             || (folder is MailFolderScope.DeletedItems or MailFolderScope.Sent && normalizedQueue is not null))
         {
             return false;
@@ -317,8 +340,8 @@ public sealed class IndexModel(
         Dismissed = dismissed;
         OldestFirst = oldestFirst;
         QueueFilter = normalizedQueue;
-        DestinationFilter = destination;
-        DetailedClassificationFilter = detailedClassification;
+        CategoryFilter = category;
+        UnidentifiedFilter = unidentified;
         return true;
     }
 
@@ -408,8 +431,7 @@ public sealed class IndexModel(
             mailbox,
             definition.Folder,
             SearchTerm,
-            definition.Destination,
-            null,
+            Unidentified: definition.Unidentified,
             UnreadOnly: false,
             DismissedOnly: definition.Dismissed)).ToArray();
         var counts = await listRetainedMail.CountManyAsync(actor, scopes, cancellationToken);
@@ -488,11 +510,8 @@ public sealed class IndexModel(
         _ => throw new InvalidOperationException($"Unknown mail folder scope '{(int)folder}'.")
     };
 
-    /// <summary>The preview's Folder cell: the folder a confirmed move put the message in, else the scope it was read from.</summary>
-    public static string FolderValue(RetainedMailPreview preview) =>
-        preview.Summary.CurrentFolderType is { } currentFolderType
-            ? MailLogicalFolders.Definition(currentFolderType).Label
-            : FolderLabel(preview.Folder);
+    /// <summary>The preview's Folder cell: the scope the message was read from.</summary>
+    public static string FolderValue(RetainedMailPreview preview) => FolderLabel(preview.Folder);
 
     /// <summary>
     /// The preview's Classification cell: the current decision's label, else
@@ -568,9 +587,9 @@ public sealed class IndexModel(
                 {
                     fields["search"] = searchTerm;
                 }
-                if (Definition.Destination is { } destination)
+                if (Definition.Unidentified)
                 {
-                    fields["queue"] = DestinationKey(destination);
+                    fields["queue"] = UnidentifiedQueueKey;
                 }
                 return fields;
             }
@@ -581,7 +600,7 @@ public sealed class IndexModel(
         string Label,
         string IconId,
         MailFolderScope Folder,
-        MailOperationalDestination? Destination = null,
+        bool Unidentified = false,
         bool Dismissed = false)
     {
         public bool Matches(
@@ -592,126 +611,74 @@ public sealed class IndexModel(
             && dismissed == Dismissed
             && string.Equals(
                 queueFilter,
-                Destination is { } destination ? DestinationKey(destination) : null,
+                Unidentified ? UnidentifiedQueueKey : null,
                 StringComparison.Ordinal);
     }
 
     /// <summary>
     /// The scope rail, in the planned order (Inbox, 13 September): no Unread scope —
     /// read state is not a queue; unread rows are bold — and a Dismissed scope last.
-    /// The aggregate scopes reuse the keys the Category select already binds.
+    /// The Unidentified scope reuses the key the Category select already binds.
     /// </summary>
     public static readonly IReadOnlyList<MailScopeDefinition> ScopeDefinitions =
     [
         new("All incoming", "inbox", MailFolderScope.Inbox),
-        new(
-            "Receiving work",
-            "download",
-            MailFolderScope.Inbox,
-            MailOperationalDestination.ReceivingWork),
-        new("Case updates", "reply", MailFolderScope.Inbox, MailOperationalDestination.Queries),
-        new("Pre-instructions", "clock", MailFolderScope.Inbox, MailOperationalDestination.Triage),
-        new(
-            "Unidentified",
-            "search",
-            MailFolderScope.Inbox,
-            MailOperationalDestination.Unidentified),
+        new("Unidentified", "search", MailFolderScope.Inbox, Unidentified: true),
         new("Sent Items", "send", MailFolderScope.Sent),
         new(OperatorLabels.Inbox.DismissedScope, "x", MailFolderScope.Inbox, Dismissed: true)
     ];
 
-    public sealed record MailViewOption(
-        string Value,
-        string Label,
-        MailOperationalDestination? Destination = null);
+    /// <summary>The <c>queue</c> value of the Unidentified scope.</summary>
+    public const string UnidentifiedQueueKey = "unidentified";
 
-    public static IReadOnlyList<MailViewOption> AggregateViews { get; } =
-        Enum.GetValues<MailOperationalDestination>()
-            .Where(destination => destination != MailOperationalDestination.DetailedClassification)
-            .Select(destination => new MailViewOption(
-                DestinationKey(destination),
-                OperatorLabels.MailOperationalDestinationLabel(destination),
-                destination))
-            .ToArray();
+    public sealed record MailViewOption(string Value, string Label);
 
-    public static IReadOnlyList<MailViewOption> DetailedViews { get; } =
-        MailClassificationSelection.Options
-            .Select(option => new
-            {
-                Option = option,
-                Parsed = MailClassificationSelection.TryParse(
-                    option.Value,
-                    otherName: null,
-                    otherReasoning: null,
-                    out var category)
-                    ? category
-                    : null
-            })
-            .Where(item => item.Parsed is not null
-                && MailOperationalDestinationPolicy.Map(item.Parsed).Destination
-                    == MailOperationalDestination.DetailedClassification)
-            .Select(item => new MailViewOption(
-                $"classification:{item.Option.Value}",
-                item.Option.Label))
-            .ToArray();
+    /// <summary>
+    /// The Category select: one flat list, every mail category in order and
+    /// then Unidentified. Each value is the category's code.
+    /// </summary>
+    public static IReadOnlyList<MailViewOption> CategoryViews { get; } =
+    [
+        .. MailCategories.All.Select(category => new MailViewOption(
+            MailCategories.Code(category),
+            OperatorLabels.MailClassification(category))),
+        new(UnidentifiedQueueKey, "Unidentified")
+    ];
 
+    /// <summary>
+    /// A <c>queue</c> value: a mail category code or <c>unidentified</c>;
+    /// anything else is not an address.
+    /// </summary>
     internal static bool TryParseQueue(
         string? value,
         out string? normalized,
-        out MailOperationalDestination? destination,
-        out MailCategory? detailedClassification)
+        out MailCategory? category,
+        out bool unidentified)
     {
         normalized = null;
-        destination = null;
-        detailedClassification = null;
+        category = null;
+        unidentified = false;
         if (string.IsNullOrWhiteSpace(value))
         {
             return true;
         }
 
         var candidate = value.Trim();
-        foreach (var option in AggregateViews)
+        if (string.Equals(candidate, UnidentifiedQueueKey, StringComparison.Ordinal))
         {
-            if (!string.Equals(option.Value, candidate, StringComparison.Ordinal))
-            {
-                continue;
-            }
-            normalized = option.Value;
-            destination = option.Destination;
+            normalized = UnidentifiedQueueKey;
+            unidentified = true;
             return true;
         }
-
-        const string prefix = "classification:";
-        if (!candidate.StartsWith(prefix, StringComparison.Ordinal)
-            || !MailClassificationSelection.TryParse(
-                candidate[prefix.Length..],
-                otherName: null,
-                otherReasoning: null,
-                out var category)
-            || category is null
-            || MailOperationalDestinationPolicy.Map(category).Destination
-                != MailOperationalDestination.DetailedClassification)
+        if (!MailCategories.TryParse(candidate, out var parsed))
         {
             return false;
         }
 
-        normalized = $"{prefix}{candidate[prefix.Length..]}";
-        detailedClassification = category;
+        normalized = candidate;
+        category = parsed;
         return true;
     }
-
-    private static string DestinationKey(MailOperationalDestination destination) => destination switch
-    {
-        MailOperationalDestination.ReceivingWork => "receiving-work",
-        MailOperationalDestination.Queries => "queries",
-        MailOperationalDestination.Other => "other",
-        MailOperationalDestination.Unidentified => "unidentified",
-        MailOperationalDestination.Triage => "triage",
-        MailOperationalDestination.DetailedClassification => throw new ArgumentException(
-            "Detailed views use a canonical classification key.",
-            nameof(destination)),
-        _ => throw new ArgumentOutOfRangeException(nameof(destination), destination, null)
-    };
 
     public static string MatchLabel(RetainedMailSearchMatch match) => match.Kind switch
     {

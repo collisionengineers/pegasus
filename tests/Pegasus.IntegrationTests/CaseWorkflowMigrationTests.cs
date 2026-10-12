@@ -465,7 +465,16 @@ public sealed class CaseWorkflowMigrationTests
                 "20261011112442_DiscardDeletesRepairSpec",
                 "20261011130000_DropAiJobMarketResearchIndexes",
                 "20261011140000_ImageMatchDecline",
-                "20261011191701_ReportSentAndCaseQueries"
+                "20261011191701_ReportSentAndCaseQueries",
+                "20261012120000_MailboxIncomingOutgoing",
+                "20261012120000_SupplementaryOfSnapshot",
+                "20261012120000_WorkerObservesReportSends",
+                "20261012130000_ReportSendCarriesSecondReport",
+                "20261012180000_FlatMailCategory",
+                "20261012190000_PrincipalReportSendingRules",
+                "20261012191000_ReportDispatchRecord",
+                "20261012192000_GrantWorkerCaseTasksForReportSent",
+                "20261012193000_SentReportInstructionMove"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

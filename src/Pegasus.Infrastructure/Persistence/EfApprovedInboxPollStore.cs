@@ -38,7 +38,7 @@ internal sealed class EfApprovedInboxPollStore(
                 item => item.Id == approvedMailboxId
                     && item.Address == mailboxAddress
                     && item.State == approvedState
-                    && item.AllowInboundIntake,
+                    && item.AllowIncoming,
                 cancellationToken);
         if (approvedMailbox?.ActivatedAtUtc is not { } activatedAtUtc
             || activatedAtUtc != mailbox.ActivatedAtUtc)

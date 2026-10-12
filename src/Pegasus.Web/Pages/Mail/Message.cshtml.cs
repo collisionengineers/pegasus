@@ -19,7 +19,7 @@ namespace Pegasus.Web.Pages.Mail;
 /// </summary>
 /// <remarks>
 /// Reads one retained message and invokes the existing Core commands for its
-/// classification, Case association, folder move, and post-report AI job.
+/// classification, Case association and post-report AI job.
 /// </remarks>
 /// <summary>The next action a message's classification offers (FRD-20).</summary>
 public enum MessageOffer
@@ -36,7 +36,6 @@ public sealed class MessageModel(
     IAiJobQueries aiJobQueries,
     ISendToAiControl sendToAiControl,
     CorrectRetainedMailClassification correctClassification,
-    MoveRetainedMailFolder moveRetainedMailFolder,
     ISearchCases searchCases,
     IGetCaseHeader getCaseHeader,
     Pegasus.Core.Triage.IGetTriage getTriage,
@@ -87,7 +86,7 @@ public sealed class MessageModel(
     public const string UnlinkAssociationAction = "Unlink";
 
     public IReadOnlyList<MailClassificationSelection.SelectionOption> ClassificationOptions =>
-        MailClassificationSelection.OptionsFor(RetainedMailDirection.Of(Detail.Folder));
+        MailClassificationSelection.Options;
 
     /// <summary>
     /// The list scope this message was opened from, carried through untouched so
@@ -114,9 +113,9 @@ public sealed class MessageModel(
 
     public bool OldestFirst { get; private set; }
 
-    private MailOperationalDestination? DestinationFilter { get; set; }
+    private MailCategory? CategoryFilter { get; set; }
 
-    private MailCategory? DetailedClassificationFilter { get; set; }
+    private bool UnidentifiedFilter { get; set; }
 
     [BindProperty(SupportsGet = true, Name = "section")]
     public string? Section { get; set; }
@@ -134,28 +133,10 @@ public sealed class MessageModel(
     public string? ClassificationKey { get; set; }
 
     [BindProperty]
-    public string? OtherClassificationName { get; set; }
-
-    [BindProperty]
-    public string? OtherClassificationReasoning { get; set; }
-
-    [BindProperty]
     public string? CorrectionReason { get; set; }
 
     [BindProperty]
     public string? WorkType { get; set; }
-
-    [BindProperty]
-    public int ExpectedRecommendationPolicyVersion { get; set; }
-
-    [BindProperty]
-    public string? ExpectedRecommendationPolicyKey { get; set; }
-
-    [BindProperty]
-    public int ExpectedMailboxVersion { get; set; }
-
-    [BindProperty]
-    public string? MoveOperationKey { get; set; }
 
     [BindProperty(SupportsGet = true, Name = "compose")]
     public string? CorrespondenceMode { get; set; }
@@ -219,15 +200,12 @@ public sealed class MessageModel(
 
     // Nullable on purpose: a non-nullable bound string is implicitly required,
     // and every post from this page that is not the compose form (a correction,
-    // a folder move) omits it. Send validates it itself below.
+    // a dismissal) omits it. Send validates it itself below.
     [BindProperty]
     public string? CorrespondenceOperationKey { get; set; } = NewOperationKey();
 
     [TempData]
     public string? ClassificationNotice { get; set; }
-
-    [TempData]
-    public string? FolderMoveNotice { get; set; }
 
     [TempData]
     public string? AssociationNotice { get; set; }
@@ -262,12 +240,12 @@ public sealed class MessageModel(
     /// </summary>
     public MessageOffer? Offer =>
         AssociationReceipt is { CurrentCaseId: null }
-        && Detail.Classification?.Current is { Outcome: MailClassificationOutcome.Classified, Category: { } category }
+        && Detail.Classification?.Current is { IsClassified: true, Category: { } category }
             ? category switch
             {
-                { IsNewInstruction: true } when Offers.CanCreateCase => MessageOffer.CreateCase,
-                { IsTriageRequest: true } when Offers.CanOpenTriage => MessageOffer.OpenTriage,
-                { IsImagesReceived: true } when Offers.CanRegisterImages => MessageOffer.RegisterImages,
+                MailCategory.NewInstruction when Offers.CanCreateCase => MessageOffer.CreateCase,
+                MailCategory.TriageRequest when Offers.CanOpenTriage => MessageOffer.OpenTriage,
+                MailCategory.ImagesReceived when Offers.CanRegisterImages => MessageOffer.RegisterImages,
                 _ => null
             }
             : null;
@@ -344,12 +322,9 @@ public sealed class MessageModel(
 
     public bool StaffMailAvailable => staffMailSend is not UnavailableStaffMailSend;
 
-    public bool CorrespondenceSendBlocked { get; private set; }
-
     public StaffMailOperation? CorrespondenceOperation { get; private set; }
 
     public bool CanCorrespond => StaffMailAvailable
-        && !CorrespondenceSendBlocked
         && CorrespondenceMailbox is not null;
 
     public bool CanReply => CanCorrespond && ReplyRecipients(Detail).To.Length > 0;
@@ -452,7 +427,7 @@ public sealed class MessageModel(
         }
 
         Detail = detail;
-        CorrespondenceCaseReference = ComposeModel.TryNormalizeCaseReference(CorrespondenceCaseReference, out var reference)
+        CorrespondenceCaseReference = TryNormalizeCaseReference(CorrespondenceCaseReference, out var reference)
             ? reference
             : null;
         if (StaffMailAvailable)
@@ -1005,10 +980,10 @@ public sealed class MessageModel(
         }
         if (!TryCategory(out var category))
         {
-            ModelState.AddModelError(nameof(ClassificationKey), "Choose a valid classification and complete any Other details.");
+            ModelState.AddModelError(nameof(ClassificationKey), "Choose a valid classification.");
         }
         CaseType? workType = null;
-        if (category is { IsNewInstruction: true }
+        if (category == MailCategory.NewInstruction
             && !MailClassificationSelection.TryParseWorkType(WorkType, out workType))
         {
             ModelState.AddModelError(nameof(WorkType), "Choose a valid case type.");
@@ -1026,7 +1001,7 @@ public sealed class MessageModel(
         {
             var result = await correctClassification.ExecuteAsync(
                 actor,
-                new(id, ExpectedClassificationVersion, category!, CorrectionReason!, workType),
+                new(id, ExpectedClassificationVersion, category, CorrectionReason!, workType),
                 cancellationToken);
             if (result is null)
             {
@@ -1139,64 +1114,6 @@ public sealed class MessageModel(
         }
     }
 
-    public async Task<IActionResult> OnPostMoveToRecommendedFolderAsync(
-        Guid id,
-        string? Reason,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-        if (!TryParseListContext(out _))
-        {
-            return NotFound();
-        }
-        try
-        {
-            var result = await moveRetainedMailFolder.ExecuteAsync(
-                actor,
-                new(
-                    id,
-                    ExpectedClassificationVersion,
-                    ExpectedRecommendationPolicyKey ?? string.Empty,
-                    ExpectedRecommendationPolicyVersion,
-                    ExpectedMailboxVersion,
-                    MoveOperationKey ?? string.Empty,
-                    Reason ?? string.Empty),
-                cancellationToken);
-            if (result is null)
-            {
-                return NotFound();
-            }
-            FolderMoveNotice = result.Outcome switch
-            {
-                RetainedMailFolderMoveOutcome.Succeeded => "Message moved to the recommended Outlook folder.",
-                RetainedMailFolderMoveOutcome.Failed => "The message was not moved. You can retry with a new confirmation.",
-                _ => "The move result is uncertain. Retry this same confirmation to check its current location."
-            };
-            return RedirectToPage(new
-            {
-                id,
-                mailbox = MailboxFilter,
-                folder = FolderFilter,
-                pageNumber = PageNumber,
-                search = SearchTerm,
-                queue = QueueFilter,
-                sort = OldestFirst ? "oldest" : null
-            });
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is ArgumentException or RetainedMailFolderMoveException)
-        {
-            ModelState.AddModelError(string.Empty, exception.Message);
-            return await ReloadAsync(actor, id, cancellationToken);
-        }
-    }
-
     private async Task<IActionResult> ReloadAsync(
         ActionActor actor,
         Guid id,
@@ -1269,12 +1186,8 @@ public sealed class MessageModel(
             return NotFound();
         Detail = detail;
 
-        // The durable send boundary owns the atomic original-message claim.
-        // A GET projection can hide a second action, but it cannot distinguish
-        // a same-key replay from a forged fresh key without racing another
-        // request. Always present the validated command to that boundary:
-        // same-key replay returns its operation; a distinct active claim is
-        // refused atomically.
+        // The durable send boundary owns idempotency: a same-key replay
+        // returns its operation, and a fresh key is a further reply.
         await LoadRetainedOperationAsync(actor, cancellationToken);
 
         // Every refusal reloads the context, which lists the options; the
@@ -1384,28 +1297,6 @@ public sealed class MessageModel(
             ModelState.AddModelError(string.Empty, exception.Message);
             return await ReloadAsync(actor, id, cancellationToken);
         }
-        catch (InvalidOperationException)
-        {
-            // An InvalidOperationException here does not by itself mean the
-            // durable send boundary refused a distinct active claim — it is
-            // also how an unavailable mail transport or a composition
-            // invariant failure surfaces. Only translate to the existing
-            // correspondence conflict message when a currently active
-            // operation actually exists for this original message;
-            // otherwise let the real failure propagate unmasked.
-            var currentOperation = await staffMailSend.GetLatestForOriginalAsync(
-                actor,
-                detail.Summary.Id,
-                cancellationToken);
-            if (!IsActiveOperation(currentOperation))
-            {
-                throw;
-            }
-            ModelState.AddModelError(
-                string.Empty,
-                "The existing correspondence operation must finish or be resolved before another action.");
-            return await ReloadAsync(actor, id, cancellationToken);
-        }
 
         return RedirectToPage(new
         {
@@ -1433,11 +1324,7 @@ public sealed class MessageModel(
         {
             return null;
         }
-        // GetRetainedMail listed the approved mailboxes for the folder
-        // recommendation when it got that far; list them only otherwise.
-        return CorrespondenceSender(
-            Detail,
-            Detail.ListedMailboxes ?? await approvedMailboxes.ListAsync(cancellationToken));
+        return CorrespondenceSender(Detail, await approvedMailboxes.ListAsync(cancellationToken));
     }
 
     /// <summary>
@@ -1455,16 +1342,7 @@ public sealed class MessageModel(
         {
             return null;
         }
-        return mailboxes.SingleOrDefault(item =>
-            item.Id == detail.Summary.MailboxId
-            && item.State == ApprovedMailboxState.Approved
-            && item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
-            && item.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence)
-            && item.ActivatedAtUtc is not null
-            && !string.IsNullOrWhiteSpace(item.MailboxIdentity)
-            && !string.IsNullOrWhiteSpace(item.SentFolderIdentity)
-            && item.Generation > 0
-            && item.VerifiedEncodedMessageSizeLimit is > 0);
+        return mailboxes.Sender(detail.Summary.MailboxId);
     }
 
     private async Task<bool> LoadCorrespondenceContextAsync(
@@ -1555,13 +1433,39 @@ public sealed class MessageModel(
         // The Case this message is linked to was read for CurrentCase moments
         // ago; naming it again needs no second search and header read.
         if (CurrentCase is { } linked
-            && ComposeModel.TryNormalizeCaseReference(reference, out var value)
+            && TryNormalizeCaseReference(reference, out var value)
             && string.Equals(linked.Summary.Reference, value, StringComparison.OrdinalIgnoreCase))
         {
             return Task.FromResult<CaseHeader?>(linked);
         }
 
-        return ComposeModel.ResolveCaseAsync(searchCases, getCaseHeader, actor, reference, cancellationToken);
+        return ResolveCaseByReferenceAsync(actor, reference, cancellationToken);
+    }
+
+    /// <summary>The Case a typed Case / PO reference names exactly; null when it names none.</summary>
+    private async Task<CaseHeader?> ResolveCaseByReferenceAsync(
+        ActionActor actor,
+        string? reference,
+        CancellationToken cancellationToken)
+    {
+        if (!TryNormalizeCaseReference(reference, out var value))
+        {
+            return null;
+        }
+
+        var matches = await searchCases.ExecuteAsync(
+            new(actor, new CaseSearchFilters(CaseReference: value), PageSize: 2), cancellationToken);
+        var match = matches.Items.SingleOrDefault(item =>
+            string.Equals(item.Reference, value, StringComparison.OrdinalIgnoreCase));
+        return match is null
+            ? null
+            : await getCaseHeader.ExecuteAsync(new(match.CaseId, actor), cancellationToken);
+    }
+
+    private static bool TryNormalizeCaseReference(string? value, out string? normalized)
+    {
+        normalized = value?.Trim();
+        return !string.IsNullOrWhiteSpace(normalized) && normalized.Length <= 100;
     }
 
     private async Task<IReadOnlyList<CaseSearchItem>> SearchCasesAsync(
@@ -1676,15 +1580,8 @@ public sealed class MessageModel(
             actor,
             Detail.Summary.Id,
             cancellationToken);
-        CorrespondenceSendBlocked = IsActiveOperation(CorrespondenceOperation);
         CorrespondenceOperationId = CorrespondenceOperation?.Id;
     }
-
-    private static bool IsActiveOperation(StaffMailOperation? operation) =>
-        operation is not null
-            && operation.State is not StaffMailState.Sent
-                and not StaffMailState.Failed
-                and not StaffMailState.Cancelled;
 
     private static string NewRetainedOperationKey(Guid retainedMessageId) =>
         $"retained:{retainedMessageId:N}:{Guid.NewGuid():N}";
@@ -2116,10 +2013,7 @@ public sealed class MessageModel(
     }
 
     private bool IsOutsideListScope(RetainedMailDetail detail, MailFolderScope listFolder) =>
-        (listFolder == MailFolderScope.Inbox
-            && SearchTerm is null
-            && detail.Summary.CurrentFolderType is not null)
-            || ListDismissed != (detail.Summary.DismissedAtUtc is not null)
+        ListDismissed != (detail.Summary.DismissedAtUtc is not null)
             || detail.Folder != listFolder
             || (MailboxFilter is { } mailbox
                 && !string.Equals(mailbox, detail.Summary.MailboxId.ToString("D"), StringComparison.OrdinalIgnoreCase))
@@ -2145,8 +2039,8 @@ public sealed class MessageModel(
         if (!IndexModel.TryParseQueue(
                 QueueFilter,
                 out var normalized,
-                out var destination,
-                out var detailedClassification))
+                out var category,
+                out var unidentified))
         {
             return false;
         }
@@ -2155,8 +2049,8 @@ public sealed class MessageModel(
             return false;
         }
         QueueFilter = normalized;
-        DestinationFilter = destination;
-        DetailedClassificationFilter = detailedClassification;
+        CategoryFilter = category;
+        UnidentifiedFilter = unidentified;
         return true;
     }
 
@@ -2164,7 +2058,7 @@ public sealed class MessageModel(
         MailClassificationDossier? dossier,
         RetainedMailSummary summary)
     {
-        if (DestinationFilter is null && DetailedClassificationFilter is null)
+        if (CategoryFilter is null && !UnidentifiedFilter)
         {
             return true;
         }
@@ -2172,29 +2066,13 @@ public sealed class MessageModel(
         {
             return false;
         }
-        if (DestinationFilter is { } destination)
-        {
-            var matches = MailOperationalDestinationPolicy.Map(dossier.Current).Destination == destination;
-            return destination == MailOperationalDestination.Unidentified
-                ? matches && !summary.UnidentifiedResolved
-                : matches;
-        }
-        var actual = dossier.Current.Category;
-        var expected = DetailedClassificationFilter;
-        return actual is not null
-            && expected is not null
-            && actual.Direction == expected.Direction
-            && actual.ReceivedFamily == expected.ReceivedFamily
-            && actual.SentFamily == expected.SentFamily
-            && string.Equals(actual.Subtype, expected.Subtype, StringComparison.Ordinal);
+        return UnidentifiedFilter
+            ? !dossier.Current.IsClassified && !summary.UnidentifiedResolved
+            : dossier.Current.Is(CategoryFilter!.Value);
     }
 
     private bool TryCategory(out MailCategory? category) =>
-        MailClassificationSelection.TryParse(
-            ClassificationKey,
-            OtherClassificationName,
-            OtherClassificationReasoning,
-            out category);
+        MailClassificationSelection.TryParse(ClassificationKey, out category);
 
     public string ActiveSection => Section switch
     {
@@ -2213,19 +2091,9 @@ public sealed class MessageModel(
     public static string ClassificationLabel(MailClassificationOutcome? outcome) => outcome switch
     {
         MailClassificationOutcome.Classified => "Classified",
-        MailClassificationOutcome.Ambiguous => "Ambiguous",
-        MailClassificationOutcome.Unclassified => "Unclassified",
+        MailClassificationOutcome.Unclassified => MailClassificationSelection.UnclassifiedLabel,
         _ => "Not yet processed"
     };
-
-    /// <summary>
-    /// The operational destination for a classification decision, computed
-    /// live from the Core policy rather than a second persisted value: the
-    /// destination is a pure function of the already-loaded decision, so
-    /// there is nothing to keep in sync.
-    /// </summary>
-    public static MailOperationalDestinationResult Destination(MailClassificationResult result) =>
-        MailOperationalDestinationPolicy.Map(result);
 
     public static string DecisionLabel(MailClassificationResult result) => result.Category is { } category
         ? DecisionLabel(category)

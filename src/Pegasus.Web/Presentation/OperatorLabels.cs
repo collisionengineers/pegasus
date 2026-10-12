@@ -58,7 +58,6 @@ public static class OperatorLabels
         UnidentifiedReasonCode.UnsupportedContent => "Unsupported content",
         UnidentifiedReasonCode.NoUsableIdentification => "No usable identification",
         UnidentifiedReasonCode.ConflictingIdentification => "Conflicting identification",
-        UnidentifiedReasonCode.AmbiguousOwnershipOrDestination => "Ambiguous ownership or destination",
         UnidentifiedReasonCode.TechnicalProcessingFailure => "Technical processing failure",
         _ => Humanise(reason.ToString())
     };
@@ -420,17 +419,6 @@ public static class OperatorLabels
         public const string ProblemReports = "Problem reports";
     }
 
-    /// <summary>
-    /// A received-mail subtype in operator words. Chasing is one category to the
-    /// operator, "Update request" (18 September and 1 October 2026), and its
-    /// slug never appears on the front end.
-    /// </summary>
-    private static string SubtypeWord(string subtype) => subtype switch
-    {
-        "chasing-for-update" => "Update request",
-        _ => HumanizeSlug(subtype)
-    };
-
     /// <summary>Release notes (FRD-12 What's new; FRD-17): the labels, statuses and acknowledgements.</summary>
     public static class ReleaseNotes
     {
@@ -535,13 +523,11 @@ public static class OperatorLabels
         public const string Loading = "Loading…";
         public const string LookingUp = "Looking up…";
         public const string Marking = "Marking…";
-        public const string Moving = "Moving…";
         public const string Opening = "Opening…";
         public const string Pausing = "Pausing…";
         public const string Placing = "Placing on hold…";
         public const string Publishing = "Publishing…";
         public const string Recording = "Recording…";
-        public const string Refreshing = "Refreshing…";
         public const string Refusing = "Refusing…";
         public const string Registering = "Registering…";
         public const string Releasing = "Releasing…";
@@ -807,6 +793,7 @@ public static class OperatorLabels
         Pegasus.Core.Operations.NeedsAttentionKind.ReviewCase => "Review Case",
         Pegasus.Core.Operations.NeedsAttentionKind.UnassignedEngineer => "Assign Engineer",
         Pegasus.Core.Operations.NeedsAttentionKind.VehicleImagesPaired => WorkCentre.VehicleImagesPaired,
+        Pegasus.Core.Operations.NeedsAttentionKind.OpenTasks => WorkCentre.OpenTasks,
         _ => Humanise(kind.ToString())
     };
 
@@ -934,6 +921,12 @@ public static class OperatorLabels
         /// </summary>
         public const string VehicleImagesPaired = "Vehicle images paired";
 
+        /// <summary>
+        /// A Case with open tasks (operator, 6 October 2026): the row's kind
+        /// and its action.
+        /// </summary>
+        public const string OpenTasks = "Open tasks";
+
         /// <summary>The kind filter chip (P3), in the mockup's order.</summary>
         public static string KindChip(NeedsAttentionKind kind) => kind switch
         {
@@ -944,9 +937,16 @@ public static class OperatorLabels
             Pegasus.Core.Operations.NeedsAttentionKind.VehicleImagesPaired => VehicleImagesPaired,
             Pegasus.Core.Operations.NeedsAttentionKind.Unidentified => "Unidentified",
             Pegasus.Core.Operations.NeedsAttentionKind.Triage => "Triage",
+            Pegasus.Core.Operations.NeedsAttentionKind.OpenTasks => "Tasks",
             Pegasus.Core.Operations.NeedsAttentionKind.AiDraft => "AI draft",
             _ => Humanise(kind.ToString())
         };
+
+        /// <summary>An Open tasks row's bold line: the first open task, and how many more the Case has.</summary>
+        public static string OpenTasksTitle(string firstTask, int moreCount) =>
+            moreCount > 0
+                ? string.Create(CultureInfo.InvariantCulture, $"{firstTask} (+{moreCount} more)")
+                : firstTask;
 
         /// <summary>The due-day group heading (P1) with the whole-list count.</summary>
         public static string Group(NeedsAttentionPriority priority, int count) => priority switch
@@ -1059,28 +1059,6 @@ public static class OperatorLabels
     /// second spelling of the same fact.
     /// </summary>
     public static string ImageChaseState(bool chaseDue) => chaseDue ? "Chase due" : "Not yet due";
-
-    /// <summary>
-    /// The application work view a classified message belongs in, from the
-    /// Core operational-destination policy.
-    /// </summary>
-    /// <remarks>
-    /// The abstention case reuses the exact "Unidentified" wording this page
-    /// already shows for the unmatched Filed-to state
-    /// (<see cref="Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(IntakeDecision)"/>)
-    /// rather than introducing a second operator-visible spelling of the same
-    /// fail-closed state.
-    /// </remarks>
-    public static string MailOperationalDestinationLabel(MailOperationalDestination destination) => destination switch
-    {
-        MailOperationalDestination.ReceivingWork => "Receiving work",
-        MailOperationalDestination.Queries => "Queries",
-        MailOperationalDestination.DetailedClassification => "Detailed classification",
-        MailOperationalDestination.Other => "Other",
-        MailOperationalDestination.Triage => "Triage",
-        MailOperationalDestination.Unidentified => "Unidentified",
-        _ => Humanise(destination.ToString())
-    };
 
     /// <summary>
     /// An estimate line's operation type, in the same words the line-type
@@ -1431,18 +1409,8 @@ public static class OperatorLabels
             : string.Create(CultureInfo.InvariantCulture, $"{megabytes:0.0} MB");
     }
 
-    /// <summary>
-    /// The approved-mailbox allowlist's read-only route scope, as read on
-    /// /Administration/Mailboxes. Explicit because the mechanical
-    /// <see cref="Humanise"/> fallback would render <c>InboundIntake</c> as
-    /// "Inbound intake", which carries the banned "intake" word.
-    /// </summary>
-    public static string RouteScope(ApprovedMailboxRouteScope routeScope) => routeScope switch
-    {
-        ApprovedMailboxRouteScope.InboundIntake => "New instructions and Triage mail (Inbox)",
-        ApprovedMailboxRouteScope.SentEvidence => "Exact report and Triage evidence (Sent Items)",
-        _ => Humanise(routeScope.ToString())
-    };
+    /// <summary>What one approved mailbox is used for, as read on /Administration/Mailboxes.</summary>
+    public static string RouteScope(ApprovedMailboxRouteScope routeScope) => Humanise(routeScope.ToString());
 
     /// <summary>
     /// A stored chase reason for display. Maps the pre-release-15 wording
@@ -1734,7 +1702,7 @@ public static class OperatorLabels
     /// <summary>
     /// The source tag of a recorded assessment value: the vehicle lookup's
     /// writes read Lookup, an Original report cell filled from the filed report
-    /// Extracted, the agreed fee a new Case took from its Principal Principal,
+    /// and a VIN filled from a capture document Extracted, the agreed fee a new Case took from its Principal Principal,
     /// the findings a linked Triage filled Triage, any other Automation
     /// actor's AI, a Pegasus worker's Automatic; a staff
     /// value carries none.
@@ -1743,6 +1711,7 @@ public static class OperatorLabels
     {
         ActorKind.Automation when field.RecordedBy == VehicleLookupFillPolicy.RecorderId => SourceTagWord.Lookup,
         ActorKind.Automation when field.RecordedBy == OriginalReportPrefillPolicy.RecorderId => SourceTagWord.Extracted,
+        ActorKind.Automation when field.RecordedBy == Pegasus.Core.Intake.ThirdPartyReports.VehicleCaptureFill.RecorderId => SourceTagWord.Extracted,
         ActorKind.Automation when field.RecordedBy == PrincipalDefaultFeePolicy.RecorderId => SourceTagWord.Principal,
         ActorKind.Automation when field.RecordedBy == Pegasus.Core.Triage.TriageFindingFill.RecorderId => SourceTagWord.Triage,
         ActorKind.Automation => SourceTagWord.Ai,
@@ -1776,45 +1745,23 @@ public static class OperatorLabels
     }
 
     /// <summary>
-    /// A mail classification in operator words: the settled family label, with
-    /// the subtype appended after a separator dot ("New instruction ·
-    /// Inspection"). Other categories carry the operator's own name verbatim.
+    /// A mail category in operator words (operator, 12 October 2026).
     /// </summary>
-    public static string MailClassification(Pegasus.Core.Intake.MailCategory category)
+    public static string MailClassification(Pegasus.Core.Intake.MailCategory category) => category switch
     {
-        if (category.IsOther)
-        {
-            return category.OtherName!;
-        }
-
-        var family = category.ReceivedFamily is { } received
-            ? received switch
-            {
-                Pegasus.Core.Intake.ReceivedMailFamily.General => "General",
-                Pegasus.Core.Intake.ReceivedMailFamily.Billing => "Billing",
-                Pegasus.Core.Intake.ReceivedMailFamily.NewInstructionReceived => "New instruction",
-                Pegasus.Core.Intake.ReceivedMailFamily.NonClientRelated => "Not client related",
-                Pegasus.Core.Intake.ReceivedMailFamily.InProgressCases => "In-progress case",
-                Pegasus.Core.Intake.ReceivedMailFamily.PostReportEmails => "Post-report",
-                Pegasus.Core.Intake.ReceivedMailFamily.PreInstructionEmails => "Pre-instruction",
-                Pegasus.Core.Intake.ReceivedMailFamily.InternalCc => "Internal CC",
-                _ => throw new ArgumentOutOfRangeException(nameof(category))
-            }
-            : category.SentFamily switch
-            {
-                Pegasus.Core.Intake.SentMailFamily.ReportSent => "Report sent",
-                Pegasus.Core.Intake.SentMailFamily.CaseRejected => "Case rejected",
-                Pegasus.Core.Intake.SentMailFamily.QuerySent => "Query sent",
-                Pegasus.Core.Intake.SentMailFamily.AdditionalImageRequest => "Additional image request",
-                _ => throw new ArgumentOutOfRangeException(nameof(category))
-            };
-        var prefixed = category.Direction == Pegasus.Core.Intake.MailDirection.Sent
-            ? $"Sent · {family}"
-            : family;
-        return category.Subtype is { } subtype
-            ? $"{prefixed} · {SubtypeWord(subtype)}"
-            : prefixed;
-    }
+        Pegasus.Core.Intake.MailCategory.NewInstruction => "New instruction",
+        Pegasus.Core.Intake.MailCategory.TriageRequest => "Triage request",
+        Pegasus.Core.Intake.MailCategory.PreInstruction => "Pre-instruction",
+        Pegasus.Core.Intake.MailCategory.ImagesReceived => "Images received",
+        Pegasus.Core.Intake.MailCategory.CaseUpdate => "Case update",
+        Pegasus.Core.Intake.MailCategory.Cancellation => "Cancellation",
+        Pegasus.Core.Intake.MailCategory.Query => "Query",
+        Pegasus.Core.Intake.MailCategory.Billing => "Billing",
+        Pegasus.Core.Intake.MailCategory.General => "General",
+        Pegasus.Core.Intake.MailCategory.NotClientRelated => "Not client related",
+        Pegasus.Core.Intake.MailCategory.InternalCc => "Internal CC",
+        _ => throw new ArgumentOutOfRangeException(nameof(category))
+    };
 
     /// <summary>
     /// The resolve dialog's destination words. The contract wordings
@@ -1909,12 +1856,6 @@ public static class OperatorLabels
         public const string Source = "Principal API";
     }
 
-    private static string HumanizeSlug(string slug)
-    {
-        var words = slug.Replace('-', ' ').Replace('_', ' ');
-        return words.Length == 0 ? words : char.ToUpperInvariant(words[0]) + words[1..];
-    }
-
     /// <summary>
     /// Staff correspondence's own state (S12, C08): the operator sees only
     /// whether it is on its way, delivered, or needs attention — the internal
@@ -1985,6 +1926,62 @@ public static class OperatorLabels
         public const string RemoveSalvageBand = "Remove";
         public const string SaveSalvageMatrix = "Save salvage matrix";
         public const string DefaultFee = "Default fee (£)";
+        public const string ReportSending = "Report sending";
+        public const string SaveReportSending = "Save report sending";
+        public const string SendFrom = "Send from";
+        public const string SendFromNone = "Not set";
+        public const string SendTo = "Send to";
+        public const string SendToHint = "Empty: the original instruction sender.";
+        public const string SendToOnly = "Send to only";
+        public const string ReplyAll = "Reply all";
+        public const string Cc = "Cc";
+        public const string NeverCc = "Never cc";
+        public const string Attach = "Attach";
+        public const string FeeNoteSeparate = "Fee note is a separate PDF";
+        public const string AttachEstimate = "Estimate";
+        public const string AttachAudatex = "Audatex";
+        public const string ReportImages = "Report carries vehicle images";
+        public const string VehicleImagesDocument = "Vehicle images document required";
+        public const string FigureBreakdown = "Figure breakdown required";
+        public const string GarageFigures = "Garage figures";
+        public const string Hold = "Hold";
+        public const string HoldHint = "Send stays off until staff tick this as done.";
+        public const string Reminders = "Reminders";
+        public const string AttachmentName = "Attachment name";
+        public const string AttachmentNameFirst = "First send";
+        public const string AttachmentNameResend = "Re-send";
+        public const string AttachmentNameHint = "Use {ref}, {reg} and {outcome}. Empty: the standard name.";
+        public const string AddAddress = "Add address";
+        public const string AddReminder = "Add reminder";
+        public const string Rules = "Rules";
+        public const string Rule = "Rule";
+        public const string AddRule = "Add rule";
+        public const string RemoveRule = "Remove rule";
+        public const string RuleMatch = "Match";
+        public const string RuleMatchAll = "All conditions";
+        public const string RuleMatchAny = "Any condition";
+        public const string Condition = "Condition";
+        public const string NoCondition = "No condition";
+        public const string ConditionValueHint = "Separate several with commas.";
+        public const string ActionCcAdd = "Cc add";
+        public const string ActionCcRemove = "Cc remove";
+        public const string ActionRemind = "Remind";
+        public const string ActionHold = "Hold";
+        public const string ActionStop = "Stop";
+        public const string ActionStopHint = "Send is refused; staff may override with a reason.";
+
+        /// <summary>A report sending condition as the rule row names it.</summary>
+        public static string ConditionKind(Pegasus.Core.Reports.ReportSendingConditionKind kind) => kind switch
+        {
+            Pegasus.Core.Reports.ReportSendingConditionKind.ClaimSource => "Claim Source",
+            Pegasus.Core.Reports.ReportSendingConditionKind.Repairer => "Repairer",
+            Pegasus.Core.Reports.ReportSendingConditionKind.ImagesFrom => "Images from",
+            Pegasus.Core.Reports.ReportSendingConditionKind.Mentions => "Instruction mentions",
+            Pegasus.Core.Reports.ReportSendingConditionKind.SenderNot => "Sender is not",
+            Pegasus.Core.Reports.ReportSendingConditionKind.Outcome => "Outcome",
+            Pegasus.Core.Reports.ReportSendingConditionKind.BodyshopMentions => "Bodyshop mentions",
+            _ => kind.ToString()
+        };
 
         /// <summary>A salvage category as the Case names it: "Cat S".</summary>
         public static string SalvageCategory(string code) => $"Cat {code}";
@@ -2045,16 +2042,13 @@ public static class OperatorLabels
         public const string AddCategory = "Add category";
         public const string SaveMailbox = "Save mailbox";
         public const string SaveCategory = "Save category";
-        public const string Refresh = "Refresh";
         public const string ApprovedAddress = "Approved address";
-        public const string RouteScope = "Route scope";
+        public const string RouteScope = "Used for";
         public const string DisplayName = "Display name";
         public const string NoApprovedMailboxes = "No approved mailboxes";
         public const string NoMailCategories = "No mail categories";
         public const string NotActivated = "Not activated";
         public const string NoSubscription = "None.";
-        public const string Configured = "Configured";
-        public const string NotConfigured = "Not configured";
 
         /// <summary>
         /// Both state vocabularies are the enum names themselves, so they
@@ -2067,9 +2061,6 @@ public static class OperatorLabels
         public static string CategoryState(ApprovedOutlookCategoryState state) =>
             Humanise(state.ToString());
 
-        public static string FolderState(bool configured) =>
-            configured ? Configured : NotConfigured;
-
         public static string PollStatus(
             ApprovedMailbox mailbox,
             ApprovedMailboxPollStatus? status)
@@ -2077,7 +2068,7 @@ public static class OperatorLabels
             if (status is null)
             {
                 if (mailbox.State != ApprovedMailboxState.Approved
-                    || !mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.InboundIntake))
+                    || !mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.Incoming))
                 {
                     return "Not polled.";
                 }
@@ -2337,6 +2328,7 @@ public static class OperatorLabels
             new("report", "Report", "icon-file"),
             new("files", "Files", "icon-folder"),
             new("notes", "Notes", "icon-history"),
+            new("tasks", "Tasks", "icon-check-square"),
             new("queries", "Queries", "icon-reply")
         ];
 
@@ -2771,8 +2763,6 @@ public static class OperatorLabels
     {
         public const string Category = "Category";
         public const string AllCategories = "All categories";
-        public const string DestinationGroup = "Destinations";
-        public const string CategoryGroup = "Categories";
         public const string DismissedScope = "Dismissed";
         public const string Dismiss = "Dismiss";
         public const string Restore = "Restore";

@@ -138,11 +138,13 @@ public sealed class CaseEstimateHeaderWebTests
         Assert.True(readStart >= 0, "Read mode must draw the Repair Spec body.");
         var body = reading[readStart..];
 
+        // The rate and the uplift stand in the rate bar under the grid (v38 P5).
         foreach (var label in new[]
         {
             OperatorLabels.CaseWorkspace.EngineerSections.EstimateName,
-            OperatorLabels.CaseWorkspace.EngineerSections.LabourRatePerHour,
-            OperatorLabels.CaseWorkspace.EngineerSections.RegionalUplift,
+            OperatorLabels.CaseWorkspace.EngineerSections.LabourRate,
+            CaseWorkspaceLabels.Estimate.RegionalUpliftTick,
+            CaseWorkspaceLabels.Estimate.Custom,
             OperatorLabels.CaseWorkspace.EngineerSections.OtherCostsPounds,
             OperatorLabels.CaseWorkspace.EngineerSections.VatPercent,
             CaseWorkspaceLabels.EstimateVat.RepairerStatus

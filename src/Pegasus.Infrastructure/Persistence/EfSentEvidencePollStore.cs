@@ -12,7 +12,10 @@ internal sealed class EfSentEvidencePollStore(
     IDbContextFactory<PegasusDbContext> contextFactory) : ISentEvidencePollStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private static readonly TimeSpan CompletedPollDelay = TimeSpan.FromMinutes(1);
+    // Below the Worker's one-minute timer, so a completed poll is due at the
+    // next tick. A full minute made the next tick fall a few milliseconds
+    // early and skipped it, and each mailbox was read every other minute.
+    private static readonly TimeSpan CompletedPollDelay = TimeSpan.FromSeconds(30);
 
     public async Task<ApprovedSentPollLease?> ClaimAsync(
         DateTimeOffset nowUtc,
@@ -28,7 +31,7 @@ internal sealed class EfSentEvidencePollStore(
         var approvedState = Pegasus.Core.Identity.ApprovedMailboxState.Approved.ToString();
         var mailboxes = await context.ApprovedMailboxes
             .Where(item => item.State == approvedState
-                && item.AllowSentEvidence
+                && item.AllowOutgoing
                 && item.MailboxIdentity != null
                 && item.SentFolderIdentity != null
                 && item.ActivatedAtUtc != null

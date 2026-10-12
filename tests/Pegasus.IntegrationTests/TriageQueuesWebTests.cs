@@ -34,14 +34,11 @@ public sealed class TriageQueuesWebTests
         [StaffRole.User]);
 
     /// <summary>
-    /// The Missing filter is exclusive: "Instructions" lists the cases whose
-    /// instruction is the only thing missing, "Images" the converse, and
-    /// "Both missing" the remainder — an image-initiated row is
-    /// instruction-missing with images present, so it is listed for All and
-    /// Instructions only.
+    /// The Not ready list has no Missing filter: every Case is listed whatever
+    /// it lacks, and each row's Missing column says what that is.
     /// </summary>
     [Fact]
-    public async Task NotReadyMissingFilterReturnsOnlyTheMatchingRows()
+    public async Task NotReadyListsEveryCaseAndNamesWhatEachLacks()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -71,33 +68,24 @@ public sealed class TriageQueuesWebTests
             instructionComplete: false,
             imagesComplete: false);
 
-        using var instructions = await client.GetAsync("/Cases?tab=not_ready&missing=instructions");
-        var instructionsHtml = await instructions.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, instructions.StatusCode);
-        Assert.Contains(instructionOnly, instructionsHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(imagesOnly, instructionsHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(bothMissing, instructionsHtml, StringComparison.Ordinal);
+        using var response = await client.GetAsync("/Cases?tab=not_ready");
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        using var images = await client.GetAsync("/Cases?tab=not_ready&missing=images");
-        var imagesHtml = await images.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, images.StatusCode);
-        Assert.Contains(imagesOnly, imagesHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(instructionOnly, imagesHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(bothMissing, imagesHtml, StringComparison.Ordinal);
+        var instructionOnlyRow = RowOf(html, instructionOnly);
+        Assert.Contains("Instructions", instructionOnlyRow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Images", instructionOnlyRow, StringComparison.Ordinal);
+        var imagesOnlyRow = RowOf(html, imagesOnly);
+        Assert.Contains("Images", imagesOnlyRow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Instructions", imagesOnlyRow, StringComparison.Ordinal);
+        Assert.Contains("Instructions and images", RowOf(html, bothMissing), StringComparison.Ordinal);
 
-        using var both = await client.GetAsync("/Cases?tab=not_ready&missing=both");
-        var bothHtml = await both.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, both.StatusCode);
-        Assert.Contains(bothMissing, bothHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(instructionOnly, bothHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(imagesOnly, bothHtml, StringComparison.Ordinal);
-
-        using var all = await client.GetAsync("/Cases?tab=not_ready");
-        var allHtml = await all.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, all.StatusCode);
-        Assert.Contains(instructionOnly, allHtml, StringComparison.Ordinal);
-        Assert.Contains(imagesOnly, allHtml, StringComparison.Ordinal);
-        Assert.Contains(bothMissing, allHtml, StringComparison.Ordinal);
+        static string RowOf(string page, string reference)
+        {
+            var start = page.IndexOf($">{reference}</a>", StringComparison.Ordinal);
+            Assert.True(start >= 0, $"{reference} is not listed.");
+            return page[start..page.IndexOf("</tr>", start, StringComparison.Ordinal)];
+        }
     }
 
     /// <summary>
@@ -671,7 +659,7 @@ public sealed class TriageQueuesWebTests
         var registered = await services.GetRequiredService<IRegisterUnidentified>().ExecuteAsync(
             new RegisterUnidentifiedRequest(
                 UnidentifiedOrigin.Receipt(receipt.Id),
-                UnidentifiedReasonCode.AmbiguousOwnershipOrDestination,
+                UnidentifiedReasonCode.NoUsableIdentification,
                 "The source needs a decision.",
                 ActionActor.SystemWorker("test-intake"),
                 Guid.NewGuid().ToString("N"),
@@ -753,7 +741,7 @@ public sealed class TriageQueuesWebTests
         Assert.DoesNotContain("queue-group-divider", html, StringComparison.Ordinal);
         Assert.DoesNotContain("queue-exception", html, StringComparison.Ordinal);
         Assert.Contains("name=\"principal\"", html, StringComparison.Ordinal);
-        Assert.Contains("name=\"missing\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"missing\"", html, StringComparison.Ordinal);
         using var awaiting = await client.GetAsync("/Cases?tab=awaiting");
         var awaitingHtml = await awaiting.Content.ReadAsStringAsync();
         Assert.Contains(imageIntake.ImageIntakeReference, awaitingHtml, StringComparison.Ordinal);

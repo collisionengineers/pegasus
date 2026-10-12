@@ -889,12 +889,13 @@ public sealed partial class QdosTriageIntegrationTests
             {
                 services.RemoveAll<IStaffMailSend>();
                 services.AddSingleton<IStaffMailSend>(send);
-                services.RemoveAll<IApprovedMailboxStore>();
-                services.AddScoped<IApprovedMailboxStore>(provider =>
-                    new StaffSendCapableMailboxStore(
-                        provider.GetRequiredService<EfApprovedMailboxStore>(),
-                        null,
-                        mailboxCanSend));
+                if (!mailboxCanSend)
+                {
+                    services.RemoveAll<IApprovedMailboxStore>();
+                    services.AddScoped<IApprovedMailboxStore>(provider =>
+                        new WithoutOutgoingMailboxStore(
+                            provider.GetRequiredService<EfApprovedMailboxStore>()));
+                }
             }));
 
     private static async Task<(string OperationKey, string AntiforgeryToken)> TriageChaserTokensAsync(
@@ -953,9 +954,11 @@ public sealed partial class QdosTriageIntegrationTests
                     Id = mailboxId,
                     Address = mailboxAddress,
                     State = "Approved",
-                    AllowStaffSend = true,
-                    AllowSentEvidence = true,
-                    AllowInboundIntake = true,
+                    AllowIncoming = true,
+                    AllowOutgoing = true,
+                    MailboxIdentity = "sc08-sender",
+                    InboxFolderIdentity = "inbox",
+                    SentFolderIdentity = "sent-items",
                     MailboxGeneration = 1,
                     Version = 1,
                     ActivatedAtUtc = ChaserNowUtc
@@ -963,7 +966,14 @@ public sealed partial class QdosTriageIntegrationTests
             }
             else
             {
+                // A Triage reply leaves only a mailbox that can send.
                 mailboxId = mailbox.Id;
+                mailbox.AllowOutgoing = true;
+                mailbox.MailboxIdentity ??= "sc08-sender";
+                mailbox.SentFolderIdentity ??= "sent-items";
+                mailbox.ActivatedAtUtc ??= ChaserNowUtc;
+                if (mailbox.MailboxGeneration <= 0)
+                    mailbox.MailboxGeneration = 1;
             }
 
             if (!await context.ApprovedInboxPollStates.AnyAsync(p => p.ApprovedMailboxId == mailboxId))
@@ -1125,55 +1135,27 @@ public sealed partial class QdosTriageIntegrationTests
     }
 
     /// <summary>
-    /// The approved mailboxes as a send-capable estate sees them, or, with
-    /// <paramref name="canSend"/> false, as one where no mailbox may send.
+    /// The approved mailboxes as an estate where no mailbox is Outgoing, so
+    /// none can send.
     /// </summary>
-    private sealed class StaffSendCapableMailboxStore(
-        IApprovedMailboxStore inner,
-        MailboxCapability? mailboxCapability,
-        bool canSend = true) : IApprovedMailboxStore
+    private sealed class WithoutOutgoingMailboxStore(IApprovedMailboxStore inner) : IApprovedMailboxStore
     {
-        public async Task<IReadOnlyList<ApprovedMailbox>> ListAsync(CancellationToken cancellationToken)
-        {
-            var mailboxes = await inner.ListAsync(cancellationToken);
-            if (!canSend)
-            {
-                return mailboxes
-                    .Select(mailbox => mailbox with
-                    {
-                        RouteScopes = [.. mailbox.RouteScopes.Where(scope => scope != ApprovedMailboxRouteScope.StaffSend)]
-                    })
-                    .ToArray();
-            }
-
-            return mailboxes
-                .Select(mailbox => mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence)
-                    ? mailbox with
-                    {
-                        RouteScopes = [.. mailbox.RouteScopes, ApprovedMailboxRouteScope.StaffSend],
-                        Generation = mailboxCapability is not null
-                            && mailbox.Id == mailboxCapability.MailboxId
-                                ? mailboxCapability.Generation
-                                : mailbox.Generation > 0 ? mailbox.Generation : 1
-                    }
-                    : mailbox)
+        public async Task<IReadOnlyList<ApprovedMailbox>> ListAsync(CancellationToken cancellationToken) =>
+            (await inner.ListAsync(cancellationToken))
+                .Select(mailbox => mailbox with
+                {
+                    RouteScopes = [.. mailbox.RouteScopes.Where(scope => scope != ApprovedMailboxRouteScope.Outgoing)]
+                })
                 .ToArray();
-        }
 
         public Task<ApprovedMailbox> UpdateAsync(
             UpdateApprovedMailboxRequest request, CancellationToken cancellationToken) =>
             inner.UpdateAsync(request, cancellationToken);
 
-        public Task<ApprovedMailbox> SetDefaultAsync(
-            SetDefaultApprovedMailboxRequest request, CancellationToken cancellationToken) =>
-            inner.SetDefaultAsync(request, cancellationToken);
-
         public Task<bool> IsApprovedAsync(
             string mailboxAddress, ApprovedMailboxRouteScope routeScope, CancellationToken cancellationToken) =>
             inner.IsApprovedAsync(mailboxAddress, routeScope, cancellationToken);
     }
-
-    private sealed record MailboxCapability(Guid MailboxId, long Generation);
 
     private sealed class RecordingStaffMailSend : IStaffMailSend
     {

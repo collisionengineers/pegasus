@@ -45,6 +45,7 @@ public sealed class IndexModel(
     IGetCaseEditBasis getCaseEditBasis,
     ICaseReportSnapshotSource reportSnapshotSource,
     ICaseReportGenerationStore reportGenerations,
+    ICaseReportSendHistoryQueries reportSendHistory,
     IDashboardQueries dashboardQueries,
     IUnidentifiedStore unidentifiedStore,
     IImageIntakeQueries imageIntakeQueries,
@@ -52,6 +53,7 @@ public sealed class IndexModel(
     IGetIntake getIntake,
     IStaffAccountQueries staffAccounts,
     ICaseWorkflowConfiguration workflowConfiguration,
+    Pegasus.Core.Tasks.ICaseTaskQueries caseTasks,
     TimeProvider timeProvider) : UploadConfirmationPageModel(caseDecision)
 {
     private const int PageSize = 25;
@@ -72,6 +74,8 @@ public sealed class IndexModel(
         reportSnapshotSource ?? throw new ArgumentNullException(nameof(reportSnapshotSource));
     private readonly ICaseReportGenerationStore _reportGenerations =
         reportGenerations ?? throw new ArgumentNullException(nameof(reportGenerations));
+    private readonly ICaseReportSendHistoryQueries _reportSendHistory =
+        reportSendHistory ?? throw new ArgumentNullException(nameof(reportSendHistory));
     private readonly IDashboardQueries _dashboardQueries =
         dashboardQueries ?? throw new ArgumentNullException(nameof(dashboardQueries));
     private readonly IUnidentifiedStore _unidentifiedStore =
@@ -82,6 +86,8 @@ public sealed class IndexModel(
         staffAccounts ?? throw new ArgumentNullException(nameof(staffAccounts));
     private readonly ICaseWorkflowConfiguration _workflowConfiguration =
         workflowConfiguration ?? throw new ArgumentNullException(nameof(workflowConfiguration));
+    private readonly Pegasus.Core.Tasks.ICaseTaskQueries _caseTasks =
+        caseTasks ?? throw new ArgumentNullException(nameof(caseTasks));
     private readonly TimeProvider _timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
@@ -149,15 +155,6 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true, Name = "principal")]
     public string? PrincipalFilter { get; set; }
 
-    /// <summary>
-    /// The Not ready queue's Missing filter: <c>instructions</c>, <c>images</c>
-    /// or <c>both</c>, read from each case's recorded completeness facts. The
-    /// options are exclusive — "Instructions" means the instruction is the
-    /// only thing missing — because "Both missing" exists for the remainder.
-    /// </summary>
-    [BindProperty(SupportsGet = true, Name = "missing")]
-    public string? MissingFilter { get; set; }
-
     /// <summary>The Unidentified scope's Show filter: open items (default) or <c>closed</c>.</summary>
     [BindProperty(SupportsGet = true, Name = "show")]
     public string? ShowFilter { get; set; }
@@ -168,8 +165,6 @@ public sealed class IndexModel(
     /// <summary>The row the quick-detail pane is showing; the first row when unset.</summary>
     [BindProperty(SupportsGet = true, Name = "selected")]
     public Guid? SelectedId { get; set; }
-
-    public bool ShowingNotReady => Queue == "not_ready";
 
     public bool ShowingClosed => Queue == "unidentified" && ShowFilter == "closed";
 
@@ -295,8 +290,8 @@ public sealed class IndexModel(
 
     /// <summary>
     /// This page's address with the given overrides. Filters ride along per
-    /// the target scope — the Principal select exists on Case queues, the
-    /// Missing select on Not ready only, Show on Unidentified only — so
+    /// the target scope — the Principal select exists on Case queues, Show on
+    /// Unidentified only — so
     /// switching scope never carries a filter the destination cannot use.
     /// </summary>
     public string Href(string? tab = null, Guid? selected = null, int? page = null, bool keepFilters = true)
@@ -311,10 +306,6 @@ public sealed class IndexModel(
             if (ListsCases(target))
             {
                 values["principal"] = PrincipalFilter;
-            }
-            if (target == "not_ready")
-            {
-                values["missing"] = MissingFilter;
             }
             if (target == "unidentified")
             {
@@ -352,7 +343,6 @@ public sealed class IndexModel(
 
         if (Tabs.All(tab => tab.Key != Queue)
             || CurrentPage > 10_000
-            || MissingFilter is not (null or "" or "instructions" or "images" or "both")
             || ShowFilter is not (null or "" or "open" or "closed"))
         {
             return NotFound();
@@ -360,7 +350,6 @@ public sealed class IndexModel(
 
         CurrentPage = Math.Max(1, CurrentPage);
         PrincipalFilter = EmptyToNull(PrincipalFilter);
-        MissingFilter = ShowingNotReady ? EmptyToNull(MissingFilter) : null;
         ShowFilter = Queue == "unidentified" && ShowFilter == "closed" ? "closed" : null;
 
         try
@@ -516,7 +505,7 @@ public sealed class IndexModel(
     }
 
     /// <summary>
-    /// Formal Not ready Cases, filtered by their recorded completeness facts.
+    /// Formal Not ready Cases.
     /// </summary>
     private async Task<IReadOnlyList<QueueRow>> LoadNotReadyAsync(ActionActor actor, CancellationToken cancellationToken)
     {
@@ -528,22 +517,10 @@ public sealed class IndexModel(
                 PageSize: MergedPageSize),
             cancellationToken);
 
-        // The Missing filter is applied to the read, so what it removes
-        // never reaches the Principal select's options either — a principal
-        // whose every row the filter dropped stays listed (PrincipalOptions)
-        // so the active choice remains visible.
-        var matchingCases = result.Items
-            .Where(item => MissingFilter switch
-            {
-                "instructions" => item.InstructionComplete == false && item.ImagesComplete == true,
-                "images" => item.InstructionComplete == true && item.ImagesComplete == false,
-                "both" => item.InstructionComplete == false && item.ImagesComplete == false,
-                _ => true
-            })
-            .ToArray();
-        Principals = PrincipalOptions(matchingCases);
-        _engineerNames = await EngineerNamesAsync(matchingCases, cancellationToken);
-        return matchingCases.Select(item => CaseRow(item, _engineerNames)).ToArray();
+        var items = result.Items.ToArray();
+        Principals = PrincipalOptions(items);
+        _engineerNames = await EngineerNamesAsync(items, cancellationToken);
+        return items.Select(item => CaseRow(item, _engineerNames)).ToArray();
     }
 
     private async Task<IReadOnlyList<QueueRow>> LoadAwaitingAsync(CancellationToken cancellationToken)
@@ -620,18 +597,21 @@ public sealed class IndexModel(
         // Current work is the Case's Next action, the one the Case page's
         // aside states (issue 896), read from the same facts: the first
         // missing requirement, and once the report is the Case's concern its
-        // readiness while the assessment can open, and the current report.
+        // readiness while the assessment can open, the current report and
+        // whether a send of it was accepted.
         var caseId = basis.Workflow.CaseId;
         IReadOnlyList<AssessmentReadinessItem> reportBlockers = [];
         CaseReportGenerationRecord? currentReport = null;
+        var reportSent = false;
         if (CaseNextAction.ReadsTheReport(basis.Workflow))
         {
-            // The snapshot and the current report are independent reads.
+            // The snapshot, the current report and its sends are independent reads.
             using var reads = new BoundedReads(cancellationToken);
             var snapshotTask = AssessmentAccessPolicy.For(actor, basis.Workflow).CanOpen
                 ? reads.Start(token => _reportSnapshotSource.GetAsync(caseId, actor, CaseWorkSelector.Current, reuse: null, token))
                 : null;
             var currentTask = reads.Start(token => _reportGenerations.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, token));
+            var historyTask = reads.Start(token => _reportSendHistory.GetAsync(caseId, CaseWorkSelector.Current, token));
             await reads.WhenAllAsync();
             if (snapshotTask?.Result is { } reportInputs)
             {
@@ -639,7 +619,13 @@ public sealed class IndexModel(
                     CaseReportReadiness.Evaluate(reportInputs.Readiness).Reasons);
             }
             currentReport = currentTask.Result;
+            reportSent = historyTask.Result.Accepted;
         }
+        // Once Report sent is recorded the Case's open tasks are its step, as
+        // the Case page's aside lists them (operator, 6 October 2026).
+        var hasOpenTasks = basis.Workflow.ReportSentEvidence is not null
+            && (await _caseTasks.ListAsync(caseId, cancellationToken))
+                .Any(task => task.State == Pegasus.Core.Tasks.CaseTaskState.Open);
         var next = CaseNextAction.Of(
             basis.Workflow,
             basis.Summary.CaseType,
@@ -647,7 +633,9 @@ public sealed class IndexModel(
             missingRequirements is [var firstMissing, ..] ? OperatorLabels.RequirementIncomplete(firstMissing) : null,
             reportBlockers,
             _ => null,
-            currentReport);
+            currentReport,
+            reportSent,
+            hasOpenTasks);
 
         var work = new List<(string Label, string Value)>(3) { ("Current work", next.Label) };
 

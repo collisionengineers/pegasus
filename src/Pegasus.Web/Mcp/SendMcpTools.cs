@@ -25,16 +25,17 @@ internal sealed record ReportSendToolResult(
     [property: Description("The Case version after the send.")] long CaseVersion,
     [property: Description("The Case's lifecycle state after the send.")] string CaseState,
     string OperationKey,
-    string CorrelationId);
+    string CorrelationId,
+    [property: Description("The other work's report generation the same e-mail carried, when otherReport was asked for.")] Guid? OtherGenerationId = null);
 
 internal sealed record MailSendToolResult(
     [property: Description("The send operation; replaying the same operation key with the same content returns it.")] Guid OperationId,
-    [property: Description("new, reply, reply_all, forward or triage_reply.")] string Mode,
+    [property: Description("chaser, reply, reply_all, forward or triage_reply.")] string Mode,
     [property: Description("What the send is recorded as: GeneralCorrespondence, CaseChaser, TriageChaser or TriageOutcomeReply.")] string Purpose,
     [property: Description("The send state: Submitted once the provider accepted it, Sent once the Sent item is observed, Failed with failureCode, Unknown when the provider outcome is not known (never resend; replay the key), or an in-flight state.")] string State,
     [property: Description("Why a Failed or Unknown send stopped, as recorded.")] string? FailureCode,
     [property: Description("The Case the mail is filed against (the Triage Case for triage_reply).")] Guid CaseId,
-    [property: Description("The retained message answered or forwarded; null for new.")] Guid? MessageId,
+    [property: Description("The retained message answered or forwarded; null for a chaser sent as a new message.")] Guid? MessageId,
     string OperationKey,
     string CorrelationId);
 
@@ -43,9 +44,9 @@ internal sealed record MailSendToolResult(
 /// 7 October 2026), behind its own <c>automation.send</c> scope so a grant can
 /// hold casework without sending. Each tool calls the command the staff page
 /// calls: the report send of the Case page's Send report
-/// (<see cref="ISendCaseReport"/>), and the staff mail send of the Inbox
-/// composer, the message page's Reply, Reply all and Forward, and the Triage
-/// Case's reply (<see cref="IStaffMailSend"/>). Mail leaves the same approved
+/// (<see cref="ISendCaseReport"/>), and the staff mail send of Send chaser,
+/// the message page's Reply, Reply all and Forward, and the Triage Case's
+/// reply (<see cref="IStaffMailSend"/>). Mail leaves the same approved
 /// mailbox a staff send would, and the send is recorded as the Automation
 /// Actor's.
 /// </summary>
@@ -60,13 +61,14 @@ internal sealed class SendMcpTools(
     IStaffMailSend staffMailSend,
     IStaffMailAttachmentResolver attachmentResolver,
     IApprovedMailboxStore approvedMailboxes,
+    ResolveCaseMailSender senders,
     GetRetainedMail getRetainedMail,
     IGetTriage getTriage,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
     AutomationEditLease leases)
 {
-    private static readonly string[] Modes = ["new", "reply", "reply_all", "forward", "triage_reply"];
+    private static readonly string[] Modes = ["chaser", "reply", "reply_all", "forward", "triage_reply"];
 
     [McpServerTool(
         Name = "pegasus_report_send",
@@ -76,7 +78,7 @@ internal sealed class SendMcpTools(
         Idempotent = true,
         OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Sends a Case's generated report to the Principal, as Send report on the Case page does, through the same Core command: the work's current confirmed generation (or generationId), the reviewed To and Cc recipients (omit both for the Principal's suggested recipients), the companion documents chosen (omit attach for every confirmed document the generation holds, the fee note included) and the covering message, which is sent as written. It leaves the approved mailbox bound for staff send and report-Sent evidence; the report attaches under its delivery name. The Case must be open in a state its report can be sent in; a Complete Case sends only the Inspection report of a Case that has its Audit. Needs automation.send and the expected case version (present an edit lease token, or omit it and the tool holds the lease for this one send). The result is the send's state: Submitted is accepted, not yet Sent; Unknown must never be resent, replay the same operation key instead.")]
+    [Description("Sends a Case's generated report to the Principal, as Send report on the Case page does, through the same Core command: the work's current confirmed generation (or generationId), the reviewed To and Cc recipients (omit both for the Principal's suggested recipients), the companion documents chosen (omit attach for every confirmed document the generation holds, the fee note included) and the covering message, which is sent as written. It is a reply to the Case's instruction e-mail from the approved mailbox that e-mail arrived in, subject Re: and the instruction's subject; a Case with no instruction e-mail to reply to sends a new message, subject the registration and Report, from the Outgoing mailbox named by fromMailbox. The Principal's report sending rules apply as on the Case page; this tool answers none of their questions, ticks no hold and overrides no Stop, so a send the rules question, hold or stop is refused. The report attaches under its delivery name. The Case must be open in a state its report can be sent in; a Complete Case sends only the Inspection report of a Case that has its Audit. On a Case that has its Audit, otherReport also attaches the other work's current confirmed report (the Inspection report beside the Audit's, or the Audit's beside the Inspection's) to the same e-mail, under its own delivery name, as the Case page's send form offers it. Needs automation.send and the expected case version (present an edit lease token, or omit it and the tool holds the lease for this one send). The result is the send's state: Submitted is accepted, not yet Sent; Unknown must never be resent, replay the same operation key instead.")]
     public async Task<ReportSendToolResult> SendReportAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
@@ -88,7 +90,10 @@ internal sealed class SendMcpTools(
         [Description("To recipients, plain e-mail addresses; omit both to and cc for the Principal's suggested recipients.")] string[]? to = null,
         [Description("Cc recipients, plain e-mail addresses. An address also in To is sent once, in To.")] string[]? cc = null,
         [Description("The companion documents to attach beside the report: FeeNote, RepairSpecification and/or ImagePack. Each must be confirmed on the generation. Omit for every confirmed document the generation holds.")] string[]? attach = null,
+        [Description("true to send the other work's current confirmed report in the same e-mail; only on a Case that has its Audit.")] bool? otherReport = null,
+        [Description("The other report's companion documents, as attach takes them; omit for every confirmed document its generation holds. Read only with otherReport.")] string[]? otherAttach = null,
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one send.")] string? editLeaseToken = null,
+        [Description("Only for a Case with no instruction e-mail to reply to: the address of the Outgoing approved mailbox to send from.")] string? fromMailbox = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.SendScope, cancellationToken);
@@ -110,6 +115,7 @@ internal sealed class SendMcpTools(
                         Recipients(to, "To").Select(recipient => recipient.Address).ToArray(),
                         Recipients(cc, "Cc").Select(recipient => recipient.Address).ToArray());
                 await RequireReportSendableAsync(actor, caseId, selector, cancellationToken);
+                var from = await FromMailboxAsync(caseId, fromMailbox, cancellationToken);
                 var requested = generationId is { } named
                     ? AutomationMcpErrors.RequireId(named, "generation identifier")
                     : (Guid?)null;
@@ -119,6 +125,19 @@ internal sealed class SendMcpTools(
                         ?? throw new McpException("The generation is not a report generation of this work.")
                     : await reportGenerations.GetCurrentAsync(actor, caseId, selector, cancellationToken)
                         ?? throw new McpException("The work has no report generation to send; generate the report first.");
+                SecondCaseReport? second = null;
+                if (otherReport == true)
+                {
+                    var otherSelector = selector == CaseWorkSelector.Primary
+                        ? CaseWorkSelector.Current
+                        : CaseWorkSelector.Primary;
+                    var other = await reportGenerations.GetCurrentAsync(actor, caseId, otherSelector, cancellationToken);
+                    if (other is null || other.Id == generation.Id)
+                    {
+                        throw new McpException("The Case has no other work's report to send; otherReport needs a Case that has its Audit and the other work's generated report.");
+                    }
+                    second = new(other.Id, other.Version, ParseAttach(otherAttach));
+                }
 
                 StaffMailOperation operation;
                 try
@@ -141,7 +160,9 @@ internal sealed class SendMcpTools(
                                 coveringMessage,
                                 review,
                                 kinds,
-                                selector),
+                                selector,
+                                from?.Mailbox.Id,
+                                second),
                             cancellationToken),
                         cancellationToken);
                 }
@@ -162,7 +183,8 @@ internal sealed class SendMcpTools(
                     workflow.Version,
                     workflow.State.ToString(),
                     key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    AutomationMcpAuditor.CorrelationId(context, key),
+                    second?.GenerationId);
             }),
             cancellationToken);
     }
@@ -175,18 +197,18 @@ internal sealed class SendMcpTools(
         Idempotent = true,
         OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Sends e-mail as staff do, through the same Core staff mail send, filed against a Case. mode new is the Inbox composer: new correspondence from the default approved mailbox to the To and Cc given (chaser true records it as the Case's chaser, as Send chaser does). reply, reply_all and forward answer one retained message (messageId from pegasus_mail_list) from the approved mailbox that holds it: reply goes to its Reply-To or sender and reply_all adds its other recipients, so neither takes to or cc; forward takes to and cc. triage_reply is the Triage Case's reply to the e-mail the Triage was opened from: the chaser until the outcome is recorded, the outcome reply once Completed, none once Cancelled; To defaults to the original sender. Subject and body are sent as written. Attachments are Case files by documentVersionId (pegasus_case_get documents), or for triage_reply the origin item's files by assetId (pegasus_intake_get). Needs automation.send, the expected version and a mcp:-prefixed operation key; replaying the key with the same content returns the same send. The result is the send's state: Submitted is accepted, not yet Sent; Unknown must never be resent.")]
+    [Description("Sends e-mail as staff do, through the same Core staff mail send, filed against a Case. mode chaser is the Case's Send chaser, recorded as a chase once it is Sent: a reply to the Case's instruction e-mail from the approved mailbox it arrived in, or, for a Case with no instruction e-mail to reply to, a new message from the Outgoing mailbox named by fromMailbox; it goes to the To and Cc given. reply, reply_all and forward answer one retained message (messageId from pegasus_mail_list) from the approved mailbox that holds it: reply goes to its Reply-To or sender and reply_all adds its other recipients, so neither takes to or cc; forward takes to and cc. triage_reply is the Triage Case's reply to the e-mail the Triage was opened from: the chaser until the outcome is recorded, the outcome reply once Completed, none once Cancelled; To defaults to the original sender. Subject and body are sent as written. Attachments are Case files by documentVersionId (pegasus_case_get documents), or for triage_reply the origin item's files by assetId (pegasus_intake_get). Needs automation.send, the expected version and a mcp:-prefixed operation key; replaying the key with the same content returns the same send. The result is the send's state: Submitted is accepted, not yet Sent; Unknown must never be resent.")]
     public async Task<MailSendToolResult> SendMailAsync(
-        [Description("new, reply, reply_all, forward or triage_reply.")] string mode,
-        [Description("The Case the mail is filed against: an instruction Case (pegasus_case_search) for new, reply, reply_all and forward; the Triage Case (pegasus_triage_list) for triage_reply.")] Guid caseId,
-        [Description("The version the caller observed: the Case's version for new, reply, reply_all and forward; the Triage version for triage_reply. A stale value fails closed.")] long expectedVersion,
+        [Description("chaser, reply, reply_all, forward or triage_reply.")] string mode,
+        [Description("The Case the mail is filed against: an instruction Case (pegasus_case_search) for chaser, reply, reply_all and forward; the Triage Case (pegasus_triage_list) for triage_reply.")] Guid caseId,
+        [Description("The version the caller observed: the Case's version for chaser, reply, reply_all and forward; the Triage version for triage_reply. A stale value fails closed.")] long expectedVersion,
         [Description("The subject, sent as written.")] string subject,
         [Description("The message body, plain text, sent as written.")] string body,
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         [Description("reply, reply_all and forward: the retained message answered or forwarded (pegasus_mail_list).")] Guid? messageId = null,
-        [Description("To recipients, plain e-mail addresses: required for new and forward; triage_reply defaults to the original sender; reply and reply_all take none.")] string[]? to = null,
-        [Description("Cc recipients, plain e-mail addresses: new, forward and triage_reply only.")] string[]? cc = null,
-        [Description("new only: send it as the Case's chaser, recorded as a chase once it is Sent.")] bool chaser = false,
+        [Description("To recipients, plain e-mail addresses: required for chaser and forward; triage_reply defaults to the original sender; reply and reply_all take none.")] string[]? to = null,
+        [Description("Cc recipients, plain e-mail addresses: chaser, forward and triage_reply only.")] string[]? cc = null,
+        [Description("chaser only, and only for a Case with no instruction e-mail to reply to: the address of the Outgoing approved mailbox to send from.")] string? fromMailbox = null,
         [Description("Files to attach: Case document version ids (documentVersionId from pegasus_case_get), or for triage_reply the origin item's assetIds (pegasus_intake_get).")] Guid[]? attachments = null,
         [Description("reply and reply_all only: also resolve the Case's open queries once the Sent item is observed, as the composer's Also resolve query tick does.")] bool resolveQuery = false,
         CancellationToken cancellationToken = default)
@@ -214,11 +236,11 @@ internal sealed class SendMcpTools(
                 {
                     throw new McpException("A message body is required.");
                 }
-                if (chaser && verb != "new")
+                if (fromMailbox is not null && verb != "chaser")
                 {
-                    throw new McpException("chaser applies to new mail only.");
+                    throw new McpException("fromMailbox applies to chaser only.");
                 }
-                if (messageId is not null && verb is "new" or "triage_reply")
+                if (messageId is not null && verb is "chaser" or "triage_reply")
                 {
                     throw new McpException($"{verb} takes no messageId.");
                 }
@@ -229,8 +251,8 @@ internal sealed class SendMcpTools(
 
                 var (command, message) = verb switch
                 {
-                    "new" => (await NewMailAsync(
-                        context.Actor, caseId, expectedVersion, to, cc, chaser, attachments, cancellationToken), (Guid?)null),
+                    "chaser" => await ChaserAsync(
+                        context.Actor, caseId, expectedVersion, to, cc, fromMailbox, attachments, cancellationToken),
                     "triage_reply" => await TriageReplyAsync(
                         context.Actor, caseId, expectedVersion, to, cc, attachments, cancellationToken),
                     _ => await RetainedReplyAsync(
@@ -266,14 +288,17 @@ internal sealed class SendMcpTools(
             cancellationToken);
     }
 
-    /// <summary>The Inbox composer's send: new correspondence, or a Case chaser.</summary>
-    private async Task<StaffMailSendCommand> NewMailAsync(
+    /// <summary>
+    /// Send chaser's send: a reply to the Case's instruction e-mail, or a new
+    /// message from the named Outgoing mailbox when there is none to reply to.
+    /// </summary>
+    private async Task<(StaffMailSendCommand? Command, Guid? MessageId)> ChaserAsync(
         ActionActor actor,
         Guid caseId,
         long expectedVersion,
         string[]? to,
         string[]? cc,
-        bool chaser,
+        string? fromMailbox,
         Guid[]? attachments,
         CancellationToken cancellationToken)
     {
@@ -282,24 +307,52 @@ internal sealed class SendMcpTools(
         {
             throw new McpException("At least one To recipient is required.");
         }
-        var mailbox = ComposeModel.DefaultSender(await approvedMailboxes.ListAsync(cancellationToken))
-            ?? throw new McpException("No default approved mailbox is configured for correspondence.");
         var header = await RequireCorrespondenceCaseAsync(actor, caseId, expectedVersion, cancellationToken);
-        return new(
-            actor,
-            mailbox.Id,
-            mailbox.Generation,
-            chaser ? StaffMailPurpose.CaseChaser : StaffMailPurpose.GeneralCorrespondence,
-            header.Summary.CaseId,
-            header.Workflow.Version,
-            StaffMailComposeMode.New,
-            OriginalMessage: null,
-            recipients,
-            Recipients(cc, "Cc"),
-            Subject: string.Empty,
-            Body: string.Empty,
-            await CaseAttachmentsAsync(actor, header.Summary.CaseId, attachments, cancellationToken),
-            OperationKey: string.Empty);
+        var sender = await FromMailboxAsync(header.Summary.CaseId, fromMailbox, cancellationToken)
+            ?? throw new McpException(new CaseMailSenderRequiredException().Message);
+        return (
+            new(
+                actor,
+                sender.Mailbox.Id,
+                sender.Mailbox.Generation,
+                StaffMailPurpose.CaseChaser,
+                header.Summary.CaseId,
+                header.Workflow.Version,
+                sender.Mode,
+                sender.ReplyTo?.Original,
+                recipients,
+                Recipients(cc, "Cc"),
+                Subject: string.Empty,
+                Body: string.Empty,
+                await CaseAttachmentsAsync(actor, header.Summary.CaseId, attachments, cancellationToken),
+                OperationKey: string.Empty),
+            sender.ReplyTo?.RetainedMessageId);
+    }
+
+    /// <summary>
+    /// Who a Case send leaves as: the instruction reply when there is one,
+    /// else the Outgoing mailbox <paramref name="address"/> names; null when
+    /// neither is available. An address given beside an instruction reply is
+    /// refused rather than ignored.
+    /// </summary>
+    private async Task<CaseMailSender?> FromMailboxAsync(
+        Guid caseId, string? address, CancellationToken cancellationToken)
+    {
+        var options = await senders.OptionsAsync(caseId, cancellationToken);
+        if (options.Reply is { } reply)
+        {
+            return address is null
+                ? reply
+                : throw new McpException("fromMailbox is only for a Case with no instruction e-mail to reply to.");
+        }
+        if (address is null)
+        {
+            return null;
+        }
+        var chosen = options.Mailboxes.SingleOrDefault(mailbox =>
+                string.Equals(mailbox.Address, address.Trim(), StringComparison.OrdinalIgnoreCase))
+            ?? throw new McpException("fromMailbox is not an Outgoing approved mailbox.");
+        return new(chosen, ReplyTo: null);
     }
 
     /// <summary>The message page's Reply, Reply all or Forward of one retained message.</summary>

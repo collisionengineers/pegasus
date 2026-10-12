@@ -5,22 +5,22 @@ namespace Pegasus.Web.Presentation;
 
 /// <summary>
 /// The one presentation-side vocabulary for choosing a corrected mail
-/// classification: the canonical option keys offered to staff, and the parse
-/// from a chosen key back to the Core <see cref="MailCategory"/>. The mail
-/// message page and the Automation MCP mail tools both consume this single
-/// list, so a corrected taxonomy entry appears — or disappears — for both
-/// callers at once.
+/// classification: every mail category by its code, and Unclassified. The
+/// mail message page and the Automation MCP mail tools both consume this
+/// single list, so a category appears — or disappears — for both callers at
+/// once.
 /// </summary>
 public static class MailClassificationSelection
 {
     public sealed record SelectionOption(string Value, string Label);
 
-    public const string OtherReceivedKey = "other-received";
-    public const string OtherSentKey = "other-sent";
+    /// <summary>The choice that corrects a message to no category.</summary>
+    public const string UnclassifiedKey = "unclassified";
 
-    /// <summary>The one-click Tag as query correction (operator, 11 October 2026): a received post-report query.</summary>
-    public static readonly string QueryKey =
-        $"received:{ReceivedMailFamily.PostReportEmails}:{MailCategory.QuerySubtype}";
+    public const string UnclassifiedLabel = "Unclassified";
+
+    /// <summary>The one-click Tag as query correction (operator, 11 October 2026).</summary>
+    public static readonly string QueryKey = MailCategories.Code(MailCategory.Query);
 
     /// <summary>The reason Tag as query records in the message's classification history.</summary>
     public const string TaggedAsQueryReason = "Tagged as query";
@@ -29,28 +29,10 @@ public static class MailClassificationSelection
     // every read-only rendering of a classification use the same words.
     public static IReadOnlyList<SelectionOption> Options { get; } =
         [
-            .. Enum.GetValues<ReceivedMailFamily>().SelectMany(family =>
-                MailTaxonomy.ConfirmedReceivedSubtypes[family].Length == 0
-                    ? [new SelectionOption(
-                        $"received:{family}",
-                        OperatorLabels.MailClassification(MailCategory.Received(family)))]
-                    : MailTaxonomy.ConfirmedReceivedSubtypes[family].Select(subtype =>
-                        new SelectionOption(
-                            $"received:{family}:{subtype}",
-                            OperatorLabels.MailClassification(MailCategory.Received(family, subtype))))),
-            .. Enum.GetValues<SentMailFamily>().Select(family =>
-                new SelectionOption(
-                    $"sent:{family}",
-                    OperatorLabels.MailClassification(MailCategory.Sent(family)))),
-            new(OtherReceivedKey, "Other received classification"),
-            new(OtherSentKey, "Other sent classification")
+            .. MailCategories.All.Select(category =>
+                new SelectionOption(MailCategories.Code(category), OperatorLabels.MailClassification(category))),
+            new(UnclassifiedKey, UnclassifiedLabel)
         ];
-
-    /// <summary>The options a message of one direction may be corrected to.</summary>
-    public static IReadOnlyList<SelectionOption> OptionsFor(MailDirection direction) =>
-        direction == MailDirection.Sent
-            ? [.. Options.Where(option => option.Value.StartsWith("sent:", StringComparison.Ordinal) || option.Value == OtherSentKey)]
-            : [.. Options.Where(option => option.Value.StartsWith("received:", StringComparison.Ordinal) || option.Value == OtherReceivedKey)];
 
     /// <summary>
     /// Parses the case type a New instruction correction names. Only the three
@@ -66,64 +48,22 @@ public static class MailClassificationSelection
     }
 
     /// <summary>
-    /// Parses a selected classification key into the canonical category.
-    /// Returns false — never a guessed category — for an unknown key, an
-    /// unregistered subtype, or Other details that are absent or outside the
-    /// canonical bounds.
+    /// Parses a selected key: a category code, or <see cref="UnclassifiedKey"/>
+    /// for no category. Returns false — never a guessed category — for any
+    /// other key.
     /// </summary>
-    public static bool TryParse(
-        string? key,
-        string? otherName,
-        string? otherReasoning,
-        out MailCategory? category)
+    public static bool TryParse(string? key, out MailCategory? category)
     {
         category = null;
-        var parts = key?.Split(':');
-        if (parts is ["received", var received]
-            && Enum.TryParse<ReceivedMailFamily>(received, out var receivedFamily)
-            && Enum.IsDefined(receivedFamily))
+        if (string.Equals(key, UnclassifiedKey, StringComparison.Ordinal))
         {
-            category = MailCategory.Received(receivedFamily);
             return true;
         }
-        if (parts is ["received", var receivedWithSubtype, var subtype]
-            && Enum.TryParse<ReceivedMailFamily>(receivedWithSubtype, out var subtypeFamily))
-        {
-            try
-            {
-                category = MailCategory.Received(subtypeFamily, subtype);
-                return true;
-            }
-            catch (ArgumentException)
-            {
-                return false;
-            }
-        }
-        if (parts is ["sent", var sent]
-            && Enum.TryParse<SentMailFamily>(sent, out var sentFamily)
-            && Enum.IsDefined(sentFamily))
-        {
-            category = MailCategory.Sent(sentFamily);
-            return true;
-        }
-        var otherDirection = key switch
-        {
-            OtherReceivedKey => MailDirection.Received,
-            OtherSentKey => MailDirection.Sent,
-            _ => (MailDirection?)null
-        };
-        if (otherDirection is null
-            || string.IsNullOrWhiteSpace(otherName)
-            || string.IsNullOrWhiteSpace(otherReasoning)
-            || otherName.Trim().Length > MailCategory.OtherNameMaxLength
-            || otherReasoning.Trim().Length > MailCategory.OtherReasoningMaxLength)
+        if (!MailCategories.TryParse(key, out var parsed))
         {
             return false;
         }
-        category = MailCategory.Other(
-            otherDirection.Value,
-            otherName,
-            otherReasoning);
+        category = parsed;
         return true;
     }
 }

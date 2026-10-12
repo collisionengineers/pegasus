@@ -18,14 +18,9 @@ internal sealed class ApprovedMailboxEntity
 {
     public Guid Id { get; set; }
     public required string Address { get; set; }
-    public bool AllowInboundIntake { get; set; }
-    public bool AllowSentEvidence { get; set; }
-    public bool AllowStaffSend { get; set; }
-    public bool IsDefaultStaffSend { get; set; }
+    public bool AllowIncoming { get; set; }
+    public bool AllowOutgoing { get; set; }
     public long MailboxGeneration { get; set; }
-    public long? VerifiedEncodedMessageSizeLimit { get; set; }
-    public DateTimeOffset? SendLimitVerifiedAtUtc { get; set; }
-    public string? SendLimitVerifiedBy { get; set; }
     public required string State { get; set; }
 
     /// <summary>
@@ -39,15 +34,6 @@ internal sealed class ApprovedMailboxEntity
     public string? SentFolderIdentity { get; set; }
     public DateTimeOffset? ActivatedAtUtc { get; set; }
     public int Version { get; set; }
-    public ICollection<ApprovedMailboxFolderBindingEntity> FolderBindings { get; } = [];
-}
-
-internal sealed class ApprovedMailboxFolderBindingEntity
-{
-    public Guid ApprovedMailboxId { get; set; }
-    public required string FolderType { get; set; }
-    public required string FolderIdentity { get; set; }
-    public ApprovedMailboxEntity ApprovedMailbox { get; set; } = null!;
 }
 
 internal sealed class ApprovedMailboxSubscriptionEntity

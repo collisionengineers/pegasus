@@ -16,7 +16,7 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// C08: compose and retained-message correspondence drive the real page
+/// C08: Send chaser and retained-message correspondence drive the real page
 /// handlers against a recording <see cref="IStaffMailSend"/> double. GET never
 /// sends; invalid context and stale workflow state return without a call.
 /// </summary>
@@ -25,365 +25,46 @@ public sealed class StaffCorrespondenceWebTests
 {
     private static readonly DateTimeOffset NowUtc = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
-    [Fact]
-    public async Task GetNeverSendsAndRendersTheForm()
-    {
-        var send = new RecordingStaffMailSend();
-        using var factory = Configure(new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true), send);
-        using var client = CreateClient(factory);
-
-        using var response = await client.GetAsync("/Inbox/Compose");
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(0, send.SendCalls);
-    }
-
-    [Fact]
-    public async Task OfflineMailSurfacesRenderNoSendControlAndRefuseForgedSend()
-    {
-        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
-
-        using var get = await client.GetAsync("/Inbox/Compose");
-        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
-        var html = await get.Content.ReadAsStringAsync();
-        Assert.DoesNotContain("handler=Send", html, StringComparison.OrdinalIgnoreCase);
-
-        using var post = await client.PostAsync(
-            "/Inbox/Compose?handler=Send",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken")
-            }));
-        Assert.Equal(HttpStatusCode.NotFound, post.StatusCode);
-    }
-
-    [Theory]
-    [InlineData(false, true, true, false)]
-    [InlineData(true, false, true, false)]
-    [InlineData(true, true, false, false)]
-    [InlineData(true, true, true, true)]
-    public async Task FromMailboxRequiresTheReadyDefaultStaffSendCapability(
-        bool staffSend, bool positiveGeneration, bool sentEvidence, bool expected)
-    {
-        const string address = "capability@example.invalid";
-        var scopes = new List<ApprovedMailboxRouteScope>();
-        if (staffSend) scopes.Add(ApprovedMailboxRouteScope.StaffSend);
-        if (sentEvidence) scopes.Add(ApprovedMailboxRouteScope.SentEvidence);
-        var mailbox = new ApprovedMailbox(
-            Guid.NewGuid(),
-            address,
-            scopes,
-            ApprovedMailboxState.Approved,
-            MailboxIdentity: "capability-mailbox",
-            InboxFolderIdentity: "inbox",
-            SentFolderIdentity: "sent-items",
-            IdentityIsBound: true,
-            ActivatedAtUtc: NowUtc,
-            Version: 0,
-            FolderBindings: [],
-            Generation: positiveGeneration ? 1 : 0,
-            VerifiedEncodedMessageSizeLimit: 1024,
-            IsDefaultStaffSend: true);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var configured = Configure(baseFactory, new RecordingStaffMailSend());
-        using var factory = configured.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<IApprovedMailboxStore>();
-                services.AddSingleton<IApprovedMailboxStore>(new FixedApprovedMailboxStore([mailbox]));
-            }));
-        using var client = CreateClient(factory);
-
-        using var response = await client.GetAsync("/Inbox/Compose");
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var html = await response.Content.ReadAsStringAsync();
-
-        Assert.Equal(expected, html.Contains(address, StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task AnUnauthenticatedActorIsForbiddenAndSendsNothing()
-    {
-        var send = new RecordingStaffMailSend();
-        using var factory = Configure(new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true), send);
-        using var client = CreateClient(factory);
-        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/Inbox/Compose?handler=Send");
-        request.Headers.Add("X-Test-Roleless", "1");
-        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = token,
-            ["To"] = "claimant@example.invalid",
-            ["Subject"] = "Test",
-            ["Body"] = "Test body."
-        });
-        using var response = await client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        Assert.Equal(0, send.SendCalls);
-    }
-
-    [Fact]
-    public async Task EmptyRecipientsReturnsTheFormWithoutSending()
-    {
-        var send = new RecordingStaffMailSend();
-        using var factory = Configure(new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true), send);
-        using var client = CreateClient(factory);
-        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
-
-        using var response = await client.PostAsync(
-            "/Inbox/Compose?handler=Send",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = token,
-                ["To"] = string.Empty,
-                ["Subject"] = "Test",
-                ["Body"] = "Test body."
-            }));
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("At least one recipient is required.", html, StringComparison.Ordinal);
-        Assert.Equal(0, send.SendCalls);
-    }
-
-    [Fact]
-    public async Task MissingDefaultMailboxReturnsTheFormWithoutSending()
-    {
-        var send = new RecordingStaffMailSend();
-        using var factory = Configure(new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true), send);
-        using var client = CreateClient(factory);
-        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
-
-        using var response = await client.PostAsync(
-            "/Inbox/Compose?handler=Send",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = token,
-                ["To"] = "claimant@example.invalid",
-                ["Subject"] = "Test",
-                ["Body"] = "Test body."
-            }));
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("No default approved mailbox", html, StringComparison.Ordinal);
-        Assert.Equal(0, send.SendCalls);
-    }
-
-    [Fact]
-    public async Task ComposeRejectsAStaleReviewedCaseVersion()
-    {
-        var send = new RecordingStaffMailSend();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 ABC", "SC08-CLAIM-1");
-        await SeedSendableMailboxAsync(baseFactory);
-        using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
-        var caseReference = await CaseReferenceAsync(factory, caseId);
-        var (operationKey, token) = await ComposeFormTokensAsync(
-            client, $"/Inbox/Compose?caseReference={caseReference}");
-
-        using var response = await client.PostAsync(
-            "/Inbox/Compose?handler=Send",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = token,
-                ["OperationKey"] = operationKey,
-                ["CaseReference"] = caseReference,
-                ["FixedCaseReference"] = caseReference,
-                ["ExpectedContextVersion"] = "-1",
-                ["To"] = "claimant@example.invalid",
-                ["Subject"] = "Test",
-                ["Body"] = "Test body."
-            }));
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Empty(send.Commands);
-    }
-
-    /// <summary>
-    /// The one Case / PO field takes a reference typed in full: no choice from
-    /// its list, no fixed version. The send goes to that Case as it is now.
-    /// </summary>
-    [Fact]
-    public async Task ATypedExactReferenceSendsWithoutChoosing()
-    {
-        var send = new RecordingStaffMailSend();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 TYPED", "SC08-TYPED-REF");
-        await SeedSendableMailboxAsync(baseFactory);
-        using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
-        var caseReference = await CaseReferenceAsync(factory, caseId);
-        var (operationKey, token) = await ComposeFormTokensAsync(client, "/Inbox/Compose");
-
-        using var response = await client.PostAsync(
-            "/Inbox/Compose?handler=Send",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = token,
-                ["OperationKey"] = operationKey,
-                ["CaseReference"] = caseReference.ToLowerInvariant(),
-                ["ExpectedContextVersion"] = "0",
-                ["To"] = "claimant@example.invalid",
-                ["Subject"] = "Typed reference",
-                ["Body"] = "Sent against the typed Case."
-            }));
-
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        var command = Assert.Single(send.Commands);
-        Assert.Equal(caseId, command.ContextId);
-        Assert.Equal(await CaseVersionAsync(factory, caseId), command.ExpectedContextVersion);
-    }
-
-    /// <summary>
-    /// A Case chosen from the list is fixed with its version; overwriting the
-    /// field with another reference sends to the typed Case, never to the
-    /// fixed one, whatever their version numbers.
-    /// </summary>
-    [Fact]
-    public async Task ATypedReferenceDifferentFromTheFixedOneSendsToTheTypedCase()
-    {
-        var send = new RecordingStaffMailSend();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var fixedCaseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 FIXED", "SC08-FIXED-REF");
-        var typedCaseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 OVERWRITTEN", "SC08-OVERWRITTEN-REF");
-        await SeedSendableMailboxAsync(baseFactory);
-        using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
-        var fixedReference = await CaseReferenceAsync(factory, fixedCaseId);
-        var typedReference = await CaseReferenceAsync(factory, typedCaseId);
-        using var get = await client.GetAsync($"/Inbox/Compose?caseReference={fixedReference}");
-        var html = await get.Content.ReadAsStringAsync();
-        Assert.Equal(fixedReference, InputValue(html, "FixedCaseReference"));
-
-        using var response = await client.PostAsync(
-            "/Inbox/Compose?handler=Send",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
-                ["OperationKey"] = InputValue(html, "OperationKey"),
-                ["CaseReference"] = typedReference,
-                ["FixedCaseReference"] = fixedReference,
-                ["ExpectedContextVersion"] = "-1",
-                ["To"] = "claimant@example.invalid",
-                ["Subject"] = "Overwritten reference",
-                ["Body"] = "Sent against the typed Case."
-            }));
-
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        var command = Assert.Single(send.Commands);
-        Assert.Equal(typedCaseId, command.ContextId);
-        Assert.Equal(await CaseVersionAsync(factory, typedCaseId), command.ExpectedContextVersion);
-    }
-
-    [Fact]
-    public async Task AMissingOperationKeyReturnsTheFormWithoutSending()
-    {
-        var send = new RecordingStaffMailSend();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 KEY", "SC08-CLAIM-4");
-        await SeedSendableMailboxAsync(baseFactory);
-        using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
-        var caseReference = await CaseReferenceAsync(factory, caseId);
-        var (_, token) = await ComposeFormTokensAsync(
-            client, $"/Inbox/Compose?caseReference={caseReference}");
-
-        using var response = await client.PostAsync(
-            "/Inbox/Compose?handler=Send",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = token,
-                ["CaseReference"] = caseReference,
-                ["To"] = "claimant@example.invalid",
-                ["Subject"] = "Following up",
-                ["Body"] = "Please find the update below."
-            }));
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("The OperationKey field is required.", html, StringComparison.Ordinal);
-        Assert.Equal(0, send.SendCalls);
-    }
-
-    [Fact]
-    public async Task AValidComposeSendsExactlyOnceInNewModeWithNoOriginalMessage()
-    {
-        var send = new RecordingStaffMailSend();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 XYZ", "SC08-CLAIM-2");
-        await SeedSendableMailboxAsync(baseFactory);
-        using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
-        var caseReference = await CaseReferenceAsync(factory, caseId);
-        var (operationKey, token) = await ComposeFormTokensAsync(
-            client, $"/Inbox/Compose?caseReference={caseReference}");
-
-        using var response = await client.PostAsync(
-            "/Inbox/Compose?handler=Send",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = token,
-                ["OperationKey"] = operationKey,
-                ["CaseReference"] = caseReference,
-                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["To"] = "claimant@example.invalid",
-                ["Subject"] = "Following up",
-                ["Body"] = "Please find the update below."
-            }));
-
-        if (response.StatusCode != HttpStatusCode.Redirect)
-        {
-            var html = await response.Content.ReadAsStringAsync();
-            var summary = Regex.Match(
-                html,
-                "<div[^>]*class=\"[^\"]*validation-summary[^\"]*\"[^>]*>.*?</div>",
-                RegexOptions.Singleline);
-            Assert.Fail(
-                $"POST /Inbox/Compose?handler=Send returned {(int)response.StatusCode} "
-                + $"{response.StatusCode} instead of a redirect. Validation summary: "
-                + (summary.Success ? summary.Value : "(none found)"));
-        }
-        Assert.Equal(1, send.SendCalls);
-        var command = Assert.Single(send.Commands);
-        Assert.Equal(StaffMailComposeMode.New, command.ComposeMode);
-        Assert.Null(command.OriginalMessage);
-        Assert.Equal(StaffMailPurpose.GeneralCorrespondence, command.Purpose);
-        Assert.Equal(caseId, command.ContextId);
-        Assert.Equal("claimant@example.invalid", Assert.Single(command.To).Address);
-    }
-
     private static readonly CaseChaserRecipients ChaserRecipients = new(
         "instructions@principal.example",
         ["images@repairer.example", " Instructions@Principal.example "],
         "office@repairer.example");
 
+    /// <summary>Without staff mail the chaser page offers no Send and refuses a forged one.</summary>
+    [Fact]
+    public async Task OfflineChaserRendersNoSendControlAndRefusesForgedSend()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory, new(false, true));
+        using var client = CreateClient(factory);
+
+        using var get = await client.GetAsync($"/Cases/{caseId:D}/Chaser");
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+        var html = await get.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("handler=Send", html, StringComparison.OrdinalIgnoreCase);
+
+        using var post = await client.PostAsync(
+            $"/Cases/{caseId:D}/Chaser?handler=Send",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client)
+            }));
+        Assert.Equal(HttpStatusCode.NotFound, post.StatusCode);
+    }
+
     /// <summary>
-    /// Send chaser opens the composer addressed, titled and worded from the
-    /// Case (operator, 5 October 2026): the recorded addresses, the
-    /// registration and claimant, and the Case chaser template.
+    /// Send chaser on a Case with no instruction email to reply to (operator,
+    /// 12 October 2026): it opens addressed, titled and worded from the Case
+    /// and staff choose the Outgoing mailbox; the send is a new message
+    /// recorded as the Case's chaser.
     /// </summary>
     [Fact]
-    public async Task AChaserOpensAddressedTitledAndWordedFromTheCase()
+    public async Task AChaserWithoutAnInstructionEmailIsANewMessageFromTheChosenMailbox()
     {
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(baseFactory, new(false, true));
-        await SeedSendableMailboxAsync(baseFactory);
+        var mailboxId = await SeedSendableMailboxAsync(baseFactory);
         var recipients = new FixedChaserRecipients(ChaserRecipients);
         using var factory = Configure(baseFactory, send, chaserRecipients: recipients);
         using var client = CreateClient(factory);
@@ -395,11 +76,15 @@ public sealed class StaffCorrespondenceWebTests
             header.Summary.Principal,
             header.Summary.Claimant);
 
-        using var response = await client.GetAsync(
-            $"/Inbox/Compose?caseReference={header.Summary.Reference}&purpose=chaser");
+        using var get = await client.GetAsync($"/Cases/{caseId:D}/Chaser");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var html = await response.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+        var html = await get.Content.ReadAsStringAsync();
+        Assert.Matches(
+            new Regex(
+                $"<select[^>]*name=\"FromMailboxId\"[^>]*>.*?<option value=\"{mailboxId:D}\"[^>]*>sc08-sender@collisionengineers.co.uk</option>",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline),
+            html);
         Assert.Equal(
             "instructions@principal.example; images@repairer.example; office@repairer.example",
             InputValue(html, "To"));
@@ -408,45 +93,24 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(
             EmailTemplates.Render(EmailTemplates.DefaultBody(EmailTemplatePurpose.CaseChaser), facts.Values()),
             body);
-        Assert.Contains(header.Workflow.DueWork.MissingMaterialReason, body, StringComparison.Ordinal);
-        Assert.Equal("chaser", InputValue(html, "Purpose"));
         Assert.Equal(caseId, Assert.Single(recipients.CaseIds));
         Assert.Equal(0, send.SendCalls);
-    }
-
-    [Fact]
-    public async Task AChaserSendIsRecordedAsACaseChaser()
-    {
-        var send = new RecordingStaffMailSend();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(baseFactory, new(false, true));
-        await SeedSendableMailboxAsync(baseFactory);
-        using var factory = Configure(
-            baseFactory, send, chaserRecipients: new FixedChaserRecipients(ChaserRecipients));
-        using var client = CreateClient(factory);
-        var caseReference = await CaseReferenceAsync(factory, caseId);
-        using var get = await client.GetAsync($"/Inbox/Compose?caseReference={caseReference}&purpose=chaser");
-        var html = await get.Content.ReadAsStringAsync();
 
         using var response = await client.PostAsync(
-            "/Inbox/Compose?handler=Send",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
-                ["OperationKey"] = InputValue(html, "OperationKey"),
-                ["ExpectedContextVersion"] = InputValue(html, "ExpectedContextVersion"),
-                ["CaseReference"] = caseReference,
-                ["Purpose"] = InputValue(html, "Purpose"),
-                ["To"] = InputValue(html, "To"),
-                ["Subject"] = "Outstanding material",
-                ["Body"] = TextAreaValue(html, "Body")
-            }));
+            FormAction(html, "Send"),
+            new FormUrlEncodedContent(ChaserForm(html, mailboxId)));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Contains("purpose=chaser", response.Headers.Location!.ToString(), StringComparison.Ordinal);
+        Assert.Contains("operationId=", response.Headers.Location!.ToString(), StringComparison.Ordinal);
         var command = Assert.Single(send.Commands);
         Assert.Equal(StaffMailPurpose.CaseChaser, command.Purpose);
+        Assert.Equal(StaffMailComposeMode.New, command.ComposeMode);
+        Assert.Null(command.OriginalMessage);
+        Assert.Equal(mailboxId, command.ApprovedMailboxId);
+        Assert.Equal(1, command.ExpectedMailboxGeneration);
         Assert.Equal(caseId, command.ContextId);
+        Assert.Equal(header.Workflow.Version, command.ExpectedContextVersion);
+        Assert.Equal(facts.Subject(), command.Subject);
         Assert.Equal(
             ["instructions@principal.example", "images@repairer.example", "office@repairer.example"],
             command.To.Select(recipient => recipient.Address));
@@ -455,306 +119,152 @@ public sealed class StaffCorrespondenceWebTests
         using var status = await client.GetAsync(response.Headers.Location);
         var statusHtml = await status.Content.ReadAsStringAsync();
         Assert.Equal(string.Empty, InputValue(statusHtml, "To"));
-        Assert.Equal("chaser", InputValue(statusHtml, "Purpose"));
+        Assert.Single(recipients.CaseIds);
     }
 
-    /// <summary>A compose opened without the chaser purpose opens empty and reads no chaser addresses.</summary>
+    /// <summary>With no instruction email to reply to, a chaser without a chosen From mailbox is not sent.</summary>
     [Fact]
-    public async Task APlainComposeOpensEmpty()
+    public async Task AChaserWithoutAChosenMailboxReturnsTheFormWithoutSending()
     {
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(baseFactory, new(false, true));
         await SeedSendableMailboxAsync(baseFactory);
-        var recipients = new FixedChaserRecipients(ChaserRecipients);
-        using var factory = Configure(baseFactory, send, chaserRecipients: recipients);
+        using var factory = Configure(
+            baseFactory, send, chaserRecipients: new FixedChaserRecipients(ChaserRecipients));
         using var client = CreateClient(factory);
-        var caseReference = await CaseReferenceAsync(factory, caseId);
+        using var get = await client.GetAsync($"/Cases/{caseId:D}/Chaser");
+        var html = await get.Content.ReadAsStringAsync();
 
-        using var response = await client.GetAsync($"/Inbox/Compose?caseReference={caseReference}");
+        using var response = await client.PostAsync(
+            FormAction(html, "Send"),
+            new FormUrlEncodedContent(ChaserForm(html, fromMailboxId: null)));
 
-        var html = await response.Content.ReadAsStringAsync();
-        Assert.Equal(string.Empty, InputValue(html, "To"));
-        Assert.Equal(string.Empty, InputValue(html, "Subject"));
-        Assert.Equal(string.Empty, TextAreaValue(html, "Body"));
-        Assert.Equal(string.Empty, InputValue(html, "Purpose"));
-        Assert.Empty(recipients.CaseIds);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(
+            new CaseMailSenderRequiredException().Message,
+            await response.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
+        Assert.Equal(0, send.SendCalls);
     }
 
     /// <summary>
-    /// C08-R-4: an unresolved outcome shows its state and nothing else: no
-    /// success banner, no Send and no Reconcile (the Worker's Sent poll
-    /// settles it). The redirect after send carries the operation id forward
-    /// so the GET it lands on can actually show it.
+    /// Send chaser on a Case that arrived by an approved mailbox (operator,
+    /// 12 October 2026): a reply to the instruction email, from the mailbox it
+    /// arrived in, titled with the original's subject and one "Re:". No From
+    /// mailbox is offered.
+    /// </summary>
+    [Fact]
+    public async Task AChaserRepliesToTheInstructionEmailFromTheMailboxItArrivedIn()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(baseFactory, new(false, true));
+        var instruction = await SeedRetainedCorrespondenceAsync(baseFactory, caseId: null);
+        await MakeInstructionEmailAsync(baseFactory, caseId, instruction.ReceiptId);
+        using var factory = Configure(
+            baseFactory, send, chaserRecipients: new FixedChaserRecipients(ChaserRecipients));
+        using var client = CreateClient(factory);
+
+        using var get = await client.GetAsync($"/Cases/{caseId:D}/Chaser");
+
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+        var html = await get.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("name=\"FromMailboxId\"", html, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{instruction.MailboxAddress}\"", html, StringComparison.Ordinal);
+        Assert.Equal("Re: Source subject", InputValue(html, "Subject"));
+
+        using var response = await client.PostAsync(
+            FormAction(html, "Send"),
+            new FormUrlEncodedContent(ChaserForm(html, fromMailboxId: null)));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(StaffMailPurpose.CaseChaser, command.Purpose);
+        Assert.Equal(StaffMailComposeMode.Reply, command.ComposeMode);
+        Assert.Equal(instruction.MailboxId, command.ApprovedMailboxId);
+        Assert.Equal(instruction.MailboxGeneration, command.ExpectedMailboxGeneration);
+        Assert.Equal(
+            new StaffMailOriginalMessage(
+                instruction.MessageId,
+                instruction.MailboxId,
+                instruction.ImmutableMessageId,
+                instruction.InternetMessageId,
+                instruction.ConversationId),
+            command.OriginalMessage);
+        Assert.Equal(caseId, command.ContextId);
+        Assert.Equal("Re: Source subject", command.Subject);
+    }
+
+    /// <summary>
+    /// C08-R-4: an unresolved chaser outcome shows its state and nothing else:
+    /// no success banner, no Send and no Reconcile (the Worker's Sent poll
+    /// settles it).
     /// </summary>
     [Theory]
     [InlineData(StaffMailState.Submitted)]
     [InlineData(StaffMailState.Unknown)]
-    public async Task UnresolvedOutcomeShowsItsStateWithoutResendOrReconcile(
+    public async Task UnresolvedChaserOutcomeShowsItsStateWithoutResendOrReconcile(
         StaffMailState unresolvedState)
     {
         var send = new RecordingStaffMailSend { NextState = unresolvedState };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 UNK", "SC08-CLAIM-5");
-        await SeedSendableMailboxAsync(baseFactory);
-        using var factory = Configure(baseFactory, send);
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(baseFactory, new(false, true));
+        var mailboxId = await SeedSendableMailboxAsync(baseFactory);
+        using var factory = Configure(
+            baseFactory, send, chaserRecipients: new FixedChaserRecipients(ChaserRecipients));
         using var client = CreateClient(factory);
-        var caseReference = await CaseReferenceAsync(factory, caseId);
-        var (operationKey, token) = await ComposeFormTokensAsync(
-            client, $"/Inbox/Compose?caseReference={caseReference}");
-
-        using var response = await client.PostAsync(
-            "/Inbox/Compose?handler=Send",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = token,
-                ["OperationKey"] = operationKey,
-                ["CaseReference"] = caseReference,
-                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["To"] = "claimant@example.invalid",
-                ["Subject"] = "Following up",
-                ["Body"] = "Please find the update below."
-            }));
-
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal(1, send.SendCalls);
-        var location = response.Headers.Location!;
-        Assert.Contains("operationId=", location.ToString(), StringComparison.Ordinal);
-
-        using var statusPage = await client.GetAsync(location);
-        Assert.Equal(HttpStatusCode.OK, statusPage.StatusCode);
-        var html = await statusPage.Content.ReadAsStringAsync();
-
-        Assert.DoesNotContain("notice--success", html, StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.StaffMail.State(unresolvedState), html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Reconcile", html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(">Send</span>", html, StringComparison.Ordinal);
-        // Rendering the status panel must never itself trigger a resend.
-        Assert.Equal(1, send.SendCalls);
-    }
-
-    [Fact]
-    public async Task UnknownComposeOperationSurvivesCaseSelection()
-    {
-        var send = new RecordingStaffMailSend { NextState = StaffMailState.Unknown };
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var oldCaseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 UNKNOWN OLD", "SC08-UNKNOWN-OLD");
-        var selectedCaseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 UNKNOWN SELECT", "SC08-UNKNOWN-SELECT");
-        await SeedSendableMailboxAsync(baseFactory);
-        using var factory = Configure(baseFactory, send, attachmentResolver: new StableAttachmentResolver());
-        using var client = CreateClient(factory);
-        var oldReference = await CaseReferenceAsync(factory, oldCaseId);
-        var selectedReference = await CaseReferenceAsync(factory, selectedCaseId);
-        var (operationKey, token) = await ComposeFormTokensAsync(
-            client, $"/Inbox/Compose?caseReference={oldReference}");
-
-        using var sent = await client.PostAsync(
-            "/Inbox/Compose?handler=Send",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = token,
-                ["OperationKey"] = operationKey,
-                ["CaseReference"] = oldReference,
-                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, oldCaseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["To"] = "claimant@example.invalid",
-                ["Subject"] = "Initial subject",
-                ["Body"] = "Initial message.",
-                ["SelectedAttachments"] = StableAttachmentResolver.Selection
-            }));
-        Assert.Equal(HttpStatusCode.Redirect, sent.StatusCode);
-        Assert.Equal(1, send.SendCalls);
-
-        using var status = await client.GetAsync(sent.Headers.Location);
-        var statusHtml = await status.Content.ReadAsStringAsync();
-        var draft = new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = InputValue(statusHtml, "__RequestVerificationToken"),
-            ["OperationKey"] = InputValue(statusHtml, "OperationKey"),
-            ["OperationId"] = ComposeOperationId(statusHtml),
-            ["ExpectedContextVersion"] = InputValue(statusHtml, "ExpectedContextVersion"),
-            ["CaseReference"] = oldReference,
-            ["To"] = "draft@example.invalid",
-            ["Cc"] = "copy@example.invalid",
-            ["Subject"] = "Draft subject",
-            ["Body"] = "Draft message.",
-            ["SelectedAttachments"] = StableAttachmentResolver.Selection
-        };
-
-        // Typing in Case / PO fetches the option list only; the draft on the
-        // page is untouched until an option is chosen.
-        using var options = await client.GetAsync(
-            $"/Inbox/Compose?handler=CaseOptions&q={Uri.EscapeDataString(selectedReference)}");
-        Assert.Equal(HttpStatusCode.OK, options.StatusCode);
-        var optionsHtml = await options.Content.ReadAsStringAsync();
-        Assert.Contains("role=\"listbox\"", optionsHtml, StringComparison.Ordinal);
-        Assert.Contains(selectedReference, optionsHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("mail-compose-content", optionsHtml, StringComparison.Ordinal);
-        draft["SelectedCaseReference"] = selectedReference;
-
-        using var selection = await client.PostAsync(
-            ButtonFormAction(optionsHtml, "SelectCase"),
-            new FormUrlEncodedContent(draft));
-        Assert.Equal(HttpStatusCode.OK, selection.StatusCode);
-        var selectedHtml = await selection.Content.ReadAsStringAsync();
-        Assert.Equal(selectedReference, InputValue(selectedHtml, "CaseReference"));
-        Assert.Equal(
-            (await CaseVersionAsync(factory, selectedCaseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
-            InputValue(selectedHtml, "ExpectedContextVersion"));
-        Assert.Equal(draft["OperationId"], ComposeOperationId(selectedHtml));
-        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), selectedHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("Reconcile", selectedHtml, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(selectedReference, InputValue(selectedHtml, "FixedCaseReference"));
-        Assert.Equal("draft@example.invalid", InputValue(selectedHtml, "To"));
-        Assert.Equal("copy@example.invalid", InputValue(selectedHtml, "Cc"));
-        Assert.Equal("Draft subject", InputValue(selectedHtml, "Subject"));
-        Assert.Equal("Draft message.", TextAreaValue(selectedHtml, "Body"));
-        AssertSelectedAttachment(selectedHtml, StableAttachmentResolver.Selection);
-        Assert.Equal(1, send.SendCalls);
-
-        draft["__RequestVerificationToken"] = InputValue(selectedHtml, "__RequestVerificationToken");
-        draft["OperationKey"] = InputValue(selectedHtml, "OperationKey");
-        draft["OperationId"] = ComposeOperationId(selectedHtml);
-        draft["ExpectedContextVersion"] = InputValue(selectedHtml, "ExpectedContextVersion");
-        draft["CaseReference"] = InputValue(selectedHtml, "CaseReference");
-        draft["FixedCaseReference"] = InputValue(selectedHtml, "FixedCaseReference");
-        draft["To"] = string.Empty;
-        draft.Remove("SelectedCaseReference");
-
-        using var invalidSend = await client.PostAsync(
-            FormAction(selectedHtml, "Send"),
-            new FormUrlEncodedContent(draft));
-        Assert.Equal(HttpStatusCode.OK, invalidSend.StatusCode);
-        var invalidHtml = await invalidSend.Content.ReadAsStringAsync();
-        Assert.Contains("At least one recipient is required.", invalidHtml, StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), invalidHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("Reconcile", invalidHtml, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(draft["OperationId"], ComposeOperationId(invalidHtml));
-        Assert.Equal("Draft subject", InputValue(invalidHtml, "Subject"));
-        Assert.Equal("Draft message.", TextAreaValue(invalidHtml, "Body"));
-        AssertSelectedAttachment(invalidHtml, StableAttachmentResolver.Selection);
-        Assert.Equal(1, send.SendCalls);
-    }
-
-    /// <summary>
-    /// Find a Case is an autocomplete: the option list is a GET fragment of
-    /// SelectCase submit buttons, one per matching Case. A blank or oversized
-    /// term lists nothing, and no request on this path ever sends.
-    /// </summary>
-    [Fact]
-    public async Task ComposeCaseOptionsListMatchingCasesAsSelectActions()
-    {
-        var send = new RecordingStaffMailSend();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var matchingCaseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 OPTION MATCH", "SC08-OPTION-MATCH");
-        var otherCaseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 OPTION OTHER", "SC08-OPTION-OTHER");
-        await SeedSendableMailboxAsync(baseFactory);
-        using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
-        var matchingReference = await CaseReferenceAsync(factory, matchingCaseId);
-        var otherReference = await CaseReferenceAsync(factory, otherCaseId);
-
-        using var options = await client.GetAsync(
-            $"/Inbox/Compose?handler=CaseOptions&q={Uri.EscapeDataString(matchingReference)}");
-        Assert.Equal(HttpStatusCode.OK, options.StatusCode);
-        var optionsHtml = await options.Content.ReadAsStringAsync();
-        Assert.Contains("role=\"listbox\"", optionsHtml, StringComparison.Ordinal);
-        Assert.Contains("role=\"option\"", optionsHtml, StringComparison.Ordinal);
-        Assert.Contains("name=\"SelectedCaseReference\"", optionsHtml, StringComparison.Ordinal);
-        Assert.Contains($"value=\"{matchingReference}\"", optionsHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain($"value=\"{otherReference}\"", optionsHtml, StringComparison.Ordinal);
-        Assert.Contains("handler=SelectCase", ButtonFormAction(optionsHtml, "SelectCase"), StringComparison.Ordinal);
-
-        using var blank = await client.GetAsync("/Inbox/Compose?handler=CaseOptions&q=");
-        Assert.Equal(HttpStatusCode.OK, blank.StatusCode);
-        Assert.DoesNotContain("role=\"option\"", await blank.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-
-        using var oversized = await client.GetAsync(
-            $"/Inbox/Compose?handler=CaseOptions&q={new string('x', 301)}");
-        Assert.Equal(HttpStatusCode.OK, oversized.StatusCode);
-        Assert.DoesNotContain("role=\"option\"", await oversized.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-        Assert.Empty(send.Commands);
-    }
-
-    /// <summary>
-    /// The composer's Send is the form's own action. Only the option buttons
-    /// name a different handler; the Send button carries no formaction, so
-    /// the overlay's fetch posts to the Send handler and never to the host
-    /// page (the defect behind "The composer could not be refreshed").
-    /// </summary>
-    [Fact]
-    public async Task TheComposerSendsThroughItsOwnFormActionOnly()
-    {
-        var send = new RecordingStaffMailSend();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        await SeedSendableMailboxAsync(baseFactory);
-        using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
-
-        using var get = await client.GetAsync("/Inbox/Compose?handler=Form");
-        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+        using var get = await client.GetAsync($"/Cases/{caseId:D}/Chaser");
         var html = await get.Content.ReadAsStringAsync();
 
-        Assert.Contains("handler=Send", FormAction(html, "Send"), StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=SearchCase", html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotMatch("<button[^>]*formaction=", html);
-        Assert.Contains("data-case-picker-url=\"/Inbox/Compose?handler=CaseOptions\"", html, StringComparison.Ordinal);
-        Assert.Contains("role=\"combobox\"", html, StringComparison.Ordinal);
-        Assert.Empty(send.Commands);
-    }
-
-    /// <summary>
-    /// FRD-21: the composer names why the provider refused the send, in
-    /// operator words, under the Failed state. Nothing claims success.
-    /// </summary>
-    [Fact]
-    public async Task AFailedComposeSendNamesItsReason()
-    {
-        var send = new RecordingStaffMailSend
-        {
-            NextState = StaffMailState.Failed,
-            NextFailureCode = "graph_rejected_403"
-        };
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 REASON", "SC08-COMPOSE-REASON");
-        await SeedSendableMailboxAsync(baseFactory);
-        using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
-        var caseReference = await CaseReferenceAsync(factory, caseId);
-        var (operationKey, token) = await ComposeFormTokensAsync(
-            client, $"/Inbox/Compose?caseReference={caseReference}");
-
         using var response = await client.PostAsync(
-            "/Inbox/Compose?handler=Send",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = token,
-                ["OperationKey"] = operationKey,
-                ["CaseReference"] = caseReference,
-                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["To"] = "claimant@example.invalid",
-                ["Subject"] = "Following up",
-                ["Body"] = "Please find the update below."
-            }));
+            FormAction(html, "Send"),
+            new FormUrlEncodedContent(ChaserForm(html, mailboxId)));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        using var status = await client.GetAsync(response.Headers.Location);
-        var statusHtml = await status.Content.ReadAsStringAsync();
-        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Failed), statusHtml, StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.StaffMail.Failure("graph_rejected_403"), statusHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("Correspondence sent.", statusHtml, StringComparison.Ordinal);
+        Assert.Equal(1, send.SendCalls);
+        using var statusPage = await client.GetAsync(response.Headers.Location);
+        Assert.Equal(HttpStatusCode.OK, statusPage.StatusCode);
+        var statusHtml = await statusPage.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("notice--success", statusHtml, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.StaffMail.State(unresolvedState), statusHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Reconcile", statusHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(">Send</span>", statusHtml, StringComparison.Ordinal);
+        Assert.Equal(1, send.SendCalls);
     }
 
-    /// <summary>The retained-message composer names the reason the same way.</summary>
+    /// <summary>The chaser page's form as rendered, with the chosen From mailbox when one is posted.</summary>
+    private static Dictionary<string, string> ChaserForm(string html, Guid? fromMailboxId)
+    {
+        var form = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+            ["OperationKey"] = InputValue(html, "OperationKey"),
+            ["ExpectedContextVersion"] = InputValue(html, "ExpectedContextVersion"),
+            ["To"] = InputValue(html, "To"),
+            ["Subject"] = InputValue(html, "Subject"),
+            ["Body"] = TextAreaValue(html, "Body")
+        };
+        if (fromMailboxId is { } id)
+        {
+            form["FromMailboxId"] = id.ToString("D");
+        }
+        return form;
+    }
+
+    /// <summary>Makes the seeded retained message the Case's instruction email: its receipt is the Case's origin.</summary>
+    private static async Task MakeInstructionEmailAsync(
+        IntakeWebApplicationFactory factory, Guid caseId, Guid receiptId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE Cases SET OriginIntakeReceiptId = {receiptId} WHERE Id = {caseId}");
+    }
+
+    /// <summary>A failed retained reply names its reason in operator words.</summary>
     [Fact]
     public async Task AFailedRetainedReplyNamesItsReason()
     {
@@ -793,179 +303,6 @@ public sealed class StaffCorrespondenceWebTests
         Assert.DoesNotContain("Correspondence sent.", statusHtml, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// A send the provider refuses is an outcome, not a fault: the redirected
-    /// GET shows the Failed state and offers the form again under a new key.
-    /// </summary>
-    [Fact]
-    public async Task AFailedComposeSendShowsItsStateAndOffersANewSend()
-    {
-        var send = new RecordingStaffMailSend { NextState = StaffMailState.Failed };
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 FAILED", "SC08-COMPOSE-FAILED");
-        await SeedSendableMailboxAsync(baseFactory);
-        using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
-        var caseReference = await CaseReferenceAsync(factory, caseId);
-        var (operationKey, token) = await ComposeFormTokensAsync(
-            client, $"/Inbox/Compose?caseReference={caseReference}");
-
-        using var response = await client.PostAsync(
-            "/Inbox/Compose?handler=Send",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = token,
-                ["OperationKey"] = operationKey,
-                ["CaseReference"] = caseReference,
-                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["To"] = "claimant@example.invalid",
-                ["Subject"] = "Following up",
-                ["Body"] = "Please find the update below."
-            }));
-
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal(1, send.SendCalls);
-        using var status = await client.GetAsync(response.Headers.Location);
-        var statusHtml = await status.Content.ReadAsStringAsync();
-        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Failed), statusHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("Correspondence sent.", statusHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=Reconcile", statusHtml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("handler=Send", FormAction(statusHtml, "Send"), StringComparison.Ordinal);
-        Assert.NotEqual(operationKey, InputValue(statusHtml, "OperationKey"));
-    }
-
-    [Fact]
-    public async Task ComposeSelectionReplacesThePostedCaseReference()
-    {
-        var send = new RecordingStaffMailSend();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var oldCaseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 OLD", "SC08-COMPOSE-OLD");
-        var selectedCaseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 SELECT", "SC08-COMPOSE-SELECT");
-        await SeedSendableMailboxAsync(baseFactory);
-        using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
-        var oldReference = await CaseReferenceAsync(factory, oldCaseId);
-        var selectedReference = await CaseReferenceAsync(factory, selectedCaseId);
-        using var get = await client.GetAsync($"/Inbox/Compose?caseReference={oldReference}");
-        var html = await get.Content.ReadAsStringAsync();
-
-        using var response = await client.PostAsync(
-            "/Inbox/Compose?handler=SelectCase",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
-                ["OperationKey"] = InputValue(html, "OperationKey"),
-                ["ExpectedContextVersion"] = InputValue(html, "ExpectedContextVersion"),
-                ["CaseReference"] = oldReference,
-                ["SelectedCaseReference"] = selectedReference,
-                ["To"] = "claimant@example.invalid",
-                ["Subject"] = "Draft subject",
-                ["Body"] = "Draft message body."
-            }));
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(
-            selectedReference,
-            InputValue(await response.Content.ReadAsStringAsync(), "CaseReference"));
-        Assert.Empty(send.Commands);
-    }
-
-    /// <summary>
-    /// C08-R-4: a second POST carrying the same <c>OperationKey</c> as an
-    /// already-recorded send must not send again — it shows the operation
-    /// the first POST recorded.
-    /// </summary>
-    [Fact]
-    public async Task ASameKeyReplayDoesNotSendAgainAndShowsTheRecordedOperation()
-    {
-        var send = new RecordingStaffMailSend();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 RPL", "SC08-CLAIM-6");
-        await SeedSendableMailboxAsync(baseFactory);
-        using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
-        var caseReference = await CaseReferenceAsync(factory, caseId);
-        var (operationKey, token) = await ComposeFormTokensAsync(
-            client, $"/Inbox/Compose?caseReference={caseReference}");
-        var form = new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = token,
-            ["OperationKey"] = operationKey,
-            ["CaseReference"] = caseReference,
-            ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["To"] = "claimant@example.invalid",
-            ["Subject"] = "Following up",
-            ["Body"] = "Please find the update below."
-        };
-
-        using var first = await client.PostAsync(
-            "/Inbox/Compose?handler=Send", new FormUrlEncodedContent(form));
-        Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
-        Assert.Equal(1, send.SendCalls);
-        var firstOperationId = ExtractOperationId(first.Headers.Location!);
-
-        using var replay = await client.PostAsync(
-            "/Inbox/Compose?handler=Send", new FormUrlEncodedContent(form));
-
-        Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
-        Assert.Equal(1, send.SendCalls);
-        Assert.Equal(firstOperationId, ExtractOperationId(replay.Headers.Location!));
-
-        using var statusPage = await client.GetAsync(replay.Headers.Location);
-        Assert.Equal(HttpStatusCode.OK, statusPage.StatusCode);
-        var html = await statusPage.Content.ReadAsStringAsync();
-        // The replay redirected to the same operationId as the first send
-        // (asserted above); this confirms the GET it lands on actually
-        // renders that recorded operation's status panel, not an empty one.
-        Assert.Contains("Send status", html, StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Submitted), html, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task ChangedAttachmentSelectionReturnsValidationWithoutSending()
-    {
-        var send = new RecordingStaffMailSend();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 ATT", "SC08-CLAIM-ATT");
-        await SeedSendableMailboxAsync(baseFactory);
-        using var factory = Configure(
-            baseFactory, send, attachmentResolver: new ChangedAttachmentResolver());
-        using var client = CreateClient(factory);
-        var caseReference = await CaseReferenceAsync(factory, caseId);
-        var (operationKey, token) = await ComposeFormTokensAsync(
-            client, $"/Inbox/Compose?caseReference={caseReference}");
-
-        using var response = await client.PostAsync(
-            "/Inbox/Compose?handler=Send",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = token,
-                ["OperationKey"] = operationKey,
-                ["CaseReference"] = caseReference,
-                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["To"] = "claimant@example.invalid",
-                ["Subject"] = "Following up",
-                ["Body"] = "Please find the update below.",
-                ["SelectedAttachments"] = ChangedAttachmentResolver.Selection
-            }));
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains(
-            "selected attachments changed or are no longer available",
-            await response.Content.ReadAsStringAsync(),
-            StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(0, send.SendCalls);
-    }
-
     [Theory]
     [InlineData("Reply", StaffMailComposeMode.Reply)]
     [InlineData("ReplyAll", StaffMailComposeMode.ReplyAll)]
@@ -980,10 +317,7 @@ public sealed class StaffCorrespondenceWebTests
         var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, $"SC08 {handler}", $"SC08-{handler}");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
-        using var factory = Configure(
-            baseFactory,
-            send,
-            new(seeded.MailboxId, seeded.MailboxGeneration));
+        using var factory = Configure(baseFactory, send);
         using var client = CreateClient(factory);
         var mode = expectedMode switch
         {
@@ -1060,8 +394,7 @@ public sealed class StaffCorrespondenceWebTests
         using var factory = Configure(
             baseFactory,
             send,
-            new(seeded.MailboxId, seeded.MailboxGeneration),
-            new StableAttachmentResolver());
+            attachmentResolver: new StableAttachmentResolver());
         using var client = CreateClient(factory);
         // No unread scope: the v26 Inbox has no Unread filter (read state is not a queue).
         var listContext = $"mailbox={seeded.MailboxId:D}&folder=inbox&pageNumber=2&sort=oldest";
@@ -1210,10 +543,7 @@ public sealed class StaffCorrespondenceWebTests
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId: null);
         await MailboxIntakeTestData.SeedTriageCaseAsync(baseFactory.Services, seeded.ReceiptId, "t.QDOS31009");
-        using var factory = Configure(
-            baseFactory,
-            send,
-            new(seeded.MailboxId, seeded.MailboxGeneration));
+        using var factory = Configure(baseFactory, send);
         using var client = CreateClient(factory);
 
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose={mode}");
@@ -1249,20 +579,8 @@ public sealed class StaffCorrespondenceWebTests
 
         using var first = await client.PostAsync(
             $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
-        // A syntactically valid but distinct operation key, so this proves the
-        // active-Unknown operation rejects a genuine fresh action rather than
-        // merely tripping the operation-key format check.
-        var freshForm = new Dictionary<string, string>(form)
-        {
-            ["CorrespondenceOperationKey"] = $"retained:{seeded.MessageId:N}:{Guid.NewGuid():N}"
-        };
-        using var fresh = await client.PostAsync(
-            $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(freshForm));
-        var freshHtml = await fresh.Content.ReadAsStringAsync();
         using var replay = await client.PostAsync(
             $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
-        Assert.Equal(HttpStatusCode.OK, fresh.StatusCode);
-        Assert.Contains("existing correspondence operation", freshHtml, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
         Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
         Assert.Equal(1, send.SendCalls);
@@ -1270,8 +588,8 @@ public sealed class StaffCorrespondenceWebTests
         using var status = await client.GetAsync(replay.Headers.Location);
         var statusHtml = await status.Content.ReadAsStringAsync();
         Assert.Contains("Send status", statusHtml, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), statusHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Reconcile", statusHtml, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("handler=Reply\"", statusHtml, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, send.SendCalls);
     }
 
@@ -1317,16 +635,14 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(await CaseVersionAsync(factory, typedCaseId), command.ExpectedContextVersion);
     }
 
+    /// <summary>
+    /// A failure of the send port itself (an offline transport, a composition
+    /// invariant) surfaces as a server error; the reply handler does not turn
+    /// it into a validation message.
+    /// </summary>
     [Fact]
-    public async Task NoActiveOperationInvalidOperationDoesNotMasqueradeAsASendConflict()
+    public async Task ASendPortFailureSurfacesAsAServerError()
     {
-        // PR 673 comment 5563408956: catch (InvalidOperationException) must
-        // not label every failure as an existing correspondence operation.
-        // Here no operation was ever recorded for this original message, so
-        // this is the send port itself refusing (offline transport, or a
-        // composition invariant) — not a conflicting active operation. The
-        // handler must let the real failure surface rather than redirecting
-        // as though a correspondence conflict occurred.
         var send = new RecordingStaffMailSend
         {
             ThrowOnSend = new InvalidOperationException(
@@ -1350,74 +666,24 @@ public sealed class StaffCorrespondenceWebTests
             ["CorrespondenceBody"] = "Reviewed response."
         };
 
-        // The test host runs in the Development environment, where
-        // WebApplication installs the developer exception page ahead of the
-        // endpoint pipeline. That page catches the rethrown
-        // InvalidOperationException and turns it into a 500 response — it
-        // never reaches the caller as a thrown exception (see
-        // GraphMailWebhookTests.ValidNotificationQueueFailureReturnsRetryableServerError
-        // for the same shape). That is the behaviour under test: the failure
-        // must surface as a server error, not get relabelled as "existing
-        // correspondence operation" and redirected as a conflict.
+        // The test host runs in the Development environment, where the
+        // developer exception page turns the unhandled exception into a 500
+        // (see GraphMailWebhookTests.ValidNotificationQueueFailureReturnsRetryableServerError).
         using var response = await client.PostAsync(
             $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.DoesNotContain(
-            "existing correspondence operation", body, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(
             "Staff mail delivery is unavailable in the DevelopmentOffline runtime profile.",
-            body,
+            await response.Content.ReadAsStringAsync(),
             StringComparison.Ordinal);
-        // ThrowOnSend throws before RecordingStaffMailSend records a
-        // command, so SendCalls staying at zero confirms the double never
-        // treated this as a completed send.
         Assert.Equal(0, send.SendCalls);
     }
 
-    [Fact]
-    public async Task ConcurrentDistinctKeysForOneOriginalProduceOneSendAndOneDeterministicRefusal()
-    {
-        var send = new RecordingStaffMailSend
-        {
-            NextState = StaffMailState.Submitted,
-            CoordinateNextTwoSends = true
-        };
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
-        var caseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 CONCURRENT", "SC08-MSG-CONCURRENT");
-        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
-        using var factory = Configure(baseFactory, send);
-        using var firstClient = CreateClient(factory);
-        using var secondClient = CreateClient(factory);
-
-        using var firstGet = await firstClient.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
-        using var secondGet = await secondClient.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
-        var firstHtml = await firstGet.Content.ReadAsStringAsync();
-        var secondHtml = await secondGet.Content.ReadAsStringAsync();
-        var firstKey = InputValue(firstHtml, "CorrespondenceOperationKey");
-        var secondKey = InputValue(secondHtml, "CorrespondenceOperationKey");
-        Assert.NotEqual(firstKey, secondKey);
-
-        var firstPost = firstClient.PostAsync(
-            $"/Inbox/{seeded.MessageId:D}?handler=Reply",
-            new FormUrlEncodedContent(RetainedReplyForm(firstHtml, firstKey, "First concurrent action.")));
-        var secondPost = secondClient.PostAsync(
-            $"/Inbox/{seeded.MessageId:D}?handler=Reply",
-            new FormUrlEncodedContent(RetainedReplyForm(secondHtml, secondKey, "Second concurrent action.")));
-        using var first = await firstPost;
-        using var second = await secondPost;
-
-        Assert.Equal(1, send.SendCalls);
-        Assert.Equal(
-            [HttpStatusCode.OK, HttpStatusCode.Redirect],
-            new[] { first.StatusCode, second.StatusCode }.Order());
-        var refused = first.StatusCode == HttpStatusCode.OK ? first : second;
-        var refusedHtml = await refused.Content.ReadAsStringAsync();
-        Assert.Contains("existing correspondence operation", refusedHtml, StringComparison.OrdinalIgnoreCase);
-    }
-
+    /// <summary>
+    /// An unresolved reply shows its state, and a second reply to the same
+    /// message is still accepted (operator, 12 October 2026): an earlier
+    /// send on the original no longer blocks another.
+    /// </summary>
     [Theory]
     [InlineData(StaffMailState.Prepared)]
     [InlineData(StaffMailState.DraftCreating)]
@@ -1425,7 +691,7 @@ public sealed class StaffCorrespondenceWebTests
     [InlineData(StaffMailState.Sending)]
     [InlineData(StaffMailState.Submitted)]
     [InlineData(StaffMailState.Unknown)]
-    public async Task UnresolvedRetainedReplyShowsStatusAndBlocksASecondFreshAction(
+    public async Task UnresolvedRetainedReplyShowsStatusAndAcceptsASecondReply(
         StaffMailState unresolvedState)
     {
         var send = new RecordingStaffMailSend { NextState = unresolvedState };
@@ -1438,31 +704,25 @@ public sealed class StaffCorrespondenceWebTests
         using var client = CreateClient(factory);
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
         var html = await get.Content.ReadAsStringAsync();
+        var firstKey = InputValue(html, "CorrespondenceOperationKey");
         using var post = await client.PostAsync(
             $"/Inbox/{seeded.MessageId:D}?handler=Reply",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
-                ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
-                ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
-                ["CorrespondenceSubject"] = "Re: Source subject",
-                ["CorrespondenceBody"] = "Reviewed response."
-            }));
+            new FormUrlEncodedContent(RetainedReplyForm(html, firstKey, "Reviewed response.")));
+        Assert.Equal(HttpStatusCode.Redirect, post.StatusCode);
         using var status = await client.GetAsync(post.Headers.Location);
         var statusHtml = await status.Content.ReadAsStringAsync();
         Assert.Contains(OperatorLabels.StaffMail.State(unresolvedState), statusHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=Reply\"", statusHtml, StringComparison.OrdinalIgnoreCase);
-        using var fresh = await client.PostAsync(
+
+        using var secondGet = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        var secondHtml = await secondGet.Content.ReadAsStringAsync();
+        var secondKey = InputValue(secondHtml, "CorrespondenceOperationKey");
+        Assert.NotEqual(firstKey, secondKey);
+        using var second = await client.PostAsync(
             $"/Inbox/{seeded.MessageId:D}?handler=Reply",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = InputValue(statusHtml, "__RequestVerificationToken"),
-                ["CorrespondenceOperationKey"] = $"fresh:{Guid.NewGuid():N}",
-                ["CorrespondenceSubject"] = "Re: Source subject",
-                ["CorrespondenceBody"] = "Second action."
-            }));
-        Assert.Equal(HttpStatusCode.OK, fresh.StatusCode);
-        Assert.Equal(1, send.SendCalls);
+            new FormUrlEncodedContent(RetainedReplyForm(secondHtml, secondKey, "Second action.")));
+        Assert.Equal(HttpStatusCode.Redirect, second.StatusCode);
+        Assert.Equal(2, send.SendCalls);
+        Assert.All(send.Commands, command => Assert.Equal(seeded.MessageId, command.OriginalMessage!.RetainedMessageId));
     }
 
     [Theory]
@@ -1504,7 +764,6 @@ public sealed class StaffCorrespondenceWebTests
         using var activeStatus = await client.GetAsync(secondPost.Headers.Location);
         var activeHtml = await activeStatus.Content.ReadAsStringAsync();
         Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Submitted), activeHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=Reply\"", activeHtml, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -1551,37 +810,39 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Empty(send.Commands);
     }
 
+    /// <summary>
+    /// Reply leaves only the message's own mailbox, and only while it can
+    /// send: Approved, Outgoing, activated, identified, its Sent folder bound
+    /// and a positive generation.
+    /// </summary>
     [Theory]
-    [InlineData(false, ApprovedMailboxState.Approved, true, true, 1)]
-    [InlineData(true, ApprovedMailboxState.Disabled, true, true, 1)]
-    [InlineData(true, ApprovedMailboxState.Approved, false, true, 1)]
-    [InlineData(true, ApprovedMailboxState.Approved, true, false, 1)]
-    [InlineData(true, ApprovedMailboxState.Approved, true, true, 0)]
-    public async Task RetainedReplyRequiresAReadyStaffSendAndSentEvidenceMailbox(
+    [InlineData("absent", false, ApprovedMailboxState.Approved, true, "sent-items", 1)]
+    [InlineData("disabled", true, ApprovedMailboxState.Disabled, true, "sent-items", 1)]
+    [InlineData("incoming", true, ApprovedMailboxState.Approved, false, "sent-items", 1)]
+    [InlineData("no-sent", true, ApprovedMailboxState.Approved, true, null, 1)]
+    [InlineData("generation", true, ApprovedMailboxState.Approved, true, "sent-items", 0)]
+    public async Task RetainedReplyRequiresASendReadyOutgoingMailbox(
+        string row,
         bool available,
         ApprovedMailboxState state,
-        bool staffSend,
-        bool sentEvidence,
+        bool outgoing,
+        string? sentFolderIdentity,
         long generation)
     {
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
         var caseId = await SeedSupportedCaseAsync(
-            baseFactory, seedClient, "SC08 MAILBOX", $"SC08-MSG-{state}-{staffSend}-{generation}");
+            baseFactory, seedClient, "SC08 MAILBOX", $"SC08-MSG-{row}");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         var mailbox = new ApprovedMailbox(
             seeded.MailboxId,
             seeded.MailboxAddress,
-            (staffSend, sentEvidence) switch
-            {
-                (true, true) => [ApprovedMailboxRouteScope.StaffSend, ApprovedMailboxRouteScope.SentEvidence],
-                (true, false) => [ApprovedMailboxRouteScope.StaffSend],
-                _ => [ApprovedMailboxRouteScope.SentEvidence]
-            },
+            outgoing
+                ? [ApprovedMailboxRouteScope.Incoming, ApprovedMailboxRouteScope.Outgoing]
+                : [ApprovedMailboxRouteScope.Incoming],
             state,
-            "mailbox-identity", "inbox", "sent-items", true, NowUtc, 1, [], generation,
-            VerifiedEncodedMessageSizeLimit: 1024);
+            "mailbox-identity", "inbox", sentFolderIdentity, true, NowUtc, 1, generation);
         using var configured = Configure(baseFactory, send);
         using var factory = configured.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -1868,7 +1129,6 @@ public sealed class StaffCorrespondenceWebTests
     private static WebApplicationFactory<Program> Configure(
         IntakeWebApplicationFactory baseFactory,
         RecordingStaffMailSend send,
-        MailboxCapability? mailboxCapability = null,
         IStaffMailAttachmentResolver? attachmentResolver = null,
         ICaseChaserRecipientQueries? chaserRecipients = null) =>
         baseFactory.WithWebHostBuilder(builder =>
@@ -1886,90 +1146,7 @@ public sealed class StaffCorrespondenceWebTests
                     services.RemoveAll<IStaffMailAttachmentResolver>();
                     services.AddSingleton(attachmentResolver);
                 }
-                // Stream A's ruling (PR 673 comment 5561214716) requires
-                // StaffSend + a positive Generation before a mailbox is
-                // offered. EfApprovedMailboxStore.Map/Routes (A-owned) does
-                // not map those columns on this standalone C branch yet
-                // (ASSUMPTION 2 CLOSED, scratch/c08-notes), so
-                // this shim promotes a SentEvidence-scoped test mailbox the
-                // same way the real store will once that mapping lands —
-                // proving ComposeModel's own filter, not standing in for the
-                // Infrastructure gap itself.
-                services.RemoveAll<IApprovedMailboxStore>();
-                services.AddScoped<IApprovedMailboxStore>(provider =>
-                    new StaffSendCapableMailboxStore(
-                        provider.GetRequiredService<EfApprovedMailboxStore>(),
-                        mailboxCapability));
             }));
-
-    private sealed class ChangedAttachmentResolver : IStaffMailAttachmentResolver
-    {
-        public const string Selection = "changed-attachment";
-
-        public Task<IReadOnlyList<StaffMailAttachmentOption>> ListCaseAsync(
-            ActionActor actor, Guid caseId, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<StaffMailAttachmentOption>>(
-                [new(Selection, "instruction.pdf", "application/pdf", 1)]);
-
-        public Task<IReadOnlyList<StaffMailAttachment>> ResolveCaseAsync(
-            ActionActor actor, Guid caseId, IReadOnlyList<string> selections,
-            CancellationToken cancellationToken) =>
-            throw new StaffMailAttachmentSelectionException(
-                "One or more selected attachments changed or are no longer available. Review the attachments and try again.");
-
-        public Task<IReadOnlyList<StaffMailAttachmentOption>> ListIntakeAsync(
-            ActionActor actor, Guid receiptId, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<StaffMailAttachmentOption>>([]);
-
-        public Task<IReadOnlyList<StaffMailAttachment>> ResolveIntakeAsync(
-            ActionActor actor, Guid receiptId, IReadOnlyList<string> selections,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<StaffMailAttachment>>([]);
-    }
-
-    /// <summary>
-    /// Promotes the seeded SentEvidence mailbox into the exact ready default
-    /// sender shape this page reads. Every other read/write goes through the
-    /// real store untouched.
-    /// </summary>
-    private sealed record MailboxCapability(Guid MailboxId, long Generation);
-
-    private sealed class StaffSendCapableMailboxStore(
-        IApprovedMailboxStore inner,
-        MailboxCapability? mailboxCapability) : IApprovedMailboxStore
-    {
-        public async Task<IReadOnlyList<ApprovedMailbox>> ListAsync(CancellationToken cancellationToken)
-        {
-            var mailboxes = await inner.ListAsync(cancellationToken);
-            return mailboxes
-                .Select(mailbox => mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence)
-                    ? mailbox with
-                    {
-                        RouteScopes = [.. mailbox.RouteScopes, ApprovedMailboxRouteScope.StaffSend],
-                        Generation = mailboxCapability is not null
-                            && mailbox.Id == mailboxCapability.MailboxId
-                                ? mailboxCapability.Generation
-                                : mailbox.Generation > 0 ? mailbox.Generation : 1,
-                        SentFolderIdentity = "sent-items",
-                        VerifiedEncodedMessageSizeLimit = 1024,
-                        IsDefaultStaffSend = true
-                    }
-                    : mailbox)
-                .ToArray();
-        }
-
-        public Task<ApprovedMailbox> UpdateAsync(
-            UpdateApprovedMailboxRequest request, CancellationToken cancellationToken) =>
-            inner.UpdateAsync(request, cancellationToken);
-
-        public Task<ApprovedMailbox> SetDefaultAsync(
-            SetDefaultApprovedMailboxRequest request, CancellationToken cancellationToken) =>
-            inner.SetDefaultAsync(request, cancellationToken);
-
-        public Task<bool> IsApprovedAsync(
-            string mailboxAddress, ApprovedMailboxRouteScope routeScope, CancellationToken cancellationToken) =>
-            inner.IsApprovedAsync(mailboxAddress, routeScope, cancellationToken);
-    }
 
     private static string InputValue(string html, string name)
     {
@@ -1981,16 +1158,6 @@ public sealed class StaffCorrespondenceWebTests
         var value = Regex.Match(tag.Value, "value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase);
         // A present input without a value attribute submits an empty value.
         return value.Success ? WebUtility.HtmlDecode(value.Groups["value"].Value) : string.Empty;
-    }
-
-    private static string ComposeOperationId(string html)
-    {
-        var form = Regex.Match(
-            html,
-            "<form[^>]*action=\"[^\"]*handler=Send(?:&[^\"]*)?\"[^>]*>.*?</form>",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
-        Assert.True(form.Success, "The compose Send form was not rendered.");
-        return InputValue(form.Value, "OperationId");
     }
 
     private static string ButtonFormAction(string html, string handler)
@@ -2057,11 +1224,7 @@ public sealed class StaffCorrespondenceWebTests
 
         public Task<ApprovedMailbox> UpdateAsync(
             UpdateApprovedMailboxRequest request, CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("The read-only compose test cannot update a mailbox.");
-
-        public Task<ApprovedMailbox> SetDefaultAsync(
-            SetDefaultApprovedMailboxRequest request, CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("The read-only compose test cannot select a default mailbox.");
+            throw new InvalidOperationException("The read-only mailbox test cannot update a mailbox.");
 
         public Task<bool> IsApprovedAsync(
             string mailboxAddress,
@@ -2084,19 +1247,22 @@ public sealed class StaffCorrespondenceWebTests
         string _claimNumber) =>
         AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
 
-    private static async Task SeedSendableMailboxAsync(IntakeWebApplicationFactory factory)
+    /// <summary>An Outgoing mailbox that can send, with no retained mail; its id.</summary>
+    private static async Task<Guid> SeedSendableMailboxAsync(IntakeWebApplicationFactory factory)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
-        await TestMailboxId.EnsureApprovedAsync(
+        var mailboxId = await TestMailboxId.EnsureApprovedAsync(
             context, "sc08-sender", "sc08-sender@collisionengineers.co.uk", NowUtc.AddDays(-1));
         await context.SaveChangesAsync();
-        // Seed the real route and generation columns; the local store wrapper
-        // above supplies the remaining ready-default test shape.
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE ApprovedMailboxes SET AllowSentEvidence = 1, AllowStaffSend = 1, MailboxGeneration = 1 WHERE Address = 'sc08-sender@collisionengineers.co.uk'");
+        var mailbox = await context.ApprovedMailboxes.SingleAsync(item => item.Id == mailboxId);
+        mailbox.AllowOutgoing = true;
+        mailbox.SentFolderIdentity = "sent-items";
+        mailbox.MailboxGeneration = 1;
+        await context.SaveChangesAsync();
+        return mailboxId;
     }
 
     private sealed record SeededCorrespondence(
@@ -2132,8 +1298,8 @@ public sealed class StaffCorrespondenceWebTests
                 context, mailboxGraphId, mailboxAddress, NowUtc.AddDays(-1));
             await context.SaveChangesAsync();
             var mailbox = await context.ApprovedMailboxes.SingleAsync(item => item.Id == mailboxId);
-            mailbox.AllowSentEvidence = true;
-            mailbox.AllowStaffSend = true;
+            mailbox.AllowOutgoing = true;
+            mailbox.SentFolderIdentity = "sent-items";
             mailbox.MailboxGeneration = mailboxGeneration;
             if (!await context.ApprovedInboxPollStates.AnyAsync(
                     item => item.ApprovedMailboxId == mailboxId))
@@ -2233,35 +1399,6 @@ public sealed class StaffCorrespondenceWebTests
             internetMessageId,
             conversationId,
             receiptId);
-    }
-
-    /// <summary>
-    /// GETs a Compose page and reads its rendered hidden <c>OperationKey</c>
-    /// and antiforgery token, so a POST carries the real idempotency key the
-    /// GET issued rather than omitting it.
-    /// </summary>
-    private static async Task<(string OperationKey, string AntiforgeryToken)> ComposeFormTokensAsync(
-        HttpClient client, string url)
-    {
-        using var response = await client.GetAsync(url);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var html = await response.Content.ReadAsStringAsync();
-
-        var operationKeyTag = Regex.Match(
-            html, "<input[^>]*name=\"OperationKey\"[^>]*>", RegexOptions.IgnoreCase);
-        Assert.True(operationKeyTag.Success, "Compose must render a hidden OperationKey field.");
-        var operationKeyValue = Regex.Match(operationKeyTag.Value, "value=\"(?<value>[^\"]*)\"");
-        Assert.True(operationKeyValue.Success, "The OperationKey field must have a value.");
-
-        var antiforgeryTag = Regex.Match(
-            html, "<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase);
-        Assert.True(antiforgeryTag.Success, "Compose must render an antiforgery token.");
-        var antiforgeryValue = Regex.Match(antiforgeryTag.Value, "value=\"(?<value>[^\"]*)\"");
-        Assert.True(antiforgeryValue.Success, "The antiforgery token must have a value.");
-
-        return (
-            WebUtility.HtmlDecode(operationKeyValue.Groups["value"].Value),
-            WebUtility.HtmlDecode(antiforgeryValue.Groups["value"].Value));
     }
 
     private static async Task<long> CaseVersionAsync(WebApplicationFactory<Program> factory, Guid caseId)
@@ -2364,9 +1501,6 @@ public sealed class StaffCorrespondenceWebTests
         private readonly List<StaffMailSendCommand> commands = [];
         private readonly Dictionary<string, StaffMailOperation> byOperationKey = [];
         private readonly Dictionary<Guid, StaffMailOperation> byOperationId = [];
-        private readonly TaskCompletionSource bothSendsEntered =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private int coordinatedSendEntrants;
 
         public int SendCalls
         {
@@ -2385,47 +1519,26 @@ public sealed class StaffCorrespondenceWebTests
 
         public DateTimeOffset NextPreparedAtUtc { get; set; } = NowUtc;
 
-        public bool CoordinateNextTwoSends { get; set; }
-
         /// <summary>
         /// When set, <see cref="SendAsync"/> throws this immediately, before
         /// recording any command — simulating an offline transport
         /// (<c>UnavailableStaffMailSend</c>) or a composition invariant
-        /// failure that has nothing to do with an existing correspondence
-        /// operation for this original message.
+        /// failure.
         /// </summary>
         public Exception? ThrowOnSend { get; set; }
 
-        public async Task<StaffMailOperation> SendAsync(
+        public Task<StaffMailOperation> SendAsync(
             StaffMailSendCommand command, CancellationToken cancellationToken)
         {
             if (ThrowOnSend is { } failure)
             {
                 throw failure;
             }
-            if (CoordinateNextTwoSends)
-            {
-                if (Interlocked.Increment(ref coordinatedSendEntrants) == 2)
-                {
-                    bothSendsEntered.TrySetResult();
-                }
-                await bothSendsEntered.Task.WaitAsync(cancellationToken);
-            }
-
             lock (sync)
             {
                 if (byOperationKey.TryGetValue(command.OperationKey, out var existing))
                 {
-                    return existing;
-                }
-
-                var originalId = command.OriginalMessage?.RetainedMessageId;
-                if (originalId is not null && commands.Any(item =>
-                        item.OriginalMessage?.RetainedMessageId == originalId
-                        && IsActive(byOperationKey[item.OperationKey].State)))
-                {
-                    throw new InvalidOperationException(
-                        "An active correspondence operation already exists for this retained message.");
+                    return Task.FromResult(existing);
                 }
 
                 commands.Add(command);
@@ -2450,7 +1563,7 @@ public sealed class StaffCorrespondenceWebTests
                     command.OriginalMessage?.RetainedMessageId);
                 byOperationKey[command.OperationKey] = operation;
                 byOperationId[operation.Id] = operation;
-                return operation;
+                return Task.FromResult(operation);
             }
         }
 

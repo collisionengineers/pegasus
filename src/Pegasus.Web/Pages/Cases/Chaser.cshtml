@@ -1,0 +1,129 @@
+@page "/Cases/{id:guid}/Chaser"
+@using Pegasus.Web.Presentation
+@model Pegasus.Web.Pages.Cases.ChaserModel
+@{
+    ViewData["Title"] = CaseWorkspaceLabels.Frame.SendChaser;
+    var unresolvedOperation = Model.Operation?.State is Pegasus.Core.Operations.StaffMailState.Submitted
+        or Pegasus.Core.Operations.StaffMailState.Unknown;
+    var reply = Model.Senders.Reply;
+}
+
+<div class="mail-compose-standalone">
+    <section id="mail-compose-content" class="dialog mail-compose-dialog" role="dialog"
+             aria-modal="true" aria-labelledby="mail-compose-title" tabindex="-1">
+        <header class="dialog-head">
+            <div>
+                <p class="eyebrow">@Model.Case?.Summary.Reference</p>
+                <h1 id="mail-compose-title">@CaseWorkspaceLabels.Frame.SendChaser</h1>
+            </div>
+            <a class="dialog-close" asp-page="/Cases/Details" asp-route-id="@Model.Id" aria-label="Close composer">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </a>
+        </header>
+        <div class="dialog-body mail-compose-body">
+            @if (TempData["SendNotice"] is string sendNotice)
+            {
+                <div class="notice notice--success" role="status">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                    <span>@sendNotice</span>
+                </div>
+            }
+
+            <partial name="/Pages/Shared/_ErrorSummary.cshtml" />
+
+            @if (Model.Operation is { } operation)
+            {
+                <section class="mail-compose-status" aria-labelledby="mail-compose-status-title">
+                    <h2 id="mail-compose-status-title">Send status</h2>
+                    <p>@OperatorLabels.StaffMail.State(operation.State)</p>
+                    @if (operation.State == Pegasus.Core.Operations.StaffMailState.Failed
+                        && operation.FailureCode is { Length: > 0 } failureCode)
+                    {
+                        <p class="field-hint">@OperatorLabels.StaffMail.Failure(failureCode)</p>
+                    }
+                    @if (unresolvedOperation)
+                    {
+                        @* The Worker's Sent-evidence poll settles Submitted into
+                           Sent within its next tick; the state is read again on
+                           reload. Nothing here re-sends. *@
+                        <p class="field-hint">Confirm the provider outcome before starting another message.</p>
+                    }
+                </section>
+            }
+
+            @if (Model.StaffMailAvailable && (reply is not null || Model.Senders.Mailboxes.Count > 0))
+            {
+                <form method="post" asp-page-handler="Send" asp-route-id="@Model.Id" class="mail-compose-form">
+                    <input type="hidden" asp-for="OperationKey" />
+                    <input type="hidden" asp-for="ExpectedContextVersion" />
+                    <div class="mail-compose-form-fields">
+                        <div class="mail-compose-addresses">
+                            <div class="field mail-compose-from">
+                                @if (reply is not null)
+                                {
+                                    <label>From</label>
+                                    <input value="@reply.Mailbox.Address" readonly aria-label="From" />
+                                }
+                                else
+                                {
+                                    <label asp-for="FromMailboxId">From</label>
+                                    <select asp-for="FromMailboxId" data-dialog-initial-focus>
+                                        <option value=""></option>
+                                        @foreach (var mailbox in Model.Senders.Mailboxes)
+                                        {
+                                            <option value="@mailbox.Id" selected="@(Model.FromMailboxId == mailbox.Id)">@mailbox.Address</option>
+                                        }
+                                    </select>
+                                    <span asp-validation-for="FromMailboxId"></span>
+                                }
+                            </div>
+                            <div class="field mail-compose-to">
+                                <label asp-for="To">To</label>
+                                <input asp-for="To" type="text" />
+                                <span asp-validation-for="To"></span>
+                            </div>
+                            <div class="field mail-compose-cc">
+                                <label asp-for="Cc">Cc</label>
+                                <input asp-for="Cc" type="text" />
+                            </div>
+                        </div>
+                        <div class="field mail-compose-subject">
+                            <label asp-for="Subject">Subject</label>
+                            <input asp-for="Subject" type="text" />
+                            <span asp-validation-for="Subject"></span>
+                        </div>
+                        <div class="field mail-compose-message">
+                            <label asp-for="Body">Message</label>
+                            <textarea asp-for="Body" rows="6"></textarea>
+                            <span asp-validation-for="Body"></span>
+                        </div>
+                        @if (Model.AvailableAttachments.Count > 0)
+                        {
+                            <fieldset class="field mail-compose-attachments">
+                                <legend>Attachments</legend>
+                                @foreach (var attachment in Model.AvailableAttachments)
+                                {
+                                    <label>
+                                        <input type="checkbox" name="SelectedAttachments" value="@attachment.Selection"
+                                               checked="@Model.SelectedAttachments.Contains(attachment.Selection)" />
+                                        @attachment.FileName
+                                    </label>
+                                }
+                                <span asp-validation-for="SelectedAttachments"></span>
+                            </fieldset>
+                        }
+                    </div>
+                    @if (!unresolvedOperation)
+                    {
+                        <footer class="mail-compose-footer">
+                            <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Sending">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                                <span>Send</span>
+                            </button>
+                        </footer>
+                    }
+                </form>
+            }
+        </div>
+    </section>
+</div>

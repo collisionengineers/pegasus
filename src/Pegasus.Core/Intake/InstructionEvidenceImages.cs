@@ -1,14 +1,17 @@
 ﻿using System.Security.Cryptography;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake.ThirdPartyReports;
 
 namespace Pegasus.Core.Intake;
 
 /// <summary>
 /// The one owner of which of a receipt's retained assets count as the
 /// instruction's evidence photographs: every deliberately attached image
-/// file, a directly uploaded image source, plus embedded PDF images large
-/// enough to be photographs rather than letterhead art. Inline images
+/// file, a directly uploaded image source, plus the embedded PDF images
+/// retention kept: those large enough to be photographs rather than
+/// letterhead art, or a capture PDF's designated photographs
+/// (<see cref="VehicleCaptureImages"/>). Inline images
 /// (signature graphics) never qualify, and one
 /// photograph carried twice — attached and embedded, or repeated across
 /// pages — appears once, preferring the attached copy. Custody promotion and
@@ -53,10 +56,11 @@ public static class InstructionEvidenceImages
                 IntakeAssetKind.Attachment =>
                     asset.Disposition == IntakeAssetDisposition.Attachment
                     && IsImage(asset.MediaType),
+                // Retention is the one byte floor: an embedded image retained
+                // at all passed it, or is a capture PDF's photograph.
                 IntakeAssetKind.EmbeddedImage =>
                     asset.Disposition == IntakeAssetDisposition.Embedded
-                    && IsImage(asset.MediaType)
-                    && asset.ContentLength >= EmbeddedPhotographMinimumBytes,
+                    && IsImage(asset.MediaType),
                 _ => false
             })
             .Where(IsPhotographShaped)
@@ -70,6 +74,22 @@ public static class InstructionEvidenceImages
             .ThenBy(asset => asset.Id)
             .DistinctBy(asset => asset.ContentHash, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    /// <summary>
+    /// The reader candidates that become separately retained receipt assets.
+    /// Inside a capture PDF the designated photographs replace the per-image
+    /// rule (FRD-02 EXT-17); everything else is judged by
+    /// <see cref="IsRetentionCandidate"/>.
+    /// </summary>
+    public static IEnumerable<IntakeAssetCandidate> RetentionCandidates(IntakeSourceReadResult readResult)
+    {
+        ArgumentNullException.ThrowIfNull(readResult);
+        var capture = VehicleCaptureImages.Designate(readResult);
+        return readResult.AssetCandidates.Where(candidate =>
+            candidate.Kind == IntakeAssetKind.EmbeddedImage && capture.Covers(candidate)
+                ? capture.IsPhotograph(candidate)
+                : IsRetentionCandidate(candidate));
     }
 
     /// <summary>

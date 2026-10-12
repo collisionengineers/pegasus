@@ -22,7 +22,7 @@ public sealed class SentEvidencePollPersistenceTests
         await database.ExecuteAsync(
             $"""
             UPDATE ApprovedMailboxes
-            SET AllowSentEvidence = 1,
+            SET AllowOutgoing = 1,
                 MailboxIdentity = 'instructions',
                 SentFolderIdentity = 'sent-items',
                 ActivatedAtUtc = '{nowUtc.AddMinutes(-5):O}'
@@ -152,7 +152,7 @@ public sealed class SentEvidencePollPersistenceTests
         {
             var first = await db.ApprovedMailboxes.SingleAsync(
                 value => value.Address == "instructions@collisionengineers.co.uk");
-            first.AllowSentEvidence = true;
+            first.AllowOutgoing = true;
             first.MailboxIdentity = "instructions";
             first.SentFolderIdentity = "sent-one";
             first.ActivatedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-5);
@@ -160,7 +160,7 @@ public sealed class SentEvidencePollPersistenceTests
             {
                 Id = secondId,
                 Address = "reports@collisionengineers.co.uk",
-                AllowSentEvidence = true,
+                AllowOutgoing = true,
                 State = ApprovedMailboxState.Approved.ToString(),
                 MailboxIdentity = "mailbox-two",
                 InboxFolderIdentity = "inbox-two",
@@ -211,7 +211,7 @@ public sealed class SentEvidencePollPersistenceTests
         await factory.Database.ExecuteAsync(
             $"""
             UPDATE ApprovedMailboxes
-            SET AllowSentEvidence = 1,
+            SET AllowOutgoing = 1,
                 MailboxIdentity = 'instructions',
                 SentFolderIdentity = 'sent-items',
                 ActivatedAtUtc = '{activatedAtUtc:O}'
@@ -320,7 +320,7 @@ public sealed class SentEvidencePollPersistenceTests
             10,
             ActionActor.SystemWorker("sent-evidence-poll"),
             default);
-        // The completing poll schedules the next claim a minute out and the
+        // The completing poll schedules the next claim 30 seconds out and the
         // fixture clock is fixed, so make this mailbox due again for the
         // replay: a real due claim, never a weakened idempotency assertion.
         await factory.Database.ExecuteAsync(

@@ -26,18 +26,16 @@ internal sealed class EfStaffMailSendStore(
         return await db.ApprovedMailboxes.AsNoTracking()
             .Where(value => value.Id == mailboxId
                 && value.State == approved
-                && value.AllowStaffSend
-                && value.AllowSentEvidence
+                && value.AllowOutgoing
                 && value.ActivatedAtUtc != null
                 && value.MailboxIdentity != null
                 && value.SentFolderIdentity != null
-                && value.MailboxGeneration > 0
-                && value.VerifiedEncodedMessageSizeLimit != null)
+                && value.MailboxGeneration > 0)
             .Select(value => new ApprovedStaffSendMailbox(
                 value.Id,
                 value.MailboxIdentity!,
                 value.MailboxGeneration,
-                value.VerifiedEncodedMessageSizeLimit!.Value))
+                ApprovedStaffSendMailbox.OutgoingEncodedMessageSizeLimit))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -85,19 +83,6 @@ internal sealed class EfStaffMailSendStore(
             return Map(existing);
         }
 
-        if (command.OriginalMessage is { } activeOriginal
-            && await rows.AnyAsync(value =>
-                value.MailboxId == command.ApprovedMailboxId
-                && value.OriginalRetainedMessageId == activeOriginal.RetainedMessageId
-                && value.State != StaffMailState.Sent
-                && value.State != StaffMailState.Failed
-                && value.State != StaffMailState.Cancelled,
-                cancellationToken))
-        {
-            throw new InvalidOperationException(
-                "The retained message already has an active staff mail operation.");
-        }
-
         // The marker names the durable operation, not a separate random identity.
         var operationId = Guid.NewGuid();
         var entity = new StaffMailSendOperationEntity
@@ -112,6 +97,8 @@ internal sealed class EfStaffMailSendStore(
             Purpose = command.Purpose,
             ContextId = command.ContextId,
             ContextVersion = command.ExpectedContextVersion,
+            SecondContextId = command.SecondReport?.ContextId,
+            SecondContextVersion = command.SecondReport?.ExpectedContextVersion,
             ComposeMode = command.ComposeMode,
             OriginalRetainedMessageId = command.OriginalMessage?.RetainedMessageId,
             OriginalImmutableMessageId = command.OriginalMessage?.ImmutableMessageId,
@@ -122,6 +109,9 @@ internal sealed class EfStaffMailSendStore(
             Subject = command.Subject,
             Body = command.Body,
             AttachmentsJson = JsonSerializer.Serialize(command.Attachments),
+            ReportDispatchJson = command.ReportDispatch is { } dispatch
+                ? JsonSerializer.Serialize(dispatch, ReportSnapshotJson)
+                : null,
             State = StaffMailState.Prepared,
             CorrelationMarker = $"x-pegasus-operation-id:{operationId:D}",
             CreatedAtUtc = nowUtc,
@@ -136,6 +126,27 @@ internal sealed class EfStaffMailSendStore(
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(entity);
+    }
+
+    /// <summary>
+    /// The roles the staff member held when they prepared the send, as its
+    /// <c>staff-mail-prepared</c> history row recorded them. Work the Worker
+    /// does in that person's name carries these.
+    /// </summary>
+    internal static async Task<HashSet<StaffRole>> PreparedRolesAsync(
+        PegasusDbContext db, Guid operationId, CancellationToken cancellationToken)
+    {
+        var aggregateId = operationId.ToString("D");
+        var preparedRoles = await db.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == "StaffMailSend"
+                && item.AggregateId == aggregateId
+                && item.EventKind == "staff-mail-prepared")
+            .Select(item => item.ActorRolesJson)
+            .FirstOrDefaultAsync(cancellationToken);
+        return (preparedRoles is null ? [] : JsonSerializer.Deserialize<string[]>(preparedRoles) ?? [])
+            .Select(name => Enum.TryParse<StaffRole>(name, ignoreCase: false, out var role) ? (StaffRole?)role : null)
+            .OfType<StaffRole>()
+            .ToHashSet();
     }
 
     private static async Task AcquireTransactionLockAsync(
@@ -193,8 +204,11 @@ internal sealed class EfStaffMailSendStore(
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await db.Set<StaffMailSendOperationEntity>().AsNoTracking()
+            // A report reply to the same message is the Case's own send, not
+            // this page's correspondence.
             .Where(value => value.ActorSubjectId == actorSubjectId
-                && value.OriginalRetainedMessageId == retainedMessageId)
+                && value.OriginalRetainedMessageId == retainedMessageId
+                && value.Purpose != StaffMailPurpose.CaseReport)
             .OrderBy(value => value.State == StaffMailState.Sent
                 || value.State == StaffMailState.Failed
                 || value.State == StaffMailState.Cancelled)
@@ -477,8 +491,24 @@ internal sealed class EfStaffMailSendStore(
             return;
         }
 
+        // Each report the send carried freezes its own work's specification.
+        await FreezeSentReportSpecificationAsync(db, mail, mail.ContextId, actor, observedAtUtc, cancellationToken);
+        if (mail.SecondContextId is { } secondContextId)
+        {
+            await FreezeSentReportSpecificationAsync(db, mail, secondContextId, actor, observedAtUtc, cancellationToken);
+        }
+    }
+
+    private static async Task FreezeSentReportSpecificationAsync(
+        PegasusDbContext db,
+        StaffMailSendOperationEntity mail,
+        Guid generationId,
+        ActionActor actor,
+        DateTimeOffset observedAtUtc,
+        CancellationToken cancellationToken)
+    {
         var generation = await db.Set<CaseReportGenerationEntity>().AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == mail.ContextId, cancellationToken)
+            .SingleOrDefaultAsync(item => item.Id == generationId, cancellationToken)
             ?? throw new InvalidOperationException("The sent report generation is unavailable.");
         var snapshot = JsonSerializer.Deserialize<CaseReportGenerationSnapshot>(
             generation.SnapshotJson,
@@ -562,16 +592,7 @@ internal sealed class EfStaffMailSendStore(
         var target = ChaseTarget(recipients?.To?.Select(value => value.Address).ToArray() ?? []);
         // The Worker observes the send, so the chase carries the roles the
         // prepared send recorded; the Worker does not read the staff role tables.
-        var preparedRoles = await db.ActionHistory.AsNoTracking()
-            .Where(item => item.AggregateType == "StaffMailSend"
-                && item.AggregateId == mail.Id.ToString("D")
-                && item.EventKind == "staff-mail-prepared")
-            .Select(item => item.ActorRolesJson)
-            .FirstOrDefaultAsync(cancellationToken);
-        var roles = (preparedRoles is null ? [] : JsonSerializer.Deserialize<string[]>(preparedRoles) ?? [])
-            .Select(name => Enum.TryParse<StaffRole>(name, ignoreCase: false, out var role) ? (StaffRole?)role : null)
-            .OfType<StaffRole>()
-            .ToHashSet();
+        var roles = await PreparedRolesAsync(db, mail.Id, cancellationToken);
         var interval = (await EfWorkflowConfigurationStore.ReadAsync(db, cancellationToken)).ChaseIntervalDays;
         EfCaseWorkflowStore.ApplyChase(
             db,
@@ -651,18 +672,29 @@ internal sealed class EfStaffMailSendStore(
         {
             // A report of either work is sent against its Case: the
             // Inspection's report stays sendable on its own work once the
-            // Audit exists (operator, 1 October 2026). Which work the send
-            // proves is read from the generation when the evidence is linked.
-            caseId = await db.Set<CaseReportGenerationEntity>().AsNoTracking()
-                .Where(value => value.Id == entity.ContextId
-                    && (!requireFrozenGenerationVersion
-                        || value.Version == entity.ContextVersion))
-                .Select(value => (Guid?)value.CaseId)
-                .SingleOrDefaultAsync(cancellationToken);
+            // Audit exists (operator, 1 October 2026), and one send may carry
+            // both works' reports (operator, 12 October 2026). Which works the
+            // send proves is read from the generations when the evidence is
+            // linked. Every generation the send carried must be the same
+            // Case's, at its frozen version where that is required.
+            var carried = entity.SecondContextId is { } secondContextId
+                ? new[] { (Id: entity.ContextId, Version: entity.ContextVersion), (Id: secondContextId, Version: entity.SecondContextVersion ?? 0) }
+                : [(Id: entity.ContextId, Version: entity.ContextVersion)];
+            var carriedIds = carried.Select(value => value.Id).ToArray();
+            var generations = await db.Set<CaseReportGenerationEntity>().AsNoTracking()
+                .Where(value => carriedIds.Contains(value.Id))
+                .Select(value => new { value.Id, value.CaseId, value.Version })
+                .ToArrayAsync(cancellationToken);
+            var cases = carried
+                .Select(wanted => generations.SingleOrDefault(value => value.Id == wanted.Id
+                    && (!requireFrozenGenerationVersion || value.Version == wanted.Version))?.CaseId)
+                .Distinct()
+                .ToArray();
+            caseId = cases is [{ } onlyCase] ? onlyCase : null;
             if (caseId is not null)
             {
                 var generated = await db.Set<GeneratedCaseArtifactEntity>().AsNoTracking()
-                    .Where(value => value.GenerationId == entity.ContextId
+                    .Where(value => carriedIds.Contains(value.GenerationId)
                         && value.VersionId != null && value.Sha256 != null)
                     .Select(value => new { VersionId = value.VersionId!.Value, Sha256 = value.Sha256! })
                     .ToArrayAsync(cancellationToken);
@@ -674,6 +706,11 @@ internal sealed class EfStaffMailSendStore(
                 var remaining = generated
                     .Select(value => (VersionId: (Guid?)value.VersionId, value.Sha256))
                     .ToList();
+                // The Principal's rules may attach the Case's recognised filed
+                // estimates beside the generated documents (#1015).
+                remaining.AddRange(
+                    (await EfFiledEstimateAttachmentQueries.ReadAsync(db, caseId.Value, cancellationToken).ConfigureAwait(false))
+                        .Select(estimate => (estimate.Attachment.VersionId, estimate.Attachment.Sha256)));
                 foreach (var wanted in frozen)
                 {
                     var index = remaining.FindIndex(value =>
@@ -691,7 +728,8 @@ internal sealed class EfStaffMailSendStore(
         }
         return new(
             entity.ActorSubjectId, Map(entity), entity.DraftImmutableId, attachments,
-            entity.Purpose, entity.ContextId, entity.ContextVersion, caseId);
+            entity.Purpose, entity.ContextId, entity.ContextVersion, caseId,
+            entity.SecondContextId);
     }
 
     private static void RequireSystemWorker(ActionActor actor)

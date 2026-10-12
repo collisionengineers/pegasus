@@ -204,6 +204,21 @@ public sealed partial class DetailsModel
         (IsInspectionView || !AssessmentIsReadOnly) && ReportDraftNotReady ? ReportDraftReasons : [];
 
     /// <summary>
+    /// The Case's open tasks, oldest first, which the Next action lists once
+    /// Report sent is recorded, each linking to the Tasks section (operator,
+    /// 6 October 2026). The page frame reads none before the send.
+    /// </summary>
+    public IReadOnlyList<Pegasus.Core.Tasks.CaseOpenTask> OpenTasks => Case?.OpenTasks ?? [];
+
+    /// <summary>
+    /// Why Archive is greyed, stated on hover, or null when it is live: the
+    /// Case has an open task (operator, 6 October 2026). Core owns the
+    /// sentence the store's refusal also states.
+    /// </summary>
+    public string? OpenTasksCondition =>
+        OpenTasks.Count > 0 ? Pegasus.Core.Tasks.CaseTaskRules.OpenTasksBlockTerminal : null;
+
+    /// <summary>
     /// The Case requirements the Report not ready card lists beside the
     /// blockers: every one outstanding, in whatever state, since the card is
     /// their one home on the Case page (operator, 8 October 2026); an Audit
@@ -233,8 +248,8 @@ public sealed partial class DetailsModel
     /// requirement, the state's own step, or, while the report is not ready,
     /// its first blocker in page order. A read-only Audit view names Report
     /// not ready instead. The Inspection view states the Inspection report's
-    /// own step and nothing once that report is sent (operator, 2 October
-    /// 2026). Everything else outstanding is the Report not ready card's.
+    /// own step and nothing once a send of that report is accepted
+    /// (operator, 2 and 12 October 2026). Everything else outstanding is the Report not ready card's.
     /// </summary>
     public CaseNextActionStep? NextAction
     {
@@ -246,7 +261,8 @@ public sealed partial class DetailsModel
                     ReportNotReadyBlockers,
                     BlockerSectionKey,
                     CurrentReportGeneration,
-                    Works?.Primary.ReportSentEvidence);
+                    Works?.Primary.ReportSentEvidence,
+                    ReportSendHistory.Accepted);
             }
             var details = Case!;
             var next = CaseNextAction.Of(
@@ -256,7 +272,9 @@ public sealed partial class DetailsModel
                 OutstandingRequirements.Count > 0 ? OutstandingRequirements[0].Title : null,
                 ReportDraftNotReady ? ReportDraftReasons : [],
                 BlockerSectionKey,
-                CurrentReportGeneration);
+                CurrentReportGeneration,
+                ReportSendHistory.Accepted,
+                OpenTasks.Count > 0);
             return next.Blocker is not null && AssessmentIsReadOnly
                 ? new(CaseWorkspaceLabels.Report.NotReady, "report")
                 : next;

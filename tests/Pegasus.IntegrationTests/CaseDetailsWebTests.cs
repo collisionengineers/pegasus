@@ -94,11 +94,11 @@ public sealed class CaseDetailsWebTests
         Assert.Equal(CaseSectionKeys, HostOrder(html));
         Assert.Equal(CaseSectionLinkKeys, JumpLinkOrder(html));
 
-        // The five sections that have a body below the fold are served as
+        // The six sections that have a body below the fold are served as
         // fragments; every other host, including the Engineer shells,
         // renders with the page.
         Assert.Equal(
-            ["vehicle", "valuation", "files", "notes", "queries"],
+            ["vehicle", "valuation", "files", "notes", "tasks", "queries"],
             DeferredSections(html));
         Assert.Matches(
             "data-lazy=\"valuation\"\\s+data-section-parent=\"vehicle\"",

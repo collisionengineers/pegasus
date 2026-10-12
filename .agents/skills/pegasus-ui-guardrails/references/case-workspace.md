@@ -62,12 +62,16 @@ An Inspection + Audit Case whose Audit has been created has two views of one rec
   links, Refresh, previews, lazy section loads, the Next action's links, and every POST form
   (hidden `view`), whose handler writes the view's work (`WorkOf(view)`) and returns to that view.
 - The Next action is the viewed work's (operator, 2 October 2026): the Inspection view states
-  the Inspection report's own step and lists its blockers, nothing once that report is sent;
-  the Audit view states the Audit's. Once the report is sent on an Inspection + Audit Case with
-  no Audit, the step is Create audit with the Actions menu's own control (`data-dialog-open` or
-  the `.menu-gated` span with its reason).
+  the Inspection report's own step and lists its blockers, nothing once a send of that report
+  is accepted; the Audit view states the Audit's. Once the report is stored on an Inspection +
+  Audit Case with no Audit, sent or not, the step is Create audit with the Actions menu's own
+  control (`data-dialog-open` or the `.menu-gated` span with its reason). Send report ends at
+  the accepted send (Submitted), not at the observed Sent item (operator, 12 October 2026).
 - Report in the Audit view shows the Audit report alone (operator, 2 October 2026); the Views
-  card is the route to the Inspection report. In the Inspection view the card is the Inspection
+  card is the route to the Inspection report. Only the delivery form names the other work's
+  report: a second `.cluster` in the Attach row (`data-report-attach-other`) whose first tick is
+  that report under its delivery file name, unticked, then its own document ticks with the
+  existing labels; read mode shows the same cells greyed (operator, 12 October 2026). In the Inspection view the card is the Inspection
   report with its Generate and Send report controls, before and after it is sent
   (operator, 1 and 2 October 2026), and the Actions menu's Mark report sent takes its evidence;
   every form carries `view=inspection` and acts on the Inspection's own work, never on the
@@ -89,6 +93,7 @@ Preserve this order:
 8. Report
 9. Files
 10. Notes
+11. Tasks
 
 Each section is the owner of its domain. Do not duplicate its full content elsewhere.
 
@@ -108,6 +113,12 @@ Important ownership decisions:
 - Report owns generation/preview/finality controls, report wording, report date, commentary and the Fee pane. Its head keeps the one **Not ready** label; the blocker list is the aside's Report not ready card (below).
 - Files owns Case images, documents, crop/tag/viewer tools, upload requests and correspondence/file surfaces. A document row may offer **Import as repair spec**, which runs Repair Spec's own import on that file (operator, 25 September 2026).
 - Notes owns the single Case timeline, notes and chase recording.
+- Tasks owns the Case's tasks (CASE-20, operator, 5 October 2026): a dense table (task,
+  assignee, state chip) with Complete, Cancel task, Assign (a select of the enabled named
+  staff, operator, 6 October 2026) and Add task in the edit session under the lease, each with
+  one fixed recorded reason and so no reason box. It loads like Files and Notes and acts
+  through its own posts. Once Report sent is recorded the aside's Next action lists the open
+  tasks, each linking here; do not add task actions to Report.
 
 Case images are not repeated under Damage. A Report image-selection/preview strip may summarize the
 same evidence only where Report needs that decision.
@@ -161,16 +172,18 @@ offered while a colleague holds it. Typical entries include:
   Resolve query while a query is open (a direct post, no dialog, no reason; operator, 11 October
   2026);
 - Return to Review / Return to Engineer;
-- Archive;
+- Archive, greyed in a `.menu-gated` span whose `title` reads "Complete or cancel every open
+  task first." while the Case has an open task (operator, 6 October 2026);
 - Send chaser, on any open Case where staff mail is composed in (operator, 5 October 2026): a
-  link to the composer (`/Inbox/Compose?caseReference=…&purpose=chaser`), no dialog, no lease,
-  no reason; the composer pre-fills To, Subject and Message and staff edit them there;
+  link to the chaser composer (`/Cases/{id}/Chaser`), no dialog, no lease, no reason; the
+  composer pre-fills From (read-only on a reply to the instruction email, else a choice of
+  Outgoing mailbox; operator, 12 October 2026), To, Subject and Message and staff edit them there;
 - Place on Hold / Release Hold;
 - Correct principal;
 - Create audit, the one item always listed (on an Inspection + Audit Case, in every state): when
   Core refuses it, or a colleague holds the lease, it renders disabled inside a `.menu-gated`
   span whose `title` states the reason on hover (operator, 1 October 2026). Do not extend this
-  treatment to other items without the same explicit instruction.
+  treatment to other items, beyond Archive above, without the same explicit instruction.
 
 Close case remains destructive, separated and styled in red.
 
@@ -269,10 +282,18 @@ Toolbar and header controls must remain compact and on one line where the existi
 that. Scope width fixes locally; do not make every select full width.
 
 Read and edit are one layout (operator, 23 September 2026): a spec that cannot be changed renders
-the editor's header cells, grid columns and contract, discount and VAT bars, each value greyed in its
+the editor's header cells, grid columns and rate, contract, discount and VAT bars, each value greyed in its
 control's place (`EstimateBody` in `_CaseEstimate.cshtml`). Do not reintroduce a read-mode summary
 line or a separate read table; only tools (add/delete lines, the Target % of value controls, Reset
-to repairer status) are edit-only, and a scaled spec's Target % bar reads with its Scaled state.
+to repairer status, Dismiss) are edit-only, and a scaled spec's Target % bar reads with its Scaled state.
+
+The reference's bars stand since v38 (operator, 12 October 2026) and are not to be redrawn: the
+labour rate bar under the grid (rate-card segments and Custom · typed, the uplift tick and chip,
+the figure at the right); the Target % of value bar (slider from the floor-scaled minimum, Apply and
+Remove scaling only while previewing, floors on the second row); the contract bar's own agreed-sum
+box and its rescale chip; the Supplementary panel above the grid an import opens; the dash cells a
+line type does not price; Compare side by side with Compare with current and the print sheet. Keep
+the rate control in the bar, not the head.
 
 ## Damage
 
@@ -311,7 +332,8 @@ ready.
 
 Next action is one step (operator, 8 October 2026): the first outstanding Case requirement, else
 the state's step, else the report's first blocker, drawn in full with one full-width control. Do not
-list anything else in it. Everything outstanding is the **Report not ready** card below, folded
+list anything else in it, except that once Report sent is recorded the Case's open tasks are the
+step (in place of None) or follow it, in the blocker style, each linking to Tasks (operator, 6 October 2026). Everything outstanding is the **Report not ready** card below, folded
 until opened and remembered per browser (`data-collapse-folded`): the Case requirements (in any state), then every
 report blocker under its section's name, the requirement as its link to the section that owns the
 fact rather than repeating it. A stale generation's warning notice sits at the top of Next action;

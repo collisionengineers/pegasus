@@ -1,275 +1,75 @@
-using System.Collections.Immutable;
 using Pegasus.Core.Cases;
 
 namespace Pegasus.Core.Intake;
 
 /// <summary>
-/// The settled mailbox taxonomy (requirements: settled mailbox taxonomy and correction).
-/// A category is a classification fact only: it carries no application queue, Triage
-/// routing, or Outlook folder destination, which are separate facts.
+/// What a received message is: one flat category (operator, 12 October 2026).
+/// There is no family, subtype, destination or Outlook folder beside it, and a
+/// message nothing has decided yet is Unclassified, not a category. Sent mail
+/// carries no category. FRD-08 owns what each one means.
 /// </summary>
-public enum MailDirection
+public enum MailCategory
 {
-    Received,
-    Sent
-}
-
-public enum ReceivedMailFamily
-{
-    General,
+    NewInstruction,
+    TriageRequest,
+    PreInstruction,
+    ImagesReceived,
+    CaseUpdate,
+    Cancellation,
+    Query,
     Billing,
-    NewInstructionReceived,
-    NonClientRelated,
-    InProgressCases,
-    PostReportEmails,
-    PreInstructionEmails,
+    General,
+    NotClientRelated,
     InternalCc
 }
 
-public enum SentMailFamily
-{
-    ReportSent,
-    CaseRejected,
-    QuerySent,
-    AdditionalImageRequest
-}
-
-public static class MailTaxonomy
-{
-    public static readonly ImmutableDictionary<ReceivedMailFamily, ImmutableArray<string>> ConfirmedReceivedSubtypes =
-        new Dictionary<ReceivedMailFamily, ImmutableArray<string>>
-        {
-            [ReceivedMailFamily.General] =
-                ["autoreply", "undeliverable", "acknowledgement", "general-chase", "case-summary"],
-            [ReceivedMailFamily.Billing] =
-                ["payment-notification", "remittance", "invoice-request", "billing-query", "general-billing"],
-            [ReceivedMailFamily.NewInstructionReceived] =
-                ["audit", "diminution", "inspection", "new-client", "website-enquiry"],
-            [ReceivedMailFamily.NonClientRelated] = [],
-            [ReceivedMailFamily.InProgressCases] =
-                [MailCategory.CancellationSubtype, "case-update", "chasing-for-update", "ongoing-correspondence"],
-            [ReceivedMailFamily.PostReportEmails] =
-                [MailCategory.QuerySubtype, MailCategory.AmendmentRequestSubtype],
-            [ReceivedMailFamily.PreInstructionEmails] =
-                [MailCategory.TriageRequestSubtype, "pre-formal-instruction-request", MailCategory.ImagesReceivedSubtype],
-            [ReceivedMailFamily.InternalCc] = []
-        }.ToImmutableDictionary();
-
-    public static string CategoryName(ReceivedMailFamily family) => family switch
-    {
-        ReceivedMailFamily.General => "General",
-        ReceivedMailFamily.Billing => "billing",
-        ReceivedMailFamily.NewInstructionReceived => "new-instruction-received",
-        ReceivedMailFamily.NonClientRelated => "non-client-related",
-        ReceivedMailFamily.InProgressCases => "in-progress-cases",
-        ReceivedMailFamily.PostReportEmails => "post-report-emails",
-        ReceivedMailFamily.PreInstructionEmails => "pre-instruction-emails",
-        ReceivedMailFamily.InternalCc => "internal-cc",
-        _ => throw new ArgumentOutOfRangeException(nameof(family), family, null)
-    };
-
-    public static string CategoryName(SentMailFamily family) => family switch
-    {
-        SentMailFamily.ReportSent => "Report sent",
-        SentMailFamily.CaseRejected => "case-rejected",
-        SentMailFamily.QuerySent => "query-sent",
-        SentMailFamily.AdditionalImageRequest => "additional-image-request",
-        _ => throw new ArgumentOutOfRangeException(nameof(family), family, null)
-    };
-
-    public static ReceivedMailFamily ParseReceivedFamily(string name) =>
-        Enum.GetValues<ReceivedMailFamily>()
-            .Cast<ReceivedMailFamily?>()
-            .FirstOrDefault(family => CategoryName(family!.Value) == name)
-        ?? throw new ArgumentException(
-            $"'{name}' is not a settled Received family name.", nameof(name));
-
-    public static SentMailFamily ParseSentFamily(string name) =>
-        Enum.GetValues<SentMailFamily>()
-            .Cast<SentMailFamily?>()
-            .FirstOrDefault(family => CategoryName(family!.Value) == name)
-        ?? throw new ArgumentException(
-            $"'{name}' is not a settled Sent family name.", nameof(name));
-}
-
 /// <summary>
-/// A validated category. Reply is never a standalone recorded type: a reply mirrors the
-/// underlying Received or Sent category and carries reply context. `Other` requires both
-/// a new category name and reasoning.
+/// The one stored and keyed form of each category. The same code is the
+/// persisted value, the Inbox filter key and the MCP correction value.
 /// </summary>
-public sealed record MailCategory
+public static class MailCategories
 {
-    public const int OtherNameMaxLength = 200;
-    public const int OtherReasoningMaxLength = 1000;
+    public static IReadOnlyList<MailCategory> All { get; } = Enum.GetValues<MailCategory>();
 
-    /// <summary>
-    /// The subtype that means "this Principal is asking for a Triage, not
-    /// instructing a case". Named here, once, because three surfaces ask the
-    /// question: the classification policy that produces it, the operational
-    /// destination policy that routes it to the Triage view, and intake
-    /// processing, which must not send it to case allocation.
-    /// </summary>
-    public const string TriageRequestSubtype = "triage-request";
-    public const string CancellationSubtype = "cancellation";
-    public const string ImagesReceivedSubtype = "images-received";
-
-    /// <summary>
-    /// Post-report mail questioning or disputing the report. A dispute is a
-    /// query: there is no separate dispute subtype (operator, 9 October 2026).
-    /// </summary>
-    public const string QuerySubtype = "query";
-
-    /// <summary>Post-report mail asking for the report to be amended: one of MI-01's and the Case list's queries.</summary>
-    public const string AmendmentRequestSubtype = "amendment-request";
-
-    private MailCategory(
-        MailDirection direction,
-        ReceivedMailFamily? receivedFamily,
-        SentMailFamily? sentFamily,
-        string? subtype,
-        bool isReplyContext,
-        string? otherName,
-        string? otherReasoning)
+    public static string Code(MailCategory category) => category switch
     {
-        Direction = direction;
-        ReceivedFamily = receivedFamily;
-        SentFamily = sentFamily;
-        Subtype = subtype;
-        IsReplyContext = isReplyContext;
-        OtherName = otherName;
-        OtherReasoning = otherReasoning;
-    }
+        MailCategory.NewInstruction => "new-instruction",
+        MailCategory.TriageRequest => "triage-request",
+        MailCategory.PreInstruction => "pre-instruction",
+        MailCategory.ImagesReceived => "images-received",
+        MailCategory.CaseUpdate => "case-update",
+        MailCategory.Cancellation => "cancellation",
+        MailCategory.Query => "query",
+        MailCategory.Billing => "billing",
+        MailCategory.General => "general",
+        MailCategory.NotClientRelated => "not-client-related",
+        MailCategory.InternalCc => "internal-cc",
+        _ => throw new ArgumentOutOfRangeException(nameof(category), category, null)
+    };
 
-    public MailDirection Direction { get; }
-    public ReceivedMailFamily? ReceivedFamily { get; }
-    public SentMailFamily? SentFamily { get; }
-    public string? Subtype { get; }
-    public bool IsReplyContext { get; }
-    public string? OtherName { get; }
-    public string? OtherReasoning { get; }
-
-    public bool IsOther => OtherName is not null;
-
-    public bool IsTriageRequest =>
-        Direction == MailDirection.Received
-        && ReceivedFamily == ReceivedMailFamily.PreInstructionEmails
-        && string.Equals(Subtype, TriageRequestSubtype, StringComparison.Ordinal);
-
-    public bool IsNewInstruction =>
-        Direction == MailDirection.Received
-        && ReceivedFamily == ReceivedMailFamily.NewInstructionReceived;
-
-    public bool IsPostReport =>
-        Direction == MailDirection.Received
-        && ReceivedFamily == ReceivedMailFamily.PostReportEmails;
-
-    public bool IsCancellation =>
-        Direction == MailDirection.Received
-        && ReceivedFamily == ReceivedMailFamily.InProgressCases
-        && string.Equals(Subtype, CancellationSubtype, StringComparison.Ordinal);
-
-    public bool IsImagesReceived =>
-        Direction == MailDirection.Received
-        && ReceivedFamily == ReceivedMailFamily.PreInstructionEmails
-        && string.Equals(Subtype, ImagesReceivedSubtype, StringComparison.Ordinal);
-
-    public string Name =>
-        OtherName
-        ?? (ReceivedFamily is { } received
-            ? MailTaxonomy.CategoryName(received)
-            : MailTaxonomy.CategoryName(SentFamily!.Value));
-
-    public void ValidateCanonical()
+    public static bool TryParse(string? code, out MailCategory category)
     {
-        if (!Enum.IsDefined(Direction))
+        foreach (var candidate in All)
         {
-            throw new ArgumentOutOfRangeException(nameof(Direction), "The mail direction is not recognized.");
-        }
-        if (IsOther)
-        {
-            if (string.IsNullOrWhiteSpace(OtherName)
-                || OtherName.Length > OtherNameMaxLength
-                || string.IsNullOrWhiteSpace(OtherReasoning)
-                || OtherReasoning.Length > OtherReasoningMaxLength)
+            if (string.Equals(Code(candidate), code, StringComparison.Ordinal))
             {
-                throw new ArgumentException("The Other classification details are outside the canonical bounds.");
+                category = candidate;
+                return true;
             }
-            return;
         }
-        if (Direction == MailDirection.Received
-            && (ReceivedFamily is not { } received
-                || !Enum.IsDefined(received)
-                || (Subtype is not null
-                    && !MailTaxonomy.ConfirmedReceivedSubtypes[received].Contains(Subtype, StringComparer.Ordinal))))
-        {
-            throw new ArgumentException("The Received classification is not a registered canonical option.");
-        }
-        if (Direction == MailDirection.Sent
-            && (SentFamily is not { } sent || !Enum.IsDefined(sent) || Subtype is not null))
-        {
-            throw new ArgumentException("The Sent classification is not a registered canonical option.");
-        }
+        category = default;
+        return false;
     }
 
-    public static MailCategory Received(
-        ReceivedMailFamily family,
-        string? subtype = null,
-        bool isReplyContext = false)
-    {
-        if (!Enum.IsDefined(family))
-        {
-            throw new ArgumentOutOfRangeException(nameof(family), "The Received mail family is not recognized.");
-        }
-        if (subtype is not null
-            && !MailTaxonomy.ConfirmedReceivedSubtypes[family].Contains(subtype, StringComparer.Ordinal))
-        {
-            throw new ArgumentException(
-                $"'{subtype}' is not a confirmed subtype of the '{MailTaxonomy.CategoryName(family)}' family.",
-                nameof(subtype));
-        }
-
-        return new(MailDirection.Received, family, null, subtype, isReplyContext, null, null);
-    }
-
-    public static MailCategory Sent(SentMailFamily family, bool isReplyContext = false)
-    {
-        if (!Enum.IsDefined(family))
-        {
-            throw new ArgumentOutOfRangeException(nameof(family), "The Sent mail family is not recognized.");
-        }
-
-        return new(MailDirection.Sent, null, family, null, isReplyContext, null, null);
-    }
-
-    public static MailCategory Other(
-        MailDirection direction,
-        string name,
-        string reasoning)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        ArgumentException.ThrowIfNullOrWhiteSpace(reasoning);
-        if (!Enum.IsDefined(direction))
-        {
-            throw new ArgumentOutOfRangeException(nameof(direction), "The mail direction is not recognized.");
-        }
-        var canonicalName = name.Trim();
-        var canonicalReasoning = reasoning.Trim();
-        if (canonicalName.Length > OtherNameMaxLength)
-        {
-            throw new ArgumentException($"An Other classification name cannot exceed {OtherNameMaxLength} characters.", nameof(name));
-        }
-        if (canonicalReasoning.Length > OtherReasoningMaxLength)
-        {
-            throw new ArgumentException($"Other classification reasoning cannot exceed {OtherReasoningMaxLength} characters.", nameof(reasoning));
-        }
-        return new(direction, null, null, null, false, canonicalName, canonicalReasoning);
-    }
+    public static MailCategory Parse(string code) =>
+        TryParse(code, out var category)
+            ? category
+            : throw new ArgumentException($"'{code}' is not a mail category.", nameof(code));
 }
 
 public enum MailClassificationOutcome
 {
     Classified,
-    Ambiguous,
     Unclassified
 }
 
@@ -283,29 +83,27 @@ public sealed record StandaloneAuditReportEvaluation(
     AuditAssessment Assessment);
 
 /// <summary>
-/// The recorded outcome of one classification evaluation. Ambiguity is an explicit
-/// fail-closed outcome: when predicates for more than one family match simultaneously,
-/// the candidates are recorded and no winner is invented (open decision: mailbox rule
-/// activation owns multi-rule precedence).
+/// The recorded outcome of one classification evaluation. When predicates for
+/// more than one category match, the outcome is Unclassified and the reason
+/// names the candidates: no winner is invented. A reply carries the category of
+/// what it replies about, with <paramref name="IsReplyContext"/> set.
 /// </summary>
 public sealed record MailClassificationResult(
     MailClassificationOutcome Outcome,
     MailCategory? Category,
-    IReadOnlyList<string> AmbiguousCandidates,
     IReadOnlyList<MailClassificationPredicateResult> Predicates,
     string Reason,
     string PolicyKey,
     int PolicyVersion,
     CaseType? CaseType = null,
-    StandaloneAuditReportEvaluation? StandaloneAuditReport = null)
+    StandaloneAuditReportEvaluation? StandaloneAuditReport = null,
+    bool IsReplyContext = false)
 {
-    /// <summary>
-    /// Whether this decision says the message is a Triage request. A recorded
-    /// Ambiguous outcome is deliberately not one: two matching categories are
-    /// not a triage request, they are a message no policy may resolve.
-    /// </summary>
-    public bool IsTriageRequest =>
-        Outcome == MailClassificationOutcome.Classified && Category?.IsTriageRequest == true;
+    public bool IsClassified => Outcome == MailClassificationOutcome.Classified && Category is not null;
+
+    public bool Is(MailCategory category) => IsClassified && Category == category;
+
+    public bool IsTriageRequest => Is(MailCategory.TriageRequest);
 
     public static MailClassificationResult Classified(
         MailCategory category,
@@ -314,32 +112,42 @@ public sealed record MailClassificationResult(
         string policyKey,
         int policyVersion,
         CaseType? caseType = null,
-        StandaloneAuditReportEvaluation? standaloneAuditReport = null) =>
-        new(
+        StandaloneAuditReportEvaluation? standaloneAuditReport = null,
+        bool isReplyContext = false)
+    {
+        if (!Enum.IsDefined(category))
+        {
+            throw new ArgumentOutOfRangeException(nameof(category), category, "The mail category is not recognized.");
+        }
+        return new(
             MailClassificationOutcome.Classified,
             category,
-            [],
             predicates,
             reason,
             policyKey,
             policyVersion,
             caseType,
-            standaloneAuditReport);
-
-    public static MailClassificationResult Ambiguous(
-        IReadOnlyList<string> candidates,
-        IReadOnlyList<MailClassificationPredicateResult> predicates,
-        string reason,
-        string policyKey,
-        int policyVersion) =>
-        new(MailClassificationOutcome.Ambiguous, null, candidates, predicates, reason, policyKey, policyVersion);
+            standaloneAuditReport,
+            isReplyContext);
+    }
 
     public static MailClassificationResult Unclassified(
         IReadOnlyList<MailClassificationPredicateResult> predicates,
         string reason,
         string policyKey,
         int policyVersion) =>
-        new(MailClassificationOutcome.Unclassified, null, [], predicates, reason, policyKey, policyVersion);
+        new(MailClassificationOutcome.Unclassified, null, predicates, reason, policyKey, policyVersion);
+
+    /// <summary>
+    /// The decision for a received mail message no Principal policy classified:
+    /// its sender matched no accepted route, or the route had no policy. Nothing
+    /// is classified, but the message still carries a decision, so staff can
+    /// correct it and the workspace can list it (FRD-08).
+    /// </summary>
+    public const string NoPolicyKey = "no_mail_classification_policy";
+
+    public static MailClassificationResult NoPolicy(string reason) =>
+        Unclassified([], reason, NoPolicyKey, 1);
 }
 
 /// <summary>

@@ -12,8 +12,8 @@ exclusion.
 | ID | Capability | Owner |
 | --- | --- | --- |
 | OPS-10 | Production environment deployed directly from an authorised terminal | [ADR-0014](adr/0014-local-to-production-deployment.md) |
-| MAIL-21 | Shared Core classification: versioned rules, evidence, ambiguity outcome | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
-| MAIL-22 | Detailed Received/Sent/Reply taxonomy with reasoned Other | [Settled mailbox taxonomy and correction](frd/frd-08-email-mailbox-and-background-processing.md#settled-mailbox-taxonomy-and-correction) |
+| MAIL-21 | Shared Core classification: versioned rules, evidence, Unclassified abstention | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
+| MAIL-22 | One flat list of eleven received-mail categories | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
 | ACC-01 | Staff sign-in with Pegasus-managed usernames and passwords | [Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) |
 | ACC-02 | Administrator, Engineer and User roles held as data | [Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) |
 | ACC-03 | Staff account lifecycle, password reset, force logout, role assignment | [Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) |
@@ -51,6 +51,7 @@ exclusion.
 | MAIL-15 | Manually link, unlink, or relink an exact Sent item with a reason | [Outbound correspondence evidence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence) |
 | MAIL-16 | Automatically match the exact report Sent item to its case | [Outbound correspondence evidence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence) |
 | MAIL-18 | Chaser messages for staff to send: the Case chaser template and Send chaser, and the copyable due-chaser text | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
+| MAIL-25 | Move the answered instruction to Deleted Items once its report send is confirmed (one automatic, recoverable move; no Delete control) | [Outbound correspondence evidence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence) |
 | TRI-01 | Distinct inbox Triage label; Triage as a Case type with a `t.` Case/PO and its own workflow | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-02 | Vehicle-registration gate and Triage-specific missing-registration behavior | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-03 | Open, Awaiting information, Finding recorded, Completed, and Cancelled states | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
@@ -77,7 +78,7 @@ exclusion.
 | CASE-17 | Due-by date extraction and overdue display | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-18 | Configurable whole-calendar-day missing-information chase schedule | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-19 | Hold/release behavior that preserves the chase interval | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
-| CASE-20 | General Case tasks (back end only, no screen; deferred) | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
+| CASE-20 | General Case tasks: a Tasks section on the Case record (add, assign, complete, cancel), after-send tasks created from the list the report send recorded when Report sent is recorded, and open tasks listed in Next action after the send and blocking Archive (no due date yet) | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing); [Tasks](frd/frd-16-case-record-workspace.md#tasks) |
 | CASE-21 | Replay-safe Case export history | [Export case](frd/frd-07-case-export.md#export-case) |
 | CASE-24 | Post-report completion, Principal cancellation, and Collision Engineers rejection outcomes | [Close case](frd/frd-13-case-lifecycle-and-workflow.md#close-case) |
 | CASE-25 | Reasoned return to engineering through normal destination gates | [Actions](frd/frd-13-case-lifecycle-and-workflow.md#actions) |
@@ -99,7 +100,7 @@ exclusion.
 | UI-11 | Accounts, Contacts, mailbox allowlist, and configuration workspace | [Administration](frd/frd-17-administration-workspace.md#administration) |
 | UI-13 | Accessible keyboard, screen-reader, focus, contrast, and error behavior | [Operator experience](frd/frd-12-operator-experience.md#operator-experience) |
 | UI-16 | Operations Workspace shell: rail, counts, command palette | [Shell and routes](frd/frd-12-operator-experience.md#shell-and-routes) |
-| UI-17 | Case record: one scrolling page of ten sections, and the Inspection and Audit views | [Case workspace](frd/frd-16-case-record-workspace.md#case-workspace) |
+| UI-17 | Case record: one scrolling page of twelve sections, and the Inspection and Audit views | [Case workspace](frd/frd-16-case-record-workspace.md#case-workspace) |
 | UI-18 | Awaiting instruction pre-Case queue | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
 | UI-19 | Service health is Administration-only | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | ENG-03 | Damage record: zones with severity and note, unrelated damage, diagram | [Damage record](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record) |
@@ -150,26 +151,22 @@ exclusion.
 | INT-16 | OCR of every incoming scanned document page, read as a report and, when needed, as an instruction | [Qualified OCR](frd/frd-05-documents-extraction-and-custody.md#qualified-ocr) |
 | INT-28 | Automatic matching of image-led and instruction-led records | [Pairing and merge](frd/frd-19-image-led-intake-and-pairing.md#pairing-and-merge); [Grouped image-intake routing](frd/frd-19-image-led-intake-and-pairing.md#grouped-image-intake-routing) |
 | MAIL-01 | Identify every inbound mailbox item and its mailbox/thread/message identity | [Inbound mailbox identity](frd/frd-08-email-mailbox-and-background-processing.md#inbound-mailbox-identity) |
-| MAIL-02 | Map classifications to queues, Other, Unidentified or Triage | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
-| MAIL-03 | One shared classification policy across all supported mailboxes | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
-| MAIL-04 | Explainable classification evidence, policy version, correction history, and the case type and Triage match a correction carries | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
-| MAIL-05 | Recommend the designated Outlook folder for a classified message | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
-| MAIL-06 | Staff confirmation of a recommended folder move in Pegasus | [Classification, linking and folder-move actions](frd/frd-20-mailbox-workspace.md#classification-linking-and-folder-move-actions) |
-| MAIL-07 | Move the confirmed message to the designated Outlook folder | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
+| MAIL-02 | What each mail category does; Unclassified mail shows as Unidentified | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
+| MAIL-03 | One shared classification policy across all supported mailboxes | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
+| MAIL-04 | Explainable classification evidence, policy version, correction history, and the work type and Triage match a correction carries | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
 | MAIL-09 | Automatic association of related email and attachments with a case | [Automatic Case association of retained mail](frd/frd-08-email-mailbox-and-background-processing.md#automatic-case-association-of-retained-mail) |
-| MAIL-10 | Manual email/case association, unlink, relink, correction, and the next action a corrected classification offers | [Classification, linking and folder-move actions](frd/frd-20-mailbox-workspace.md#classification-linking-and-folder-move-actions) |
+| MAIL-10 | Manual email/case association, unlink, relink, correction, and the next action a corrected classification offers | [Classification and linking actions](frd/frd-20-mailbox-workspace.md#classification-and-linking-actions) |
 | MAIL-11 | Browse, search and view mailbox messages and threads | [Quick preview and message detail](frd/frd-20-mailbox-workspace.md#quick-preview-and-message-detail) |
-| MAIL-13 | Outlook category by allowlisted identifier; no read-state, flag or delete | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
+| MAIL-13 | Outlook category by allowlisted identifier; no read-state, flag or Delete control | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
 | CASE-23 | Queries, disputes included, raised, listed and resolved on the existing Case | [Report sent and queries](frd/frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries) |
 | UI-10 | Full email-management workspace | [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
-| UI-14 | Categorised email views by destination and classification | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue); [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
+| UI-14 | Categorised email views by mail category | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction); [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
 | API-01 | Principal-scoped submission API | [Accepted API-01 submission contract](frd/frd-09-principal-and-intermediary-routes.md#accepted-api-01-submission-contract) |
 | API-02 | Principal API receipt and processing-status lookup | [Principal API and contract boundary](frd/frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary) |
 | API-03 | Principal API resulting Case/PO lookup | [Principal API and contract boundary](frd/frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary) |
 | API-04 | Principal API credential issue, reset, revoke, pause, and resume | [Principal API and contract boundary](frd/frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary) |
 | MCP-05 | Automation Actor actions for the broader classified-email workspace | [MCP automation and actor boundary](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary) |
 | AI-05 | Automatic AI-assisted image readiness assessment of the current Case image set | [Ordinary-image VRM and image analysis](frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis) |
-| MAIL-23 | Map the detailed taxonomy to operational queues and designated Outlook folders | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
 | INT-32 | Separate chase state per half; pairing shown in Work Centre | [Age and chase state](frd/frd-19-image-led-intake-and-pairing.md#age-and-chase-state); [Pairing and merge](frd/frd-19-image-led-intake-and-pairing.md#pairing-and-merge); [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | INT-33 | Near-real-time durable intake with truthful transient state | [Source occurrence and dispatch identity](frd/frd-02-intake-and-source-identity.md#source-occurrence-and-dispatch-identity); [Mailbox wake-up and recovery](frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#mailbox-wake-up-and-recovery) |
 | MAIL-19 | Automatically send chasers or other outbound messages | [Outbound correspondence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence) |
@@ -190,7 +187,7 @@ exclusion.
 | EXT-12 | Glass's and Audatex PDF estimate ingestion with retained source and variant proof | [Retained PDF estimates](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#retained-pdf-estimate-import) |
 | EXT-13 | Independently licensed valuation-source adapters that preserve each source observation and version | [Valuation sources](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources) |
 | AI-07 | AI Assessor as a staff-selected Engineer option | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
-| MAIL-12 | Authenticated staff compose, reply, forward, and send email in Pegasus | [Outbound correspondence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence) |
+| MAIL-12 | Authenticated staff reply, forward, chase and send reports by email in Pegasus | [Outbound correspondence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence) |
 | MAIL-24 | Editable e-mail templates with placeholders | [E-mail templates](frd/frd-17-administration-workspace.md#e-mail-templates) |
 | EXT-17 | Tractable capture outside Pegasus, received as an emailed PDF | [Ways intake starts](frd/frd-02-intake-and-source-identity.md#ways-intake-starts) |
 | CASE-31 | One accepted record feeds every report and fee note | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
@@ -203,6 +200,8 @@ exclusion.
 | RPT-04 | Diminution rendering uses accepted original-case data plus the Engineer-entered percentage (deferred) | [Initial renderer activation](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation) |
 | RPT-05 | Addenda from accepted data plus a versioned amendment (deferred) | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | RPT-07 | Estimate document rendered per estimate version from the one totals owner | [Report generation entry point](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point) |
+| RPT-08 | Principal report sending rules edited on the Contact: recipients, mailbox, attachments, holds, stops, reminders and file name | [Contacts administration](frd/frd-04-parties-accounts-and-access.md#contacts-administration) |
+| RPT-09 | Report delivery follows the Principal's sending rules in one step: reply in the instruction thread, questions, holds, stop with override, required companions, filed estimates by format, after-send list | [Report sending rules](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules) |
 | AI-08 | AI-drafted query response reviewed by human staff before sending | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
 | AI-10 | Named AI job kinds with durable lifecycle and job list | [AI Job List](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list) |
 | MCP-07 | Administration switch for Send to AI | [Send to AI switch](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch) |
@@ -263,3 +262,7 @@ statements and the `CAP-0NN` source map remain recoverable from Git history.
 | UI-01 | Operations dashboard/cockpit: the `/Operations` page and its rail row | 2026-09-28, operator decision |
 | AI-09 | Send to AI push hand-off to a channel, with its work-request record and connector settings; the AI Job List (`AI-10`) is the only route | 2026-09-28, operator decision |
 | EXT-04 | Principal-selected report route to an external engineering system (ZIP export or API send); every standard Case now has the Case export ([ADR-0065](adr/0065-case-export-replaces-eva-routes.md)) | 2026-10-07, operator decision |
+| MAIL-05 | Recommend the designated Outlook folder for a classified message | 2026-10-12, operator decision ([ADR-0069](adr/0069-one-flat-mail-category.md)) |
+| MAIL-06 | Staff confirmation of a recommended folder move in Pegasus | 2026-10-12, operator decision ([ADR-0069](adr/0069-one-flat-mail-category.md)) |
+| MAIL-07 | Move the confirmed message to the designated Outlook folder | 2026-10-12, operator decision ([ADR-0069](adr/0069-one-flat-mail-category.md)) |
+| MAIL-23 | Map the detailed taxonomy to operational queues and designated Outlook folders | 2026-10-12, operator decision ([ADR-0069](adr/0069-one-flat-mail-category.md)) |

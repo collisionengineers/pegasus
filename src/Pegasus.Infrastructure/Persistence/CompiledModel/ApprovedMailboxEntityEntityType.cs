@@ -18,9 +18,8 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.ApprovedMailboxEntity",
                 typeof(ApprovedMailboxEntity),
                 baseEntityType,
-                propertyCount: 16,
-                navigationCount: 1,
-                unnamedIndexCount: 3,
+                propertyCount: 11,
+                unnamedIndexCount: 2,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -49,29 +48,21 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 maxLength: 320);
             address.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
-            var allowInboundIntake = runtimeEntityType.AddProperty(
-                "AllowInboundIntake",
+            var allowIncoming = runtimeEntityType.AddProperty(
+                "AllowIncoming",
                 typeof(bool),
-                propertyInfo: typeof(ApprovedMailboxEntity).GetProperty("AllowInboundIntake", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(ApprovedMailboxEntity).GetField("<AllowInboundIntake>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                propertyInfo: typeof(ApprovedMailboxEntity).GetProperty("AllowIncoming", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ApprovedMailboxEntity).GetField("<AllowIncoming>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: false);
-            allowInboundIntake.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+            allowIncoming.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
-            var allowSentEvidence = runtimeEntityType.AddProperty(
-                "AllowSentEvidence",
+            var allowOutgoing = runtimeEntityType.AddProperty(
+                "AllowOutgoing",
                 typeof(bool),
-                propertyInfo: typeof(ApprovedMailboxEntity).GetProperty("AllowSentEvidence", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(ApprovedMailboxEntity).GetField("<AllowSentEvidence>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                propertyInfo: typeof(ApprovedMailboxEntity).GetProperty("AllowOutgoing", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ApprovedMailboxEntity).GetField("<AllowOutgoing>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: false);
-            allowSentEvidence.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
-            var allowStaffSend = runtimeEntityType.AddProperty(
-                "AllowStaffSend",
-                typeof(bool),
-                propertyInfo: typeof(ApprovedMailboxEntity).GetProperty("AllowStaffSend", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(ApprovedMailboxEntity).GetField("<AllowStaffSend>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                sentinel: false);
-            allowStaffSend.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+            allowOutgoing.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var inboxFolderIdentity = runtimeEntityType.AddProperty(
                 "InboxFolderIdentity",
@@ -81,16 +72,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 nullable: true,
                 maxLength: 200);
             inboxFolderIdentity.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
-            var isDefaultStaffSend = runtimeEntityType.AddProperty(
-                "IsDefaultStaffSend",
-                typeof(bool),
-                propertyInfo: typeof(ApprovedMailboxEntity).GetProperty("IsDefaultStaffSend", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(ApprovedMailboxEntity).GetField("<IsDefaultStaffSend>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                valueGenerated: ValueGenerated.OnAdd,
-                sentinel: false);
-            isDefaultStaffSend.AddAnnotation("Relational:DefaultValue", false);
-            isDefaultStaffSend.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var mailboxGeneration = runtimeEntityType.AddProperty(
                 "MailboxGeneration",
@@ -109,23 +90,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 maxLength: 100);
             mailboxIdentity.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
-            var sendLimitVerifiedAtUtc = runtimeEntityType.AddProperty(
-                "SendLimitVerifiedAtUtc",
-                typeof(DateTimeOffset?),
-                propertyInfo: typeof(ApprovedMailboxEntity).GetProperty("SendLimitVerifiedAtUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(ApprovedMailboxEntity).GetField("<SendLimitVerifiedAtUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                nullable: true);
-            sendLimitVerifiedAtUtc.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
-            var sendLimitVerifiedBy = runtimeEntityType.AddProperty(
-                "SendLimitVerifiedBy",
-                typeof(string),
-                propertyInfo: typeof(ApprovedMailboxEntity).GetProperty("SendLimitVerifiedBy", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(ApprovedMailboxEntity).GetField("<SendLimitVerifiedBy>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                nullable: true,
-                maxLength: 200);
-            sendLimitVerifiedBy.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
             var sentFolderIdentity = runtimeEntityType.AddProperty(
                 "SentFolderIdentity",
                 typeof(string),
@@ -142,14 +106,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 fieldInfo: typeof(ApprovedMailboxEntity).GetField("<State>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 maxLength: 40);
             state.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
-            var verifiedEncodedMessageSizeLimit = runtimeEntityType.AddProperty(
-                "VerifiedEncodedMessageSizeLimit",
-                typeof(long?),
-                propertyInfo: typeof(ApprovedMailboxEntity).GetProperty("VerifiedEncodedMessageSizeLimit", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(ApprovedMailboxEntity).GetField("<VerifiedEncodedMessageSizeLimit>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                nullable: true);
-            verifiedEncodedMessageSizeLimit.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var version = runtimeEntityType.AddProperty(
                 "Version",
@@ -168,14 +124,9 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 unique: true);
 
             var index0 = runtimeEntityType.AddIndex(
-                new[] { isDefaultStaffSend },
-                unique: true);
-            index0.AddAnnotation("Relational:Filter", "[IsDefaultStaffSend] = 1");
-
-            var index1 = runtimeEntityType.AddIndex(
                 new[] { mailboxIdentity },
                 unique: true);
-            index1.AddAnnotation("Relational:Filter", "[MailboxIdentity] IS NOT NULL");
+            index0.AddAnnotation("Relational:Filter", "[MailboxIdentity] IS NOT NULL");
 
             return runtimeEntityType;
         }

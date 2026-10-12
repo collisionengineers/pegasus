@@ -888,9 +888,11 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     }
 
     // 20260924180000_CaseWorksAndTriageCases: Web and Worker both create Cases
-    // (and so their primary work); only Web updates a work (Create audit moves
-    // the Inspection report's evidence onto it); neither deletes one. Web also
-    // creates Triage Cases.
+    // (and so their primary work); Web updates a work (Create audit moves the
+    // Inspection report's evidence onto it), and since
+    // 20261012120000_WorkerObservesReportSends so does the Worker (the Sent
+    // poll links the Inspection report's evidence after the Audit exists);
+    // neither deletes one. Web also creates Triage Cases.
     [Fact]
     public async Task LatestMigrationGivesCaseWorksItsExactRuntimePermissions()
     {
@@ -906,7 +908,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 $"{WebRole}:G:UPDATE",
                 $"{WorkerRole}:D:DELETE",
                 $"{WorkerRole}:G:INSERT",
-                $"{WorkerRole}:G:SELECT"
+                $"{WorkerRole}:G:SELECT",
+                $"{WorkerRole}:G:UPDATE"
             ],
             await ReadValuesAsync(
                 database,
@@ -1007,6 +1010,39 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 """));
     }
 
+    // 20261012192000_GrantWorkerCaseTasksForReportSent: the Worker's Sent-evidence link
+    // creates the after-send tasks the send recorded, in the same transaction as Report
+    // sent. It inserts tasks, never updating or deleting one; Web's task grants are
+    // unchanged. The tests run full-privilege, so only this assertion catches a missing
+    // grant before production refuses the write.
+    [Fact]
+    public async Task LatestMigrationGrantsWorkerCaseTaskInsertForReportSent()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(
+            ["CaseTasks:INSERT", "CaseTasks:SELECT"],
+            (await ReadGrantedPermissionsAsync(database, WorkerRole))
+                .Where(value => value.StartsWith("CaseTasks:", StringComparison.Ordinal))
+                .ToArray());
+        Assert.Equal(
+            ["CaseTasks:INSERT", "CaseTasks:SELECT", "CaseTasks:UPDATE"],
+            (await ReadGrantedPermissionsAsync(database, WebRole))
+                .Where(value => value.StartsWith("CaseTasks:", StringComparison.Ordinal))
+                .ToArray());
+        var deniedDelete = await ReadDeniedDeleteTablesAsync(database, WorkerRole);
+        Assert.Contains("CaseTasks", deniedDelete);
+        // What the same transaction writes was already granted.
+        var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
+        Assert.Contains("CaseWorkflowEvents:INSERT", granted);
+        Assert.Contains("CaseWorkflowEvents:SELECT", granted);
+        Assert.Contains("ActionHistory:INSERT", granted);
+        Assert.Contains("CaseWorkflows:UPDATE", granted);
+    }
+
     [Fact]
     public async Task RetainedMailSearchProjectionUsesExactCallerPermissions()
     {
@@ -1029,30 +1065,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             (await ReadGrantedPermissionsAsync(database, WorkerRole))
                 .Where(value => value.StartsWith("IntakeSearchDocuments:", StringComparison.Ordinal))
                 .ToArray());
-    }
-
-    [Fact]
-    public async Task RetainedMailFolderMovesUseExactWebOnlyAppendPermissions()
-    {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
-
-        Assert.Equal(
-            [
-                "RetainedMailFolderMoves:INSERT",
-                "RetainedMailFolderMoves:SELECT",
-                "RetainedMailFolderMoves:UPDATE"
-            ],
-            (await ReadGrantedPermissionsAsync(database, WebRole))
-                .Where(value => value.StartsWith("RetainedMailFolderMoves:", StringComparison.Ordinal))
-                .ToArray());
-        Assert.DoesNotContain(
-            await ReadGrantedPermissionsAsync(database, WorkerRole),
-            value => value.StartsWith("RetainedMailFolderMoves:", StringComparison.Ordinal));
-        Assert.Contains("RetainedMailFolderMoves", await ReadDeniedDeleteTablesAsync(database, WebRole));
-        Assert.Contains("RetainedMailFolderMoves", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
     }
 
     [Fact]
@@ -1203,6 +1215,28 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 .Where(value => value.StartsWith("TriageFindings:", StringComparison.Ordinal))
                 .ToArray());
         Assert.Contains("TriageFindings", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
+    }
+
+    // 20261012120000_WorkerObservesReportSends: the Sent poll observes a report
+    // send as the Worker and freezes its Sent repair specification. The
+    // CaseWorks UPDATE it also gains is pinned with that table's exact set.
+    [Fact]
+    public async Task LatestMigrationGrantsWorkerTheSentRepairSpecificationFreeze()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
+        Assert.Equal(
+            ["CaseRepairSpecificationSnapshots:INSERT", "CaseRepairSpecificationSnapshots:SELECT"],
+            granted
+                .Where(value => value.StartsWith("CaseRepairSpecificationSnapshots:", StringComparison.Ordinal))
+                .ToArray());
+        Assert.Contains(
+            "CaseRepairSpecificationSnapshots",
+            await ReadDeniedDeleteTablesAsync(database, WorkerRole));
     }
 
     // 20260929091000_GrantWebRetainedMailDismissal: Inbox Dismiss and Restore

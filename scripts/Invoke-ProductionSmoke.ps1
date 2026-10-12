@@ -272,7 +272,7 @@ $intake = Invoke-Sqlcmd `
 SET NOCOUNT ON;
 SELECT
     (SELECT COUNT(*) FROM ApprovedMailboxes
-     WHERE State = N'Approved' AND AllowInboundIntake = 1 AND ActivatedAtUtc IS NULL) AS UnactivatedIntakeMailboxes,
+     WHERE State = N'Approved' AND AllowIncoming = 1 AND ActivatedAtUtc IS NULL) AS UnactivatedIntakeMailboxes,
     (SELECT COUNT(*) FROM ApprovedMailboxSubscriptions
      WHERE LifecycleState = N'Active' AND ExpiresAtUtc > SYSDATETIMEOFFSET()) AS ActiveSubscriptions,
     (SELECT MIN(ExpiresAtUtc) FROM ApprovedMailboxSubscriptions

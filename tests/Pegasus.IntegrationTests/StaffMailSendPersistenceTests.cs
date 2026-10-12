@@ -23,7 +23,7 @@ public sealed class StaffMailSendPersistenceTests
     private static readonly JsonSerializerOptions ReportSnapshotJson = new(JsonSerializerDefaults.Web);
 
     [Fact]
-    public async Task FinalStaffSendMailboxRequiresSentEvidenceScopeAndResolvedFolder()
+    public async Task FinalStaffSendMailboxRequiresOutgoingAndResolvedSentFolder()
     {
         await using var database = await CreateDatabaseAsync();
         var missingScopeId = Guid.NewGuid();
@@ -34,9 +34,9 @@ public sealed class StaffMailSendPersistenceTests
             var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
             await using var db = await factory.CreateDbContextAsync();
             db.ApprovedMailboxes.AddRange(
-                StaffSendMailbox(missingScopeId, "missing-scope", allowSentEvidence: false, sentFolderIdentity: "sent"),
-                StaffSendMailbox(missingFolderId, "missing-folder", allowSentEvidence: true, sentFolderIdentity: null),
-                StaffSendMailbox(configuredId, "configured", allowSentEvidence: true, sentFolderIdentity: "sent"));
+                StaffSendMailbox(missingScopeId, "missing-scope", allowOutgoing: false, sentFolderIdentity: "sent"),
+                StaffSendMailbox(missingFolderId, "missing-folder", allowOutgoing: true, sentFolderIdentity: null),
+                StaffSendMailbox(configuredId, "configured", allowOutgoing: true, sentFolderIdentity: "sent"));
             await db.SaveChangesAsync();
         }
 
@@ -44,7 +44,10 @@ public sealed class StaffMailSendPersistenceTests
         var mailboxes = queryScope.ServiceProvider.GetRequiredService<EfStaffMailSendStore>();
         Assert.Null(await mailboxes.GetAsync(missingScopeId, CancellationToken.None));
         Assert.Null(await mailboxes.GetAsync(missingFolderId, CancellationToken.None));
-        Assert.NotNull(await mailboxes.GetAsync(configuredId, CancellationToken.None));
+        var configured = await mailboxes.GetAsync(configuredId, CancellationToken.None);
+        Assert.NotNull(configured);
+        // Every Outgoing mailbox sends under the one fixed ceiling (operator, 12 October 2026).
+        Assert.Equal(ApprovedStaffSendMailbox.OutgoingEncodedMessageSizeLimit, configured.EncodedMessageSizeLimit);
     }
 
     [Fact]
@@ -260,8 +263,12 @@ public sealed class StaffMailSendPersistenceTests
             store.PrepareAsync(command, new string('B', 64), now, CancellationToken.None));
     }
 
+    /// <summary>
+    /// Operator, 12 October 2026: one retained message may be answered more than
+    /// once, so two replies to it prepare two operations.
+    /// </summary>
     [Fact]
-    public async Task ConcurrentDistinctRepliesToOneRetainedMessageCreateOneOperation()
+    public async Task ConcurrentDistinctRepliesToOneRetainedMessageBothPrepare()
     {
         await using var database = await CreateDatabaseAsync();
         var mailboxId = Guid.NewGuid();
@@ -273,50 +280,26 @@ public sealed class StaffMailSendPersistenceTests
         await using var secondScope = database.CreateAsyncScope();
         var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var firstAttempt = PrepareAsync(firstScope, firstCommand);
-        var secondAttempt = PrepareAsync(secondScope, secondCommand);
+        var attempts = new[]
+        {
+            PrepareAsync(firstScope, firstCommand),
+            PrepareAsync(secondScope, secondCommand)
+        };
         start.SetResult();
-        var attempts = await Task.WhenAll(firstAttempt, secondAttempt);
+        var operations = await Task.WhenAll(attempts).WaitAsync(TimeSpan.FromSeconds(30));
 
-        var created = Assert.Single(attempts, value => value.Operation is not null);
-        Assert.NotNull(created.Operation);
-        var refused = Assert.Single(attempts, value => value.Error is not null);
-        Assert.IsType<InvalidOperationException>(refused.Error);
-        Assert.DoesNotContain(firstCommand.Actor.SubjectId, refused.Error!.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain(secondCommand.Actor.SubjectId, refused.Error.Message, StringComparison.Ordinal);
-        Assert.Equal(1, await database.ScalarAsync<int>(
+        Assert.Equal(2, operations.Select(operation => operation.Id).Distinct().Count());
+        Assert.All(operations, operation => Assert.Equal(StaffMailState.Prepared, operation.State));
+        Assert.Equal(2, await database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM StaffMailSendOperations WHERE MailboxId = '{mailboxId:D}' AND OriginalRetainedMessageId = '{retainedMessageId:D}'"));
 
-        var firstWon = attempts[0].Operation is not null;
-        var winningCommand = firstWon
-            ? firstCommand
-            : secondCommand;
-        var losingActor = firstWon
-            ? secondCommand.Actor
-            : firstCommand.Actor;
-        await using var verifyScope = database.CreateAsyncScope();
-        var verifyStore = verifyScope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
-        var replay = await verifyStore.PrepareAsync(
-            winningCommand, new string('A', 64), DateTimeOffset.UtcNow, CancellationToken.None);
-        Assert.Equal(created.Operation.Id, replay.Id);
-        Assert.Null(await verifyStore
-            .GetAsync(losingActor.SubjectId, created.Operation.Id, CancellationToken.None));
-
-        async Task<(StaffMailOperation? Operation, Exception? Error)> PrepareAsync(
+        async Task<StaffMailOperation> PrepareAsync(
             AsyncServiceScope scope, StaffMailSendCommand command)
         {
             await start.Task;
-            try
-            {
-                var operation = await scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>()
-                    .PrepareAsync(command, new string('A', 64), DateTimeOffset.UtcNow,
-                        CancellationToken.None);
-                return (operation, null);
-            }
-            catch (InvalidOperationException exception)
-            {
-                return (null, exception);
-            }
+            return await scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>()
+                .PrepareAsync(command, new string('A', 64), DateTimeOffset.UtcNow,
+                    CancellationToken.None);
         }
     }
 
@@ -392,7 +375,7 @@ public sealed class StaffMailSendPersistenceTests
     }
 
     [Fact]
-    public async Task ConcurrentDifferentActorRepliesUseOneOperationDraftAndSend()
+    public async Task ConcurrentDifferentActorRepliesEachDraftAndSend()
     {
         var transport = new RecordingStaffMailTransport();
         var mailboxId = Guid.NewGuid();
@@ -422,12 +405,12 @@ public sealed class StaffMailSendPersistenceTests
         start.SetResult();
         var results = await Task.WhenAll(attempts).WaitAsync(TimeSpan.FromSeconds(30));
 
-        Assert.Single(results, result => result.Operation is not null);
-        Assert.Single(results, result => result.Error is InvalidOperationException);
-        Assert.Equal(1, await database.ScalarAsync<int>(
+        Assert.All(results, result => Assert.Null(result.Error));
+        Assert.Equal(2, results.Select(result => result.Operation!.Id).Distinct().Count());
+        Assert.Equal(2, await database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM StaffMailSendOperations WHERE OriginalRetainedMessageId = '{retainedMessageId:D}'"));
-        Assert.Equal(1, transport.CreateDraftCount);
-        Assert.Equal(1, transport.SendDraftCount);
+        Assert.Equal(2, transport.CreateDraftCount);
+        Assert.Equal(2, transport.SendDraftCount);
 
         async Task<(StaffMailOperation? Operation, Exception? Error)> SendAsync(
             AsyncServiceScope scope, StaffMailSendCommand command)
@@ -504,7 +487,7 @@ public sealed class StaffMailSendPersistenceTests
     }
 
     [Fact]
-    public async Task UnknownReplyStillBlocksANewOperation()
+    public async Task ASecondReplyIsAcceptedWhileTheFirstIsUnresolved()
     {
         await using var database = await CreateDatabaseAsync();
         var mailboxId = Guid.NewGuid();
@@ -524,9 +507,108 @@ public sealed class StaffMailSendPersistenceTests
             StaffMailState.Unknown, StaffMailAttemptStage.CreateDraft,
             null, null, null, "provider outcome unknown", CancellationToken.None);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => store.PrepareAsync(
+        var next = await store.PrepareAsync(
             ReplyCommand(mailboxId, retainedMessageId, "second-reply"),
-            new string('B', 64), DateTimeOffset.UtcNow, CancellationToken.None));
+            new string('B', 64), DateTimeOffset.UtcNow, CancellationToken.None);
+
+        Assert.NotEqual(operation.Id, next.Id);
+        Assert.Equal(StaffMailState.Prepared, next.State);
+    }
+
+    /// <summary>
+    /// A report send is never held up by another unfinished operation on the
+    /// instruction it answers (operator, 6 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task AReportSendIsNotHeldUpByAnUnfinishedReplyToTheSameMessage()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var mailboxId = Guid.NewGuid();
+        var retainedMessageId = Guid.NewGuid();
+        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+        var reply = await store.PrepareAsync(
+            ReplyCommand(mailboxId, retainedMessageId, "unfinished-reply"),
+            new string('A', 64), DateTimeOffset.UtcNow, CancellationToken.None);
+
+        var report = await store.PrepareAsync(
+            ReportReplyCommand(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), mailboxId, retainedMessageId, "report-send"),
+            new string('B', 64), DateTimeOffset.UtcNow, CancellationToken.None);
+
+        Assert.Equal(StaffMailState.Prepared, reply.State);
+        Assert.NotEqual(reply.Id, report.Id);
+        Assert.Equal(StaffMailPurpose.CaseReport, report.Purpose);
+        Assert.Equal(retainedMessageId, report.OriginalRetainedMessageId);
+        Assert.Equal(2, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM StaffMailSendOperations WHERE OriginalRetainedMessageId = '{retainedMessageId:D}'"));
+    }
+
+    /// <summary>
+    /// An unfinished report send never holds up a reply to the instruction
+    /// it answers.
+    /// </summary>
+    [Fact]
+    public async Task AnUnfinishedReportSendDoesNotHoldUpAReply()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var mailboxId = Guid.NewGuid();
+        var retainedMessageId = Guid.NewGuid();
+        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+        var report = await store.PrepareAsync(
+            ReportReplyCommand(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), mailboxId, retainedMessageId, "report-send"),
+            new string('A', 64), DateTimeOffset.UtcNow, CancellationToken.None);
+
+        var reply = await store.PrepareAsync(
+            ReplyCommand(mailboxId, retainedMessageId, "first-reply"),
+            new string('B', 64), DateTimeOffset.UtcNow, CancellationToken.None);
+
+        Assert.Equal(StaffMailState.Prepared, report.State);
+        Assert.Equal(StaffMailState.Prepared, reply.State);
+        Assert.Equal(2, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM StaffMailSendOperations WHERE OriginalRetainedMessageId = '{retainedMessageId:D}'"));
+    }
+
+    /// <summary>
+    /// The message page's latest operation is its own correspondence: a
+    /// report reply to the same message is the Case's send and is never
+    /// returned, even when it is the newer and the unfinished one.
+    /// </summary>
+    [Fact]
+    public async Task TheLatestOperationForAMessageIsNeverAReportSend()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var mailboxId = Guid.NewGuid();
+        var retainedMessageId = Guid.NewGuid();
+        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var reply = await store.PrepareAsync(
+            ReplyCommand(actor, mailboxId, retainedMessageId, "earlier-reply"),
+            new string('A', 64),
+            new DateTimeOffset(2026, 10, 6, 10, 0, 0, TimeSpan.Zero), CancellationToken.None);
+        reply = await MoveToTerminalAsync(store, actor.SubjectId, reply, StaffMailState.Failed);
+        _ = await store.PrepareAsync(
+            ReportReplyCommand(actor, mailboxId, retainedMessageId, "later-report"),
+            new string('B', 64),
+            new DateTimeOffset(2026, 10, 6, 11, 0, 0, TimeSpan.Zero), CancellationToken.None);
+        var reportOnly = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        _ = await store.PrepareAsync(
+            ReportReplyCommand(reportOnly, mailboxId, retainedMessageId, "report-only"),
+            new string('C', 64),
+            new DateTimeOffset(2026, 10, 6, 11, 0, 0, TimeSpan.Zero), CancellationToken.None);
+
+        var latest = await store.GetLatestForOriginalAsync(
+            actor.SubjectId, retainedMessageId, CancellationToken.None);
+
+        Assert.NotNull(latest);
+        Assert.Equal(reply.Id, latest.Id);
+        Assert.Equal(StaffMailPurpose.GeneralCorrespondence, latest.Purpose);
+        Assert.Null(await store.GetLatestForOriginalAsync(
+            reportOnly.SubjectId, retainedMessageId, CancellationToken.None));
     }
 
     [Fact]
@@ -649,7 +731,7 @@ public sealed class StaffMailSendPersistenceTests
         var files = await verify.ServiceProvider.GetRequiredService<Pegasus.Core.Cases.ICaseQueryStore>()
             .GetFilesSectionAsync(fixture.CaseId, includeDocuments: false, frame: null, CancellationToken.None);
         Assert.NotNull(files);
-        var sentRow = Assert.Single(files!.CorrespondenceEmails, item => item.Direction == MailDirection.Sent);
+        var sentRow = Assert.Single(files!.CorrespondenceEmails, item => item.IsSent);
         Assert.Equal("Following up on your claim", sentRow.Subject);
         Assert.Equal(sentAtUtc, sentRow.ReceivedAtUtc);
         Assert.Equal("mailbox@example.invalid", sentRow.SenderAddress);
@@ -1083,7 +1165,7 @@ public sealed class StaffMailSendPersistenceTests
 
         var dossier = await scope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
             actor,
-            new(retainedMessageId, 1, MailCategory.Received(ReceivedMailFamily.General, "case-summary"),
+            new(retainedMessageId, 1, MailCategory.General,
                 "A summary, not a query."));
 
         Assert.Equal(2, dossier!.Version);
@@ -1104,7 +1186,7 @@ public sealed class StaffMailSendPersistenceTests
     }
 
     [Fact]
-    public async Task CorrectingALinkedMessageToPostReportOnAReportSentCaseRaisesAQuery()
+    public async Task CorrectingALinkedMessageToQueryOnAReportSentCaseRaisesAQuery()
     {
         await using var database = await CreateDatabaseAsync();
         var mailboxId = Guid.NewGuid();
@@ -1119,7 +1201,7 @@ public sealed class StaffMailSendPersistenceTests
 
         var dossier = await scope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
             actor,
-            new(retainedMessageId, 1, MailCategory.Received(ReceivedMailFamily.PostReportEmails, "query"),
+            new(retainedMessageId, 1, MailCategory.Query,
                 "The client is querying the delivered report."));
 
         Assert.Equal(2, dossier!.Version);
@@ -1146,22 +1228,20 @@ public sealed class StaffMailSendPersistenceTests
 
     /// <summary>
     /// What a correction tells its caller about the linked Case's queries:
-    /// raised when a message becomes post-report on a Report sent Case,
-    /// withdrawn when it stops being post-report, and nothing for a move
-    /// within post-report (query and amendment request) or on a Case whose
-    /// report is not yet sent.
+    /// raised when a message becomes a query on a Report sent Case,
+    /// withdrawn when it stops being one, and nothing for a correction that
+    /// keeps it a query or on a Case whose report is not yet sent.
     /// </summary>
     [Theory]
-    [InlineData("to-post-report", CaseLifecycleState.ReportSent, false, ReceivedMailFamily.PostReportEmails, MailCategory.QuerySubtype, true, false)]
-    [InlineData("away", CaseLifecycleState.ReportSent, true, ReceivedMailFamily.General, "case-summary", false, true)]
-    [InlineData("query-to-amendment", CaseLifecycleState.ReportSent, true, ReceivedMailFamily.PostReportEmails, MailCategory.AmendmentRequestSubtype, false, false)]
-    [InlineData("before-report-sent", CaseLifecycleState.ReportPreparation, false, ReceivedMailFamily.PostReportEmails, MailCategory.QuerySubtype, false, false)]
+    [InlineData("to-query", CaseLifecycleState.ReportSent, false, MailCategory.Query, true, false)]
+    [InlineData("away", CaseLifecycleState.ReportSent, true, MailCategory.General, false, true)]
+    [InlineData("stays-query", CaseLifecycleState.ReportSent, true, MailCategory.Query, false, false)]
+    [InlineData("before-report-sent", CaseLifecycleState.ReportPreparation, false, MailCategory.Query, false, false)]
     public async Task ACorrectionReportsWhetherItRaisedOrWithdrewTheLinkedCasesQuery(
         string row,
         CaseLifecycleState state,
         bool startsPostReport,
-        ReceivedMailFamily family,
-        string subtype,
+        MailCategory category,
         bool raised,
         bool withdrawn)
     {
@@ -1177,7 +1257,7 @@ public sealed class StaffMailSendPersistenceTests
         var store = scope.ServiceProvider.GetRequiredService<IRetainedMailClassificationStore>();
         var current = (await store.GetClassificationAsync(retainedMessageId, CancellationToken.None))!;
         var after = MailClassificationResult.Classified(
-            MailCategory.Received(family, subtype),
+            category,
             current.Current.Predicates,
             "Corrected by staff.",
             current.Current.PolicyKey,
@@ -1200,7 +1280,7 @@ public sealed class StaffMailSendPersistenceTests
         var openQuery = await verify.CaseQueries.AnyAsync(item =>
             item.CaseId == fixture.CaseId && item.ClosedAtUtc == null);
         Assert.Equal(openQuery, persisted.HasOpenQuery);
-        // The open query stays open across a move within post-report.
+        // The open query stays open across a correction that keeps it a query.
         Assert.Equal(raised || (startsPostReport && !withdrawn), openQuery);
     }
 
@@ -1506,7 +1586,7 @@ public sealed class StaffMailSendPersistenceTests
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {nowUtc})");
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"QRY"}, {lineageId}, {true}, {0L})");
+            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, ReportSendingRulesJson, Version) VALUES ({principalId}, {organizationId}, {"QRY"}, {lineageId}, {true}, {EfOrganizationAdministration.DefaultReportSendingJson}, {0L})");
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2026}, {1}, {"QRY260001"}, {"inspection"}, {"review"}, {"pending"}, {true}, {true}, {nowUtc}, {0L}, {Guid.NewGuid()})");
         await CaseWorkFixture.InsertPrimaryWorksAsync(db);
@@ -1535,11 +1615,8 @@ public sealed class StaffMailSendPersistenceTests
             {
                 IntakeReceiptId = receiptId,
                 Outcome = "classified",
-                Direction = "received",
-                Family = isQueryReceipt ? "post-report-emails" : "General",
-                Subtype = isQueryReceipt ? MailCategory.QuerySubtype : "case-summary",
+                Category = isQueryReceipt ? "query" : "general",
                 IsReplyContext = false,
-                AmbiguousCandidatesJson = "{\"version\":1,\"data\":[]}",
                 PredicatesJson = "{\"version\":1,\"data\":[]}",
                 Reason = "staff-mail test classification",
                 PolicyKey = "staff-mail-test",
@@ -1654,7 +1731,7 @@ public sealed class StaffMailSendPersistenceTests
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {nowUtc})");
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"CHS"}, {lineageId}, {true}, {0L})");
+            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, ReportSendingRulesJson, Version) VALUES ({principalId}, {organizationId}, {"CHS"}, {lineageId}, {true}, {EfOrganizationAdministration.DefaultReportSendingJson}, {0L})");
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2026}, {1}, {"CHS260001"}, {"inspection"}, {"review"}, {"pending"}, {true}, {true}, {nowUtc}, {0L}, {Guid.NewGuid()})");
         await CaseWorkFixture.InsertPrimaryWorksAsync(db);
@@ -1714,11 +1791,8 @@ public sealed class StaffMailSendPersistenceTests
             {
                 IntakeReceiptId = receiptId,
                 Outcome = "classified",
-                Direction = "received",
-                Family = "post-report-emails",
-                Subtype = "query",
+                Category = "query",
                 IsReplyContext = false,
-                AmbiguousCandidatesJson = "{\"version\":1,\"data\":[]}",
                 PredicatesJson = "{\"version\":1,\"data\":[]}",
                 Reason = "staff-mail test classification",
                 PolicyKey = "staff-mail-test",
@@ -1769,6 +1843,15 @@ public sealed class StaffMailSendPersistenceTests
             "conversation"),
         [new("recipient@example.invalid", null)], [], "Subject", "Body", [], operationKey);
 
+    /// <summary>A report send that replies to the retained instruction, as SendCaseReport composes it.</summary>
+    private static StaffMailSendCommand ReportReplyCommand(
+        ActionActor actor, Guid mailboxId, Guid retainedMessageId, string operationKey) =>
+        ReplyCommand(actor, mailboxId, retainedMessageId, operationKey) with
+        {
+            Purpose = StaffMailPurpose.CaseReport,
+            ReportDispatch = new([], [], null, null, ["Send the WhatsApp."])
+        };
+
     private static void AssertOperationContext(
         StaffMailOperation operation, StaffMailSendCommand command)
     {
@@ -1811,10 +1894,9 @@ public sealed class StaffMailSendPersistenceTests
         {
             Id = mailboxId,
             Address = "mailbox@example.invalid",
-            AllowInboundIntake = true,
-            AllowStaffSend = true,
+            AllowIncoming = true,
+            AllowOutgoing = true,
             MailboxGeneration = 1,
-            VerifiedEncodedMessageSizeLimit = 1_000_000,
             State = "Approved",
             MailboxIdentity = "mailbox",
             InboxFolderIdentity = "inbox",
@@ -1897,19 +1979,17 @@ public sealed class StaffMailSendPersistenceTests
     private static ApprovedMailboxEntity StaffSendMailbox(
         Guid id,
         string identity,
-        bool allowSentEvidence,
+        bool allowOutgoing,
         string? sentFolderIdentity) => new()
     {
         Id = id,
         Address = $"{identity}@collisionengineers.co.uk",
-        AllowStaffSend = true,
-        AllowSentEvidence = allowSentEvidence,
+        AllowOutgoing = allowOutgoing,
         State = ApprovedMailboxState.Approved.ToString(),
         MailboxIdentity = $"{identity}-mailbox",
         SentFolderIdentity = sentFolderIdentity,
         ActivatedAtUtc = DateTimeOffset.UtcNow,
         MailboxGeneration = 1,
-        VerifiedEncodedMessageSizeLimit = 10485760,
         Version = 1
     };
 

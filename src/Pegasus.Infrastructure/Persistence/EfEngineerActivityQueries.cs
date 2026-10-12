@@ -29,11 +29,12 @@ internal sealed class EfEngineerActivityQueries(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         // A report send's context is its generation, which names its Case and
-        // work: the Case type and work kind decide an Audit report
+        // work, and a send that carried both works' reports counts each
+        // (operator, 12 October 2026): the Case type and work kind decide an Audit report
         // (CaseWorkPolicy.IsAuditReport); the turnaround runs from the Case's
         // origin receipt for the primary work and from the Audit work's
         // creation for an Inspection + Audit Case's Audit.
-        var sentOperations = await context.Set<StaffMailSendOperationEntity>()
+        var sentOperations = (await context.Set<StaffMailSendOperationEntity>()
             .AsNoTracking()
             // Every report send, so the total agrees with Reports by Principal:
             // a staff member's under their account, Automation's as its own row.
@@ -41,8 +42,12 @@ internal sealed class EfEngineerActivityQueries(
                 && item.State == StaffMailState.Sent
                 && item.ObservedSentAtUtc >= fromUtc
                 && item.ObservedSentAtUtc < toUtc)
-            .Select(item => new { item.ActorKind, item.ActorSubjectId, item.ContextId, SentAtUtc = item.ObservedSentAtUtc!.Value })
-            .ToListAsync(cancellationToken);
+            .Select(item => new { item.ActorKind, item.ActorSubjectId, item.ContextId, item.SecondContextId, SentAtUtc = item.ObservedSentAtUtc!.Value })
+            .ToListAsync(cancellationToken))
+            .SelectMany(item => item.SecondContextId is { } second
+                ? new[] { (item.ActorKind, item.ActorSubjectId, item.ContextId, item.SentAtUtc), (item.ActorKind, item.ActorSubjectId, ContextId: second, item.SentAtUtc) }
+                : [(item.ActorKind, item.ActorSubjectId, item.ContextId, item.SentAtUtc)])
+            .ToList();
         var generationIds = sentOperations.Select(item => item.ContextId).Distinct().ToArray();
         var sentCases = generationIds.Length == 0
             ? new Dictionary<Guid, SentReport>()
@@ -94,17 +99,16 @@ internal sealed class EfEngineerActivityQueries(
             .ToList();
 
         var mailboxChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox);
-        var postReport = MailTaxonomy.CategoryName(ReceivedMailFamily.PostReportEmails);
-        var queryReceipts = await context.IntakeReceipts
+        var query = MailCategories.Code(MailCategory.Query);
+        var queryReceiptIds = await context.IntakeReceipts
             .AsNoTracking()
             .Where(item => item.SourceChannel == mailboxChannel
                 && item.ReceivedAtUtc >= fromUtc
                 && item.ReceivedAtUtc < toUtc
                 && item.MailClassificationDecision != null
-                && item.MailClassificationDecision.Family == postReport)
-            .Select(item => new { item.Id, item.MailClassificationDecision!.Subtype })
-            .ToDictionaryAsync(item => item.Id, item => item.Subtype, cancellationToken);
-        var queryReceiptIds = queryReceipts.Keys.ToList();
+                && item.MailClassificationDecision.Category == query)
+            .Select(item => item.Id)
+            .ToListAsync(cancellationToken);
         var associations = await CurrentIntakeAssociations.ReadAsync(
             context,
             queryReceiptIds,
@@ -124,18 +128,10 @@ internal sealed class EfEngineerActivityQueries(
                     workflow => workflow.AssignedEngineerId!.Value,
                     cancellationToken);
         var queries = associations.Current
-            .Select(pair => new
-            {
-                EngineerId = engineerByCase.TryGetValue(pair.Value.CaseId, out var id) ? id : (Guid?)null,
-                Subtype = queryReceipts.GetValueOrDefault(pair.Key)
-            })
-            .Where(item => item.EngineerId is not null)
-            .GroupBy(item => item.EngineerId!.Value)
-            .ToDictionary(group => group.Key, group => new
-            {
-                Count = group.Count(),
-                Amendments = group.Count(item => item.Subtype == MailCategory.AmendmentRequestSubtype)
-            });
+            .Select(pair => engineerByCase.TryGetValue(pair.Value.CaseId, out var id) ? id : (Guid?)null)
+            .Where(engineerId => engineerId is not null)
+            .GroupBy(engineerId => engineerId!.Value)
+            .ToDictionary(group => group.Key, group => group.Count());
 
         var reportsBySender = reports.ToDictionary(item => item.Sender);
         return reportsBySender.Keys
@@ -145,8 +141,7 @@ internal sealed class EfEngineerActivityQueries(
             .Select(sender => new EngineerActivityCounts(
                 sender.Item2,
                 reportsBySender.TryGetValue(sender, out var sent) ? sent.Count : 0,
-                sender.Item1 == ActorKind.Staff && queries.TryGetValue(sender.Item2, out var received) ? received.Count : 0,
-                sender.Item1 == ActorKind.Staff && queries.TryGetValue(sender.Item2, out var amended) ? amended.Amendments : 0,
+                sender.Item1 == ActorKind.Staff && queries.TryGetValue(sender.Item2, out var received) ? received : 0,
                 sent?.Audit ?? 0,
                 sent?.Turnaround)
             {

@@ -35,7 +35,7 @@
                             <th scope="col">@ValuationPresetLabels.PresetLabel</th>
                             <th scope="col" class="num">@ValuationPresetLabels.Amount</th>
                             <th scope="col">@ValuationPresetLabels.State</th>
-                            <th scope="col"><span class="sr-only">Actions</span></th>
+                            <th scope="col" class="preset-actions"><span class="sr-only">Actions</span></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -69,20 +69,21 @@
                                     <span>@ValuationPresetLabels.Enabled</span>
                                 </label>
                             </td>
-                            <td>
-                                <form id="@saveFormId" method="post" asp-page-handler="Save">
-                                    <input type="hidden" name="presetId" value="@presetId" />
-                                    <input type="hidden" name="expectedVersion" value="@rowVersion" />
-                                    <input type="hidden" name="operationKey" value="@rowOperationKey" />
-                                    <button type="reset" form="@saveFormId" class="btn btn--small">Reset</button>
-                                    <button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">@ValuationPresetLabels.Save</button>
-                                </form>
-                                <form id="@removeFormId" method="post" asp-page-handler="Remove">
-                                    <input type="hidden" name="presetId" value="@presetId" />
-                                    <input type="hidden" name="expectedVersion" value="@rowVersion" />
-                                    <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                                    <button type="submit" class="btn btn--small btn--danger" data-busy-label="@OperatorLabels.Busy.Removing">@ValuationPresetLabels.Remove</button>
-                                </form>
+                            <td class="preset-actions">
+                                <div class="row-actions">
+                                    <form id="@removeFormId" method="post" asp-page-handler="Remove">
+                                        <input type="hidden" name="presetId" value="@presetId" />
+                                        <input type="hidden" name="expectedVersion" value="@rowVersion" />
+                                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                        <button type="submit" class="btn btn--small btn--danger" data-busy-label="@OperatorLabels.Busy.Removing">@ValuationPresetLabels.Remove</button>
+                                    </form>
+                                    <form id="@saveFormId" method="post" asp-page-handler="Save">
+                                        <input type="hidden" name="presetId" value="@presetId" />
+                                        <input type="hidden" name="expectedVersion" value="@rowVersion" />
+                                        <input type="hidden" name="operationKey" value="@rowOperationKey" />
+                                        <button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">@ValuationPresetLabels.Save</button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                     }
@@ -101,13 +102,14 @@
                                 <span>@ValuationPresetLabels.Enabled</span>
                             </label>
                         </td>
-                        <td>
-                            <form id="preset-create" method="post" asp-page-handler="Create">
-                                <input type="hidden" name="presetId" value="@Model.CreatePresetId.ToString("D")" />
-                                <input type="hidden" name="operationKey" value="@Model.CreateOperationKey" />
-                                <a class="btn btn--small" asp-page="/Administration/ValuationPresets/Index">Cancel</a>
-                                <button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Adding">Add</button>
-                            </form>
+                        <td class="preset-actions">
+                            <div class="row-actions">
+                                <form id="preset-create" method="post" asp-page-handler="Create">
+                                    <input type="hidden" name="presetId" value="@Model.CreatePresetId.ToString("D")" />
+                                    <input type="hidden" name="operationKey" value="@Model.CreateOperationKey" />
+                                    <button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Adding">Add</button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     </tbody>

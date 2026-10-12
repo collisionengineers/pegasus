@@ -3017,6 +3017,41 @@
             appendPhantom();
         });
 
+        // Columns by line type (v38 P1): the Type chooses which cells draw a
+        // box; a cell the type does not price reads as a dash until a value
+        // sits in it, and a value is never cleared. The option carries Core's
+        // map; each cell names its column.
+        function paintColumns(row) {
+            var operation = row.querySelector('select[name="lineOperation"]');
+            var option = operation ? operation.options[operation.selectedIndex] : null;
+            var priced = option ? parseInt(option.getAttribute('data-cols') || '0', 10) : 0;
+            row.querySelectorAll('td[data-col]').forEach(function (cell) {
+                var column = parseInt(cell.getAttribute('data-col'), 10);
+                var input = cell.querySelector('input');
+                var has = input && input.value !== '';
+                cell.classList.toggle('na', (priced & column) !== column && !has);
+            });
+        }
+        body.addEventListener('change', function (event) {
+            if (event.target.matches('select[name="lineOperation"]')) {
+                var row = event.target.closest('tr');
+                var quantity = row.querySelector('input[name="lineQuantity"]');
+                if (quantity && !quantity.value && event.target.value === 'Replace') {
+                    quantity.value = '1';
+                }
+                paintColumns(row);
+            }
+        });
+        body.querySelectorAll('tr').forEach(paintColumns);
+        var observer = new MutationObserver(function (records) {
+            records.forEach(function (record) {
+                record.addedNodes.forEach(function (node) {
+                    if (node.nodeType === 1 && node.matches('tr')) { paintColumns(node); }
+                });
+            });
+        });
+        observer.observe(body, { childList: true });
+
         // Every save writes the spec's lines afresh, so a landed commit's
         // answer carries each line's new id by the row it was posted from, and
         // the rows the operator keeps typing in take it here: the next commit
@@ -3167,12 +3202,19 @@
         var initial = percent.value || range.max;
         percent.value = initial;
         range.value = initial;
+        // Apply stands once the target moves, until Remove scaling puts it
+        // back; Remove scaling while a preview is shown, or while a scaling
+        // is in force (v38 P6).
+        var remove = bar.querySelector('[data-scale-remove]');
+        var scaledAlready = !!bar.querySelector('[data-estimate-scaled]');
         function reveal() {
             if (apply) { apply.hidden = false; }
+            if (remove) { remove.hidden = false; }
         }
         var section = form.closest('[data-estimate-section]') || form;
         var url = bar.getAttribute('data-scale-preview-url');
         var read = bar.querySelector('[data-scale-read]');
+        var idle = read ? read.getAttribute('data-scale-idle') || '' : '';
         var chip = bar.querySelector('[data-scale-preview]');
         var floors = [bar.querySelector('[data-scale-floor-rate]'), bar.querySelector('[data-scale-floor-price]')];
         var timer = null;
@@ -3186,6 +3228,8 @@
         }
         function end() {
             window.clearTimeout(timer);
+            // Cleared too, so Remove scaling posts once no preview stands.
+            timer = null;
             if (inFlight) { inFlight.abort(); inFlight = null; }
             if (shown) {
                 shown.cells.forEach(function (cell) {
@@ -3196,9 +3240,25 @@
                 shown.figures.forEach(function (figure) { figure.node.textContent = figure.text; });
                 shown = null;
             }
-            if (read) { read.textContent = ''; }
+            if (read) { read.textContent = idle; }
             if (chip) { chip.hidden = true; }
+            if (remove) { remove.hidden = !scaledAlready; }
             if (scalePreview === end) { scalePreview = null; }
+        }
+        // Remove scaling while previewing drops the preview and puts the
+        // target back (the reference's scaleOff); with a scaling in force it
+        // posts the removal. Any other end (a submit, a failed preview) keeps
+        // the target and Apply, so Apply posts the target as previewed.
+        if (remove) {
+            remove.addEventListener('click', function (event) {
+                if (shown || timer) {
+                    event.preventDefault();
+                    end();
+                    if (apply) { apply.hidden = true; }
+                    percent.value = initial;
+                    range.value = initial;
+                }
+            });
         }
         // The request carries the spec as edited, never as previewed.
         function body() {
@@ -3248,6 +3308,8 @@
                 set(materials[line.row], line.materials);
             });
             set(field('estimateLabourRate')[0], result.labourRate);
+            // The rate bar shows the scaled rate as the box figure (v38 P5).
+            set(section.querySelector('[data-rate-display]'), result.labourRate);
             shown.figures.forEach(function (figure) {
                 var text = result.rollup[figure.node.getAttribute('data-rollup')];
                 if (typeof text === 'string') { figure.node.textContent = text; }
@@ -3313,6 +3375,14 @@
             reveal();
             schedule();
         });
+        // The agreed sum previews the scaling to its own share (v38 P4).
+        bar.pegasusPreviewPercent = function (value) {
+            var bounded = Math.min(Number(range.max), Math.max(Number(range.min), value));
+            percent.value = bounded.toFixed(1);
+            range.value = percent.value;
+            reveal();
+            schedule();
+        };
         floors.forEach(function (input) {
             if (input) {
                 input.addEventListener('input', function () { if (shown) { schedule(); } });
@@ -3340,10 +3410,36 @@
         var tick = bar.querySelector('[data-contract-agreed]');
         var sum = document.getElementById(bar.getAttribute('data-estimate-contract-sum-control') || '');
         var read = bar.querySelector('[data-contract-sum-read]');
+        var box = bar.querySelector('[data-contract-sum]');
+        var rescale = bar.querySelector('[data-contract-rescale]');
+        var scaleBar = form.querySelector('[data-estimate-scale]');
+        var engineerValue = scaleBar ? parseFloat(scaleBar.getAttribute('data-scale-engineer-value') || '') : NaN;
         var outcome = document.getElementById(bar.getAttribute('data-estimate-outcome-control') || '');
         var grossCell = form.querySelector('[data-estimate-gross]');
         var previous = outcome && outcome.value !== 'contract_repair' ? outcome.value : 'repairable';
         function gross() { return grossCell ? (parseFloat((grossCell.textContent || '').replace(/[^0-9.]/g, '')) || 0) : 0; }
+        // The bar's own box mirrors Decisions' cell (one Case field); typing
+        // in it previews the scaling to the sum, as the slider does.
+        function previewSum() {
+            var agreed = box ? parseFloat(box.value) : NaN;
+            if (!scaleBar || !scaleBar.pegasusPreviewPercent || !(engineerValue > 0) || !(agreed > 0)) { return; }
+            scaleBar.pegasusPreviewPercent(agreed / engineerValue * 100);
+        }
+        if (box) {
+            box.addEventListener('input', function () {
+                if (sum) {
+                    sum.value = box.value;
+                    sum.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                if (Number(box.value) > 0 && Math.abs(Number(box.value) - gross()) > 0.5) { previewSum(); }
+            });
+        }
+        if (rescale) {
+            rescale.addEventListener('click', function () {
+                if (box && sum && !box.value && sum.value) { box.value = sum.value; }
+                previewSum();
+            });
+        }
         function setOutcome(contract) {
             if (!outcome) { return; }
             var wanted = contract ? 'contract_repair' : previous;
@@ -3367,8 +3463,12 @@
             });
         }
         function paintSum() {
-            if (!read) { return; }
             var agreed = sum ? parseFloat(sum.value) : NaN;
+            if (box) {
+                box.disabled = !(outcome ? outcome.value === 'contract_repair' : tick && tick.checked);
+                if (document.activeElement !== box) { box.value = sum && sum.value ? sum.value : ''; }
+            }
+            if (!read) { return; }
             read.textContent = isNaN(agreed) || !sum.value ? '\u2014' : '\u00a3' + agreed.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
         if (sum) {
@@ -3411,35 +3511,119 @@
         if (go) { go.hidden = true; }
     }
 
-    // The one labour rate control (v28 P33): choosing a card fills the
-    // figure; typing a figure keeps the entered rate.
+    // Print comparison sheet (v38 P2): the dialog alone, lifted to the body
+    // for the print and put back after.
+    function bindComparePrint(root) {
+        root.querySelectorAll('[data-compare-print]').forEach(function (button) {
+            if (button.dataset.comparePrintBound === 'true') { return; }
+            button.dataset.comparePrintBound = 'true';
+            button.addEventListener('click', function () {
+                var dialog = button.closest('[data-dialog]');
+                if (!dialog) { return; }
+                var holder = dialog.parentNode;
+                var next = dialog.nextSibling;
+                document.body.appendChild(dialog);
+                document.body.classList.add('is-printing-compare');
+                function back() {
+                    document.body.classList.remove('is-printing-compare');
+                    if (holder) { holder.insertBefore(dialog, next); }
+                    window.removeEventListener('afterprint', back);
+                }
+                window.addEventListener('afterprint', back);
+                window.print();
+                window.setTimeout(function () { if (document.body.classList.contains('is-printing-compare')) { back(); } }, 1500);
+            });
+        });
+    }
+
+    // Supplementary (v38 P3): Explain shows the statement; Dismiss clears
+    // what the spec supplements and folds the panel — the next commit records it.
+    function bindSupplementary(form) {
+        var panel = form.querySelector('[data-estimate-supplementary]');
+        if (!panel) {
+            return;
+        }
+        var explain = panel.querySelector('[data-supp-explain]');
+        var statement = panel.querySelector('[data-supplementary-statement-cell]');
+        if (explain && statement) {
+            explain.addEventListener('change', function () { statement.hidden = !explain.checked; });
+        }
+        var dismiss = panel.querySelector('[data-supp-dismiss]');
+        var of = panel.querySelector('[data-supp-of]');
+        if (dismiss && of) {
+            dismiss.addEventListener('click', function () {
+                of.value = '';
+                panel.hidden = true;
+                of.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        }
+    }
+
+    // The labour rate bar (v38 P5; v28 P33, P17): a card segment sets the
+    // figure, the uplift adds 15 % to a card's rate and shows its working,
+    // and a typed figure is Custom — the card and the uplift let go, Manual
+    // shown. The box shows the rate the spec prices at; the hidden field
+    // posts the base rate, so a chosen card is kept while the figure is its.
     function bindRate(form) {
-        var pair = form.querySelector('[data-estimate-rate-pair]');
-        if (!pair) {
+        var bar = form.querySelector('[data-estimate-rate]');
+        if (!bar) {
             return;
         }
-        var card = pair.querySelector('select');
-        var rate = pair.querySelector('input');
-        if (!card || !rate) {
+        var cards = Array.prototype.slice.call(bar.querySelectorAll('input[name="selectedRateCard"]'));
+        var custom = bar.querySelector('[data-rate-custom]');
+        var display = bar.querySelector('[data-rate-display]');
+        var hidden = bar.querySelector('[data-rate-input]');
+        var uplift = bar.querySelector('[data-uplift]');
+        var work = bar.querySelector('[data-rate-work]');
+        var manual = bar.querySelector('[data-rate-manual]');
+        var factor = parseFloat(bar.getAttribute('data-uplift-factor') || '1.15');
+        if (!display || !hidden) {
             return;
         }
-        // Filling the figure from a card still raises input, so the rest of the
-        // form sees the change, but that is the card speaking rather than the
-        // operator typing: only typing drops the card.
-        var filling = false;
-        card.addEventListener('change', function () {
-            var option = card.options[card.selectedIndex];
-            var figure = option && option.getAttribute('data-rate');
-            if (figure) {
-                filling = true;
-                rate.value = figure;
-                rate.dispatchEvent(new Event('input', { bubbles: true }));
-                filling = false;
+        function money(value) { return '\u00a3' + Number(value).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+        function chosen() { return cards.filter(function (card) { return card.checked && card.value; })[0] || null; }
+        function post() { hidden.dispatchEvent(new Event('input', { bubbles: true })); }
+        function paint() {
+            var card = chosen();
+            var base = card ? parseFloat(card.getAttribute('data-rate')) : parseFloat(hidden.value);
+            var lifted = !!uplift && uplift.checked;
+            // A recorded uplift on a typed rate, or on a card no longer
+            // current or enabled, stands until unticked (the save keeps it).
+            if (uplift) { uplift.disabled = !card && !uplift.checked; }
+            if (manual) { manual.hidden = !!card; }
+            if (!isNaN(base)) {
+                display.value = (lifted ? Math.round(base * factor * 100) / 100 : base).toFixed(2);
             }
+            if (work) { work.textContent = lifted ? money(base) + ' \u00d7 ' + factor.toFixed(2) + ' =' : ''; }
+        }
+        cards.forEach(function (card) {
+            card.addEventListener('change', function () {
+                if (card.value) {
+                    hidden.value = card.getAttribute('data-rate') || hidden.value;
+                    post();
+                } else if (display.value) {
+                    hidden.value = display.value;
+                    if (uplift && uplift.checked) { uplift.checked = false; uplift.dispatchEvent(new Event('change', { bubbles: true })); }
+                    post();
+                    display.focus();
+                    display.select();
+                }
+                paint();
+            });
         });
-        rate.addEventListener('input', function () {
-            if (!filling && card.value) { card.value = ''; }
+        if (uplift) {
+            uplift.addEventListener('change', paint);
+        }
+        // Typing the figure is Custom: the card and the uplift let go.
+        display.addEventListener('input', function () {
+            if (display.readOnly) { return; }
+            if (custom && !custom.checked) { custom.checked = true; }
+            if (uplift && uplift.checked) { uplift.checked = false; uplift.dispatchEvent(new Event('change', { bubbles: true })); }
+            hidden.value = display.value;
+            post();
+            paint();
         });
+        paint();
     }
 
     function bindVat(form) {
@@ -3590,8 +3774,10 @@
                 bindRate(form);
                 bindScale(form);
                 bindContract(form);
+                bindSupplementary(form);
             }
             bindCompare(document);
+            bindComparePrint(document);
         });
         bindRange(root);
     }

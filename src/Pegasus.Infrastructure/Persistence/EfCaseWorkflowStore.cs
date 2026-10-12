@@ -742,10 +742,12 @@ public sealed class EfCaseWorkflowStore(
             }
         }, cancellationToken);
 
-    public Task<CaseWorkflowRecord> LinkReportEvidenceAsync(
+    public async Task<LinkReportEvidenceResult> LinkReportEvidenceAsync(
         LinkReportEvidenceRequest request,
-        CancellationToken cancellationToken) =>
-        MutateAsync(request, "report_evidence_linked", async (context, workflow, now) =>
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<CaseTaskRecord> tasksCreated = [];
+        var linked = await MutateAsync(request, "report_evidence_linked", async (context, workflow, now) =>
         {
             var pastWork = await PastWorkAsync(context, workflow.CaseId, request.Work, cancellationToken);
             var evaluation = await EvaluateReportEvidenceLinkAsync(
@@ -761,7 +763,30 @@ public sealed class EfCaseWorkflowStore(
             }
 
             ApplyReportEvidenceLink(workflow, pastWork, evaluation.Evidence, request.Actor, now);
-        }, cancellationToken);
+        },
+        cancellationToken,
+        afterEvent: async (context, workflow, now) =>
+        {
+            // Report sent creates the after-send tasks the send recorded, when the linked
+            // Sent item is a Pegasus report send. They are a consequence of the recorded
+            // Sent item, which this transaction records.
+            var send = await ReportSentAfterSendTasks.SendOfSentEvidenceAsync(
+                context,
+                workflow.CaseId,
+                request.EvidenceId,
+                cancellationToken);
+            tasksCreated = await ReportSentAfterSendTasks.AddAsync(
+                context,
+                workflow,
+                send,
+                request.EvidenceId,
+                request.OperationKey,
+                request.Actor,
+                now,
+                cancellationToken);
+        });
+        return new(linked, tasksCreated);
+    }
 
     /// <summary>
     /// The work a report action addresses when it is not the Case's current
@@ -879,7 +904,7 @@ public sealed class EfCaseWorkflowStore(
     public Task<CaseWorkflowRecord> UnlinkReportEvidenceAsync(
         UnlinkReportEvidenceRequest request,
         CancellationToken cancellationToken) =>
-        MutateAsync(request, "report_evidence_unlinked", (context, workflow, now) =>
+        MutateAsync(request, "report_evidence_unlinked", async (context, workflow, now) =>
         {
             if (workflow.ReportSentEvidenceId != request.EvidenceId
                 || workflow.ReportSentEvidence is not { } evidence
@@ -889,19 +914,25 @@ public sealed class EfCaseWorkflowStore(
                     "The selected report-Sent evidence is not the case's current association.");
             }
 
-            evidence.CaseId = null;
-            evidence.LinkedAtUtc = null;
-            evidence.LinkedByKind = null;
-            evidence.LinkedBySubjectId = null;
-            evidence.LinkedByRolesJson = null;
+            // The Sent item of a send that carried both reports also proves
+            // the Inspection's: unlinking the current work's leaves that link,
+            // and the evidence stays the Case's while it holds.
+            if (!await context.CaseWorks.AnyAsync(
+                    work => work.CaseId == workflow.CaseId && work.ReportSentEvidenceId == evidence.Id,
+                    cancellationToken))
+            {
+                evidence.CaseId = null;
+                evidence.LinkedAtUtc = null;
+                evidence.LinkedByKind = null;
+                evidence.LinkedBySubjectId = null;
+                evidence.LinkedByRolesJson = null;
+            }
             workflow.ReportSentEvidenceId = null;
             workflow.ReportSentEvidence = null;
             if (workflow.State == nameof(CaseLifecycleState.ReportSent))
             {
                 workflow.State = nameof(CaseLifecycleState.ReportPreparation);
             }
-
-            return Task.CompletedTask;
         }, cancellationToken);
 
     public Task<CaseWorkflowRecord> CloseAsync(
@@ -1191,7 +1222,8 @@ public sealed class EfCaseWorkflowStore(
         string eventType,
         Func<PegasusDbContext, CaseWorkflowEntity, DateTimeOffset, Task> apply,
         CancellationToken cancellationToken,
-        string? discriminator = null)
+        string? discriminator = null,
+        Func<PegasusDbContext, CaseWorkflowEntity, DateTimeOffset, Task>? afterEvent = null)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
@@ -1272,6 +1304,11 @@ public sealed class EfCaseWorkflowStore(
             now,
             beforeJson,
             afterJson);
+        if (afterEvent is not null)
+        {
+            await afterEvent(context, workflow, now);
+        }
+
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(workflow);
@@ -1359,22 +1396,53 @@ public sealed class EfCaseWorkflowStore(
         }
 
         var now = timeProvider.GetUtcNow();
-        var pastWork = await PastWorkOfGenerationAsync(context, workflow.CaseId, request.GenerationId, cancellationToken);
-        var evaluation = await EvaluateReportEvidenceLinkAsync(
-            context,
-            workflow,
-            pastWork,
-            request.EvidenceId,
-            now,
-            cancellationToken);
-        if (evaluation.Evidence is null)
+        // The works the evidence proves: the one the send's generation names,
+        // the current work when the send was not Pegasus's own, and the other
+        // work too when one send carried both reports (operator, 12 October
+        // 2026). Every work is weighed before any is linked, then each that
+        // may take the evidence takes it.
+        var targets = new List<CaseWorkEntity?>
         {
-            return AutoLinkNotLinked(evaluation.ReasonCode!);
+            await PastWorkOfGenerationAsync(context, workflow.CaseId, request.GenerationId, cancellationToken)
+        };
+        if (request.SecondGenerationId is { } secondGenerationId
+            && await IsGenerationOfCaseAsync(context, workflow.CaseId, secondGenerationId, cancellationToken))
+        {
+            var secondWork = await PastWorkOfGenerationAsync(context, workflow.CaseId, secondGenerationId, cancellationToken);
+            if (secondWork?.Id != targets[0]?.Id)
+            {
+                targets.Add(secondWork);
+            }
+        }
+        var linkable = new List<(CaseWorkEntity? Work, CaseReportSentEvidenceEntity Evidence)>();
+        string? notLinkedReason = null;
+        foreach (var target in targets)
+        {
+            var evaluation = await EvaluateReportEvidenceLinkAsync(
+                context,
+                workflow,
+                target,
+                request.EvidenceId,
+                now,
+                cancellationToken);
+            if (evaluation.Evidence is null)
+            {
+                notLinkedReason ??= evaluation.ReasonCode;
+                continue;
+            }
+            linkable.Add((target, evaluation.Evidence));
+        }
+        if (linkable.Count == 0)
+        {
+            return AutoLinkNotLinked(notLinkedReason!);
         }
 
         var beforeJson = JsonSerializer.Serialize(HistoryValue(workflow));
         var beforeVersion = workflow.Version;
-        ApplyReportEvidenceLink(workflow, pastWork, evaluation.Evidence, request.Actor, now);
+        foreach (var (target, evidence) in linkable)
+        {
+            ApplyReportEvidenceLink(workflow, target, evidence, request.Actor, now);
+        }
         CaseMutationGuard.Advance(workflow);
         var afterJson = JsonSerializer.Serialize(HistoryValue(workflow));
         AddEvent(
@@ -1390,12 +1458,35 @@ public sealed class EfCaseWorkflowStore(
             now,
             beforeJson,
             afterJson);
+        // Report sent creates the after-send tasks the send recorded. The Worker holds no
+        // lease, and the tasks are a consequence of the Sent item this transaction records.
+        var tasksCreated = await ReportSentAfterSendTasks.AddAsync(
+            context,
+            workflow,
+            request.SendOperationId is { } sendOperationId
+                ? await ReportSentAfterSendTasks.SendAsync(context, workflow.CaseId, sendOperationId, cancellationToken)
+                : null,
+            request.EvidenceId,
+            operationKey,
+            request.Actor,
+            now,
+            cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return pastWork is null
+        var committed = linkable.Any(link => link.Work is null)
             ? AutoLinkLinked(workflow)
             : AutoLinkLinkedOnPastWork(workflow, request.EvidenceId);
+        return committed with { TasksCreated = tasksCreated };
     }
+
+    private static Task<bool> IsGenerationOfCaseAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        Guid generationId,
+        CancellationToken cancellationToken) =>
+        context.Set<CaseReportGenerationEntity>()
+            .AsNoTracking()
+            .AnyAsync(item => item.Id == generationId && item.CaseId == caseId, cancellationToken);
 
     /// <summary>
     /// Whether <paramref name="evidenceId"/> may be linked as the report-Sent

@@ -151,7 +151,34 @@ public sealed partial class DetailsModel
         CurrentReportGeneration?.Snapshot.CaseReference ?? Case?.Summary.Reference ?? "—",
         Case?.Summary.Registration,
         RecordedOutcome is { } outcome ? CodeWords(outcome) : null,
-        ReportSendHistory.SentCount) + ".pdf";
+        ReportSendHistory.SentCount,
+        // The Principal's own name for its reports, when its rules set one.
+        DeliveryRecipientSuggestions?.Rules.AttachmentName) + ".pdf";
+
+    /// <summary>
+    /// The other work's current report, read once the Case has its Audit: the
+    /// send form of either view offers it beside the viewed work's report, so
+    /// one email can carry both (operator, 12 October 2026).
+    /// </summary>
+    public CaseReportGenerationRecord? OtherReportGeneration { get; private set; }
+
+    /// <summary>The other work's sends, which name its report as the send does.</summary>
+    public CaseReportSendHistory OtherReportSendHistory { get; private set; } = CaseReportSendHistory.None;
+
+    /// <summary>
+    /// Whether the other work's report can go in the same send, by the rule
+    /// the viewed report's own send follows: a confirmed generation with its
+    /// confirmed report.
+    /// </summary>
+    public bool OtherReportSendable =>
+        OtherReportGeneration is { State: CaseReportGenerationState.Confirmed } other
+        && other.Artifacts.Any(artifact => artifact.Kind == CaseReportArtifactKind.AssessmentReport
+            && artifact.Status == CaseReportArtifactStatus.Confirmed);
+
+    /// <summary>The name the other work's report would be attached under, as the send names it.</summary>
+    public string? OtherReportDeliveryFileName => OtherReportGeneration is { } other
+        ? CaseReportDeliveryNaming.ReportName(other.Snapshot, OtherReportSendHistory.SentCount) + ".pdf"
+        : null;
 
     /// <summary>
     /// The Case report delivery template rendered for this Case, for staff to
@@ -176,7 +203,8 @@ public sealed partial class DetailsModel
             Case?.Summary.Registration,
             RecordedOutcome is { } outcome ? CodeWords(outcome) : null,
             DeliveryRecipientSuggestions?.PrincipalName,
-            ReportSendHistory);
+            ReportSendHistory,
+            DeliveryDispatchPlan?.Greeting);
         return await renderEmailTemplate.ExecuteAsync(
             actor,
             EmailTemplatePurpose.CaseReportDelivery,

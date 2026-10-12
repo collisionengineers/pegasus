@@ -3,7 +3,7 @@ id: ADR-0052
 status: accepted
 date: 2026-09-16
 supersedes: [ADR-0036]
-superseded_by: []
+superseded_by: [ADR-0069, ADR-0071]
 related_capabilities: []
 related_frd: [frd-08, frd-12]
 tags: [mailbox, inbox, persistence]
@@ -15,9 +15,18 @@ tags: [mailbox, inbox, persistence]
 
 Accepted, recording the operator's 13 September 2026 decision (v26 planning,
 Inbox) that Stage 2 implemented. Partially supersedes ADR-0036's Flag and
-Delete clause only. Send, the approved-mailbox identity, the Sent-item
+Delete clause only. Clause 3 is
+itself superseded by [ADR-0071](0071-move-answered-instruction-to-deleted-items.md),
+which adds one automatic, recoverable move to Deleted Items after a
+confirmed report send; clauses 1 and 2 stand. Send, the approved-mailbox identity, the Sent-item
 evidence rule and the composed-or-absent pattern remain accepted under
 ADR-0036 and ADR-0042.
+
+[ADR-0069](0069-one-flat-mail-category.md) removes the mail logical folders:
+Dismiss and Restore stay as a Pegasus-only dismissed-at scope with no
+folder, and the confirmed folder move is gone, so the send is the only
+mailbox mutation besides ADR-0071's automatic move of an answered
+instruction to Deleted Items. The rest of this decision stands.
 
 ## Context
 

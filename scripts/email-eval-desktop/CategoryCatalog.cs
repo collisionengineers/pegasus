@@ -8,21 +8,20 @@ public sealed record EmailCategory(string Family, string Name)
 }
 
 /// <summary>
-/// The reviewer-facing taxonomy, sourced from the same settled mailbox taxonomy
-/// Pegasus.Core owns (<see cref="MailTaxonomy"/>) rather than a standalone copy —
-/// one list per concept. Reply is context on its underlying category (ADR-0016)
-/// and never becomes a third family here.
+/// The reviewer-facing categories, sourced from the flat mail categories
+/// Pegasus.Core owns (<see cref="MailCategories"/>) rather than a standalone copy —
+/// one list per concept. Sent mail carries no category, so every one files under
+/// Received; reply is context on its underlying category (ADR-0016), never a category.
 /// </summary>
 public sealed class CategoryCatalog
 {
     public CategoryCatalog(IReadOnlyList<EmailCategory> categories)
     {
         Categories = categories;
-        if (Categories.Count != 12
-            || Categories.Count(category => category.Family == "Received") != 8
-            || Categories.Count(category => category.Family == "Sent") != 4)
+        if (Categories.Count != MailCategories.All.Count
+            || Categories.Any(category => category.Family != "Received"))
         {
-            throw new InvalidDataException("The email taxonomy must contain exactly eight Received and four Sent categories.");
+            throw new InvalidDataException("The email taxonomy must contain exactly the Received mail categories.");
         }
     }
 
@@ -30,10 +29,8 @@ public sealed class CategoryCatalog
 
     public static CategoryCatalog Load()
     {
-        var categories = Enum.GetValues<ReceivedMailFamily>()
-            .Select(family => new EmailCategory("Received", MailTaxonomy.CategoryName(family)))
-            .Concat(Enum.GetValues<SentMailFamily>()
-                .Select(family => new EmailCategory("Sent", MailTaxonomy.CategoryName(family))))
+        var categories = MailCategories.All
+            .Select(category => new EmailCategory("Received", MailCategories.Code(category)))
             .ToList();
 
         return new CategoryCatalog(categories);

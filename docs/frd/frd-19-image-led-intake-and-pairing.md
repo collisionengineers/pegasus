@@ -36,13 +36,15 @@ instruction when it arrives, and no invented Case identity.
 Image-only material with a usable registration creates a searchable
 Image-initiated Case with an Image reference. It is not Unidentified just
 because it has no instruction or accepted Principal. A usable registration
-is either a staff-confirmed registration or an automatic read that meets the
-accepted recognition bar; the bar is owned by
+is either a staff-confirmed registration, an automatic read that meets the
+accepted recognition bar, or the registration a capture document prints
+([FRD-02](frd-02-intake-and-source-identity.md) `EXT-17`), which is used
+instead of plate reads and matches a Case's registration exactly; the bar is owned by
 [FRD-06](frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis).
 Image material without a usable registration enters Unidentified with a
 reason ([FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference)).
-Image-only material a member of staff has classified as images received
-([FRD-08](frd-08-email-mailbox-and-background-processing.md#settled-mailbox-taxonomy-and-correction))
+Image-only material a member of staff has classified as Images received
+([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction))
 may be registered by staff from the message record or the Unidentified item
 while no Case holds it; automation never widens to it.
 An upload group's Unidentified item registers the whole group as one Image
@@ -270,7 +272,10 @@ complete membership, and fail-closed source-identity rules apply to both.
   selected as before. Embedded images need at least 40,000
   encoded bytes and, when dimensions are known, a longest-to-shortest side
   ratio below 3. Unknown dimensions keep the size-based selection. These are
-  image heuristics, not a logo classifier. Repeated photograph content is
+  image heuristics, not a logo classifier. Inside a capture document
+  ([FRD-02](frd-02-intake-and-source-identity.md) `EXT-17`) the photographs
+  are every JPEG on its "Submitted Vehicle Images" page whatever their size,
+  and no other image in that document is one. Repeated photograph content is
   shown and recognised once while provenance is kept. Excluded document art
   stays only inside its retained original.
 - **Membership and completeness.** A group's member count is fixed at
@@ -370,9 +375,9 @@ shows the cropped region with a Cropped badge and its tag chips; the viewer
 draws the recorded region over the original. A pre-Case image tile is a
 rendering of the image at tile size, whether or not a crop or rotation has
 been recorded; the viewer and Open file still read the original. On the Case
-Files page, an unmerged photo with a recorded crop or rotation still shows the
-original. When the image becomes a Case document, the crop, rotation, and tags
-travel with it.
+Files page, an unmerged photo's tile shows its recorded crop or rotation too
+(operator, 12 October 2026). When the image becomes a Case document, the crop,
+rotation, and tags travel with it.
 That is when a Case is created from its message, when a record merges into a
 Case, and when a linked message's photographs are filed on its Case.
 

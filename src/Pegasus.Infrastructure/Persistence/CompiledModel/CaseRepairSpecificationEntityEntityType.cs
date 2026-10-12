@@ -319,13 +319,13 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 sentinel: false);
             supplementaryExplainOnReport.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
-            var supplementaryOfSpecificationId = runtimeEntityType.AddProperty(
-                "SupplementaryOfSpecificationId",
+            var supplementaryOfSnapshotId = runtimeEntityType.AddProperty(
+                "SupplementaryOfSnapshotId",
                 typeof(Guid?),
-                propertyInfo: typeof(CaseRepairSpecificationEntity).GetProperty("SupplementaryOfSpecificationId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(CaseRepairSpecificationEntity).GetField("<SupplementaryOfSpecificationId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                propertyInfo: typeof(CaseRepairSpecificationEntity).GetProperty("SupplementaryOfSnapshotId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(CaseRepairSpecificationEntity).GetField("<SupplementaryOfSnapshotId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 nullable: true);
-            supplementaryOfSpecificationId.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+            supplementaryOfSnapshotId.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var supplementaryReason = runtimeEntityType.AddProperty(
                 "SupplementaryReason",

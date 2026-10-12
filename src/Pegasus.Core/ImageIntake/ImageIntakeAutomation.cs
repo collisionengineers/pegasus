@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Notifications;
 
@@ -64,7 +65,8 @@ public sealed class ImageIntakeAutomation(
     TimeProvider timeProvider,
     IAutomaticCaseAssociationStore associationStore,
     IIntakeSubmissionGroupStore? groupStore = null,
-    ICaseStaffNotifier? caseNotifier = null) : IImageIntakeAutomation
+    ICaseStaffNotifier? caseNotifier = null,
+    RecordedVehicleCaptureReading? captureReadings = null) : IImageIntakeAutomation
 {
     public const string ActorId = "image-intake-automation";
     public const string MatchPolicyKey = "image_registration_match";
@@ -117,6 +119,20 @@ public sealed class ImageIntakeAutomation(
             {
                 return groupOutcome;
             }
+        }
+
+        if (await PrintedRegistrationAsync(receipt, activity, cancellationToken) is { } printed)
+        {
+            // A capture PDF prints the vehicle's registration; its photographs
+            // pair on that, never on plate reads (FRD-02 EXT-17).
+            activity?.SetTag("image_intake.registration_source", "document");
+            return await TryRegisterAndAssociateAsync(
+                receipt,
+                printed,
+                [],
+                activity,
+                cancellationToken,
+                isPrinted: true) ?? new(receipt);
         }
 
         var suggestions = await ScanAsync(receipt, cancellationToken);
@@ -480,13 +496,15 @@ public sealed class ImageIntakeAutomation(
     /// <summary>
     /// The one Case a confident read may register and associate against: an
     /// exact confirmed registration wins; otherwise a lone candidate
-    /// completes a truncated read with its confirmed value. Ambiguity of any
-    /// kind resolves to none.
+    /// completes a truncated read with its confirmed value. A printed
+    /// registration is complete, so it matches exactly or not at all.
+    /// Ambiguity of any kind resolves to none.
     /// </summary>
     private static ImageIntakeCaseCandidate? SelectAssociationTarget(
         IReadOnlyList<ImageIntakeCaseCandidate> unscoped,
         string read,
-        Guid? principalId)
+        Guid? principalId,
+        bool isPrinted = false)
     {
         // Same Principal scope as the registered-target policy. No caller
         // knows a Principal at registration; the parameter keeps one rule.
@@ -502,7 +520,32 @@ public sealed class ImageIntakeAutomation(
             return exactMatches[0];
         }
 
-        return exactMatches.Length == 0 && candidates.Count == 1 ? candidates[0] : null;
+        return !isPrinted && exactMatches.Length == 0 && candidates.Count == 1 ? candidates[0] : null;
+    }
+
+    /// <summary>
+    /// The registration a capture PDF on this receipt prints, as intake
+    /// recorded it, or null. A lookup fault falls back to plate reads.
+    /// </summary>
+    private async Task<string?> PrintedRegistrationAsync(
+        IntakeReceipt receipt,
+        Activity? activity,
+        CancellationToken cancellationToken)
+    {
+        if (captureReadings is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return (await captureReadings.FindAsync(receipt, cancellationToken))?.Registration;
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            activity?.SetTag("image_intake.capture_reading_failure", exception.GetType().Name);
+            return null;
+        }
     }
 
     private async Task<IReadOnlyList<ImageVrmSuggestion>> ScanAsync(
@@ -637,7 +680,8 @@ public sealed class ImageIntakeAutomation(
         string read,
         IReadOnlyList<ImageVrmSuggestion> suggestions,
         Activity? activity,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool isPrinted = false)
     {
         var actor = ActionActor.SystemWorker(ActorId);
         // Candidate selection before registration: the case's
@@ -650,12 +694,14 @@ public sealed class ImageIntakeAutomation(
         var isManual = receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload;
         var target = isManual
             ? null
-            : SelectAssociationTarget(candidates, read, principalId: null);
+            : SelectAssociationTarget(candidates, read, principalId: null, isPrinted);
         if (target is not null)
         {
             // The images join the matched Case; no Image intake or Box folder
             // is made for them (operator, 11 October 2026).
-            var reason = string.Equals(target.ConfirmedRegistration, read, StringComparison.Ordinal)
+            var reason = isPrinted
+                ? $"Automatic association: the registration {read} printed on the capture document matches case {target.CaseReference}'s confirmed registration."
+                : string.Equals(target.ConfirmedRegistration, read, StringComparison.Ordinal)
                 ? $"Automatic association: the confident read {read} matches case {target.CaseReference}'s confirmed registration."
                 : $"Automatic association: the confident read {read} matches case {target.CaseReference}'s confirmed registration with one character missing.";
             var association = await associationStore.AssociateFromMatchAsync(
@@ -704,7 +750,9 @@ public sealed class ImageIntakeAutomation(
                 read,
                 actor,
                 $"image-intake-register:{receipt.Id:N}",
-                "Automatic registration from a confident vehicle-registration read on the retained image evidence."),
+                isPrinted
+                    ? "Automatic registration from the registration printed on the capture document."
+                    : "Automatic registration from a confident vehicle-registration read on the retained image evidence."),
             cancellationToken);
         activity?.SetTag("image_intake.reference", record.ImageIntakeReference);
         await ConfirmUsedSuggestionsAsync(

@@ -3,23 +3,25 @@ using System.Text;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Tests.Intake.ThirdPartyReports;
 
 namespace Pegasus.Core.Tests.Intake;
 
 public sealed class InstructionEvidenceImagesTests
 {
     [Fact]
-    public void SelectsAttachedImagesAndLargeEmbeddedImagesOnly()
+    public void SelectsAttachedImagesAndRetainedEmbeddedImagesOnly()
     {
+        // Small embedded letterhead art never reaches selection: retention
+        // refuses it before storage (TheThresholdIsABoundaryNotAGuess).
         var attachedPhoto = Asset(IntakeAssetKind.Attachment, "image/jpeg", 90_000, "AA");
         var attachedPdf = Asset(IntakeAssetKind.Attachment, "application/pdf", 90_000, "BB");
         var embeddedPhoto = Asset(IntakeAssetKind.EmbeddedImage, "image/jpeg", 60_000, "CC");
-        var letterheadArt = Asset(IntakeAssetKind.EmbeddedImage, "image/png", 4_039, "DD");
         var inlineSignature = Asset(IntakeAssetKind.InlineImage, "image/png", 90_000, "EE");
         var source = Asset(IntakeAssetKind.Source, "message/rfc822", 90_000, "FF");
 
         var selected = InstructionEvidenceImages.Select(
-            [source, inlineSignature, letterheadArt, embeddedPhoto, attachedPdf, attachedPhoto]);
+            [source, inlineSignature, embeddedPhoto, attachedPdf, attachedPhoto]);
 
         Assert.Equal([attachedPhoto.Id, embeddedPhoto.Id], selected.Select(item => item.Id));
     }
@@ -65,20 +67,71 @@ public sealed class InstructionEvidenceImagesTests
     [Fact]
     public void TheThresholdIsABoundaryNotAGuess()
     {
-        var atFloor = Asset(
+        var atFloor = Candidate(
             IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded,
             "image/jpeg",
-            InstructionEvidenceImages.EmbeddedPhotographMinimumBytes,
-            "AA");
-        var underFloor = Asset(
+            (int)InstructionEvidenceImages.EmbeddedPhotographMinimumBytes);
+        var underFloor = Candidate(
             IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded,
             "image/jpeg",
-            InstructionEvidenceImages.EmbeddedPhotographMinimumBytes - 1,
-            "BB");
+            (int)InstructionEvidenceImages.EmbeddedPhotographMinimumBytes - 1);
 
-        var selected = InstructionEvidenceImages.Select([atFloor, underFloor]);
+        Assert.True(InstructionEvidenceImages.IsRetentionCandidate(atFloor));
+        Assert.False(InstructionEvidenceImages.IsRetentionCandidate(underFloor));
+    }
 
-        Assert.Equal([atFloor.Id], selected.Select(item => item.Id));
+    [Fact]
+    public void RetentionIsTheOneByteFloorSoARetainedSmallPhotographIsSelected()
+    {
+        // A capture PDF's 30 KB photograph was retained as designated; the
+        // selection does not apply the floor a second time.
+        var small = Asset(IntakeAssetKind.EmbeddedImage, "image/jpeg", 30_236, "AA", "page-3-image-1.jpg");
+
+        var only = Assert.Single(InstructionEvidenceImages.Select([small]));
+        Assert.Equal(small.Id, only.Id);
+    }
+
+    [Fact]
+    public void ACapturePdfKeepsEveryPhotographOnItsImagesPageAndNoPageFurniture()
+    {
+        var mail = VehicleCaptureSamples.Mail();
+
+        var retained = InstructionEvidenceImages.RetentionCandidates(mail).ToArray();
+
+        Assert.Equal(
+            [
+                VehicleCaptureSamples.PdfLabel,
+                VehicleCaptureSamples.ImageLabel(3, 1),
+                VehicleCaptureSamples.ImageLabel(3, 2),
+                VehicleCaptureSamples.ImageLabel(3, 3)
+            ],
+            retained.Select(candidate => candidate.SourceLabel));
+        // The 30 KB photograph is under the generic floor and kept all the same;
+        // the 43 KB logo is over it and is not a photograph.
+        Assert.Contains(retained, candidate => candidate.Content.Length < InstructionEvidenceImages.EmbeddedPhotographMinimumBytes);
+    }
+
+    [Fact]
+    public void APdfThatIsNotACaptureKeepsTheGenericRule()
+    {
+        var mail = VehicleCaptureSamples.Mail();
+        var notCapture = mail with
+        {
+            Content = [.. mail.Content.Where(fragment => !fragment.SourceLabel.EndsWith(", page 3", StringComparison.Ordinal))]
+        };
+
+        var retained = InstructionEvidenceImages.RetentionCandidates(notCapture).ToArray();
+
+        Assert.Equal(
+            [
+                VehicleCaptureSamples.PdfLabel,
+                VehicleCaptureSamples.ImageLabel(1, 1),
+                VehicleCaptureSamples.ImageLabel(3, 2),
+                VehicleCaptureSamples.ImageLabel(3, 3)
+            ],
+            retained.Select(candidate => candidate.SourceLabel));
     }
 
     [Fact]

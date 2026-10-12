@@ -3,11 +3,16 @@ using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Identity;
 
+/// <summary>
+/// What Pegasus may do with one approved mailbox. Incoming reads its Inbox into
+/// intake; Outgoing sends staff mail as it and reads its Sent Items as the evidence
+/// of what left. Which business route a message takes is decided per message by
+/// classification, never by the mailbox it arrived in.
+/// </summary>
 public enum ApprovedMailboxRouteScope
 {
-    InboundIntake,
-    SentEvidence,
-    StaffSend
+    Incoming,
+    Outgoing
 }
 
 public enum ApprovedMailboxState
@@ -27,14 +32,27 @@ public sealed record ApprovedMailbox(
     bool IdentityIsBound,
     DateTimeOffset? ActivatedAtUtc,
     int Version,
-    IReadOnlyList<ApprovedMailboxFolderBinding> FolderBindings,
-    long Generation = 0,
-    long? VerifiedEncodedMessageSizeLimit = null,
-    bool IsDefaultStaffSend = false);
+    long Generation = 0)
+{
+    /// <summary>
+    /// The one send-ready rule: staff mail leaves only an Approved, activated,
+    /// identified Outgoing mailbox whose Sent Items Pegasus can read back.
+    /// </summary>
+    public bool CanSend =>
+        State == ApprovedMailboxState.Approved
+        && RouteScopes.Contains(ApprovedMailboxRouteScope.Outgoing)
+        && ActivatedAtUtc is not null
+        && IdentityIsBound
+        && SentFolderIdentity is not null
+        && Generation > 0;
+}
 
-public sealed record ApprovedMailboxFolderBinding(
-    MailLogicalFolderType FolderType,
-    string FolderIdentity);
+public static class ApprovedMailboxSending
+{
+    /// <summary>The mailbox <paramref name="mailboxId"/> names when it can send; none otherwise.</summary>
+    public static ApprovedMailbox? Sender(this IEnumerable<ApprovedMailbox> mailboxes, Guid mailboxId) =>
+        mailboxes.SingleOrDefault(mailbox => mailbox.Id == mailboxId && mailbox.CanSend);
+}
 
 public sealed record UpdateApprovedMailboxRequest(
     Guid MailboxId,
@@ -46,17 +64,7 @@ public sealed record UpdateApprovedMailboxRequest(
     string OperationKey,
     string? MailboxIdentity = null,
     string? InboxFolderIdentity = null,
-    string? SentFolderIdentity = null,
-    IReadOnlyCollection<ApprovedMailboxFolderBinding>? FolderBindings = null,
-    long? VerifiedEncodedMessageSizeLimit = null);
-
-public sealed record SetDefaultApprovedMailboxRequest(
-    Guid MailboxId,
-    int ExpectedVersion,
-    Guid? ExpectedPreviousDefaultMailboxId,
-    int? ExpectedPreviousDefaultMailboxVersion,
-    ActionActor Actor,
-    string OperationKey);
+    string? SentFolderIdentity = null);
 
 /// <summary>
 /// One mailbox the approved estate says inbound-intake polling may read, with the
@@ -114,8 +122,7 @@ public interface IApprovedMailboxPollStatusQueries
 public sealed record ApprovedMailboxIdentityResolution(
     string MailboxIdentity,
     string InboxFolderIdentity,
-    string SentFolderIdentity,
-    IReadOnlyList<ApprovedMailboxFolderBinding>? FolderBindings = null);
+    string SentFolderIdentity);
 
 /// <summary>
 /// Resolves an approved-mailbox address to its exact Graph mailbox and well-known folder
@@ -152,10 +159,6 @@ public interface IApprovedMailboxStore : IApprovedMailboxPolicy
 
     Task<ApprovedMailbox> UpdateAsync(
         UpdateApprovedMailboxRequest request,
-        CancellationToken cancellationToken);
-
-    Task<ApprovedMailbox> SetDefaultAsync(
-        SetDefaultApprovedMailboxRequest request,
         CancellationToken cancellationToken);
 }
 
@@ -216,27 +219,14 @@ public sealed class UpdateApprovedMailbox(IApprovedMailboxStore store)
         var mailboxIdentity = NormalizeIdentity(request.MailboxIdentity, MaximumMailboxIdentityLength);
         var inboxFolderIdentity = NormalizeIdentity(request.InboxFolderIdentity, MaximumFolderIdentityLength);
         var sentFolderIdentity = NormalizeIdentity(request.SentFolderIdentity, MaximumFolderIdentityLength);
-        var folderBindings = NormalizeFolderBindings(request.FolderBindings);
-        if (request.VerifiedEncodedMessageSizeLimit is <= 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(request), "The verified encoded-message size limit must be positive.");
-        }
-        if (request.State == ApprovedMailboxState.Approved
-            && routeScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
-            && request.VerifiedEncodedMessageSizeLimit is null)
-        {
-            throw new ApprovedMailboxUpdateException(
-                ApprovedMailboxUpdateError.MissingVerifiedSendLimit);
-        }
         if (request.State == ApprovedMailboxState.Approved)
         {
             // Fail closed: an approved row that cannot be read is a silent no-op.
             // An administrator awaiting the tenant grant saves the row Disabled.
             var missing = mailboxIdentity is null
-                || (routeScopes.Contains(ApprovedMailboxRouteScope.InboundIntake)
+                || (routeScopes.Contains(ApprovedMailboxRouteScope.Incoming)
                     && inboxFolderIdentity is null)
-                || (routeScopes.Contains(ApprovedMailboxRouteScope.SentEvidence)
+                || (routeScopes.Contains(ApprovedMailboxRouteScope.Outgoing)
                     && sentFolderIdentity is null);
             if (missing)
             {
@@ -253,7 +243,6 @@ public sealed class UpdateApprovedMailbox(IApprovedMailboxStore store)
                 MailboxIdentity = mailboxIdentity,
                 InboxFolderIdentity = inboxFolderIdentity,
                 SentFolderIdentity = sentFolderIdentity,
-                FolderBindings = folderBindings,
                 OperationKey = RequireText(
                     request.OperationKey,
                     100,
@@ -289,88 +278,6 @@ public sealed class UpdateApprovedMailbox(IApprovedMailboxStore store)
         return normalized;
     }
 
-    private static ApprovedMailboxFolderBinding[]? NormalizeFolderBindings(
-        IReadOnlyCollection<ApprovedMailboxFolderBinding>? bindings)
-    {
-        if (bindings is null)
-        {
-            return null;
-        }
-
-        var normalized = new List<ApprovedMailboxFolderBinding>(bindings.Count);
-        var folderTypes = new HashSet<MailLogicalFolderType>();
-        foreach (var binding in bindings)
-        {
-            ArgumentNullException.ThrowIfNull(binding);
-            if (!Enum.IsDefined(binding.FolderType) || !folderTypes.Add(binding.FolderType))
-            {
-                throw new ArgumentException(
-                    "Each supported logical folder type may be bound at most once.",
-                    nameof(bindings));
-            }
-
-            var identity = NormalizeIdentity(binding.FolderIdentity, MaximumFolderIdentityLength)
-                ?? throw new ApprovedMailboxUpdateException(
-                    ApprovedMailboxUpdateError.InvalidMailboxIdentity);
-            normalized.Add(new(binding.FolderType, identity));
-        }
-
-        return normalized.OrderBy(item => item.FolderType).ToArray();
-    }
-
-    private static string RequireText(string value, int maximumLength, string message)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new ArgumentException(message);
-        }
-
-        var normalized = value.Trim();
-        if (normalized.Length > maximumLength)
-        {
-            throw new ArgumentException($"The value cannot exceed {maximumLength} characters.");
-        }
-
-        return normalized;
-    }
-}
-
-public sealed class SetDefaultApprovedMailbox(IApprovedMailboxStore store)
-{
-    private readonly IApprovedMailboxStore _store =
-        store ?? throw new ArgumentNullException(nameof(store));
-
-    public Task<ApprovedMailbox> ExecuteAsync(
-        SetDefaultApprovedMailboxRequest request,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(request.Actor);
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.ManageApprovedMailboxes);
-        if (request.MailboxId == Guid.Empty)
-        {
-            throw new ArgumentException("A mailbox identifier is required.", nameof(request));
-        }
-        if (request.ExpectedVersion <= 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(request), "The expected mailbox version must be positive.");
-        }
-        if (request.ExpectedPreviousDefaultMailboxId.HasValue != request.ExpectedPreviousDefaultMailboxVersion.HasValue
-            || request.ExpectedPreviousDefaultMailboxVersion is <= 0)
-        {
-            throw new ArgumentException(
-                "The expected current default mailbox version is invalid.", nameof(request));
-        }
-
-        return _store.SetDefaultAsync(
-            request with
-            {
-                OperationKey = RequireText(request.OperationKey, 100, "An operation key is required.")
-            },
-            cancellationToken);
-    }
-
     private static string RequireText(string value, int maximumLength, string message)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -397,10 +304,7 @@ public enum ApprovedMailboxUpdateError
     MissingMailboxIdentity,
     InvalidMailboxIdentity,
     MailboxIdentityImmutable,
-    DuplicateMailboxIdentity,
-    MissingVerifiedSendLimit,
-    DefaultStaffSendMailboxIneligible,
-    DefaultStaffSendMailboxRequiresReplacement
+    DuplicateMailboxIdentity
 }
 
 public sealed class ApprovedMailboxUpdateException(ApprovedMailboxUpdateError error)

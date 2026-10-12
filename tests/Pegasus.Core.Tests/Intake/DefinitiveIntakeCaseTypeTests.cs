@@ -25,7 +25,7 @@ public sealed class DefinitiveIntakeCaseTypeTests
     }
 
     [Fact]
-    public void AmbiguousInstructionCarriesNoCaseType()
+    public void CompetingInstructionTellsCarryNoCaseType()
     {
         var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
@@ -37,7 +37,7 @@ public sealed class DefinitiveIntakeCaseTypeTests
             [],
             false));
 
-        Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
         Assert.Null(result.CaseType);
     }
 

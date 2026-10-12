@@ -303,26 +303,24 @@ function Get-MigrationPermissionMatrix {
         $expected.Add("$role|D|UPDATE|ImageIntakeLifecycleEvents")
         $expected.Add("$role|D|DELETE|ImageIntakeLifecycleEvents")
     }
-    # 20260820100056_ApprovedMailboxLogicalFolderBindings: the existing Web
-    # mailbox-administration transaction reads and replaces the mailbox-owned
-    # binding rows. The Worker has no caller and receives no grant.
-    foreach ($permission in @('SELECT', 'INSERT', 'DELETE')) {
-        $expected.Add("pegasus_web_runtime_role|G|$permission|ApprovedMailboxFolderBindings")
-    }
+    # 20260820100056_ApprovedMailboxLogicalFolderBindings granted the Web role
+    # SELECT/INSERT/DELETE on ApprovedMailboxFolderBindings;
+    # 20261012180000_FlatMailCategory dropped the table, and SQL Server drops a
+    # table's permission rows with it, so the matrix expects nothing. The
+    # migration is named here because it still carries a GRANT, which
+    # Test-AzureDeploymentPlan.ps1 requires this script to account for.
     # 20260820114412_ApprovedOutlookCategoryCatalogue: Web administrators
     # maintain the global allowlist; disable replaces deletion. Worker has no caller.
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|ApprovedOutlookCategories")
     }
     $expected.Add('pegasus_web_runtime_role|D|DELETE|ApprovedOutlookCategories')
-    # 20260820144004_RetainedMailFolderMoves: Web owns the confirmed move
-    # operation and its durable recovery state. Worker has no caller. Both
-    # runtime roles are denied deletion so the operation history is permanent.
-    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
-        $expected.Add("pegasus_web_runtime_role|G|$permission|RetainedMailFolderMoves")
-    }
-    $expected.Add('pegasus_web_runtime_role|D|DELETE|RetainedMailFolderMoves')
-    $expected.Add('pegasus_worker_runtime_role|D|DELETE|RetainedMailFolderMoves')
+    # 20260820144004_RetainedMailFolderMoves granted the Web role
+    # SELECT/INSERT/UPDATE on RetainedMailFolderMoves and denied both roles
+    # DELETE; 20261012180000_FlatMailCategory dropped the table with its
+    # permission rows, so the matrix expects nothing. The migration is named
+    # here because it still carries a GRANT, which Test-AzureDeploymentPlan.ps1
+    # requires this script to account for.
     # 20260821095500_GrantWorkerVehicleLookupRequests: the Worker's
     # automatic vehicle-lookup sweep inserts the request row;
     # the reconciliation baseline held only SELECT. DELETE stays denied
@@ -516,8 +514,8 @@ function Get-MigrationPermissionMatrix {
     $expected.Add('pegasus_web_runtime_role|D|DELETE|UnroadworthyReasons')
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|UnroadworthyReasons')
     # 20260921080000_RepairSpecificationSnapshots: frozen repair specification
-    # versions (v28 P43). Web freezes and reads them; the Worker reads only;
-    # neither deletes one.
+    # versions (v28 P43). Web freezes and reads them; the Worker reads them
+    # (it freezes the Sent version since 20261012120000); neither deletes one.
     foreach ($permission in @('SELECT', 'INSERT')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|CaseRepairSpecificationSnapshots")
     }
@@ -614,6 +612,18 @@ function Get-MigrationPermissionMatrix {
         }
         $expected.Add("$role|D|DELETE|CaseQueries")
     }
+    # 20261012120000_WorkerObservesReportSends: the Sent poll freezes a sent
+    # report's repair specification and links the Inspection report's evidence
+    # to the primary work once the Audit exists.
+    $expected.Add('pegasus_worker_runtime_role|G|INSERT|CaseRepairSpecificationSnapshots')
+    $expected.Add('pegasus_worker_runtime_role|G|UPDATE|CaseWorks')
+    # 20261012192000_GrantWorkerCaseTasksForReportSent: the Worker's Sent-evidence
+    # link creates the after-send tasks the send recorded, in the same transaction
+    # as Report sent. It inserts the tasks; it never updates or deletes one.
+    foreach ($permission in @('SELECT', 'INSERT')) {
+        $expected.Add("pegasus_worker_runtime_role|G|$permission|CaseTasks")
+    }
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|CaseTasks')
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier
     # migrations this matrix reads still name them, and SQL Server keeps a
     # table's permission rows across a rename, so the rows read here are the

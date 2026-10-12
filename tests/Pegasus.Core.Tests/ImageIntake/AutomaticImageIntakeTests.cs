@@ -3,6 +3,8 @@ using System.Text;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
+using Pegasus.Core.Tests.Intake.ThirdPartyReports;
 
 namespace Pegasus.Core.Tests.ImageIntake;
 
@@ -488,9 +490,7 @@ public sealed class AutomaticImageIntakeTests
         var triage = harness.Receipts[1] with
         {
             MailClassificationDecision = MailClassificationResult.Classified(
-                MailCategory.Received(
-                    ReceivedMailFamily.PreInstructionEmails,
-                    MailCategory.TriageRequestSubtype),
+                MailCategory.TriageRequest,
                 [],
                 "The mailbox classifier identified a Triage request.",
                 "test",
@@ -808,6 +808,55 @@ public sealed class AutomaticImageIntakeTests
             height);
     }
 
+    [Fact]
+    public async Task ACapturePdfsPrintedRegistrationPairsItsPhotographsWithoutPlateReads()
+    {
+        var harness = CaptureHarness("AB12CDE");
+        harness.Engine.Enqueue(Suggested("ZZ99ZZZ", 0.99));
+        harness.CaseCandidates.Candidates =
+        [
+            new(Guid.NewGuid(), "QDS26001", 3, "AB12CDE", DateTimeOffset.UnixEpoch)
+        ];
+
+        var outcome = await harness.ApplyAsync();
+
+        Assert.True(outcome.AssociatedCase);
+        Assert.Equal(0, harness.Engine.Calls);
+        Assert.Empty(harness.SuggestionStore.Records);
+        Assert.Empty(harness.Register.Requests);
+        var association = Assert.Single(harness.AssociationStore.Requests);
+        Assert.Equal(harness.CaseCandidates.Candidates[0].CaseId, association.CaseId);
+        Assert.Contains("printed on the capture document", association.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task APrintedRegistrationIsCompleteSoItNeverFillsInANearMiss()
+    {
+        // The lone candidate a truncated plate read would complete from.
+        var harness = CaptureHarness("AB12CDE");
+        harness.CaseCandidates.Candidates =
+        [
+            new(Guid.NewGuid(), "QDS26003", 2, "AB12CDEX", DateTimeOffset.UnixEpoch)
+        ];
+
+        await harness.ApplyAsync();
+
+        Assert.Empty(harness.AssociationStore.Requests);
+        Assert.Equal("AB12CDE", Assert.Single(harness.Register.Requests).NormalizedVehicleRegistration);
+        Assert.Equal(0, harness.Engine.Calls);
+    }
+
+    private static Harness CaptureHarness(string printedRegistration) =>
+        new(
+            sourceChannel: IntakeSourceChannel.Mailbox,
+            retainedAssets:
+            [
+                Asset("LINE_LEVEL_ESTIMATE.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source),
+                Asset("page-3-image-1.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+                    IntakeAssetDisposition.Embedded, contentLength: 30_236, width: 800, height: 600)
+            ],
+            printedRegistration: printedRegistration);
+
     private sealed class Harness
     {
         public Harness(
@@ -818,7 +867,8 @@ public sealed class AutomaticImageIntakeTests
             IReadOnlyList<IntakeAssetRecord>? retainedAssets = null,
             bool inGroup = false,
             DateTimeOffset? groupReceivedAtUtc = null,
-            ImageMatchDeclined? imageMatchDeclined = null)
+            ImageMatchDeclined? imageMatchDeclined = null,
+            string? printedRegistration = null)
         {
             var assets = retainedAssets?.ToArray() ?? Enumerable.Range(0, assetCount)
                 .Select(index =>
@@ -914,7 +964,13 @@ public sealed class AutomaticImageIntakeTests
                     ReceiptQueries),
                 TimeProvider.System,
                 AssociationStore,
-                inGroup ? GroupStore : null);
+                inGroup ? GroupStore : null,
+                captureReadings: printedRegistration is null
+                    ? null
+                    : new RecordedVehicleCaptureReading(new VehicleCaptureFixture.Analyses().Record(
+                        Receipt,
+                        Receipt.AssetRecords.Single(asset => asset.MediaType == "application/pdf"),
+                        VehicleCaptureFixture.Rows((ThirdPartyReportFields.Registration, printedRegistration)))));
         }
 
         public IntakeReceipt Receipt { get; }
