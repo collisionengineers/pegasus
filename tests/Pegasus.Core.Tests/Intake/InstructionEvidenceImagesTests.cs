@@ -10,17 +10,18 @@ namespace Pegasus.Core.Tests.Intake;
 public sealed class InstructionEvidenceImagesTests
 {
     [Fact]
-    public void SelectsAttachedImagesAndLargeEmbeddedImagesOnly()
+    public void SelectsAttachedImagesAndRetainedEmbeddedImagesOnly()
     {
+        // Small embedded letterhead art never reaches selection: retention
+        // refuses it before storage (TheThresholdIsABoundaryNotAGuess).
         var attachedPhoto = Asset(IntakeAssetKind.Attachment, "image/jpeg", 90_000, "AA");
         var attachedPdf = Asset(IntakeAssetKind.Attachment, "application/pdf", 90_000, "BB");
         var embeddedPhoto = Asset(IntakeAssetKind.EmbeddedImage, "image/jpeg", 60_000, "CC");
-        var letterheadArt = Asset(IntakeAssetKind.EmbeddedImage, "image/png", 4_039, "DD");
         var inlineSignature = Asset(IntakeAssetKind.InlineImage, "image/png", 90_000, "EE");
         var source = Asset(IntakeAssetKind.Source, "message/rfc822", 90_000, "FF");
 
         var selected = InstructionEvidenceImages.Select(
-            [source, inlineSignature, letterheadArt, embeddedPhoto, attachedPdf, attachedPhoto]);
+            [source, inlineSignature, embeddedPhoto, attachedPdf, attachedPhoto]);
 
         Assert.Equal([attachedPhoto.Id, embeddedPhoto.Id], selected.Select(item => item.Id));
     }
