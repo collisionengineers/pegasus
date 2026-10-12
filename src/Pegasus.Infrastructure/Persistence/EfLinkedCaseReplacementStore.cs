@@ -446,7 +446,6 @@ public sealed class EfLinkedCaseReplacementStore(
         CaseMutationGuard.RequireLease(workflow, actor, token, now);
 
     private static bool IsTerminal(string state) => state is
-        nameof(CaseLifecycleState.PostReportComplete) or
         nameof(CaseLifecycleState.PrincipalCancelled) or
         nameof(CaseLifecycleState.CollisionEngineersRejected) or
         nameof(CaseLifecycleState.CreatedInError);

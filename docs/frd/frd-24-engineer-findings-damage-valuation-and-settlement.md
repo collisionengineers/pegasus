@@ -61,9 +61,9 @@ place. It creates a reasoned superseding report, finding or addendum with
 actor, time, source, structured before-and-after values, and the earlier
 artifact or version kept. Case edits follow the state, role, lease and
 version rules in [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions) and
-[FRD-14](frd-14-record-edit-leases.md#case-edit-lease). Completed is
-reversible and queries follow
-[FRD-13](frd-13-case-lifecycle-and-workflow.md#completed-and-query).
+[FRD-14](frd-14-record-edit-leases.md#case-edit-lease). Report sent stays
+editable and queries follow
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries).
 
 **Retained figures.** Betterment figures and estimate `guide` codes recorded
 on a source or an estimate version are evidence only. No finding, figure,

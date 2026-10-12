@@ -20,8 +20,6 @@
     var state = workflow.State;
     var isClosed = CaseLifecycleRules.IsTerminal(state);
     var isHeld = state == CaseLifecycleState.Held;
-    var isComplete = state == CaseLifecycleState.PostReportComplete;
-    var isQuery = state == CaseLifecycleState.Query;
     // The same offers as the ribbon's Actions menu (operator, 29 September
     // 2026): in and out of an edit session, and never while a colleague holds
     // the lease. Outside a session the forms carry no lease token at all, so
@@ -29,7 +27,7 @@
     // for the action.
     var leased = !string.IsNullOrWhiteSpace(Model.LeaseToken);
     var mayAct = !Model.ColleagueIsEditing;
-    var mayActOnCaseData = mayAct && !Model.IsPostReportReadOnly;
+    var mayActOnCaseData = mayAct;
     var data = details.Data;
     var canAssignEngineer = Model.CanAssignEngineer;
     var canConfirmReportSent = mayAct
@@ -108,17 +106,50 @@
             </section>
         </div>
     }
-    @if (state == CaseLifecycleState.PostReport)
+    @if (Model.CanLogQuery)
     {
-        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
-        {
-            ["DialogId"] = "case-complete-dialog",
-            ["DialogTitle"] = Frame.MarkCompleted,
-            ["DialogActionUrl"] = Url.Page("/Cases/Closure", "Complete", new { id = workflow.CaseId }),
-            ["DialogHiddenFields"] = LeaseFields()
-        })" />
+        @* Log query (operator, 11 October 2026): the channel the query came
+           by and what it is. A query logged here is a record on the Case, as
+           a tagged e-mail is; Resolve query closes every open one. *@
+        <div id="case-log-query-dialog" class="dialog-backdrop" data-dialog="case-log-query-dialog" hidden>
+            <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-log-query-dialog-title">
+                <div class="dialog-head">
+                    <h2 id="case-log-query-dialog-title" tabindex="-1">@Frame.LogQuery</h2>
+                    <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    </button>
+                </div>
+                <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId" asp-page-handler="LogQuery" data-log-query-form>
+                    <input type="hidden" name="id" value="@workflow.CaseId" />
+                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                    @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
+                    <input type="hidden" name="view" value="@Model.ViewRoute" />
+                    <input type="hidden" name="section" value="@Model.Section" />
+                    <div class="dialog-body stack">
+                        <div class="field">
+                            <label for="case-log-query-channel">@Frame.Channel</label>
+                            <select id="case-log-query-channel" name="channel" data-dialog-initial-focus>
+                                @foreach (var channel in Enum.GetValues<CaseQueryChannel>())
+                                {
+                                    <option value="@channel">@CaseWorkspaceLabels.Queries.Channel(channel)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="case-log-query-details">@Frame.Details</label>
+                            <textarea id="case-log-query-details" name="details" rows="4"></textarea>
+                        </div>
+                    </div>
+                    <div class="dialog-foot">
+                        <button type="button" class="btn" data-dialog-close>Cancel</button>
+                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Logging" class="btn btn--primary">@Frame.LogQuery</button>
+                    </div>
+                </form>
+            </section>
+        </div>
     }
-    @if (state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport)
+    @if (state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.ReportSent)
     {
         var returnFields = LeaseFields();
         returnFields["instructionsComplete"] = data?.Completeness.Values.InstructionComplete.ToString() ?? false.ToString();
@@ -239,7 +270,7 @@
     </div>
 }
 
-@if (mayAct && (isComplete || isQuery))
+@if (mayAct && state == CaseLifecycleState.ReportSent)
 {
     <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
     {

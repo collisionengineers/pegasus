@@ -47,7 +47,8 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
                 workflow == null ? null : workflow.State,
                 triage == null ? null : triage.State,
                 workflow == null ? (triage == null ? null : triage.AssigneeId) : workflow.AssignedEngineerId,
-                workflow == null ? null : workflow.SignOffEngineerId))
+                workflow == null ? null : workflow.SignOffEngineerId,
+                workflow != null && workflow.HasOpenQuery))
             .ToListAsync(cancellationToken);
         var auditWorks = await db.CaseWorks.AsNoTracking()
             .Where(work => work.Kind == CaseWorkKinds.Audit && cases.Any(@case => @case.Id == work.CaseId))
@@ -87,7 +88,10 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
                 claimData.GetValueOrDefault(row.CaseId) ?? new Dictionary<string, string>(),
                 Work(row.CaseId, assessment, reports, sends),
                 auditWorks.TryGetValue(row.CaseId, out var auditWorkId) ? Work(auditWorkId, assessment, reports, sends) : null,
-                activity.GetValueOrDefault(row.CaseId) ?? CaseListActivity.None);
+                activity.GetValueOrDefault(row.CaseId) ?? CaseListActivity.None)
+            {
+                HasOpenQuery = row.HasOpenQuery
+            };
         })];
     }
 
@@ -355,7 +359,8 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
         string? WorkflowState,
         string? TriageState,
         Guid? AssignedEngineerId,
-        Guid? SignOffEngineerId);
+        Guid? SignOffEngineerId,
+        bool HasOpenQuery);
 
     private sealed record ReportRow(
         Guid WorkId,

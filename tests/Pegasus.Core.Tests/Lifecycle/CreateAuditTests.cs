@@ -22,9 +22,7 @@ public sealed class CreateAuditTests
     [InlineData(CaseLifecycleState.NotReady)]
     [InlineData(CaseLifecycleState.Review)]
     [InlineData(CaseLifecycleState.ReportPreparation)]
-    [InlineData(CaseLifecycleState.PostReport)]
-    [InlineData(CaseLifecycleState.PostReportComplete)]
-    [InlineData(CaseLifecycleState.Query)]
+    [InlineData(CaseLifecycleState.ReportSent)]
     public void CreateAuditIsAllowedInEveryWorkingState(CaseLifecycleState state)
     {
         Assert.Null(AuditPolicy.Refusal(CaseType.InspectionAndAudit, Workflow(state), PrimaryOnly()));
@@ -56,10 +54,10 @@ public sealed class CreateAuditTests
     {
         Assert.Equal(
             AuditRefusal.NotInspectionAndAudit,
-            AuditPolicy.Refusal(CaseType.Inspection, Workflow(CaseLifecycleState.PostReport), PrimaryOnly()));
+            AuditPolicy.Refusal(CaseType.Inspection, Workflow(CaseLifecycleState.ReportSent), PrimaryOnly()));
         Assert.Equal(
             AuditRefusal.NotInspectionAndAudit,
-            AuditPolicy.Refusal(CaseType.Audit, Workflow(CaseLifecycleState.PostReport), PrimaryOnly()));
+            AuditPolicy.Refusal(CaseType.Audit, Workflow(CaseLifecycleState.ReportSent), PrimaryOnly()));
         Assert.Equal(
             AuditRefusal.CreatedInError,
             AuditPolicy.Refusal(
@@ -68,7 +66,7 @@ public sealed class CreateAuditTests
             AuditRefusal.Archived,
             AuditPolicy.Refusal(
                 CaseType.InspectionAndAudit,
-                Workflow(CaseLifecycleState.PostReportComplete, archived: true),
+                Workflow(CaseLifecycleState.ReportSent, archived: true),
                 PrimaryOnly()));
         Assert.Equal(
             AuditRefusal.AuditAlreadyExists,
@@ -78,7 +76,7 @@ public sealed class CreateAuditTests
             AuditRefusal.NoAssignedEngineer,
             AuditPolicy.Refusal(
                 CaseType.InspectionAndAudit,
-                Workflow(CaseLifecycleState.PostReport, assigned: false),
+                Workflow(CaseLifecycleState.ReportSent, assigned: false),
                 PrimaryOnly()));
     }
 
@@ -110,7 +108,7 @@ public sealed class CreateAuditTests
     {
         var store = new RecordingStore();
         var publisher = new RecordingPublisher();
-        var sut = Sut(Workflow(CaseLifecycleState.PostReport), store, publisher);
+        var sut = Sut(Workflow(CaseLifecycleState.ReportSent), store, publisher);
 
         var result = await sut.ExecuteAsync(Request() with { OperationKey = "  create-audit-1  " }, default);
 
@@ -153,7 +151,7 @@ public sealed class CreateAuditTests
     public async Task NoAssignedEngineerIsRefused()
     {
         var store = new RecordingStore();
-        var sut = Sut(Workflow(CaseLifecycleState.PostReport, assigned: false), store, new RecordingPublisher());
+        var sut = Sut(Workflow(CaseLifecycleState.ReportSent, assigned: false), store, new RecordingPublisher());
 
         var exception = await Assert.ThrowsAsync<AuditCreationException>(() => sut.ExecuteAsync(Request(), default));
 
@@ -171,7 +169,7 @@ public sealed class CreateAuditTests
     {
         var store = new RecordingStore();
         var sut = Sut(
-            Workflow(CaseLifecycleState.PostReportComplete),
+            Workflow(CaseLifecycleState.ReportSent),
             store,
             new RecordingPublisher(),
             eligibility: new CaseEngineerEligibility(accountExists, isEnabled));
@@ -205,7 +203,7 @@ public sealed class CreateAuditTests
     public async Task OnlyAnActorAllowedCaseworkMayCreateAnAudit()
     {
         var store = new RecordingStore();
-        var sut = Sut(Workflow(CaseLifecycleState.PostReport), store, new RecordingPublisher());
+        var sut = Sut(Workflow(CaseLifecycleState.ReportSent), store, new RecordingPublisher());
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => sut.ExecuteAsync(
             Request() with { Actor = ActionActor.SystemWorker("worker") },
@@ -216,7 +214,7 @@ public sealed class CreateAuditTests
     [Fact]
     public async Task AnOperationKeyAndAnEditLeaseAreRequired()
     {
-        var sut = Sut(Workflow(CaseLifecycleState.PostReport), new RecordingStore(), new RecordingPublisher());
+        var sut = Sut(Workflow(CaseLifecycleState.ReportSent), new RecordingStore(), new RecordingPublisher());
 
         await Assert.ThrowsAsync<ArgumentException>(() => sut.ExecuteAsync(Request() with { OperationKey = " " }, default));
         await Assert.ThrowsAsync<ArgumentException>(() => sut.ExecuteAsync(Request() with { EditLeaseToken = "" }, default));

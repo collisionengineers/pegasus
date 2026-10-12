@@ -283,7 +283,7 @@ public sealed class CaseListReportTests
 
         public string CaseType(CaseType type) => type.ToString();
 
-        public string Stage(CaseLifecycleState state) => state.ToString();
+        public string Stage(CaseLifecycleState state, bool hasOpenQuery) => hasOpenQuery ? "Query" : state.ToString();
 
         public string TriageStage(TriageState state) => $"Triage:{state}";
 

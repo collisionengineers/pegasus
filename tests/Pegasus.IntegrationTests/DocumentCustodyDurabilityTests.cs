@@ -489,11 +489,11 @@ public sealed class DocumentCustodyDurabilityTests
             await Assert.ThrowsAsync<IntakeDependencyUnavailableException>(
                 () => store.RecordRecognisedAsync(command, reading, CancellationToken.None));
 
-            // The editor finished and the Case was completed: it no longer awaits its report.
+            // The editor finished and the Case was closed: it no longer awaits its report.
             await using (var context = await database.CreateContextAsync())
             {
                 var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
-                workflow.State = nameof(CaseLifecycleState.PostReportComplete);
+                workflow.State = nameof(CaseLifecycleState.PrincipalCancelled);
                 workflow.EditLeaseExpiresAtUtc = null;
                 await context.SaveChangesAsync();
             }

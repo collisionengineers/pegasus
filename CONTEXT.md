@@ -185,12 +185,17 @@ The word “intake” never appears in operator-facing text (operator decision
 2026). `Review` and `Ready to review` denote the Case stage only.
 
 
-**Completed / Query**:
+**Report sent**:
+The Case's last stage, entered when the report's Sent evidence is linked;
+still editable, and never a closure. There is no Completed state and no Mark
+completed (operator, 11 October 2026;
+[FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
+_Avoid_: Completed, Complete, Post-report, Closed
 
-Reversible post-report Case states. A query received for or attached to a
-Completed Case moves it to Query; replying moves it back to Completed.
-There is no terminally closed Case state
-([FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md)). A dispute, a
-challenge to a delivered report or finding, is a query: there is no separate
-dispute type, count or column (operator, 9 October 2026).
-_Avoid_: Dispute as its own category
+**Query**:
+A record on a Case: a received post-report e-mail tagged as one, or a query
+staff logged with its channel and details. While any is open the Case reads
+Query, in purple, whatever its state; Resolve query closes every open one.
+A dispute, a challenge to a delivered report or finding, is a query: there is
+no separate dispute type, count or column (operator, 9 October 2026).
+_Avoid_: Query state, Dispute as its own category

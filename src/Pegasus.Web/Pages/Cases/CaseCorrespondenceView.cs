@@ -11,4 +11,12 @@ namespace Pegasus.Web.Pages.Cases;
 public sealed record CaseCorrespondenceView(
     IReadOnlyList<CaseCorrespondenceEmail> Emails,
     string CaseReference,
-    bool OffersCompose);
+    bool OffersCompose)
+{
+    /// <summary>
+    /// The Case whose Correspondence tab offers Tag as query on each received
+    /// row (operator, 11 October 2026); null on a Triage Case, which takes no
+    /// query.
+    /// </summary>
+    public Guid? TagAsQueryCaseId { get; init; }
+}

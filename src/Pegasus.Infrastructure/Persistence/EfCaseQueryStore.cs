@@ -217,6 +217,10 @@ public sealed class EfCaseQueryStore(
             var stateNames = states.Select(state => state.ToString()).ToArray();
             rows = rows.Where(item => stateNames.Contains(item.State));
         }
+        if (filters.HasOpenQuery is { } hasOpenQuery)
+        {
+            rows = rows.Where(item => item.HasOpenQuery == hasOpenQuery);
+        }
         if (filters.EngineerId is { } engineerId)
         {
             rows = rows.Where(item => item.EngineerId == engineerId);
@@ -373,7 +377,14 @@ public sealed class EfCaseQueryStore(
             evidence.Result.AvailableReportSentEvidence,
             related.Result.RecordNotes,
             linkedCancellationMessageId,
-            related.Result.LinkedTriage);
+            related.Result.LinkedTriage)
+        {
+            // The Next action's Resolve query route: read only while the
+            // workflow says a query is open.
+            OldestOpenQuery = workflow.HasOpenQuery
+                ? await ReadOldestOpenQueryAsync(context, caseId, cancellationToken)
+                : null
+        };
     }
 
     private async Task<(CaseSectionFrame Frame, Guid? LinkedCancellationMessageId)> ReadFrameAsync(
@@ -772,6 +783,126 @@ public sealed class EfCaseQueryStore(
             .ToArray();
     }
 
+    public async Task<IReadOnlyList<CaseQueryItem>> ListCaseQueriesAsync(
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var withdrawn = nameof(CaseQueryClosure.Withdrawn);
+        var rows = await context.CaseQueries.AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.ClosedAs != withdrawn)
+            .ToArrayAsync(cancellationToken);
+        var messages = await ReadMessagesByReceiptAsync(
+            context,
+            rows.Where(item => item.IntakeReceiptId is not null).Select(item => item.IntakeReceiptId!.Value).ToArray(),
+            cancellationToken);
+        return rows.Select(item => new CaseQueryItem(
+                item.Id,
+                Enum.Parse<CaseQuerySource>(item.Source),
+                item.Channel is null ? null : Enum.Parse<CaseQueryChannel>(item.Channel),
+                item.Details,
+                item.IntakeReceiptId is { } receiptId ? messages.GetValueOrDefault(receiptId) : null,
+                item.RaisedAtUtc,
+                item.RaisedByKind,
+                item.RaisedBySubjectId,
+                item.ClosedAs is null ? null : Enum.Parse<CaseQueryClosure>(item.ClosedAs),
+                item.ClosedAtUtc,
+                item.ClosedByKind,
+                item.ClosedBySubjectId))
+            .ToArray();
+    }
+
+    // The oldest open query decides the Next action's route (operator, 11
+    // October 2026): a mail query leads to its message's reply.
+    private static async Task<CaseOpenQueryRoute?> ReadOldestOpenQueryAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        var oldest = await context.CaseQueries.AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.ClosedAtUtc == null)
+            .OrderBy(item => item.RaisedAtUtc)
+            .ThenBy(item => item.Id)
+            .Select(item => new { item.Source, item.IntakeReceiptId })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (oldest is null)
+        {
+            return null;
+        }
+        Guid? messageId = null;
+        if (oldest.IntakeReceiptId is { } receiptId)
+        {
+            var token = await context.IntakeReceipts.AsNoTracking()
+                .Where(item => item.Id == receiptId)
+                .Select(item => item.ExternalReceiptToken)
+                .SingleAsync(cancellationToken);
+            messageId = await context.RetainedMailboxMessages.AsNoTracking()
+                .Where(item => item.ExternalReceiptToken == token)
+                .OrderBy(item => item.ReceivedAtUtc)
+                .Select(item => (Guid?)item.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+        return new(Enum.Parse<CaseQuerySource>(oldest.Source), messageId);
+    }
+
+    // The retained message of each tagged receipt, as the Correspondence tab
+    // draws it, keyed by the receipt the query names.
+    private static async Task<IReadOnlyDictionary<Guid, CaseCorrespondenceEmail>> ReadMessagesByReceiptAsync(
+        PegasusDbContext context,
+        Guid[] receiptIds,
+        CancellationToken cancellationToken)
+    {
+        if (receiptIds.Length == 0)
+        {
+            return new Dictionary<Guid, CaseCorrespondenceEmail>();
+        }
+        var receipts = await context.IntakeReceipts.AsNoTracking()
+            .Where(item => receiptIds.Contains(item.Id))
+            .Select(item => new
+            {
+                item.Id,
+                item.ExternalReceiptToken,
+                Classification = item.MailClassificationDecision,
+                EffectiveSenderAddress = item.MailRouteDecision == null ? null : item.MailRouteDecision.EffectiveSenderAddress
+            })
+            .ToArrayAsync(cancellationToken);
+        var tokens = receipts.Select(item => item.ExternalReceiptToken).Distinct(StringComparer.Ordinal).ToArray();
+        var messages = await context.RetainedMailboxMessages.AsNoTracking()
+            .Where(item => tokens.Contains(item.ExternalReceiptToken))
+            .Select(item => new
+            {
+                item.Id,
+                item.ExternalReceiptToken,
+                item.ReceivedAtUtc,
+                item.SenderDisplayName,
+                item.SenderAddress,
+                item.Subject,
+                item.SourceSha256
+            })
+            .ToArrayAsync(cancellationToken);
+        var result = new Dictionary<Guid, CaseCorrespondenceEmail>();
+        foreach (var receipt in receipts)
+        {
+            var message = messages
+                .Where(item => item.ExternalReceiptToken == receipt.ExternalReceiptToken)
+                .OrderBy(item => item.ReceivedAtUtc)
+                .FirstOrDefault();
+            if (message is null)
+            {
+                continue;
+            }
+            result[receipt.Id] = new CaseCorrespondenceEmail(message.Id, message.ReceivedAtUtc, receipt.EffectiveSenderAddress,
+                message.SenderDisplayName, message.SenderAddress, message.Subject,
+                receipt.Classification is null ? null
+                    : EfIntakeReceiptStore.MapMailClassificationDecision(receipt.Classification).Category,
+                message.SourceSha256)
+            {
+                ClassificationVersion = receipt.Classification?.Version
+            };
+        }
+        return result;
+    }
+
     private static async Task<IReadOnlyList<CaseCorrespondenceEmail>> ReadReceivedCorrespondenceAsync(
         PegasusDbContext context,
         Guid caseId,
@@ -827,7 +958,10 @@ public sealed class EfCaseQueryStore(
                     item.SenderDisplayName, item.SenderAddress, item.Subject,
                     receipt.Classification is null ? null
                         : EfIntakeReceiptStore.MapMailClassificationDecision(receipt.Classification).Category,
-                    item.SourceSha256);
+                    item.SourceSha256)
+                {
+                    ClassificationVersion = receipt.Classification?.Version
+                };
             })
             .OrderByDescending(item => item.ReceivedAtUtc)
             .ThenBy(item => item.RetainedMessageId)
@@ -965,6 +1099,7 @@ public sealed class EfCaseQueryStore(
             HoldReviewOn = workflow == null ? null : workflow.HoldReviewOn,
             HeldAtUtc = workflow == null ? null : workflow.HeldAtUtc,
             StateEnteredAtUtc = workflow == null ? null : workflow.StateEnteredAtUtc,
+            HasOpenQuery = workflow != null && workflow.HasOpenQuery,
             EditLeaseHolder = workflow == null ? null : workflow.EditLeaseHolder,
             EditLeaseHolderKind = workflow == null ? null : workflow.EditLeaseHolderKind,
             EditLeaseExpiresAtUtc = workflow == null ? null : workflow.EditLeaseExpiresAtUtc
@@ -1039,6 +1174,7 @@ public sealed class EfCaseQueryStore(
             HoldReviewOn = workflow.HoldReviewOn,
             HeldAtUtc = workflow.HeldAtUtc,
             StateEnteredAtUtc = workflow.StateEnteredAtUtc,
+            HasOpenQuery = workflow.HasOpenQuery,
             EditLeaseHolder = workflow.EditLeaseHolder,
             EditLeaseHolderKind = workflow.EditLeaseHolderKind,
             EditLeaseExpiresAtUtc = workflow.EditLeaseExpiresAtUtc
@@ -1327,6 +1463,7 @@ public sealed class EfCaseQueryStore(
         HoldReviewOn = item.HoldReviewOn,
         HeldAtUtc = item.HeldAtUtc,
         StateEnteredAtUtc = item.StateEnteredAtUtc,
+        HasOpenQuery = item.HasOpenQuery,
         EditingStaffId = EditingStaffId(item, now),
         TriageState = item.CaseType == CaseTypeCodes.Triage
             ? (Pegasus.Core.Triage.TriageState?)EfTriageStore.ParseState(item.State)
@@ -1395,7 +1532,8 @@ public sealed class EfCaseQueryStore(
             entity.ReplacementCaseId,
             entity.Version)
         {
-            SignOffEngineerId = entity.SignOffEngineerId
+            SignOffEngineerId = entity.SignOffEngineerId,
+            HasOpenQuery = entity.HasOpenQuery
         };
         if (entity.ArchivedAtUtc is null)
         {
@@ -1551,6 +1689,7 @@ public sealed class EfCaseQueryStore(
         public DateOnly? HoldReviewOn { get; init; }
         public DateTimeOffset? HeldAtUtc { get; init; }
         public DateTimeOffset? StateEnteredAtUtc { get; init; }
+        public bool HasOpenQuery { get; init; }
         public string? EditLeaseHolder { get; init; }
         public string? EditLeaseHolderKind { get; init; }
         public DateTimeOffset? EditLeaseExpiresAtUtc { get; init; }

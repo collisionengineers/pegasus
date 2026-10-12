@@ -243,12 +243,10 @@ public static class AiJobPolicy
         $"Draft an estimate for case {caseReference}.";
 
     public static bool IsEligibleEstimateCaseState(CaseLifecycleState state) =>
-        state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
+        state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.ReportSent;
 
     public static bool IsEligibleQueryResponseCaseState(CaseLifecycleState state) =>
-        state is CaseLifecycleState.PostReport
-            or CaseLifecycleState.PostReportComplete
-            or CaseLifecycleState.Query;
+        state is CaseLifecycleState.ReportSent;
 
     /// <summary>
     /// FRD-27: a Draft ready Query response or queue pass is completed by hand

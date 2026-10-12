@@ -604,6 +604,16 @@ function Get-MigrationPermissionMatrix {
     }
     $expected.Add('pegasus_web_runtime_role|D|DELETE|CaseListPresets')
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|CaseListPresets')
+    # 20261011191701_ReportSentAndCaseQueries: a Case's queries. Web logs,
+    # tags and resolves them; the Worker raises one when a post-report e-mail
+    # links automatically and resolves them when a flagged reply reaches Sent.
+    # A query is closed, never deleted.
+    foreach ($role in @('pegasus_web_runtime_role', 'pegasus_worker_runtime_role')) {
+        foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+            $expected.Add("$role|G|$permission|CaseQueries")
+        }
+        $expected.Add("$role|D|DELETE|CaseQueries")
+    }
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier
     # migrations this matrix reads still name them, and SQL Server keeps a
     # table's permission rows across a rename, so the rows read here are the

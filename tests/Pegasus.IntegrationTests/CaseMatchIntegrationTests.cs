@@ -165,8 +165,13 @@ public sealed class CaseMatchIntegrationTests
                 && item.EventType == "intake_case_linked_automatic"));
     }
 
+    /// <summary>
+    /// FRD-13 "Report sent and queries" (operator, 11 October 2026): a
+    /// post-report e-mail the Worker links to a Report sent Case raises an open
+    /// Mail query and marks the Case; the state stays Report sent.
+    /// </summary>
     [Fact]
-    public async Task AutomaticReceivedPostReportQueryAssociationMovesCompletedCaseToQuery()
+    public async Task AutomaticReceivedPostReportAssociationRaisesAQueryOnAReportSentCase()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("case-match-accept-automatic-query");
@@ -175,8 +180,7 @@ public sealed class CaseMatchIntegrationTests
         await using (var seed = await harness.Factory.CreateDbContextAsync())
         {
             var seededWorkflow = await seed.CaseWorkflows.SingleAsync(item => item.CaseId == outcome.Identity.CaseId);
-            seededWorkflow.State = nameof(CaseLifecycleState.PostReportComplete);
-            seededWorkflow.ClosureOutcome = nameof(CaseClosureOutcome.PostReportComplete);
+            seededWorkflow.State = nameof(CaseLifecycleState.ReportSent);
             await seed.SaveChangesAsync();
         }
 
@@ -195,15 +199,63 @@ public sealed class CaseMatchIntegrationTests
         Assert.Equal(AutomaticCaseAssociationOutcome.Associated, result);
         await using var verify = await harness.Factory.CreateDbContextAsync();
         var workflow = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == outcome.Identity.CaseId);
-        Assert.Equal(nameof(CaseLifecycleState.Query), workflow.State);
-        Assert.Null(workflow.ClosureOutcome);
+        Assert.Equal(nameof(CaseLifecycleState.ReportSent), workflow.State);
+        Assert.True(workflow.HasOpenQuery);
         Assert.Equal(1, workflow.Version);
+        var query = Assert.Single(await verify.CaseQueries
+            .Where(item => item.CaseId == outcome.Identity.CaseId)
+            .ToListAsync());
+        Assert.Equal(nameof(CaseQuerySource.Mail), query.Source);
+        Assert.Equal(receiptId, query.IntakeReceiptId);
+        Assert.Null(query.ClosedAtUtc);
+        Assert.Equal(nameof(ActorKind.SystemWorker), query.RaisedByKind);
+        Assert.Equal("system-worker:intake-processing", query.RaisedBySubjectId);
+        Assert.Equal(1, await verify.CaseWorkflowEvents.CountAsync(item =>
+            item.CaseId == outcome.Identity.CaseId && item.EventType == "case_query_received"));
         var history = Assert.Single(await verify.IntakeMutationHistory
             .Where(item => item.IntakeReceiptId == receiptId
                 && item.EventType == "intake_case_linked_automatic")
             .ToListAsync());
         Assert.Equal(0, history.BeforeCaseVersion);
         Assert.Equal(1, history.AfterCaseVersion);
+    }
+
+    /// <summary>The same automatic link on a Case still with the Engineer raises nothing and leaves the Case untouched.</summary>
+    [Fact]
+    public async Task AutomaticReceivedPostReportAssociationRaisesNothingBeforeTheReportIsSent()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("case-match-accept-automatic-early-query");
+        var receiptId = await harness.SeedAdditionalReceiptAsync("automatic-early-post-report-query");
+        await harness.SetReceivedPostReportClassificationAsync(receiptId);
+        await using (var seed = await harness.Factory.CreateDbContextAsync())
+        {
+            var seededWorkflow = await seed.CaseWorkflows.SingleAsync(item => item.CaseId == outcome.Identity.CaseId);
+            seededWorkflow.State = nameof(CaseLifecycleState.ReportPreparation);
+            await seed.SaveChangesAsync();
+        }
+
+        var result = await new EfIntakeMutationStore(harness.Factory).AssociateFromMatchAsync(
+            new(
+                receiptId,
+                outcome.Identity.CaseId,
+                "principal_case_match",
+                1,
+                "system-worker:intake-processing",
+                "case-match-association:automatic-early-query",
+                "Automatically linked retained post-report query."),
+            StartUtc,
+            CancellationToken.None);
+
+        Assert.Equal(AutomaticCaseAssociationOutcome.Associated, result);
+        await using var verify = await harness.Factory.CreateDbContextAsync();
+        var workflow = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == outcome.Identity.CaseId);
+        Assert.Equal(nameof(CaseLifecycleState.ReportPreparation), workflow.State);
+        Assert.False(workflow.HasOpenQuery);
+        Assert.Equal(0, workflow.Version);
+        Assert.Empty(await verify.CaseQueries
+            .Where(item => item.CaseId == outcome.Identity.CaseId)
+            .ToListAsync());
     }
     /// <summary>
     /// Ordinary automatic association does not wait for an editor to finish. It writes

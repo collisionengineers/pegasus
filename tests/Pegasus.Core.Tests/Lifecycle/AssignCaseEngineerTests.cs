@@ -329,6 +329,16 @@ public sealed class AssignCaseEngineerTests
             ReturnCaseToEngineerRequest request,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        public Task<CaseWorkflowRecord> RaiseQueryAsync(
+            RaiseCaseQueryRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseWorkflowRecord> ResolveQueriesAsync(
+            ResolveCaseQueriesRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FixedWorkflowConfiguration : ICaseWorkflowConfiguration

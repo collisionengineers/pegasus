@@ -1,0 +1,104 @@
+@*
+    Queries (operator, 11 October 2026): every query raised on the Case, open
+    ones first, then the resolved ones. A query that came by e-mail shows its
+    message, with Open message and Reply; a staff-logged query shows its
+    channel and details. When none is open the section says so in the
+    operator's one sentence. No edit session: Log query and Resolve query are
+    the Actions menu's and the Next action's.
+*@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@using Pegasus.Core.Workflow
+@using Pegasus.Web.Presentation
+@using QueryLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Queries
+@{
+    var section = Model.QueriesSection;
+    var workflow = section?.Frame.Workflow ?? Model.Case!.Workflow;
+    var reference = workflow.Identity.Reference;
+    var queries = section?.Queries ?? [];
+    var open = queries.Where(query => query.IsOpen).ToArray();
+    var resolved = queries.Where(query => !query.IsOpen).ToArray();
+}
+
+<section class="record-section panel @Model.CollapsedClass("case.queries")" id="section-queries" data-section="queries" data-collapse="case.queries" aria-labelledby="section-queries-title">
+    <div class="panel-head">
+        <h2 id="section-queries-title">Queries</h2>
+        <div class="panel-actions">
+            <partial name="Cases/Shared/_CaseSectionHeadTools" model='new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "queries")' />
+        </div>
+    </div>
+    <div class="panel-body stack" data-case-queries>
+        @if (open.Length == 0)
+        {
+            <p class="muted" data-queries-empty>@QueryLabels.Empty</p>
+        }
+        @if (queries.Count > 0)
+        {
+            <div class="table-wrap">
+                <table class="table table--compact" data-queries-table>
+                    <thead>
+                        <tr>
+                            <th>@QueryLabels.State</th>
+                            <th>@QueryLabels.Raised</th>
+                            <th>@QueryLabels.RaisedBy</th>
+                            <th>@CaseWorkspaceLabels.Frame.Channel</th>
+                            <th>@QueryLabels.Message</th>
+                            <th>@QueryLabels.Resolved</th>
+                            <th><span class="sr-only">Action</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var query in open.Concat(resolved))
+                        {
+                            <tr data-case-query="@query.Id" data-case-query-open="@(query.IsOpen ? "true" : "false")">
+                                <td><partial name="Shared/_StatusChip" model="@(query.IsOpen ? QueryLabels.Open : QueryLabels.Resolved)" /></td>
+                                <td><time datetime="@query.RaisedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(query.RaisedAtUtc)</time></td>
+                                <td>@query.RaisedByDisplayName</td>
+                                <td>@(query.Source == CaseQuerySource.Mail
+                                    ? CaseWorkspaceLabels.Queries.Channel(CaseQueryChannel.Email)
+                                    : query.Channel is { } channel ? CaseWorkspaceLabels.Queries.Channel(channel) : OperatorLabels.CaseWorkspace.AbsentValue)</td>
+                                <td class="wrap">
+                                    @if (query.Message is { } message)
+                                    {
+                                        <span>@(message.EffectiveSenderAddress ?? message.SenderDisplayName ?? message.SenderAddress)</span>
+                                        <br />
+                                        <span>@message.Subject</span>
+                                    }
+                                    else
+                                    {
+                                        @(string.IsNullOrWhiteSpace(query.Details) ? OperatorLabels.CaseWorkspace.AbsentValue : query.Details)
+                                    }
+                                </td>
+                                <td>
+                                    @if (query.ClosedAtUtc is { } closedAt)
+                                    {
+                                        <time datetime="@closedAt.ToString("O")">@OperatorLabels.OfficeTime(closedAt)</time>
+                                        <br />
+                                        <span>@query.ClosedByDisplayName</span>
+                                    }
+                                    else
+                                    {
+                                        @OperatorLabels.CaseWorkspace.AbsentValue
+                                    }
+                                </td>
+                                <td class="row-actions nowrap">
+                                    @if (query.Message is { } row)
+                                    {
+                                        <a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" data-dialog-open="case-message-@row.RetainedMessageId.ToString("N")">@OperatorLabels.CaseWorkspace.OpenMessage</a>
+                                        @if (query.IsOpen && Model.StaffMailAvailable)
+                                        {
+                                            <a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" asp-route-compose="reply" asp-route-correspondenceCaseReference="@reference" data-query-reply="@row.RetainedMessageId">@OperatorLabels.StaffMail.Reply</a>
+                                        }
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @foreach (var query in queries.Where(query => query.Message is not null))
+            {
+                <partial name="Cases/Shared/_CaseMessageDialog" model="@(new Pegasus.Web.Pages.Cases.CaseMessageDialogView(query.Message!, reference))" />
+            }
+        }
+    </div>
+</section>

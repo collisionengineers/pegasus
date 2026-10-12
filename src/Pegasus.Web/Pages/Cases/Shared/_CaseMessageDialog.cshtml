@@ -1,0 +1,32 @@
+@*
+    One retained message in a dialog over the Case (FRD-16 Files): its
+    content is fetched from the Inbox record on first open, with the record's
+    Reply, Reply all and Forward for this Case where the record offers them;
+    the foot leads to the full record. The Correspondence tab and the Queries
+    section both draw it, one per message.
+*@
+@model Pegasus.Web.Pages.Cases.CaseMessageDialogView
+@using Pegasus.Web.Presentation
+@{
+    var dialogId = $"case-message-{Model.Email.RetainedMessageId:N}";
+}
+<div id="@dialogId" class="dialog-backdrop" data-dialog="@dialogId" data-case-message-dialog
+     data-case-message-url="@Url.Page("/Mail/Message", "Content", new { id = Model.Email.RetainedMessageId, correspondenceCaseReference = Model.CaseReference })" hidden>
+    <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="@dialogId-title">
+        <div class="dialog-head">
+            <h2 id="@dialogId-title" class="wrap" tabindex="-1">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(Model.Email.Subject)</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="dialog-body" data-case-message-body aria-busy="true">
+            <div class="spinner" aria-hidden="true"></div>
+        </div>
+        <div class="dialog-foot" data-case-message-foot>
+            <a class="btn btn--dark" asp-page="/Mail/Message" asp-route-id="@Model.Email.RetainedMessageId" data-case-message-record>
+                <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+                <span>@OperatorLabels.Inbox.OpenFullMessage</span>
+            </a>
+        </div>
+    </section>
+</div>

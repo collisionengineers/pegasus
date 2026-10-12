@@ -841,6 +841,50 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         // 20261008174505_CaseListPresets: a removed preset is kept, never deleted.
         Assert.DoesNotContain("CaseListPresets:DELETE", deleteGrants);
         Assert.Contains("CaseListPresets", await ReadDeniedDeleteTablesAsync(database, WebRole));
+        // 20261011191701_ReportSentAndCaseQueries: a query is closed, never deleted.
+        Assert.DoesNotContain("CaseQueries:DELETE", deleteGrants);
+        Assert.Contains("CaseQueries", await ReadDeniedDeleteTablesAsync(database, WebRole));
+    }
+
+    // 20261011191701_ReportSentAndCaseQueries: Web logs, tags and resolves
+    // queries; the Worker raises one when a post-report e-mail links
+    // automatically and resolves them when a flagged reply reaches Sent.
+    // Neither deletes one.
+    [Fact]
+    public async Task LatestMigrationGivesCaseQueriesItsExactRuntimePermissions()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(
+            [
+                $"{WebRole}:D:DELETE",
+                $"{WebRole}:G:INSERT",
+                $"{WebRole}:G:SELECT",
+                $"{WebRole}:G:UPDATE",
+                $"{WorkerRole}:D:DELETE",
+                $"{WorkerRole}:G:INSERT",
+                $"{WorkerRole}:G:SELECT",
+                $"{WorkerRole}:G:UPDATE"
+            ],
+            await ReadValuesAsync(
+                database,
+                $"""
+                SELECT CONCAT(
+                    principal.name COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.[state] COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.permission_name COLLATE DATABASE_DEFAULT)
+                FROM sys.database_permissions AS permission
+                INNER JOIN sys.database_principals AS principal
+                    ON principal.principal_id = permission.grantee_principal_id
+                WHERE permission.major_id = OBJECT_ID(N'[dbo].[CaseQueries]')
+                  AND permission.class = 1
+                  AND permission.minor_id = 0
+                  AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
+                """));
     }
 
     // 20260924180000_CaseWorksAndTriageCases: Web and Worker both create Cases

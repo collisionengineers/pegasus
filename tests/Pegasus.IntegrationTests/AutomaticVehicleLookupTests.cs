@@ -79,13 +79,11 @@ public sealed class AutomaticVehicleLookupTests
             "SELECT COUNT(*) FROM VehicleLookupRequests"));
     }
 
-    [Theory]
-    [InlineData(CaseLifecycleState.PostReportComplete)]
-    [InlineData(CaseLifecycleState.Query)]
-    public async Task SweepEnqueuesLookupsForCompletedAndQueryCases(CaseLifecycleState state)
+    [Fact]
+    public async Task SweepEnqueuesLookupsForReportSentCases()
     {
         await using var database = await CreateDatabaseAsync();
-        var caseId = await SeedCaseAsync(database, state);
+        var caseId = await SeedCaseAsync(database, CaseLifecycleState.ReportSent);
         await SeedRegistrationFieldAsync(database, caseId, "AB12CDE", "fact");
 
         Assert.Equal(1, await SweepAsync(database));

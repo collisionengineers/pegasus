@@ -249,7 +249,7 @@ public static class UploadReviewDestinations
                     item.Principal,
                     item.TriageState is { } triageState
                         ? OperatorLabels.TriageState(triageState)
-                        : OperatorLabels.CaseStage(item.State),
+                        : OperatorLabels.CaseStage(item.State, item.HasOpenQuery),
                     target);
         }
         catch (Exception exception) when (exception is not Pegasus.Core.Identity.StaffAuthorizationException

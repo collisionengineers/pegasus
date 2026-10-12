@@ -1003,7 +1003,7 @@ public sealed class PollSentEvidenceTests
                 ? new AutoLinkedReportEvidence(
                     request.CaseId,
                     request.EvidenceId,
-                    CaseLifecycleState.PostReport,
+                    CaseLifecycleState.ReportSent,
                     Version: 1)
                 : null;
             return Task.FromResult(new AutoLinkReportEvidenceResult(

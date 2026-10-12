@@ -843,17 +843,16 @@ public sealed class RetainedMailTests
     }
 
     [Theory]
-    [InlineData(PostReportQueryEntry.EnterQuery, 1)]
-    [InlineData(PostReportQueryEntry.None, 0)]
-    [InlineData(PostReportQueryEntry.CompleteWithObservedReply, 0)]
-    public async Task ACorrectionThatEntersQueryTellsTheCaseEngineer(PostReportQueryEntry entry, int arrivals)
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public async Task ACorrectionThatRaisesAQueryTellsTheCaseEngineer(bool queryRaised, int arrivals)
     {
         var caseId = Guid.NewGuid();
         var original = MailClassificationResult.Unclassified([], "No match.", "policy", 1);
         var store = new ClassificationStore(new(1, original, "system-worker:poll", NowUtc.AddMinutes(-1), []))
         {
             LinkedCaseId = caseId,
-            QueryEntry = entry
+            QueryRaised = queryRaised
         };
         var notifier = new RecordingCaseNotifier();
 
@@ -1189,7 +1188,7 @@ public sealed class RetainedMailTests
 
         internal Guid? LinkedCaseId { get; init; }
 
-        internal PostReportQueryEntry QueryEntry { get; init; }
+        internal bool QueryRaised { get; init; }
 
         public Task<MailClassificationDossier?> GetClassificationAsync(
             Guid messageId,
@@ -1215,7 +1214,7 @@ public sealed class RetainedMailTests
                     correctedAtUtc,
                     [.. dossier.History, new(expectedVersion + 1, before, after, packed, reason, correctedAtUtc)]),
                 LinkedCaseId,
-                QueryEntry,
+                QueryRaised,
                 false));
         }
     }

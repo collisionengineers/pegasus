@@ -34,6 +34,8 @@ internal sealed class StaffMailSendOperationEntity : IApplicationManagedConcurre
     public string? OriginalImmutableMessageId { get; set; }
     public string? OriginalInternetMessageId { get; set; }
     public string? OriginalConversationId { get; set; }
+    /// <summary>The reply's "Also resolve query" tick: the Case's open queries resolve on observed Sent.</summary>
+    public bool ResolvesCaseQueries { get; set; }
     public required string RecipientsJson { get; set; }
     public required string Subject { get; set; }
     public required string Body { get; set; }
