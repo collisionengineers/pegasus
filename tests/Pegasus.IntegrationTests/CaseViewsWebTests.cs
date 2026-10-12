@@ -494,8 +494,9 @@ public sealed class CaseViewsWebTests
     /// <summary>
     /// The Next action is the viewed work's (operator, 2 October 2026): the
     /// Inspection view states the Inspection report's own step, its link
-    /// staying in that view, and nothing once that report is sent; the Audit
-    /// view states the Audit's step as before.
+    /// staying in that view, and nothing once a send of that report is
+    /// accepted, before its Sent item is observed (operator, 12 October
+    /// 2026); the Audit view states the Audit's step as before.
     /// </summary>
     [Fact]
     public async Task TheInspectionViewsNextActionIsTheInspectionReports()
@@ -508,9 +509,11 @@ public sealed class CaseViewsWebTests
         };
         store.GiveAudit(InspectionSentAtUtc, inspectionSent: false);
         var reports = new ReportsPerWork(store.CaseId) { Inspection = null };
+        var sends = new SendsPerWork();
         using var host = new ReadingHost(store, services =>
         {
             Substitute<ICaseReportGenerationStore>(services, reports);
+            Substitute<ICaseReportSendHistoryQueries>(services, sends);
             Substitute<ICaseReportSnapshotSource>(
                 services,
                 new AssessmentReportDraftWebTests.FakeProjectionSource(AssessmentReportDraftWebTests.ReadyInput(store.CaseId)));
@@ -536,7 +539,22 @@ public sealed class CaseViewsWebTests
         Assert.Contains($"<strong data-next-label>{CaseWorkspaceLabels.ReportDelivery.SendReport}</strong>", next, StringComparison.Ordinal);
         Assert.Contains("view=inspection#section-report", next, StringComparison.Ordinal);
 
-        // The Inspection report sent: nothing more for the Inspection.
+        // A send of the Inspection report accepted, its Sent item not yet
+        // observed: nothing more for the Inspection, and the Audit still
+        // sends its own.
+        sends.Inspection = 1;
+        next = NextAction(await host.ReadAsync(inspectionPath));
+        Assert.DoesNotContain("data-next-label", next, StringComparison.Ordinal);
+        auditNext = NextAction(await host.ReadAsync($"/Cases/{store.CaseId:D}"));
+        Assert.Contains($"<strong data-next-label>{CaseWorkspaceLabels.ReportDelivery.SendReport}</strong>", auditNext, StringComparison.Ordinal);
+
+        // A send of the Audit report accepted: the Audit's step is done too.
+        sends.Audit = 1;
+        auditNext = NextAction(await host.ReadAsync($"/Cases/{store.CaseId:D}"));
+        Assert.Contains("<strong data-next-label>None</strong>", auditNext, StringComparison.Ordinal);
+
+        // The Inspection report's Sent item observed: still nothing.
+        sends.Inspection = 0;
         store.GiveAudit(InspectionSentAtUtc, inspectionSent: true);
         next = NextAction(await host.ReadAsync(inspectionPath));
         Assert.DoesNotContain("data-next-label", next, StringComparison.Ordinal);
@@ -544,25 +562,28 @@ public sealed class CaseViewsWebTests
     }
 
     /// <summary>
-    /// Once the Inspection report is sent, Create audit is the Next action of
-    /// an Inspection + Audit Case that has no Audit yet, with the Actions
-    /// menu's own control: live, or greyed with Core's reason (operator,
-    /// 2 October 2026). Any other Report sent Case without an open query has
-    /// none (operator, 11 October 2026).
+    /// Once the Inspection report is stored, Create audit is the Next action
+    /// of an Inspection + Audit Case that has no Audit yet, whether or not the
+    /// report is sent, with the Actions menu's own control: live, or greyed
+    /// with Core's reason (operator, 2 and 12 October 2026). Any other Case
+    /// sends its stored report, and once it is sent and has no open query it
+    /// has none (operator, 11 October 2026).
     /// </summary>
     [Theory]
-    [InlineData(CaseType.InspectionAndAudit, true, null)]
-    [InlineData(CaseType.InspectionAndAudit, false, "Report preparation requires an assigned Engineer.")]
-    [InlineData(CaseType.Inspection, true, null)]
-    public async Task CreateAuditIsTheNextActionOnceTheInspectionReportIsSent(
-        CaseType caseType, bool engineerAssigned, string? condition)
+    [InlineData(CaseType.InspectionAndAudit, true, true, null)]
+    [InlineData(CaseType.InspectionAndAudit, false, true, null)]
+    [InlineData(CaseType.InspectionAndAudit, true, false, "Report preparation requires an assigned Engineer.")]
+    [InlineData(CaseType.Inspection, true, true, null)]
+    [InlineData(CaseType.Inspection, false, true, null)]
+    public async Task CreateAuditIsTheNextActionOnceTheInspectionReportIsStored(
+        CaseType caseType, bool sent, bool engineerAssigned, string? condition)
     {
         var store = new RecordingCaseDetailsStore
         {
-            State = CaseLifecycleState.ReportSent,
+            State = sent ? CaseLifecycleState.ReportSent : CaseLifecycleState.ReportPreparation,
             SummaryCaseType = caseType,
             AssignedEngineerId = engineerAssigned ? Guid.NewGuid() : null,
-            ReportSentEvidence = SentEvidence(InspectionSentAtUtc)
+            ReportSentEvidence = sent ? SentEvidence(InspectionSentAtUtc) : null
         };
         using var host = new ReadingHost(store, services =>
         {
@@ -577,7 +598,10 @@ public sealed class CaseViewsWebTests
         Assert.DoesNotContain("data-next-mark-completed", next, StringComparison.Ordinal);
         if (caseType != CaseType.InspectionAndAudit)
         {
-            Assert.Contains("<strong data-next-label>None</strong>", next, StringComparison.Ordinal);
+            Assert.Contains(
+                $"<strong data-next-label>{(sent ? "None" : CaseWorkspaceLabels.ReportDelivery.SendReport)}</strong>",
+                next,
+                StringComparison.Ordinal);
             Assert.DoesNotContain("data-next-create-audit", next, StringComparison.Ordinal);
             Assert.DoesNotContain("data-next-resolve-query", next, StringComparison.Ordinal);
             return;
@@ -951,6 +975,21 @@ public sealed class CaseViewsWebTests
     /// Inspection's for the primary one. Only the reads the Case page makes
     /// are answered.
     /// </summary>
+    /// <summary>Each work's accepted report sends, as the send history counts them.</summary>
+    private sealed class SendsPerWork : ICaseReportSendHistoryQueries
+    {
+        public int Inspection { get; set; }
+
+        public int Audit { get; set; }
+
+        public Task<CaseReportSendHistory> GetAsync(
+            Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
+            Task.FromResult(
+                (work == CaseWorkSelector.Primary ? Inspection : Audit) is var count and > 0
+                    ? new CaseReportSendHistory(count, null)
+                    : CaseReportSendHistory.None);
+    }
+
     private sealed class ReportsPerWork(Guid caseId) : ICaseReportGenerationStore
     {
         /// <summary>The Audit's current generation; null while it has none.</summary>

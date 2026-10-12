@@ -251,9 +251,10 @@ audit created from it."; Created in error keeps its own refusal), an
 archived Case, a Case that already has its Audit, and while a colleague
 holds the edit lease (the sections' own editing wording). A held Case is
 live again after Release Hold. It uses the same staff authorisation as the
-other Actions-menu progressions. Once the Inspection report is sent, Create
-audit is the Case's Next action, stated in the aside and the Cases quick
-detail with the same control (operator, 2 October 2026).
+other Actions-menu progressions. Once the Inspection report is stored,
+whether or not it is sent, Create audit is the Case's Next action, stated in
+the aside and the Cases quick detail with the same control (operator, 2 and
+12 October 2026).
 With no assigned Engineer it is refused with Return to Engineer's refusal,
 "Report preparation requires an assigned Engineer.", and the assigned
 Engineer must still be eligible, as for Return to Engineer. It asks for no
