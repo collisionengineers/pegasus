@@ -161,7 +161,6 @@ public sealed class CaseQueryLifecycleTests
         public Task<CaseWorkflowRecord> ReleaseHoldAsync(CaseMutationRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> ReturnToReviewAsync(ReturnCaseToReviewRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> AssignEngineerAsync(AssignCaseEngineerRequest request, Guid? signOffEngineerId, CaseLifecycleState targetState, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<CaseWorkflowRecord> SetSignOffEngineerAsync(SetCaseSignOffEngineerRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> RecordReportApprovalAsync(RecordCaseReportApprovalRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> LinkReportEvidenceAsync(LinkReportEvidenceRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> UnlinkReportEvidenceAsync(UnlinkReportEvidenceRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
