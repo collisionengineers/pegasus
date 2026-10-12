@@ -64,7 +64,7 @@ internal static class VehicleModelConfiguration
             entity.HasIndex(item => new { item.WorkItemId, item.AttemptNumber }).IsUnique();
             entity.HasIndex(item => new { item.Provider, item.ProviderVersion, item.ResponseIdentity });
             entity.HasOne(item => item.Request)
-                .WithMany(item => item.Observations)
+                .WithMany()
                 .HasForeignKey(item => item.WorkItemId)
                 .OnDelete(DeleteBehavior.Restrict);
         });

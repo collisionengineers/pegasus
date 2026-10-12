@@ -296,8 +296,6 @@ public sealed class WorkerAzureClientCompositionTests
                 "Integrated Security=true;Encrypt=false",
             ["AzureWebJobsStorage"] = "UseDevelopmentStorage=true",
             ["Intake:LocalArtifactPath"] = "intake",
-            ["ApprovedInbox:MailboxId"] = "instructions",
-            ["ApprovedInbox:MailboxAddress"] = "instructions@example.test",
             ["ApprovedInbox:LocalRootPath"] = "approved-inbox",
             ["ApprovedSent:MailboxId"] = "instructions",
             ["ApprovedSent:MailboxAddress"] = "instructions@example.test",

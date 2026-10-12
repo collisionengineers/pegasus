@@ -109,15 +109,6 @@ public sealed class EfRepairSpecificationSnapshotStore(
         return rows.Select(Map).ToArray();
     }
 
-    public async Task<RepairSpecificationSnapshot?> GetAsync(
-        Guid caseId, Guid snapshotId, CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var row = await context.CaseRepairSpecificationSnapshots.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Work.CaseId == caseId && item.Id == snapshotId, cancellationToken);
-        return row is null ? null : Map(row);
-    }
-
     internal static RepairSpecificationSnapshot Map(CaseRepairSpecificationSnapshotEntity entity) => new(
         entity.Id, entity.Work.CaseId, entity.SpecificationId, entity.Number,
         Enum.Parse<RepairSpecificationSnapshotKind>(entity.Kind), entity.Origin,

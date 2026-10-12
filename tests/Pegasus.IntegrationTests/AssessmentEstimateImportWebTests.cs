@@ -2589,10 +2589,6 @@ public sealed partial class AssessmentEstimateImportWebTests
             Task.FromResult<IReadOnlyList<RepairSpecificationSnapshot>>(
                 Snapshots.Where(item => item.CaseId == ownerCaseId && item.SpecificationId == specificationId).ToArray());
 
-        public Task<RepairSpecificationSnapshot?> GetAsync(
-            Guid ownerCaseId, Guid snapshotId, CancellationToken cancellationToken) =>
-            Task.FromResult<RepairSpecificationSnapshot?>(Snapshots.FirstOrDefault(item => item.Id == snapshotId));
-
         public Task<RepairSpecificationVersion> ScaleAsync(
             ScaleRepairSpecificationRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();

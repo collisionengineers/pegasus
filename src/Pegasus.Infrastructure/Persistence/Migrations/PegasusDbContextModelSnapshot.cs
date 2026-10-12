@@ -9243,7 +9243,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.VehicleLookupObservationEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.VehicleLookupRequestEntity", "Request")
-                        .WithMany("Observations")
+                        .WithMany()
                         .HasForeignKey("WorkItemId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -9403,11 +9403,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("ResponseEvidenceLinks");
 
                     b.Navigation("SentEmailEvidence");
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.VehicleLookupRequestEntity", b =>
-                {
-                    b.Navigation("Observations");
                 });
 #pragma warning restore 612, 618
         }
