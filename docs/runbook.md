@@ -617,8 +617,12 @@ and approved provider configuration have been deployed.
    permitted-mailbox check and a denied-mailbox check. Record tenant,
    application identities, mailbox scope, administrator and approval time.
 3. In Pegasus Administration, add the mailbox address. The Web identity
-   resolves its stable Graph identity and performs a read-only folder access
-   check. Under **Used for**, tick Incoming and Outgoing. A saved row does not
+   resolves its Graph identity and performs a read-only folder access check.
+   The identities hold no directory permission, so the directory refuses the
+   address lookup and the mailbox is resolved by its address through the
+   Exchange RBAC mail scope instead; the address is then its stored Graph
+   identity, and a mailbox outside that scope reads as not found. Under
+   **Used for**, tick Incoming and Outgoing. A saved row does not
    grant Exchange access. Tick Outgoing only after
    `Test-ServicePrincipalAuthorization` for the Web identity on that mailbox
    lists `Mail.ReadWrite` and `Mail.Send` as well as `Mail.Read`. Every
