@@ -30,7 +30,14 @@ public interface IImageIntakeCasePairing
 {
     Task<ImageIntakePairingResult> PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken);
 
-    Task<ImageIntakePairingResult> PairRegisteredReceiptAsync(Guid receiptId, CancellationToken cancellationToken);
+    /// <summary>
+    /// Pairs one registered receipt. A caller that has just read the registration
+    /// passes it as <paramref name="registered"/> so it is not read again.
+    /// </summary>
+    Task<ImageIntakePairingResult> PairRegisteredReceiptAsync(
+        Guid receiptId,
+        CancellationToken cancellationToken,
+        ImageIntakeDetail? registered = null);
 
     Task<ImageIntakePairingResult> ReconcileAsync(int maximumItems, CancellationToken cancellationToken);
 
@@ -157,13 +164,15 @@ public sealed class ImageIntakeCasePairing(
 
     public async Task<ImageIntakePairingResult> PairRegisteredReceiptAsync(
         Guid receiptId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ImageIntakeDetail? registered = null)
     {
         using var activity = Telemetry.StartActivity("image_intake_pairing");
         activity?.SetTag("intake.receipt_id", receiptId);
         try
         {
-            var detail = await imageIntakeStore.GetByOriginReceiptAsync(receiptId, cancellationToken);
+            var detail = registered
+                ?? await imageIntakeStore.GetByOriginReceiptAsync(receiptId, cancellationToken);
             if (detail is null || detail.State != ImageInitiatedCaseState.AwaitingInstruction)
             {
                 return new(0, 0, 0);
@@ -173,6 +182,8 @@ public sealed class ImageIntakeCasePairing(
             var originReceipt = await receiptQueries.GetAsync(detail.Record.Origin.ReceiptId, cancellationToken)
                 ?? throw new KeyNotFoundException("The registered image origin is unavailable.");
             var channel = originReceipt.SourceIdentity.Channel;
+            IReadOnlyList<ImageIntakeImage>? manualImages = null;
+            var knownReceipts = new Dictionary<Guid, IntakeReceipt> { [originReceipt.Id] = originReceipt };
             if (channel == IntakeSourceChannel.ManualUpload)
             {
                 // A manual group confirmation owns one explicit, reasoned
@@ -183,13 +194,21 @@ public sealed class ImageIntakeCasePairing(
                 // existing pairing/merge path below remains the sole owner of
                 // the Image-initiated Case lifecycle.  An untouched manual
                 // group pairs only with a Case created after it registered.
-                var manualImages = await imageIntakeStore.ListImagesAsync(detail.Record.Id, cancellationToken);
+                manualImages = await imageIntakeStore.ListImagesAsync(detail.Record.Id, cancellationToken);
                 var manualMemberIds = manualImages.Select(image => image.ReceiptId)
                     .Prepend(detail.Record.Origin.ReceiptId)
                     .Distinct()
                     .ToArray();
                 var manualMembers = await Task.WhenAll(manualMemberIds.Select(
                     memberId => receiptQueries.GetAsync(memberId, cancellationToken)));
+                foreach (var manualMember in manualMembers)
+                {
+                    if (manualMember is not null)
+                    {
+                        knownReceipts[manualMember.Id] = manualMember;
+                    }
+                }
+
                 if (AwaitsStaffCompletion(channel,
                         manualMembers.Any(member => member?.ManualAssociationActorKind == ActorKind.Staff),
                         manualMembers.All(member => member?.CurrentCaseId is not null)))
@@ -217,12 +236,15 @@ public sealed class ImageIntakeCasePairing(
                 targetId = target.CaseId;
             }
 
-            var images = await imageIntakeStore.ListImagesAsync(detail.Record.Id, cancellationToken);
+            var images = manualImages
+                ?? await imageIntakeStore.ListImagesAsync(detail.Record.Id, cancellationToken);
             var receiptIds = images.Select(image => image.ReceiptId)
                 .Prepend(detail.Record.Origin.ReceiptId).Distinct();
             foreach (var memberId in receiptIds)
             {
-                var member = await receiptQueries.GetAsync(memberId, cancellationToken)
+                var member = (knownReceipts.TryGetValue(memberId, out var known)
+                        ? known
+                        : await receiptQueries.GetAsync(memberId, cancellationToken))
                     ?? throw new KeyNotFoundException("The registered image receipt is unavailable.");
                 if (member.CurrentCaseId == targetId)
                 {
