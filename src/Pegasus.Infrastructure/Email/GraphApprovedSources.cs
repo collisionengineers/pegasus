@@ -1108,6 +1108,9 @@ internal sealed class GraphDeletedMailSearchSource(
     IApprovedIntakeMailboxes approvedMailboxes,
     IIntakeSourceReader sourceReader) : IDeletedMailSearchSource
 {
+    // Outlook allows four concurrent requests per mailbox; two leaves the Worker headroom.
+    private const int MaximumConcurrentMimeReads = 2;
+
     public async Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
         CancellationToken cancellationToken) =>
         (await approvedMailboxes.ListPollableAsync(cancellationToken))
@@ -1175,50 +1178,60 @@ internal sealed class GraphDeletedMailSearchSource(
                 .Take(maximumMessages)
                 .ToArray();
             truncated |= candidates.Count > maximumMessages;
-            foreach (var candidate in selectedCandidates)
-            {
-                var mailbox = candidate.Mailbox;
-                var item = candidate.Message;
-                var mime = await client.ReadFolderMimeAsync(
-                    mailbox.GraphMailboxId,
-                    candidate.FolderId,
-                    item.Id,
-                    cancellationToken);
-                var read = await sourceReader.ReadAsync(
-                    new(
-                        $"{item.Id}.eml",
-                        "message/rfc822",
-                        mime,
-                        item.ReceivedAtUtc ?? DateTimeOffset.MinValue,
-                        "system-worker:deleted-mail-search",
-                        new(IntakeSourceChannel.Mailbox, $"deleted:{mailbox.ApprovedMailboxId:D}:{item.Id}")),
-                    cancellationToken);
-                if (Match(read, searchTerm) is not { Length: > 0 } found)
+            var found = new DeletedMailSearchItem?[selectedCandidates.Length];
+            await Parallel.ForEachAsync(
+                Enumerable.Range(0, selectedCandidates.Length),
+                new ParallelOptions
                 {
-                    continue;
-                }
-                var documents = IntakeSearchProjection.Create(read, routeDecision: null);
-                var searchableOrdinals = documents
-                    .Where(document => document.AttachmentOrdinal is not null && document.IsSearchable)
-                    .Select(document => document.AttachmentOrdinal!.Value)
-                    .ToHashSet();
-                matches.Add(new(
-                    mailbox.ApprovedMailboxId,
-                    mailbox.Address,
-                    item.Id,
-                    Sender(read),
-                    null,
-                    Subject(read),
-                    documents.FirstOrDefault(document => document.AttachmentOrdinal is null)?.Text,
-                    item.ReceivedAtUtc ?? DateTimeOffset.MinValue,
-                    item.IsRead,
-                    read.AttachmentRecords.Select(attachment => new RetainedMailAttachment(
-                        attachment.FileName,
-                        attachment.MediaType,
-                        attachment.ContentLength ?? 0,
-                        searchableOrdinals.Contains(attachment.Ordinal))).ToArray(),
-                    found));
-            }
+                    MaxDegreeOfParallelism = MaximumConcurrentMimeReads,
+                    CancellationToken = cancellationToken,
+                },
+                async (index, token) =>
+                {
+                    var candidate = selectedCandidates[index];
+                    var mailbox = candidate.Mailbox;
+                    var item = candidate.Message;
+                    var mime = await client.ReadFolderMimeAsync(
+                        mailbox.GraphMailboxId,
+                        candidate.FolderId,
+                        item.Id,
+                        token);
+                    var read = await sourceReader.ReadAsync(
+                        new(
+                            $"{item.Id}.eml",
+                            "message/rfc822",
+                            mime,
+                            item.ReceivedAtUtc ?? DateTimeOffset.MinValue,
+                            "system-worker:deleted-mail-search",
+                            new(IntakeSourceChannel.Mailbox, $"deleted:{mailbox.ApprovedMailboxId:D}:{item.Id}")),
+                        token);
+                    var documents = IntakeSearchProjection.Create(read, routeDecision: null);
+                    if (Match(read, documents, searchTerm) is not { Length: > 0 } matched)
+                    {
+                        return;
+                    }
+                    var searchableOrdinals = documents
+                        .Where(document => document.AttachmentOrdinal is not null && document.IsSearchable)
+                        .Select(document => document.AttachmentOrdinal!.Value)
+                        .ToHashSet();
+                    found[index] = new(
+                        mailbox.ApprovedMailboxId,
+                        mailbox.Address,
+                        item.Id,
+                        Sender(read),
+                        null,
+                        Subject(read),
+                        documents.FirstOrDefault(document => document.AttachmentOrdinal is null)?.Text,
+                        item.ReceivedAtUtc ?? DateTimeOffset.MinValue,
+                        item.IsRead,
+                        read.AttachmentRecords.Select(attachment => new RetainedMailAttachment(
+                            attachment.FileName,
+                            attachment.MediaType,
+                            attachment.ContentLength ?? 0,
+                            searchableOrdinals.Contains(attachment.Ordinal))).ToArray(),
+                        matched);
+                });
+            matches.AddRange(found.OfType<DeletedMailSearchItem>());
         }
         catch (Exception exception) when (
             exception is ApprovedMailboxAccessDeniedException
@@ -1237,9 +1250,9 @@ internal sealed class GraphDeletedMailSearchSource(
 
     private static RetainedMailSearchMatch[] Match(
         IntakeSourceReadResult read,
+        IReadOnlyList<IntakeSearchDocument> documents,
         string searchTerm)
     {
-        var documents = IntakeSearchProjection.Create(read, routeDecision: null);
         var found = new List<RetainedMailSearchMatch>();
         if (documents.Any(document => document.AttachmentFileName is null
             && document.Text?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) == true))
