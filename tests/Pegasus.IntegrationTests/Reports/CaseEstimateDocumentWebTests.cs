@@ -68,7 +68,7 @@ public sealed class CaseEstimateDocumentWebTests
             });
         var renderer = new RecordingEstimateDocumentRenderer();
         var useCase = new RenderCaseEstimateDocument(
-            workspace, estimates, renderer, TimeProvider.System);
+            workspace, workspace, estimates, renderer, TimeProvider.System);
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
@@ -136,7 +136,7 @@ public sealed class CaseEstimateDocumentWebTests
             });
         var renderer = new RecordingEstimateDocumentRenderer();
         var useCase = new RenderCaseEstimateDocument(
-            workspace, estimates, renderer, TimeProvider.System);
+            workspace, workspace, estimates, renderer, TimeProvider.System);
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
@@ -191,7 +191,7 @@ public sealed class CaseEstimateDocumentWebTests
     }
 
     private sealed class ControlledEstimateWorkspace(AssessmentWorkspace workspace)
-        : IGetAssessmentWorkspace
+        : IGetAssessmentWorkspace, IGetAssessmentWorkspaceVersion
     {
         public int Calls { get; private set; }
 
@@ -203,6 +203,11 @@ public sealed class CaseEstimateDocumentWebTests
             return Task.FromResult<AssessmentWorkspace?>(
                 query.CaseId == workspace.Header.CaseId ? workspace : null);
         }
+
+        public Task<long?> ExecuteAsync(
+            GetAssessmentWorkspaceVersionQuery query,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<long?>(query.CaseId == workspace.Header.CaseId ? workspace.Header.Version : null);
     }
 
     private sealed class ControlledEstimateStore(RepairSpecificationVersion version)
