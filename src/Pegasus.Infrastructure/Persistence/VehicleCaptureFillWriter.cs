@@ -11,6 +11,7 @@ using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Vehicle;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
