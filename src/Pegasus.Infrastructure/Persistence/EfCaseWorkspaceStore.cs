@@ -219,14 +219,12 @@ public sealed class EfCaseWorkspaceStore(
             CaseDataFieldNames.VehicleMileage);
         var beforeMileageSource = CaseVehicleMileageSourcePolicy.Resolve(
             beforeMileageProvenance,
-            beforeMileageField is not null,
-            beforeAssessment.GetValueOrDefault(AssessmentVocabulary.VehicleMileageSource));
+            beforeMileageField is not null);
         var afterMileageSource = CaseVehicleMileageSourcePolicy.Resolve(
             afterMileageField is null
                 ? null
                 : EfCaseDataStore.ParseSourceKind(afterMileageField.SourceKind),
-            afterMileageField is not null,
-            afterAssessment.GetValueOrDefault(AssessmentVocabulary.VehicleMileageSource));
+            afterMileageField is not null);
 
         IReadOnlyList<CaseAssetPreparation>? beforePreparedImages = null;
         IReadOnlyList<CaseAssetPreparation>? preparedImages = null;

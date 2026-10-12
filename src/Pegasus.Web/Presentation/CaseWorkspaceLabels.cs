@@ -265,7 +265,7 @@ public static class CaseWorkspaceLabels
             return field switch
             {
                 AssessmentVocabulary.HistoryCheck or AssessmentVocabulary.VehicleCondition
-                    or AssessmentVocabulary.VehicleMileageSource or CaseDataFieldNames.VehicleRegistration
+                    or CaseDataFieldNames.VehicleRegistration
                     or CaseDataFieldNames.VehicleMake or CaseDataFieldNames.VehicleModel
                     or CaseDataFieldNames.VehicleYear or CaseDataFieldNames.VehicleMileage => "vehicle",
                 AssessmentVocabulary.DamageImpacts or AssessmentVocabulary.ImpactSeverity
@@ -662,6 +662,8 @@ public static class CaseWorkspaceLabels
         /// <summary>9 October 2026: the mileage box when the lookup found no MOT test to read a mileage from.</summary>
         public const string NoMotHistory = "No MOT history";
         public const string MileageSourceLabel = "Mileage source";
+        /// <summary>12 October 2026: the source of a mileage staff typed; nothing is picked.</summary>
+        public const string MileageSourceCustom = "Custom";
         public const string PreIncidentCondition = "Pre-incident condition";
         public const string OdometerUnit = "Odometer unit";
         public const string Miles = "Miles";
@@ -713,19 +715,6 @@ public static class CaseWorkspaceLabels
             }
             return path == AssessmentVocabulary.VehicleEngineCc ? value + " cc" : value;
         }
-
-        /// <summary>
-        /// Who told staff the mileage, for the codes staff may pick from once
-        /// they have entered the figure themselves. Every other code is
-        /// derived from the figure's own provenance and is never offered.
-        /// </summary>
-        public static string MileageSource(string code) => code switch
-        {
-            CaseVehicleMileageSourcePolicy.Owner => "Owner",
-            CaseVehicleMileageSourcePolicy.Repairer => "Repairer",
-            CaseVehicleMileageSourcePolicy.Principal => "Principal",
-            _ => throw new ArgumentOutOfRangeException(nameof(code))
-        };
     }
 
     /// <summary>

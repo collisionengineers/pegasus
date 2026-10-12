@@ -337,7 +337,7 @@ public sealed class CaseWorkspacePersistenceTests
                     "AB12 CDE",
                     "Ford",
                     "Focus",
-                    new(72_850, CaseOdometerUnit.Miles, "repairer", CaseOdometerUnit.Kilometres),
+                    new(72_850, CaseOdometerUnit.Miles, CaseOdometerUnit.Kilometres),
                     new Dictionary<string, string?>(StringComparer.Ordinal)
                     {
                         [AssessmentVocabulary.VehicleCondition] = "good",
@@ -561,57 +561,6 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal(wording.Order, persisted.Order);
         Assert.Equal(wording.Included, persisted.Included);
         Assert.Equal(wording.Manual, persisted.Manual);
-    }
-
-    [Fact]
-    public async Task ChangingOnlyTheEffectiveMileageSourceStalesTheCurrentGeneration()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var initial = await harness.GetRequiredDataAsync();
-        var firstLease = await harness.AcquireLeaseAsync(
-            initial.Version,
-            harness.StaffActor,
-            "mileage-source-first-lease");
-        var withMileage = await harness.WorkspaceStore.SaveAsync(
-            Request(harness, initial.Version, firstLease.Token, "mileage-source-first-save") with
-            {
-                Vehicle = new(
-                    null,
-                    null,
-                    null,
-                    new(72_850, CaseOdometerUnit.Miles, CaseVehicleMileageSourcePolicy.Owner, null),
-                    new Dictionary<string, string?>(StringComparer.Ordinal)),
-            },
-            CancellationToken.None);
-        var generationId = await SeedCurrentGenerationAsync(harness, withMileage.Version);
-
-        var sourceLease = await harness.AcquireLeaseAsync(
-            withMileage.Version,
-            harness.StaffActor,
-            "mileage-source-change-lease");
-        await harness.WorkspaceStore.SaveAsync(
-            Request(harness, withMileage.Version, sourceLease.Token, "mileage-source-change-save") with
-            {
-                Vehicle = new(
-                    null,
-                    null,
-                    null,
-                    new(72_850, CaseOdometerUnit.Miles, CaseVehicleMileageSourcePolicy.Repairer, null),
-                    new Dictionary<string, string?>(StringComparer.Ordinal)),
-            },
-            CancellationToken.None);
-
-        await using var context = await harness.Factory.CreateDbContextAsync();
-        Assert.Equal(
-            nameof(CaseReportGenerationState.Stale),
-            (await context.Set<CaseReportGenerationEntity>()
-                .SingleAsync(item => item.Id == generationId)).State);
-        Assert.Equal(
-            CaseReportStaleReasons.AssessmentFactsChanged,
-            (await context.Set<ActionHistoryEntity>()
-                .SingleAsync(item => item.AggregateId == harness.CaseId.ToString("D")
-                    && item.EventKind == "case_report_generation_stale"))
-                .Reason);
     }
 
     [Fact]
@@ -1490,7 +1439,7 @@ public sealed class CaseWorkspacePersistenceTests
                     null,
                     null,
                     null,
-                    new(100_000, CaseOdometerUnit.Kilometres, CaseVehicleMileageSourcePolicy.Owner, null),
+                    new(100_000, CaseOdometerUnit.Kilometres, null),
                     new Dictionary<string, string?>(StringComparer.Ordinal)),
                 Valuation = new(
                     [GuideCard(ValuationSource.Glasses, may, 13_000m)],

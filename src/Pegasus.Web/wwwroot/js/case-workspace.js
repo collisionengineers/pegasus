@@ -1811,9 +1811,39 @@
 // The Inspect-at choice filling the address input, and the hidden
 // `inspectionMode` it drives, are site.js's Inspect-at block, bound per root
 // through window.pegasusMountBinders, so an in-place swap re-binds them. The
-// lookup and the Save are plain forms the frame posts in place. Nothing here
-// adds behaviour: the Vehicle and Inspection sections read and edit with the
-// shared one-geometry cells alone.
+// lookup and the Save are plain forms the frame posts in place. The Vehicle
+// and Inspection sections read and edit with the shared one-geometry cells.
+//
+// The mileage source follows the figure (operator, 12 October 2026): a figure
+// staff typed is Custom. It reads Custom as soon as the box differs from the
+// figure the section opened with, or once a typed figure has been sent; the
+// server renders the same after the save.
+(function () {
+    'use strict';
+
+    function bind(root) {
+        root.querySelectorAll('[data-mileage-source]').forEach(function (cell) {
+            var section = cell.closest('[data-section="vehicle"]');
+            var box = section ? section.querySelector('#edit-mileage') : null;
+            if (!box || box.dataset.mileageSourceBound === 'true') {
+                return;
+            }
+            box.dataset.mileageSourceBound = 'true';
+            var read = cell.querySelector('.fv');
+            box.addEventListener('input', function () {
+                var opened = cell.getAttribute('data-mileage-opened') || '';
+                var unchanged = box.value === opened && box.defaultValue === opened;
+                var word = box.value === '' ? ''
+                    : unchanged ? cell.getAttribute('data-source-word') || ''
+                    : cell.getAttribute('data-custom-word');
+                read.textContent = word || cell.getAttribute('data-absent-word');
+                read.classList.toggle('empty', !word);
+            });
+        });
+    }
+    bind(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+})();
 
 
 // --- damage: damage by area (v28 P5) ---------------------------------------

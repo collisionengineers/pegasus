@@ -358,7 +358,6 @@ internal sealed class CaseEditMcpTools(
                                 Text(vehicleModel, Accepted(data.Vehicle.Model)),
                                 new(mileage,
                                     mileage is null ? null : unit ?? CaseOdometerUnit.Miles,
-                                    Recorded(AssessmentVocabulary.VehicleMileageSource),
                                     persisted?.VehicleMileageDisplayUnit),
                                 AssessmentFields: null,
                                 Text(vehicleYear, Accepted(data.Vehicle.Year)));

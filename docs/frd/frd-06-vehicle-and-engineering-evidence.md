@@ -317,11 +317,12 @@ from where the Case mileage came from; it is not recorded separately.
 | --- | --- |
 | Extracted from the instruction, including a third-party engineer report supplied with it | `principal` |
 | DVSA lookup | `online_data` |
-| Staff-entered, with the staff member's own choice recorded beside it in edit mode | `owner`, `repairer` or `principal` |
+| Staff-entered: the Case page reads Custom, and nothing is picked (operator, 12 October 2026) | `online_data` |
 | No mileage on the Case | `tbc` |
 
-The `average` code is still a renderer sentence, but nothing derives it.
-Staff no longer record a separate mileage-source report field.
+The `owner`, `repairer` and `average` codes are still renderer sentences, but
+nothing derives them. Staff no longer record a separate mileage-source report
+field, and the Case page has no source to pick.
 
 **No MOT history.** Sometimes the latest lookup answers for the Case's current
 registration but DVSA holds no MOT test. It answers either with an empty
