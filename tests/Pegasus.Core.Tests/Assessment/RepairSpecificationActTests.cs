@@ -356,6 +356,35 @@ public sealed class RepairSpecificationActTests
     }
 
     [Fact]
+    public void ALineWhoseTypeChangedIsOneChangedLineThatSaysWhatItWas()
+    {
+        // v38 P2: line ids never survive a save, so a Repair turned Replace
+        // pairs by its description and names its type among the changed
+        // cells, while the panel's Paint line still pairs with its own.
+        var from = Estimate(
+            Header(rate: 48m),
+            Line("paint_repair", paintWorkUnits: 2m) with { Description = "Front wing" },
+            Line("repair", workUnits: 3m) with { Description = "Front wing" });
+        var to = Estimate(
+            Header(rate: 48m),
+            Line("new_part", price: 300m, quantity: 1) with { Description = "Front wing" },
+            Line("paint_repair", paintWorkUnits: 2m) with { Description = "Front wing" });
+
+        var diff = RepairSpecificationComparison.Compare(from, to);
+
+        Assert.Empty(diff.Added);
+        Assert.Empty(diff.Removed);
+        var change = Assert.Single(diff.Changed);
+        Assert.Equal(("repair", "new_part"), (change.From.Type, change.To.Type));
+        Assert.Equal("type", change.ChangedFields[0]);
+        Assert.Equal("paint_repair", Assert.Single(diff.Unchanged).To.Type);
+        Assert.DoesNotContain(
+            "no longer required",
+            RepairSpecificationComparison.SupplementaryStatement(diff, "estimate"),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TheSupplementaryStatementNamesWhatChangedAndHowTheCostMoved()
     {
         var from = Estimate(Header(rate: 48m), Line("new_part", price: 100m) with { Description = "Bumper" });
