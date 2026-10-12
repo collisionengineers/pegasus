@@ -13,17 +13,6 @@ internal sealed class LocalCaseCustody(
     private const string RootMetadataFileName = ".pegasus-case.json";
     private readonly string rootPath = Path.GetFullPath(rootPath);
 
-    public Task<CaseCustodyRoot> CreateCaseRootAsync(
-        Guid caseId,
-        string caseReference,
-        string operationKey,
-        CancellationToken cancellationToken) => CreateCaseRootAsync(
-            caseId,
-            caseReference,
-            CustodyCreationOwner.Create(),
-            operationKey,
-            cancellationToken);
-
     public async Task<CaseCustodyRoot> CreateCaseRootAsync(
         Guid caseId,
         string caseReference,
@@ -239,17 +228,6 @@ internal sealed class LocalCaseCustody(
             cancellationToken);
         return relativeId;
     }
-
-    public Task<string> CreateAuditReferenceFolderAsync(
-        CaseCustodyRoot root,
-        string auditReference,
-        string operationKey,
-        CancellationToken cancellationToken) => CreateAuditReferenceFolderAsync(
-            root,
-            auditReference,
-            CustodyCreationOwner.Create(),
-            operationKey,
-            cancellationToken);
 
     private async Task<(ReadOnlyMemory<byte> Content, string Hash)> ReadVerifiedSourceAsync(
         IntakeSourceCustodyReference source,

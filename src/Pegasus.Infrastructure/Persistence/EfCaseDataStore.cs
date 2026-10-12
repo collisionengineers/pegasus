@@ -86,20 +86,6 @@ public sealed class EfCaseDataStore(
         return tracking ? query : query.AsNoTracking();
     }
 
-    private static void RequireVersionUnderLease(CaseWorkflowEntity workflow, long expectedVersion) =>
-        CaseMutationGuard.RequireVersionUnderLease(workflow, expectedVersion);
-
-    private static void RequireLease(
-        CaseWorkflowEntity workflow,
-        ActionActor actor,
-        string token,
-        DateTimeOffset now) =>
-        CaseMutationGuard.RequireLease(workflow, actor, token, now);
-
-    private static void ClearLease(CaseWorkflowEntity workflow) =>
-        CaseMutationGuard.ClearLease(workflow);
-
-
     internal static CaseDataProjection Map(
         CaseDataSnapshotEntity snapshot,
         CaseWorkflowEntity workflow) => Map(snapshot, workflow.Version, workflow.State);

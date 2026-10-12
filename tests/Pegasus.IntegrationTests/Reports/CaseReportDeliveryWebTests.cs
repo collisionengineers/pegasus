@@ -1497,10 +1497,6 @@ public sealed partial class AssessmentReportDraftWebTests
         public Task<IReadOnlyList<RepairSpecificationSnapshot>> ListAsync(
             Guid caseId, Guid specificationId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RepairSpecificationSnapshot>>([]);
-
-        public Task<RepairSpecificationSnapshot?> GetAsync(
-            Guid caseId, Guid snapshotId, CancellationToken cancellationToken) =>
-            Task.FromResult<RepairSpecificationSnapshot?>(null);
     }
 
     private static FormUrlEncodedContent Form(

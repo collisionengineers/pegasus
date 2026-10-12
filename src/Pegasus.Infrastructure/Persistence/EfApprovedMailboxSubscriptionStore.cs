@@ -18,7 +18,6 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
         var approved = ApprovedMailboxState.Approved.ToString();
         var entity = await context.ApprovedMailboxSubscriptions
             .AsNoTracking()
-            .Include(item => item.ApprovedMailbox)
             .SingleOrDefaultAsync(item =>
                 item.SubscriptionId == subscriptionId
                 && item.LifecycleState == active

@@ -1,4 +1,3 @@
-using System.Net.Mail;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -19,10 +18,7 @@ public sealed class LocalApprovedInboxOptions
     /// </param>
     public LocalApprovedInboxOptions(
         string runtimeProfile,
-        string mailboxId,
-        string mailboxAddress,
         string rootPath,
-        string inboxFolderIdentity = "inbox",
         long maximumContentLength = IntakeEnvelopeLimits.MaximumMailboxContentLength)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumContentLength);
@@ -32,45 +28,10 @@ public sealed class LocalApprovedInboxOptions
                 "The immutable local approved-inbox adapter is disabled outside DevelopmentOffline.");
         }
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(mailboxId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(mailboxAddress);
         ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
-        if (mailboxId.Length > 100)
-        {
-            throw new ArgumentException("The approved mailbox identity must be 100 characters or fewer.", nameof(mailboxId));
-        }
-
-        var normalizedAddress = mailboxAddress.Trim();
-        if (normalizedAddress.Length > 320
-            || !MailAddress.TryCreate(normalizedAddress, out var parsedAddress)
-            || !string.Equals(parsedAddress.Address, normalizedAddress, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ArgumentException("The approved mailbox address is invalid.", nameof(mailboxAddress));
-        }
-
-        ArgumentException.ThrowIfNullOrWhiteSpace(inboxFolderIdentity);
-        var normalizedFolder = inboxFolderIdentity.Trim();
-        if (normalizedFolder.Length > 200
-            || !string.Equals(
-                Path.GetFileName(normalizedFolder),
-                normalizedFolder,
-                StringComparison.Ordinal))
-        {
-            throw new ArgumentException(
-                "The approved Inbox folder identity must be a single path segment.",
-                nameof(inboxFolderIdentity));
-        }
-
-        MailboxId = mailboxId.Trim();
-        MailboxAddress = normalizedAddress;
         RootPath = Path.GetFullPath(rootPath);
-        InboxFolderIdentity = normalizedFolder;
         MaximumContentLength = maximumContentLength;
     }
-
-    public string MailboxId { get; }
-
-    public string MailboxAddress { get; }
 
     /// <summary>
     /// The root of the local mailbox estate. Each mailbox reads one folder directly
@@ -78,8 +39,6 @@ public sealed class LocalApprovedInboxOptions
     /// profile can hold more than one approved mailbox.
     /// </summary>
     public string RootPath { get; }
-
-    public string InboxFolderIdentity { get; }
 
     public long MaximumContentLength { get; }
 }
