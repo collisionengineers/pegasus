@@ -22,7 +22,7 @@ public sealed class EfCaseReportSentEvidenceStore(
         var normalized = Normalize(request);
         if (!await approvedMailboxPolicy.IsApprovedAsync(
                 normalized.MailboxIdentity,
-                ApprovedMailboxRouteScope.SentEvidence,
+                ApprovedMailboxRouteScope.Outgoing,
                 cancellationToken))
         {
             throw new UnauthorizedAccessException(

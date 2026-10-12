@@ -295,7 +295,7 @@ public sealed class CaseReportDeliveryTests
             new FixedGenerations(Generation()),
             new FixedSendHistory(new(2, new DateOnly(2026, 9, 1))),
             new FixedSuggestions(Suggestions(["handler@principal.example"])),
-            new FixedMailboxes(Mailbox()),
+            Senders(null, Mailbox()),
             send);
 
         await sendReport.ExecuteAsync(Request(), CancellationToken.None);
@@ -405,51 +405,125 @@ public sealed class CaseReportDeliveryTests
     }
 
     /// <summary>
-    /// Stream A review (blocker 2): a mailbox bound only for Sent-evidence
-    /// observation cannot send — the report journey needs the StaffSend
-    /// capability on the same approved, identified mailbox.
+    /// A chosen mailbox that is not Outgoing cannot send the report.
     /// </summary>
     [Fact]
-    public async Task SendFailsClosedWithoutTheStaffSendScope()
+    public async Task SendRefusesAChosenMailboxThatIsNotOutgoing()
     {
         var send = new RecordingSend();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => Use(
+        await Assert.ThrowsAsync<CaseMailSenderRequiredException>(() => Use(
                 new FixedGenerations(Generation()),
                 send,
-                Mailbox(scopes: [ApprovedMailboxRouteScope.SentEvidence]))
+                Mailbox(scopes: [ApprovedMailboxRouteScope.Incoming]))
             .ExecuteAsync(Request(), CancellationToken.None));
         Assert.Empty(send.Commands);
     }
 
+    /// <summary>
+    /// Operator, 12 October 2026: the report is a reply to the Case's
+    /// instruction email, from the mailbox it arrived in, with one "Re:" on
+    /// the instruction's subject.
+    /// </summary>
     [Fact]
-    public async Task SendFailsClosedWithoutExactlyOneSentEvidenceMailbox()
+    public async Task SendRepliesToTheInstructionEmailFromTheMailboxItArrivedIn()
     {
         var send = new RecordingSend();
-        var sendReport = new SendCaseReport(
-            new FixedGenerations(Generation()),
-            new FixedSendHistory(CaseReportSendHistory.None),
-            new FixedSuggestions(Suggestions(["handler@principal.example"])),
-            new FixedMailboxes(),
-            send);
+        var instruction = Instruction(MailboxId);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => sendReport.ExecuteAsync(Request(), CancellationToken.None));
+        await Use(new FixedGenerations(Generation()), send, Senders(instruction, Mailbox()))
+            .ExecuteAsync(Request() with { FromMailboxId = null }, CancellationToken.None);
+
+        var mail = Assert.Single(send.Commands).Mail;
+        Assert.Equal(StaffMailComposeMode.Reply, mail.ComposeMode);
+        Assert.Equal(MailboxId, mail.ApprovedMailboxId);
+        Assert.Equal(instruction.Original, mail.OriginalMessage);
+        Assert.Equal("Re: New instruction DVR-31001", mail.Subject);
+    }
+
+    /// <summary>
+    /// With no instruction email to reply to, the report is a new message from
+    /// the Outgoing mailbox staff chose, titled with the report reference.
+    /// </summary>
+    [Fact]
+    public async Task SendWithoutAnInstructionEmailIsNewFromTheChosenMailbox()
+    {
+        var send = new RecordingSend();
+        var chosen = Mailbox(id: Guid.NewGuid());
+
+        await Use(new FixedGenerations(Generation()), send, Senders(null, Mailbox(), chosen))
+            .ExecuteAsync(Request() with { FromMailboxId = chosen.Id }, CancellationToken.None);
+
+        var mail = Assert.Single(send.Commands).Mail;
+        Assert.Equal(StaffMailComposeMode.New, mail.ComposeMode);
+        Assert.Equal(chosen.Id, mail.ApprovedMailboxId);
+        Assert.Null(mail.OriginalMessage);
+        Assert.Equal("DVR-31001", mail.Subject);
+    }
+
+    /// <summary>
+    /// An instruction email held by a mailbox that cannot send is not replied
+    /// to: the report is new, from the Outgoing mailbox staff chose.
+    /// </summary>
+    [Fact]
+    public async Task SendFromAnInstructionMailboxThatCannotSendIsNewFromTheChosenMailbox()
+    {
+        var send = new RecordingSend();
+        var incoming = Mailbox(scopes: [ApprovedMailboxRouteScope.Incoming], id: Guid.NewGuid());
+
+        await Use(
+                new FixedGenerations(Generation()),
+                send,
+                Senders(Instruction(incoming.Id), incoming, Mailbox()))
+            .ExecuteAsync(Request(), CancellationToken.None);
+
+        var mail = Assert.Single(send.Commands).Mail;
+        Assert.Equal(StaffMailComposeMode.New, mail.ComposeMode);
+        Assert.Equal(MailboxId, mail.ApprovedMailboxId);
+        Assert.Null(mail.OriginalMessage);
+        Assert.Equal("DVR-31001", mail.Subject);
+    }
+
+    /// <summary>
+    /// With no instruction email to reply to and no From mailbox chosen,
+    /// nothing is sent.
+    /// </summary>
+    [Fact]
+    public async Task SendWithoutAnInstructionEmailRequiresAFromMailbox()
+    {
+        var send = new RecordingSend();
+
+        await Assert.ThrowsAsync<CaseMailSenderRequiredException>(() => Use(
+                new FixedGenerations(Generation()), send)
+            .ExecuteAsync(Request() with { FromMailboxId = null }, CancellationToken.None));
         Assert.Empty(send.Commands);
     }
 
     private static SendCaseReport Use(
-        FixedGenerations generations, RecordingSend send, ApprovedMailbox? mailbox = null) => new(
+        FixedGenerations generations, RecordingSend send, ApprovedMailbox? mailbox = null) =>
+        Use(generations, send, Senders(null, mailbox ?? Mailbox()));
+
+    private static SendCaseReport Use(
+        FixedGenerations generations, RecordingSend send, ResolveCaseMailSender senders) => new(
         generations,
         new FixedSendHistory(CaseReportSendHistory.None),
         new FixedSuggestions(Suggestions(["handler@principal.example"])),
-        new FixedMailboxes(mailbox ?? Mailbox()),
+        senders,
         send);
+
+    private static ResolveCaseMailSender Senders(
+        CaseInstructionEmail? instruction, params ApprovedMailbox[] mailboxes) =>
+        new(new FixedInstruction(instruction), new FixedMailboxes(mailboxes));
+
+    /// <summary>The Case's instruction email, retained in <paramref name="mailboxId"/>.</summary>
+    private static CaseInstructionEmail Instruction(Guid mailboxId) => new(
+        Guid.NewGuid(), mailboxId, "immutable-1", "<instruction@principal.example>", "conversation-1",
+        "New instruction DVR-31001", "instructor@principal.example", null);
 
     private static ActionActor Staff() => ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
 
     private static SendCaseReportRequest Request() => new(
-        Staff(), CaseId, 4, "lease", GenerationId, 1, "send-1", "Message");
+        Staff(), CaseId, 4, "lease", GenerationId, 1, "send-1", "Message", FromMailboxId: MailboxId);
 
     private static ReportSendReadinessRequest ReadyRequest(ActionActor? actor = null) => new(
         actor ?? Staff(), CaseId, GenerationId, 1, [ReportAttachment]);
@@ -494,9 +568,10 @@ public sealed class CaseReportDeliveryTests
     private static ApprovedMailbox Mailbox(
         IReadOnlyList<ApprovedMailboxRouteScope>? scopes = null,
         int version = 5,
-        long generation = 3) => new(
-        Guid.NewGuid(), "reports@collisionengineers.example",
-        scopes ?? [ApprovedMailboxRouteScope.StaffSend, ApprovedMailboxRouteScope.SentEvidence],
+        long generation = 3,
+        Guid? id = null) => new(
+        id ?? MailboxId, "reports@collisionengineers.example",
+        scopes ?? [ApprovedMailboxRouteScope.Incoming, ApprovedMailboxRouteScope.Outgoing],
         ApprovedMailboxState.Approved,
         "identity", "inbox", "sent", IdentityIsBound: true, ActivatedAtUtc: GeneratedAtUtc, version, [],
         Generation: generation);
@@ -512,6 +587,7 @@ public sealed class CaseReportDeliveryTests
 
     private static readonly Guid CaseId = Guid.NewGuid();
     private static readonly Guid GenerationId = Guid.NewGuid();
+    private static readonly Guid MailboxId = Guid.NewGuid();
 
     private sealed class FixedSendHistory(CaseReportSendHistory history) : ICaseReportSendHistoryQueries
     {
@@ -582,13 +658,15 @@ public sealed class CaseReportDeliveryTests
             UpdateApprovedMailboxRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<ApprovedMailbox> SetDefaultAsync(
-            SetDefaultApprovedMailboxRequest request, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
         public Task<bool> IsApprovedAsync(
             string mailboxAddress, ApprovedMailboxRouteScope routeScope, CancellationToken cancellationToken) =>
             Task.FromResult(false);
+    }
+
+    private sealed class FixedInstruction(CaseInstructionEmail? instruction) : ICaseInstructionEmailQueries
+    {
+        public Task<CaseInstructionEmail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult(caseId == CaseId ? instruction : null);
     }
 
     private sealed class RecordingSend : IStaffReportSend

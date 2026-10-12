@@ -59,6 +59,7 @@ public sealed partial class DetailsModel(
     ICaseReportGenerationStore reportGenerations,
     ISendCaseReport sendCaseReport,
     IReportRecipientSuggestionQueries reportRecipientSuggestions,
+    ResolveCaseMailSender caseMailSenders,
     ICaseReportSendHistoryQueries reportSendHistory,
     RenderEmailTemplate renderEmailTemplate,
     IListCaseEstimates listEstimates,
@@ -644,6 +645,12 @@ public sealed partial class DetailsModel(
     /// <summary>The addresses the delivery form offers beside its fields (v28 P21).</summary>
     public IReadOnlyList<ReportRecipientCandidate> ReportAddressBook { get; private set; } = [];
 
+    /// <summary>
+    /// Who the report leaves as: a reply to the instruction email from the
+    /// mailbox it arrived in, or the Outgoing mailboxes staff choose from.
+    /// </summary>
+    public CaseMailSenderOptions ReportSenders { get; private set; } = new(null, []);
+
     /// <summary>What the Case's report has already been sent (v28 P23).</summary>
     public CaseReportSendHistory ReportSendHistory { get; private set; } = CaseReportSendHistory.None;
 
@@ -1154,6 +1161,9 @@ public sealed partial class DetailsModel(
         var history = generated
             ? reads.Start(token => reportSendHistory.GetAsync(id, work, token))
             : null;
+        var senders = generated
+            ? reads.Start(token => caseMailSenders.OptionsAsync(id, token))
+            : null;
         await reads.WhenAllAsync();
 
         if (SelectedEstimate is not null && snapshots is not null)
@@ -1182,6 +1192,7 @@ public sealed partial class DetailsModel(
         ReportSendHistory = history is null
             ? CaseReportSendHistory.None
             : await history;
+        ReportSenders = senders is null ? ReportSenders : await senders;
         ReportDeliveryMessage = await RenderReportDeliveryMessageAsync(actor, cancellationToken);
         OpenDialog = dialog switch
         {
@@ -2753,6 +2764,7 @@ public sealed partial class DetailsModel(
         string[]? toRecipients,
         string[]? ccRecipients,
         CaseReportArtifactKind[]? attach,
+        Guid? fromMailboxId,
         CancellationToken cancellationToken)
     {
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -2790,7 +2802,8 @@ public sealed partial class DetailsModel(
                     coveringMessage!,
                     new(toRecipients ?? [], ccRecipients ?? []),
                     attach,
-                    WorkSelector),
+                    WorkSelector,
+                    fromMailboxId),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)

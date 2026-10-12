@@ -252,11 +252,17 @@ submission is not part of it.
   the work's current confirmed generation, the reviewed To and Cc (omitted,
   the Principal's suggested recipients), the companion documents chosen
   (omitted, every confirmed document the generation holds, the fee note
-  included) and the covering message as written. It holds the Case's lease
-  for its one send unless a lease token is presented.
-- `pegasus_mail_send` is the staff mail send with a `mode`: `new` is the
-  Inbox composer from the default approved mailbox (`chaser` records it as
-  the Case's chaser); `reply`, `reply_all` and `forward` answer one retained
+  included) and the covering message as written. It is a reply to the
+  Case's instruction e-mail from the mailbox it arrived in; `fromMailbox`
+  names the Outgoing mailbox only for a Case with no instruction e-mail to
+  reply to, which sends a new message
+  ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
+  It holds the Case's lease for its one send unless a lease token is
+  presented.
+- `pegasus_mail_send` is the staff mail send with a `mode`: `chaser` is the
+  Case's **Send chaser**, recorded as the Case's chaser, with `fromMailbox`
+  naming the Outgoing mailbox only when there is no instruction reply to
+  make; `reply`, `reply_all` and `forward` answer one retained
   message from the approved mailbox that holds it, with the recipients the
   message page gives them; `triage_reply` is the Triage Case's reply to its
   origin e-mail, the chaser until the outcome is recorded and the outcome
@@ -483,7 +489,7 @@ its one command when none is given.
 | `automation.mail` | `pegasus_mail_action` | `move_folder` to the recommended Outlook folder; `dismiss` or `restore` in Pegasus | versions and key for a move; key for dismiss and restore |
 | `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
 | `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does | one-command lease |
-| `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `new` (or a chaser), `reply`, `reply_all` (either with `resolveQuery`), `forward`, `triage_reply` | Case or Triage version and key |
+| `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `chaser`, `reply`, `reply_all` (either with `resolveQuery`), `forward`, `triage_reply` | Case or Triage version and key |
 
 ## States and transitions
 
@@ -517,9 +523,12 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-11.
 - A send tool without `automation.send` is refused before it runs. A send is
   Submitted, not Sent, until its Sent item is observed; an Unknown send is
   never resent, its operation key is replayed.
-- A reply or reply all takes no recipients of its own; a new mail or forward
+- A reply or reply all takes no recipients of its own; a chaser or forward
   without a To recipient, or with an address that is not a plain e-mail
   address, is refused and nothing is sent.
+- A chaser or report send for a Case with no instruction e-mail to reply
+  to, without `fromMailbox`, is refused; `fromMailbox` beside an
+  instruction reply is refused rather than ignored.
 - Mail is filed against an instruction Case; a Triage Case is answered only
   with `triage_reply`, and a cancelled Triage takes no reply.
 - `pegasus_intake_action accept` is refused while the item's inspection

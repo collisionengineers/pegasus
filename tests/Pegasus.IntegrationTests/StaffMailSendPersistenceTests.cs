@@ -23,7 +23,7 @@ public sealed class StaffMailSendPersistenceTests
     private static readonly JsonSerializerOptions ReportSnapshotJson = new(JsonSerializerDefaults.Web);
 
     [Fact]
-    public async Task FinalStaffSendMailboxRequiresSentEvidenceScopeAndResolvedFolder()
+    public async Task FinalStaffSendMailboxRequiresOutgoingAndResolvedSentFolder()
     {
         await using var database = await CreateDatabaseAsync();
         var missingScopeId = Guid.NewGuid();
@@ -34,9 +34,9 @@ public sealed class StaffMailSendPersistenceTests
             var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
             await using var db = await factory.CreateDbContextAsync();
             db.ApprovedMailboxes.AddRange(
-                StaffSendMailbox(missingScopeId, "missing-scope", allowSentEvidence: false, sentFolderIdentity: "sent"),
-                StaffSendMailbox(missingFolderId, "missing-folder", allowSentEvidence: true, sentFolderIdentity: null),
-                StaffSendMailbox(configuredId, "configured", allowSentEvidence: true, sentFolderIdentity: "sent"));
+                StaffSendMailbox(missingScopeId, "missing-scope", allowOutgoing: false, sentFolderIdentity: "sent"),
+                StaffSendMailbox(missingFolderId, "missing-folder", allowOutgoing: true, sentFolderIdentity: null),
+                StaffSendMailbox(configuredId, "configured", allowOutgoing: true, sentFolderIdentity: "sent"));
             await db.SaveChangesAsync();
         }
 
@@ -44,7 +44,10 @@ public sealed class StaffMailSendPersistenceTests
         var mailboxes = queryScope.ServiceProvider.GetRequiredService<EfStaffMailSendStore>();
         Assert.Null(await mailboxes.GetAsync(missingScopeId, CancellationToken.None));
         Assert.Null(await mailboxes.GetAsync(missingFolderId, CancellationToken.None));
-        Assert.NotNull(await mailboxes.GetAsync(configuredId, CancellationToken.None));
+        var configured = await mailboxes.GetAsync(configuredId, CancellationToken.None);
+        Assert.NotNull(configured);
+        // Every Outgoing mailbox sends under the one fixed ceiling (operator, 12 October 2026).
+        Assert.Equal(ApprovedStaffSendMailbox.OutgoingEncodedMessageSizeLimit, configured.EncodedMessageSizeLimit);
     }
 
     [Fact]
@@ -260,8 +263,12 @@ public sealed class StaffMailSendPersistenceTests
             store.PrepareAsync(command, new string('B', 64), now, CancellationToken.None));
     }
 
+    /// <summary>
+    /// Operator, 12 October 2026: one retained message may be answered more than
+    /// once, so two replies to it prepare two operations.
+    /// </summary>
     [Fact]
-    public async Task ConcurrentDistinctRepliesToOneRetainedMessageCreateOneOperation()
+    public async Task ConcurrentDistinctRepliesToOneRetainedMessageBothPrepare()
     {
         await using var database = await CreateDatabaseAsync();
         var mailboxId = Guid.NewGuid();
@@ -273,50 +280,26 @@ public sealed class StaffMailSendPersistenceTests
         await using var secondScope = database.CreateAsyncScope();
         var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var firstAttempt = PrepareAsync(firstScope, firstCommand);
-        var secondAttempt = PrepareAsync(secondScope, secondCommand);
+        var attempts = new[]
+        {
+            PrepareAsync(firstScope, firstCommand),
+            PrepareAsync(secondScope, secondCommand)
+        };
         start.SetResult();
-        var attempts = await Task.WhenAll(firstAttempt, secondAttempt);
+        var operations = await Task.WhenAll(attempts).WaitAsync(TimeSpan.FromSeconds(30));
 
-        var created = Assert.Single(attempts, value => value.Operation is not null);
-        Assert.NotNull(created.Operation);
-        var refused = Assert.Single(attempts, value => value.Error is not null);
-        Assert.IsType<InvalidOperationException>(refused.Error);
-        Assert.DoesNotContain(firstCommand.Actor.SubjectId, refused.Error!.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain(secondCommand.Actor.SubjectId, refused.Error.Message, StringComparison.Ordinal);
-        Assert.Equal(1, await database.ScalarAsync<int>(
+        Assert.Equal(2, operations.Select(operation => operation.Id).Distinct().Count());
+        Assert.All(operations, operation => Assert.Equal(StaffMailState.Prepared, operation.State));
+        Assert.Equal(2, await database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM StaffMailSendOperations WHERE MailboxId = '{mailboxId:D}' AND OriginalRetainedMessageId = '{retainedMessageId:D}'"));
 
-        var firstWon = attempts[0].Operation is not null;
-        var winningCommand = firstWon
-            ? firstCommand
-            : secondCommand;
-        var losingActor = firstWon
-            ? secondCommand.Actor
-            : firstCommand.Actor;
-        await using var verifyScope = database.CreateAsyncScope();
-        var verifyStore = verifyScope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
-        var replay = await verifyStore.PrepareAsync(
-            winningCommand, new string('A', 64), DateTimeOffset.UtcNow, CancellationToken.None);
-        Assert.Equal(created.Operation.Id, replay.Id);
-        Assert.Null(await verifyStore
-            .GetAsync(losingActor.SubjectId, created.Operation.Id, CancellationToken.None));
-
-        async Task<(StaffMailOperation? Operation, Exception? Error)> PrepareAsync(
+        async Task<StaffMailOperation> PrepareAsync(
             AsyncServiceScope scope, StaffMailSendCommand command)
         {
             await start.Task;
-            try
-            {
-                var operation = await scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>()
-                    .PrepareAsync(command, new string('A', 64), DateTimeOffset.UtcNow,
-                        CancellationToken.None);
-                return (operation, null);
-            }
-            catch (InvalidOperationException exception)
-            {
-                return (null, exception);
-            }
+            return await scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>()
+                .PrepareAsync(command, new string('A', 64), DateTimeOffset.UtcNow,
+                    CancellationToken.None);
         }
     }
 
@@ -392,7 +375,7 @@ public sealed class StaffMailSendPersistenceTests
     }
 
     [Fact]
-    public async Task ConcurrentDifferentActorRepliesUseOneOperationDraftAndSend()
+    public async Task ConcurrentDifferentActorRepliesEachDraftAndSend()
     {
         var transport = new RecordingStaffMailTransport();
         var mailboxId = Guid.NewGuid();
@@ -422,12 +405,12 @@ public sealed class StaffMailSendPersistenceTests
         start.SetResult();
         var results = await Task.WhenAll(attempts).WaitAsync(TimeSpan.FromSeconds(30));
 
-        Assert.Single(results, result => result.Operation is not null);
-        Assert.Single(results, result => result.Error is InvalidOperationException);
-        Assert.Equal(1, await database.ScalarAsync<int>(
+        Assert.All(results, result => Assert.Null(result.Error));
+        Assert.Equal(2, results.Select(result => result.Operation!.Id).Distinct().Count());
+        Assert.Equal(2, await database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM StaffMailSendOperations WHERE OriginalRetainedMessageId = '{retainedMessageId:D}'"));
-        Assert.Equal(1, transport.CreateDraftCount);
-        Assert.Equal(1, transport.SendDraftCount);
+        Assert.Equal(2, transport.CreateDraftCount);
+        Assert.Equal(2, transport.SendDraftCount);
 
         async Task<(StaffMailOperation? Operation, Exception? Error)> SendAsync(
             AsyncServiceScope scope, StaffMailSendCommand command)
@@ -504,7 +487,7 @@ public sealed class StaffMailSendPersistenceTests
     }
 
     [Fact]
-    public async Task UnknownReplyStillBlocksANewOperation()
+    public async Task ASecondReplyIsAcceptedWhileTheFirstIsUnresolved()
     {
         await using var database = await CreateDatabaseAsync();
         var mailboxId = Guid.NewGuid();
@@ -524,9 +507,12 @@ public sealed class StaffMailSendPersistenceTests
             StaffMailState.Unknown, StaffMailAttemptStage.CreateDraft,
             null, null, null, "provider outcome unknown", CancellationToken.None);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => store.PrepareAsync(
+        var next = await store.PrepareAsync(
             ReplyCommand(mailboxId, retainedMessageId, "second-reply"),
-            new string('B', 64), DateTimeOffset.UtcNow, CancellationToken.None));
+            new string('B', 64), DateTimeOffset.UtcNow, CancellationToken.None);
+
+        Assert.NotEqual(operation.Id, next.Id);
+        Assert.Equal(StaffMailState.Prepared, next.State);
     }
 
     [Fact]
@@ -1811,10 +1797,9 @@ public sealed class StaffMailSendPersistenceTests
         {
             Id = mailboxId,
             Address = "mailbox@example.invalid",
-            AllowInboundIntake = true,
-            AllowStaffSend = true,
+            AllowIncoming = true,
+            AllowOutgoing = true,
             MailboxGeneration = 1,
-            VerifiedEncodedMessageSizeLimit = 1_000_000,
             State = "Approved",
             MailboxIdentity = "mailbox",
             InboxFolderIdentity = "inbox",
@@ -1897,19 +1882,17 @@ public sealed class StaffMailSendPersistenceTests
     private static ApprovedMailboxEntity StaffSendMailbox(
         Guid id,
         string identity,
-        bool allowSentEvidence,
+        bool allowOutgoing,
         string? sentFolderIdentity) => new()
     {
         Id = id,
         Address = $"{identity}@collisionengineers.co.uk",
-        AllowStaffSend = true,
-        AllowSentEvidence = allowSentEvidence,
+        AllowOutgoing = allowOutgoing,
         State = ApprovedMailboxState.Approved.ToString(),
         MailboxIdentity = $"{identity}-mailbox",
         SentFolderIdentity = sentFolderIdentity,
         ActivatedAtUtc = DateTimeOffset.UtcNow,
         MailboxGeneration = 1,
-        VerifiedEncodedMessageSizeLimit = 10485760,
         Version = 1
     };
 

@@ -17,11 +17,6 @@
 @{
     var status = ViewData["RefreshStatus"] as string ?? "current";
     var statusLabel = OperatorLabels.Freshness.Label(status);
-    // Set by a caller whose header also carries its own action buttons
-    // (e.g. Compose): keeps Refresh grouped with those buttons and moves
-    // this status text to sit apart from them, rather than between two
-    // buttons.
-    var actionsFirst = ViewData["FreshnessActionsFirst"] is true;
     var dotModifier = status switch
     {
         "stale" or "partial" => "partial",
@@ -35,7 +30,7 @@
         _ => null
     };
 }
-<div class="freshness @(actionsFirst ? "freshness--actions-first" : null)">
+<div class="freshness">
     <span class="freshness-status">
         <span class="health-dot @dotModifier"></span>
         @if (Model is { } lastGoodTime)

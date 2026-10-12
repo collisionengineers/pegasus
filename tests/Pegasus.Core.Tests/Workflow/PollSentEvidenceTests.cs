@@ -423,7 +423,7 @@ public sealed class PollSentEvidenceTests
     public async Task NotApprovedMailboxIsHandledAsAnEmptyTickWithoutThrowing()
     {
         // Mirrors the exact shape of the production row while it was mid-administration:
-        // address and state correct, but AllowSentEvidence false for that route scope
+        // address and state correct, but not Outgoing, the scope Sent Items are read under
         // (ApprovedMailboxes Id 49f47eb9-c5b0-464f-b8f0-8c90ba061728, 2026-08-10 to
         // 2026-08-19 in production). That is a correct rejection, not a comparison bug,
         // but it must not surface as an unhandled exception every poll tick.
@@ -886,7 +886,7 @@ public sealed class PollSentEvidenceTests
             ApprovedMailboxRouteScope routeScope,
             CancellationToken cancellationToken) => Task.FromResult(
             mailboxAddress == "instructions@example.test"
-                && routeScope == ApprovedMailboxRouteScope.SentEvidence);
+                && routeScope == ApprovedMailboxRouteScope.Outgoing);
     }
 
     private sealed class RejectingPolicy : IApprovedMailboxPolicy
@@ -1089,7 +1089,7 @@ public sealed class PollSentEvidenceTests
     private sealed class MultiMailboxPolicy : IApprovedMailboxPolicy
     {
         public Task<bool> IsApprovedAsync(string mailboxAddress, ApprovedMailboxRouteScope routeScope, CancellationToken cancellationToken) =>
-            Task.FromResult(routeScope == ApprovedMailboxRouteScope.SentEvidence);
+            Task.FromResult(routeScope == ApprovedMailboxRouteScope.Outgoing);
     }
 
     private sealed class ObservationStore(StaffMailExecution execution) : IStaffMailSendStore

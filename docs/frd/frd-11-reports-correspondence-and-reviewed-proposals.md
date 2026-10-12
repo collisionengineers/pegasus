@@ -185,7 +185,8 @@ from the Audit's values, on the same Case. Each report is generated,
 approved and sent on its own: current, superseded and stale are decided for
 each separately, and an Audit edit never makes the Inspection report stale.
 The Audit report's reference is its Our Ref, its file name (for example
-`A_QDOS26001_report.pdf`) and its email subject, and its re-sends are
+`A_QDOS26001_report.pdf`) and its email subject when it goes as a new
+message, and its re-sends are
 counted among Audit sends only. It has its own fee note and fee, counted
 separately. Report image choices are shared, because they belong to the
 Case's files. Once the Audit exists, the Inspection report is generated,
@@ -278,9 +279,9 @@ version, hash and length, and re-checks just before the mail is submitted that
 every one is still a confirmed artifact, byte for byte.
 
 **One step (operator, 6 October 2026).** A report is sent in one step. The
-Report section's delivery form holds the recipients, the documents to attach,
-the report's name and the covering message, and its one **Send report** sends
-them. There is no separate preparation and no second confirmation. The
+Report section's delivery form holds From, the recipients, the documents to
+attach, the report's name and the covering message, and its one **Send
+report** sends them. There is no separate preparation and no second confirmation. The
 staff-send operation is the record of what was sent. The form stays offered
 after a send, whatever its outcome, so the same report can be sent again.
 The Automation Actor sends a report through the same command with
@@ -301,9 +302,21 @@ Before Send report, staff read the message in an editable box and may
 change it. The text they submit is what is sent; it cannot be blank
 or longer than 5000 characters. Custody keeps its own name for the same bytes.
 A send, by staff or the Automation actor, is a staff-mail send that actually
-left the approved mailbox. The subject
-stays the Case or Audit reference. A send the mailbox provider refuses is
-shown as a failed send.
+left the approved mailbox.
+
+**From and subject (operator, 12 October 2026).** The report goes out as a
+reply to the Case's instruction email, the retained mailbox message the
+Case's origin receipt came from, from the approved mailbox it arrived in
+while that mailbox is Outgoing and can send; its subject is "Re:" and the
+instruction's subject, and the form shows that mailbox as From. When the
+Case has no instruction email (a manual Case, an uploaded `.eml` or another
+non-mailbox origin) or its mailbox can no longer send, staff choose an
+Outgoing mailbox as From and the report goes as a new message whose subject
+is the Case or Audit report reference
+([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
+Either way the reviewed To and Cc are the only recipients: it is a Reply,
+never Reply all. A send the mailbox provider refuses is shown as a failed
+send.
 
 **Report and fee note.** Every report ends with its fee note: one file under
 the report's name, the fee note's pages last (operator, 6 October 2026). The

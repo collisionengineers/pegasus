@@ -573,7 +573,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         var approvedState = ApprovedMailboxState.Approved.ToString();
         var polled = await context.ApprovedMailboxes
             .AsNoTracking()
-            .Where(item => item.State == approvedState && item.AllowInboundIntake)
+            .Where(item => item.State == approvedState && item.AllowIncoming)
             .Select(item => item.Address)
             .ToListAsync(cancellationToken);
         var polledAddresses = polled.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -1114,7 +1114,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         var polled = await context.ApprovedMailboxes
             .AsNoTracking()
             .Where(item => item.State == approvedState
-                && item.AllowInboundIntake
+                && item.AllowIncoming
                 && addresses.Contains(item.Address))
             .Select(item => item.Address)
             .ToListAsync(cancellationToken);

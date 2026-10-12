@@ -610,18 +610,19 @@ and approved provider configuration have been deployed.
 2. During the separately authorized one-time infrastructure setup, admit the
    Web and Worker application identities to the intended mailbox scope using
    Exchange Application RBAC. Configure the read permissions for resolution,
-   Inbox and Sent observation. Staff sending additionally requires scoped
-   `Mail.ReadWrite` and `Mail.Send`. RBAC and unscoped application grants are
+   Inbox and Sent observation: `Mail.Read` for the Web and Worker identities.
+   An Outgoing mailbox additionally requires scoped `Mail.ReadWrite` and
+   `Mail.Send` for the Web identity. RBAC and unscoped application grants are
    additive: remove unintended tenant-wide mail grants and record both a
    permitted-mailbox check and a denied-mailbox check. Record tenant,
    application identities, mailbox scope, administrator and approval time.
 3. In Pegasus Administration, add the mailbox address. The Web identity
    resolves its stable Graph identity and performs a read-only folder access
-   check. Select Intake, Sent observation and staff-send capabilities. A saved
-   row does not grant Exchange access. Enable staff-send only after recording
-   the verified effective encoded-message byte ceiling for that mailbox, and
-   only after `Test-ServicePrincipalAuthorization` for the Web identity on that
-   mailbox lists `Mail.ReadWrite` and `Mail.Send` as well as `Mail.Read`. A
+   check. Under **Used for**, tick Incoming and Outgoing. A saved row does not
+   grant Exchange access. Tick Outgoing only after
+   `Test-ServicePrincipalAuthorization` for the Web identity on that mailbox
+   lists `Mail.ReadWrite` and `Mail.Send` as well as `Mail.Read`. Every
+   Outgoing mailbox sends under one fixed 35 MB encoded-message limit. A
    staff send that fails at stage `CreateDraft` with `graph_rejected_403` in
    `StaffMailSendOperations` means those two scoped grants are missing.
 4. Enable the mailbox. Pegasus records its own UTC start boundary and
@@ -637,7 +638,11 @@ and approved provider configuration have been deployed.
    observed. No unattended chaser initiates mail.
 
 The same UI supports instructions, info, desk and engineers mailboxes once the
-operator has admitted each to the application scope. Unknown sender work still
+operator has admitted each to the application scope; desk, info and engineers
+are to be added as Incoming and Outgoing, after the separately authorised
+Exchange RBAC scope change that covers them for the Web identity's
+`Mail.Read`, `Mail.ReadWrite` and `Mail.Send` and the Worker identity's
+`Mail.Read`. Unknown sender work still
 fails closed through intake policy; approval of a mailbox is not approval of
 all its senders. Operators do not edit SQL rows or raw environment settings to
 add an already-authorized mailbox.

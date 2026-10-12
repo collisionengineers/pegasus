@@ -7,8 +7,9 @@
 - Pegasus only believes a report was sent when it finds the exact Sent item
   in an approved Outlook mailbox. A draft, an export or a staff note is not
   proof.
-- Staff send Reply, Reply all, Forward and Compose from an approved mailbox,
-  never from their own address. Only signed-in staff with the casework right,
+- Staff send Reply, Reply all, Forward, Send chaser and Send report from an
+  Outgoing approved mailbox, never from their own address. There is no
+  Compose and no default sender. Only signed-in staff with the casework right,
   or the Automation Actor under its `automation.send` scope, can send.
 - Every send is one durable operation. Graph saying "accepted" means
   submitted, not sent. The Sent item that Graph later writes is the evidence.
@@ -109,11 +110,23 @@ mailbox generation. The only connector that may trigger it is the Automation
 Actor's `pegasus_report_send`
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#sending)).
 
-**Where the controls are.** Reply, Forward and Compose appear on the Inbox
-message and on the Case correspondence surface. They exist only when the
-outbound capability is composed into the application. Otherwise those
-surfaces show no send control and no composer. The technical decision is
-[ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md).
+**Where the controls are.** Reply, Reply all and Forward appear on the Inbox
+message and on the Case correspondence surface. Reply also appears on Inbox
+list rows, in the Inbox preview pane
+([FRD-20](frd-20-mailbox-workspace.md#quick-preview-and-message-detail)) and
+on a closed Unidentified item's record, where Request again is that same
+reply while the item is open
+([FRD-15](frd-15-work-centre-queues-and-search.md#pre-case-records)); each
+opens the message record's Reply. Every one appears only when the mailbox the
+email arrived in can send. Send chaser is on the Case record
+([FRD-16](frd-16-case-record-workspace.md#actions-menu)) and Send report on
+the Case's Report section
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)). There is
+no Compose: Pegasus starts no new correspondence that is not a reply, a
+forward, a chaser or a report (operator, 12 October 2026). The controls
+exist only when the outbound capability is composed into the application.
+Otherwise those surfaces show no send control and no composer. The technical
+decision is [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md).
 
 **Also resolve query.** A Reply or Reply all filed against a Case that holds
 an open query offers one tick, **Also resolve query** (operator, 11 October
@@ -121,7 +134,7 @@ an open query offers one tick, **Also resolve query** (operator, 11 October
 Case's Resolve query Next action. The tick is kept on the send; when the
 Sent item is observed, every open query on the Case resolves
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
-A reply without it resolves nothing. Forward and new mail take no tick.
+A reply without it resolves nothing. Forward and Send chaser take no tick.
 
 **Who may send.** A signed-in staff member with the casework right, or the
 Automation Actor through `pegasus_mail_send` and `pegasus_report_send` under
@@ -134,19 +147,26 @@ current at each step that reaches the provider: a staff account still enabled
 with a casework role, or the Automation client registration still enabled.
 There is no automatic or scheduled send.
 
-**From which mailbox.** Reply and Forward send as the approved mailbox that
-holds the retained message. Compose sends as the default approved mailbox.
-The sender is never a staff member's own address or any mailbox outside the
-allowlist, and the composer shows the sender read-only. An Administrator
-picks the single default in Mailbox settings and records a reason. Only a
-send-ready mailbox with Sent-evidence polling configured may be the default.
-Replacing the default checks the versions of both mailboxes. Disabling the
-default, or removing a capability it needs, requires choosing a replacement
-first. With no default configured, a new Compose explains what is missing
-and cannot send. It never silently picks the first mailbox.
+**From which mailbox.** Only an Outgoing approved mailbox sends
+([FRD-26](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#mailbox-allowlist-activation-and-wipe)),
+and only while it is send-ready: Approved, activated, its identity and Sent
+Items bound. Reply and Forward send as the approved mailbox that holds the
+retained message. A Case's report and Send chaser are a reply to the Case's
+instruction email, the retained mailbox message its origin receipt came
+from, sent as the approved mailbox that email arrived in while that mailbox
+can send. When the Case has no instruction email (a manual Case, an uploaded
+`.eml` or any other non-mailbox origin) or its mailbox can no longer send,
+staff choose an Outgoing mailbox as From and the message is new (operator,
+12 October 2026). Pegasus never silently picks a mailbox. The sender is never
+a staff member's own address or any mailbox outside the allowlist; a reply
+shows its sender read-only. There is no default sender.
 
-**What the composer carries.** To, Subject, Message, Case / PO and From
-(read-only). The one Case / PO field searches as staff type, by Case / PO,
+**One size limit.** Every Outgoing mailbox sends under one fixed limit of
+35 MB, 36,700,160 encoded bytes (operator, 12 October 2026); there is no
+per-mailbox limit.
+
+**What the composer carries.** To, Subject, Message, Case / PO and From.
+The one Case / PO field searches as staff type, by Case / PO,
 registration, claimant, claim number or Principal; choosing a Case from its
 list is the server action that fixes the Case and its version for the send,
 and a Case / PO reference typed in full sends against that Case as it stands.
@@ -157,11 +177,16 @@ association, and may be changed before sending. A Triage outcome reply's
 Message opens with the Triage outcome template from Administration, rendered
 from the Triage's registration and finding
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)); staff edit it
-before Send. A Case chaser opened from the Case's Actions menu is a staff
-send with purpose `CaseChaser`: To is the sender of the Case's instruction,
-the sender of each image-intake e-mail paired to the Case and the repairer's
-directory e-mail, each once; Subject is the registration and claimant; Message
-is the Case chaser template rendered from the Case
+before Send. A Case chaser opened from the Case's Send chaser is a staff
+send with purpose `CaseChaser` on its own chaser composer
+(`/Cases/{id}/Chaser`): a reply to the Case's instruction email from the
+mailbox it arrived in, or, with no usable instruction email, a new message
+from the Outgoing mailbox staff choose as From (see From which mailbox). To
+is the sender of the Case's instruction, the sender of each image-intake
+e-mail paired to the Case and the repairer's directory e-mail, each once;
+Subject is "Re:" and the instruction's subject for a reply, or opens with
+the registration and claimant for a new message; Message is the Case chaser
+template rendered from the Case
 ([FRD-16](frd-16-case-record-workspace.md#actions-menu)). Staff edit all
 three before Send. Its exact Sent evidence is recorded like any other send,
 and on a Not ready Case it records the chase
@@ -173,8 +198,7 @@ absent. A Reply-To header that is present but unusable gives an empty list.
 The reply screen shows the retained targets and the chosen recipients so
 staff can confirm them. If the retained metadata is missing or the target
 list is empty, Reply and Reply all are refused. The transport Sender, To and
-Cc are never used as substitutes. Starting a new message instead is a
-deliberate staff choice. The Triage Case composer
+Cc are never used as substitutes. The Triage Case composer
 ([FRD-15](frd-15-work-centre-queues-and-search.md#the-triage-case-page)) has
 one exception: when its request is a Collision Engineers staff forward (the
 transport sender is on the staff domain) and the forward names one external
@@ -203,9 +227,9 @@ Dismissing a message is Pegasus data only and is defined in
 
 Local development and every test profile use the unavailable implementation
 of the send seam and never change a mailbox. Turning sending on in
-production is a separately approved live write. It also requires the
-Sent-evidence poll to be enabled for the sending mailbox, so every send has
-its evidence.
+production is a separately approved live write. A mailbox sends only as an
+Outgoing mailbox, whose Sent Items the Sent-evidence poll reads, so every
+send has its evidence.
 
 ### Externally sent report detection
 
@@ -242,7 +266,8 @@ document never moves a Case by itself.
 
 ## Edge cases and fail-closed behaviour
 
-- No default mailbox configured: Compose explains and cannot send.
+- A Case report or chaser with no usable instruction email and no From
+  chosen: refused; with no Outgoing mailbox able to send, it cannot be sent.
 - Reply-To missing and From unusable: Reply and Reply all are refused.
 - Graph refuses the send: nothing is recorded as sent; the composer shows
   the failure.

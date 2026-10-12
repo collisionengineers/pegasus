@@ -1431,18 +1431,8 @@ public static class OperatorLabels
             : string.Create(CultureInfo.InvariantCulture, $"{megabytes:0.0} MB");
     }
 
-    /// <summary>
-    /// The approved-mailbox allowlist's read-only route scope, as read on
-    /// /Administration/Mailboxes. Explicit because the mechanical
-    /// <see cref="Humanise"/> fallback would render <c>InboundIntake</c> as
-    /// "Inbound intake", which carries the banned "intake" word.
-    /// </summary>
-    public static string RouteScope(ApprovedMailboxRouteScope routeScope) => routeScope switch
-    {
-        ApprovedMailboxRouteScope.InboundIntake => "New instructions and Triage mail (Inbox)",
-        ApprovedMailboxRouteScope.SentEvidence => "Exact report and Triage evidence (Sent Items)",
-        _ => Humanise(routeScope.ToString())
-    };
+    /// <summary>What one approved mailbox is used for, as read on /Administration/Mailboxes.</summary>
+    public static string RouteScope(ApprovedMailboxRouteScope routeScope) => Humanise(routeScope.ToString());
 
     /// <summary>
     /// A stored chase reason for display. Maps the pre-release-15 wording
@@ -2048,7 +2038,7 @@ public static class OperatorLabels
         public const string SaveCategory = "Save category";
         public const string Refresh = "Refresh";
         public const string ApprovedAddress = "Approved address";
-        public const string RouteScope = "Route scope";
+        public const string RouteScope = "Used for";
         public const string DisplayName = "Display name";
         public const string NoApprovedMailboxes = "No approved mailboxes";
         public const string NoMailCategories = "No mail categories";
@@ -2078,7 +2068,7 @@ public static class OperatorLabels
             if (status is null)
             {
                 if (mailbox.State != ApprovedMailboxState.Approved
-                    || !mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.InboundIntake))
+                    || !mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.Incoming))
                 {
                     return "Not polled.";
                 }

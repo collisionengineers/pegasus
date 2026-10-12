@@ -25,10 +25,14 @@ public sealed class IndexModel(
     SearchDeletedMail searchDeletedMail,
     IDismissRetainedMail dismissRetainedMail,
     IRestoreRetainedMail restoreRetainedMail,
+    IApprovedMailboxStore approvedMailboxes,
     IStaffMailSend? staffMailSend = null) : StaffPageModel
 {
     public bool StaffMailAvailable => staffMailSend is not null
         && staffMailSend is not UnavailableStaffMailSend;
+
+    /// <summary>The approved mailboxes a reply can leave from; a received message held by one offers Reply.</summary>
+    public IReadOnlySet<Guid> ReplyMailboxIds { get; private set; } = new HashSet<Guid>();
     internal const int PageSize = 25;
 
     /// <summary>The folder route value of the Dismissed scope.</summary>
@@ -149,10 +153,17 @@ public sealed class IndexModel(
                 ? LoadScopeCountsAsync(actor, mailbox, cancellationToken)
                 : Task.FromResult<IReadOnlyList<MailScopeOption>>([]));
             var freshnessRead = ReadAsync(() => getFreshness.ExecuteAsync(actor, cancellationToken));
-            await Task.WhenAll(mailboxesRead, listRead, scopesRead, freshnessRead);
+            var replyRead = ReadAsync(() => StaffMailAvailable
+                ? approvedMailboxes.ListAsync(cancellationToken)
+                : Task.FromResult<IReadOnlyList<ApprovedMailbox>>([]));
+            await Task.WhenAll(mailboxesRead, listRead, scopesRead, freshnessRead, replyRead);
             Mailboxes = await mailboxesRead;
             Scopes = await scopesRead;
             Freshness = await freshnessRead;
+            ReplyMailboxIds = (await replyRead)
+                .Where(item => item.CanSend)
+                .Select(item => item.Id)
+                .ToHashSet();
         }
         catch (StaffAuthorizationException)
         {
@@ -167,6 +178,16 @@ public sealed class IndexModel(
     }
 
     private static async Task<T> ReadAsync<T>(Func<Task<T>> read) => await read();
+
+    /// <summary>
+    /// Whether a received message offers Reply from the list: its mailbox can
+    /// send and it has a sender to answer. Reply opens the message record's own
+    /// reply, from the mailbox the message arrived in.
+    /// </summary>
+    public bool OffersReply(RetainedMailSummary item) =>
+        Folder != MailFolderScope.Sent
+        && ReplyMailboxIds.Contains(item.MailboxId)
+        && !string.IsNullOrWhiteSpace(item.SenderAddress);
 
     /// <summary>
     /// The list itself and, with it, the message the preview pane renders. The
