@@ -32,11 +32,6 @@ public sealed record CaseExportAddressResolution(
     CaseExportEvidenceValue Evidence);
 
 public sealed record CaseExportEvidence(
-    Guid CaseId,
-    long CaseVersion,
-    bool CaseAccepted,
-    bool InstructionComplete,
-    bool ImagesComplete,
     CaseExportEvidenceValue Reference,
     CaseExportEvidenceValue WorkPrincipal,
     CaseExportEvidenceValue VehicleRegistration,

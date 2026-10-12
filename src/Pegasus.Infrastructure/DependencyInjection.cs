@@ -323,8 +323,6 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfExternalWorkStore>());
         services.AddScoped<ICustodyRecoveryPersistence>(
             provider => provider.GetRequiredService<EfExternalWorkStore>());
-        services.AddScoped<ICaseCustodyQueries>(
-            provider => provider.GetRequiredService<EfExternalWorkStore>());
         services.AddScoped<IRetryCaseCustody, RetryCaseCustody>();
         services.AddScoped<EfVehicleWorkflowStore>();
         services.AddScoped<IRequestVehicleLookupStore>(
@@ -344,8 +342,6 @@ public static class DependencyInjection
         services.AddScoped<IDashboardQueries, EfDashboardQueries>();
         services.AddScoped<GetOperationsSnapshot>();
         services.AddScoped<IGetOperationsSnapshot>(provider =>
-            provider.GetRequiredService<GetOperationsSnapshot>());
-        services.AddScoped<IGetAttentionRows>(provider =>
             provider.GetRequiredService<GetOperationsSnapshot>());
         services.AddScoped<IRecentCaseQueries, EfRecentCaseQueries>();
         services.AddScoped<IWorkCentreVisitStore, EfWorkCentreVisitStore>();

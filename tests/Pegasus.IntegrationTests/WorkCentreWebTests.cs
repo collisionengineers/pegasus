@@ -740,7 +740,6 @@ public sealed class WorkCentreWebTests
             return Task.FromResult(new OperationsSnapshot(Now, 0, 0, [], new CaseStageCounts(1, 2, 3, 0), Items)
             {
                 Attention = page,
-                Scope = query.Scope,
                 Metrics = new WorkCentreMetrics(1, 2, 3, 4, 5)
             });
         }

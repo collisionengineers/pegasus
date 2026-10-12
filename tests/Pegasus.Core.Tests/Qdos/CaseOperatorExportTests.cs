@@ -98,11 +98,6 @@ public sealed class CaseOperatorExportTests
         string? inspectionDate = "03/05/2031",
         CaseExportEvidenceValue? mileage = null) =>
         new(
-            Guid.Parse("266e5afa-5d66-4623-9136-abe21016df3b"),
-            7,
-            CaseAccepted: true,
-            InstructionComplete: true,
-            ImagesComplete: true,
             Value("QDOS26011"),
             Value("QDOS"),
             Value("ST66BCE"),

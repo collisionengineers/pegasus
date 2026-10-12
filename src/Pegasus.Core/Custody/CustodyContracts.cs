@@ -282,15 +282,6 @@ public static class CustodyCreationOwner
     }
 }
 
-public sealed record CaseCustodyPreparation(
-    Guid CaseId,
-    long CaseVersion,
-    CustodyTargetKind TargetKind,
-    string State,
-    string? SafeFailureReason,
-    int AttemptCount,
-    bool CanRetry);
-
 public sealed record RetryCaseCustodyRequest(
     Guid CaseId,
     long ExpectedCaseVersion,
@@ -386,13 +377,6 @@ public sealed class CustodyRetryPolicyAuthority
 
     public RetryCaseCustodyResult Decide(CustodyRetryDecisionState state) =>
         decide(state);
-}
-
-public interface ICaseCustodyQueries
-{
-    Task<IReadOnlyList<CaseCustodyPreparation>> GetPreparationsAsync(
-        Guid caseId,
-        CancellationToken cancellationToken = default);
 }
 
 public interface ICustodyRecoveryPersistence
