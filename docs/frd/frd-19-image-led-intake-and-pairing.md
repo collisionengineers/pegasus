@@ -247,6 +247,8 @@ complete membership, and fail-closed source-identity rules apply to both.
   still applies even when one Case matches. No readable registration, or
   conflicting ones, produces one Unidentified item holding the PDF and its
   photographs. Completed historical mail is not backfilled automatically.
+  An incomplete read never enters image automation (operator, 12 October
+  2026; [ADR-0005](../adr/0005-multiformat-intake-assets.md) item 11).
 - **Mail for an established Case.** A mailbox receipt already
   associated with one eligible pre-report Case files its original message,
   attached documents, and selected photographs on that Case, with or without
@@ -291,7 +293,10 @@ complete membership, and fail-closed source-identity rules apply to both.
   accepted automatic recognition bar count. The decision inspects the
   distinct set of accepted, normalised registrations across every selected
   image asset in every image member, never one preferred read per PDF or
-  one member in isolation.
+  one member in isolation. A confident read contained in a longer
+  confident read of the same receipt or group is not a distinct
+  registration: `AK24` beside `AK24UYD` is `AK24UYD` (operator,
+  12 October 2026).
 - **Associate-or-hand-off precedence, in this order:**
   1. Any image member's recognition ended in a technical failure or an
      unavailable dependency: the group fails closed to a named technical
@@ -398,6 +403,10 @@ word "intake" appears only on the Administrator's Intake log tab
   Case, not attached.
 - Two different valid registrations in one group: one Unidentified item,
   reason Conflicting identification.
+- A truncated read beside the full read (`AK24` and `AK24UYD`): one
+  registration, `AK24UYD`.
+- An incomplete read (a PDF over a reader budget): never enters image
+  automation.
 - Manual upload with one matching Case that existed when it registered:
   waits for staff.
 - Manual upload, then a Case created afterwards is its one match: pairs

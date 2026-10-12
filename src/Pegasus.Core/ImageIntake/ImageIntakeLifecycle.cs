@@ -162,6 +162,7 @@ public static class ImageIntakeLifecycleRules
                     Signal: IntakeEvidenceSignals.RecognizedNonImageDocument
                         or IntakeEvidenceSignals.AmbiguousInstructionSelection
                         or IntakeEvidenceSignals.ConflictingInstructionSelection
+                        or IntakeEvidenceSignals.IncompleteRead
                 })
             || !IsSupportedImageEvidenceSource(receipt.MediaType))
         {

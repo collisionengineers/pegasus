@@ -677,6 +677,64 @@ public sealed partial class MultiFormatIntakeWebTests
     }
 
     [Fact]
+    public async Task ARepeatedImageObjectIsChargedItsPixelsOnce()
+    {
+        // Operator, 12 October 2026: a letterhead placed on every page costs
+        // its decoded pixels once. Three placements of one 36-megapixel object
+        // would be 108 million pixels counted per placement.
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+        const int placementCount = 3;
+        var jpeg = CreatePaddedJpeg(64 * 1024);
+        var pdf = CreateRepeatedJpegImagePdf(jpeg, placementCount, sampleWidth: 6_000, sampleHeight: 6_000);
+
+        var result = await UploadAsync(factory, client, "repeated-letterhead.pdf", "application/pdf", pdf);
+        var receipt = await GetReceiptAsync(factory, ReceiptId(result));
+
+        Assert.DoesNotContain(receipt.Evidence, evidence => evidence.Signal == "intake_limit_exceeded");
+        Assert.DoesNotContain(receipt.Evidence, evidence => evidence.Signal == IntakeEvidenceSignals.IncompleteRead);
+        Assert.Equal(
+            placementCount,
+            receipt.AssetRecords.Count(asset => asset.Kind == IntakeAssetKind.EmbeddedImage));
+    }
+
+    [Fact]
+    public async Task DistinctImagesOverThePixelBudgetAreIncompleteAndNeverEnterImageAutomation()
+    {
+        // The photographs read before the budget is spent are kept, but an
+        // incomplete read never enters image automation (ADR-0005 item 11):
+        // no plate is read and nothing is registered, even with a readable plate.
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"));
+        using var client = CreateClient(factory);
+        var placements = Enumerable.Range(0, 4)
+            .Select(index => new PdfImagePlacement(
+                20 + index % 2 * 250, 100 + index / 2 * 260, 200, 240, 0, 0, 0,
+                SampleWidth: 200, SampleHeight: 240, Pixels: RandomPixels(200, 240, index + 1)))
+            .Append(new PdfImagePlacement(
+                20, 650, 100, 100, 0xff, 0xff, 0xff, SampleWidth: 10_001, SampleHeight: 10_000))
+            .ToArray();
+        var pdf = CreateImagePdf(placements);
+
+        var result = await UploadAsync(factory, client, "over-budget-photos.pdf", "application/pdf", pdf);
+        var receiptId = ReceiptId(result);
+        var receipt = await GetReceiptAsync(factory, receiptId);
+
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Contains(
+            receipt.Evidence,
+            evidence => evidence.Signal == "intake_limit_exceeded"
+                && evidence.Detail.Contains("decoded-image pixel limit", StringComparison.Ordinal));
+        Assert.Contains(receipt.Evidence, evidence => evidence.Signal == IntakeEvidenceSignals.IncompleteRead);
+        Assert.Equal(4, InstructionEvidenceImages.Select(receipt.AssetRecords).Count);
+        await using var scope = factory.Services.CreateAsyncScope();
+        Assert.Empty(await scope.ServiceProvider.GetRequiredService<IVrmSuggestionStore>()
+            .ListForReceiptAsync(receiptId, CancellationToken.None));
+        Assert.Null(await scope.ServiceProvider.GetRequiredService<IImageIntakeQueries>()
+            .GetByOriginReceiptAsync(receiptId, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task MoreThan128MimeEntitiesStopsRemainingPartsAndSurfacesLimitGuard()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -1505,7 +1563,11 @@ public sealed partial class MultiFormatIntakeWebTests
         return WritePdfObjects(objectBodies);
     }
 
-    private static byte[] CreateRepeatedJpegImagePdf(byte[] jpeg, int placementCount)
+    private static byte[] CreateRepeatedJpegImagePdf(
+        byte[] jpeg,
+        int placementCount,
+        int sampleWidth = 1,
+        int sampleHeight = 1)
     {
         ArgumentOutOfRangeException.ThrowIfZero(placementCount);
         var objectBodies = new List<byte[]>
@@ -1521,7 +1583,7 @@ public sealed partial class MultiFormatIntakeWebTests
         {
             WriteAscii(
                 imageObject,
-                $"<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB "
+                $"<< /Type /XObject /Subtype /Image /Width {sampleWidth} /Height {sampleHeight} /ColorSpace /DeviceRGB "
                 + $"/BitsPerComponent 8 /Filter /DCTDecode /Length {jpeg.Length} >>\nstream\n");
             imageObject.Write(jpeg);
             WriteAscii(imageObject, "\nendstream");

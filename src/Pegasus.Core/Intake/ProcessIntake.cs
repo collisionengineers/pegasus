@@ -781,10 +781,21 @@ public sealed class ProcessIntake(
 
         if (readResult.IsIncomplete)
         {
+            const string incompleteReason =
+                "The source was retained, but processing could not be completed safely and requires manual sorting.";
+            // An incomplete read never enters image automation (ADR-0005 item 11).
             return new(
                 IntakeDecision.NeedsSorting,
-                "The source was retained, but processing could not be completed safely and requires manual sorting.",
-                readerEvidence,
+                incompleteReason,
+                [
+                    .. readerEvidence,
+                    new IntakeEvidence(
+                        IntakeEvidenceSource.SystemDefault,
+                        IntakeEvidenceStrength.Strong,
+                        IntakeEvidenceFinding.Information,
+                        IntakeEvidenceSignals.IncompleteRead,
+                        incompleteReason)
+                ],
                 [],
                 null,
                 [],
