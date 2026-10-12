@@ -529,7 +529,9 @@
         if (postedKey is not null) { selectedKey = postedKey; }
         var custom = string.IsNullOrEmpty(selectedKey);
         var baseRate = d.BaseHourlyRate;
-        var uplifted = d.RegionalUplift && !custom;
+        // The uplift as recorded, so a typed rate or a card no longer current
+        // or enabled keeps it through a save and reads at the rate it prices.
+        var uplifted = d.RegionalUplift;
         var effective = uplifted ? decimal.Round(baseRate * EstimateDetails.RegionalUpliftFactor, 2, MidpointRounding.AwayFromZero) : baseRate;
         var work = uplifted ? $"{Money(baseRate)} × {EstimateDetails.RegionalUpliftFactor.ToString("0.00", CultureInfo.InvariantCulture)} =" : string.Empty;
         var chip = upliftSuggestions.Count > 0 ? EstimateLabels.Suggested + " · " + string.Join(", ", upliftSuggestions) : EstimateLabels.LondonAndHomeCounties;
@@ -545,7 +547,7 @@
                     }
                     <label class="rseg-btn"><input type="radio" name="selectedRateCard" form="case-edit-form" value="" checked="@(custom ? "checked" : null)" data-rate-custom /><span>@EstimateLabels.Custom</span><small>@EstimateLabels.Typed</small></label>
                 </div>
-                <label class="choice"><input id="estimate-regional-uplift" type="checkbox" name="estimateRegionalUplift" form="case-edit-form" value="true" checked="@(uplifted ? "checked" : null)" disabled="@(custom ? "disabled" : null)" data-uplift /><input type="hidden" name="estimateRegionalUplift" value="false" form="case-edit-form" /><span>@EstimateLabels.RegionalUpliftTick</span></label>
+                <label class="choice"><input id="estimate-regional-uplift" type="checkbox" name="estimateRegionalUplift" form="case-edit-form" value="true" checked="@(uplifted ? "checked" : null)" disabled="@(custom && !uplifted ? "disabled" : null)" data-uplift /><input type="hidden" name="estimateRegionalUplift" value="false" form="case-edit-form" /><span>@EstimateLabels.RegionalUpliftTick</span></label>
                 <span class="src-tag @(upliftSuggestions.Count > 0 ? "src-tag--ai" : null)" data-estimate-uplift-chip>@chip</span>
                 <span class="dsc ratebox">
                     <span class="mono muted" data-rate-work>@work</span>
