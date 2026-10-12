@@ -475,7 +475,7 @@ public sealed class StaffMailSendTests
             new(mail with { Attachments = [mail.Attachments[1], mail.Attachments[0]] }, first, second),
             CancellationToken.None));
 
-        // Only a new Case report send carries a second, distinct report.
+        // Only a Case report send carries a second, distinct report.
         await Assert.ThrowsAsync<ArgumentException>(() => reportSend.SendAsync(
             new(mail with { SecondReport = new(mail.ContextId, 1) }, first, second with { GenerationId = mail.ContextId, ExpectedGenerationVersion = 1 }),
             CancellationToken.None));

@@ -510,14 +510,15 @@ public sealed class StaffMailSend(
         {
             throw new ArgumentException("Only a reply to Case correspondence can resolve the Case's queries.", nameof(command));
         }
+        // A report send is a reply to the instruction e-mail whenever its mailbox
+        // can send (#1304), so the second report rides on either compose mode.
         if (command.SecondReport is { } second
             && (command.Purpose != StaffMailPurpose.CaseReport
-                || command.ComposeMode != StaffMailComposeMode.New
                 || second.ContextId == Guid.Empty
                 || second.ContextId == command.ContextId
                 || second.ExpectedContextVersion <= 0))
         {
-            throw new ArgumentException("Only a new Case report send carries a second, distinct report.", nameof(command));
+            throw new ArgumentException("Only a Case report send carries a second, distinct report.", nameof(command));
         }
     }
 
