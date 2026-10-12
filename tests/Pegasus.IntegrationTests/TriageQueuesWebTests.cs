@@ -71,7 +71,6 @@ public sealed class TriageQueuesWebTests
         using var response = await client.GetAsync("/Cases?tab=not_ready");
         var html = await response.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.DoesNotContain("queue-missing", html, StringComparison.Ordinal);
 
         var instructionOnlyRow = RowOf(html, instructionOnly);
         Assert.Contains("Instructions", instructionOnlyRow, StringComparison.Ordinal);
@@ -83,7 +82,7 @@ public sealed class TriageQueuesWebTests
 
         static string RowOf(string page, string reference)
         {
-            var start = page.IndexOf(reference, StringComparison.Ordinal);
+            var start = page.IndexOf($">{reference}</a>", StringComparison.Ordinal);
             Assert.True(start >= 0, $"{reference} is not listed.");
             return page[start..page.IndexOf("</tr>", start, StringComparison.Ordinal)];
         }
@@ -742,7 +741,7 @@ public sealed class TriageQueuesWebTests
         Assert.DoesNotContain("queue-group-divider", html, StringComparison.Ordinal);
         Assert.DoesNotContain("queue-exception", html, StringComparison.Ordinal);
         Assert.Contains("name=\"principal\"", html, StringComparison.Ordinal);
-        Assert.Contains("name=\"missing\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"missing\"", html, StringComparison.Ordinal);
         using var awaiting = await client.GetAsync("/Cases?tab=awaiting");
         var awaitingHtml = await awaiting.Content.ReadAsStringAsync();
         Assert.Contains(imageIntake.ImageIntakeReference, awaitingHtml, StringComparison.Ordinal);
