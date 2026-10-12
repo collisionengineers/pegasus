@@ -111,7 +111,8 @@ internal static class PostReportQueryTransitions
             return null;
         }
         var observedReply = await FindObservedQueryReplyAsync(context, receipt, workflow.CaseId, cancellationToken);
-        var otherLinked = await OtherPostReportLinkedAsync(context, receipt.Id, workflow.CaseId, cancellationToken);
+        var otherLinked = observedReply is null
+            && await OtherPostReportLinkedAsync(context, receipt.Id, workflow.CaseId, cancellationToken);
         if (!PostReportQueryRules.ShouldWithdraw(state, observedReply is not null, otherLinked))
         {
             return null;
@@ -254,14 +255,9 @@ internal static class PostReportQueryTransitions
         Guid caseId,
         CancellationToken cancellationToken)
     {
-        var retainedMessageIds = await context.RetainedMailboxMessages.AsNoTracking()
+        var retainedMessageIds = context.RetainedMailboxMessages.AsNoTracking()
             .Where(item => item.ExternalReceiptToken == receipt.ExternalReceiptToken)
-            .Select(item => item.Id)
-            .ToArrayAsync(cancellationToken);
-        if (retainedMessageIds.Length == 0)
-        {
-            return null;
-        }
+            .Select(item => item.Id);
 
         return await context.Set<StaffMailSendOperationEntity>().AsNoTracking()
             .Where(item => item.ContextId == caseId
@@ -294,15 +290,13 @@ internal static class PostReportQueryTransitions
         Guid caseId,
         CancellationToken cancellationToken)
     {
-        var manual = await context.IntakeManualAssociations.AsNoTracking()
+        var candidates = await context.IntakeManualAssociations.AsNoTracking()
             .Where(item => item.CaseId == caseId && item.IsActive && item.IntakeReceiptId != receiptId)
             .Select(item => item.IntakeReceiptId)
-            .ToListAsync(cancellationToken);
-        var accepted = await context.CaseIntakeLinks.AsNoTracking()
-            .Where(item => item.CaseId == caseId && item.IntakeReceiptId != receiptId)
-            .Select(item => item.IntakeReceiptId)
-            .ToListAsync(cancellationToken);
-        var candidates = manual.Concat(accepted).Distinct().ToArray();
+            .Union(context.CaseIntakeLinks.AsNoTracking()
+                .Where(item => item.CaseId == caseId && item.IntakeReceiptId != receiptId)
+                .Select(item => item.IntakeReceiptId))
+            .ToArrayAsync(cancellationToken);
         if (candidates.Length == 0)
         {
             return false;
