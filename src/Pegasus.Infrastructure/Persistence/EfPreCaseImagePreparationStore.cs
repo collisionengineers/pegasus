@@ -172,6 +172,46 @@ internal sealed class EfPreCaseImagePreparationStore(
     {
         var preparation = await context.Set<IntakeAssetPreparationEntity>().AsNoTracking()
             .SingleOrDefaultAsync(item => item.IntakeAssetId == intakeAssetId, cancellationToken);
+        var tags = await context.Set<IntakeAssetTagEntity>().AsNoTracking()
+            .Where(item => item.IntakeAssetId == intakeAssetId)
+            .ToListAsync(cancellationToken);
+        ApplyToOccurrence(context, occurrence, preparation, tags);
+    }
+
+    /// <summary>
+    /// The preparation and tags of several pre-Case images in two reads, for a
+    /// caller that copies each onto its own occurrence with
+    /// <see cref="ApplyToOccurrence"/>.
+    /// </summary>
+    internal static async Task<(
+        IReadOnlyDictionary<Guid, IntakeAssetPreparationEntity> Preparations,
+        ILookup<Guid, IntakeAssetTagEntity> Tags)> LoadForAssetsAsync(
+        PegasusDbContext context,
+        IReadOnlyCollection<Guid> intakeAssetIds,
+        CancellationToken cancellationToken)
+    {
+        if (intakeAssetIds.Count == 0)
+        {
+            return (
+                new Dictionary<Guid, IntakeAssetPreparationEntity>(),
+                Array.Empty<IntakeAssetTagEntity>().ToLookup(tag => tag.IntakeAssetId));
+        }
+
+        var preparations = await context.Set<IntakeAssetPreparationEntity>().AsNoTracking()
+            .Where(item => intakeAssetIds.Contains(item.IntakeAssetId))
+            .ToDictionaryAsync(item => item.IntakeAssetId, cancellationToken);
+        var tags = await context.Set<IntakeAssetTagEntity>().AsNoTracking()
+            .Where(item => intakeAssetIds.Contains(item.IntakeAssetId))
+            .ToListAsync(cancellationToken);
+        return (preparations, tags.ToLookup(tag => tag.IntakeAssetId));
+    }
+
+    internal static void ApplyToOccurrence(
+        PegasusDbContext context,
+        DocumentOccurrenceEntity occurrence,
+        IntakeAssetPreparationEntity? preparation,
+        IReadOnlyCollection<IntakeAssetTagEntity> tags)
+    {
         if (preparation is not null)
         {
             occurrence.RotationDegrees = preparation.RotationDegrees;
@@ -183,9 +223,6 @@ internal sealed class EfPreCaseImagePreparationStore(
             occurrence.PreparedAtUtc = preparation.PreparedAtUtc;
         }
 
-        var tags = await context.Set<IntakeAssetTagEntity>().AsNoTracking()
-            .Where(item => item.IntakeAssetId == intakeAssetId)
-            .ToListAsync(cancellationToken);
         foreach (var tag in tags)
         {
             context.Add(new DocumentOccurrenceTagEntity

@@ -11,7 +11,8 @@ namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfExternalWorkStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    PrefetchedExternalWork? prefetched = null)
     : IExternalWorkStore, IQueuedExternalWorkReader, ICustodyRecoveryPersistence
 {
     private const int CandidateBatchSize = 256;
@@ -261,11 +262,16 @@ internal sealed class EfExternalWorkStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await context.ExternalWorkItems
+        var row = await context.ExternalWorkItems
             .AsNoTracking()
-            .Where(item => item.Id == workItemId)
-            .Select(item => new QueuedExternalWork(item.Id, item.Kind))
-            .SingleOrDefaultAsync(cancellationToken);
+            .SingleOrDefaultAsync(item => item.Id == workItemId, cancellationToken);
+        if (row is null)
+        {
+            return null;
+        }
+
+        prefetched?.Offer(row);
+        return new QueuedExternalWork(row.Id, row.Kind);
     }
 
     public async Task<ExternalWorkDispatchClaim?> ClaimDispatchAsync(
