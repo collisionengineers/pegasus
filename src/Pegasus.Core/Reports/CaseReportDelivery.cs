@@ -735,8 +735,15 @@ public sealed class SendCaseReport(
                     SecondReport = null
                 },
                 cancellationToken).ConfigureAwait(false);
+            // The Principal's attachment rules hold for this report too: its
+            // required companions must be confirmed and go with it.
+            var secondConfirmed = second.Artifacts
+                .Where(artifact => artifact.Status == CaseReportArtifactStatus.Confirmed)
+                .Select(artifact => artifact.Kind)
+                .ToArray();
             secondAttachments = CaseReportDeliveryPolicy.Attachments(
-                second.Id, second.Artifacts, secondReport.Attach);
+                second.Id, second.Artifacts,
+                CaseReportDeliveryPolicy.AttachChoice(plan, secondReport.Attach, secondConfirmed));
             var secondHistory = await sendHistory.GetAsync(request.CaseId, otherWork, cancellationToken).ConfigureAwait(false);
             named =
             [
