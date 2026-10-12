@@ -57,15 +57,16 @@ public sealed class OpeningModel(
 
     public async Task<IActionResult> OnGetStateAsync(Guid sessionId, CancellationToken cancellationToken)
     {
-        if (await OwnSessionAsync(sessionId, cancellationToken) is not { } session)
+        if (!TryGetOwnerId(out var staffId)
+            || await glassSessions.GetOwnStateAsync(sessionId, staffId, cancellationToken) is not { } state)
         {
             return NotFound();
         }
 
         return new JsonResult(new
         {
-            pending = glassWork.IsInFlight(session.Id),
-            open = session.State == GlassRepairEstimateSessionState.Active,
+            pending = glassWork.IsInFlight(sessionId),
+            open = state == GlassRepairEstimateSessionState.Active,
         });
     }
 
@@ -108,10 +109,16 @@ public sealed class OpeningModel(
     /// </summary>
     private async Task<GlassRepairEstimateSession?> OwnSessionAsync(
         Guid sessionId, CancellationToken cancellationToken) =>
-        glassAvailability.Enabled
-        && TryGetActor(out var actor)
-        && actor.Kind == ActorKind.Staff
-        && Guid.TryParse(actor.SubjectId, out var staffId)
+        TryGetOwnerId(out var staffId)
             ? await glassSessions.GetOwnAsync(sessionId, staffId, cancellationToken)
             : null;
+
+    private bool TryGetOwnerId(out Guid staffId)
+    {
+        staffId = default;
+        return glassAvailability.Enabled
+            && TryGetActor(out var actor)
+            && actor.Kind == ActorKind.Staff
+            && Guid.TryParse(actor.SubjectId, out staffId);
+    }
 }

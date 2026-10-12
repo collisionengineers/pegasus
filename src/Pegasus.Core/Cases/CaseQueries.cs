@@ -57,13 +57,17 @@ public sealed record SearchCasesQuery(
     CaseSearchFilters Filters,
     int Page = 1,
     int PageSize = 25,
-    CaseSearchOrder Order = CaseSearchOrder.ReceivedDesc);
+    CaseSearchOrder Order = CaseSearchOrder.ReceivedDesc,
+    bool IncludeAccidentCircumstances = false);
 
 /// <summary>
 /// One case as a list row. <see cref="VehicleMake"/>, <see cref="VehicleModel"/>
 /// and <see cref="AccidentCircumstances"/> ride the same projection so the
 /// Search page can draw its vehicle column and selected-case preview from the
 /// search read alone; they are display facts, not filters.
+/// <see cref="AccidentCircumstances"/> is read only when the numbered search
+/// asks for it (<see cref="SearchCasesQuery.IncludeAccidentCircumstances"/>)
+/// and is null otherwise.
 /// </summary>
 public sealed record CaseSearchItem(
     Guid CaseId,

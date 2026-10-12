@@ -399,6 +399,17 @@ public sealed class EfGlassRepairEstimateSessionStore(
         return entity is null ? null : ToSession(entity);
     }
 
+    public async Task<GlassRepairEstimateSessionState?> GetOwnStateAsync(
+        Guid sessionId, Guid pegasusUserId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.Set<GlassRepairEstimateSessionEntity>()
+            .AsNoTracking()
+            .Where(item => item.Id == sessionId && item.UserId == pegasusUserId)
+            .Select(item => (GlassRepairEstimateSessionState?)item.State)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
     private static GlassRepairEstimateSession ToSession(GlassRepairEstimateSessionEntity entity) =>
         new(
             entity.Id,
