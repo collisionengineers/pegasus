@@ -178,7 +178,7 @@ public sealed class DurableIntakeLinkTests
         public Task<ImageIntakePairingResult> PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<ImageIntakePairingResult> PairRegisteredReceiptAsync(Guid receiptId, CancellationToken cancellationToken) =>
+        public Task<ImageIntakePairingResult> PairRegisteredReceiptAsync(Guid receiptId, CancellationToken cancellationToken, ImageIntakeDetail? registered = null) =>
             Task.FromResult(new ImageIntakePairingResult(0, 0, 0));
 
         public Task<ImageIntakePairingResult> ReconcileAsync(int maximumItems, CancellationToken cancellationToken) =>
