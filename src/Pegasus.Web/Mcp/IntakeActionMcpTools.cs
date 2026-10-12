@@ -394,8 +394,8 @@ internal sealed class IntakeActionMcpTools(
                 else
                 {
                     var claimSource = claimSourceId is { } sourceId
-                        ? (await contacts.ListByRoleAsync(context.Actor, ContactRole.ClaimSource, cancellationToken))
-                            .SingleOrDefault(item => item.OrganizationId == sourceId)
+                        ? await contacts.FindActiveByRoleAsync(
+                                context.Actor, ContactRole.ClaimSource, sourceId, cancellationToken)
                             ?? throw new McpException("claimSourceId is not an active Claim Source in the directory.")
                         : null;
                     var inspection = ParseDate(inspectionDate, "inspectionDate");

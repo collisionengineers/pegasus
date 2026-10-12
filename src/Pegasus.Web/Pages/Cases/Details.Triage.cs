@@ -252,9 +252,10 @@ public sealed partial class DetailsModel
         Guid id,
         ActionActor actor,
         TriageCasePorts ports,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<CaseEngineerChoice>? roster = null)
     {
-        if (!await LoadTriageCaseAsync(id, actor, ports, cancellationToken))
+        if (!await LoadTriageCaseAsync(id, actor, ports, cancellationToken, roster))
         {
             return NotFound();
         }
@@ -326,14 +327,15 @@ public sealed partial class DetailsModel
         // The assignee is chosen from the eligible roster, never defaulted to
         // whoever is signed in; a choice outside the roster is no choice.
         CaseEngineerChoice? assignee = null;
+        IReadOnlyList<CaseEngineerChoice>? roster = null;
         if (actionName == "assign")
         {
-            var roster = await ports.EngineerChoices.GetAsync(actionActor, cancellationToken);
+            roster = await ports.EngineerChoices.GetAsync(actionActor, cancellationToken);
             assignee = roster.FirstOrDefault(choice => choice.StaffId == assigneeId);
             if (assignee is null)
             {
                 ModelState.AddModelError("assigneeId", Labels.ChooseAssignee);
-                return await GetTriageCaseAsync(id, actionActor, ports, cancellationToken);
+                return await GetTriageCaseAsync(id, actionActor, ports, cancellationToken, roster);
             }
         }
 
@@ -454,7 +456,7 @@ public sealed partial class DetailsModel
             }
         }
 
-        if (!await LoadTriageCaseAsync(id, actionActor, ports, cancellationToken))
+        if (!await LoadTriageCaseAsync(id, actionActor, ports, cancellationToken, roster))
         {
             return NotFound();
         }
@@ -803,7 +805,8 @@ public sealed partial class DetailsModel
         Guid id,
         ActionActor actor,
         TriageCasePorts ports,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<CaseEngineerChoice>? roster = null)
     {
         if (id == Guid.Empty)
         {
@@ -838,9 +841,9 @@ public sealed partial class DetailsModel
             : origin?.SourceIdentity.Channel == IntakeSourceChannel.Mailbox;
 
         // One roster read serves the assignee's name and the Assign dialog,
-        // with the signed-in account first.
+        // with the signed-in account first; Assign has already read it.
         _ = Guid.TryParse(actor.SubjectId, out var viewerStaffId);
-        var roster = await ports.EngineerChoices.GetAsync(actor, cancellationToken);
+        roster ??= await ports.EngineerChoices.GetAsync(actor, cancellationToken);
         view.ViewerStaffId = viewerStaffId;
         view.EngineerChoices = [.. roster.OrderBy(choice => choice.StaffId == viewerStaffId ? 0 : 1)];
         view.AssigneeName = triage.Record.AssigneeId is { } assigneeId
@@ -911,7 +914,7 @@ public sealed partial class DetailsModel
                 var replyRecipients = TriageReplyRecipients(retainedMail);
                 view.ReplyTo = string.Join("; ", replyRecipients.Select(r => r.Address));
                 view.ReplySubject = TriageReplySubject(retainedMail.Summary);
-                if (view.IsOutcomeReply)
+                if (view.OffersReply)
                 {
                     // The Administrator's saved template, or the built-in
                     // body until one is saved (FRD-17 E-mail templates).
