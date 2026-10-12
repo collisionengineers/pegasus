@@ -2056,7 +2056,9 @@ public sealed class CaseReportGenerationPersistenceTests
                         generation.Snapshot.CaseReference,
                         PrincipalReportRecipientSettings.Normalize(false, ["digital@collisionengineers.co.uk"]),
                         null)),
-                    new FixedApprovedMailboxes(TestMailbox()),
+                    new ResolveCaseMailSender(
+                        new EfCaseInstructionEmailQueries(Factory),
+                        new FixedApprovedMailboxes(TestMailbox)),
                     send)
                 .ExecuteAsync(
                     new(
@@ -2067,7 +2069,10 @@ public sealed class CaseReportGenerationPersistenceTests
                         generation.Id,
                         generation.Version,
                         "send-report",
-                        "Please find attached our report."),
+                        "Please find attached our report.",
+                        // An uploaded Case has no instruction email to reply
+                        // to: the report is new from the chosen mailbox.
+                        FromMailboxId: TestMailbox.Id),
                     default);
             return Assert.Single(send.Commands);
         }
@@ -2955,10 +2960,10 @@ public sealed class CaseReportGenerationPersistenceTests
         }
     }
 
-    private static ApprovedMailbox TestMailbox() => new(
+    private static readonly ApprovedMailbox TestMailbox = new(
         Guid.NewGuid(),
         "reports@collisionengineers.example",
-        [ApprovedMailboxRouteScope.StaffSend, ApprovedMailboxRouteScope.SentEvidence],
+        [ApprovedMailboxRouteScope.Outgoing],
         ApprovedMailboxState.Approved,
         "identity",
         "inbox",
@@ -2985,10 +2990,6 @@ public sealed class CaseReportGenerationPersistenceTests
 
         public Task<ApprovedMailbox> UpdateAsync(
             UpdateApprovedMailboxRequest request, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<ApprovedMailbox> SetDefaultAsync(
-            SetDefaultApprovedMailboxRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<bool> IsApprovedAsync(

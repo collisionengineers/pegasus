@@ -5,6 +5,7 @@ using Pegasus.Core.AiWork;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
@@ -99,6 +100,58 @@ public sealed class UnidentifiedRecordWebTests
         await using var scope = factory.Services.CreateAsyncScope();
         var item = await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>().GetAsync(itemId, CancellationToken.None);
         Assert.Equal(UnidentifiedState.Open, item!.State);
+    }
+
+    /// <summary>
+    /// Operator, 12 October 2026: material that came in an e-mail offers Reply
+    /// to that e-mail once the item is closed, when the mailbox it arrived in
+    /// can send. While it is open, Request again is that same reply, so Reply
+    /// is not offered beside it.
+    /// </summary>
+    [Fact]
+    public async Task AClosedItemFromAnEmailOffersReplyWhereAnOpenOneOffersRequestAgain()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var messageId = await SeedSourceMessageAsync(factory, sendReady: true);
+        var (_, itemId, _) = await SeedOpenItemAsync(
+            factory, UnidentifiedReasonCode.UnreadableOrCorruptContent, sourceMessageId: messageId);
+
+        var open = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
+        Assert.Contains(
+            $"href=\"/Inbox/{messageId:D}?compose=reply\" data-unidentified-action=\"request-again\"",
+            open,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("data-unidentified-action=\"reply\"", open, StringComparison.Ordinal);
+
+        await CloseAsync(factory, client, itemId);
+
+        var record = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
+        Assert.Contains("data-unidentified-state=\"closed\"", record, StringComparison.Ordinal);
+        Assert.Contains(
+            $"href=\"/Inbox/{messageId:D}?compose=reply\" data-unidentified-action=\"reply\"",
+            record,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("data-unidentified-action=\"request-again\"", record, StringComparison.Ordinal);
+    }
+
+    /// <summary>A closed item whose e-mail arrived in a mailbox that cannot send offers no Reply.</summary>
+    [Fact]
+    public async Task AClosedItemWhoseMailboxCannotSendOffersNoReply()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var messageId = await SeedSourceMessageAsync(factory, sendReady: false);
+        var (_, itemId, _) = await SeedOpenItemAsync(
+            factory, UnidentifiedReasonCode.UnreadableOrCorruptContent, sourceMessageId: messageId);
+
+        await CloseAsync(factory, client, itemId);
+
+        var record = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
+        Assert.Contains("data-unidentified-state=\"closed\"", record, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Inbox/{messageId:D}\" data-unidentified-action=\"open-message\"", record, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-unidentified-action=\"reply\"", record, StringComparison.Ordinal);
+        Assert.DoesNotContain("compose=reply", record, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -265,7 +318,8 @@ public sealed class UnidentifiedRecordWebTests
     private static async Task<(Guid ReceiptId, Guid ItemId, string Reference)> SeedOpenItemAsync(
         IntakeWebApplicationFactory factory,
         UnidentifiedReasonCode reasonCode,
-        IReadOnlyList<IntakeAssetRecord>? assets = null)
+        IReadOnlyList<IntakeAssetRecord>? assets = null,
+        Guid? sourceMessageId = null)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
@@ -323,7 +377,10 @@ public sealed class UnidentifiedRecordWebTests
                 "The document could not be read.",
                 ActionActor.SystemWorker("test-worker"),
                 $"unidentified-record-test:{Guid.NewGuid():N}",
-                receivedAt),
+                receivedAt)
+            {
+                SourceMessageId = sourceMessageId
+            },
             CancellationToken.None);
         return (receipt.Id, registered.Item.Id, registered.Item.Reference);
     }
@@ -428,6 +485,73 @@ public sealed class UnidentifiedRecordWebTests
                 claimed.WorkItem.Id, claimed.WorkItem.LeaseToken!, receivedAt, CancellationToken.None);
             return (receipt.Id, source, photo);
         }
+    }
+
+    private static async Task CloseAsync(IntakeWebApplicationFactory factory, HttpClient client, Guid itemId)
+    {
+        using var closed = await PostAsync(client, $"/Unidentified/{itemId:D}?handler=Close", new()
+        {
+            ["expectedVersion"] = (await VersionAsync(factory, itemId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["operationKey"] = Guid.NewGuid().ToString("N"),
+            ["reason"] = "Not our instruction"
+        });
+        Assert.Equal(HttpStatusCode.Redirect, closed.StatusCode);
+    }
+
+    /// <summary>
+    /// A retained e-mail the material came in, in an approved mailbox that is
+    /// Outgoing and send-ready, or Incoming only.
+    /// </summary>
+    private static async Task<Guid> SeedSourceMessageAsync(IntakeWebApplicationFactory factory, bool sendReady)
+    {
+        const string graphId = "unidentified-source";
+        const string address = "desk@collisionengineers.co.uk";
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var nowUtc = services.GetRequiredService<TimeProvider>().GetUtcNow();
+        Guid mailboxId;
+        await using (var context = await factory.Database.CreateContextAsync())
+        {
+            mailboxId = await TestMailboxId.EnsureApprovedAsync(context, graphId, address, nowUtc.AddDays(-1));
+            await context.SaveChangesAsync();
+            var mailbox = await context.ApprovedMailboxes.SingleAsync(item => item.Id == mailboxId);
+            mailbox.AllowOutgoing = sendReady;
+            mailbox.SentFolderIdentity = "sent-items";
+            mailbox.MailboxGeneration = Math.Max(1, mailbox.MailboxGeneration);
+            await context.SaveChangesAsync();
+        }
+
+        var immutableId = $"{graphId}-{Guid.NewGuid():N}";
+        await services.GetRequiredService<EfRetainedMailboxMessageStore>().RetainAsync(
+            new(
+                mailboxId,
+                address,
+                immutableId,
+                $"{graphId.Length}:{graphId}{immutableId}",
+                nowUtc.AddMinutes(-5),
+                1024,
+                new string('A', 64),
+                new(
+                    "inbox",
+                    $"conversation-{immutableId}",
+                    $"<{immutableId}@example.invalid>",
+                    "sender@example.invalid",
+                    "A Sender",
+                    [address],
+                    [],
+                    [],
+                    "Unreadable instruction",
+                    "Please see the attached file.",
+                    [],
+                    IsRead: false),
+                nowUtc),
+            CancellationToken.None);
+
+        await using var readContext = await factory.Database.CreateContextAsync();
+        return await readContext.RetainedMailboxMessages
+            .Where(item => item.ImmutableMessageId == immutableId)
+            .Select(item => item.Id)
+            .SingleAsync();
     }
 
     private static async Task<long> VersionAsync(IntakeWebApplicationFactory factory, Guid itemId)

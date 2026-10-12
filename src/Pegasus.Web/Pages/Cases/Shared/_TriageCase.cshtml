@@ -414,7 +414,7 @@
                                     </button>
                                 </div>
                             }
-                            <partial name="Cases/Shared/_CaseCorrespondence" model="@(new CaseCorrespondenceView(correspondence, reference, OffersCompose: false))" />
+                            <partial name="Cases/Shared/_CaseCorrespondence" model="@(new CaseCorrespondenceView(correspondence, reference))" />
 
                             @* Exact response evidence keeps its handlers; it renders
                                only when there is something linked or something to

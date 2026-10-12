@@ -23,7 +23,6 @@ public sealed class EfApprovedMailboxStore(
 {
     private const string AggregateType = "approved_mailbox";
     private const string EventKind = "approved_mailbox_updated";
-    private const string DefaultSelectedEventKind = "approved_mailbox_default_staff_send_selected";
 
     /// <summary>
     /// The raw estate view: only rows that are Approved, scoped to inbound intake, and
@@ -64,7 +63,7 @@ public sealed class EfApprovedMailboxStore(
             .AsNoTracking()
             .Where(item => item.Id == approvedMailboxId
                 && item.State == approvedState
-                && item.AllowInboundIntake)
+                && item.AllowIncoming)
             .Select(item => new ApprovedIntakeMailboxCandidate(
                 item.Id,
                 item.Address,
@@ -89,7 +88,7 @@ public sealed class EfApprovedMailboxStore(
         var approvedState = ApprovedMailboxState.Approved.ToString();
         return await context.Set<ApprovedMailboxEntity>()
             .AsNoTracking()
-            .Where(item => item.State == approvedState && item.AllowInboundIntake)
+            .Where(item => item.State == approvedState && item.AllowIncoming)
             .OrderBy(item => item.Address)
             .ThenBy(item => item.Id)
             .Select(item => new ApprovedIntakeMailboxCandidate(
@@ -142,9 +141,8 @@ public sealed class EfApprovedMailboxStore(
             .AnyAsync(
                 item => item.Address == normalizedAddress
                     && item.State == approvedState
-                    && (routeScope == ApprovedMailboxRouteScope.InboundIntake && item.AllowInboundIntake
-                        || routeScope == ApprovedMailboxRouteScope.SentEvidence && item.AllowSentEvidence
-                        || routeScope == ApprovedMailboxRouteScope.StaffSend && item.AllowStaffSend),
+                    && (routeScope == ApprovedMailboxRouteScope.Incoming && item.AllowIncoming
+                        || routeScope == ApprovedMailboxRouteScope.Outgoing && item.AllowOutgoing),
                 cancellationToken);
     }
 
@@ -271,24 +269,10 @@ public sealed class EfApprovedMailboxStore(
                 ApprovedMailboxUpdateError.DuplicateMailboxIdentity);
         }
 
-        entity.AllowInboundIntake =
-            request.RouteScopes.Contains(ApprovedMailboxRouteScope.InboundIntake);
-        entity.AllowSentEvidence =
-            request.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence);
-        entity.AllowStaffSend =
-            request.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend);
-        if (request.VerifiedEncodedMessageSizeLimit is { } verifiedLimit
-            && entity.VerifiedEncodedMessageSizeLimit != verifiedLimit)
-        {
-            entity.VerifiedEncodedMessageSizeLimit = verifiedLimit;
-            entity.SendLimitVerifiedAtUtc = timeProvider.GetUtcNow();
-            entity.SendLimitVerifiedBy = request.Actor.SubjectId;
-        }
-        if (entity.IsDefaultStaffSend && !IsStaffSendEligible(entity))
-        {
-            throw new ApprovedMailboxUpdateException(
-                ApprovedMailboxUpdateError.DefaultStaffSendMailboxRequiresReplacement);
-        }
+        entity.AllowIncoming =
+            request.RouteScopes.Contains(ApprovedMailboxRouteScope.Incoming);
+        entity.AllowOutgoing =
+            request.RouteScopes.Contains(ApprovedMailboxRouteScope.Outgoing);
         if (before is { State: ApprovedMailboxState.Approved }
             && request.State == ApprovedMailboxState.Approved
             && !before.RouteScopes.SequenceEqual(Routes(entity)))
@@ -359,100 +343,6 @@ public sealed class EfApprovedMailboxStore(
         return Map(entity);
     }
 
-    public async Task<ApprovedMailbox> SetDefaultAsync(
-        SetDefaultApprovedMailboxRequest request,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
-
-        var replay = await context.ActionHistory
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                item => item.AggregateType == AggregateType
-                    && item.CorrelationId == request.OperationKey,
-                cancellationToken);
-        if (replay is not null)
-        {
-            var replayed = ReplayDefaultSelection(request, replay);
-            await transaction.CommitAsync(cancellationToken);
-            return replayed;
-        }
-
-        var target = await context.Set<ApprovedMailboxEntity>()
-            .Include(item => item.FolderBindings)
-            .SingleOrDefaultAsync(item => item.Id == request.MailboxId, cancellationToken)
-            ?? throw new ApprovedMailboxUpdateException(ApprovedMailboxUpdateError.NotFound);
-        if (target.Version != request.ExpectedVersion)
-        {
-            throw new ApprovedMailboxUpdateException(
-                ApprovedMailboxUpdateError.VersionConflict);
-        }
-
-        var previousDefault = await context.Set<ApprovedMailboxEntity>()
-            .Include(item => item.FolderBindings)
-            .SingleOrDefaultAsync(item => item.IsDefaultStaffSend, cancellationToken);
-        if (previousDefault?.Id != request.ExpectedPreviousDefaultMailboxId
-            || previousDefault?.Version != request.ExpectedPreviousDefaultMailboxVersion)
-        {
-            throw new ApprovedMailboxUpdateException(
-                ApprovedMailboxUpdateError.VersionConflict);
-        }
-        if (!IsStaffSendEligible(target))
-        {
-            throw new ApprovedMailboxUpdateException(
-                ApprovedMailboxUpdateError.DefaultStaffSendMailboxIneligible);
-        }
-
-        var before = new DefaultMailboxSelectionSnapshot(
-            Snapshot(target),
-            previousDefault is null || previousDefault.Id == target.Id ? null : Snapshot(previousDefault),
-            request.ExpectedVersion,
-            request.ExpectedPreviousDefaultMailboxId,
-            request.ExpectedPreviousDefaultMailboxVersion);
-        if (previousDefault is not null && previousDefault.Id != target.Id)
-        {
-            previousDefault.IsDefaultStaffSend = false;
-            previousDefault.Version = checked(previousDefault.Version + 1);
-            await context.SaveChangesAsync(cancellationToken);
-        }
-        if (!target.IsDefaultStaffSend)
-        {
-            target.IsDefaultStaffSend = true;
-            target.Version = checked(target.Version + 1);
-        }
-        var after = new DefaultMailboxSelectionSnapshot(
-            Snapshot(target),
-            previousDefault is null || previousDefault.Id == target.Id ? null : Snapshot(previousDefault),
-            request.ExpectedVersion,
-            request.ExpectedPreviousDefaultMailboxId,
-            request.ExpectedPreviousDefaultMailboxVersion);
-        context.ActionHistory.Add(new ActionHistoryEntity
-        {
-            Id = Guid.NewGuid(),
-            AggregateType = AggregateType,
-            AggregateId = target.Id.ToString("D"),
-            EventKind = DefaultSelectedEventKind,
-            ActorKind = request.Actor.Kind.ToString(),
-            ActorSubjectId = request.Actor.SubjectId,
-            ActorRolesJson = JsonSerializer.Serialize(
-                request.Actor.Roles.OrderBy(role => role).Select(role => role.ToString())),
-            OccurredAtUtc = timeProvider.GetUtcNow(),
-            Outcome = "succeeded",
-            CorrelationId = request.OperationKey,
-            BeforeJson = JsonSerializer.Serialize(before),
-            AfterJson = JsonSerializer.Serialize(after),
-            PolicyVersion = $"approved-mailbox/{target.Id:D}/v{target.Version}"
-        });
-
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return Map(target);
-    }
-
     private static ApprovedMailbox Replay(
         UpdateApprovedMailboxRequest request,
         ActionHistoryEntity history)
@@ -488,35 +378,6 @@ public sealed class EfApprovedMailboxStore(
         }
 
         return Map(snapshot);
-    }
-
-    private static ApprovedMailbox ReplayDefaultSelection(
-        SetDefaultApprovedMailboxRequest request,
-        ActionHistoryEntity history)
-    {
-        if (history.AggregateId != request.MailboxId.ToString("D")
-            || history.EventKind != DefaultSelectedEventKind
-            || history.ActorKind != request.Actor.Kind.ToString()
-            || history.ActorSubjectId != request.Actor.SubjectId
-            || history.AfterJson is null)
-        {
-            throw new ApprovedMailboxUpdateException(
-                ApprovedMailboxUpdateError.OperationConflict);
-        }
-
-        var snapshot = JsonSerializer.Deserialize<DefaultMailboxSelectionSnapshot>(history.AfterJson);
-        if (snapshot is null
-            || snapshot.Target.Id != request.MailboxId
-            || !snapshot.Target.IsDefaultStaffSend
-            || snapshot.ExpectedMailboxVersion != request.ExpectedVersion
-            || snapshot.ExpectedPreviousDefaultMailboxId != request.ExpectedPreviousDefaultMailboxId
-            || snapshot.ExpectedPreviousDefaultMailboxVersion != request.ExpectedPreviousDefaultMailboxVersion)
-        {
-            throw new ApprovedMailboxUpdateException(
-                ApprovedMailboxUpdateError.OperationConflict);
-        }
-
-        return Map(snapshot.Target);
     }
 
     /// <summary>
@@ -574,14 +435,12 @@ public sealed class EfApprovedMailboxStore(
         entity.ActivatedAtUtc,
         entity.MailboxGeneration,
         entity.Version,
-        entity.VerifiedEncodedMessageSizeLimit,
         entity.FolderBindings
             .Select(item => new ApprovedMailboxFolderBinding(
                 ParseFolderType(item.FolderType),
                 item.FolderIdentity))
             .OrderBy(item => item.FolderType)
-            .ToArray(),
-        entity.IsDefaultStaffSend);
+            .ToArray());
 
     private static ApprovedMailbox Map(ApprovedMailboxEntity entity) => Map(Snapshot(entity));
 
@@ -597,34 +456,18 @@ public sealed class EfApprovedMailboxStore(
         snapshot.ActivatedAtUtc,
         snapshot.Version,
         snapshot.FolderBindings,
-        snapshot.Generation,
-        snapshot.VerifiedEncodedMessageSizeLimit,
-        snapshot.IsDefaultStaffSend);
-
-    private static bool IsStaffSendEligible(ApprovedMailboxEntity entity) =>
-        entity.State == ApprovedMailboxState.Approved.ToString()
-        && entity.AllowStaffSend
-        && entity.AllowSentEvidence
-        && entity.ActivatedAtUtc is not null
-        && entity.MailboxIdentity is not null
-        && entity.SentFolderIdentity is not null
-        && entity.MailboxGeneration > 0
-        && entity.VerifiedEncodedMessageSizeLimit > 0;
+        snapshot.Generation);
 
     private static ApprovedMailboxRouteScope[] Routes(ApprovedMailboxEntity entity)
     {
-        var routes = new List<ApprovedMailboxRouteScope>(3);
-        if (entity.AllowInboundIntake)
+        var routes = new List<ApprovedMailboxRouteScope>(2);
+        if (entity.AllowIncoming)
         {
-            routes.Add(ApprovedMailboxRouteScope.InboundIntake);
+            routes.Add(ApprovedMailboxRouteScope.Incoming);
         }
-        if (entity.AllowSentEvidence)
+        if (entity.AllowOutgoing)
         {
-            routes.Add(ApprovedMailboxRouteScope.SentEvidence);
-        }
-        if (entity.AllowStaffSend)
-        {
-            routes.Add(ApprovedMailboxRouteScope.StaffSend);
+            routes.Add(ApprovedMailboxRouteScope.Outgoing);
         }
         return routes.ToArray();
     }
@@ -652,17 +495,8 @@ public sealed class EfApprovedMailboxStore(
         DateTimeOffset? ActivatedAtUtc,
         long Generation,
         int Version,
-        long? VerifiedEncodedMessageSizeLimit,
-        IReadOnlyList<ApprovedMailboxFolderBinding> FolderBindings,
-        bool IsDefaultStaffSend)
+        IReadOnlyList<ApprovedMailboxFolderBinding> FolderBindings)
     {
         public bool IdentityIsBound => MailboxIdentity is not null;
     }
-
-    private sealed record DefaultMailboxSelectionSnapshot(
-        MailboxSnapshot Target,
-        MailboxSnapshot? PreviousDefault,
-        int ExpectedMailboxVersion,
-        Guid? ExpectedPreviousDefaultMailboxId,
-        int? ExpectedPreviousDefaultMailboxVersion);
 }

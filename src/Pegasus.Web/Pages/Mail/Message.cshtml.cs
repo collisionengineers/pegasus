@@ -344,12 +344,9 @@ public sealed class MessageModel(
 
     public bool StaffMailAvailable => staffMailSend is not UnavailableStaffMailSend;
 
-    public bool CorrespondenceSendBlocked { get; private set; }
-
     public StaffMailOperation? CorrespondenceOperation { get; private set; }
 
     public bool CanCorrespond => StaffMailAvailable
-        && !CorrespondenceSendBlocked
         && CorrespondenceMailbox is not null;
 
     public bool CanReply => CanCorrespond && ReplyRecipients(Detail).To.Length > 0;
@@ -452,7 +449,7 @@ public sealed class MessageModel(
         }
 
         Detail = detail;
-        CorrespondenceCaseReference = ComposeModel.TryNormalizeCaseReference(CorrespondenceCaseReference, out var reference)
+        CorrespondenceCaseReference = TryNormalizeCaseReference(CorrespondenceCaseReference, out var reference)
             ? reference
             : null;
         if (StaffMailAvailable)
@@ -1269,12 +1266,8 @@ public sealed class MessageModel(
             return NotFound();
         Detail = detail;
 
-        // The durable send boundary owns the atomic original-message claim.
-        // A GET projection can hide a second action, but it cannot distinguish
-        // a same-key replay from a forged fresh key without racing another
-        // request. Always present the validated command to that boundary:
-        // same-key replay returns its operation; a distinct active claim is
-        // refused atomically.
+        // The durable send boundary owns idempotency: a same-key replay
+        // returns its operation, and a fresh key is a further reply.
         await LoadRetainedOperationAsync(actor, cancellationToken);
 
         // Every refusal reloads the context, which lists the options; the
@@ -1384,28 +1377,6 @@ public sealed class MessageModel(
             ModelState.AddModelError(string.Empty, exception.Message);
             return await ReloadAsync(actor, id, cancellationToken);
         }
-        catch (InvalidOperationException)
-        {
-            // An InvalidOperationException here does not by itself mean the
-            // durable send boundary refused a distinct active claim — it is
-            // also how an unavailable mail transport or a composition
-            // invariant failure surfaces. Only translate to the existing
-            // correspondence conflict message when a currently active
-            // operation actually exists for this original message;
-            // otherwise let the real failure propagate unmasked.
-            var currentOperation = await staffMailSend.GetLatestForOriginalAsync(
-                actor,
-                detail.Summary.Id,
-                cancellationToken);
-            if (!IsActiveOperation(currentOperation))
-            {
-                throw;
-            }
-            ModelState.AddModelError(
-                string.Empty,
-                "The existing correspondence operation must finish or be resolved before another action.");
-            return await ReloadAsync(actor, id, cancellationToken);
-        }
 
         return RedirectToPage(new
         {
@@ -1455,16 +1426,7 @@ public sealed class MessageModel(
         {
             return null;
         }
-        return mailboxes.SingleOrDefault(item =>
-            item.Id == detail.Summary.MailboxId
-            && item.State == ApprovedMailboxState.Approved
-            && item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
-            && item.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence)
-            && item.ActivatedAtUtc is not null
-            && !string.IsNullOrWhiteSpace(item.MailboxIdentity)
-            && !string.IsNullOrWhiteSpace(item.SentFolderIdentity)
-            && item.Generation > 0
-            && item.VerifiedEncodedMessageSizeLimit is > 0);
+        return mailboxes.Sender(detail.Summary.MailboxId);
     }
 
     private async Task<bool> LoadCorrespondenceContextAsync(
@@ -1555,13 +1517,39 @@ public sealed class MessageModel(
         // The Case this message is linked to was read for CurrentCase moments
         // ago; naming it again needs no second search and header read.
         if (CurrentCase is { } linked
-            && ComposeModel.TryNormalizeCaseReference(reference, out var value)
+            && TryNormalizeCaseReference(reference, out var value)
             && string.Equals(linked.Summary.Reference, value, StringComparison.OrdinalIgnoreCase))
         {
             return Task.FromResult<CaseHeader?>(linked);
         }
 
-        return ComposeModel.ResolveCaseAsync(searchCases, getCaseHeader, actor, reference, cancellationToken);
+        return ResolveCaseByReferenceAsync(actor, reference, cancellationToken);
+    }
+
+    /// <summary>The Case a typed Case / PO reference names exactly; null when it names none.</summary>
+    private async Task<CaseHeader?> ResolveCaseByReferenceAsync(
+        ActionActor actor,
+        string? reference,
+        CancellationToken cancellationToken)
+    {
+        if (!TryNormalizeCaseReference(reference, out var value))
+        {
+            return null;
+        }
+
+        var matches = await searchCases.ExecuteAsync(
+            new(actor, new CaseSearchFilters(CaseReference: value), PageSize: 2), cancellationToken);
+        var match = matches.Items.SingleOrDefault(item =>
+            string.Equals(item.Reference, value, StringComparison.OrdinalIgnoreCase));
+        return match is null
+            ? null
+            : await getCaseHeader.ExecuteAsync(new(match.CaseId, actor), cancellationToken);
+    }
+
+    private static bool TryNormalizeCaseReference(string? value, out string? normalized)
+    {
+        normalized = value?.Trim();
+        return !string.IsNullOrWhiteSpace(normalized) && normalized.Length <= 100;
     }
 
     private async Task<IReadOnlyList<CaseSearchItem>> SearchCasesAsync(
@@ -1676,15 +1664,8 @@ public sealed class MessageModel(
             actor,
             Detail.Summary.Id,
             cancellationToken);
-        CorrespondenceSendBlocked = IsActiveOperation(CorrespondenceOperation);
         CorrespondenceOperationId = CorrespondenceOperation?.Id;
     }
-
-    private static bool IsActiveOperation(StaffMailOperation? operation) =>
-        operation is not null
-            && operation.State is not StaffMailState.Sent
-                and not StaffMailState.Failed
-                and not StaffMailState.Cancelled;
 
     private static string NewRetainedOperationKey(Guid retainedMessageId) =>
         $"retained:{retainedMessageId:N}:{Guid.NewGuid():N}";

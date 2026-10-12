@@ -794,7 +794,7 @@ public sealed class CreateAuditPersistenceTests
                 var mailbox = (await context.ApprovedMailboxes.FindAsync(
                     await TestMailboxId.EnsureApprovedAsync(
                         context, ApprovedMailboxIdentity, ApprovedMailboxAddress, now.AddDays(-30))))!;
-                mailbox.AllowSentEvidence = true;
+                mailbox.AllowOutgoing = true;
                 mailbox.SentFolderIdentity = "sent-items";
                 mailbox.Version = 2;
 

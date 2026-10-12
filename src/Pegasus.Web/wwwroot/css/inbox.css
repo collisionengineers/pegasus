@@ -13,13 +13,17 @@
 .inbox-row.unread .row-title { font-weight: 700; }
 /* The preview's excerpt keeps the sender's line breaks. */
 .mail-excerpt { white-space: pre-line; }
-.inbox-row-action {
+.inbox-row--two-actions { padding-right: 80px; }
+.inbox-row-actions {
   position: absolute;
   top: 50%;
   right: 6px;
   transform: translateY(-50%);
-  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
+.inbox-row-action { margin: 0; }
 .message-attachments .attachment-outcome { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
 .message-attachments .attachment-reason { color: var(--muted, #626b70); font-size: 12px; }
 @media (max-width: 1180px) {

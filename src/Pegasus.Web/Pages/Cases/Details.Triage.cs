@@ -1163,17 +1163,13 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The approved mailbox a Triage reply leaves from: the one holding the
-    /// origin message, Approved, with staff send and a generation. Staff and
-    /// the Automation Actor's <c>pegasus_mail_send</c> triage_reply read it alike.
+    /// origin message, while it can send. Staff and the Automation Actor's
+    /// <c>pegasus_mail_send</c> triage_reply read it alike.
     /// </summary>
     internal static ApprovedMailbox? TriageReplySender(
         IReadOnlyList<ApprovedMailbox> mailboxes,
         Guid mailboxId) =>
-        mailboxes.SingleOrDefault(item =>
-            item.Id == mailboxId
-            && item.State == ApprovedMailboxState.Approved
-            && item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
-            && item.Generation > 0);
+        mailboxes.Sender(mailboxId);
 
     private static bool IsActiveTriageMailOperation(StaffMailOperation? operation) =>
         operation is not null
@@ -1216,19 +1212,8 @@ public sealed partial class DetailsModel
         System.Net.Mail.MailAddress.TryCreate(value, out var parsed)
         && string.Equals(parsed.Address, value, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>
-    /// The reply keeps the original's subject with one "Re:"; a staff forward's
-    /// own "FW:" is dropped first.
-    /// </summary>
-    private static string TriageReplySubject(RetainedMailSummary summary)
-    {
-        var value = StaffForwardOriginalSender(summary) is null
-            ? summary.Subject?.Trim() ?? string.Empty
-            : StaffForwardBodyCleaner.WithoutForwardPrefixes(summary.Subject);
-        return value.StartsWith("Re:", StringComparison.OrdinalIgnoreCase)
-            ? value
-            : $"Re: {value}".TrimEnd();
-    }
+    private static string TriageReplySubject(RetainedMailSummary summary) =>
+        StaffMailReplySubject.For(summary.Subject, summary.SenderAddress, summary.EffectiveSenderAddress);
 
     private static bool IsExpectedTriageRefusal(Exception exception) => exception is
         ArgumentException or InvalidOperationException or KeyNotFoundException;

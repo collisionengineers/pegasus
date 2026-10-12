@@ -281,7 +281,7 @@ public sealed class PollSentEvidence(
         {
             if (!await approvedMailboxPolicy.IsApprovedAsync(
                     lease.MailboxAddress,
-                    ApprovedMailboxRouteScope.SentEvidence,
+                    ApprovedMailboxRouteScope.Outgoing,
                     cancellationToken))
             {
                 // An administrator can disable Sent-evidence for this mailbox at any time

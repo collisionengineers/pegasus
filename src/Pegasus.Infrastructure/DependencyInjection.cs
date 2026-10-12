@@ -263,6 +263,8 @@ public static class DependencyInjection
         services.AddScoped<IAcceptIntake, AcceptIntake>();
         services.AddScoped<IPrincipalInspectionModeStore, EfPrincipalInspectionModeStore>();
         services.AddScoped<IReportRecipientSuggestionQueries, EfReportRecipientSuggestionQueries>();
+        services.AddScoped<ICaseInstructionEmailQueries, EfCaseInstructionEmailQueries>();
+        services.AddScoped<ResolveCaseMailSender>();
         services.AddScoped<ICaseChaserRecipientQueries, EfCaseChaserRecipientQueries>();
         services.AddScoped<IPrincipalSalvageMatrixQueries, EfPrincipalSalvageMatrixQueries>();
         services.AddScoped<ICaseReportSendHistoryQueries, EfCaseReportSendHistoryQueries>();
@@ -380,7 +382,6 @@ public static class DependencyInjection
         services.AddScoped<IApprovedMailboxSubscriptionStore, EfApprovedMailboxSubscriptionStore>();
         services.AddScoped<ListApprovedMailboxes>();
         services.AddScoped<UpdateApprovedMailbox>();
-        services.AddScoped<SetDefaultApprovedMailbox>();
         services.AddScoped<EfApprovedOutlookCategoryStore>();
         services.AddScoped<IApprovedOutlookCategoryStore>(provider =>
             provider.GetRequiredService<EfApprovedOutlookCategoryStore>());

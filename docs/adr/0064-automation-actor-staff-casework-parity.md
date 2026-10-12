@@ -3,7 +3,7 @@ id: ADR-0064
 status: accepted
 date: 2026-10-07
 supersedes: [ADR-0021, ADR-0031]
-superseded_by: []
+superseded_by: [ADR-0068]
 related_capabilities: [MCP-01, MCP-02, MCP-06]
 related_frd: [frd-06, frd-10, frd-11, frd-14, frd-21, frd-24, frd-25, frd-27]
 tags: [mcp, automation, ai, assessment, estimate]
@@ -35,6 +35,10 @@ This record replaces, in part:
 
 [ADR-0059](0059-native-mcp-file-content-and-consolidated-tool-inventory.md)'s
 tool count is history. FRD-10 owns the current inventory.
+
+[ADR-0068](0068-incoming-and-outgoing-mailboxes-and-case-mail-replies.md)
+replaces decision 9's "`pegasus_mail_send` sends new mail": its `new` mode
+is gone and `chaser` replaces it. The rest of decision 9 stands.
 
 ## Context
 

@@ -277,7 +277,7 @@
                 }
                 @if (canSendChaser)
                 {
-                    <a class="btn" asp-page="/Mail/Compose" asp-route-caseReference="@summary.Reference" asp-route-purpose="@Pegasus.Web.Pages.Mail.ComposeModel.ChaserPurpose" data-send-chaser>
+                    <a class="btn" asp-page="/Cases/Chaser" asp-route-id="@summary.CaseId" data-send-chaser>
                         <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                         <span>@Frame.SendChaser</span>
                     </a>
