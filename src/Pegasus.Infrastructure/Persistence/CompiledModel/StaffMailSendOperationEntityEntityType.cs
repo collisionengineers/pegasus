@@ -20,7 +20,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.StaffMailSendOperationEntity",
                 typeof(StaffMailSendOperationEntity),
                 baseEntityType,
-                propertyCount: 37,
+                propertyCount: 39,
                 unnamedIndexCount: 2,
                 keyCount: 1);
 
@@ -289,6 +289,22 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 fieldInfo: typeof(StaffMailSendOperationEntity).GetField("<ResolvesCaseQueries>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: false);
             resolvesCaseQueries.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var secondContextId = runtimeEntityType.AddProperty(
+                "SecondContextId",
+                typeof(Guid?),
+                propertyInfo: typeof(StaffMailSendOperationEntity).GetProperty("SecondContextId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(StaffMailSendOperationEntity).GetField("<SecondContextId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            secondContextId.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var secondContextVersion = runtimeEntityType.AddProperty(
+                "SecondContextVersion",
+                typeof(long?),
+                propertyInfo: typeof(StaffMailSendOperationEntity).GetProperty("SecondContextVersion", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(StaffMailSendOperationEntity).GetField("<SecondContextVersion>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            secondContextVersion.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var state = runtimeEntityType.AddProperty(
                 "State",

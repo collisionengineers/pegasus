@@ -305,6 +305,62 @@ public sealed class CaseReportDeliveryTests
             Assert.Single(send.Commands).Mail.Attachments[0].FileName);
     }
 
+    /// <summary>
+    /// One email carries both works' reports of an Inspection + Audit Case
+    /// (operator, 12 October 2026): the other work's generation is read for
+    /// delivery on its own work, its documents follow the viewed report's,
+    /// each report is named by its own work's sends, and the mail and its
+    /// readiness both name the second report.
+    /// </summary>
+    [Fact]
+    public async Task SendCarriesTheOtherWorksReportInTheSameEmail()
+    {
+        var audit = Generation(CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.FeeNote);
+        var inspection = OtherGeneration();
+        var generations = new GenerationsById(audit, inspection);
+        var send = new RecordingSend();
+        var sendReport = new SendCaseReport(
+            generations,
+            new SendsByWork(new(0, null), new(1, new DateOnly(2026, 9, 1))),
+            new FixedSuggestions(Suggestions(["handler@principal.example"])),
+            new FixedMailboxes(Mailbox()),
+            send);
+
+        await sendReport.ExecuteAsync(
+            Request() with
+            {
+                SecondReport = new(inspection.Id, inspection.Version, [CaseReportArtifactKind.AssessmentReport])
+            },
+            CancellationToken.None);
+
+        Assert.Equal(
+            [(audit.Id, CaseWorkSelector.Current), (inspection.Id, CaseWorkSelector.Primary)],
+            generations.Deliveries.Select(item => (item.GenerationId, item.Work)).ToArray());
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(new StaffMailSecondReport(inspection.Id, inspection.Version), command.Mail.SecondReport);
+        var second = Assert.IsType<ReportSendReadinessRequest>(command.SecondReport);
+        Assert.Equal(inspection.Id, second.GenerationId);
+        Assert.Equal([OtherReportAttachment], second.Artifacts);
+        Assert.Equal(
+            [
+                "DVR-31001 PK12 TMZ Repairable report.pdf",
+                FeeAttachment.FileName,
+                "DVR-31001 PK12 TMZ Repairable report..pdf"
+            ],
+            command.Mail.Attachments.Select(attachment => attachment.FileName).ToArray());
+    }
+
+    [Fact]
+    public async Task SendRefusesTheSameGenerationAsItsSecondReport()
+    {
+        var send = new RecordingSend();
+
+        await Assert.ThrowsAsync<ArgumentException>(() => Use(new FixedGenerations(Generation()), send).ExecuteAsync(
+            Request() with { SecondReport = new(GenerationId, 1) },
+            CancellationToken.None));
+        Assert.Empty(send.Commands);
+    }
+
     [Fact]
     public async Task SendUsesTheReviewedRecipientsInsteadOfTheSuggestions()
     {
@@ -512,6 +568,84 @@ public sealed class CaseReportDeliveryTests
 
     private static readonly Guid CaseId = Guid.NewGuid();
     private static readonly Guid GenerationId = Guid.NewGuid();
+
+    private static readonly StaffMailAttachment OtherReportAttachment = new(
+        Guid.NewGuid(), Guid.NewGuid(), new string('f', 64), 300, "inspection.pdf", "application/pdf");
+
+    /// <summary>The other work's current, confirmed generation, holding its own report.</summary>
+    private static CaseReportGenerationRecord OtherGeneration()
+    {
+        var generation = Generation();
+        var id = Guid.NewGuid();
+        return generation with
+        {
+            Id = id,
+            Artifacts =
+            [
+                generation.Artifacts[0] with
+                {
+                    GenerationId = id,
+                    DocumentId = OtherReportAttachment.DocumentId,
+                    VersionId = OtherReportAttachment.VersionId,
+                    Sha256 = OtherReportAttachment.Sha256,
+                    ContentLength = OtherReportAttachment.ContentLength,
+                    FileName = OtherReportAttachment.FileName
+                }
+            ]
+        };
+    }
+
+    /// <summary>Each work's sends: the Current work's, then the Primary's.</summary>
+    private sealed class SendsByWork(CaseReportSendHistory current, CaseReportSendHistory primary)
+        : ICaseReportSendHistoryQueries
+    {
+        public Task<CaseReportSendHistory> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
+            Task.FromResult(work == CaseWorkSelector.Primary ? primary : current);
+    }
+
+    /// <summary>Generations handed to a delivery by the identity it names.</summary>
+    private sealed class GenerationsById(params CaseReportGenerationRecord[] generations) : ICaseReportGenerationStore
+    {
+        public List<SendCaseReportRequest> Deliveries { get; } = [];
+
+        public Task<CaseReportGenerationRecord> GetForDeliveryAsync(
+            SendCaseReportRequest request, CancellationToken cancellationToken)
+        {
+            Deliveries.Add(request);
+            return Task.FromResult(generations.Single(item => item.Id == request.GenerationId));
+        }
+
+        public Task<CaseReportGenerationRecord?> GetAsync(
+            ActionActor actor, Guid caseId, Guid generationId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseReportFreezeResult> FreezeAsync(
+            FreezeCaseReportGenerationRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseReportGenerationRecord> ConfirmArtifactAsync(
+            ConfirmCaseReportArtifactRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseReportGenerationRecord> RecordArtifactOutcomeAsync(
+            RecordCaseReportArtifactOutcomeRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseReportGenerationRecord?> GetCurrentAsync(
+            ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<CaseReportGenerationRecord>> ListAsync(
+            ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<int> MarkStaleAsync(Guid caseId, string reasonCode, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task RecordDraftPreviewedAsync(
+            RecordCaseReportDraftPreviewedRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
 
     private sealed class FixedSendHistory(CaseReportSendHistory history) : ICaseReportSendHistoryQueries
     {

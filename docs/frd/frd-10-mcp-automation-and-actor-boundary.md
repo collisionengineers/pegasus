@@ -252,8 +252,10 @@ submission is not part of it.
   the work's current confirmed generation, the reviewed To and Cc (omitted,
   the Principal's suggested recipients), the companion documents chosen
   (omitted, every confirmed document the generation holds, the fee note
-  included) and the covering message as written. It holds the Case's lease
-  for its one send unless a lease token is presented.
+  included) and the covering message as written. On a Case that has its
+  Audit, `otherReport` adds the other work's current confirmed report to the
+  same email, with `otherAttach` choosing its documents as `attach` does. It
+  holds the Case's lease for its one send unless a lease token is presented.
 - `pegasus_mail_send` is the staff mail send with a `mode`: `new` is the
   Inbox composer from the default approved mailbox (`chaser` records it as
   the Case's chaser); `reply`, `reply_all` and `forward` answer one retained

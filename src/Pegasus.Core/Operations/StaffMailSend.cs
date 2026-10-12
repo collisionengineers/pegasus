@@ -63,6 +63,10 @@ public static class StaffMailCorrelationHeaders
 /// "Also resolve query" tick on a reply (operator, 11 October 2026): the Case's
 /// open queries resolve when the Sent item is observed. It is left out of the
 /// payload hash while false so a plain send's replay key is unchanged.
+/// <paramref name="SecondReport"/> is the other work's report a Case report
+/// send also carries on an Inspection + Audit Case (operator, 12 October
+/// 2026); it is left out of the payload hash while absent, for the same
+/// reason.
 /// </summary>
 public sealed record StaffMailSendCommand(
     ActionActor Actor, Guid ApprovedMailboxId, long ExpectedMailboxGeneration,
@@ -72,9 +76,23 @@ public sealed record StaffMailSendCommand(
     string Subject, string Body, IReadOnlyList<StaffMailAttachment> Attachments,
     string OperationKey,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    bool ResolvesCaseQueries = false);
+    bool ResolvesCaseQueries = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    StaffMailSecondReport? SecondReport = null);
+
+/// <summary>
+/// The second report generation one Case report send carries, at the version
+/// the send froze: the other work's report of an Inspection + Audit Case.
+/// </summary>
+public sealed record StaffMailSecondReport(Guid ContextId, long ExpectedContextVersion);
+
+/// <summary>
+/// A Case report send: the mail and the readiness of each report it carries,
+/// the second only when the mail carries the other work's report too.
+/// </summary>
 public sealed record StaffReportSendCommand(
-    StaffMailSendCommand Mail, ReportSendReadinessRequest Report);
+    StaffMailSendCommand Mail, ReportSendReadinessRequest Report,
+    ReportSendReadinessRequest? SecondReport = null);
 public sealed record StaffMailOperation(
     Guid Id, StaffMailState State, StaffMailAttemptStage? AttemptStage, long Version,
     DateTimeOffset PreparedAtUtc, DateTimeOffset? SubmittedAtUtc,

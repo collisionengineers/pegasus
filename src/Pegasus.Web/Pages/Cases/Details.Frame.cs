@@ -247,7 +247,7 @@ public sealed partial class DetailsModel
                     BlockerSectionKey,
                     CurrentReportGeneration,
                     Works?.Primary.ReportSentEvidence,
-                    ReportSendHistory.SentCount > 0);
+                    ReportSendHistory.Accepted);
             }
             var details = Case!;
             var next = CaseNextAction.Of(
@@ -258,7 +258,7 @@ public sealed partial class DetailsModel
                 ReportDraftNotReady ? ReportDraftReasons : [],
                 BlockerSectionKey,
                 CurrentReportGeneration,
-                ReportSendHistory.SentCount > 0);
+                ReportSendHistory.Accepted);
             return next.Blocker is not null && AssessmentIsReadOnly
                 ? new(CaseWorkspaceLabels.Report.NotReady, "report")
                 : next;

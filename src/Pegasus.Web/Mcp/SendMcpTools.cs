@@ -25,7 +25,8 @@ internal sealed record ReportSendToolResult(
     [property: Description("The Case version after the send.")] long CaseVersion,
     [property: Description("The Case's lifecycle state after the send.")] string CaseState,
     string OperationKey,
-    string CorrelationId);
+    string CorrelationId,
+    [property: Description("The other work's report generation the same e-mail carried, when otherReport was asked for.")] Guid? OtherGenerationId = null);
 
 internal sealed record MailSendToolResult(
     [property: Description("The send operation; replaying the same operation key with the same content returns it.")] Guid OperationId,
@@ -76,7 +77,7 @@ internal sealed class SendMcpTools(
         Idempotent = true,
         OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Sends a Case's generated report to the Principal, as Send report on the Case page does, through the same Core command: the work's current confirmed generation (or generationId), the reviewed To and Cc recipients (omit both for the Principal's suggested recipients), the companion documents chosen (omit attach for every confirmed document the generation holds, the fee note included) and the covering message, which is sent as written. It leaves the approved mailbox bound for staff send and report-Sent evidence; the report attaches under its delivery name. The Case must be open in a state its report can be sent in; a Complete Case sends only the Inspection report of a Case that has its Audit. Needs automation.send and the expected case version (present an edit lease token, or omit it and the tool holds the lease for this one send). The result is the send's state: Submitted is accepted, not yet Sent; Unknown must never be resent, replay the same operation key instead.")]
+    [Description("Sends a Case's generated report to the Principal, as Send report on the Case page does, through the same Core command: the work's current confirmed generation (or generationId), the reviewed To and Cc recipients (omit both for the Principal's suggested recipients), the companion documents chosen (omit attach for every confirmed document the generation holds, the fee note included) and the covering message, which is sent as written. It leaves the approved mailbox bound for staff send and report-Sent evidence; the report attaches under its delivery name. The Case must be open in a state its report can be sent in; a Complete Case sends only the Inspection report of a Case that has its Audit. On a Case that has its Audit, otherReport also attaches the other work's current confirmed report (the Inspection report beside the Audit's, or the Audit's beside the Inspection's) to the same e-mail, under its own delivery name, as the Case page's send form offers it. Needs automation.send and the expected case version (present an edit lease token, or omit it and the tool holds the lease for this one send). The result is the send's state: Submitted is accepted, not yet Sent; Unknown must never be resent, replay the same operation key instead.")]
     public async Task<ReportSendToolResult> SendReportAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
@@ -88,6 +89,8 @@ internal sealed class SendMcpTools(
         [Description("To recipients, plain e-mail addresses; omit both to and cc for the Principal's suggested recipients.")] string[]? to = null,
         [Description("Cc recipients, plain e-mail addresses. An address also in To is sent once, in To.")] string[]? cc = null,
         [Description("The companion documents to attach beside the report: FeeNote, RepairSpecification and/or ImagePack. Each must be confirmed on the generation. Omit for every confirmed document the generation holds.")] string[]? attach = null,
+        [Description("true to send the other work's current confirmed report in the same e-mail; only on a Case that has its Audit.")] bool? otherReport = null,
+        [Description("The other report's companion documents, as attach takes them; omit for every confirmed document its generation holds. Read only with otherReport.")] string[]? otherAttach = null,
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one send.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
@@ -119,6 +122,19 @@ internal sealed class SendMcpTools(
                         ?? throw new McpException("The generation is not a report generation of this work.")
                     : await reportGenerations.GetCurrentAsync(actor, caseId, selector, cancellationToken)
                         ?? throw new McpException("The work has no report generation to send; generate the report first.");
+                SecondCaseReport? second = null;
+                if (otherReport == true)
+                {
+                    var otherSelector = selector == CaseWorkSelector.Primary
+                        ? CaseWorkSelector.Current
+                        : CaseWorkSelector.Primary;
+                    var other = await reportGenerations.GetCurrentAsync(actor, caseId, otherSelector, cancellationToken);
+                    if (other is null || other.Id == generation.Id)
+                    {
+                        throw new McpException("The Case has no other work's report to send; otherReport needs a Case that has its Audit and the other work's generated report.");
+                    }
+                    second = new(other.Id, other.Version, ParseAttach(otherAttach));
+                }
 
                 StaffMailOperation operation;
                 try
@@ -141,7 +157,8 @@ internal sealed class SendMcpTools(
                                 coveringMessage,
                                 review,
                                 kinds,
-                                selector),
+                                selector,
+                                second),
                             cancellationToken),
                         cancellationToken);
                 }
@@ -162,7 +179,8 @@ internal sealed class SendMcpTools(
                     workflow.Version,
                     workflow.State.ToString(),
                     key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    AutomationMcpAuditor.CorrelationId(context, key),
+                    second?.GenerationId);
             }),
             cancellationToken);
     }

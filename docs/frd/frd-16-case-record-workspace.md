@@ -677,7 +677,11 @@ Once the Case has an Audit, Report follows the view
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#audit-report-parity)).
 In the Audit view the report card's status begins with the Audit reference
 and the section shows the Audit report alone; the Views card is the way to
-the Inspection report (operator, 2 October 2026). In the
+the Inspection report (operator, 2 October 2026). The delivery form of
+either view also offers the other work's current confirmed report, named as
+it would be attached, as its own unticked choice with its own Fee note,
+Repair Spec and Images ticks, so one Send report can carry both reports
+(operator, 12 October 2026). In the
 Inspection view the card shows the Inspection report with its generation
 status and the same Generate and Send report controls, acting on
 the Inspection's own work under the session's lease or one claimed for the

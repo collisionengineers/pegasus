@@ -6920,6 +6920,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<bool>("ResolvesCaseQueries")
                         .HasColumnType("bit");
 
+                    b.Property<Guid?>("SecondContextId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long?>("SecondContextVersion")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -6951,6 +6957,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_StaffMailSendOperations_ActorKind", "[ActorKind] IN ('Staff', 'Automation')");
 
                             t.HasCheckConstraint("CK_StaffMailSendOperations_AttemptStage", "[AttemptStage] IS NULL OR [AttemptStage] IN ('CreateDraft', 'Attach', 'Send', 'ObserveSent')");
+
+                            t.HasCheckConstraint("CK_StaffMailSendOperations_SecondReport", "([SecondContextId] IS NULL AND [SecondContextVersion] IS NULL) OR ([SecondContextId] IS NOT NULL AND [SecondContextVersion] > 0 AND [Purpose] = 'CaseReport' AND [SecondContextId] <> [ContextId])");
 
                             t.HasCheckConstraint("CK_StaffMailSendOperations_State", "[State] IN ('Prepared', 'DraftCreating', 'DraftReady', 'Sending', 'Submitted', 'Sent', 'Failed', 'Unknown', 'Cancelled')");
                         });
