@@ -55,8 +55,7 @@
     // Export case is offered on every standard Case in every state (operator,
     // 7 October 2026), so the menu always has an item. A Triage Case never
     // draws this ribbon.
-    var outcome = Model.AssessmentEditorValue(Pegasus.Core.Assessment.AssessmentVocabulary.Outcome)
-        ?? Model.Assessment?.Field(Pegasus.Core.Assessment.AssessmentVocabulary.Outcome)?.Value;
+    var outcome = Model.RecordedOutcome;
     var salvageCategory = Model.Assessment?.Field(Pegasus.Core.Assessment.AssessmentVocabulary.SalvageCategory)?.Value;
     var legalStatus = Model.Assessment?.Field(Pegasus.Core.Assessment.AssessmentVocabulary.LegalStatus)?.Value;
     var engineerValue = Model.EngineerValue;

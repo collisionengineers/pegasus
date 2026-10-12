@@ -68,8 +68,8 @@ else
 
             var previewHref = Model.PreviewUrl(file);
             var downloadHref = Model.DownloadUrl(file);
-            var thumbnailHref = Model.ThumbnailUrl(file);
             var preparation = Model.PreparationFor(occurrence.Id);
+            var thumbnailHref = Model.ThumbnailUrl(file, preparation);
             var placed = reportImages.GetValueOrDefault(occurrence.Id);
             var placeFixed = placed is { Role: not CaseAssetReportRole.Supporting };
             var mayCrop = mayPrepareImages && preparation is not null;
