@@ -72,7 +72,7 @@ var queueDataMessageSenderRole = subscriptionResourceId('Microsoft.Authorization
 var tableDataContributorRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')
 var monitoringMetricsPublisherRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3913510d-42f4-4e42-8a64-420c390055eb')
 var cognitiveServicesUserRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')
-var webSqlConnectionString = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDatabase.name};Authentication=Active Directory Managed Identity;User Id=${webIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
+var webSqlConnectionString = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDatabase.name};Authentication=Active Directory Managed Identity;User Id=${webIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;Min Pool Size=5;'
 var workerSqlConnectionString = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDatabase.name};Authentication=Active Directory Managed Identity;User Id=${workerIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
