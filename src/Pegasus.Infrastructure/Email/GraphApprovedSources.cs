@@ -47,9 +47,13 @@ public sealed record GraphApprovedMailboxOptions(Uri BaseUri)
 /// Resolves an address to its exact Graph mailbox and well-known folder identities for
 /// the mailbox-administration "add an address" flow. Independent of
 /// <see cref="GraphApprovedMailboxOptions"/> — that type validates the Graph endpoint;
-/// this resolves any address the tenant directory recognizes. A 404 (address not
-/// in the tenant) or any other transport/authorization failure both resolve to null: the
-/// caller fails closed either way, and never learns which one happened.
+/// this resolves any address the tenant directory recognizes. The identities hold no
+/// directory permission, only the Exchange RBAC mail scope (runbook "admitting a new
+/// mailbox"), so a directory lookup the tenant refuses falls back to the address itself:
+/// the mail endpoints resolve it for every mailbox in that scope, and the address is then
+/// the stored provider coordinate (ADR-0024). A 404 (address not in the tenant) or any
+/// other transport/authorization failure resolves to null: the caller fails closed either
+/// way, and never learns which one happened.
 /// </summary>
 internal sealed partial class GraphApprovedMailboxResolver(
     TokenCredential credential,
@@ -67,9 +71,18 @@ internal sealed partial class GraphApprovedMailboxResolver(
         ArgumentException.ThrowIfNullOrWhiteSpace(address);
         try
         {
-            var mailboxId = await GetIdAsync(
-                new Uri(baseUri, $"users/{Uri.EscapeDataString(address)}?$select=id"),
-                cancellationToken);
+            string? mailboxId;
+            try
+            {
+                mailboxId = await GetIdAsync(
+                    new Uri(baseUri, $"users/{Uri.EscapeDataString(address)}?$select=id"),
+                    cancellationToken);
+            }
+            catch (HttpRequestException exception)
+                when (exception.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized)
+            {
+                mailboxId = address;
+            }
             if (mailboxId is null)
             {
                 return null;

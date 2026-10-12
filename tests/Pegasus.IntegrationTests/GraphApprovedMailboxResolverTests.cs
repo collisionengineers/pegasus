@@ -55,6 +55,46 @@ public sealed class GraphApprovedMailboxResolverTests
         Assert.All(requestedUris, uri => Assert.StartsWith(BaseUri.AbsoluteUri, uri, StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// The identities hold no directory permission (12 October 2026: every
+    /// <c>GET /users/{address}</c> from the Web identity answered 403 while the
+    /// Exchange RBAC scope listed the mailbox in scope), so a refused directory
+    /// lookup resolves the mailbox by its address through the mail scope.
+    /// </summary>
+    [Fact]
+    public async Task ResolvesByAddressThroughTheMailScopeWhenTheDirectoryRefusesTheLookup()
+    {
+        var requestedUris = new List<string>();
+        var handler = new DelegateHandler(request =>
+        {
+            var path = Uri.UnescapeDataString(request.RequestUri!.AbsolutePath);
+            requestedUris.Add(Uri.UnescapeDataString(request.RequestUri.AbsoluteUri));
+            return path switch
+            {
+                "/v1.0/users/estate@collisionengineers.co.uk" =>
+                    Response(HttpStatusCode.Forbidden, """{"error":{"code":"Authorization_RequestDenied"}}"""),
+                "/v1.0/users/estate@collisionengineers.co.uk/mailFolders/inbox" =>
+                    Response(HttpStatusCode.OK, """{"id":"inbox-1"}"""),
+                "/v1.0/users/estate@collisionengineers.co.uk/mailFolders/sentitems" =>
+                    Response(HttpStatusCode.OK, """{"id":"sent-1"}"""),
+                _ => Response(HttpStatusCode.NotFound, "{}")
+            };
+        });
+        var resolver = CreateResolver(handler);
+
+        var resolution = await resolver.ResolveAsync(
+            "estate@collisionengineers.co.uk",
+            CancellationToken.None);
+
+        Assert.NotNull(resolution);
+        Assert.Equal("estate@collisionengineers.co.uk", resolution!.MailboxIdentity);
+        Assert.Equal("inbox-1", resolution.InboxFolderIdentity);
+        Assert.Equal("sent-1", resolution.SentFolderIdentity);
+        Assert.Equal(3, requestedUris.Count);
+        Assert.Contains(requestedUris, uri => uri.EndsWith("/users/estate@collisionengineers.co.uk/mailFolders/inbox?$select=id", StringComparison.Ordinal));
+        Assert.Contains(requestedUris, uri => uri.EndsWith("/users/estate@collisionengineers.co.uk/mailFolders/sentitems?$select=id", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task ReturnsNullWithoutQueryingFoldersWhenTheAddressIsNotInTheTenant()
     {
