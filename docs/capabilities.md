@@ -138,7 +138,6 @@ exclusion.
 | OPS-14 | Production cutover and previous-artifact rollback procedure | [ADR-0007 decision](adr/0007-direct-terminal-azure-deployment.md#decision) |
 | OPS-20 | Capacity for about eight concurrent staff and 2,000 new cases per month | [ADR-0002 context](adr/0002-dotnet-modular-monolith-on-azure.md#context) |
 | OPS-24 | Direct production deployment from an authorised terminal using committed Bicep through `azd` | [ADR-0007 decision](adr/0007-direct-terminal-azure-deployment.md#decision) |
-| DATA-01 | Publish immutable cumulative Principal-domain reference snapshots from approved spreadsheets | [Principal-domain reference authoring](runbook.md#principal-domain-reference-authoring) |
 | OPS-23 | Operator acceptance against the real end-to-end workflow | [Acceptance model](prd/pegasus-product.md#acceptance-model) |
 | OPS-25 | Collision Engineers management approval before production release | [Acceptance model](prd/pegasus-product.md#acceptance-model) |
 | DATA-02 | Prepare inspection-address / repairer reference data from separately approved spreadsheets | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
