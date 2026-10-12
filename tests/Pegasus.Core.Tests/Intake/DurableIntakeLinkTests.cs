@@ -1,7 +1,4 @@
 using System.Security.Cryptography;
-using Pegasus.Core.Assessment;
-using Pegasus.Core.Custody;
-using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -9,10 +6,9 @@ using Pegasus.Core.Intake;
 namespace Pegasus.Core.Tests.Intake;
 
 /// <summary>
-/// A staff link (<see cref="LinkIntake"/>) is one owner: the association, then
-/// what the link means — the linked material files on the Case in the same
-/// request, and a filing this request cannot finish is handed to the Worker
-/// (FRD-22). The link itself stands whatever the filing does.
+/// A staff link (<see cref="LinkIntake"/>) is one owner: the association
+/// commits, and filing the linked material resumes through intake and custody
+/// work: the Worker's replay of the receipt's staged work (FRD-22).
 /// </summary>
 public sealed class DurableIntakeLinkTests
 {
@@ -22,113 +18,46 @@ public sealed class DurableIntakeLinkTests
     private const string StorageKey = "retained/upload.pdf";
 
     [Fact]
-    public async Task StaffLinkFilesTheReceiptsEvidenceOnTheCaseInTheSameRequest()
+    public async Task StaffLinkCommitsTheAssociationAndHandsFilingToTheWorker()
     {
         var caseId = Guid.NewGuid();
         var receipt = LinkedReceipt(Guid.NewGuid(), caseId);
-        var harness = new Harness(receipt, AutomaticCaseEvidencePromotionPreparationDisposition.Ready);
+        var harness = new Harness(receipt.Id);
 
         await harness.Link.ExecuteAsync(Request(receipt, caseId));
 
         var link = Assert.Single(harness.MutationStore.Links);
         Assert.Equal(caseId, link.CaseId);
-        var retained = Assert.Single(harness.Custody.Requests);
-        Assert.Equal(caseId, retained.CaseId);
-        Assert.Equal(receipt.Id, retained.IntakeReceiptId);
-        Assert.True(retained.IsAutomaticIntakeEvidencePromotion);
-        Assert.Equal(DocumentSource.Intake, retained.Source);
-        Assert.Equal(DocumentSemanticRole.OriginalSource, retained.SemanticRole);
-        Assert.Empty(harness.Enqueuer.StagedReceiptIds);
-    }
-
-    [Fact]
-    public async Task StaffLinkHandsADeferredFilingToTheWorker()
-    {
-        var caseId = Guid.NewGuid();
-        var receipt = LinkedReceipt(Guid.NewGuid(), caseId);
-        var harness = new Harness(receipt, AutomaticCaseEvidencePromotionPreparationDisposition.Deferred);
-
-        await harness.Link.ExecuteAsync(Request(receipt, caseId));
-
-        Assert.Single(harness.MutationStore.Links);
-        Assert.Empty(harness.Custody.Requests);
+        Assert.Equal(receipt.Id, link.ReceiptId);
         Assert.Equal([harness.StagedReceiptId], harness.Enqueuer.StagedReceiptIds);
     }
 
     [Fact]
-    public async Task StaffLinkStandsWhenTheFilingFailsAndTheWorkerRetriesIt()
+    public async Task StaffLinkStandsWhenTheHandOverCannotBeEnqueued()
     {
         var caseId = Guid.NewGuid();
         var receipt = LinkedReceipt(Guid.NewGuid(), caseId);
         var harness = new Harness(
-            receipt,
-            AutomaticCaseEvidencePromotionPreparationDisposition.Ready,
-            custodyFailure: new InvalidOperationException("Box is unavailable."));
+            receipt.Id,
+            enqueueFailure: new IntakeDependencyUnavailableException("The queue is unavailable."));
 
         await harness.Link.ExecuteAsync(Request(receipt, caseId));
 
         Assert.Single(harness.MutationStore.Links);
-        Assert.Single(harness.Custody.Requests);
         Assert.Equal([harness.StagedReceiptId], harness.Enqueuer.StagedReceiptIds);
     }
 
     [Fact]
-    public async Task StaffLinkRecognisesTheOriginalReportItFiledOnAnAuditAwaitingIt()
+    public async Task StaffLinkOfAReceiptWithNoStagedWorkEnqueuesNothing()
     {
         var caseId = Guid.NewGuid();
         var receipt = LinkedReceipt(Guid.NewGuid(), caseId);
-        var harness = new Harness(receipt, AutomaticCaseEvidencePromotionPreparationDisposition.Ready);
+        var harness = new Harness(Guid.NewGuid());
 
         await harness.Link.ExecuteAsync(Request(receipt, caseId));
 
-        Assert.Single(harness.Custody.Requests);
-        var recorded = Assert.Single(harness.Recognition.Recorded);
-        Assert.Equal(caseId, recorded.CaseId);
-        Assert.Equal(receipt.Id, recorded.IntakeReceiptId);
+        Assert.Single(harness.MutationStore.Links);
         Assert.Empty(harness.Enqueuer.StagedReceiptIds);
-    }
-
-    [Fact]
-    public async Task AFilingAlreadyCompleteIsRecognisedAgainSoADeferredRecognitionIsRetried()
-    {
-        var caseId = Guid.NewGuid();
-        var receipt = LinkedReceipt(Guid.NewGuid(), caseId);
-        var harness = new Harness(receipt, AutomaticCaseEvidencePromotionPreparationDisposition.NotApplicable);
-
-        await harness.Link.ExecuteAsync(Request(receipt, caseId));
-
-        Assert.Empty(harness.Custody.Requests);
-        Assert.Single(harness.Recognition.Recorded);
-    }
-
-    [Fact]
-    public async Task AFilingDeferredToTheWorkerRecognisesNothingYet()
-    {
-        var caseId = Guid.NewGuid();
-        var receipt = LinkedReceipt(Guid.NewGuid(), caseId);
-        var harness = new Harness(receipt, AutomaticCaseEvidencePromotionPreparationDisposition.Deferred);
-
-        await harness.Link.ExecuteAsync(Request(receipt, caseId));
-
-        Assert.Empty(harness.Recognition.Asked);
-        Assert.Equal([harness.StagedReceiptId], harness.Enqueuer.StagedReceiptIds);
-    }
-
-    [Fact]
-    public async Task ARecognitionACaseEditorDefersIsHandedToTheWorker()
-    {
-        var caseId = Guid.NewGuid();
-        var receipt = LinkedReceipt(Guid.NewGuid(), caseId);
-        var harness = new Harness(
-            receipt,
-            AutomaticCaseEvidencePromotionPreparationDisposition.Ready,
-            recognitionFailure: new IntakeDependencyUnavailableException("The Case is being edited."));
-
-        await harness.Link.ExecuteAsync(Request(receipt, caseId));
-
-        Assert.Single(harness.MutationStore.Links);
-        Assert.Single(harness.Custody.Requests);
-        Assert.Equal([harness.StagedReceiptId], harness.Enqueuer.StagedReceiptIds);
     }
 
     private static LinkIntakeRequest Request(IntakeReceipt receipt, Guid caseId) =>
@@ -191,29 +120,16 @@ public sealed class DurableIntakeLinkTests
 
     private sealed class Harness
     {
-        public Harness(
-            IntakeReceipt receipt,
-            AutomaticCaseEvidencePromotionPreparationDisposition preparation,
-            Exception? custodyFailure = null,
-            Exception? recognitionFailure = null)
+        public Harness(Guid workReceiptId, Exception? enqueueFailure = null)
         {
             StagedReceiptId = Guid.NewGuid();
             MutationStore = new RecordingMutationStore();
-            Custody = new RecordingCustody(custodyFailure);
-            Enqueuer = new RecordingEnqueuer();
-            Recognition = new RecognitionStore(recognitionFailure);
-            var promote = new PromoteAssociatedIntakeCaseEvidence(
-                new ArtifactStore(StorageKey, SourceBytes),
-                Custody,
-                new PromotionStore(preparation),
-                new RecogniseFiledOriginalReport(Recognition, new RecognisingReader()));
+            Enqueuer = new RecordingEnqueuer(enqueueFailure);
             Link = new LinkIntake(
                 MutationStore,
                 new NoPairing(),
                 TimeProvider.System,
-                receiptQueries: new ReceiptQueries(receipt),
-                promoteCaseEvidence: promote,
-                workStore: new WorkStore(receipt.Id, StagedReceiptId),
+                workStore: new WorkStore(workReceiptId, StagedReceiptId),
                 workEnqueuer: Enqueuer);
         }
 
@@ -221,63 +137,9 @@ public sealed class DurableIntakeLinkTests
 
         public RecordingMutationStore MutationStore { get; }
 
-        public RecordingCustody Custody { get; }
-
         public RecordingEnqueuer Enqueuer { get; }
 
-        public RecognitionStore Recognition { get; }
-
         public LinkIntake Link { get; }
-    }
-
-    /// <summary>A Case awaiting its report, on which every asked-for file was filed.</summary>
-    private sealed class RecognitionStore(Exception? failure) : IRecogniseOriginalReportStore
-    {
-        public List<Guid> Asked { get; } = [];
-
-        public List<RecordRecognisedOriginalReport> Recorded { get; } = [];
-
-        public Task<FiledOriginalReportCandidates> FindAwaitingCandidatesAsync(
-            Guid caseId, Guid receiptId, IReadOnlyCollection<FiledOriginalReportLookup> assets,
-            CancellationToken cancellationToken = default)
-        {
-            Asked.AddRange(assets.Select(asset => asset.IntakeAssetId));
-            return Task.FromResult(new FiledOriginalReportCandidates(
-                true,
-                assets.Select(asset => new FiledOriginalReportCandidate(
-                    asset.IntakeAssetId, Guid.NewGuid(), Guid.NewGuid())).ToArray()));
-        }
-
-        public Task<OriginalReportRecorded?> RecordRecognisedAsync(
-            RecordRecognisedOriginalReport command, OriginalReportReading reading,
-            CancellationToken cancellationToken = default)
-        {
-            if (failure is not null)
-            {
-                throw failure;
-            }
-
-            Recorded.Add(command);
-            return Task.FromResult<OriginalReportRecorded?>(
-                new(command.CaseId, command.DocumentOccurrenceId, "upload.pdf", 9));
-        }
-    }
-
-    private sealed class RecognisingReader : IReadOriginalReport
-    {
-        public Task<OriginalReportRecognition> RecogniseFiledAssetAsync(
-            Guid receiptId, IntakeAssetRecord asset, CancellationToken cancellationToken) =>
-            Task.FromResult(new OriginalReportRecognition(
-                OriginalReportRecognitionOutcome.Recognised,
-                new(asset.ContentHash, "Connexus Vehicle Assessors", null, null, "repairable", false)));
-
-        public Task<OriginalReportReading?> ForIntakeAsync(
-            Guid receiptId, Guid standaloneAuditEvidenceId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<OriginalReportReading?> ForDocumentAsync(
-            ActionActor actor, Guid caseId, Guid occurrenceId, Guid versionId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
     }
 
     private sealed class RecordingMutationStore : IIntakeMutationStore
@@ -323,77 +185,14 @@ public sealed class DurableIntakeLinkTests
             throw new NotSupportedException();
     }
 
-    private sealed class ReceiptQueries(IntakeReceipt receipt) : IIntakeReceiptQueries
-    {
-        public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult<IntakeReceipt?>(id == receipt.Id ? receipt : null);
-
-        public Task<IntakeAssetRecord?> GetAssetAsync(Guid receiptId, Guid assetId, CancellationToken cancellationToken) =>
-            Task.FromResult(receiptId == receipt.Id ? receipt.AssetRecords.FirstOrDefault(asset => asset.Id == assetId) : null);
-    }
-
-    private sealed class ArtifactStore(string storageKey, byte[] content) : IIntakeArtifactStore
-    {
-        public Task<string> StoreAsync(string contentHash, ReadOnlyMemory<byte> value, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<StagedArtifactInventoryItem> StageAsync(
-            Guid stagedReceiptId, string contentHash, Stream value, long contentLength,
-            DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<ReadOnlyMemory<byte>?> ReadAsync(string key, CancellationToken cancellationToken) =>
-            Task.FromResult<ReadOnlyMemory<byte>?>(key == storageKey ? content : null);
-    }
-
-    private sealed class RecordingCustody(Exception? failure) : ICaseArtifactCustody
-    {
-        public List<CaseArtifactCustodyRequest> Requests { get; } = [];
-
-        public Task<CaseArtifactCustodyResult> RetainAsync(
-            CaseArtifactCustodyRequest request,
-            CancellationToken cancellationToken)
-        {
-            Requests.Add(request);
-            if (failure is not null)
-            {
-                throw failure;
-            }
-
-            return Task.FromResult(new CaseArtifactCustodyResult(
-                CaseArtifactCustodyDisposition.Confirmed,
-                Guid.NewGuid(),
-                Guid.NewGuid(),
-                Guid.NewGuid(),
-                "box-file",
-                "box-version",
-                request.Sha256,
-                request.ContentLength,
-                request.MediaType,
-                null,
-                null));
-        }
-    }
-
-    private sealed class PromotionStore(AutomaticCaseEvidencePromotionPreparationDisposition disposition)
-        : IAutomaticCaseEvidencePromotionStore
-    {
-        public Task<AutomaticCaseEvidencePromotionPreparation> PrepareAsync(
-            AutomaticCaseEvidencePromotionRequest request,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(disposition == AutomaticCaseEvidencePromotionPreparationDisposition.Ready
-                ? new AutomaticCaseEvidencePromotionPreparation(disposition, request.CaseId, 7)
-                : new AutomaticCaseEvidencePromotionPreparation(disposition));
-    }
-
-    private sealed class RecordingEnqueuer : IIntakeWorkEnqueuer
+    private sealed class RecordingEnqueuer(Exception? failure) : IIntakeWorkEnqueuer
     {
         public List<Guid> StagedReceiptIds { get; } = [];
 
         public Task EnqueueAsync(Guid stagedReceiptId, CancellationToken cancellationToken)
         {
             StagedReceiptIds.Add(stagedReceiptId);
-            return Task.CompletedTask;
+            return failure is null ? Task.CompletedTask : Task.FromException(failure);
         }
     }
 

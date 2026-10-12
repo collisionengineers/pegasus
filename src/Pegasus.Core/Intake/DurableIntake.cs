@@ -1616,22 +1616,19 @@ public sealed class ReevaluateIntake(
 
 /// <summary>
 /// The one owner of a staff link (Add to an existing case on Upload, Link to
-/// Case on an Unidentified item, the Inbox's link): the association, then
-/// what the link means — the linked material files on the Case and the
-/// material's Unidentified item, if it has one, is resolved to that Case, in
-/// this same request (FRD-22, FRD-02). Filing that cannot complete here (the
-/// Case is being edited, or a transient fault) is handed to the Worker, whose
-/// replay of the receipt's completed work item files it; the sweeps remain
-/// the backstop for the rest.
+/// Case on an Unidentified item, the Inbox's link): the association, which
+/// commits here. Filing the linked material on the Case and resolving the
+/// material's Unidentified item resume through intake and custody work: the
+/// link enqueues the receipt's staged work for the Worker, whose replay files
+/// through <see cref="PromoteAssociatedIntakeCaseEvidence"/> and settles the
+/// Unidentified item (FRD-22, FRD-02). The request never touches Box or the
+/// intake assets.
 /// </summary>
 public sealed class LinkIntake(
     IIntakeMutationStore store,
     IImageIntakeCasePairing casePairing,
     TimeProvider timeProvider,
     ICaseStaffNotifier? caseNotifier = null,
-    IIntakeReceiptQueries? receiptQueries = null,
-    PromoteAssociatedIntakeCaseEvidence? promoteCaseEvidence = null,
-    ReconcileUnidentifiedDestinations? unidentifiedDestinations = null,
     IIntakeWorkStore? workStore = null,
     IIntakeWorkEnqueuer? workEnqueuer = null) : ILinkIntake
 {
@@ -1668,66 +1665,23 @@ public sealed class LinkIntake(
             Activity.Current?.SetStatus(ActivityStatusCode.Error, "image_pairing_failed");
         }
 
-        await FileLinkedMaterialAsync(request.ReceiptId, cancellationToken);
+        await HandFilingToWorkerAsync(request.ReceiptId, cancellationToken);
     }
 
     /// <summary>
-    /// What the committed link means for the material: its evidence on the
-    /// Case and its Unidentified item settled. Each step is best effort — the
-    /// link stands whatever happens here — and a filing this request could not
-    /// finish is re-driven through the Worker's replay of the receipt's work.
+    /// The link stands whatever happens here; the sweeps remain the backstop
+    /// when the hand-over cannot be enqueued.
     /// </summary>
-    private async Task FileLinkedMaterialAsync(Guid receiptId, CancellationToken cancellationToken)
+    private async Task HandFilingToWorkerAsync(Guid receiptId, CancellationToken cancellationToken)
     {
-        if (receiptQueries is null)
-        {
-            return;
-        }
-
-        var receipt = await receiptQueries.GetAsync(receiptId, cancellationToken);
-        if (receipt is null)
-        {
-            return;
-        }
-
-        var retryOnWorker = false;
-        if (promoteCaseEvidence is not null)
-        {
-            try
-            {
-                var promotion = await promoteCaseEvidence.ExecuteAsync(receipt, cancellationToken);
-                Activity.Current?.SetTag("intake.link_filing", promotion.ToString());
-                retryOnWorker = promotion == AutomaticCaseEvidencePromotionOutcome.Deferred;
-            }
-            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-            {
-                Activity.Current?.SetTag("intake.link_filing", "failed");
-                Activity.Current?.SetTag("intake.link_filing_failure_type", exception.GetType().Name);
-                retryOnWorker = true;
-            }
-        }
-
-        if (unidentifiedDestinations is not null)
-        {
-            try
-            {
-                await unidentifiedDestinations.SynchronizeForReceiptAsync(receipt, cancellationToken);
-            }
-            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-            {
-                Activity.Current?.SetTag("intake.link_unidentified", "failed");
-                Activity.Current?.SetTag("intake.link_unidentified_failure_type", exception.GetType().Name);
-            }
-        }
-
-        if (!retryOnWorker || workStore is null || workEnqueuer is null)
+        if (workStore is null || workEnqueuer is null)
         {
             return;
         }
 
         try
         {
-            var stagedReceiptId = await workStore.FindStagedReceiptIdForReceiptAsync(receipt.Id, cancellationToken);
+            var stagedReceiptId = await workStore.FindStagedReceiptIdForReceiptAsync(receiptId, cancellationToken);
             if (stagedReceiptId is { } id)
             {
                 await workEnqueuer.EnqueueAsync(id, cancellationToken);
