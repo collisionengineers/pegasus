@@ -2483,11 +2483,29 @@ body.v38-strip-hidden .v38-strip{display:none}
 #section-estimate .v38-supp-row select.fi{width:auto;min-width:260px}
 #section-estimate .v38-supp-row .v38-supp-reason{min-height:0;padding:0;border:0;background:transparent;font-size:12.5px;color:var(--muted)}
 #section-estimate .v38-supp-row [data-supp-dismiss]{margin-left:auto}
-/* P5 · the labour rate as a bar under the grid: the control keeps its 36px row. */
-#section-estimate .bar.v38-rate-bar{flex-wrap:wrap}
-#section-estimate .bar.v38-rate-bar .rate-pair{grid-template-columns:260px 96px}
-#section-estimate .bar.v38-rate-bar .v38-bl-2{margin-left:8px}
-#section-estimate .bar.v38-rate-bar .fv{min-height:30px}
+/* P5 \u00b7 the labour rate bar, as the reference draws it: segments for the rate cards and Custom, the uplift tick with
+   its chip, the effective figure at the right with its working. Live tokens only; the chosen segment is ink on white. */
+#section-estimate .bar.v38-rate-bar{flex-wrap:wrap;gap:12px}
+#section-estimate .v38-rseg{display:inline-flex;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+#section-estimate .v38-rseg-btn{appearance:none;border:0;border-right:1px solid var(--line);background:#fff;color:var(--muted);padding:5px 11px;font:inherit;font-size:12px;line-height:1.15;display:flex;flex-direction:column;align-items:flex-start;gap:1px;cursor:pointer;min-height:36px;justify-content:center}
+#section-estimate .v38-rseg-btn:last-child{border-right:0}
+#section-estimate .v38-rseg-btn small{font-family:var(--mono);font-size:10px;color:var(--quiet)}
+#section-estimate .v38-rseg-btn:hover{color:var(--ink)}
+#section-estimate .v38-rseg-btn[aria-pressed="true"],#section-estimate .v38-rseg-btn.is-static[aria-current="true"]{background:var(--ink);color:#fff}
+#section-estimate .v38-rseg-btn[aria-pressed="true"] small,#section-estimate .v38-rseg-btn.is-static[aria-current="true"] small{color:rgba(255,255,255,.7)}
+#section-estimate .v38-rseg-btn.is-static{cursor:default}
+#section-estimate .v38-ratebox{margin-left:auto;gap:6px}
+#section-estimate .v38-ratebox input{width:104px;text-align:right;font-weight:600;padding-right:8px}
+#section-estimate .v38-ratebox input::-webkit-inner-spin-button,#section-estimate .v38-ratebox input::-webkit-outer-spin-button{-webkit-appearance:none;appearance:none;margin:0}
+#section-estimate .v38-ratebox input[type=number]{-moz-appearance:textfield;appearance:textfield}
+#section-estimate .v38-ratebox .gv{min-width:88px;justify-content:flex-end;font-weight:600}
+#section-estimate .v38-ratebox [data-rate-work]:empty{display:none}
+#section-estimate .v38-rate-bar .choice input[disabled]+span{color:var(--quiet)}
+/* P6 \u00b7 the scaling bar as the reference draws it: the floors and Apply on a second row under the slider. */
+#section-estimate .bar.v38-scale{flex-wrap:wrap}
+#section-estimate .v38-scale .v38-scale-row{flex-basis:100%;display:flex;align-items:center;gap:12px;margin-top:4px}
+#section-estimate .v38-scale .v38-scale-row [data-scale-apply]{margin-left:auto}
+#section-estimate .v38-scale [data-scale-remove]{white-space:nowrap}
 /* P4 · the agreed sum box in the bar reads like the discount boxes; the mismatch chip is a button. */
 #section-estimate .est-contract .dsc input[data-contract-sum]{width:110px}
 #section-estimate .v38-chip-button{font:inherit;cursor:pointer}
@@ -8147,13 +8165,19 @@ const v38Model = (() => {
   ];
 
   const RATE = 83.28;
+  // The firm's enabled labour-rate cards (Administration), as the reference's
+  // ABP 2026 segments: a card is a name and an hourly rate (LabourRateCard).
+  const RATE_CARDS = [
+    { key: 'std', name: 'Standard', rate: 83.28 },
+    { key: 'prestige', name: 'Prestige / aluminium', rate: 103.06 },
+  ];
   const ENGINEER_VALUE = 4200;
   const AGREED_SUM = 2750;
 
   const header = (name, extra = {}) => ({
     name,
     rate: RATE,
-    rateCard: 'Standard — £83.28/h',
+    band: 'std',
     uplift: false,
     other: null,
     vatPercent: 20,
@@ -8235,7 +8259,11 @@ const v38Model = (() => {
   const pence = (v) => Math.round(v * 100) / 100;
   const money = (v) => '£' + v.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const num = (v) => (v == null ? null : Number(v));
-  const effectiveRate = (h) => pence(h.rate * (h.uplift ? 1.15 : 1));
+  const cardOf = (h) => RATE_CARDS.find((c) => c.key === h.band) || null;
+  // The base figure is the card's rate, or the typed rate when none is chosen;
+  // the uplift adds 15 % to a card's rate (the reference's rateCalc).
+  const baseRate = (h) => (cardOf(h) ? cardOf(h).rate : h.rate);
+  const effectiveRate = (h) => pence(baseRate(h) * (h.uplift && cardOf(h) ? 1.15 : 1));
 
   // EstimateTotals.Compute: the one owner of estimate money, mirrored.
   function totals(lines, h) {
@@ -8283,10 +8311,12 @@ const v38Model = (() => {
   // rate to their floors; hours never move; bisection on the gross.
   function scaled(lines, h, factor, floors) {
     const priceFactor = Math.max(floors.price / 100, factor);
-    const base = h.rate;
-    const rate = pence(Math.max(Math.min(floors.rate, base), base * factor));
+    const base = effectiveRate(h);
+    // The reference's scaledRate: the scaled rate lands on a whole pound or 50p, never below its floor.
+    const rate = factor >= 1 ? base : Math.max(Math.min(floors.rate, base), Math.round(base * factor * 2) / 2);
     const sl = lines.map((l) => ({ ...l, u: l.u != null ? pence(l.u * priceFactor) : l.u, m: l.m != null ? pence(l.m * priceFactor) : l.m, scaled: (l.u != null && priceFactor < 1) || (l.m != null && priceFactor < 1) }));
-    return { lines: sl, header: { ...h, rate, uplift: false, rateCard: null }, priceFactor, atFloor: rate < base && rate <= floors.rate };
+    // Scaling lands the rate as a typed figure: the card and the uplift are let go (the reference's scaleToAmount).
+    return { lines: sl, header: { ...h, rate, uplift: false, band: null }, priceFactor, atFloor: rate < base && rate <= floors.rate };
   }
   function grossAt(lines, h, factor, floors) { const s = scaled(lines, h, factor, floors); return totals(s.lines, s.header).printed.gross; }
   function scaleTo(lines, h, targetGross, floors) {
@@ -8336,7 +8366,7 @@ const v38Model = (() => {
 
   const clone = (v) => JSON.parse(JSON.stringify(v));
 
-  return { OPERATIONS, WORD, COLS, SPECS: clone(SPECS), SPECS_ONE: clone(SPECS_ONE), RATE, ENGINEER_VALUE, AGREED_SUM, ROUTE_TAG, ROUTE_WORDS, SOURCE_SHORT, REASONS, FLOORS: { rate: 50, price: 65 }, money, pence, totals, effectiveRate, scaleTo, grossAt, percentOfValue, diff, statement, contractSentence, lineValue, clone };
+  return { OPERATIONS, WORD, COLS, SPECS: clone(SPECS), SPECS_ONE: clone(SPECS_ONE), RATE, RATE_CARDS, cardOf, baseRate, ENGINEER_VALUE, AGREED_SUM, ROUTE_TAG, ROUTE_WORDS, SOURCE_SHORT, REASONS, FLOORS: { rate: 50, price: 65 }, money, pence, totals, effectiveRate, scaleTo, grossAt, percentOfValue, diff, statement, contractSentence, lineValue, clone };
 })();
 window.v38Model = v38Model;
 </script><script>// v38 mockup only: renders the Repair Spec section body and its dialogs
@@ -8394,7 +8424,6 @@ window.v38Model = v38Model;
     const lines = state.preview ? state.preview.lines : spec.lines;
     const t = M.totals(lines, h);
     const printed = t.printed;
-    const rate = t.rate;
     const anomalies = new Set(t.anomalies.map((a) => `${a.position}:${a.field}`));
     const others = state.specs.filter((s) => s !== spec);
     const ev = M.ENGINEER_VALUE;
@@ -8415,16 +8444,18 @@ window.v38Model = v38Model;
       actions = `<div class="est-actions" data-estimate-actions>${spec.current ? '' : `<form method="post" action="#"><button type="submit" class="btn btn--small btn--primary" data-estimate-use>${icon('icon-check')}<span>Use repair spec</span></button></form>`}<form method="post" action="#"><button type="submit" class="btn btn--small" data-estimate-duplicate>${icon('icon-copy')}<span>Duplicate</span></button></form>${spec.current ? '' : `<a class="btn btn--small btn--danger" href="#" data-dialog-open="delete-estimate-dialog" data-estimate-discard>${icon('icon-trash-2')}<span>Discard</span></a>`}</div>`;
     }
 
-    // Head cells. The rate control: P5 moves it to a bar under the grid.
-    // The fixture's addresses are Liverpool, so no postcode is in scope and the chip reads the rule's name, as live does.
+    // Head cells. Today's rate control is a card select and a typed figure in
+    // the head; P5 draws the reference's bar under the grid instead (or as well).
+    const card = M.cardOf(h);
+    const rate = M.effectiveRate(h);
     const upliftChip = `<span class="src-tag" data-estimate-uplift-chip>London &amp; Home Counties</span>`;
-    const rateEdit = `<div class="rate-pair" data-estimate-rate-pair><select class="fi" name="selectedRateCard" form="case-edit-form" aria-label="Labour-rate card" data-rate-card><option value="">Keep entered rate</option><option value="std" data-rate="83.28"${h.rateCard ? ' selected' : ''}>Standard — £83.28/h</option><option value="prestige" data-rate="103.06">Prestige and aluminium — £103.06/h</option></select><input class="fi mono" name="estimateLabourRate" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" value="${fixed(h.rate)}" data-rate-input aria-label="Labour rate (£/h)" /></div>`;
-    const rateRead = `<div class="rate-pair" data-estimate-rate-pair><div class="fv">${h.rateCard ? esc(h.rateCard) : 'Keep entered rate'}</div><div class="fv mono">${money(h.rate)}</div></div>`;
-    const upliftEdit = `<div class="uplift" data-estimate-uplift><label class="choice"><input type="checkbox" name="estimateRegionalUplift" form="case-edit-form" value="true"${h.uplift ? ' checked' : ''} data-uplift /><span>+ 15 %</span></label>${upliftChip}</div>`;
+    const rateEdit = `<div class="rate-pair" data-estimate-rate-pair><select class="fi" name="selectedRateCard" form="case-edit-form" aria-label="Labour-rate card" data-rate-card><option value=""${card ? '' : ' selected'}>Keep entered rate</option>${M.RATE_CARDS.map((c) => `<option value="${c.key}"${card && card.key === c.key ? ' selected' : ''}>${esc(c.name)} \u2014 ${money(c.rate)}/h</option>`).join('')}</select><input class="fi mono" name="estimateLabourRate" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" value="${fixed(rate)}" data-rate-input aria-label="Labour rate (\u00a3/h)" /></div>`;
+    const rateRead = `<div class="rate-pair" data-estimate-rate-pair><div class="fv">${card ? esc(card.name) + ' \u2014 ' + money(card.rate) + '/h' : 'Keep entered rate'}</div><div class="fv mono">${money(rate)}</div></div>`;
+    const upliftEdit = `<div class="uplift" data-estimate-uplift><label class="choice"><input type="checkbox" name="estimateRegionalUplift" form="case-edit-form" value="true"${h.uplift ? ' checked' : ''}${card ? '' : ' disabled'} data-uplift /><span>+ 15 %</span></label>${upliftChip}</div>`;
     const upliftRead = `<div class="uplift" data-estimate-uplift>${staticChoice(h.uplift, '+ 15 %')}${upliftChip}</div>`;
     const rateCells = editing
-      ? `<div class="fc"><label for="estimate-labour-rate">Labour rate (£/h)</label>${rateEdit}</div><div class="fc"><label for="estimate-regional-uplift">Regional uplift</label>${upliftEdit}</div>`
-      : `<div class="fc ro"><span class="lbl">Labour rate (£/h)</span>${rateRead}</div><div class="fc ro"><span class="lbl">Regional uplift</span>${upliftRead}</div>`;
+      ? `<div class="fc"><label for="estimate-labour-rate">Labour rate (\u00a3/h)</label>${rateEdit}</div><div class="fc"><label for="estimate-regional-uplift">Regional uplift</label>${upliftEdit}</div>`
+      : `<div class="fc ro"><span class="lbl">Labour rate (\u00a3/h)</span>${rateRead}</div><div class="fc ro"><span class="lbl">Regional uplift</span>${upliftRead}</div>`;
     const headCells = editing
       ? `<div class="fc" data-estimate-name-cell><label for="estimate-name">Repair spec name</label><input id="estimate-name" class="fi" name="estimateName" form="case-edit-form" maxlength="100" required value="${esc(h.name)}" /></div>${rateInHead ? rateCells : ''}<div class="fc"><label for="estimate-other">Other costs (£)</label><input id="estimate-other" class="fi mono" name="estimateOtherCosts" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" value="${fixed(h.other)}" /></div><div class="fc"><label for="estimate-vat">VAT %</label><input id="estimate-vat" class="fi mono" name="estimateVatPercent" form="case-edit-form" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="${h.vatPercent}" /></div><div class="fc"><label for="estimate-vat-status">Repairer VAT status</label><select id="estimate-vat-status" class="fi" name="estimateVatStatus" form="case-edit-form" data-vat-status><option${h.repairerStatus === 'Unknown' ? ' selected' : ''}>Unknown</option><option${h.repairerStatus === 'Registered' ? ' selected' : ''}>Registered</option><option${h.repairerStatus === 'NotRegistered' ? ' selected' : ''}>Not registered</option></select></div>`
       : `<div class="fc ro" data-estimate-name-cell><span class="lbl">Repair spec name</span><div class="fv">${esc(h.name)}</div></div>${rateInHead ? rateCells : ''}<div class="fc ro"><span class="lbl">Other costs (£)</span><div class="${h.other == null ? 'fv mono empty' : 'fv mono'}">${h.other == null ? ABSENT : money(h.other)}</div></div><div class="fc ro"><span class="lbl">VAT %</span><div class="fv mono">${h.vatPercent} %</div></div><div class="fc ro"><span class="lbl">Repairer VAT status</span><div class="fv">${h.repairerStatus === 'NotRegistered' ? 'Not registered' : h.repairerStatus}</div></div>`;
@@ -8471,16 +8502,52 @@ window.v38Model = v38Model;
     const grid = `<div class="grid" data-estimate-grid${mark('P1', P.cols === 'dash')}><table><thead><tr><th scope="col" class="col-type">Type</th><th scope="col">Description</th><th scope="col" class="col-part">Part no.</th><th scope="col" class="num col-qty">Qty</th><th scope="col" class="num col-money">Unit (£)</th><th scope="col" class="num col-hours">Hours</th><th scope="col" class="num col-hours">Paint h</th><th scope="col" class="num col-money">Material (£)</th><th scope="col" class="col-source">Source</th><th scope="col" class="col-del"><span class="sr-only">Action</span></th></tr></thead><tbody data-estimate-grid-body>${rows}${empty}${phantom}</tbody></table></div>`;
     const addLine = editing ? `<div class="cluster est-add-line"><button type="button" class="btn btn--small btn--danger" data-estimate-delete-all data-dialog-open="delete-lines-dialog">${icon('icon-trash-2')}<span>Delete all lines</span></button><button type="button" class="btn btn--small" data-estimate-add-line>${icon('icon-plus')}<span>Add line</span></button></div>` : '';
 
-    // P5 · the labour rate as a bar under the grid.
-    const rateBar = rateInBar ? `<div class="bar est-rate v38-rate-bar" data-estimate-rate-bar${mark('P5', true)}><span class="bl">Labour rate (£/h)</span>${editing ? rateEdit : rateRead}<span class="bl v38-bl-2">Regional uplift</span>${editing ? upliftEdit : upliftRead}</div>` : '';
+    // P5 \u00b7 the labour rate bar under the grid, as the reference's rate bar
+    // (rateBand, rateCalc, rateTyped): one segment per enabled rate card and a
+    // Custom segment for a typed figure; the uplift tick; the effective rate in
+    // the box at the right with its working when uplifted; Manual when typed.
+    let rateBar = '';
+    if (rateInBar) {
+      const segs = M.RATE_CARDS.map((c) => editing
+        ? `<button type="button" class="v38-rseg-btn" aria-pressed="${card && card.key === c.key}" data-rate-band="${c.key}"><span>${esc(c.name)}</span><small>${money(c.rate)}/h</small></button>`
+        : `<span class="v38-rseg-btn is-static" aria-current="${card && card.key === c.key ? 'true' : 'false'}"><span>${esc(c.name)}</span><small>${money(c.rate)}/h</small></span>`).join('')
+        + (editing
+          ? `<button type="button" class="v38-rseg-btn" aria-pressed="${!card}" data-rate-band="custom"><span>Custom</span><small>typed</small></button>`
+          : `<span class="v38-rseg-btn is-static" aria-current="${!card ? 'true' : 'false'}"><span>Custom</span><small>typed</small></span>`);
+      const work = card && h.uplift ? `${money(card.rate)} \u00d7 1.15 =` : '';
+      const manual = card ? '' : '<span class="status status--amber status--plain" data-rate-manual>Manual</span>';
+      const box = editing
+        ? `<span class="dsc v38-ratebox"><span class="mono muted" data-rate-work>${work}</span><input class="fi mono" type="number" min="0" step="0.01" inputmode="decimal" value="${fixed(rate)}" aria-label="Labour rate (\u00a3/h)" data-rate-input /><span class="muted">/h</span>${manual}</span>`
+        : `<span class="dsc v38-ratebox"><span class="mono muted" data-rate-work>${work}</span><span class="gv mono">${money(rate)}</span><span class="muted">/h</span>${manual}</span>`;
+      const tick = editing
+        ? `<label class="choice"><input type="checkbox"${h.uplift ? ' checked' : ''}${card ? '' : ' disabled'} data-uplift /><span>+ 15 % regional uplift</span></label>`
+        : staticChoice(h.uplift, '+ 15 % regional uplift');
+      rateBar = `<div class="bar est-rate v38-rate-bar" data-estimate-rate-bar${mark('P5', true)}><span class="bl">Labour rate</span><div class="v38-rseg" role="group" aria-label="Labour-rate card">${segs}</div>${tick}${upliftChip}${box}</div>`;
+    }
 
-    // Target % of value (edit only; reading shows it only when scaled).
+    // Target % of value. Today: the live bar (1 % to the spec's share, Apply
+    // always drawn). P6, as the reference's scaling bar (scaleBounds,
+    // scaleRefresh, scaleToAmount, scaleOff): the slider runs from the
+    // floor-scaled minimum to the as-estimated share; moving it previews
+    // (amber cells, the readout, Preview); Apply only while previewing;
+    // Remove scaling while a preview or a scaling is in force; the floors
+    // under the slider.
     let scaleBar = '';
     const pv = state.preview;
-    const readout = pv ? `${money(pv.grossBefore)} → ${money(pv.grossAfter)} (${(pv.grossAfter / ev * 100).toFixed(1)}%) · prices ×${pv.priceFactor.toFixed(2)}${pv.atFloor ? ' · labour at floor' : ''}` : '';
+    const recordedGross = M.totals(spec.lines, spec.header).printed.gross;
+    const readout = pv ? `${money(pv.grossBefore)} \u2192 ${money(pv.grossAfter)} (${(pv.grossAfter / ev * 100).toFixed(1)}%) \u00b7 prices \u00d7${pv.priceFactor.toFixed(2)}${pv.atFloor ? ' \u00b7 labour at floor' : ''}` : '';
     const sliderValue = pv ? (pv.grossAfter / ev * 100).toFixed(1) : suggested.toFixed(1);
-    if (editing) {
-      scaleBar = `<div class="bar est-scale" data-estimate-scale><span class="bl">Target % of value</span>${state.scaled ? '<span class="status status--amber status--plain" data-estimate-scaled>Scaled</span>' : ''}<input type="range" min="1" max="${specPercent.toFixed(1)}" step="0.1" value="${sliderValue}" aria-label="Target % of value" data-scale-range /><span class="dsc"><input type="number" name="targetPercent" min="1" max="${specPercent.toFixed(1)}" step="0.1" value="${sliderValue}" inputmode="decimal" aria-label="Target % of value" data-scale-percent /><label>%</label></span><span class="mono" data-scale-read aria-live="polite">${readout}</span><span class="status status--navy status--plain" data-scale-preview${pv ? '' : ' hidden'}>Preview</span><span class="est-floors">Floors <span class="dsc"><label for="estimate-floor-rate">labour £/h</label><input id="estimate-floor-rate" type="number" min="0" step="1" inputmode="decimal" value="${M.FLOORS.rate}" data-scale-floor-rate /></span><span class="dsc"><label for="estimate-floor-price">prices %</label><input id="estimate-floor-price" type="number" min="0" max="100" step="5" inputmode="decimal" value="${M.FLOORS.price}" data-scale-floor-price /></span></span>${contractPercent != null && contractPercent >= 1 && contractPercent <= specPercent ? `<span class="muted">Agreed sum suggests ${suggested.toFixed(1)}%.</span>` : contractPercent > specPercent ? '<span class="muted">Scaling cannot raise the repair spec to the agreed sum.</span>' : ''}<button type="button" class="btn btn--small btn--primary" data-scale-apply><span>Apply</span></button>${state.scaled ? '<button type="button" class="btn btn--small" data-scale-remove><span>Remove scaling</span></button>' : ''}</div>`;
+    const floorsHtml = `<span class="est-floors">Floors <span class="dsc"><label for="estimate-floor-rate">labour \u00a3/h</label><input id="estimate-floor-rate" type="number" min="0" step="1" inputmode="decimal" value="${state.floors.rate}" data-scale-floor-rate /></span><span class="dsc"><label for="estimate-floor-price">prices %</label><input id="estimate-floor-price" type="number" min="0" max="100" step="5" inputmode="decimal" value="${state.floors.price}" data-scale-floor-price /></span></span>`;
+    if (editing && P.scale === 'ref') {
+      const bottom = M.grossAt(spec.lines, spec.header, 0, state.floors) / ev * 100;
+      const top = recordedGross / ev * 100;
+      const min = Math.ceil(bottom), max = Math.floor(top);
+      const current = pv ? Math.round(pv.grossAfter / ev * 100) : Math.round(top);
+      const read = pv ? readout : state.scaled && state.preScale ? `${money(recordedGross)} \u2014 scaled from estimate ${money(M.totals(state.preScale.lines, state.preScale.header).printed.gross)}` : `${money(recordedGross)} \u2014 as estimated`;
+      const active = !!pv || state.scaled;
+      scaleBar = `<div class="bar est-scale v38-scale" data-estimate-scale${mark('P6', true)}><span class="bl">Target % of value</span>${state.scaled && !pv ? '<span class="status status--amber status--plain" data-estimate-scaled>Scaled</span>' : ''}<input type="range" min="${min}" max="${max}" step="1" value="${current}" aria-label="Target % of value" data-scale-range />${active ? `<button type="button" class="btn btn--small" data-scale-remove>${icon('icon-x')}<span>Remove scaling</span></button>` : ''}<span class="dsc"><input type="number" name="targetPercent" min="${min}" max="${max}" step="1" value="${current}" inputmode="decimal" aria-label="Target % of value" data-scale-percent /><label>%</label></span><span class="mono" data-scale-read aria-live="polite">${read}</span><span class="status status--navy status--plain" data-scale-preview${pv ? '' : ' hidden'}>Preview</span><div class="v38-scale-row">${floorsHtml}${contractPercent != null && contractPercent >= 1 && contractPercent <= specPercent ? `<span class="muted">Agreed sum suggests ${suggested.toFixed(1)}%.</span>` : ''}${pv ? `<button type="button" class="btn btn--small btn--primary" data-scale-apply><span>Apply</span></button>` : ''}</div></div>`;
+    } else if (editing) {
+      scaleBar = `<div class="bar est-scale" data-estimate-scale><span class="bl">Target % of value</span>${state.scaled ? '<span class="status status--amber status--plain" data-estimate-scaled>Scaled</span>' : ''}<input type="range" min="1" max="${specPercent.toFixed(1)}" step="0.1" value="${sliderValue}" aria-label="Target % of value" data-scale-range /><span class="dsc"><input type="number" name="targetPercent" min="1" max="${specPercent.toFixed(1)}" step="0.1" value="${sliderValue}" inputmode="decimal" aria-label="Target % of value" data-scale-percent /><label>%</label></span><span class="mono" data-scale-read aria-live="polite">${readout}</span><span class="status status--navy status--plain" data-scale-preview${pv ? '' : ' hidden'}>Preview</span>${floorsHtml}${contractPercent != null && contractPercent >= 1 && contractPercent <= specPercent ? `<span class="muted">Agreed sum suggests ${suggested.toFixed(1)}%.</span>` : contractPercent > specPercent ? '<span class="muted">Scaling cannot raise the repair spec to the agreed sum.</span>' : ''}<button type="button" class="btn btn--small btn--primary" data-scale-apply><span>Apply</span></button>${state.scaled ? '<button type="button" class="btn btn--small" data-scale-remove><span>Remove scaling</span></button>' : ''}</div>`;
     } else if (state.scaled) {
       scaleBar = `<div class="bar est-scale" data-estimate-scale-read><span class="bl">Target % of value</span><span class="status status--amber status--plain" data-estimate-scaled>Scaled</span></div>`;
     }
@@ -8665,10 +8732,11 @@ window.v38Model = v38Model;
     { id: 'P2', variable: 'cmp', title: 'Compare over versions: From and To side by side, Compare with current, a print sheet', options: ['today', 'side'] },
     { id: 'P3', variable: 'supp', title: 'Supplementary filled after an import, against the version the report used', options: ['today', 'auto'] },
     { id: 'P4', variable: 'agreed', title: 'The agreed sum drives the spec: typing it previews the scaling, and the mismatch chip rescales', options: ['today', 'drives'] },
-    { id: 'P5', variable: 'rate', title: 'Labour rate also as a bar under the grid', options: ['head', 'both', 'bar'] },
+    { id: 'P5', variable: 'rate', title: 'The labour rate bar under the grid: a segment per rate card, Custom typed, the uplift tick, the figure at the right', options: ['head', 'bar', 'both'] },
+    { id: 'P6', variable: 'scale', title: 'Target % of value as the reference scales: floor to estimate, Apply while previewing, Remove scaling, the floors under the slider', options: ['today', 'ref'] },
   ];
-  const DEFAULTS = { cols: 'dash', cmp: 'side', supp: 'auto', agreed: 'drives', rate: 'both' };
-  const TODAY = { cols: 'today', cmp: 'today', supp: 'today', agreed: 'today', rate: 'head' };
+  const DEFAULTS = { cols: 'dash', cmp: 'side', supp: 'auto', agreed: 'drives', rate: 'bar', scale: 'ref' };
+  const TODAY = { cols: 'today', cmp: 'today', supp: 'today', agreed: 'today', rate: 'head', scale: 'today' };
 
   const params = new URLSearchParams(location.search);
   const opts = {};
@@ -8901,8 +8969,9 @@ window.v38Model = v38Model;
       if (desc.trim()) { spec.lines.push({ t: type, d: desc.trim(), p: '', q: (M.COLS[type] || {}).q ? 1 : null, u: null, h: null, ph: null, m: null, src: 'manual' }); redraw(t); }
       return;
     }
-    if (t.hasAttribute('data-rate-card')) { const o = t.selectedOptions[0]; if (o && o.dataset.rate) { spec.header.rate = Number(o.dataset.rate); spec.header.rateCard = o.textContent; } else spec.header.rateCard = null; st.preview = null; redraw(t); return; }
-    if (t.hasAttribute('data-rate-input')) { spec.header.rate = Number(t.value) || 0; spec.header.rateCard = null; st.preview = null; redraw(t); return; }
+    // The rate (the reference's rateBand / rateTyped): a card sets the figure; typing keeps the typed figure and lets the card and the uplift go.
+    if (t.hasAttribute('data-rate-card')) { const c = M.RATE_CARDS.find((x) => x.key === t.value); if (c) { spec.header.band = c.key; spec.header.rate = c.rate; } else { spec.header.rate = M.effectiveRate(spec.header); spec.header.band = null; spec.header.uplift = false; } st.preview = null; redraw(t); return; }
+    if (t.hasAttribute('data-rate-input')) { spec.header.band = null; spec.header.uplift = false; spec.header.rate = Number(t.value) || 0; st.preview = null; redraw(t); return; }
     if (t.hasAttribute('data-uplift')) { spec.header.uplift = t.checked; st.preview = null; redraw(t); return; }
     if (t.dataset.discount) { spec.header.discounts[t.dataset.discount] = Number(t.value) || 0; redraw(t); return; }
     if (t.dataset.vatCategory) { spec.header.vat[t.dataset.vatCategory] = t.checked; spec.header.vatOverridden = true; redraw(t); return; }
@@ -8934,8 +9003,11 @@ window.v38Model = v38Model;
 
   function preview(st, percent) {
     const spec = st.specs[st.spec];
-    const top = Math.max(1, M.percentOfValue(M.ENGINEER_VALUE, M.totals(spec.lines, spec.header).printed.gross));
-    const pct = Math.min(top, Math.max(1, percent || 1));
+    const gross = M.totals(spec.lines, spec.header).printed.gross;
+    // Today's slider runs from 1 %; the reference's from the floor-scaled minimum.
+    const top = st.p.scale === 'ref' ? gross / M.ENGINEER_VALUE * 100 : Math.max(1, M.percentOfValue(M.ENGINEER_VALUE, gross));
+    const bottom = st.p.scale === 'ref' ? M.grossAt(spec.lines, spec.header, 0, st.floors) / M.ENGINEER_VALUE * 100 : 1;
+    const pct = Math.min(top, Math.max(bottom, percent || bottom));
     st.preview = pct >= top ? null : M.scaleTo(spec.lines, spec.header, M.ENGINEER_VALUE * pct / 100, st.floors);
   }
 
@@ -8970,13 +9042,23 @@ window.v38Model = v38Model;
     const st = stateOf(e.target);
     if (!st) return;
     const spec = st.specs[st.spec];
+    const band = e.target.closest('[data-rate-band]');
+    if (band) {
+      const c = M.RATE_CARDS.find((x) => x.key === band.dataset.rateBand);
+      if (c) { spec.header.band = c.key; spec.header.rate = c.rate; }
+      else { spec.header.rate = M.effectiveRate(spec.header); spec.header.band = null; spec.header.uplift = false; }
+      st.preview = null; redraw(e.target);
+      if (!c) { const box = document.querySelector('[data-estimate-rate-bar] [data-rate-input]'); if (box) { box.focus(); box.select(); } }
+      return;
+    }
     const apply = e.target.closest('[data-scale-apply]');
     if (apply) {
       if (st.preview) { st.preScale = { lines: M.clone(spec.lines), header: M.clone(spec.header) }; spec.lines = st.preview.lines.map((l) => ({ ...l, scaled: undefined })); spec.header = st.preview.header; st.scaled = true; st.preview = null; }
       redraw(e.target); return;
     }
     const remove = e.target.closest('[data-scale-remove]');
-    if (remove) { if (st.preScale) { spec.lines = st.preScale.lines; spec.header = st.preScale.header; } st.scaled = false; st.preScale = null; st.preview = null; redraw(e.target); return; }
+    // Remove scaling (the reference's scaleOff): a live preview is dropped; an applied scaling returns the spec to the estimate.
+    if (remove) { if (st.preview) { st.preview = null; } else if (st.preScale) { spec.lines = st.preScale.lines; spec.header = st.preScale.header; st.scaled = false; st.preScale = null; } redraw(e.target); return; }
     const rescale = e.target.closest('[data-contract-rescale]');
     if (rescale) { if (st.sum > 0) st.preview = M.scaleTo(spec.lines, spec.header, st.sum, st.floors); redraw(e.target); return; }
     const suppDismiss = e.target.closest('[data-supp-dismiss]');
@@ -9040,7 +9122,7 @@ window.v38Model = v38Model;
       <div class="v38-row"><b>Dialog</b><select data-select="dialog"><option value="">(none)</option>${dialogs.map((d) => `<option value="${d}"${d === q.dialog ? ' selected' : ''}>${d}</option>`).join('')}</select></div>
       <div class="v38-findings"><div class="v38-group">Proposals</div>${proposals}</div>
       <div class="v38-seg"><button type="button" data-reset>Reset to Today</button><button type="button" data-hide>Hide strip</button></div>
-      <div class="v38-note">Every choice is also a query string: design, mode, spec, dialog, diff, split, scale, sum, explain, cmpfrom, cmpto, opt=cols:dash,cmp:side,supp:auto,agreed:drives,rate:both.</div>
+      <div class="v38-note">Every choice is also a query string: design, mode, spec, dialog, diff, split, scale, sum, explain, cmpfrom, cmpto, opt=cols:dash,cmp:side,supp:auto,agreed:drives,rate:bar,scale:ref.</div>
     </div>`;
     el.addEventListener('click', (e) => {
       const b = e.target.closest('button');

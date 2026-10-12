@@ -37,3 +37,17 @@ The operator, on the first draft's Supplementary (filled, but still a sub-panel 
 > try harder to make it match. this supplementary bit is at the top clearly, and i think its from uploading/importing something onto an existing repair spec
 
 Redrawn as the reference has it: the supplementary estimate is imported onto the existing repair spec (the grid it replaces frozen as a version, the import frozen too, as a Glass's return is today), so the proposal's Case holds one spec with three versions; the panel opens at the top of the section above the grid with the version it changes against, the cost movement, a full comparison link, one line per change, the Explain tick, the reason and Dismiss; the statement appears once Explain is ticked. Today's fixture keeps the live behaviour (an import makes a second spec, the sub-panel at the foot waits for Changes vs) so the two can be compared. Self-check rerun: see the notes' section 7.
+
+## 12 October 2026: the labour rate bar and the scaling bar
+
+The operator, with the reference's rate bar:
+
+> we just need the labour rate to work like this
+
+and, with today's Target % bar beside the reference's scaling bar:
+
+> check this section against the mockup. scaling should work the same
+
+> we need both the standard and the prestige/aluminium, and custom as selectable. the slider will automatically move it to custom since it slides the labour rate too (controlled by the "floor" settings)
+
+P5 is redrawn as the reference's rate bar: one segment per enabled rate card and Custom · typed, all selectable; the uplift tick and chip; the figure at the right with its working and Manual when typed; the head keeps its four other cells. P6 is added: the reference's scaling bar, whose slider runs from the floor-scaled minimum to the estimate, previews with Apply and Remove scaling, lands the scaled rate on a 50p step and switches the rate bar to Custom, with the floors on a second row. Self-check rerun: see the notes' section 7.

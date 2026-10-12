@@ -16,10 +16,11 @@
     { id: 'P2', variable: 'cmp', title: 'Compare over versions: From and To side by side, Compare with current, a print sheet', options: ['today', 'side'] },
     { id: 'P3', variable: 'supp', title: 'Supplementary filled after an import, against the version the report used', options: ['today', 'auto'] },
     { id: 'P4', variable: 'agreed', title: 'The agreed sum drives the spec: typing it previews the scaling, and the mismatch chip rescales', options: ['today', 'drives'] },
-    { id: 'P5', variable: 'rate', title: 'Labour rate also as a bar under the grid', options: ['head', 'both', 'bar'] },
+    { id: 'P5', variable: 'rate', title: 'The labour rate bar under the grid: a segment per rate card, Custom typed, the uplift tick, the figure at the right', options: ['head', 'bar', 'both'] },
+    { id: 'P6', variable: 'scale', title: 'Target % of value as the reference scales: floor to estimate, Apply while previewing, Remove scaling, the floors under the slider', options: ['today', 'ref'] },
   ];
-  const DEFAULTS = { cols: 'dash', cmp: 'side', supp: 'auto', agreed: 'drives', rate: 'both' };
-  const TODAY = { cols: 'today', cmp: 'today', supp: 'today', agreed: 'today', rate: 'head' };
+  const DEFAULTS = { cols: 'dash', cmp: 'side', supp: 'auto', agreed: 'drives', rate: 'bar', scale: 'ref' };
+  const TODAY = { cols: 'today', cmp: 'today', supp: 'today', agreed: 'today', rate: 'head', scale: 'today' };
 
   const params = new URLSearchParams(location.search);
   const opts = {};
@@ -252,8 +253,9 @@
       if (desc.trim()) { spec.lines.push({ t: type, d: desc.trim(), p: '', q: (M.COLS[type] || {}).q ? 1 : null, u: null, h: null, ph: null, m: null, src: 'manual' }); redraw(t); }
       return;
     }
-    if (t.hasAttribute('data-rate-card')) { const o = t.selectedOptions[0]; if (o && o.dataset.rate) { spec.header.rate = Number(o.dataset.rate); spec.header.rateCard = o.textContent; } else spec.header.rateCard = null; st.preview = null; redraw(t); return; }
-    if (t.hasAttribute('data-rate-input')) { spec.header.rate = Number(t.value) || 0; spec.header.rateCard = null; st.preview = null; redraw(t); return; }
+    // The rate (the reference's rateBand / rateTyped): a card sets the figure; typing keeps the typed figure and lets the card and the uplift go.
+    if (t.hasAttribute('data-rate-card')) { const c = M.RATE_CARDS.find((x) => x.key === t.value); if (c) { spec.header.band = c.key; spec.header.rate = c.rate; } else { spec.header.rate = M.effectiveRate(spec.header); spec.header.band = null; spec.header.uplift = false; } st.preview = null; redraw(t); return; }
+    if (t.hasAttribute('data-rate-input')) { spec.header.band = null; spec.header.uplift = false; spec.header.rate = Number(t.value) || 0; st.preview = null; redraw(t); return; }
     if (t.hasAttribute('data-uplift')) { spec.header.uplift = t.checked; st.preview = null; redraw(t); return; }
     if (t.dataset.discount) { spec.header.discounts[t.dataset.discount] = Number(t.value) || 0; redraw(t); return; }
     if (t.dataset.vatCategory) { spec.header.vat[t.dataset.vatCategory] = t.checked; spec.header.vatOverridden = true; redraw(t); return; }
@@ -285,8 +287,11 @@
 
   function preview(st, percent) {
     const spec = st.specs[st.spec];
-    const top = Math.max(1, M.percentOfValue(M.ENGINEER_VALUE, M.totals(spec.lines, spec.header).printed.gross));
-    const pct = Math.min(top, Math.max(1, percent || 1));
+    const gross = M.totals(spec.lines, spec.header).printed.gross;
+    // Today's slider runs from 1 %; the reference's from the floor-scaled minimum.
+    const top = st.p.scale === 'ref' ? gross / M.ENGINEER_VALUE * 100 : Math.max(1, M.percentOfValue(M.ENGINEER_VALUE, gross));
+    const bottom = st.p.scale === 'ref' ? M.grossAt(spec.lines, spec.header, 0, st.floors) / M.ENGINEER_VALUE * 100 : 1;
+    const pct = Math.min(top, Math.max(bottom, percent || bottom));
     st.preview = pct >= top ? null : M.scaleTo(spec.lines, spec.header, M.ENGINEER_VALUE * pct / 100, st.floors);
   }
 
@@ -321,13 +326,23 @@
     const st = stateOf(e.target);
     if (!st) return;
     const spec = st.specs[st.spec];
+    const band = e.target.closest('[data-rate-band]');
+    if (band) {
+      const c = M.RATE_CARDS.find((x) => x.key === band.dataset.rateBand);
+      if (c) { spec.header.band = c.key; spec.header.rate = c.rate; }
+      else { spec.header.rate = M.effectiveRate(spec.header); spec.header.band = null; spec.header.uplift = false; }
+      st.preview = null; redraw(e.target);
+      if (!c) { const box = document.querySelector('[data-estimate-rate-bar] [data-rate-input]'); if (box) { box.focus(); box.select(); } }
+      return;
+    }
     const apply = e.target.closest('[data-scale-apply]');
     if (apply) {
       if (st.preview) { st.preScale = { lines: M.clone(spec.lines), header: M.clone(spec.header) }; spec.lines = st.preview.lines.map((l) => ({ ...l, scaled: undefined })); spec.header = st.preview.header; st.scaled = true; st.preview = null; }
       redraw(e.target); return;
     }
     const remove = e.target.closest('[data-scale-remove]');
-    if (remove) { if (st.preScale) { spec.lines = st.preScale.lines; spec.header = st.preScale.header; } st.scaled = false; st.preScale = null; st.preview = null; redraw(e.target); return; }
+    // Remove scaling (the reference's scaleOff): a live preview is dropped; an applied scaling returns the spec to the estimate.
+    if (remove) { if (st.preview) { st.preview = null; } else if (st.preScale) { spec.lines = st.preScale.lines; spec.header = st.preScale.header; st.scaled = false; st.preScale = null; } redraw(e.target); return; }
     const rescale = e.target.closest('[data-contract-rescale]');
     if (rescale) { if (st.sum > 0) st.preview = M.scaleTo(spec.lines, spec.header, st.sum, st.floors); redraw(e.target); return; }
     const suppDismiss = e.target.closest('[data-supp-dismiss]');
@@ -391,7 +406,7 @@
       <div class="v38-row"><b>Dialog</b><select data-select="dialog"><option value="">(none)</option>${dialogs.map((d) => `<option value="${d}"${d === q.dialog ? ' selected' : ''}>${d}</option>`).join('')}</select></div>
       <div class="v38-findings"><div class="v38-group">Proposals</div>${proposals}</div>
       <div class="v38-seg"><button type="button" data-reset>Reset to Today</button><button type="button" data-hide>Hide strip</button></div>
-      <div class="v38-note">Every choice is also a query string: design, mode, spec, dialog, diff, split, scale, sum, explain, cmpfrom, cmpto, opt=cols:dash,cmp:side,supp:auto,agreed:drives,rate:both.</div>
+      <div class="v38-note">Every choice is also a query string: design, mode, spec, dialog, diff, split, scale, sum, explain, cmpfrom, cmpto, opt=cols:dash,cmp:side,supp:auto,agreed:drives,rate:bar,scale:ref.</div>
     </div>`;
     el.addEventListener('click', (e) => {
       const b = e.target.closest('button');

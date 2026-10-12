@@ -34,8 +34,8 @@ SHOTS = CURRENT / 'v38-shots'
 PAGE = CURRENT / 'pegasus_repair_spec_v38.html'
 WIDTHS = [(1580, 1000), (1440, 900), (760, 1000)]
 DIALOGS = ['versions-dialog', 'compare-estimates-dialog', 'delete-lines-dialog', 'delete-estimate-dialog']
-VARIABLES = {'cols': ['dash'], 'cmp': ['side'], 'supp': ['auto'], 'agreed': ['drives'], 'rate': ['both', 'bar']}
-IDS = {'cols': 'P1', 'cmp': 'P2', 'supp': 'P3', 'agreed': 'P4', 'rate': 'P5'}
+VARIABLES = {'cols': ['dash'], 'cmp': ['side'], 'supp': ['auto'], 'agreed': ['drives'], 'rate': ['bar', 'both'], 'scale': ['ref']}
+IDS = {'cols': 'P1', 'cmp': 'P2', 'supp': 'P3', 'agreed': 'P4', 'rate': 'P5', 'scale': 'P6'}
 
 ok, fail = [], []
 
@@ -132,7 +132,7 @@ def main():
                         if design == 'proposal':
                             check(f'{tag} marks only the proposals on', set(r['changed']) <= set(r['applied']), sorted(set(r['changed']) - set(r['applied'])))
                             check(f'{tag} P1 dashes', r['na'] > 0, r['na'])
-                            check(f'{tag} P5 rate bar under the grid and in the head', r['rateBar'] and r['rateInHead'] and r['headCells'] == 6, (r['rateBar'], r['rateInHead'], r['headCells']))
+                            check(f'{tag} P5 rate bar under the grid, the rate out of the head', r['rateBar'] and not r['rateInHead'] and r['headCells'] == 4, (r['rateBar'], r['rateInHead'], r['headCells']))
                             check(f'{tag} P3 one spec, the import landed on it', r['tabs'] == 1, r['tabs'])
                             check(f'{tag} P3 Supplementary at the top, against the sent version', r['suppTop'] and 'changes vs v2' in r['suppHead'] and 'Sent on report' in r['suppHead'], r['suppHead'][:80])
                             check(f'{tag} P3 six changes listed', r['suppItems'] == 6, r['suppItems'])
@@ -220,13 +220,13 @@ def main():
         check('P4 no mismatch while previewed', r['mismatch'] == '', r['mismatch'])
         page.fill('[data-contract-sum]', '3000'); page.dispatch_event('[data-contract-sum]', 'change'); page.wait_for_timeout(150)
         r = page.evaluate(READ)
-        check('P4 typing another sum previews to it (within the live 50p tolerance)', r['previewed'] > 0 and abs(float(r['gross'].replace('£', '').replace(',', '')) - 3000) <= 0.5, (r['previewed'], r['gross']))
+        check('P4 typing another sum previews to it (within the 50p rate step over the hours)', r['previewed'] > 0 and abs(float(r['gross'].replace('£', '').replace(',', '')) - 3000) <= 15, (r['previewed'], r['gross']))
         page.click('[data-remove-line="0"]'); page.wait_for_timeout(150)
         r = page.evaluate(READ)
         check('P4 an edit after the preview leaves a mismatch chip that rescales', r['rescale'] and r['mismatch'].startswith('Spec ') and r['previewed'] == 0, (r['rescale'], r['mismatch'], r['previewed']))
         page.click('[data-contract-rescale]'); page.wait_for_timeout(150)
         r = page.evaluate(READ)
-        check('P4 the chip rescales on press (within the live 50p tolerance)', r['previewed'] > 0 and abs(float(r['gross'].replace('£', '').replace(',', '')) - 3000) <= 0.5, (r['previewed'], r['gross']))
+        check('P4 the chip rescales on press (within the 50p rate step over the hours)', r['previewed'] > 0 and abs(float(r['gross'].replace('£', '').replace(',', '')) - 3000) <= 15, (r['previewed'], r['gross']))
         r = load('design=today&mode=edit&spec=2&sum=2750')
         check('today: the sum is read from Decisions, the chip states the mismatch', not r['sumBox'] and not r['rescale'] and r['mismatch'].startswith('Spec ') and r['previewed'] == 0, (r['sumBox'], r['mismatch']))
         # The Target % preview (live behaviour) marks the lowered cells and reads out.
@@ -236,9 +236,38 @@ def main():
         r = page.evaluate(READ)
         check('Apply records the scaled spec and offers Remove scaling', r['previewed'] == 0 and page.locator('[data-estimate-scaled]').count() == 1 and page.locator('[data-scale-remove]').count() == 1)
 
-        # P5: the bar alone.
-        r = load('design=proposal&mode=edit&spec=2&opt=rate:bar')
-        check('P5 bar alone: the rate leaves the head', not r['rateInHead'] and r['rateBar'] and r['headCells'] == 4)
+        # P5: the segments, the uplift, the typed figure; and the head kept as well.
+        r = load('design=proposal&mode=edit')
+        check('P5 three segments, Standard chosen', page.locator('[data-rate-band]').count() == 3 and page.locator('[data-rate-band="std"][aria-pressed="true"]').count() == 1)
+        page.click('[data-rate-band="prestige"]'); page.wait_for_timeout(150)
+        check('P5 Prestige sets the figure and the rollup', page.evaluate("document.querySelector('[data-estimate-rate-bar] [data-rate-input]').value") == '103.06' and page.evaluate("document.querySelector('[data-rollup=panelLabour]').textContent") != '\u00a3882.77')
+        page.check('[data-estimate-rate-bar] [data-uplift]'); page.wait_for_timeout(150)
+        check('P5 the uplift shows its working and the effective figure', page.evaluate("document.querySelector('[data-rate-work]').textContent") == '\u00a3103.06 \u00d7 1.15 =' and page.evaluate("document.querySelector('[data-estimate-rate-bar] [data-rate-input]').value") == '118.52')
+        page.fill('[data-estimate-rate-bar] [data-rate-input]', '90'); page.dispatch_event('[data-estimate-rate-bar] [data-rate-input]', 'change'); page.wait_for_timeout(150)
+        check('P5 typing makes it Custom: Manual chip, uplift off and disabled', page.locator('[data-rate-band=custom][aria-pressed=true]').count() == 1 and page.locator('[data-rate-manual]').count() == 1 and page.evaluate("(() => { const u = document.querySelector('[data-estimate-rate-bar] [data-uplift]'); return u.disabled && !u.checked; })()"))
+        r = load('design=proposal&mode=read')
+        check('P5 read: the segments static, no live control', page.locator('.v38-rseg-btn.is-static').count() == 3 and not r['liveControls'])
+        r = load('design=proposal&mode=edit&opt=rate:both')
+        check('P5 both: the bar and the head cells', r['rateInHead'] and r['rateBar'] and r['headCells'] == 6)
+        # P6: the reference's scaling bar.
+        r = load('design=proposal&mode=edit')
+        rng = page.evaluate("(() => { const s = document.querySelector('[data-scale-range]'); return [Number(s.min), Number(s.max), Number(s.value)]; })()")
+        check('P6 the slider runs from the floor-scaled minimum to the as-estimated share', rng[0] > 1 and rng[0] < rng[1] and rng[2] == rng[1], rng)
+        check('P6 Apply and Remove scaling absent until something is previewed', page.locator('[data-scale-apply]').count() == 0 and page.locator('[data-scale-remove]').count() == 0)
+        page.evaluate("(() => { const s = document.querySelector('[data-scale-range]'); s.value = 70; s.dispatchEvent(new Event('input', { bubbles: true })); })()"); page.wait_for_timeout(200)
+        r = page.evaluate(READ)
+        check('P6 moving the slider previews: amber cells, the readout, Preview, Apply, Remove scaling', r['previewed'] > 0 and 'prices \u00d7' in r['scaleRead'] and r['previewChip'] is True and page.locator('[data-scale-apply]').count() == 1 and page.locator('[data-scale-remove]').count() == 1, (r['previewed'], r['scaleRead']))
+        page.click('[data-scale-remove]'); page.wait_for_timeout(150)
+        r = page.evaluate(READ)
+        check('P6 Remove scaling drops the preview', r['previewed'] == 0 and 'as estimated' in r['scaleRead'] and page.locator('[data-scale-apply]').count() == 0, r['scaleRead'])
+        page.evaluate("(() => { const s = document.querySelector('[data-scale-range]'); s.value = 70; s.dispatchEvent(new Event('input', { bubbles: true })); })()"); page.wait_for_timeout(200)
+        page.click('[data-scale-apply]'); page.wait_for_timeout(150)
+        r = page.evaluate(READ)
+        rate_box = page.evaluate("document.querySelector('[data-estimate-rate-bar] [data-rate-input]').value")
+        check('P6 Apply records: Scaled, scaled from estimate, the rate landed as Custom on a 50p step', page.locator('[data-estimate-scaled]').count() == 1 and 'scaled from estimate' in r['scaleRead'] and page.locator('[data-rate-band=custom][aria-pressed=true]').count() == 1 and page.locator('[data-rate-manual]').count() == 1 and float(rate_box) * 2 == int(float(rate_box) * 2), (r['scaleRead'], rate_box))
+        page.click('[data-scale-remove]'); page.wait_for_timeout(150)
+        r = page.evaluate(READ)
+        check('P6 Remove scaling returns the spec to the estimate', not r['scaled'] if 'scaled' in r else page.locator('[data-estimate-scaled]').count() == 0 and 'as estimated' in r['scaleRead'] and page.evaluate("document.querySelector('[data-estimate-rate-bar] [data-rate-input]').value") == '83.28', r['scaleRead'])
         r = load('design=proposal&mode=read&spec=2')
         check('P5 read: the bar reads as values', r['rateBar'] and not r['liveControls'])
 
@@ -289,7 +318,13 @@ def main():
                 shot(f'{design}-scale', f'design={design}&mode=edit&spec=2&scale=60')
             load('design=proposal&mode=edit&spec=2&sum=2750'); page.click('[data-remove-line="0"]'); page.wait_for_timeout(200)
             n += 1; path = SHOTS / f'{n:02d}-agreed-rescale-chip.png'; page.screenshot(path=str(path)); names.append(path.name)
-            shot('rate-bar-only', 'design=proposal&mode=edit&spec=2&opt=rate:bar')
+            shot('rate-both', 'design=proposal&mode=edit&spec=2&opt=rate:both')
+            load('design=proposal&mode=edit'); page.check('[data-estimate-rate-bar] [data-uplift]'); page.wait_for_timeout(200)
+            n += 1; path = SHOTS / f'{n:02d}-rate-uplift.png'; page.screenshot(path=str(path)); names.append(path.name)
+            page.evaluate("(() => { const s = document.querySelector('[data-scale-range]'); s.value = 70; s.dispatchEvent(new Event('input', { bubbles: true })); })()"); page.wait_for_timeout(200)
+            n += 1; path = SHOTS / f'{n:02d}-scale-preview.png'; page.screenshot(path=str(path)); names.append(path.name)
+            page.click('[data-scale-apply]'); page.wait_for_timeout(200)
+            n += 1; path = SHOTS / f'{n:02d}-scale-applied-rate-custom.png'; page.screenshot(path=str(path)); names.append(path.name)
             shot('rate-head', 'design=proposal&mode=edit&spec=2&opt=rate:head')
             shot('cols-today-on-proposal', 'design=proposal&mode=edit&spec=2&opt=cols:today')
             shot('supp-today-on-proposal', 'design=proposal&mode=edit&opt=supp:today')

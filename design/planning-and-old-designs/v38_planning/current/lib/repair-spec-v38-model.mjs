@@ -80,13 +80,19 @@ const v38Model = (() => {
   ];
 
   const RATE = 83.28;
+  // The firm's enabled labour-rate cards (Administration), as the reference's
+  // ABP 2026 segments: a card is a name and an hourly rate (LabourRateCard).
+  const RATE_CARDS = [
+    { key: 'std', name: 'Standard', rate: 83.28 },
+    { key: 'prestige', name: 'Prestige / aluminium', rate: 103.06 },
+  ];
   const ENGINEER_VALUE = 4200;
   const AGREED_SUM = 2750;
 
   const header = (name, extra = {}) => ({
     name,
     rate: RATE,
-    rateCard: 'Standard — £83.28/h',
+    band: 'std',
     uplift: false,
     other: null,
     vatPercent: 20,
@@ -168,7 +174,11 @@ const v38Model = (() => {
   const pence = (v) => Math.round(v * 100) / 100;
   const money = (v) => '£' + v.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const num = (v) => (v == null ? null : Number(v));
-  const effectiveRate = (h) => pence(h.rate * (h.uplift ? 1.15 : 1));
+  const cardOf = (h) => RATE_CARDS.find((c) => c.key === h.band) || null;
+  // The base figure is the card's rate, or the typed rate when none is chosen;
+  // the uplift adds 15 % to a card's rate (the reference's rateCalc).
+  const baseRate = (h) => (cardOf(h) ? cardOf(h).rate : h.rate);
+  const effectiveRate = (h) => pence(baseRate(h) * (h.uplift && cardOf(h) ? 1.15 : 1));
 
   // EstimateTotals.Compute: the one owner of estimate money, mirrored.
   function totals(lines, h) {
@@ -216,10 +226,12 @@ const v38Model = (() => {
   // rate to their floors; hours never move; bisection on the gross.
   function scaled(lines, h, factor, floors) {
     const priceFactor = Math.max(floors.price / 100, factor);
-    const base = h.rate;
-    const rate = pence(Math.max(Math.min(floors.rate, base), base * factor));
+    const base = effectiveRate(h);
+    // The reference's scaledRate: the scaled rate lands on a whole pound or 50p, never below its floor.
+    const rate = factor >= 1 ? base : Math.max(Math.min(floors.rate, base), Math.round(base * factor * 2) / 2);
     const sl = lines.map((l) => ({ ...l, u: l.u != null ? pence(l.u * priceFactor) : l.u, m: l.m != null ? pence(l.m * priceFactor) : l.m, scaled: (l.u != null && priceFactor < 1) || (l.m != null && priceFactor < 1) }));
-    return { lines: sl, header: { ...h, rate, uplift: false, rateCard: null }, priceFactor, atFloor: rate < base && rate <= floors.rate };
+    // Scaling lands the rate as a typed figure: the card and the uplift are let go (the reference's scaleToAmount).
+    return { lines: sl, header: { ...h, rate, uplift: false, band: null }, priceFactor, atFloor: rate < base && rate <= floors.rate };
   }
   function grossAt(lines, h, factor, floors) { const s = scaled(lines, h, factor, floors); return totals(s.lines, s.header).printed.gross; }
   function scaleTo(lines, h, targetGross, floors) {
@@ -269,6 +281,6 @@ const v38Model = (() => {
 
   const clone = (v) => JSON.parse(JSON.stringify(v));
 
-  return { OPERATIONS, WORD, COLS, SPECS: clone(SPECS), SPECS_ONE: clone(SPECS_ONE), RATE, ENGINEER_VALUE, AGREED_SUM, ROUTE_TAG, ROUTE_WORDS, SOURCE_SHORT, REASONS, FLOORS: { rate: 50, price: 65 }, money, pence, totals, effectiveRate, scaleTo, grossAt, percentOfValue, diff, statement, contractSentence, lineValue, clone };
+  return { OPERATIONS, WORD, COLS, SPECS: clone(SPECS), SPECS_ONE: clone(SPECS_ONE), RATE, RATE_CARDS, cardOf, baseRate, ENGINEER_VALUE, AGREED_SUM, ROUTE_TAG, ROUTE_WORDS, SOURCE_SHORT, REASONS, FLOORS: { rate: 50, price: 65 }, money, pence, totals, effectiveRate, scaleTo, grossAt, percentOfValue, diff, statement, contractSentence, lineValue, clone };
 })();
 export default v38Model;

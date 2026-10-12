@@ -1,7 +1,7 @@
 {
   "date": "2026-10-12",
   "fail": [],
-  "okCount": 307,
+  "okCount": 320,
   "shots": [
     "01-today-read-1580.png",
     "02-today-read-1440.png",
@@ -30,15 +30,18 @@
     "25-proposal-sum.png",
     "26-proposal-scale.png",
     "27-agreed-rescale-chip.png",
-    "28-rate-bar-only.png",
-    "29-rate-head.png",
-    "30-cols-today-on-proposal.png",
-    "31-supp-today-on-proposal.png",
-    "32-diff-edit.png",
-    "33-split-edit.png",
-    "34-split-read.png",
-    "35-print-sheet.png",
-    "36-dialog-delete-lines-dialog.png",
-    "37-dialog-delete-estimate-dialog.png"
+    "28-rate-both.png",
+    "29-rate-uplift.png",
+    "30-scale-preview.png",
+    "31-scale-applied-rate-custom.png",
+    "32-rate-head.png",
+    "33-cols-today-on-proposal.png",
+    "34-supp-today-on-proposal.png",
+    "35-diff-edit.png",
+    "36-split-edit.png",
+    "37-split-read.png",
+    "38-print-sheet.png",
+    "39-dialog-delete-lines-dialog.png",
+    "40-dialog-delete-estimate-dialog.png"
   ]
 }

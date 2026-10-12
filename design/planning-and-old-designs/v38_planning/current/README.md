@@ -11,7 +11,7 @@
 - Presets: the Target % preview at 60 %; an agreed contract sum of £2,750; Explain on report ticked
 - Widgets: Diff (outline and label every region a proposal changed, with a legend), Split (Today and Proposal side by side at half size)
 - Dialog by name: Repair Spec versions, Compare repair specs, Delete all lines, Discard repair spec
-- One variable per proposal: P1 `cols` (today, dash), P2 `cmp` (today, side), P3 `supp` (today, auto), P4 `agreed` (today, drives), P5 `rate` (head, both, bar)
+- One variable per proposal: P1 `cols` (today, dash), P2 `cmp` (today, side), P3 `supp` (today, auto), P4 `agreed` (today, drives), P5 `rate` (head, bar, both), P6 `scale` (today, ref)
 
 Every choice is also a query string, for example `?design=proposal&mode=edit&spec=2&sum=2750&diff=1`.
 

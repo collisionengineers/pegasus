@@ -65,11 +65,29 @@ body.v38-strip-hidden .v38-strip{display:none}
 #section-estimate .v38-supp-row select.fi{width:auto;min-width:260px}
 #section-estimate .v38-supp-row .v38-supp-reason{min-height:0;padding:0;border:0;background:transparent;font-size:12.5px;color:var(--muted)}
 #section-estimate .v38-supp-row [data-supp-dismiss]{margin-left:auto}
-/* P5 · the labour rate as a bar under the grid: the control keeps its 36px row. */
-#section-estimate .bar.v38-rate-bar{flex-wrap:wrap}
-#section-estimate .bar.v38-rate-bar .rate-pair{grid-template-columns:260px 96px}
-#section-estimate .bar.v38-rate-bar .v38-bl-2{margin-left:8px}
-#section-estimate .bar.v38-rate-bar .fv{min-height:30px}
+/* P5 \u00b7 the labour rate bar, as the reference draws it: segments for the rate cards and Custom, the uplift tick with
+   its chip, the effective figure at the right with its working. Live tokens only; the chosen segment is ink on white. */
+#section-estimate .bar.v38-rate-bar{flex-wrap:wrap;gap:12px}
+#section-estimate .v38-rseg{display:inline-flex;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+#section-estimate .v38-rseg-btn{appearance:none;border:0;border-right:1px solid var(--line);background:#fff;color:var(--muted);padding:5px 11px;font:inherit;font-size:12px;line-height:1.15;display:flex;flex-direction:column;align-items:flex-start;gap:1px;cursor:pointer;min-height:36px;justify-content:center}
+#section-estimate .v38-rseg-btn:last-child{border-right:0}
+#section-estimate .v38-rseg-btn small{font-family:var(--mono);font-size:10px;color:var(--quiet)}
+#section-estimate .v38-rseg-btn:hover{color:var(--ink)}
+#section-estimate .v38-rseg-btn[aria-pressed="true"],#section-estimate .v38-rseg-btn.is-static[aria-current="true"]{background:var(--ink);color:#fff}
+#section-estimate .v38-rseg-btn[aria-pressed="true"] small,#section-estimate .v38-rseg-btn.is-static[aria-current="true"] small{color:rgba(255,255,255,.7)}
+#section-estimate .v38-rseg-btn.is-static{cursor:default}
+#section-estimate .v38-ratebox{margin-left:auto;gap:6px}
+#section-estimate .v38-ratebox input{width:104px;text-align:right;font-weight:600;padding-right:8px}
+#section-estimate .v38-ratebox input::-webkit-inner-spin-button,#section-estimate .v38-ratebox input::-webkit-outer-spin-button{-webkit-appearance:none;appearance:none;margin:0}
+#section-estimate .v38-ratebox input[type=number]{-moz-appearance:textfield;appearance:textfield}
+#section-estimate .v38-ratebox .gv{min-width:88px;justify-content:flex-end;font-weight:600}
+#section-estimate .v38-ratebox [data-rate-work]:empty{display:none}
+#section-estimate .v38-rate-bar .choice input[disabled]+span{color:var(--quiet)}
+/* P6 \u00b7 the scaling bar as the reference draws it: the floors and Apply on a second row under the slider. */
+#section-estimate .bar.v38-scale{flex-wrap:wrap}
+#section-estimate .v38-scale .v38-scale-row{flex-basis:100%;display:flex;align-items:center;gap:12px;margin-top:4px}
+#section-estimate .v38-scale .v38-scale-row [data-scale-apply]{margin-left:auto}
+#section-estimate .v38-scale [data-scale-remove]{white-space:nowrap}
 /* P4 · the agreed sum box in the bar reads like the discount boxes; the mismatch chip is a button. */
 #section-estimate .est-contract .dsc input[data-contract-sum]{width:110px}
 #section-estimate .v38-chip-button{font:inherit;cursor:pointer}

@@ -2,7 +2,7 @@
 
 A temporary design review artifact under the [documentation index](../../../docs/index.md) carve-out, created at operator request on 12 October 2026. Not application code, not design authority, not implementation evidence. Remove or retain it by operator instruction in the final Stage 2 PR of the round.
 
-The round brings five ideas of the operator's 15 September Case dashboard reference (`../v27_planning/pegasus_case_dashboard_2026-09-15.html`, section 6) back to the live Repair Spec section as a Stage 1 mockup: columns by line type, Compare over versions, Supplementary filled after an import, the agreed contract sum driving the spec, and the labour rate as a bar under the grid.
+The round brings six parts of the operator's 15 September Case dashboard reference (`../v27_planning/pegasus_case_dashboard_2026-09-15.html`, section 6) back to the live Repair Spec section as a Stage 1 mockup: columns by line type, Compare over versions, the Supplementary panel born of an import onto the spec, the agreed contract sum driving the spec, the labour rate bar with its rate-card segments, and the scaling bar.
 
 - [`current/`](current/README.md): the offline mockup with Today and the proposal, its build and self-check scripts, the screenshots, the notes with the sign-off list, and the discussion log.
 - [`pages/`](pages/README.md): the Case record's folder, with how the Repair Spec section works today and how it should work.

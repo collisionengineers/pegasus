@@ -25,9 +25,14 @@ Decided with the operator on 12 October 2026: the five proposals are the request
 - D10. The agreed total sum is a box in the Contract repair bar, the same Case field Decisions holds.
 - D11. Typing the sum previews the scaling to that sum as the Target % slider does; Apply records it; when the spec drifts from the sum again, the mismatch chip rescales it on press.
 
-## P5 · The labour rate also under the grid
+## P5 · The labour rate bar
 
-- D12. Labour rate (£/h), with its rate-card select and typed figure, and Regional uplift stand in a bar directly under the grid, first in the bar stack, as well as in the head cells.
+- D12. The labour rate is a bar directly under the grid, first in the bar stack: one segment per enabled rate card and a Custom · typed segment, all selectable; the "+ 15 % regional uplift" tick with the London & Home Counties chip; the effective figure in a box at the right. A card sets the figure; the uplift adds 15 % to a card's rate and shows its working; a typed figure is Custom, marked Manual, and turns the uplift off. The head keeps Repair spec name, Other costs (£), VAT % and Repairer VAT status.
+
+## P6 · Target % of value as the reference scales
+
+- D13. The slider runs from the floor-scaled minimum to the spec's as-estimated share and reads the total as estimated; moving it previews the scaled spec (amber cells, the readout with the percentage and the price factor, Preview) and offers Apply and Remove scaling; Apply freezes and scales and the readout then reads the scaled total against the estimate's; Remove scaling drops a preview or returns an applied scaling to the estimate.
+- D14. The floors (labour £/h, prices %) stand on a second row under the slider; the scaled labour rate lands on a 50p step, never below its floor, and the rate bar reads Custom with Manual once scaled.
 
 ## Open
 
@@ -35,6 +40,6 @@ Decided with the operator on 12 October 2026: the five proposals are the request
 
 ## Documentation impact when the FRDs are written
 
-- FRD-25 "Engineer acts on a spec": D4–D7, D10, D11.
+- FRD-25 "Engineer acts on a spec": D4–D7, D10, D11, D13, D14 (the 50p step and the slider's floor are Core changes).
 - FRD-16 "Case workspace": D1, D2, D12 (the section's geometry and the one Save carrying the cells drawn).
-- Design authority, Case record frame: the rate bar and the dash cells.
+- Design authority, Case record frame: the rate bar, the scaling bar and the dash cells.
