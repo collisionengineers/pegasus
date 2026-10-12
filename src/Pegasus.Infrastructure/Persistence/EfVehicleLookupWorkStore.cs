@@ -679,7 +679,8 @@ internal sealed class EfVehicleLookupWorkStore(
 
     /// <summary>
     /// The assessment values lookups, Glass's VIN fills
-    /// (<see cref="GlassVinFillWriter"/>) and linked Triage findings
+    /// (<see cref="GlassVinFillWriter"/>), capture documents
+    /// (<see cref="EfVehicleCaptureFill"/>) and linked Triage findings
     /// (<see cref="TriageFindingFillWriter"/>) filled on the Case since
     /// <paramref name="sinceVersion"/>, each with its value before the first of
     /// them: what a Save prepared at that version shows for those fields.
@@ -695,6 +696,7 @@ internal sealed class EfVehicleLookupWorkStore(
                 && item.AfterVersion > sinceVersion
                 && (item.EventType.StartsWith("vehicle_lookup_")
                     || item.EventType == GlassVinFillWriter.EventType
+                    || item.EventType == EfVehicleCaptureFill.EventType
                     || item.EventType == TriageFindingFillWriter.EventType)
                 && item.ResultJson != null)
             .OrderBy(item => item.AfterVersion)

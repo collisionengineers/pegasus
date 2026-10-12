@@ -69,7 +69,16 @@ document type, not a Principal, and it is ordinary inbound mail: it follows
 the same receipt, classification and extraction rules as any other
 attachment. Pegasus reads the vehicle identity from it (registration, make
 and model, VIN, mileage and accident date) and nothing else, and takes the
-vehicle images from the PDF itself.
+vehicle images from the PDF itself. Its photographs are every JPEG on its
+"Submitted Vehicle Images" page, whatever their size; the letterhead logo and
+page icons are not photographs, and a repeated photograph is kept once. The
+printed registration, not a plate read, pairs the photographs with a
+matching Case or registers their Image intake
+([FRD-19](frd-19-image-led-intake-and-pairing.md#image-initiated-case-projection)). On
+the Case the photographs join, the reading fills the make, model, mileage and
+accident date only where the Case holds none, and the VIN only where the
+work holds none; nothing already recorded is replaced (operator, 12 October
+2026).
 
 **Direct Case creation** is a staff path that the Automation Actor also
 takes, through `pegasus_case_create`

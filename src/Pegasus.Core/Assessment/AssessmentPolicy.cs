@@ -125,6 +125,7 @@ public static class AssessmentPolicy
         OriginalReportPrefillPolicy.RecorderId,
         VehicleLookupFillPolicy.RecorderId,
         GlassVinFillPolicy.RecorderId,
+        Intake.ThirdPartyReports.VehicleCaptureFill.RecorderId,
         PrincipalDefaultFeePolicy.RecorderId,
     };
 

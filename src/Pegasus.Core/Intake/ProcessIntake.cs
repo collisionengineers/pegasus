@@ -198,8 +198,7 @@ public sealed class ProcessIntake(
         var assets = new List<IntakeAssetRecord> { sourceAsset };
         try
         {
-            foreach (var candidate in readResult.AssetCandidates
-                .Where(InstructionEvidenceImages.IsRetentionCandidate))
+            foreach (var candidate in InstructionEvidenceImages.RetentionCandidates(readResult))
             {
                 assets.Add(await RetainAsync(candidate, cancellationToken));
             }
