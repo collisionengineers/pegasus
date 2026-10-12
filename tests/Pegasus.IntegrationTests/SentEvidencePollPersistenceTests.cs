@@ -320,7 +320,7 @@ public sealed class SentEvidencePollPersistenceTests
             10,
             ActionActor.SystemWorker("sent-evidence-poll"),
             default);
-        // The completing poll schedules the next claim a minute out and the
+        // The completing poll schedules the next claim 30 seconds out and the
         // fixture clock is fixed, so make this mailbox due again for the
         // replay: a real due claim, never a weakened idempotency assertion.
         await factory.Database.ExecuteAsync(
