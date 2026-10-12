@@ -96,6 +96,7 @@ flowchart LR
 | QDOS extraction policy | `src/Pegasus.Core/Intake/DirectPrincipals/Qdos/QdosInstructionExtractionPolicy.cs` |
 | Evidenced principal mail route, classification, and case-match policies | `src/Pegasus.Core/Intake/PrincipalMailRoutePolicy.cs`, `src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs`, `src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs` |
 | Core mail categories (the eleven flat categories, [ADR-0069](adr/0069-one-flat-mail-category.md)) | `src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs` (`MailCategory`, `MailCategories`); there is no destination or folder policy and no folder move |
+| Case-state mail classification (`case_state_mail_classification` v1, [ADR-0070](adr/0070-case-state-mail-classification.md)): a linked message no predicate classified takes Query or Case update from the Case's lifecycle state | `src/Pegasus.Core/Intake/Classification/CaseStateMailClassification.cs`; applied by `EfIntakeMutationStore` inside the automatic and staff link transactions, before `CaseQueryLedger` reads the decision |
 | Core case-match evaluator and `CaseMatchIndex` read model | `src/Pegasus.Core/Intake/CaseMatching/`, `src/Pegasus.Infrastructure/Persistence/CaseMatchEntities.cs` |
 | Core image-intake registration, pairing, and lifecycle use cases | `src/Pegasus.Core/ImageIntake/` |
 | In-process ONNX VRM recognition engine (ADR-0019) | `src/Pegasus.Infrastructure/Vision/` |

@@ -106,9 +106,9 @@ later corrections.
 | Triage request | Accepted Triage request; a missing VRM stays Unidentified under FRD-03 | route predicate or staff | No automatic case: opens the Triage workflow on its accepted Triage match evidence ([FRD-03](frd-03-triage.md)) and defers Unidentified registration |
 | Pre-instruction | Known pre-formal handling request, excluding Triage | staff | Label |
 | Images received | Images before a formal instruction, excluding an accepted instruction | attachment or route evidence or staff | Offers staff **Register images** for image-only material with no Case and no Triage ([FRD-19](frd-19-image-led-intake-and-pairing.md)) |
-| Case update | Update on ongoing work, excluding a new instruction or a post-report challenge; a client or Principal asking for progress on ongoing work; other ongoing correspondence once the more specific categories are excluded | staff | Label |
+| Case update | Update on ongoing work, excluding a new instruction or a post-report challenge; a client or Principal asking for progress on ongoing work; other ongoing correspondence once the more specific categories are excluded | route predicate, the state of the linked Case, or staff | Label |
 | Cancellation | Explicit cancellation; it wins over quoted old instructions | route predicate or staff | The Case aside's Cancellation received row and the Cancellation received staff notice |
-| Query | Question about, or challenge to, a delivered report or finding, a dispute included; a request to amend a delivered report | route or thread evidence or staff | On a Case in Report sent it raises a Case query ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)), the Query received notice and the Query response AI job source; other rows offer **Tag as query** |
+| Query | Question about, or challenge to, a delivered report or finding, a dispute included; a request to amend a delivered report | route predicate, the state of the linked Case, thread evidence or staff | On a Case in Report sent it raises a Case query ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)), the Query received notice and the Query response AI job source; other rows offer **Tag as query** |
 | Billing | Payment notification or remittance advice or evidence; an invoice request or invoice action; a billing, invoice, payment or remittance question; other billing mail | predicate or staff | Label |
 | General | Generated automatic-reply evidence, never quoted new-work text; delivery-status or non-delivery evidence for the exact message; an acknowledgement of receipt without a request, new work, query or cancellation; a general chase, including one about several Cases; an informational summary with no new instruction or actionable request | route predicate, transport evidence or staff | Label |
 | Not client related | Internal, company, tool, service or software mail unrelated to client work | sender or route evidence or staff | Label |
@@ -119,6 +119,25 @@ or evidence is missing or conflicting. Several matching candidates are
 Unclassified too, with the candidates named; no winner is invented. Any
 classified message blocks automatic image registration: only Unclassified or
 undecided mail is eligible.
+
+Every retained received message carries a classification decision. A
+message whose sender matches no accepted route, or whose route has no
+classification policy, is recorded Unclassified under the
+`no_mail_classification_policy` rule with the route's reason, so staff can
+correct it and the workspace lists it; nothing is left without a decision.
+
+**Case-state classification** (`case_state_mail_classification` v1,
+operator 8 October 2026, [ADR-0070](../adr/0070-case-state-mail-classification.md)).
+When a received mail message joins a Case, by automatic association or by a
+staff link, and its decision is still Unclassified, the Case's lifecycle
+state classifies it: a Case in Report sent makes it Query; a Case still in
+progress (Not ready, Held, Review or With Engineer) makes it Case update; a
+closed Case classifies nothing. The Principal's own case-match keys found
+the Case, so this is per-Principal evidence without a per-Principal
+predicate. A classified decision, including a staff correction, is never
+overridden. The decision is written in the same transaction as the link,
+before the query rule in
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries) reads it.
 
 A body that merely says "audit", a forwarded old instruction, two accepted
 matches at once, or incomplete route evidence must never be promoted by

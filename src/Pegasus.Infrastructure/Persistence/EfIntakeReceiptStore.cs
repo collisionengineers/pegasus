@@ -730,7 +730,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             entity.IsReplyContext);
     }
 
-    private static void ApplyMailClassificationDecision(
+    internal static void ApplyMailClassificationDecision(
         PegasusDbContext context,
         IntakeReceiptEntity receipt,
         MailClassificationResult? decision,
