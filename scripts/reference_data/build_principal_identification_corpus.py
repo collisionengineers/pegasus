@@ -263,12 +263,12 @@ QDOS_VOLUME_RESULTS = {
 }
 
 QDOS_ACCEPTED_CLASSIFICATION = (
-    ("subject.automatic-reply", "subject", "Automatic reply:", "General/autoreply"),
+    ("subject.automatic-reply", "subject", "Automatic reply:", "general"),
     ("subject.reply-prefix", "subject", "RE: family", "reply-context-only"),
-    ("body.triage-only-request", "sender-authored-body", "Triage Only Request", "pre-instruction-emails/triage-request"),
-    ("subject.engineer-triage", "subject", "Engineer Triage", "pre-instruction-emails/triage-request"),
-    ("attachment.audit-report-notification", "instruction-document", "AUDIT REPORT NOTIFICATION", "new-instruction-received/audit"),
-    ("attachment.engineer-notification", "instruction-document", "ENGINEER NOTIFICATION", "new-instruction-received/inspection"),
+    ("body.triage-only-request", "sender-authored-body", "Triage Only Request", "triage-request"),
+    ("subject.engineer-triage", "subject", "Engineer Triage", "triage-request"),
+    ("attachment.audit-report-notification", "instruction-document", "AUDIT REPORT NOTIFICATION", "new-instruction/Audit"),
+    ("attachment.engineer-notification", "instruction-document", "ENGINEER NOTIFICATION", "new-instruction/Inspection"),
 )
 
 QDOS_ASSOCIATION_KEYS = (
@@ -938,8 +938,8 @@ def dossier(
         ),
         "caseTypes": (
             [
-                {"classification": "new-instruction-received/inspection", "caseType": "Inspection"},
-                {"classification": "new-instruction-received/audit", "caseType": "Audit"},
+                {"classification": "new-instruction/Inspection", "caseType": "Inspection"},
+                {"classification": "new-instruction/Audit", "caseType": "Audit"},
                 {"classification": "inspection plus REPORT + AUDIT REPORT marker", "caseType": "InspectionAndAudit"},
             ]
             if code == "QDOS" else []
@@ -1366,23 +1366,16 @@ def build_package(repository_root: Path, collision_root: Path, corpus_root: Path
             ],
             "classificationOutcomes": {
                 "onePredicate": "Classified",
-                "multiplePredicates": "Ambiguous",
+                "multiplePredicates": "Unclassified",
                 "noPredicate": "Unclassified",
             },
         },
         "sharedTaxonomy": {
             "sourceRef": "shared-mail-taxonomy",
-            "received": {
-                "General": ["autoreply", "undeliverable", "acknowledgement", "general-chase", "case-summary"],
-                "billing": ["payment-notification", "remittance", "invoice-request", "billing-query", "general-billing"],
-                "new-instruction-received": ["audit", "diminution", "inspection", "new-client", "website-enquiry"],
-                "non-client-related": [],
-                "in-progress-cases": ["cancellation", "case-update", "client-chasing-for-update", "principal-chasing-for-update", "ongoing-correspondence"],
-                "post-report-emails": ["query", "dispute", "amendment-request"],
-                "pre-instruction-emails": ["triage-request", "pre-formal-instruction-request", "images-received"],
-                "internal-cc": [],
-            },
-            "sent": ["Report sent", "case-rejected", "query-sent", "additional-image-request"],
+            "categories": [
+                "new-instruction", "triage-request", "pre-instruction", "images-received", "case-update",
+                "cancellation", "query", "billing", "general", "not-client-related", "internal-cc",
+            ],
         },
         "coverage": {
             "principalCount": len(principals),

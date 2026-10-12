@@ -166,11 +166,11 @@ public sealed class CaseQueriesSectionWebTests
             CorrespondenceEmails =
             [
                 new(generalId, receivedAtUtc, "handler@principal.example", null, null, "Quick question",
-                    MailCategory.Received(ReceivedMailFamily.General)) { ClassificationVersion = 4 },
+                    MailCategory.General) { ClassificationVersion = 4 },
                 new(postReportId, receivedAtUtc.AddMinutes(-1), "handler@principal.example", null, null, "Repair query",
-                    MailCategory.Received(ReceivedMailFamily.PostReportEmails, MailCategory.QuerySubtype)) { ClassificationVersion = 5 },
+                    MailCategory.Query) { ClassificationVersion = 5 },
                 new(sentId, receivedAtUtc.AddMinutes(-2), "desk@collision.example", null, null, "Your report",
-                    null, Direction: MailDirection.Sent) { ClassificationVersion = 6 },
+                    null, IsSent: true) { ClassificationVersion = 6 },
                 new(undecidedId, receivedAtUtc.AddMinutes(-3), "handler@principal.example", null, null, "Not yet classified",
                     null)
             ]
@@ -204,7 +204,7 @@ public sealed class CaseQueriesSectionWebTests
         null,
         new(messageId, RaisedAtUtc, "handler@principal.example", "Handler", "handler@principal.example",
             "When is the supplementary due?",
-            MailCategory.Received(ReceivedMailFamily.PostReportEmails, MailCategory.QuerySubtype)),
+            MailCategory.Query),
         RaisedAtUtc.AddHours(1),
         "SystemWorker",
         "intake",

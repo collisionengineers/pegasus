@@ -369,7 +369,7 @@ public sealed class CaseCustodyWebTests
                     "Forwarding Desk",
                     "desk@collisionengineers.co.uk",
                     "Repair query",
-                    MailCategory.Received(ReceivedMailFamily.PostReportEmails, "query")),
+                    MailCategory.Query),
                 new(
                     senderlessId,
                     receivedAtUtc.AddMinutes(-1),
@@ -377,7 +377,7 @@ public sealed class CaseCustodyWebTests
                     null,
                     null,
                     "Sender unavailable",
-                    MailCategory.Received(ReceivedMailFamily.PostReportEmails, "amendment-request"))
+                    MailCategory.Query)
             ]
         };
         using var baseFactory = new IntakeWebApplicationFactory();
@@ -414,7 +414,7 @@ public sealed class CaseCustodyWebTests
         Assert.DoesNotContain("Forwarding Desk", visible, StringComparison.Ordinal);
         Assert.DoesNotContain("desk@collisionengineers.co.uk", visible, StringComparison.Ordinal);
         Assert.Contains("Repair query", visible, StringComparison.Ordinal);
-        Assert.Contains("Post-report · Query", visible, StringComparison.Ordinal);
+        Assert.Contains("<td>Query</td>", queries, StringComparison.Ordinal);
         Assert.Contains("Sender unavailable", visible, StringComparison.Ordinal);
         Assert.DoesNotContain("Sender not recorded", visible, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Inbox/{forwardedId:D}\"", queries, StringComparison.OrdinalIgnoreCase);

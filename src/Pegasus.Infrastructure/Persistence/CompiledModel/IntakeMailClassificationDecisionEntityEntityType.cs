@@ -19,7 +19,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.IntakeMailClassificationDecisionEntity",
                 typeof(IntakeMailClassificationDecisionEntity),
                 baseEntityType,
-                propertyCount: 20,
+                propertyCount: 15,
                 navigationCount: 2,
                 foreignKeyCount: 1,
                 keyCount: 1);
@@ -33,13 +33,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 sentinel: new Guid("00000000-0000-0000-0000-000000000000"));
             intakeReceiptId.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
-            var ambiguousCandidatesJson = runtimeEntityType.AddProperty(
-                "AmbiguousCandidatesJson",
-                typeof(string),
-                propertyInfo: typeof(IntakeMailClassificationDecisionEntity).GetProperty("AmbiguousCandidatesJson", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(IntakeMailClassificationDecisionEntity).GetField("<AmbiguousCandidatesJson>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly));
-            ambiguousCandidatesJson.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
             var caseType = runtimeEntityType.AddProperty(
                 "CaseType",
                 typeof(string),
@@ -48,6 +41,15 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 nullable: true,
                 maxLength: 40);
             caseType.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var category = runtimeEntityType.AddProperty(
+                "Category",
+                typeof(string),
+                propertyInfo: typeof(IntakeMailClassificationDecisionEntity).GetProperty("Category", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(IntakeMailClassificationDecisionEntity).GetField("<Category>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true,
+                maxLength: 40);
+            category.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var concurrencyToken = runtimeEntityType.AddProperty(
                 "ConcurrencyToken",
@@ -74,23 +76,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 maxLength: 200);
             decidedByActor.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
-            var direction = runtimeEntityType.AddProperty(
-                "Direction",
-                typeof(string),
-                propertyInfo: typeof(IntakeMailClassificationDecisionEntity).GetProperty("Direction", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(IntakeMailClassificationDecisionEntity).GetField("<Direction>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                nullable: true,
-                maxLength: 20);
-            direction.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
-            var family = runtimeEntityType.AddProperty(
-                "Family",
-                typeof(string),
-                propertyInfo: typeof(IntakeMailClassificationDecisionEntity).GetProperty("Family", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(IntakeMailClassificationDecisionEntity).GetField("<Family>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                nullable: true,
-                maxLength: 100);
-            family.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var isReplyContext = runtimeEntityType.AddProperty(
                 "IsReplyContext",
@@ -100,23 +85,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 sentinel: false);
             isReplyContext.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
-            var otherName = runtimeEntityType.AddProperty(
-                "OtherName",
-                typeof(string),
-                propertyInfo: typeof(IntakeMailClassificationDecisionEntity).GetProperty("OtherName", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(IntakeMailClassificationDecisionEntity).GetField("<OtherName>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                nullable: true,
-                maxLength: 200);
-            otherName.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
-            var otherReasoning = runtimeEntityType.AddProperty(
-                "OtherReasoning",
-                typeof(string),
-                propertyInfo: typeof(IntakeMailClassificationDecisionEntity).GetProperty("OtherReasoning", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(IntakeMailClassificationDecisionEntity).GetField("<OtherReasoning>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                nullable: true,
-                maxLength: 1000);
-            otherReasoning.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var outcome = runtimeEntityType.AddProperty(
                 "Outcome",
@@ -174,15 +142,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 nullable: true,
                 maxLength: 500);
             standaloneAuditReportAssetSourceLabel.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
-            var subtype = runtimeEntityType.AddProperty(
-                "Subtype",
-                typeof(string),
-                propertyInfo: typeof(IntakeMailClassificationDecisionEntity).GetProperty("Subtype", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(IntakeMailClassificationDecisionEntity).GetField("<Subtype>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                nullable: true,
-                maxLength: 100);
-            subtype.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var version = runtimeEntityType.AddProperty(
                 "Version",

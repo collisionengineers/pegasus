@@ -79,14 +79,14 @@ public sealed class CaseCorrespondenceUploadWebTests
 
         // FRD-13: while the linked message's current classification is a
         // cancellation, the open Case's Next action names it and opens it.
-        await SetClassificationAsync(factory, messageId, "in-progress-cases", "cancellation");
+        await SetClassificationAsync(factory, messageId, "cancellation");
         html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}");
         Assert.Contains($"data-cancellation-received=\"{messageId:D}\"", html, StringComparison.Ordinal);
         Assert.Contains("<span>Cancellation received</span>", html, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Inbox/{messageId:D}\"", html, StringComparison.Ordinal);
 
         // Corrected to anything else, the row goes.
-        await SetClassificationAsync(factory, messageId, "in-progress-cases", "case-update");
+        await SetClassificationAsync(factory, messageId, "case-update");
         html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}");
         Assert.DoesNotContain("data-cancellation-received", html, StringComparison.Ordinal);
     }
@@ -96,8 +96,7 @@ public sealed class CaseCorrespondenceUploadWebTests
     private static async Task SetClassificationAsync(
         IntakeWebApplicationFactory factory,
         Guid messageId,
-        string family,
-        string subtype)
+        string category)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
@@ -112,9 +111,7 @@ public sealed class CaseCorrespondenceUploadWebTests
         if (receipt.MailClassificationDecision is { } decision)
         {
             decision.Outcome = "classified";
-            decision.Direction = "received";
-            decision.Family = family;
-            decision.Subtype = subtype;
+            decision.Category = category;
         }
         else
         {
@@ -122,11 +119,8 @@ public sealed class CaseCorrespondenceUploadWebTests
             {
                 IntakeReceiptId = receipt.Id,
                 Outcome = "classified",
-                Direction = "received",
-                Family = family,
-                Subtype = subtype,
+                Category = category,
                 IsReplyContext = false,
-                AmbiguousCandidatesJson = "{\"version\":1,\"data\":[]}",
                 PredicatesJson = "{\"version\":1,\"data\":[]}",
                 Reason = "Fixture.",
                 PolicyKey = "fixture",

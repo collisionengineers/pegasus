@@ -1365,8 +1365,7 @@ internal sealed class EfIntakeMutationStore(
             : new
             {
                 receipt.MailClassificationDecision.Outcome,
-                receipt.MailClassificationDecision.Family,
-                receipt.MailClassificationDecision.Subtype,
+                receipt.MailClassificationDecision.Category,
                 receipt.MailClassificationDecision.IsReplyContext,
                 receipt.MailClassificationDecision.PolicyKey,
                 receipt.MailClassificationDecision.PolicyVersion,

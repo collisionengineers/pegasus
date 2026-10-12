@@ -369,8 +369,7 @@ public sealed class ApprovedMailboxEstateIntegrationTests
                     operationKey,
                     current.MailboxIdentity,
                     current.InboxFolderIdentity,
-                    current.SentFolderIdentity,
-                    current.FolderBindings),
+                    current.SentFolderIdentity),
                 CancellationToken.None);
         }
 

@@ -11,10 +11,10 @@ durable owner.
 
 ## Outlook category write
 
-Owner: [FRD-08](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue)
+Owner: [FRD-08](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)
 (`MAIL-13`). FRD-08 describes an Administrator allowlist of Outlook
 categories that staff may apply. The code applies no Outlook category today;
-its only Outlook write is the confirmed folder move. Decision needed: build
+sending is its only mailbox write. Decision needed: build
 the category write, or remove the allowlist from FRD-08.
 
 ## Capability wording with no owning requirement

@@ -13,22 +13,22 @@ public sealed class CaseQueryRulesTests
     private static readonly Guid CaseId = Guid.NewGuid();
 
     [Theory]
-    [InlineData("report-sent-post-report", CaseLifecycleState.ReportSent, true, false, true)]
+    [InlineData("report-sent-query", CaseLifecycleState.ReportSent, true, false, true)]
     [InlineData("report-sent-already-open", CaseLifecycleState.ReportSent, true, true, false)]
     [InlineData("report-sent-ordinary-mail", CaseLifecycleState.ReportSent, false, false, false)]
     [InlineData("with-engineer", CaseLifecycleState.ReportPreparation, true, false, false)]
     [InlineData("review", CaseLifecycleState.Review, true, false, false)]
     [InlineData("held", CaseLifecycleState.Held, true, false, false)]
     [InlineData("cancelled", CaseLifecycleState.PrincipalCancelled, true, false, false)]
-    public void APostReportMessageRaisesAQueryOnlyOnAReportSentCase(
+    public void AQueryMessageRaisesAQueryOnlyOnAReportSentCase(
         string name,
         CaseLifecycleState state,
-        bool isPostReport,
+        bool isQuery,
         bool alreadyOpenForMessage,
         bool expected)
     {
         Assert.NotEmpty(name);
-        Assert.Equal(expected, CaseQueryRules.RaisesOnMailJoined(state, isPostReport, alreadyOpenForMessage));
+        Assert.Equal(expected, CaseQueryRules.RaisesOnMailJoined(state, isQuery, alreadyOpenForMessage));
     }
 
     [Theory]

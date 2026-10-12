@@ -19,9 +19,7 @@ public sealed class PrincipalMailClassificationPolicyTests
             "Triage Only Request. Please find attached our client's images.");
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        var category = Assert.IsType<MailCategory>(result.Category);
-        Assert.Equal(ReceivedMailFamily.PreInstructionEmails, category.ReceivedFamily);
-        Assert.Equal("triage-request", category.Subtype);
+        Assert.Equal(MailCategory.TriageRequest, result.Category);
     }
 
     /// <summary>
@@ -39,9 +37,7 @@ public sealed class PrincipalMailClassificationPolicyTests
             body: "Can you kindly advise if the vehicle would be considered repairable.");
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        var category = Assert.IsType<MailCategory>(result.Category);
-        Assert.Equal(ReceivedMailFamily.PreInstructionEmails, category.ReceivedFamily);
-        Assert.Equal("triage-request", category.Subtype);
+        Assert.Equal(MailCategory.TriageRequest, result.Category);
     }
 
     /// <summary>
@@ -66,12 +62,12 @@ public sealed class PrincipalMailClassificationPolicyTests
             body: "Can you kindly advise if the vehicle would be considered repairable.");
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        Assert.Equal("triage-request", Assert.IsType<MailCategory>(result.Category).Subtype);
+        Assert.Equal(MailCategory.TriageRequest, result.Category);
     }
 
     /// <summary>
     /// Both tells at once is one triage request, not two candidates. A second
-    /// candidate for the same category would resolve to Ambiguous, leaving a
+    /// candidate for the same category would resolve to Unclassified, leaving a
     /// message carrying more evidence classified worse than one carrying less.
     /// </summary>
     [Fact]
@@ -82,7 +78,7 @@ public sealed class PrincipalMailClassificationPolicyTests
             body: "Triage Only Request. Please advise on repairability.");
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        Assert.Equal("triage-request", Assert.IsType<MailCategory>(result.Category).Subtype);
+        Assert.Equal(MailCategory.TriageRequest, result.Category);
     }
 
     [Fact]
@@ -99,7 +95,7 @@ public sealed class PrincipalMailClassificationPolicyTests
             false));
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        Assert.Equal(MailCategory.TriageRequestSubtype, Assert.IsType<MailCategory>(result.Category).Subtype);
+        Assert.Equal(MailCategory.TriageRequest, result.Category);
         Assert.True(result.Predicates.Single(item => item.Key == "attachment.triage-only-request").Matched);
     }
 
@@ -109,11 +105,11 @@ public sealed class PrincipalMailClassificationPolicyTests
         var result = Classify(document: TriageLetter().Replace("\n", "\r\n", StringComparison.Ordinal));
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        Assert.Equal(MailCategory.TriageRequestSubtype, Assert.IsType<MailCategory>(result.Category).Subtype);
+        Assert.Equal(MailCategory.TriageRequest, result.Category);
     }
 
     [Fact]
-    public void DistinctTriageLettersRemainAmbiguousCandidates()
+    public void DistinctTriageLettersRemainCompetingCandidates()
     {
         var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
@@ -129,11 +125,10 @@ public sealed class PrincipalMailClassificationPolicyTests
             [],
             false));
 
-        Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
         Assert.Null(result.Category);
-        Assert.Equal(2, result.AmbiguousCandidates.Count);
-        Assert.Contains(result.AmbiguousCandidates, item => item.Contains("triage-one.pdf", StringComparison.Ordinal));
-        Assert.Contains(result.AmbiguousCandidates, item => item.Contains("triage-two.doc", StringComparison.Ordinal));
+        Assert.Contains("triage-one.pdf", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("triage-two.doc", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -163,7 +158,7 @@ public sealed class PrincipalMailClassificationPolicyTests
     }
 
     [Fact]
-    public void PlainAndCombinedEngineerLettersRemainAmbiguous()
+    public void PlainAndCombinedEngineerLettersRemainUnclassified()
     {
         var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
@@ -175,11 +170,10 @@ public sealed class PrincipalMailClassificationPolicyTests
             [],
             false));
 
-        Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
         Assert.Null(result.CaseType);
-        Assert.Equal(2, result.AmbiguousCandidates.Count);
-        Assert.Contains(result.AmbiguousCandidates, item => item.EndsWith("/Inspection", StringComparison.Ordinal));
-        Assert.Contains(result.AmbiguousCandidates, item => item.EndsWith("/InspectionAndAudit", StringComparison.Ordinal));
+        Assert.Contains("new-instruction/Inspection,", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("new-instruction/InspectionAndAudit", result.Reason, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -209,9 +203,8 @@ public sealed class PrincipalMailClassificationPolicyTests
             body: "Any update on this one?");
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        var category = Assert.IsType<MailCategory>(result.Category);
-        Assert.Equal("triage-request", category.Subtype);
-        Assert.True(category.IsReplyContext);
+        Assert.Equal(MailCategory.TriageRequest, result.Category);
+        Assert.True(result.IsReplyContext);
     }
 
     /// <summary>
@@ -248,9 +241,7 @@ public sealed class PrincipalMailClassificationPolicyTests
             "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1\nPlease can you prepare an audit report.");
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        var category = Assert.IsType<MailCategory>(result.Category);
-        Assert.Equal(ReceivedMailFamily.NewInstructionReceived, category.ReceivedFamily);
-        Assert.Equal("audit", category.Subtype);
+        Assert.Equal(MailCategory.NewInstruction, result.Category);
         Assert.Equal(CaseType.Audit, result.CaseType);
         Assert.Null(result.StandaloneAuditReport);
     }
@@ -446,9 +437,7 @@ public sealed class PrincipalMailClassificationPolicyTests
         var result = Classify(document: document);
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        var category = Assert.IsType<MailCategory>(result.Category);
-        Assert.Equal(ReceivedMailFamily.NewInstructionReceived, category.ReceivedFamily);
-        Assert.Equal("inspection", category.Subtype);
+        Assert.Equal(MailCategory.NewInstruction, result.Category);
         Assert.Equal(
             document.Contains("REPORT + AUDIT REPORT", StringComparison.Ordinal)
                 ? CaseType.InspectionAndAudit
@@ -462,9 +451,7 @@ public sealed class PrincipalMailClassificationPolicyTests
         var result = Classify(subject: "Automatic reply: (EREF8) RTA on 18/06/2026");
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        var category = Assert.IsType<MailCategory>(result.Category);
-        Assert.Equal(ReceivedMailFamily.General, category.ReceivedFamily);
-        Assert.Equal("autoreply", category.Subtype);
+        Assert.Equal(MailCategory.General, result.Category);
     }
 
     [Fact]
@@ -475,9 +462,8 @@ public sealed class PrincipalMailClassificationPolicyTests
             document: "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1");
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        var category = Assert.IsType<MailCategory>(result.Category);
-        Assert.Equal("audit", category.Subtype);
-        Assert.True(category.IsReplyContext);
+        Assert.Equal(MailCategory.NewInstruction, result.Category);
+        Assert.True(result.IsReplyContext);
     }
 
     [Fact]
@@ -488,7 +474,7 @@ public sealed class PrincipalMailClassificationPolicyTests
             document: "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1");
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        Assert.False(Assert.IsType<MailCategory>(result.Category).IsReplyContext);
+        Assert.False(result.IsReplyContext);
     }
 
     [Fact]
@@ -502,7 +488,7 @@ public sealed class PrincipalMailClassificationPolicyTests
             document: "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1");
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        Assert.True(Assert.IsType<MailCategory>(result.Category).IsReplyContext);
+        Assert.True(result.IsReplyContext);
     }
 
     [Fact]
@@ -515,9 +501,8 @@ public sealed class PrincipalMailClassificationPolicyTests
             document: string.Empty);
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        var category = Assert.IsType<MailCategory>(result.Category);
-        Assert.Equal(MailCategory.TriageRequestSubtype, category.Subtype);
-        Assert.True(category.IsReplyContext);
+        Assert.Equal(MailCategory.TriageRequest, result.Category);
+        Assert.True(result.IsReplyContext);
     }
 
     [Fact]
@@ -527,7 +512,7 @@ public sealed class PrincipalMailClassificationPolicyTests
             subject: "FWD: FW: Re: (EREF9) RTA on 18/06/2026 : Mrs Jane Example",
             document: "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1");
 
-        Assert.True(Assert.IsType<MailCategory>(result.Category).IsReplyContext);
+        Assert.True(result.IsReplyContext);
     }
 
     [Fact]
@@ -542,18 +527,17 @@ public sealed class PrincipalMailClassificationPolicyTests
     }
 
     [Fact]
-    public void SimultaneousCategoryPredicatesProduceAmbiguityWithNoInventedWinner()
+    public void SimultaneousCategoryPredicatesAreUnclassifiedWithNoInventedWinner()
     {
         var result = Classify(
             body: "Triage Only Request. Please provide an initial assessment.",
             document: "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1");
 
-        Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
         Assert.Null(result.Category);
-        Assert.Equal(2, result.AmbiguousCandidates.Count);
         Assert.Null(result.CaseType);
-        Assert.Contains("pre-instruction-emails/triage-request", result.AmbiguousCandidates);
-        Assert.Contains("new-instruction-received/audit", result.AmbiguousCandidates);
+        Assert.Contains("triage-request", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("new-instruction", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -563,7 +547,7 @@ public sealed class PrincipalMailClassificationPolicyTests
 
         Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
         Assert.Null(result.Category);
-        Assert.Empty(result.AmbiguousCandidates);
+        Assert.DoesNotContain("Candidates", result.Reason, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -689,7 +673,7 @@ public sealed class PrincipalMailClassificationPolicyTests
     }
 
     [Fact]
-    public void SimultaneousAuditAndEngineerTitlesAreAmbiguousWithoutACaseType()
+    public void SimultaneousAuditAndEngineerTitlesAreUnclassifiedWithoutACaseType()
     {
         var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
@@ -701,10 +685,10 @@ public sealed class PrincipalMailClassificationPolicyTests
             [],
             false));
 
-        Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
         Assert.Null(result.CaseType);
-        Assert.Contains("new-instruction-received/audit", result.AmbiguousCandidates);
-        Assert.Contains("new-instruction-received/inspection", result.AmbiguousCandidates);
+        Assert.Contains("new-instruction/Audit", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("new-instruction/Inspection", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact]

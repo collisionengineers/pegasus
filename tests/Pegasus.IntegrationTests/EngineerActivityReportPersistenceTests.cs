@@ -42,13 +42,13 @@ public sealed class EngineerActivityReportPersistenceTests
                 // Item J: Automation's send is its own row, so the total is every send.
                 SentOperation("connector", From.AddDays(6), Pegasus.Core.Identity.ActorKind.Automation));
             context.IntakeReceipts.AddRange(
-                Query(From.AddDays(1), "post-report-emails", caseA, active: true),
-                Query(From.AddDays(2), "post-report-emails", caseA, active: true),
-                Query(From.AddDays(2), "post-report-emails", caseA, active: false),
-                Query(From.AddDays(2), "instructions", caseA, active: true),
-                Query(To, "post-report-emails", caseA, active: true),
-                Query(From.AddDays(4), "post-report-emails", caseB, active: true),
-                Query(From.AddDays(4), "post-report-emails", unassigned, active: true));
+                Query(From.AddDays(1), "query", caseA, active: true),
+                Query(From.AddDays(2), "query", caseA, active: true),
+                Query(From.AddDays(2), "query", caseA, active: false),
+                Query(From.AddDays(2), "new-instruction", caseA, active: true),
+                Query(To, "query", caseA, active: true),
+                Query(From.AddDays(4), "query", caseB, active: true),
+                Query(From.AddDays(4), "query", unassigned, active: true));
             await context.SaveChangesAsync();
         }
 
@@ -65,8 +65,8 @@ public sealed class EngineerActivityReportPersistenceTests
     }
 
     /// <summary>
-    /// MI-01's query types, Audit uplift and the Engineer's own turnaround: an
-    /// amendment request is counted inside the queries; a
+    /// MI-01's queries, Audit uplift and the Engineer's own turnaround: an
+    /// amendment request is a query; a
     /// report sent on an Audit Case counts as an Audit report; the send's
     /// generation names the Case whose origin receipt gives the turnaround.
     /// </summary>
@@ -96,9 +96,9 @@ public sealed class EngineerActivityReportPersistenceTests
             inspectionAndAuditSend.ContextId = inspectionAndAuditGeneration;
             context.Set<StaffMailSendOperationEntity>().AddRange(inspectionSend, auditSend, inspectionAndAuditSend);
             context.IntakeReceipts.AddRange(
-                Query(From.AddDays(1), "post-report-emails", inspection, active: true, subtype: "query"),
-                Query(From.AddDays(2), "post-report-emails", inspection, active: true, subtype: "query"),
-                Query(From.AddDays(3), "post-report-emails", audit, active: true, subtype: "amendment-request"));
+                Query(From.AddDays(1), "query", inspection, active: true),
+                Query(From.AddDays(2), "query", inspection, active: true),
+                Query(From.AddDays(3), "query", audit, active: true));
             await context.SaveChangesAsync();
         }
 
@@ -109,7 +109,6 @@ public sealed class EngineerActivityReportPersistenceTests
         Assert.Equal(3, row.ReportsSent);
         Assert.Equal(1, row.AuditReportsSent);
         Assert.Equal(3, row.QueriesReceived);
-        Assert.Equal(1, row.AmendmentRequests);
         // All Cases were received at From; sent two, three and four days later.
         Assert.Equal(TimeSpan.FromDays(3), row.AverageReceivedToSent);
     }
@@ -225,10 +224,9 @@ public sealed class EngineerActivityReportPersistenceTests
 
     private static IntakeReceiptEntity Query(
         DateTimeOffset receivedAtUtc,
-        string family,
+        string category,
         Guid caseId,
-        bool active,
-        string? subtype = null)
+        bool active)
     {
         var id = Guid.NewGuid();
         return new()
@@ -254,10 +252,7 @@ public sealed class EngineerActivityReportPersistenceTests
             {
                 IntakeReceiptId = id,
                 Outcome = "classified",
-                Direction = "received",
-                Family = family,
-                Subtype = subtype,
-                AmbiguousCandidatesJson = "[]",
+                Category = category,
                 PredicatesJson = "[]",
                 Reason = "report test",
                 PolicyKey = "report-test",

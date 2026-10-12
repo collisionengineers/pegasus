@@ -74,8 +74,12 @@ the Triage may link to ([FRD-03](docs/frd/frd-03-triage.md)).
 _Avoid_: pre-Case Triage record, T-reference
 
 **Unidentified**:
-Safely retained material or an inseparable submission group that has not become a Case (Triage included) or Image intake: its identity, meaning, ownership or destination cannot be established, or it could not be read. It receives an immutable U-reference and a reason under FRD-02; material that could not be read carries the reason Could not be read with its file kind. Readable material that must not become a Case is closed with a reason, and a closed item can be reopened. It is distinct from Triage, a missing Audit original report, Image Intake and a formal Case in Not ready.
+Safely retained material or an inseparable submission group that has not become a Case (Triage included) or Image intake: its identity, meaning, ownership or destination cannot be established, or it could not be read. It receives an immutable U-reference and a reason under FRD-02; material that could not be read carries the reason Could not be read with its file kind. Readable material that must not become a Case is closed with a reason, and a closed item can be reopened. It is distinct from Triage, a missing Audit original report, Image Intake and a formal Case in Not ready. It is not a mail category.
 _Avoid_: Triage, Blocked, Blocked intake
+
+**Mail category**:
+The one category a retained received message has, from eleven: New instruction, Triage request, Pre-instruction, Images received, Case update, Cancellation, Query, Billing, General, Not client related and Internal CC ([FRD-08](docs/frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)). A message no classification has decided is Unclassified and shows as Unidentified. Sent items carry no category.
+_Avoid_: family, subtype, destination, Other, Ambiguous
 
 **Held**:
 A Case state that pauses progression and recurring chasers until staff decide. A hold records a reason and may carry a Review on date, which is when it is next due for a decision. A cancellation message never changes a Case by itself; staff may place the Case on Hold with the cancellation as the reason ([FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md)).
@@ -193,9 +197,10 @@ completed (operator, 11 October 2026;
 _Avoid_: Completed, Complete, Post-report, Closed
 
 **Query**:
-A record on a Case: a received post-report e-mail tagged as one, or a query
+A record on a Case: a received e-mail classified Query, or a query
 staff logged with its channel and details. While any is open the Case reads
 Query, in purple, whatever its state; Resolve query closes every open one.
 A dispute, a challenge to a delivered report or finding, is a query: there is
-no separate dispute type, count or column (operator, 9 October 2026).
+no separate dispute type, count or column (operator, 9 October 2026). An
+amendment request is a query too (operator, 12 October 2026).
 _Avoid_: Query state, Dispute as its own category

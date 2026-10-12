@@ -466,7 +466,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20261011130000_DropAiJobMarketResearchIndexes",
                 "20261011140000_ImageMatchDecline",
                 "20261011191701_ReportSentAndCaseQueries",
-                "20261012120000_MailboxIncomingOutgoing"
+                "20261012120000_MailboxIncomingOutgoing",
+                "20261012180000_FlatMailCategory"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

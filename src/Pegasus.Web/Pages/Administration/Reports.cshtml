@@ -139,7 +139,6 @@
                                 <tr>
                                     @{ SortHeader("Person", "person", numeric: false, principal: false); }
                                     @{ SortHeader("Queries received", "queries", numeric: true, principal: false); }
-                                    <th scope="col" class="num">Amendment requests</th>
                                     @{ SortHeader("Reports sent", "reports", numeric: true, principal: false); }
                                     <th scope="col" class="num">Audit reports sent</th>
                                     <th scope="col">Received to sent</th>
@@ -148,11 +147,11 @@
                             <tbody>
                             @if (Model.EngineerActivityUnavailable)
                             {
-                                <tr><td colspan="6" class="muted">Unavailable</td></tr>
+                                <tr><td colspan="5" class="muted">Unavailable</td></tr>
                             }
                             else if (engineerRows.Count == 0)
                             {
-                                <tr><td colspan="6" class="muted">No engineer activity was recorded for this period.</td></tr>
+                                <tr><td colspan="5" class="muted">No engineer activity was recorded for this period.</td></tr>
                             }
                             else
                             {
@@ -163,7 +162,6 @@
                                     <tr>
                                         <td>@row.DisplayName</td>
                                         <td class="num">@Measure(row.QueriesReceived, mostQueries)</td>
-                                        <td class="num tabular">@row.AmendmentRequests</td>
                                         <td class="num">@Measure(row.ReportsSent, mostSent)</td>
                                         <td class="num tabular">@row.AuditReportsSent</td>
                                         <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToSent, "—")</td>

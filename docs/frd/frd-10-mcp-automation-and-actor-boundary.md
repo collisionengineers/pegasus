@@ -20,8 +20,8 @@
   Cases, received items and their inspection address, direct Case creation,
   Case details and notes, findings, valuation, estimates, the Case's
   lifecycle acts, reports and their approval, report wording, image
-  preparation, the Case's documents, AI jobs, mail dismiss and folder moves,
-  and Work Centre dismiss. It sends reports to the Principal and e-mail under
+  preparation, the Case's documents, AI jobs, mail correction, dismiss and
+  restore, and Work Centre dismiss. It sends reports to the Principal and e-mail under
   its own `automation.send` scope. It never puts an estimate in use, never
   runs a Glass's session and never touches Glass's credentials.
 - A tool counts as delivered only after a real caller has proved success,
@@ -195,7 +195,7 @@ manual chase; log a query (its channel, with the reason as its details) on a
 Report sent Case; and resolve the Case's open queries (operator, 11 October
 2026). Each needs the reason staff give for it, except where staff give
 none. A tagged e-mail is a query too: `pegasus_mail_correct_classification`
-to the post-report query. Core alone decides which act the Case's state
+to Query. Core alone decides which act the Case's state
 allows ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
 A Case is never deleted.
 
@@ -367,10 +367,11 @@ replays by its operation key.
 - `pegasus_unidentified_resolve` with `targetKind` Closed is **Close with
   reason**: it names no destination. `pegasus_unidentified_reopen` withdraws
   a resolution or closure with a reason.
-- `pegasus_mail_action` with `move_folder` confirms the move to the folder
-  the classification recommends, with the classification, recommendation
-  and mailbox versions `pegasus_mail_get` returns; `dismiss` and `restore`
-  change the message's Pegasus scope only
+- `pegasus_mail_correct_classification` takes a mail category or
+  Unclassified, with a reason, as the staff correction does
+  ([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)).
+- `pegasus_mail_action` with `dismiss` or `restore` changes the message's
+  Pegasus scope only
   ([FRD-20](frd-20-mailbox-workspace.md#dismiss)).
 - `pegasus_work_centre_dismiss` dismisses a Case, Unidentified item or AI
   job from the Work Centre for everyone, as a row's **Dismiss** does
@@ -390,7 +391,7 @@ stopped automation client is refused before any tool runs.
 | Tool | Scope | Action |
 | --- | --- | --- |
 | `pegasus_ai_job_list` | `automation.jobs` | List jobs by state and kind; a client sees every queued job and its own taken jobs |
-| `pegasus_ai_job_create` | `automation.jobs` | Create a job of any kind with the subject the staff action names: Estimate (a Case, optional direction and target), MarketResearch (a Case and guide month; a pending job for the Case is returned instead), QueryResponse (a retained post-report query linked to its Case), UnidentifiedResolution (an open U-reference) or UnidentifiedQueuePass (an instruction). Jobs are how external agents on automated runs hand work to each other (operator, 7 October 2026) |
+| `pegasus_ai_job_create` | `automation.jobs` | Create a job of any kind with the subject the staff action names: Estimate (a Case, optional direction and target), MarketResearch (a Case and guide month; a pending job for the Case is returned instead), QueryResponse (a retained Query e-mail linked to its Case), UnidentifiedResolution (an open U-reference) or UnidentifiedQueuePass (an instruction). Jobs are how external agents on automated runs hand work to each other (operator, 7 October 2026) |
 | `pegasus_ai_job_transition` | `automation.jobs` | One tool with an `action`: Take claims a queued job under a bounded lease held by the client's name (refused when the job is not queued or the kill switch is on); Progress renews the lease and records a short note (refused after cancellation, lease expiry or while the kill switch is on); Complete marks a non-MarketResearch job `Draft ready`, naming its result kind; Fail marks it `Failed` with a reason; Release returns a taken job to `Queued` before the lease ends. Those five act only on the client's own job. Cancel stops any queued, taken or `Draft ready` job with a reason, as an Administrator's Stop does; Confirm marks a `Draft ready` QueryResponse or UnidentifiedQueuePass `Completed`, as the Work Centre's **Complete job** does |
 | `pegasus_ai_job_complete_market_research` | `automation.jobs` | File one findings document and one AI market research card and mark the client's MarketResearch job `Draft ready`. It takes no Case edit lease and no Case version: a source card is not a Case field edit, and the Engineer who asked is usually still editing, so it never waits on or ends their session. The Case history records the attachment at the Case's current version. Refused for an archived or completed Case (operator, 28 September 2026) |
 | `pegasus_estimate_save` | `automation.assessment` | Create an estimate on a Case, which lands as an AI-draft `Draft`, or edit any live estimate in place, the Current one included; citing the Estimate job it fulfils is optional |
@@ -485,8 +486,8 @@ its one command when none is given.
 | `automation.assessment` | `pegasus_assessment_update`, `pegasus_valuation_save`, `pegasus_estimate_save`, `pegasus_estimate_act`, `pegasus_estimate_import` | The assessment, valuation and estimate writes above | one-command lease |
 | `automation.assessment` | `pegasus_valuation_get` | Get valuation for one guide source, recording its card as the Valuation section's Save does | one-command lease |
 | `automation.mail` | `pegasus_mail_list`, `pegasus_mail_get` | The retained mail workspace; one message with classification and history | none |
-| `automation.mail` | `pegasus_mail_correct_classification` | Correct a classification through the staff command | version and key |
-| `automation.mail` | `pegasus_mail_action` | `move_folder` to the recommended Outlook folder; `dismiss` or `restore` in Pegasus | versions and key for a move; key for dismiss and restore |
+| `automation.mail` | `pegasus_mail_correct_classification` | Correct a classification to a mail category or Unclassified through the staff command | version and key |
+| `automation.mail` | `pegasus_mail_action` | `dismiss` or `restore` in Pegasus | key |
 | `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
 | `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does | one-command lease |
 | `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `chaser`, `reply`, `reply_all` (either with `resolveQuery`), `forward`, `triage_reply` | Case or Triage version and key |

@@ -635,7 +635,7 @@ public sealed class StaffMailSendPersistenceTests
         var files = await verify.ServiceProvider.GetRequiredService<Pegasus.Core.Cases.ICaseQueryStore>()
             .GetFilesSectionAsync(fixture.CaseId, includeDocuments: false, frame: null, CancellationToken.None);
         Assert.NotNull(files);
-        var sentRow = Assert.Single(files!.CorrespondenceEmails, item => item.Direction == MailDirection.Sent);
+        var sentRow = Assert.Single(files!.CorrespondenceEmails, item => item.IsSent);
         Assert.Equal("Following up on your claim", sentRow.Subject);
         Assert.Equal(sentAtUtc, sentRow.ReceivedAtUtc);
         Assert.Equal("mailbox@example.invalid", sentRow.SenderAddress);
@@ -1069,7 +1069,7 @@ public sealed class StaffMailSendPersistenceTests
 
         var dossier = await scope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
             actor,
-            new(retainedMessageId, 1, MailCategory.Received(ReceivedMailFamily.General, "case-summary"),
+            new(retainedMessageId, 1, MailCategory.General,
                 "A summary, not a query."));
 
         Assert.Equal(2, dossier!.Version);
@@ -1090,7 +1090,7 @@ public sealed class StaffMailSendPersistenceTests
     }
 
     [Fact]
-    public async Task CorrectingALinkedMessageToPostReportOnAReportSentCaseRaisesAQuery()
+    public async Task CorrectingALinkedMessageToQueryOnAReportSentCaseRaisesAQuery()
     {
         await using var database = await CreateDatabaseAsync();
         var mailboxId = Guid.NewGuid();
@@ -1105,7 +1105,7 @@ public sealed class StaffMailSendPersistenceTests
 
         var dossier = await scope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
             actor,
-            new(retainedMessageId, 1, MailCategory.Received(ReceivedMailFamily.PostReportEmails, "query"),
+            new(retainedMessageId, 1, MailCategory.Query,
                 "The client is querying the delivered report."));
 
         Assert.Equal(2, dossier!.Version);
@@ -1132,22 +1132,20 @@ public sealed class StaffMailSendPersistenceTests
 
     /// <summary>
     /// What a correction tells its caller about the linked Case's queries:
-    /// raised when a message becomes post-report on a Report sent Case,
-    /// withdrawn when it stops being post-report, and nothing for a move
-    /// within post-report (query and amendment request) or on a Case whose
-    /// report is not yet sent.
+    /// raised when a message becomes a query on a Report sent Case,
+    /// withdrawn when it stops being one, and nothing for a correction that
+    /// keeps it a query or on a Case whose report is not yet sent.
     /// </summary>
     [Theory]
-    [InlineData("to-post-report", CaseLifecycleState.ReportSent, false, ReceivedMailFamily.PostReportEmails, MailCategory.QuerySubtype, true, false)]
-    [InlineData("away", CaseLifecycleState.ReportSent, true, ReceivedMailFamily.General, "case-summary", false, true)]
-    [InlineData("query-to-amendment", CaseLifecycleState.ReportSent, true, ReceivedMailFamily.PostReportEmails, MailCategory.AmendmentRequestSubtype, false, false)]
-    [InlineData("before-report-sent", CaseLifecycleState.ReportPreparation, false, ReceivedMailFamily.PostReportEmails, MailCategory.QuerySubtype, false, false)]
+    [InlineData("to-query", CaseLifecycleState.ReportSent, false, MailCategory.Query, true, false)]
+    [InlineData("away", CaseLifecycleState.ReportSent, true, MailCategory.General, false, true)]
+    [InlineData("stays-query", CaseLifecycleState.ReportSent, true, MailCategory.Query, false, false)]
+    [InlineData("before-report-sent", CaseLifecycleState.ReportPreparation, false, MailCategory.Query, false, false)]
     public async Task ACorrectionReportsWhetherItRaisedOrWithdrewTheLinkedCasesQuery(
         string row,
         CaseLifecycleState state,
         bool startsPostReport,
-        ReceivedMailFamily family,
-        string subtype,
+        MailCategory category,
         bool raised,
         bool withdrawn)
     {
@@ -1163,7 +1161,7 @@ public sealed class StaffMailSendPersistenceTests
         var store = scope.ServiceProvider.GetRequiredService<IRetainedMailClassificationStore>();
         var current = (await store.GetClassificationAsync(retainedMessageId, CancellationToken.None))!;
         var after = MailClassificationResult.Classified(
-            MailCategory.Received(family, subtype),
+            category,
             current.Current.Predicates,
             "Corrected by staff.",
             current.Current.PolicyKey,
@@ -1186,7 +1184,7 @@ public sealed class StaffMailSendPersistenceTests
         var openQuery = await verify.CaseQueries.AnyAsync(item =>
             item.CaseId == fixture.CaseId && item.ClosedAtUtc == null);
         Assert.Equal(openQuery, persisted.HasOpenQuery);
-        // The open query stays open across a move within post-report.
+        // The open query stays open across a correction that keeps it a query.
         Assert.Equal(raised || (startsPostReport && !withdrawn), openQuery);
     }
 
@@ -1521,11 +1519,8 @@ public sealed class StaffMailSendPersistenceTests
             {
                 IntakeReceiptId = receiptId,
                 Outcome = "classified",
-                Direction = "received",
-                Family = isQueryReceipt ? "post-report-emails" : "General",
-                Subtype = isQueryReceipt ? MailCategory.QuerySubtype : "case-summary",
+                Category = isQueryReceipt ? "query" : "general",
                 IsReplyContext = false,
-                AmbiguousCandidatesJson = "{\"version\":1,\"data\":[]}",
                 PredicatesJson = "{\"version\":1,\"data\":[]}",
                 Reason = "staff-mail test classification",
                 PolicyKey = "staff-mail-test",
@@ -1700,11 +1695,8 @@ public sealed class StaffMailSendPersistenceTests
             {
                 IntakeReceiptId = receiptId,
                 Outcome = "classified",
-                Direction = "received",
-                Family = "post-report-emails",
-                Subtype = "query",
+                Category = "query",
                 IsReplyContext = false,
-                AmbiguousCandidatesJson = "{\"version\":1,\"data\":[]}",
                 PredicatesJson = "{\"version\":1,\"data\":[]}",
                 Reason = "staff-mail test classification",
                 PolicyKey = "staff-mail-test",

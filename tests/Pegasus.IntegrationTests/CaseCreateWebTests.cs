@@ -269,7 +269,7 @@ public sealed partial class CaseCreateWebTests
             [],
             draft: null,
             classification: MailClassificationResult.Classified(
-                MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "audit"),
+                MailCategory.NewInstruction,
                 [],
                 "A standalone Audit instruction was identified.",
                 "test-audit-classification",

@@ -849,9 +849,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         Receipt(id, IntakeDecision.NeedsSorting, "message/rfc822") with
         {
             MailClassificationDecision = MailClassificationResult.Classified(
-                MailCategory.Received(
-                    ReceivedMailFamily.PreInstructionEmails,
-                    MailCategory.TriageRequestSubtype),
+                MailCategory.TriageRequest,
                 [new("subject.engineer-triage", true, "The subject opens with the generated Triage line.")],
                 "Exactly one accepted classification predicate family matched.",
                 PrincipalMailClassificationPolicy.Key,

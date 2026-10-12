@@ -8,16 +8,16 @@ namespace Pegasus.EmailEvaluation.Desktop.Tests;
 public sealed class DesktopEvaluatorTests
 {
     [Fact]
-    public void CatalogParsesAllTwelveCategoriesWithoutReplyFolder()
+    public void CatalogParsesAllElevenCategoriesWithoutReplyFolder()
     {
         var catalog = CategoryCatalog.Load();
 
-        Assert.Equal(12, catalog.Categories.Count);
+        Assert.Equal(11, catalog.Categories.Count);
         Assert.Equal(
             [
-                "General", "billing", "new-instruction-received", "non-client-related",
-                "in-progress-cases", "post-report-emails", "pre-instruction-emails", "internal-cc",
-                "Report sent", "case-rejected", "query-sent", "additional-image-request"
+                "new-instruction", "triage-request", "pre-instruction", "images-received",
+                "case-update", "cancellation", "query", "billing", "general",
+                "not-client-related", "internal-cc"
             ],
             catalog.Categories.Select(category => category.Name));
         Assert.DoesNotContain(catalog.Categories, category => category.Name.Contains("reply", StringComparison.OrdinalIgnoreCase));
@@ -53,7 +53,7 @@ public sealed class DesktopEvaluatorTests
     }
 
     [Fact]
-    public async Task RuleClassifiedEmailPopulatesCategorySubtypeEvidenceAndPolicyVersion()
+    public async Task RuleClassifiedEmailPopulatesCategoryEvidenceAndPolicyVersion()
     {
         using var folder = TemporaryFolder();
         WriteFixture(
@@ -64,10 +64,10 @@ public sealed class DesktopEvaluatorTests
 
         var snapshot = await CreateWorkflow().SelectFolderAsync(folder.Path);
 
-        // "General/autoreply" is the settled Core taxonomy category the QDOS
-        // policy's subject.automatic-reply predicate resolves to.
+        // "general" is the Core mail category the QDOS policy's
+        // subject.automatic-reply predicate resolves to.
         Assert.Equal(
-            $"Suggested: Received / General/autoreply (policy {QdosMailClassificationPolicy.Key} v{QdosMailClassificationPolicy.Version})"
+            $"Suggested: Received / general (policy {QdosMailClassificationPolicy.Key} v{QdosMailClassificationPolicy.Version})"
                 + $"{Environment.NewLine}Evidence:"
                 + $"{Environment.NewLine}  - subject.automatic-reply: The subject carries the generated 'Automatic reply:' prefix.",
             snapshot.Suggestion);
@@ -84,7 +84,7 @@ public sealed class DesktopEvaluatorTests
         var workspace = new EvaluationWorkspace(folder.Path);
         var catalog = CategoryCatalog.Load();
         workspace.EnsureTaxonomyFolders(catalog);
-        workspace.Commit(source, "Received", "General", null, "already reviewed", DateTimeOffset.UtcNow);
+        workspace.Commit(source, "Received", "general", null, "already reviewed", DateTimeOffset.UtcNow);
 
         var workflow = CreateWorkflow();
         var snapshot = await workflow.SelectFolderAsync(folder.Path);
@@ -130,12 +130,12 @@ public sealed class DesktopEvaluatorTests
 
         var result = await workflow.TryFileAsync(
             "Received",
-            "General",
+            "general",
             null,
             "A quote: \"acknowledged\"\nwith a new line");
 
         Assert.True(result.Success);
-        Assert.True(File.Exists(Path.Combine(folder.Path, "emailevallocal", "Received", "General", "file-me.eml")));
+        Assert.True(File.Exists(Path.Combine(folder.Path, "emailevallocal", "Received", "general", "file-me.eml")));
         Assert.True(File.Exists(source));
         var logLines = await File.ReadAllLinesAsync(Path.Combine(folder.Path, "emailevallocal", "evaluation-log.jsonl"));
         Assert.Single(logLines);
@@ -156,8 +156,8 @@ public sealed class DesktopEvaluatorTests
         Directory.CreateDirectory(workspace.LogPath);
 
         Assert.ThrowsAny<Exception>(() =>
-            workspace.Commit(source, "Received", "General", null, "reason", DateTimeOffset.UtcNow));
-        Assert.False(File.Exists(Path.Combine(folder.Path, "emailevallocal", "Received", "General", "log-failure.eml")));
+            workspace.Commit(source, "Received", "general", null, "reason", DateTimeOffset.UtcNow));
+        Assert.False(File.Exists(Path.Combine(folder.Path, "emailevallocal", "Received", "general", "log-failure.eml")));
     }
 
     [Fact]
@@ -183,10 +183,10 @@ public sealed class DesktopEvaluatorTests
         WriteFixture(second.Path, "collision.eml");
         var secondWorkflow = CreateWorkflow();
         await secondWorkflow.SelectFolderAsync(second.Path);
-        var destination = Path.Combine(second.Path, "emailevallocal", "Received", "General", "collision.eml");
+        var destination = Path.Combine(second.Path, "emailevallocal", "Received", "general", "collision.eml");
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         await File.WriteAllTextAsync(destination, "existing");
-        var blocked = await secondWorkflow.TryFileAsync("Received", "General", null, "reason");
+        var blocked = await secondWorkflow.TryFileAsync("Received", "general", null, "reason");
         Assert.False(blocked.Success);
         Assert.Contains("already exists", blocked.Snapshot.Error, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("collision.eml", blocked.Snapshot.Message?.FileName);

@@ -558,8 +558,8 @@ Report sent is the exact approved-mailbox Sent-item evidence in
 [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence).
 Report sent is the Case's last stage; it does not close the Case.
 
-Post-report queries (a dispute is a query), amendment requests and replies
-stay Case correspondence with source and reply-chain identity and permanent
+Post-report queries (a dispute or an amendment request is a query) and
+replies stay Case correspondence with source and reply-chain identity and permanent
 history. The Engineer answers them. How a query is raised and resolved on
 the Case is in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries). A
