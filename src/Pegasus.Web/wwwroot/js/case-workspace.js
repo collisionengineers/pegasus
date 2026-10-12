@@ -3584,8 +3584,10 @@
         function paint() {
             var card = chosen();
             var base = card ? parseFloat(card.getAttribute('data-rate')) : parseFloat(hidden.value);
-            var lifted = !!card && !!uplift && uplift.checked;
-            if (uplift) { uplift.disabled = !card; if (!card) { uplift.checked = false; } }
+            var lifted = !!uplift && uplift.checked;
+            // A recorded uplift on a typed rate, or on a card no longer
+            // current or enabled, stands until unticked (the save keeps it).
+            if (uplift) { uplift.disabled = !card && !uplift.checked; }
             if (manual) { manual.hidden = !!card; }
             if (!isNaN(base)) {
                 display.value = (lifted ? Math.round(base * factor * 100) / 100 : base).toFixed(2);
