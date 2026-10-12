@@ -195,6 +195,20 @@ public sealed class CaseListReportTests
         Assert.Equal("engineer", result.Rows[0].SignOffEngineer);
     }
 
+    [Theory]
+    [InlineData("engineer.assigned", 1)]
+    [InlineData("sent_by.audit", 1)]
+    [InlineData("case.reference", 0)]
+    public async Task StaffNamesAreReadOnlyWhenAChosenColumnShowsAPerson(string key, int reads)
+    {
+        var accounts = new Accounts();
+
+        await new GetCaseList(new Queries([Record(CaseType.Inspection)]), accounts).ExecuteAsync(
+            new(Administrator(), null, null, false, ["case.reference", key]), default);
+
+        Assert.Equal(reads, accounts.NameReads);
+    }
+
     [Fact]
     public async Task AnInvalidAdapterRowMakesTheWholeListUnavailable()
     {
@@ -303,19 +317,24 @@ public sealed class CaseListReportTests
 
     private sealed class Accounts : IStaffAccountQueries
     {
+        public int NameReads { get; private set; }
+
         public Task<StaffAccountQuerySlice> ListAsync(int offset, int limit, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by the list.");
 
         public Task<StaffAccountSummary?> GetAsync(Guid staffId, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by the list.");
 
-        public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(IReadOnlyCollection<Guid> staffIds, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<StaffAccountSummary>>(
+        public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(IReadOnlyCollection<Guid> staffIds, CancellationToken cancellationToken)
+        {
+            NameReads++;
+            return Task.FromResult<IReadOnlyList<StaffAccountSummary>>(
                 new StaffAccountSummary[]
                 {
                     new(Engineer, "engineer", true, false, StaffRole.Engineer),
                     new(Signatory, "signatory", true, false, StaffRole.Engineer)
                 }.Where(account => staffIds.Contains(account.Id)).ToArray());
+        }
 
         public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");

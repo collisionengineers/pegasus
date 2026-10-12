@@ -410,7 +410,6 @@ public sealed record GenerateCaseAssessmentReportDraftResult(
 /// nothing new is invented here.
 /// </summary>
 public sealed class GenerateCaseAssessmentReportDraft(
-    IGetAssessmentAccess getAssessmentAccess,
     IAssessmentReportProjectionSource source,
     GenerateAssessmentReportDraft generate,
     TimeProvider timeProvider)
@@ -427,18 +426,11 @@ public sealed class GenerateCaseAssessmentReportDraft(
         CaseReportArtifactKind kind,
         CancellationToken cancellationToken = default)
     {
-        var access = await getAssessmentAccess.ExecuteAsync(
-            new(caseId, actor),
-            cancellationToken);
-        // Native report preview uses the same lifecycle action gate as the
-        // other Engineer sections; no external export is a prerequisite.
-        if (access is null || !access.CanOpen)
-        {
-            return new(GenerateCaseAssessmentReportDraftOutcome.NotFound, null, []);
-        }
-
         var input = await source.GetAsync(caseId, actor, CaseWorkSelector.Current, cancellationToken);
-        if (input is null)
+        // Native report preview uses the same lifecycle action gate as the
+        // other Engineer sections; no external export is a prerequisite. The
+        // gate reads the state the projection's own workspace load carried.
+        if (input is null || !AssessmentAccessPolicy.CanOpen(new(input.Assessment.State)))
         {
             return new(GenerateCaseAssessmentReportDraftOutcome.NotFound, null, []);
         }
