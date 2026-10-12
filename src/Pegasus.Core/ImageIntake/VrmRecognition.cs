@@ -232,8 +232,6 @@ public interface IVrmSuggestionStore
         Guid intakeReceiptId,
         CancellationToken cancellationToken);
 
-    Task<ImageVrmSuggestion?> GetAsync(Guid id, CancellationToken cancellationToken);
-
     Task<ImageVrmSuggestion> SetDispositionAsync(
         ImageVrmSuggestionDispositionRequest request,
         CancellationToken cancellationToken);

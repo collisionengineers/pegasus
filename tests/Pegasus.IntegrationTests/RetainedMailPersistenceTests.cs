@@ -738,7 +738,7 @@ public sealed class RetainedMailPersistenceTests
             1,
             25,
             CancellationToken.None);
-        Assert.Equal(1, await queries.CountAsync(unidentifiedScope, CancellationToken.None));
+        Assert.Equal(1, Assert.Single(await queries.CountManyAsync([unidentifiedScope], CancellationToken.None)));
         Assert.Equal("Open unidentified", Assert.Single(unidentified.Items).Subject);
 
         var allIncoming = await queries.ListAsync(
@@ -806,16 +806,9 @@ public sealed class RetainedMailPersistenceTests
 
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
-        var individualCounts = new int[scopes.Count];
-        for (var index = 0; index < scopes.Count; index++)
-        {
-            individualCounts[index] = await queries.CountAsync(scopes[index], CancellationToken.None);
-        }
-
         var batchCounts = await queries.CountManyAsync(scopes, CancellationToken.None);
 
-        Assert.Equal([4, 1, 1, 1, 1, 0, 1, 1, 0], individualCounts);
-        Assert.Equal(individualCounts, batchCounts);
+        Assert.Equal([4, 1, 1, 1, 1, 0, 1, 1, 0], batchCounts);
         Assert.Equal(batchCounts[2], batchCounts[7]);
         Assert.Equal(0, batchCounts[8]);
     }
@@ -2085,7 +2078,7 @@ public sealed class RetainedMailPersistenceTests
         Assert.Equal("Following up", row.Subject);
         Assert.Equal(MailboxAddress, row.SenderAddress);
         Assert.False(sent.HasUnretainedHistory);
-        Assert.Equal(1, await queries.CountAsync(new(null, MailFolderScope.Sent), CancellationToken.None));
+        Assert.Equal(1, Assert.Single(await queries.CountManyAsync([new(null, MailFolderScope.Sent)], CancellationToken.None)));
 
         var inbox = await queries.ListAsync(new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None);
         Assert.Equal("message-1", Assert.Single(inbox.Items.Select(item => item.Id).Select(id =>

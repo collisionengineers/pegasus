@@ -328,17 +328,6 @@ public static class ThirdPartyReportProfiles
     /// Selects the issuer family or the explicit non-report role for one source.
     /// Every signature is evaluated; the outcome is decided by how many matched.
     /// </summary>
-    public static ThirdPartyReportSelection Select(
-        IntakeSourceReadResult readResult,
-        ThirdPartyReportSourceContext context)
-    {
-        ArgumentNullException.ThrowIfNull(readResult);
-        ArgumentNullException.ThrowIfNull(context);
-
-        var pages = ThirdPartySourcePage.Read(readResult);
-        return Select(pages, context);
-    }
-
     internal static ThirdPartyReportSelection Select(
         IReadOnlyList<ThirdPartySourcePage> pages,
         ThirdPartyReportSourceContext context)

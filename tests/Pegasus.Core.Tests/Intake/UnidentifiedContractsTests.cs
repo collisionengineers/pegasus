@@ -123,10 +123,6 @@ public sealed class UnidentifiedContractsTests
             RegisterUnidentifiedRequest request,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
-        public Task<UnidentifiedRegisterResult?> ProbeRegisterReplayAsync(
-            RegisterUnidentifiedRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
         public Task<UnidentifiedResolveResult> ResolveAsync(
             ResolveUnidentifiedRequest request,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -310,8 +306,6 @@ public sealed class CloseUnidentifiedTests
     private sealed class ClosingStore : IUnidentifiedStore
     {
         public Task<UnidentifiedRegisterResult> RegisterAsync(RegisterUnidentifiedRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<UnidentifiedRegisterResult?> ProbeRegisterReplayAsync(RegisterUnidentifiedRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
         public Task<UnidentifiedResolveResult> ResolveAsync(ResolveUnidentifiedRequest request, CancellationToken cancellationToken = default)
         {
             var item = Closed(request);

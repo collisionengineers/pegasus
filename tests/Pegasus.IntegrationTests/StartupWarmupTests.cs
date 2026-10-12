@@ -883,9 +883,6 @@ public sealed class StartupWarmupTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<int> CountAsync(MailWorkspaceScope scope, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
         public Task<IReadOnlyList<int>> CountManyAsync(
             IReadOnlyList<MailWorkspaceScope> scopes, CancellationToken cancellationToken) =>
             throw new NotSupportedException();

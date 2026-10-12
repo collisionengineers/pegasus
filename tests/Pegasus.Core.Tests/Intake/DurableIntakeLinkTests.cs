@@ -456,8 +456,5 @@ public sealed class DurableIntakeLinkTests
             DateTimeOffset nowUtc, DateTimeOffset staleDispatchedBeforeUtc, int maximumItems,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
-
-        public Task ScheduleReevaluationAsync(Guid stagedReceipt, DateTimeOffset dueAtUtc, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
     }
 }

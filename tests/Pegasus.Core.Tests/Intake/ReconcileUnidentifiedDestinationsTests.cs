@@ -787,9 +787,6 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ImageVrmSuggestion>>([]);
 
-        public Task<ImageVrmSuggestion?> GetAsync(Guid id, CancellationToken cancellationToken) =>
-            throw new NotSupportedException("Not used by these tests.");
-
         public Task<ImageVrmSuggestion> SetDispositionAsync(
             ImageVrmSuggestionDispositionRequest request,
             CancellationToken cancellationToken) =>
@@ -1076,10 +1073,6 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         }
 
         public Task<UnidentifiedRegisterResult> RegisterAsync(
-            RegisterUnidentifiedRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task<UnidentifiedRegisterResult?> ProbeRegisterReplayAsync(
             RegisterUnidentifiedRequest request,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 

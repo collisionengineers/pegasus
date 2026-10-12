@@ -311,10 +311,6 @@ public interface IUnidentifiedStore
         RegisterUnidentifiedRequest request,
         CancellationToken cancellationToken = default);
 
-    Task<UnidentifiedRegisterResult?> ProbeRegisterReplayAsync(
-        RegisterUnidentifiedRequest request,
-        CancellationToken cancellationToken = default);
-
     Task<UnidentifiedResolveResult> ResolveAsync(
         ResolveUnidentifiedRequest request,
         CancellationToken cancellationToken = default);

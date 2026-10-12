@@ -522,31 +522,6 @@ public sealed class EfIntakeWorkStore(
         return recovered;
     }
 
-    public async Task ScheduleReevaluationAsync(
-        Guid stagedReceiptId,
-        DateTimeOffset dueAtUtc,
-        CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var item = await context.IntakeWorkItems.SingleOrDefaultAsync(
-            item => item.StagedReceiptId == stagedReceiptId,
-            cancellationToken)
-            ?? throw new InvalidDataException("The intake receipt does not exist.");
-        if (item.State == "processing"
-            && item.LeaseExpiresAtUtc is { } leaseExpiresAtUtc
-            && leaseExpiresAtUtc > dueAtUtc)
-        {
-            throw new InvalidOperationException("The intake receipt is already being processed.");
-        }
-
-        item.State = ToCode(IntakeWorkState.Pending);
-        item.DueAtUtc = dueAtUtc;
-        item.LeaseToken = null;
-        item.LeaseExpiresAtUtc = null;
-        item.FailureCode = null;
-        await context.SaveChangesAsync(cancellationToken);
-    }
-
     public async Task<Guid?> FindStagedReceiptIdForReceiptAsync(
         Guid intakeReceiptId,
         CancellationToken cancellationToken)
