@@ -120,7 +120,7 @@ internal static class ReportSentAfterSendTasks
             }
 
             var taskId = TaskId(evidenceId, index);
-            var operationKey = $"{linkOperationKey.Trim()}:task:{index}";
+            var operationKey = TaskOperationKey(linkOperationKey, index);
             if (await context.CaseTasks.AnyAsync(item => item.Id == taskId, cancellationToken)
                 || await context.CaseWorkflowEvents.AnyAsync(
                     item => item.CaseId == workflow.CaseId && item.OperationKey == operationKey,
@@ -158,6 +158,25 @@ internal static class ReportSentAfterSendTasks
         return roles.Count == 1 && Guid.TryParse(send.ActorSubjectId, out var staffId) && staffId != Guid.Empty
             ? ActionActor.Staff(staffId, roles)
             : linkActor;
+    }
+
+    /// <summary>
+    /// The link's key with the task's position. CaseWorkflowEvents.OperationKey and
+    /// ActionHistory.CorrelationId hold 100 characters and an MCP link key may be 100
+    /// itself, so a key that would not fit is derived from the link key's hash instead:
+    /// still bounded, stable for a replay and distinct per task.
+    /// </summary>
+    internal static string TaskOperationKey(string linkOperationKey, int index)
+    {
+        var key = $"{linkOperationKey.Trim()}:task:{index}";
+        if (key.Length <= 100)
+        {
+            return key;
+        }
+
+        Span<byte> hash = stackalloc byte[SHA256.HashSizeInBytes];
+        SHA256.HashData(Encoding.UTF8.GetBytes(linkOperationKey.Trim()), hash);
+        return $"report-sent-task:{Convert.ToHexString(hash[..16])}:{index}";
     }
 
     /// <summary>A stable id for the task at <paramref name="index"/> of the evidence's list.</summary>

@@ -237,6 +237,22 @@ public sealed class OpenCaseTasksPersistenceTests
                 CancellationToken.None);
     }
 
+    /// <summary>
+    /// CaseWorkflowEvents.OperationKey and ActionHistory.CorrelationId hold 100
+    /// characters and an MCP link key may be 100 itself, so a task key that would
+    /// not fit is derived from the link key's hash: bounded, stable and distinct per task.
+    /// </summary>
+    [Fact]
+    public void ATaskOperationKeyFitsItsColumnWhateverTheLinkKeyLength()
+    {
+        Assert.Equal("link:task:1", ReportSentAfterSendTasks.TaskOperationKey("link", 1));
+        var longKey = new string('k', 100);
+        var first = ReportSentAfterSendTasks.TaskOperationKey(longKey, 0);
+        Assert.True(first.Length <= 100, first);
+        Assert.Equal(first, ReportSentAfterSendTasks.TaskOperationKey(longKey, 0));
+        Assert.NotEqual(first, ReportSentAfterSendTasks.TaskOperationKey(longKey, 1));
+    }
+
     private sealed class MutableTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
         private DateTimeOffset utcNow = utcNow;
