@@ -117,5 +117,10 @@ public sealed class EfRepairSpecificationSnapshotStore(
             ?? throw new InvalidOperationException("A frozen version has no header."),
         JsonSerializer.Deserialize<CaseEstimateLineRecord[]>(entity.LinesJson, Json) ?? [],
         entity.Gross, entity.SentOnReport,
-        JsonSerializer.Deserialize<RepairSpecificationSupplementary?>(entity.SupplementaryJson, Json));
+        // A version frozen before the supplementary named a frozen version
+        // (v38 P3) reads back with no supplementary at all.
+        JsonSerializer.Deserialize<RepairSpecificationSupplementary?>(entity.SupplementaryJson, Json) is { OfSnapshotId: var of } supplementary
+            && of != Guid.Empty
+            ? supplementary
+            : null);
 }

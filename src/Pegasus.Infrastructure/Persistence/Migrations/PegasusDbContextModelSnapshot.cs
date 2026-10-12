@@ -2331,7 +2331,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<bool>("SupplementaryExplainOnReport")
                         .HasColumnType("bit");
 
-                    b.Property<Guid?>("SupplementaryOfSpecificationId")
+                    b.Property<Guid?>("SupplementaryOfSnapshotId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("SupplementaryReason")
@@ -2448,7 +2448,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("CaseRepairSpecificationSnapshots", null, t =>
                         {
-                            t.HasCheckConstraint("CK_CaseRepairSpecificationSnapshots_Kind", "[Kind] IN ('Imported', 'BeforeScaling', 'Scaled', 'ScalingRemoved', 'BeforeRestore', 'Restored', 'Sent')");
+                            t.HasCheckConstraint("CK_CaseRepairSpecificationSnapshots_Kind", "[Kind] IN ('Imported', 'BeforeScaling', 'Scaled', 'ScalingRemoved', 'BeforeRestore', 'Restored', 'Sent', 'BeforeImport')");
 
                             t.HasCheckConstraint("CK_CaseRepairSpecificationSnapshots_Number", "[Number] > 0");
                         });
