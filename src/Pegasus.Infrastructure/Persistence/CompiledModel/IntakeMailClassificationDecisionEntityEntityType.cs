@@ -76,7 +76,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 maxLength: 200);
             decidedByActor.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
-
             var isReplyContext = runtimeEntityType.AddProperty(
                 "IsReplyContext",
                 typeof(bool),
@@ -84,7 +83,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 fieldInfo: typeof(IntakeMailClassificationDecisionEntity).GetField("<IsReplyContext>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: false);
             isReplyContext.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
 
             var outcome = runtimeEntityType.AddProperty(
                 "Outcome",
