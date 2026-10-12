@@ -20,7 +20,7 @@ internal static class V1FoundationModelConfiguration
             var stages = string.Join(", ", Enum.GetNames<Pegasus.Core.Operations.StaffMailAttemptStage>().Select(x => $"'{x}'"));
             // Staff mail is sent by a member of staff or the Automation Actor
             // (ADR-0064); no other actor kind sends it.
-            e.ToTable("StaffMailSendOperations", t => { t.HasCheckConstraint("CK_StaffMailSendOperations_State", $"[State] IN ({states})"); t.HasCheckConstraint("CK_StaffMailSendOperations_AttemptStage", $"[AttemptStage] IS NULL OR [AttemptStage] IN ({stages})"); t.HasCheckConstraint("CK_StaffMailSendOperations_ActorKind", "[ActorKind] IN ('Staff', 'Automation')"); }); e.HasKey(x => x.Id);
+            e.ToTable("StaffMailSendOperations", t => { t.HasCheckConstraint("CK_StaffMailSendOperations_State", $"[State] IN ({states})"); t.HasCheckConstraint("CK_StaffMailSendOperations_AttemptStage", $"[AttemptStage] IS NULL OR [AttemptStage] IN ({stages})"); t.HasCheckConstraint("CK_StaffMailSendOperations_ActorKind", "[ActorKind] IN ('Staff', 'Automation')"); t.HasCheckConstraint("CK_StaffMailSendOperations_SecondReport", "([SecondContextId] IS NULL AND [SecondContextVersion] IS NULL) OR ([SecondContextId] IS NOT NULL AND [SecondContextVersion] > 0 AND [Purpose] = 'CaseReport' AND [SecondContextId] <> [ContextId])"); }); e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.ActorSubjectId, x.MailboxId, x.OperationKey }).IsUnique();
             // The Work Centre's Reports sent figure reads sent report e-mails by time.
             e.HasIndex(x => new { x.Purpose, x.State, x.ObservedSentAtUtc });

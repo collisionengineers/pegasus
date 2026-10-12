@@ -57,10 +57,15 @@ public sealed class StaffMailTransportRejectedException(string failureCode) : Ex
 {
     public string FailureCode { get; } = failureCode;
 }
+/// <summary>
+/// A prepared send as its execution reads it. <paramref name="SecondContextId"/>
+/// is the second report generation a Case report send carries, if any.
+/// </summary>
 public sealed record StaffMailExecution(
     string ActorSubjectId, StaffMailOperation Operation, string? DraftImmutableId,
     IReadOnlyList<StaffMailAttachment> Attachments, StaffMailPurpose Purpose,
-    Guid ContextId, long ContextVersion, Guid? CaseId);
+    Guid ContextId, long ContextVersion, Guid? CaseId,
+    Guid? SecondContextId = null);
 
 public interface IStaffMailTransport
 {
@@ -126,31 +131,53 @@ public sealed class StaffReportSend(
         StaffReportSendCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
+        var mailSecond = command.Mail.SecondReport;
+        var second = command.SecondReport;
+        // The mail carries each report's attachments in turn, and each report
+        // leads its own: the renamed delivery file is that report's first.
+        IReadOnlyList<StaffMailAttachment> frozen = second is null
+            ? command.Report.Artifacts
+            : [.. command.Report.Artifacts, .. second.Artifacts];
         if (command.Mail.Purpose != StaffMailPurpose.CaseReport
-            || command.Report.Actor.Kind != command.Mail.Actor.Kind
-            || command.Report.Actor.SubjectId != command.Mail.Actor.SubjectId
-            || command.Report.GenerationId != command.Mail.ContextId
-            || command.Report.ExpectedGenerationVersion != command.Mail.ExpectedContextVersion
-            || !AttachmentsMatch(command.Report.Artifacts, command.Mail.Attachments))
+            || !DescribesTheMail(command.Report, command.Mail, command.Mail.ContextId, command.Mail.ExpectedContextVersion)
+            || (second is null) != (mailSecond is null)
+            || (second is not null
+                && !DescribesTheMail(second, command.Mail, mailSecond!.ContextId, mailSecond.ExpectedContextVersion))
+            || !AttachmentsMatch(frozen, command.Mail.Attachments, command.Report.Artifacts.Count))
         {
             throw new ArgumentException("The report readiness and staff mail command do not describe the same frozen send.", nameof(command));
         }
         return await mailSend.SendValidatedAsync(
             command.Mail,
-            token => readiness.RequireReadyAsync(command.Report, token),
+            async token =>
+            {
+                await readiness.RequireReadyAsync(command.Report, token);
+                if (second is not null)
+                {
+                    await readiness.RequireReadyAsync(second, token);
+                }
+            },
             cancellationToken);
     }
 
+    private static bool DescribesTheMail(
+        ReportSendReadinessRequest report, StaffMailSendCommand mail, Guid contextId, long contextVersion) =>
+        report.Actor.Kind == mail.Actor.Kind
+        && report.Actor.SubjectId == mail.Actor.SubjectId
+        && report.GenerationId == contextId
+        && report.ExpectedGenerationVersion == contextVersion;
+
     private static bool AttachmentsMatch(
         IReadOnlyList<StaffMailAttachment> frozen,
-        IReadOnlyList<StaffMailAttachment> prepared)
+        IReadOnlyList<StaffMailAttachment> prepared,
+        int secondReportIndex)
     {
         return frozen.Count == prepared.Count
             && frozen.Select((attachment, index) => (attachment, index))
                 .Zip(prepared).All(pair =>
                 pair.First.attachment with { FileName = pair.Second.FileName } == pair.Second
                 && (string.Equals(pair.First.attachment.FileName, pair.Second.FileName, StringComparison.Ordinal)
-                    || (pair.First.index == 0
+                    || ((pair.First.index == 0 || pair.First.index == secondReportIndex)
                         && pair.Second.FileName is { Length: > 4 } deliveryFileName
                         && deliveryFileName.EndsWith(".pdf", StringComparison.Ordinal)
                         && !string.IsNullOrWhiteSpace(
@@ -482,6 +509,15 @@ public sealed class StaffMailSend(
                 || command.ComposeMode is not (StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll)))
         {
             throw new ArgumentException("Only a reply to Case correspondence can resolve the Case's queries.", nameof(command));
+        }
+        if (command.SecondReport is { } second
+            && (command.Purpose != StaffMailPurpose.CaseReport
+                || command.ComposeMode != StaffMailComposeMode.New
+                || second.ContextId == Guid.Empty
+                || second.ContextId == command.ContextId
+                || second.ExpectedContextVersion <= 0))
+        {
+            throw new ArgumentException("Only a new Case report send carries a second, distinct report.", nameof(command));
         }
     }
 

@@ -103,9 +103,11 @@ internal sealed class EfV1ActivityReportQueries(
                 && x.State == StaffMailState.Sent
                 && x.ObservedSentAtUtc >= fromUtc
                 && x.ObservedSentAtUtc < toUtc)
-            .Join(db.Set<CaseReportGenerationEntity>().AsNoTracking(),
-                operation => operation.ContextId,
-                generation => generation.Id,
+            // A send that carried both works' reports is a send of each.
+            .SelectMany(
+                operation => db.Set<CaseReportGenerationEntity>().AsNoTracking()
+                    .Where(generation => generation.Id == operation.ContextId
+                        || generation.Id == operation.SecondContextId),
                 (operation, generation) => new { operation, generation })
             .Join(db.CaseWorks.AsNoTracking(), x => x.generation.WorkId, work => work.Id,
                 (x, work) => new { x.operation, x.generation, WorkKind = work.Kind })

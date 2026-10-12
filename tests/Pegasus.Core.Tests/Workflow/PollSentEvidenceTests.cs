@@ -676,6 +676,55 @@ public sealed class PollSentEvidenceTests
     }
 
     /// <summary>
+    /// A send that carried both works' reports (operator, 12 October 2026)
+    /// names both generations to the auto-link, so the one Sent item proves
+    /// both works.
+    /// </summary>
+    [Fact]
+    public async Task AReportSendCarryingBothReportsNamesBothGenerationsToTheLink()
+    {
+        var lease = Lease();
+        var operationId = Guid.NewGuid();
+        var generationId = Guid.NewGuid();
+        var secondGenerationId = Guid.NewGuid();
+        var caseId = Guid.NewGuid();
+        var hashes = new[] { new string('A', 64), new string('B', 64) };
+        var operation = new StaffMailOperation(
+            operationId, StaffMailState.Submitted, StaffMailAttemptStage.ObserveSent, 5,
+            NowUtc.AddMinutes(-5), NowUtc.AddMinutes(-2), null, null,
+            lease.ApprovedMailboxId, lease.Generation, new string('C', 64), null, null,
+            StaffMailPurpose.CaseReport, generationId, 1, null);
+        var staffStore = new ObservationStore(new StaffMailExecution(
+            Guid.NewGuid().ToString("D"), operation, "draft",
+            [.. hashes.Select(hash => new StaffMailAttachment(Guid.NewGuid(), Guid.NewGuid(), hash, 10, "report.pdf", "application/pdf"))],
+            StaffMailPurpose.CaseReport, generationId, 1, caseId, secondGenerationId));
+        var messageId = $"<{StaffMailCorrelationHeaders.MessageId(operationId)}>";
+        var template = Item("staff-report-both", "sent-items", "cursor", [], []);
+        var item = template with
+        {
+            Provenance = template.Provenance! with
+            {
+                InternetMessageIdentity = messageId,
+                StaffMailOperationId = StaffMailCorrelationHeaders.TryReadOperationId(messageId),
+                AttachmentSha256 = hashes
+            }
+        };
+        var autoLink = AutoLinkPort.Linked();
+        var poll = CreateUseCase(
+            new RecordingPollStore(lease),
+            new SequencedSource(new ApprovedSentPage([item], "cursor", false)),
+            new ResponsePort(), new ReportPort(), autoLinkPort: autoLink,
+            staffMailStore: staffStore);
+
+        await poll.ExecuteAsync(1, 10, ActionActor.SystemWorker("test"), CancellationToken.None);
+
+        var request = Assert.Single(autoLink.Requests);
+        Assert.Equal(generationId, request.GenerationId);
+        Assert.Equal(secondGenerationId, request.SecondGenerationId);
+        Assert.Equal(1, staffStore.TransitionCount);
+    }
+
+    /// <summary>
     /// The provider keeps the Message-ID Pegasus assigned where it drops the
     /// custom X- headers (5 October 2026: both live sends read as Unmatched).
     /// An operation named by the Message-ID alone, with no frozen markers,

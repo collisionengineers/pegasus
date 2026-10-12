@@ -195,7 +195,12 @@ own work and without changing the Case's state, which is the Audit's
 (operator, 1 October 2026), and a sent Inspection report may be generated
 and sent again when needed, counted among Inspection sends (operator,
 2 October 2026). The Audit report never
-overwrites or reissues the Inspection report.
+overwrites or reissues the Inspection report. One email may carry both
+reports: once the Audit exists, the delivery form of either view offers the
+other work's current confirmed report as its own tick, with its own
+documents, so the Inspection report and the Audit report go together
+(operator, 12 October 2026). Each report keeps its own name and re-send
+count, and the email's subject stays the viewed work's reference.
 
 Audit outcome or reference evidence that is missing, conflicting, ambiguous,
 stale or from another Case fails before rendering. Audit adds no second
@@ -274,7 +279,9 @@ artifact the generation holds attaches and a partly confirmed generation
 yields nothing; with a choice, exactly the chosen documents must be present
 and confirmed, so a companion still being filed never silently drops out of a
 delivery that asked for it and never blocks one that did not. The report is
-always attached. The send names each chosen attachment by document,
+always attached. The other work's report, when ticked, attaches with the
+documents of it ticked, after the viewed report's, and is re-checked the
+same way. The send names each chosen attachment by document,
 version, hash and length, and re-checks just before the mail is submitted that
 every one is still a confirmed artifact, byte for byte.
 

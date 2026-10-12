@@ -29,6 +29,13 @@ internal sealed class StaffMailSendOperationEntity : IApplicationManagedConcurre
     public Pegasus.Core.Operations.StaffMailPurpose Purpose { get; set; }
     public Guid ContextId { get; set; }
     public long ContextVersion { get; set; }
+
+    /// <summary>
+    /// The other work's report generation a Case report send also carries, at
+    /// its frozen version (operator, 12 October 2026); null on any other send.
+    /// </summary>
+    public Guid? SecondContextId { get; set; }
+    public long? SecondContextVersion { get; set; }
     public Pegasus.Core.Operations.StaffMailComposeMode ComposeMode { get; set; }
     public Guid? OriginalRetainedMessageId { get; set; }
     public string? OriginalImmutableMessageId { get; set; }

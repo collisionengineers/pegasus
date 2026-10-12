@@ -858,6 +858,52 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal(ActorKind.Staff, request.Actor.Kind);
         Assert.Equal("reviewed@recipient.example", Assert.Single(request.ReviewedRecipients!.To));
         Assert.Equal("copy@recipient.example", Assert.Single(request.ReviewedRecipients.Cc));
+        Assert.Null(request.SecondReport);
+    }
+
+    /// <summary>
+    /// The other work's report ticked (operator, 12 October 2026) reaches the
+    /// send as the second report: its generation at the version the form
+    /// showed, its report and the documents of it ticked.
+    /// </summary>
+    [Fact]
+    public async Task SendReportCarriesTheOtherWorksReportWhenItsTickIsOn()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var otherGenerationId = Guid.NewGuid();
+        var send = new RecordingSendReport(StaffMailState.Submitted);
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            sendReport: send);
+        using var client = Client(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=SendReport&section=report",
+            Form(
+                AntiforgeryValue(html),
+                ("id", caseId.ToString("D")),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("editLeaseToken", "held-report-lease"),
+                ("expectedCaseVersion", "0"),
+                ("generationId", Guid.NewGuid().ToString("D")),
+                ("expectedGenerationVersion", "13"),
+                ("coveringMessage", "Both reports attached."),
+                ("toRecipients", "reviewed@recipient.example"),
+                ("secondGenerationId", otherGenerationId.ToString("D")),
+                ("secondExpectedGenerationVersion", "4"),
+                ("secondAttach", nameof(CaseReportArtifactKind.FeeNote))));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var second = Assert.IsType<SecondCaseReport>(Assert.Single(send.Requests).SecondReport);
+        Assert.Equal(otherGenerationId, second.GenerationId);
+        Assert.Equal(4, second.ExpectedGenerationVersion);
+        Assert.Equal([CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.FeeNote], second.Attach);
     }
 
     /// <summary>
