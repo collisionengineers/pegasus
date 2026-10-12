@@ -91,7 +91,7 @@ public sealed class MarketResearchQueries(IAiJobQueries jobs) : IMarketResearchQ
             throw new ArgumentException("A case identifier is required.", nameof(caseId));
         }
 
-        return MarketResearchPolicy.PendingOf(await _jobs.ListForSubjectAsync(caseId, cancellationToken));
+        return await _jobs.GetPendingMarketResearchAsync(caseId, cancellationToken);
     }
 }
 

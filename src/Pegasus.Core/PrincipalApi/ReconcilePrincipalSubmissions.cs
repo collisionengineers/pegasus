@@ -52,21 +52,17 @@ public sealed class ReconcilePrincipalSubmissions(
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
 
+        var nowUtc = timeProvider.GetUtcNow();
         var candidates = await submissionStore.ListAcceptRecoveryCandidatesAsync(
             maximumItems,
+            nowUtc - AcceptHistoryGracePeriod,
             cancellationToken);
         var repaired = 0;
         var failures = 0;
         string? firstFailure = null;
-        var nowUtc = timeProvider.GetUtcNow();
         foreach (var candidate in candidates)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (nowUtc - candidate.ReceivedAtUtc < AcceptHistoryGracePeriod)
-            {
-                continue;
-            }
-
             try
             {
                 // Stamped with when the submission was received, not with this
