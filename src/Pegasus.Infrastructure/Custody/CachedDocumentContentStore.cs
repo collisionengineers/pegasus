@@ -1485,7 +1485,6 @@ internal sealed class DocumentThumbnailCache(
         }
         var response = await CachedDocumentContentStore.TryDownloadAsync(container, entry, cancellationToken);
         if (response is null
-            || response.Value.Details.ContentLength != entry.VerifiedSize
             || entry.VerifiedSize > Array.MaxLength)
         {
             return null;
@@ -1495,6 +1494,10 @@ internal sealed class DocumentThumbnailCache(
         try
         {
             await stream.ReadExactlyAsync(content, cancellationToken);
+            if (await stream.ReadAsync(new byte[1], cancellationToken) != 0)
+            {
+                return null;
+            }
         }
         catch (EndOfStreamException)
         {
