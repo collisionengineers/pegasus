@@ -125,6 +125,12 @@ public sealed class AddTriageNoteTests
             return Task.FromResult(current with { Version = current.Version + 1 });
         }
 
+        public Task<TriageRecord?> GetRecordAsync(Guid caseId, CancellationToken cancellationToken)
+        {
+            Reads++;
+            return Task.FromResult<TriageRecord?>(current);
+        }
+
         public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken)
         {
             Reads++;

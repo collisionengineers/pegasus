@@ -424,11 +424,14 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<ICaseKindQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
+        services.AddScoped<ICaseWorkQueries>(
+            provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<ICaseDocumentQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<IAvailableReportSentEvidenceQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<IGetCaseKind, GetCaseKind>();
+        services.AddScoped<IGetCaseHasAuditWork, GetCaseHasAuditWork>();
         services.AddScoped<ISearchCases, SearchCases>();
         services.AddScoped<ISearchCasesByCursor, SearchCasesByCursor>();
         services.AddScoped<IListCaseDocumentsByCursor, ListCaseDocumentsByCursor>();

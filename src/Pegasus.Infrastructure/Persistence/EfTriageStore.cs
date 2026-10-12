@@ -1088,6 +1088,20 @@ public sealed class EfTriageStore(
         string? ClaimNumber,
         DateTimeOffset? StateEnteredAtUtc);
 
+    public async Task<TriageRecord?> GetRecordAsync(Guid caseId, CancellationToken cancellationToken)
+    {
+        if (caseId == Guid.Empty)
+        {
+            throw new ArgumentException("A Triage identity is required.", nameof(caseId));
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Triage.AsNoTracking()
+            .Include(item => item.Case)
+            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
+        return entity is null ? null : Map(entity);
+    }
+
     public async Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
