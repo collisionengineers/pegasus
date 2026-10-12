@@ -89,7 +89,7 @@ internal sealed class CaseRepairSpecificationEntity
     public string? LastOperationKey { get; set; }
 
     // What this specification says about the one it supplements (v28 P20).
-    public Guid? SupplementaryOfSpecificationId { get; set; }
+    public Guid? SupplementaryOfSnapshotId { get; set; }
     public string? SupplementaryReason { get; set; }
     public bool SupplementaryExplainOnReport { get; set; }
     public string? SupplementaryStatement { get; set; }

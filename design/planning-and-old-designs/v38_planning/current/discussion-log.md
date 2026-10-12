@@ -51,3 +51,7 @@ and, with today's Target % bar beside the reference's scaling bar:
 > we need both the standard and the prestige/aluminium, and custom as selectable. the slider will automatically move it to custom since it slides the labour rate too (controlled by the "floor" settings)
 
 P5 is redrawn as the reference's rate bar: one segment per enabled rate card and Custom · typed, all selectable; the uplift tick and chip; the figure at the right with its working and Manual when typed; the head keeps its four other cells. P6 is added: the reference's scaling bar, whose slider runs from the floor-scaled minimum to the estimate, previews with Apply and Remove scaling, lands the scaled rate on a 50p step and switches the rate bar to Custom, with the floors on a second row. Self-check rerun: see the notes' section 7.
+
+## 12 October 2026: Stage 2
+
+The operator invoked the conversion skill on the round ("and update the PR … examine affected areas + blast radius"). Stage 2 landed on the same branch and PR: Core rules first (the column map, the 50p rate step and the slider's floor, Compare over frozen versions, the Supplementary base as a frozen version, the import onto a spec with the grid replaced frozen first), then the store and a renaming migration, then the section, its script and styles, the tests and the FRD-25, FRD-16 and guardrail sentences. The notes' section 9 records the mapping.

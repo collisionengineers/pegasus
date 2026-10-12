@@ -439,15 +439,50 @@ public sealed class EfRepairSpecificationStore(
         }
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now, request.KeepsLease);
 
-        var edit = await ApplyEditAsync(context, workId, request, now, leaveUnchanged: false, cancellationToken);
+        // An import onto a live spec (v38 P3; a Glass's return updating its
+        // spec, 6 October 2026): the grid it replaces is frozen first, so the
+        // versions keep what the import replaced.
+        var importedOnto = importedDocument && request.EstimateId is not null;
+        RepairSpecificationVersion? outgoing = null;
+        CaseRepairSpecificationSnapshotEntity? beforeImport = null;
+        if (importedOnto)
+        {
+            outgoing = Map(await RequiredEstimateAsync(context, workId, request.EstimateId!.Value, cancellationToken));
+            var latestBefore = await context.CaseRepairSpecificationSnapshots
+                .Where(item => item.SpecificationId == outgoing.SpecificationId)
+                .OrderByDescending(item => item.Number)
+                .FirstOrDefaultAsync(cancellationToken);
+            beforeImport = EfRepairSpecificationSnapshotStore.Freeze(
+                context, workId, outgoing, request.Actor, RepairSpecificationSnapshotKind.BeforeImport,
+                "Before import", now, latestBefore);
+        }
+
+        var edit = await ApplyEditAsync(context, workId, request, now, leaveUnchanged: false, cancellationToken, importedOnto);
         var entity = edit.Entity;
         request = edit.Evidenced;
+        if (importedOnto)
+        {
+            // What the import changed, against the version the last sent
+            // report used, else the grid it replaced: the spec's supplementary
+            // statement, composed now and printed when the Engineer says so.
+            var sent = await context.CaseRepairSpecificationSnapshots.Include(item => item.Work)
+                .Where(item => item.SpecificationId == entity.Id && item.SentOnReport)
+                .OrderByDescending(item => item.Number)
+                .FirstOrDefaultAsync(cancellationToken);
+            var baseSpecification = sent is null ? outgoing! : EfRepairSpecificationSnapshotStore.Map(sent).AsSpecification();
+            var reason = RepairSpecificationComparison.SupplementaryReasons[0].Code;
+            var diff = RepairSpecificationComparison.Compare(baseSpecification, Map(entity));
+            ApplySupplementary(entity, new(
+                sent?.Id ?? beforeImport!.Id,
+                reason,
+                false,
+                RepairSpecificationComparison.SupplementaryStatement(diff, reason)));
+        }
         if (importedDocument)
         {
             // v1 of an imported specification is the import itself (v28 P43).
-            // A Glass's return that updates its spec numbers after the
-            // versions that spec already has.
-            var latest = await context.CaseRepairSpecificationSnapshots
+            // An import onto a spec numbers after the version frozen before it.
+            var latest = beforeImport ?? await context.CaseRepairSpecificationSnapshots
                 .Where(item => item.SpecificationId == entity.Id)
                 .OrderByDescending(item => item.Number)
                 .FirstOrDefaultAsync(cancellationToken);
@@ -514,7 +549,8 @@ public sealed class EfRepairSpecificationStore(
         SaveEstimateRequest request,
         DateTimeOffset now,
         bool leaveUnchanged,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool importedOnto = false)
     {
         CaseRepairSpecificationEntity entity;
         RepairSpecificationVersion? existing = null;
@@ -593,10 +629,10 @@ public sealed class EfRepairSpecificationStore(
         }
         AddLines(context, entity, request.Lines, request.Actor, now);
         IReadOnlyList<Guid> replacedCurrent = [];
-        // What comes back from Glass's is the spec in use at once, also when
-        // the return updates a spec that was not (operator, 25 September and
-        // 6 October 2026).
-        if ((existing is null || (request.GlassEstimate is not null && !entity.IsCurrent))
+        // What a staff member imports is the spec in use at once, also when
+        // the import lands on a spec that was not (operator, 25 September and
+        // 6 October 2026; v38 P3).
+        if ((existing is null || (importedOnto && !entity.IsCurrent))
             && RepairSpecificationPolicy.BecomesCurrentWhenCreated(request.Actor))
         {
             replacedCurrent = await MakeCurrentAsync(context, workId, entity, cancellationToken);
@@ -939,7 +975,7 @@ public sealed class EfRepairSpecificationStore(
         CaseRepairSpecificationEntity entity,
         RepairSpecificationSupplementary? supplementary)
     {
-        entity.SupplementaryOfSpecificationId = supplementary?.OfSpecificationId;
+        entity.SupplementaryOfSnapshotId = supplementary?.OfSnapshotId;
         entity.SupplementaryReason = supplementary?.Reason;
         entity.SupplementaryExplainOnReport = supplementary?.ExplainOnReport ?? false;
         entity.SupplementaryStatement = supplementary?.Statement;
@@ -1269,7 +1305,7 @@ public sealed class EfRepairSpecificationStore(
             entity.CreatedBy, entity.CreatedAtUtc,
             details,
             entity.IsCurrent, entity.AiJobId,
-            entity.SupplementaryOfSpecificationId is { } supplementaryOf
+            entity.SupplementaryOfSnapshotId is { } supplementaryOf
                 ? new(supplementaryOf, entity.SupplementaryReason ?? string.Empty,
                     entity.SupplementaryExplainOnReport, entity.SupplementaryStatement ?? string.Empty)
                 : null);

@@ -32,4 +32,4 @@ Every choice is also a query string, for example `?design=proposal&mode=edit&spe
 
 ## Status
 
-Stage 1, delivered 12 October 2026. The five proposals are the operator's request and their mechanics are the reference file's; neither is an item. One item (A, keep or remove the folder) is open in [v38-notes.md](v38-notes.md) section 6. Stage 2 (the Razor implementation, FRD-25 and FRD-16 updates) starts on the operator's go-ahead.
+Stage 1, delivered 12 October 2026. The six proposals are the operator's request and their mechanics are the reference file's; neither is an item. Stage 2 was delivered the same day on PR 1302 (see [v38-notes.md](v38-notes.md) section 9): the Razor section, its script and styles, the Core rules (the column map, the 50p rate step and the slider's floor, Compare over frozen versions, the Supplementary base as a frozen version, the import onto a spec) and the FRD-25 and FRD-16 sentences. One item (A, keep or remove the folder) is open.

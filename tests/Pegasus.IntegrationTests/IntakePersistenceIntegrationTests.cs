@@ -233,7 +233,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261011112442_DiscardDeletesRepairSpec",
                 "20261011130000_DropAiJobMarketResearchIndexes",
                 "20261011140000_ImageMatchDecline",
-                "20261011191701_ReportSentAndCaseQueries"
+                "20261011191701_ReportSentAndCaseQueries",
+                "20261012120000_SupplementaryOfSnapshot"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());

@@ -43,3 +43,7 @@ Decided with the operator on 12 October 2026: the five proposals are the request
 - FRD-25 "Engineer acts on a spec": D4–D7, D10, D11, D13, D14 (the 50p step and the slider's floor are Core changes).
 - FRD-16 "Case workspace": D1, D2, D12 (the section's geometry and the one Save carrying the cells drawn).
 - Design authority, Case record frame: the rate bar, the scaling bar and the dash cells.
+
+## Decided 12 October 2026
+
+Stage 2 delivered D1–D14 on PR 1302 (the notes' section 9 says where each landed). Item A, whether the Stage 2 PR keeps this folder, stays with the operator; the folder is kept meanwhile.
