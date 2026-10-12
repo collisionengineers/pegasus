@@ -261,22 +261,19 @@ else
                     var href = item.AssetId is { } assetId
                         ? Url.Page("/Intake/Asset", new { id = item.ReceiptId, assetId, v = item.ContentHash })!
                         : Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
-                    @* A photograph nobody has prepared is drawn as its rendering at
-                       tile size, not the original. One with a crop or rotation recorded
-                       on its record keeps the address it always had here, the original,
-                       so this page shows it whole, as before: the tile route draws a
-                       recorded crop for any tile address, and showing it here is not
-                       decided. The link and the download keep the original. *@
-                    var tileHref = item.Preparation is { IsPrepared: true }
-                        ? href
-                        : new GalleryImage(
-                            href,
-                            href,
-                            item.FileName,
-                            item.MediaType,
-                            IntakeAssetId: item.AssetId,
-                            IntakeReceiptId: item.ReceiptId,
-                            ContentHash: item.ContentHash).TileHref;
+                    @* The tile is a rendering at tile size, and a crop or rotation
+                       recorded on its record is drawn on it, as on its other tiles
+                       (operator, 12 October 2026). The link and the download keep
+                       the original. *@
+                    var tileHref = new GalleryImage(
+                        href,
+                        href,
+                        item.FileName,
+                        item.MediaType,
+                        IntakeAssetId: item.AssetId,
+                        Preparation: item.Preparation,
+                        IntakeReceiptId: item.ReceiptId,
+                        ContentHash: item.ContentHash).TileHref;
                     <li class="image-tile">
                         <a href="@href"
                            class="th"
