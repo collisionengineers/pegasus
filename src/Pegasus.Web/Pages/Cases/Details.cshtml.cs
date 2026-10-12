@@ -43,6 +43,12 @@ public sealed partial class DetailsModel(
     IGetCaseVehicleSection getCaseVehicleSection,
     IGetCaseValuationSection getCaseValuationSection,
     IGetCaseNotesSection getCaseNotesSection,
+    IGetCaseTasksSection getCaseTasksSection,
+    Pegasus.Core.Tasks.ICreateCaseTask createCaseTask,
+    Pegasus.Core.Tasks.IAssignCaseTask assignCaseTask,
+    Pegasus.Core.Tasks.ICompleteCaseTask completeCaseTask,
+    Pegasus.Core.Tasks.ICancelCaseTask cancelCaseTask,
+    ICaseEngineerChoices caseEngineerChoices,
     IGetCaseFilesSection getCaseFilesSection,
     IGetCaseQueriesSection getCaseQueriesSection,
     ICaseDocumentQueries caseDocuments,
@@ -59,6 +65,7 @@ public sealed partial class DetailsModel(
     ICaseReportGenerationStore reportGenerations,
     ISendCaseReport sendCaseReport,
     IReportRecipientSuggestionQueries reportRecipientSuggestions,
+    ResolveCaseMailSender caseMailSenders,
     ICaseReportSendHistoryQueries reportSendHistory,
     RenderEmailTemplate renderEmailTemplate,
     IListCaseEstimates listEstimates,
@@ -259,16 +266,17 @@ public sealed partial class DetailsModel(
             ["valuation"] = "/Pages/Cases/Shared/_CaseValuation.cshtml",
             ["files"] = "/Pages/Cases/Shared/_CaseFiles.cshtml",
             ["notes"] = "/Pages/Cases/Shared/_CaseHistory.cshtml",
+            ["tasks"] = "/Pages/Cases/Shared/_CaseTasks.cshtml",
             ["queries"] = "/Pages/Cases/Shared/_CaseQueries.cshtml"
         };
 
     /// <summary>
     /// Whether <paramref name="key"/> is fetched rather than rendered with the
     /// first response. The addressed section is always rendered, so
-    /// <c>?section=</c> works over plain HTTP. Files and Notes have no fields
-    /// in the record's single Save form, so they remain deferred while editing
-    /// without replacing entered values elsewhere; their bodies act through
-    /// their own posts with the render lease token.
+    /// <c>?section=</c> works over plain HTTP. Files, Notes, Tasks and Queries
+    /// have no fields in the record's single Save form, so they remain deferred
+    /// while editing without replacing entered values elsewhere; their bodies
+    /// act through their own posts with the render lease token.
     /// </summary>
     public bool SectionIsDeferred(string key) =>
         !string.Equals(key, Section, StringComparison.Ordinal)
@@ -276,7 +284,7 @@ public sealed partial class DetailsModel(
         && !string.Equals(key, SectionLinkKey, StringComparison.Ordinal)
         && !(string.Equals(Section, "vehicle", StringComparison.Ordinal) && IsNestedSection(key))
         && LazySectionViews.ContainsKey(key)
-        && (LeaseToken is null || key is "files" or "notes" or "queries");
+        && (LeaseToken is null || key is "files" or "notes" or "tasks" or "queries");
 
     /// <summary>
     /// A lease token supplied only for rendering an asynchronously mounted
@@ -353,12 +361,14 @@ public sealed partial class DetailsModel(
     public CaseVehicleSection? VehicleSection { get; private set; }
     public CaseValuationSection? ValuationSection { get; private set; }
     public CaseNotesSection? NotesSection { get; private set; }
+    public CaseTasksSection? TasksSection { get; private set; }
     public CaseFilesSection? FilesSection { get; private set; }
     public CaseQueriesSection? QueriesSection { get; private set; }
 
     public CaseSectionFrame? SectionFrame => VehicleSection?.Frame
         ?? ValuationSection?.Frame
         ?? NotesSection?.Frame
+        ?? TasksSection?.Frame
         ?? FilesSection?.Frame
         ?? QueriesSection?.Frame;
 
@@ -508,7 +518,12 @@ public sealed partial class DetailsModel(
         && AssessmentCanOpen
         && SelectedEstimate is { IsCurrent: false, State: RepairSpecificationState.Draft };
 
-    public EstimateTotals EditorTotals
+    /// <summary>
+    /// The spec as the editor holds it: what the totals, the scaling range
+    /// and the column map read. A stored line keeps its Specialist kind, as
+    /// the Save carries it, so hours priced by work units stay priced here too.
+    /// </summary>
+    public RepairSpecificationVersion EditorSpecification
     {
         get
         {
@@ -520,8 +535,6 @@ public sealed partial class DetailsModel(
                     VatPercent: EstimatePolicy.DefaultVatPercent);
             var stored = SelectedEstimate?.Lines.ToDictionary(line => line.Id)
                 ?? new Dictionary<Guid, CaseEstimateLineRecord>();
-            // A stored line keeps its Specialist kind, as the Save carries it,
-            // so hours priced by work units stay priced here too.
             string LineType(EstimateEditorLine line)
             {
                 var edited = EstimateOperations.TryParse(line.Operation, out var operation)
@@ -531,7 +544,7 @@ public sealed partial class DetailsModel(
                     ? EstimateOperations.Carry(edited, saved.Type)
                     : edited;
             }
-            return EstimateTotals.Compute(new(
+            return new(
                 SelectedEstimate?.SpecificationId ?? Guid.Empty,
                 SelectedEstimate?.CaseId ?? Guid.Empty,
                 SelectedEstimate?.Version ?? 1,
@@ -562,9 +575,20 @@ public sealed partial class DetailsModel(
                 SelectedEstimate?.CreatedAtUtc ?? DateTimeOffset.UtcNow,
                 details,
                 SelectedEstimate?.IsCurrent ?? false,
-                SelectedEstimate?.AiJobId));
+                SelectedEstimate?.AiJobId);
         }
     }
+
+    public EstimateTotals EditorTotals => EstimateTotals.Compute(EditorSpecification);
+
+    /// <summary>
+    /// Where the Target % of value slider begins (v38 P6): the lowest share
+    /// of the Engineer's Value the default floors allow, or 1 % without one.
+    /// </summary>
+    public decimal ScaleFloorPercent =>
+        EngineerValue is { } value && value > 0m && EditorLines.Any(line => !string.IsNullOrWhiteSpace(line.Description))
+            ? RepairSpecificationScaling.FloorPercentOfValue(value, EditorSpecification, ScalingFloors.Default)
+            : 1m;
 
     /// <summary>
     /// The addresses whose postcode suggests the regional uplift (v28 P17),
@@ -644,6 +668,12 @@ public sealed partial class DetailsModel(
     /// <summary>The addresses the delivery form offers beside its fields (v28 P21).</summary>
     public IReadOnlyList<ReportRecipientCandidate> ReportAddressBook { get; private set; } = [];
 
+    /// <summary>
+    /// Who the report leaves as: a reply to the instruction email from the
+    /// mailbox it arrived in, or the Outgoing mailboxes staff choose from.
+    /// </summary>
+    public CaseMailSenderOptions ReportSenders { get; private set; } = new(null, []);
+
     /// <summary>What the Case's report has already been sent (v28 P23).</summary>
     public CaseReportSendHistory ReportSendHistory { get; private set; } = CaseReportSendHistory.None;
 
@@ -700,8 +730,14 @@ public sealed partial class DetailsModel(
         _ => null,
     };
 
-    /// <summary>Principal suggestions offered for staff review before preparation.</summary>
-    public ReportRecipientSuggestions? DeliveryRecipientSuggestions { get; private set; }
+    /// <summary>The dispatch facts of the shown generation: the Principal's rules read with the Case.</summary>
+    public ReportDispatchFacts? DeliveryRecipientSuggestions { get; private set; }
+
+    /// <summary>
+    /// The one plan the delivery form follows, made once when the page loads
+    /// with no answers; Send report plans again with staff's answers.
+    /// </summary>
+    public ReportDispatchPlan? DeliveryDispatchPlan { get; private set; }
 
     public string? OpenDialog { get; private set; }
 
@@ -744,24 +780,133 @@ public sealed partial class DetailsModel(
     /// <summary>The selected specification's frozen versions, oldest first (v28 P43).</summary>
     public IReadOnlyList<RepairSpecificationSnapshot> SelectedEstimateSnapshots { get; private set; } = [];
 
-    /// <summary>Whether the selected specification's latest scaling state is scaled (v28 P34).</summary>
+    /// <summary>Every live specification's frozen versions by specification (v38 P2): what Compare's From and To list.</summary>
+    public IReadOnlyDictionary<Guid, IReadOnlyList<RepairSpecificationSnapshot>> EstimateSnapshots { get; private set; } =
+        new Dictionary<Guid, IReadOnlyList<RepairSpecificationSnapshot>>();
+
+    /// <summary>
+    /// Whether the selected specification's latest scaling state is scaled
+    /// (v28 P34); an import since the scaling is a new grid and ends it (v38 P3).
+    /// </summary>
     public bool SelectedEstimateIsScaled =>
         SelectedEstimateSnapshots
             .Where(snapshot => snapshot.Kind is RepairSpecificationSnapshotKind.Scaled
-                or RepairSpecificationSnapshotKind.ScalingRemoved)
+                or RepairSpecificationSnapshotKind.ScalingRemoved
+                or RepairSpecificationSnapshotKind.Imported)
             .MaxBy(snapshot => snapshot.Number)?.Kind == RepairSpecificationSnapshotKind.Scaled;
 
-    /// <summary>The two specifications Compare reads, when the query names both (v28 P19).</summary>
-    public RepairSpecificationVersion? ComparisonFrom { get; private set; }
+    /// <summary>
+    /// The total the latest scaling started from, the version frozen before
+    /// it, for the readout "scaled from estimate" (v38 P6); null unless scaled.
+    /// </summary>
+    public decimal? ScaledFromGross
+    {
+        get
+        {
+            if (!SelectedEstimateIsScaled)
+            {
+                return null;
+            }
+            var scaled = SelectedEstimateSnapshots
+                .Where(snapshot => snapshot.Kind == RepairSpecificationSnapshotKind.Scaled)
+                .MaxBy(snapshot => snapshot.Number);
+            return SelectedEstimateSnapshots
+                .Where(snapshot => snapshot.Kind == RepairSpecificationSnapshotKind.BeforeScaling
+                    && scaled is not null && snapshot.Number < scaled.Number)
+                .MaxBy(snapshot => snapshot.Number)?.Gross;
+        }
+    }
 
-    public RepairSpecificationVersion? ComparisonTo { get; private set; }
+    /// <summary>
+    /// One side Compare can read (v38 P2): a live specification's working
+    /// draft, or one of its frozen versions, keyed as the query names it.
+    /// </summary>
+    public sealed record CompareOption(string Key, string Label, RepairSpecificationVersion Specification, RepairSpecificationSnapshot? Version);
+
+    /// <summary>
+    /// What Compare's From and To offer: the selected spec's working draft and
+    /// its versions newest first, then each other spec and its versions.
+    /// </summary>
+    public IReadOnlyList<CompareOption> ComparisonOptions { get; private set; } = [];
+
+    /// <summary>Compare is offered with two specs, or one spec that has a frozen version (v38 P2).</summary>
+    public bool ComparisonOffered => Estimates.Count >= 2 || SelectedEstimateSnapshots.Count > 0;
+
+    /// <summary>The two sides Compare reads, when the query names both or the dialog opens on its default pair (v28 P19, v38 P2).</summary>
+    public CompareOption? ComparisonFrom { get; private set; }
+
+    public CompareOption? ComparisonTo { get; private set; }
 
     public RepairSpecificationComparison.Diff? Comparison { get; private set; }
 
-    /// <summary>The specification the selected one supplements, and their differences (v28 P20).</summary>
-    public RepairSpecificationVersion? SupplementaryBase { get; private set; }
+    /// <summary>The frozen version the selected spec supplements, and their differences (v28 P20; v38 P3).</summary>
+    public RepairSpecificationSnapshot? SupplementaryBase { get; private set; }
 
     public RepairSpecificationComparison.Diff? SupplementaryDiff { get; private set; }
+
+    /// <summary>The query key for a Compare side: the spec, or the spec and one of its versions.</summary>
+    public static string ComparisonKey(Guid specificationId, Guid? snapshotId) =>
+        snapshotId is { } version ? $"{specificationId:D}:{version:D}" : specificationId.ToString("D");
+
+    private List<CompareOption> BuildComparisonOptions()
+    {
+        var options = new List<CompareOption>();
+        var culture = CultureInfo.GetCultureInfo("en-GB");
+        string Money(decimal value) => "£" + value.ToString("N2", culture);
+        void Add(RepairSpecificationVersion specification, bool own)
+        {
+            var name = own ? Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate.Working : specification.Details.Name;
+            options.Add(new(
+                ComparisonKey(specification.SpecificationId, null),
+                $"{name} · {Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate.Now} · {Money(EstimateTotals.Compute(specification).Printed.Gross)}",
+                specification,
+                null));
+            foreach (var version in EstimateSnapshots.GetValueOrDefault(specification.SpecificationId, []).OrderByDescending(item => item.Number))
+            {
+                var prefix = own ? string.Empty : specification.Details.Name + " · ";
+                var sent = version.SentOnReport ? " · " + Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate.SentOnReport : string.Empty;
+                options.Add(new(
+                    ComparisonKey(specification.SpecificationId, version.Id),
+                    $"{prefix}{Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate.VersionWord(version.Number)} · {Labels.OfficeTime(version.CreatedAtUtc)} · {Money(version.Gross)}{sent}",
+                    version.AsSpecification() with { Details = version.Details },
+                    version));
+            }
+        }
+        if (SelectedEstimate is not null)
+        {
+            Add(SelectedEstimate, own: true);
+        }
+        foreach (var other in Estimates.Where(item => item.SpecificationId != SelectedEstimate?.SpecificationId))
+        {
+            Add(other, own: false);
+        }
+        return options;
+    }
+
+    /// <summary>
+    /// Compare's sides from the query, or the default pair when the dialog
+    /// opens without one: the version the last sent report used against the
+    /// selected spec's working draft (v38 P2); with no sent version, nothing
+    /// is chosen until the Engineer chooses.
+    /// </summary>
+    private void ResolveComparison(string? from, string? to, string? dialog)
+    {
+        if (string.IsNullOrWhiteSpace(from) && string.IsNullOrWhiteSpace(to)
+            && string.Equals(dialog, "compare-estimates", StringComparison.Ordinal)
+            && SelectedEstimate is not null)
+        {
+            var sent = ComparisonOptions
+                .Where(option => option.Version is { SentOnReport: true })
+                .MaxBy(option => option.Version!.CreatedAtUtc);
+            from = sent?.Key;
+            to = sent is null ? null : ComparisonKey(SelectedEstimate.SpecificationId, null);
+        }
+        ComparisonFrom = ComparisonOptions.FirstOrDefault(option => string.Equals(option.Key, from, StringComparison.OrdinalIgnoreCase));
+        ComparisonTo = ComparisonOptions.FirstOrDefault(option => string.Equals(option.Key, to, StringComparison.OrdinalIgnoreCase));
+        Comparison = ComparisonFrom is null || ComparisonTo is null || ComparisonFrom.Key == ComparisonTo.Key
+            ? null
+            : RepairSpecificationComparison.Compare(ComparisonFrom.Specification, ComparisonTo.Specification);
+    }
 
     public string SendOperationKey { get; private set; } = NewOperationKey();
 
@@ -1099,6 +1244,11 @@ public sealed partial class DetailsModel(
         var reportInputs = reads.Start(token => reportSnapshotSource.GetAsync(id, actor, work, reuse, token));
         var currentGeneration = reads.Start(token =>
             reportGenerations.GetCurrentAsync(actor, id, work, token));
+        // The other work's report goes in the same send once the Audit exists.
+        var otherWork = work == CaseWorkSelector.Primary ? CaseWorkSelector.Current : CaseWorkSelector.Primary;
+        var otherGeneration = Works is { HasAudit: true }
+            ? reads.Start(token => reportGenerations.GetCurrentAsync(actor, id, otherWork, token))
+            : null;
         var sendingToAi = asksSendToAi
             ? reads.Start(token => sendToAiControl.IsEnabledAsync(token))
             : null;
@@ -1138,55 +1288,82 @@ public sealed partial class DetailsModel(
             }
         }
         CurrentReportGeneration = await currentGeneration;
+        OtherReportGeneration = otherGeneration is null ? null : await otherGeneration;
         EvaluateEngineerSectionConditions(sendingToAi is not null && await sendingToAi);
         ApplyGlassSession(await glass);
 
-        // What the first reads decided: the selected estimate's snapshots, and
-        // the delivery reads a stored report needs, the viewed work's too.
-        var selectedSpecificationId = SelectedEstimate?.SpecificationId;
+        // What the first reads decided: every spec's frozen versions (v38 P2:
+        // Compare and Supplementary read them), and the delivery reads a
+        // stored report needs, the viewed work's too.
         var generated = CurrentReportGeneration is not null;
-        var snapshots = selectedSpecificationId is { } specificationId
-            ? reads.Start(token => specificationSnapshots.ListAsync(id, specificationId, token))
-            : null;
+        var snapshotReads = Estimates.ToDictionary(
+            item => item.SpecificationId,
+            item => reads.Start(token => specificationSnapshots.ListAsync(id, item.SpecificationId, token)));
         var suggestions = generated
             ? reads.Start(token => reportRecipientSuggestions.GetAsync(id, work, token))
             : null;
         var history = generated
             ? reads.Start(token => reportSendHistory.GetAsync(id, work, token))
             : null;
+        var senders = generated
+            ? reads.Start(token => caseMailSenders.OptionsAsync(id, token))
+            : null;
+        var otherHistory = generated && OtherReportGeneration is not null
+            ? reads.Start(token => reportSendHistory.GetAsync(id, otherWork, token))
+            : null;
         await reads.WhenAllAsync();
 
-        if (SelectedEstimate is not null && snapshots is not null)
+        var snapshotsBySpecification = new Dictionary<Guid, IReadOnlyList<RepairSpecificationSnapshot>>();
+        foreach (var (specificationId, read) in snapshotReads)
         {
-            SelectedEstimateSnapshots = await snapshots;
+            snapshotsBySpecification[specificationId] = await read;
+        }
+        EstimateSnapshots = snapshotsBySpecification;
+        if (SelectedEstimate is not null)
+        {
+            SelectedEstimateSnapshots = snapshotsBySpecification.GetValueOrDefault(SelectedEstimate.SpecificationId, []);
             if (SelectedEstimate.Supplementary is { } supplementary)
             {
-                SupplementaryBase = Estimates.FirstOrDefault(item => item.SpecificationId == supplementary.OfSpecificationId);
+                SupplementaryBase = SelectedEstimateSnapshots.FirstOrDefault(item => item.Id == supplementary.OfSnapshotId);
                 SupplementaryDiff = SupplementaryBase is null
                     ? null
                     : RepairSpecificationComparison.Compare(SupplementaryBase, SelectedEstimate);
             }
         }
-        if (Guid.TryParse(Request.Query["from"], out var fromId) && Guid.TryParse(Request.Query["to"], out var toId) && fromId != toId)
-        {
-            ComparisonFrom = Estimates.FirstOrDefault(item => item.SpecificationId == fromId);
-            ComparisonTo = Estimates.FirstOrDefault(item => item.SpecificationId == toId);
-            Comparison = ComparisonFrom is null || ComparisonTo is null
-                ? null
-                : RepairSpecificationComparison.Compare(ComparisonFrom, ComparisonTo);
-        }
-        DeliveryRecipientSuggestions = suggestions is null ? null : await suggestions;
-        ReportAddressBook = DeliveryRecipientSuggestions is { } addressBook
-            ? CaseReportDeliveryPolicy.AddressBook(addressBook)
-            : [];
+        ComparisonOptions = BuildComparisonOptions();
+        ResolveComparison(Request.Query["from"], Request.Query["to"], dialog);
         ReportSendHistory = history is null
             ? CaseReportSendHistory.None
             : await history;
+        DeliveryRecipientSuggestions = suggestions is null ? null : await suggestions;
+        if (DeliveryRecipientSuggestions is { } dispatchFacts)
+        {
+            // The generation's own facts complete what the query reads, and
+            // the plan is made once here for every part of the form.
+            DeliveryRecipientSuggestions = dispatchFacts with
+            {
+                History = ReportSendHistory,
+                ConfirmedArtifacts =
+                [
+                    .. CurrentReportGeneration?.Artifacts
+                        .Where(artifact => artifact.Status == CaseReportArtifactStatus.Confirmed)
+                        .Select(artifact => artifact.Kind) ?? []
+                ]
+            };
+            DeliveryDispatchPlan = ReportDispatchPolicy.Plan(DeliveryRecipientSuggestions, [], clock.GetUtcNow());
+        }
+        ReportAddressBook = DeliveryRecipientSuggestions is { } addressBook
+            ? CaseReportDeliveryPolicy.AddressBook(addressBook)
+            : [];
+        ReportSenders = senders is null ? ReportSenders : await senders;
+        OtherReportSendHistory = otherHistory is null
+            ? CaseReportSendHistory.None
+            : await otherHistory;
         ReportDeliveryMessage = await RenderReportDeliveryMessageAsync(actor, cancellationToken);
         OpenDialog = dialog switch
         {
             "send-to-claude" when SendToClaudeCondition is null => "send-to-claude",
-            "compare-estimates" when Estimates.Count >= 2 => "compare-estimates",
+            "compare-estimates" when ComparisonOffered => "compare-estimates",
             "versions" when SelectedEstimate is not null => "versions",
             "delete-estimate" when SelectedEstimateIsEditable
                 && SelectedEstimate is { IsCurrent: false } => "delete-estimate",
@@ -1418,6 +1595,13 @@ public sealed partial class DetailsModel(
                         return FragmentNotFound();
                     }
                     break;
+                case "tasks":
+                    TasksSection = await getCaseTasksSection.ExecuteAsync(new(id, actor), cancellationToken);
+                    if (TasksSection is null)
+                    {
+                        return FragmentNotFound();
+                    }
+                    break;
                 case "queries":
                     QueriesSection = await getCaseQueriesSection.ExecuteAsync(new(id, actor), cancellationToken);
                     if (QueriesSection is null)
@@ -1460,6 +1644,10 @@ public sealed partial class DetailsModel(
             if (key == "valuation")
             {
                 await LoadValuationSectionAsync(id, actor, cancellationToken);
+            }
+            if (key == "tasks" && TasksReadAssignees)
+            {
+                TaskAssigneeChoices = await caseEngineerChoices.GetAsync(actor, cancellationToken);
             }
             return Partial(view, this);
         }
@@ -1550,6 +1738,14 @@ public sealed partial class DetailsModel(
         var notes = rendered.Contains("notes")
             ? reads.Start(token => getCaseNotesSection.ExecuteAsync(query, token))
             : null;
+        var tasks = rendered.Contains("tasks")
+            ? reads.Start(token => getCaseTasksSection.ExecuteAsync(query, token))
+            : null;
+        // An open task's Assign offers the enabled staff only while the Tasks
+        // body is rendered here and can be changed.
+        var taskAssignees = rendered.Contains("tasks") && CanEditCaseData
+            ? reads.Start(token => caseEngineerChoices.GetAsync(actor, token))
+            : null;
         var queries = rendered.Contains("queries")
             ? reads.Start(token => getCaseQueriesSection.ExecuteAsync(query, token))
             : null;
@@ -1582,6 +1778,15 @@ public sealed partial class DetailsModel(
         {
             NotesSection = await notes
                 ?? throw new InvalidOperationException("The Case notes section is unavailable.");
+        }
+        if (tasks is not null)
+        {
+            TasksSection = await tasks
+                ?? throw new InvalidOperationException("The Case tasks section is unavailable.");
+        }
+        if (taskAssignees is not null)
+        {
+            TaskAssigneeChoices = await taskAssignees;
         }
         if (queries is not null)
         {
@@ -2734,6 +2939,29 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
+    /// Staff's answers to the questions the Principal's rules ask: one radio
+    /// pair per question, named <c>decision-{rule}-{condition}</c> with the
+    /// value true or false.
+    /// </summary>
+    private List<ReportRuleDecision> PostedReportDecisions()
+    {
+        var decisions = new List<ReportRuleDecision>();
+        foreach (var key in Request.Form.Keys)
+        {
+            var parts = key.Split('-');
+            if (parts.Length == 3
+                && parts[0] == "decision"
+                && int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var rule)
+                && int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var condition)
+                && bool.TryParse(Request.Form[key].ToString(), out var holds))
+            {
+                decisions.Add(new(rule, condition, holds));
+            }
+        }
+        return decisions;
+    }
+
+    /// <summary>
     /// Sends the current generation's report in one step (operator, 6 October
     /// 2026): the staff-reviewed recipients, the documents chosen and the
     /// message submitted go to A's staff send transport under this form's
@@ -2753,6 +2981,13 @@ public sealed partial class DetailsModel(
         string[]? toRecipients,
         string[]? ccRecipients,
         CaseReportArtifactKind[]? attach,
+        Guid? fromMailboxId,
+        Guid? secondGenerationId,
+        long? secondExpectedGenerationVersion,
+        CaseReportArtifactKind[]? secondAttach,
+        string? dispatchFingerprint,
+        string? stopOverrideReason,
+        string[]? holdsDone,
         CancellationToken cancellationToken)
     {
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -2790,7 +3025,18 @@ public sealed partial class DetailsModel(
                     coveringMessage!,
                     new(toRecipients ?? [], ccRecipients ?? []),
                     attach,
-                    WorkSelector),
+                    WorkSelector,
+                    fromMailboxId,
+                    // The other work's report, when its tick is on: always
+                    // its report, with the documents of it ticked.
+                    secondGenerationId is { } secondId && secondExpectedGenerationVersion is { } secondVersion
+                        ? new(secondId, secondVersion,
+                            [CaseReportArtifactKind.AssessmentReport, .. (secondAttach ?? [])])
+                        : null,
+                    DispatchFingerprint: dispatchFingerprint,
+                    Decisions: PostedReportDecisions(),
+                    AcknowledgedHolds: holdsDone ?? [],
+                    StopOverrideReason: stopOverrideReason),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)
@@ -3143,10 +3389,11 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// What the editor said about the specification this one supplements
-    /// (v28 P20): the base, the reason and whether the report explains it.
-    /// The statement is composed from the base and the lines as posted, so
-    /// the record and the report say the same thing.
+    /// What the editor said about the frozen version this spec supplements
+    /// (v28 P20; v38 P3): the version the import named, the reason and whether
+    /// the report explains it. Dismiss posts no version, which clears it. The
+    /// statement is composed from the version and the lines as posted, so the
+    /// record and the report say the same thing.
     /// </summary>
     private async Task<RepairSpecificationSupplementary?> ReadSupplementaryAsync(
         Guid caseId,
@@ -3156,7 +3403,7 @@ public sealed partial class DetailsModel(
         EstimateEditorPost editor,
         CancellationToken cancellationToken)
     {
-        if (!Guid.TryParse(Request.Form["supplementaryOf"], out var baseId) || baseId == Guid.Empty)
+        if (existing is null || !Guid.TryParse(Request.Form["supplementaryOf"], out var baseId) || baseId == Guid.Empty)
         {
             return null;
         }
@@ -3165,15 +3412,16 @@ public sealed partial class DetailsModel(
         {
             reason = RepairSpecificationComparison.SupplementaryReasons[0].Code;
         }
-        var baseSpecification = await repairSpecifications.GetVersionAsync(caseId, baseId, cancellationToken);
-        if (baseSpecification is null || baseSpecification.SpecificationId == existing?.SpecificationId)
+        var baseVersion = (await specificationSnapshots.ListAsync(caseId, existing.SpecificationId, cancellationToken))
+            .FirstOrDefault(version => version.Id == baseId);
+        if (baseVersion is null)
         {
             return null;
         }
         // The spec a Save would record: the save's own carry, so a stored
         // Specialist line compares as its own kind and its hours stay priced.
         var diff = RepairSpecificationComparison.Compare(
-            baseSpecification,
+            baseVersion,
             EstimatePolicy.Edited(
                 caseId, actor, existing, details, editor.Lines!, editor.ExistingLineIds, DateTimeOffset.UtcNow));
         var explain = bool.TryParse(Request.Form["supplementaryExplain"].FirstOrDefault(), out var flag) && flag;
@@ -4243,13 +4491,18 @@ public sealed partial class DetailsModel(
     public static string VatCategoryField(EstimateVatCategories category) =>
         "estimateVat" + category;
 
-    /// <summary>Retain once, then use the same source-backed import as MCP and Glass's.</summary>
+    /// <summary>
+    /// Retain once, then use the same source-backed import as MCP and Glass's.
+    /// The import lands on the spec the section shows (v38 P3, operator,
+    /// 12 October 2026); with none, it creates one.
+    /// </summary>
     public async Task<IActionResult> OnPostImportEstimateAsync(
         Guid id,
         long expectedVersion,
         string operationKey,
         string? editLeaseToken,
         IFormFile? estimateFile,
+        Guid? estimateId,
         CancellationToken cancellationToken)
     {
         var (actor, documents, refusal) = await StartEstimateImportAsync(
@@ -4371,12 +4624,17 @@ public sealed partial class DetailsModel(
                 return RedirectToEstimate(id);
             }
 
-            var importedBefore = (await listEstimates.ExecuteAsync(id, WorkSelector, cancellationToken))
+            var live = await listEstimates.ExecuteAsync(id, WorkSelector, cancellationToken);
+            var target = estimateId is { } selected && selected != Guid.Empty
+                ? live.FirstOrDefault(estimate => estimate.SpecificationId == selected)
+                : null;
+            var importedBefore = (target is null ? live : [target])
                 .Any(estimate => string.Equals(
                     estimate.Source.Sha256, source.Version.Sha256, StringComparison.OrdinalIgnoreCase));
             var resultingVersion = checked(importVersion + (importedBefore ? 0 : 1));
             return await ImportRetainedEstimateAsync(new(actor!, id, importVersion, importLeaseToken,
-                source.Occurrence.Id, source.Version.Id, source.Version.Sha256, operationKey, string.Empty) { Work = WorkSelector },
+                source.Occurrence.Id, source.Version.Id, source.Version.Sha256, operationKey, string.Empty)
+                { Work = WorkSelector, EstimateId = target?.SpecificationId },
                 cancellationToken, expectedVersion, resultingVersion);
         }
         catch (StaffAuthorizationException) { return Forbid(); }
@@ -4425,9 +4683,14 @@ public sealed partial class DetailsModel(
         }
         try
         {
+            // From Files there is no spec in view: the import lands on the
+            // spec in use (v38 P3), or creates one when there is none.
+            var current = (await listEstimates.ExecuteAsync(id, WorkSelector, cancellationToken))
+                .FirstOrDefault(estimate => estimate.IsCurrent);
             return await ImportRetainedEstimateAsync(
                 new(actor!, id, expectedVersion, leaseToken!, source.Occurrence.Id, source.Version.Id,
-                    source.Version.Sha256, operationKey, string.Empty) { Work = WorkSelector },
+                    source.Version.Sha256, operationKey, string.Empty)
+                { Work = WorkSelector, EstimateId = current?.SpecificationId },
                 cancellationToken);
         }
         catch (StaffAuthorizationException) { return Forbid(); }

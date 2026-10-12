@@ -233,7 +233,16 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261011112442_DiscardDeletesRepairSpec",
                 "20261011130000_DropAiJobMarketResearchIndexes",
                 "20261011140000_ImageMatchDecline",
-                "20261011191701_ReportSentAndCaseQueries"
+                "20261011191701_ReportSentAndCaseQueries",
+                "20261012120000_MailboxIncomingOutgoing",
+                "20261012120000_SupplementaryOfSnapshot",
+                "20261012120000_WorkerObservesReportSends",
+                "20261012130000_ReportSendCarriesSecondReport",
+                "20261012180000_FlatMailCategory",
+                "20261012190000_PrincipalReportSendingRules",
+                "20261012191000_ReportDispatchRecord",
+                "20261012192000_GrantWorkerCaseTasksForReportSent",
+                "20261012193000_SentReportInstructionMove"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -265,8 +274,10 @@ public sealed class IntakePersistenceIntegrationTests
 
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'ApprovedOutlookCategories'"));
-        Assert.Equal(1, await database.ScalarAsync<int>(
+        Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'ApprovedMailboxFolderBindings'"));
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'RetainedMailFolderMoves'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseAssessmentFields'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
@@ -448,12 +459,14 @@ public sealed class IntakePersistenceIntegrationTests
             WHERE object_id = OBJECT_ID(N'WorkflowConfigurations')
               AND name IN (N'RequireInstructions', N'RequireImages', N'ChaseIntervalDays')
             """));
-        Assert.Equal(2, await database.ScalarAsync<int>(
+        Assert.Equal(0, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM sys.columns
             WHERE object_id = OBJECT_ID(N'Principals')
               AND name IN (N'IncludeOriginalInstructionSender', N'ReportRecipientAddressesJson')
             """));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'Principals') AND name = N'ReportSendingRulesJson' AND is_nullable = 0"));
         Assert.Equal(0, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM sys.columns
@@ -484,7 +497,6 @@ public sealed class IntakePersistenceIntegrationTests
         var mailboxId = Guid.Parse("49f47eb9-c5b0-464f-b8f0-8c90ba061728");
         var messageId = Guid.NewGuid();
         var attachmentId = Guid.NewGuid();
-        var moveId = Guid.NewGuid();
         var poisonId = Guid.NewGuid();
         await database.ExecuteAsync(
             $"""
@@ -505,15 +517,6 @@ public sealed class IntakePersistenceIntegrationTests
             INSERT INTO RetainedMailboxAttachments
                 (Id, RetainedMailboxMessageId, Ordinal, FileName, MediaType, ContentLength)
             VALUES ('{attachmentId:D}', '{messageId:D}', 0, 'evidence.pdf', 'application/pdf', 10);
-            INSERT INTO RetainedMailFolderMoves
-                (Id, RetainedMailboxMessageId, OperationKey, RequestHash, ExpectedClassificationVersion,
-                 ExpectedRecommendationPolicyKey, ExpectedRecommendationPolicyVersion, ExpectedMailboxVersion,
-                 MailboxId, ImmutableMessageId, SourceFolderId, DestinationFolderId, FolderType, Actor,
-                 ActorRolesJson, Reason, Outcome, RecordedAtUtc)
-            VALUES
-                ('{moveId:D}', '{messageId:D}', '{Guid.NewGuid():D}', '{new string('c', 64)}', 1,
-                 'fixture-policy', 1, 1, 'legacy-graph', 'retained-message', 'inbox', 'processed', 'Processed',
-                 'system:fixture', '[]', 'fixture', 'pending', '2031-05-06T10:32:00+00:00');
             """);
 
         await context.Database.MigrateAsync();
@@ -522,8 +525,6 @@ public sealed class IntakePersistenceIntegrationTests
             $"SELECT MailboxId FROM RetainedMailboxMessages WHERE Id = '{messageId:D}'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM RetainedMailboxAttachments WHERE RetainedMailboxMessageId = '{messageId:D}'"));
-        Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM RetainedMailFolderMoves WHERE RetainedMailboxMessageId = '{messageId:D}'"));
         Assert.Equal(mailboxId, await database.ScalarAsync<Guid>(
             "SELECT ApprovedMailboxId FROM ApprovedInboxPollStates"));
         Assert.Equal(mailboxId, await database.ScalarAsync<Guid>(
@@ -657,7 +658,7 @@ public sealed class IntakePersistenceIntegrationTests
         var draft = CreateDraft(1, IntakeDecision.CaseCreated) with
         {
             MailClassificationDecision = MailClassificationResult.Classified(
-                MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "audit"),
+                MailCategory.NewInstruction,
                 [],
                 "A standalone Audit instruction was identified.",
                 "qdos-mail-classification",

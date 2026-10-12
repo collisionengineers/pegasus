@@ -296,7 +296,7 @@ internal static class ThirdPartySections
 public static class ThirdPartyReportExtraction
 {
     /// <summary>Versioned with the rule tables; recorded on every candidate.</summary>
-    public const string ProfileVersion = "third-party-report-extraction/4";
+    public const string ProfileVersion = "third-party-report-extraction/5";
 
     // Printed money is not always two decimals — Laird prints "£1686.7" — and
     // a two-decimal-only pattern silently dropped the tenth, which is exactly
@@ -736,6 +736,30 @@ public static class ThirdPartyReportExtraction
             entry => (IReadOnlyList<CompiledRule>)
                 [.. entry.Value.Rules.Select(rule => CompiledRule.Compile(rule, entry.Value.LabelBoundary))]);
 
+    /// <summary>
+    /// A capture PDF's vehicle identity and nothing else (FRD-02 EXT-17):
+    /// registration, make and model, VIN, mileage and accident date. Each
+    /// label and its value print on one line, the make is labelled
+    /// "Producer", and a bare "-" is an empty cell, never a value.
+    /// </summary>
+    private static readonly ThirdPartyFieldRule[] VehicleCaptureRules =
+    [
+        new(F.Registration, K.Registration, @"^[ \t]*Registration[ \t]+Number[ \t]+(?<v>[A-Za-z0-9][A-Za-z0-9 ]{1,9}?)[ \t]*$"),
+        new(F.Make, K.Text, @"^[ \t]*Producer[ \t]+(?<v>(?!-[ \t]*$)[^\n]{1,40}?)[ \t]*$"),
+        new(F.Model, K.Text, @"^[ \t]*Model[ \t]+(?<v>(?!-[ \t]*$)[^\n]{1,40}?)[ \t]*$"),
+        new(F.Vin, K.Text, @"^[ \t]*VIN[ \t]+(?<v>[A-Za-z0-9]{5,17})[ \t]*$"),
+        new(F.Mileage, K.Mileage, @"^[ \t]*Mileage[ \t]+(?<v>\d[\d,]{0,9})[ \t]*$", Unit: "miles"),
+        new(F.AccidentDate, K.Date,
+            @"\bAccident\s+Date:\s*(?:[A-Za-z]{3}\s+)?(?<v>[A-Za-z]{3}\s+\d{1,2}\s+\d{4})\b")
+    ];
+
+    /// <summary>The non-report roles whose documents still carry values to read.</summary>
+    private static readonly Dictionary<ThirdPartyDocumentRole, IReadOnlyList<CompiledRule>> RoleRules = new()
+    {
+        [ThirdPartyDocumentRole.VehicleCapture] =
+            [.. VehicleCaptureRules.Select(rule => CompiledRule.Compile(rule, string.Empty))]
+    };
+
     private static readonly Regex WhitespaceRegex = new(
         @"\s+",
         RegexOptions.CultureInvariant,
@@ -766,10 +790,20 @@ public static class ThirdPartyReportExtraction
 
         if (selection.Outcome != ThirdPartySelectionOutcome.Selected || selection.Family is not { } family)
         {
+            // A non-report role with rules of its own (a capture PDF) records
+            // what it prints, and still yields no report candidate.
+            if (selection.Reason == ThirdPartySelectionReason.NonReportDocumentRole
+                && selection.DocumentRole is { } role
+                && RoleRules.TryGetValue(role, out var roleRules))
+            {
+                var read = Observe(roleRules, pages, context, documentRole);
+                rows.AddRange(read.Order.SelectMany(key => read.Rows[key]));
+            }
+
             return Complete(selection, null, rows, readResult.RequiresOcr, context, documentRole);
         }
 
-        var observed = Observe(family, pages, context, documentRole);
+        var observed = Observe(Compiled(family), pages, context, documentRole);
         rows.AddRange(observed.Order.SelectMany(key => observed.Rows[key]));
         rows.AddRange(Media(readResult, context, documentRole));
 
@@ -953,19 +987,19 @@ public static class ThirdPartyReportExtraction
                 SourceCandidateDisposition.Usable))];
 
     /// <summary>
-    /// Applies one family's rules and resolves each field's disposition: one
+    /// Applies one rule list and resolves each field's disposition: one
     /// distinct value is Usable, several are all persisted as Conflicting, and a
     /// declared field with none is persisted as Missing.
     /// </summary>
     private static ObservedFields Observe(
-        ThirdPartyReportFamily family,
+        IReadOnlyList<CompiledRule> rules,
         IReadOnlyList<ThirdPartySourcePage> pages,
         ThirdPartyReportSourceContext context,
         string documentRole)
     {
         var observed = new Dictionary<FieldKey, List<Observation>>();
         var declared = new List<FieldKey>();
-        foreach (var rule in Compiled(family))
+        foreach (var rule in rules)
         {
             var key = new FieldKey(rule.Rule.Field, rule.Rule.ReferenceRole, rule.Rule.PartyRole);
             if (!declared.Contains(key))

@@ -281,7 +281,7 @@ public sealed class PollSentEvidence(
         {
             if (!await approvedMailboxPolicy.IsApprovedAsync(
                     lease.MailboxAddress,
-                    ApprovedMailboxRouteScope.SentEvidence,
+                    ApprovedMailboxRouteScope.Outgoing,
                     cancellationToken))
             {
                 // An administrator can disable Sent-evidence for this mailbox at any time
@@ -663,9 +663,12 @@ public sealed class PollSentEvidence(
                         actor,
                         CreateAutoLinkOperationKey(caseIdentities[0], retained.EvidenceId, provenance),
                         "Exact approved-mailbox Sent evidence and one authoritative Case identity",
-                        // Pegasus's own report send names the generation, and so
-                        // the work, the evidence proves.
-                        staffExecution is { Purpose: StaffMailPurpose.CaseReport } ? staffExecution.ContextId : null),
+                        // Pegasus's own report send names the generations, and so
+                        // the works, the evidence proves, and its own operation,
+                        // whose after-send list becomes the Case's tasks.
+                        staffExecution is { Purpose: StaffMailPurpose.CaseReport } ? staffExecution.ContextId : null,
+                        staffExecution is { Purpose: StaffMailPurpose.CaseReport } ? staffExecution.SecondContextId : null,
+                        staffExecution is { Purpose: StaffMailPurpose.CaseReport } ? staffExecution.Operation.Id : null),
                     cancellationToken);
                 if (autoLink.Disposition == AutoLinkReportEvidenceDisposition.Linked)
                 {
@@ -689,16 +692,9 @@ public sealed class PollSentEvidence(
                 : SentEvidencePollOutcomeKind.Ambiguous;
         }
 
-        await RecordOutcomeAsync(
-            lease,
-            item,
-            outcomeId,
-            outcomeKind,
-            relatedEvidenceId,
-            failureCode,
-            nowUtc,
-            operationKey,
-            cancellationToken);
+        // The send is observed before the outcome moves the cursor past the
+        // item, so an observation that fails is retried with the item rather
+        // than lost; the retention and link above replay by operation key.
         if (staffExecution is not null && staffExecution.Operation.State is not StaffMailState.Sent)
         {
             await staffMailSendStore!.TransitionObservedSentAsync(
@@ -710,6 +706,16 @@ public sealed class PollSentEvidence(
                 nowUtc,
                 cancellationToken);
         }
+        await RecordOutcomeAsync(
+            lease,
+            item,
+            outcomeId,
+            outcomeKind,
+            relatedEvidenceId,
+            failureCode,
+            nowUtc,
+            operationKey,
+            cancellationToken);
         return new(outcomeKind, reportEvidenceRetained);
     }
 

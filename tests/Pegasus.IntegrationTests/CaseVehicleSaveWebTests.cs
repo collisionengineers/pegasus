@@ -219,6 +219,9 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         // Estimate section (this host composes the unavailable gateway); two fewer once the
         // EVA route and submission reads went with EVA; one more for the frame's
         // linked-Triage read for the aside's Linked cases card. That is 46; 44 once the Case data and the workflow configuration are one command and the page takes the AI draft target from them (10 October 2026).
+        // The report sending seed gives a fresh database claim-source contacts: the Claim
+        // Source picker used to find none, and now reads their rows and when each was last
+        // used (2 commands).
         // The save sent 43 until the lease it reclaims read only the Case's workflow row,
         // then 37, 35 once its edit basis read the data in two fewer commands, and 34 once
         // the save writes the work the request names and stales that work's report alone
@@ -244,7 +247,9 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     // - 1 (the rail no longer counts Awaiting instruction, #1179)
     // - 2 (the Case data and the workflow configuration are one command and the AI draft target comes from them, #1176).
     // - 1 (the password-change redirect reads the account the cookie check read, not the database, #1198).
-    private const int CasePageCommands = 41;
+    // + 1 (the report sending seed's claim sources: the picker reads their rows and last use, #1015;
+    //   measured 42 by CI on the combined PR 1307).
+    private const int CasePageCommands = 42;
 
     // 35 - 3 (the Save reuses the rows the request already holds, #1173)
     // - 1 (one command for the Case data and none for the AI draft target, #1176).

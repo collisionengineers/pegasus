@@ -431,6 +431,67 @@ public sealed class StaffMailSendTests
                 CancellationToken.None));
     }
 
+    /// <summary>
+    /// A send that carries the other work's report too (operator, 12 October
+    /// 2026) is checked report by report: the mail and its readiness name the
+    /// same second generation, and each report's attachments follow in turn,
+    /// renamed only at each report's own first place. Only a new Case report
+    /// send carries one, and a send without it keeps its payload unchanged.
+    /// </summary>
+    [Fact]
+    public async Task AReportSendCarryingTheOtherReportIsCheckedReportByReport()
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var report = new StaffMailAttachment(
+            Guid.NewGuid(), Guid.NewGuid(), new string('a', 64), 4, "AssessmentReport.pdf", "application/pdf");
+        var other = new StaffMailAttachment(
+            Guid.NewGuid(), Guid.NewGuid(), new string('b', 64), 4, "AssessmentReport.pdf", "application/pdf");
+        var secondId = Guid.NewGuid();
+        var mail = Command(actor) with
+        {
+            Purpose = StaffMailPurpose.CaseReport,
+            Attachments =
+            [
+                report with { FileName = "a.QDOS26001 Repairable report.pdf" },
+                other with { FileName = "QDOS26001 Repairable report.pdf" }
+            ],
+            SecondReport = new(secondId, 2)
+        };
+        var first = new ReportSendReadinessRequest(actor, Guid.NewGuid(), mail.ContextId, mail.ExpectedContextVersion, [report]);
+        var second = new ReportSendReadinessRequest(actor, first.CaseId, secondId, 2, [other]);
+        var reportSend = new StaffReportSend(new Readiness(), new StaffMailSend(
+            new Store(), new Mailboxes(mail.ApprovedMailboxId, mail.ExpectedMailboxGeneration),
+            new Reader([1], report), new Transport(), TimeProvider.System, new ExecutionLock()));
+
+        // The mail names a second report its readiness does not, or the other way round.
+        await Assert.ThrowsAsync<ArgumentException>(() => reportSend.SendAsync(new(mail, first), CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() => reportSend.SendAsync(
+            new(mail with { SecondReport = null }, first, second), CancellationToken.None));
+        // The readiness names another generation or version.
+        await Assert.ThrowsAsync<ArgumentException>(() => reportSend.SendAsync(
+            new(mail, first, second with { ExpectedGenerationVersion = 3 }), CancellationToken.None));
+        // The reports' attachments come in turn, the viewed report's first.
+        await Assert.ThrowsAsync<ArgumentException>(() => reportSend.SendAsync(
+            new(mail with { Attachments = [mail.Attachments[1], mail.Attachments[0]] }, first, second),
+            CancellationToken.None));
+
+        // Only a Case report send carries a second, distinct report.
+        await Assert.ThrowsAsync<ArgumentException>(() => reportSend.SendAsync(
+            new(mail with { SecondReport = new(mail.ContextId, 1) }, first, second with { GenerationId = mail.ContextId, ExpectedGenerationVersion = 1 }),
+            CancellationToken.None));
+        var send = new StaffMailSend(
+            new Store(), new Mailboxes(mail.ApprovedMailboxId, mail.ExpectedMailboxGeneration),
+            new Reader([1], report), new Transport(), TimeProvider.System, new ExecutionLock());
+        await Assert.ThrowsAsync<ArgumentException>(() => send.SendAsync(
+            Command(actor) with { SecondReport = new(secondId, 1) }, CancellationToken.None));
+
+        // A send without a second report serialises as it always did.
+        Assert.DoesNotContain(
+            "secondReport",
+            System.Text.Json.JsonSerializer.Serialize(Command(actor), System.Text.Json.JsonSerializerOptions.Web),
+            StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task ConcurrentLoserCannotMutateWinnerWhileExecutionLockIsHeld()
     {

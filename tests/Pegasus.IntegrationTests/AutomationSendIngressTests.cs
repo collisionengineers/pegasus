@@ -44,7 +44,7 @@ public sealed class AutomationSendIngressTests
 
         using (var mail = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_mail_send", new
         {
-            mode = "new",
+            mode = "chaser",
             caseId,
             expectedVersion = 0,
             subject = "Subject",
@@ -82,12 +82,15 @@ public sealed class AutomationSendIngressTests
     {
         var generationId = Guid.NewGuid();
         var sends = new RecordingReportSend();
+        var mailbox = OutgoingMailbox();
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory).WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<ISendCaseReport>();
                 services.AddSingleton<ISendCaseReport>(sends);
+                services.RemoveAll<IApprovedMailboxStore>();
+                services.AddSingleton<IApprovedMailboxStore>(new FixedMailboxes(mailbox));
                 WithCurrentGeneration(services, generationId);
             }));
         var caseId = await SeedAcceptedCaseAsync(mcpFactory);
@@ -118,6 +121,7 @@ public sealed class AutomationSendIngressTests
             to = Handler,
             cc = Desk,
             attach = FeeNote,
+            fromMailbox = mailbox.Address,
         }));
         var result = await ReadStructuredContentAsync(sent);
         Assert.Equal(generationId, result.GetProperty("generationId").GetGuid());
@@ -138,6 +142,8 @@ public sealed class AutomationSendIngressTests
         Assert.Equal(["desk@principal.example"], request.ReviewedRecipients.Cc);
         Assert.Equal([CaseReportArtifactKind.FeeNote], request.Attach);
         Assert.Equal(CaseWorkSelector.Current, request.Work);
+        // No instruction e-mail to reply to: the report leaves the named Outgoing mailbox.
+        Assert.Equal(mailbox.Id, request.FromMailboxId);
 
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"""
@@ -185,11 +191,16 @@ public sealed class AutomationSendIngressTests
         Assert.Null(request.Attach);
     }
 
+    /// <summary>
+    /// mode chaser is the Case's Send chaser (operator, 12 October 2026): a
+    /// Case with no instruction e-mail to reply to sends a new message from
+    /// the Outgoing mailbox fromMailbox names, recorded as the Case's chaser.
+    /// </summary>
     [Fact]
-    public async Task NewMailIsTheComposersSendFromTheDefaultMailboxAsTheAutomationActor()
+    public async Task AChaserWithoutAnInstructionEmailIsANewMessageFromTheNamedMailbox()
     {
         var mail = new RecordingMailSend();
-        var mailbox = ReadyDefaultMailbox();
+        var mailbox = OutgoingMailbox();
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithMailSend(factory, mail, mailbox);
         var caseId = await SeedAcceptedCaseAsync(mcpFactory);
@@ -200,8 +211,8 @@ public sealed class AutomationSendIngressTests
         // Refusals before anything is sent.
         using (var stale = await PostMcpAsync(client, token, ToolCallPayload(20, "pegasus_mail_send", new
         {
-            mode = "new", caseId, expectedVersion = version + 7, subject = "Images", body = "Please send the images.",
-            operationKey = "mcp:mail-stale", to = Handler,
+            mode = "chaser", caseId, expectedVersion = version + 7, subject = "Images", body = "Please send the images.",
+            operationKey = "mcp:mail-stale", to = Handler, fromMailbox = mailbox.Address,
         })))
         {
             Assert.Contains("changed since it was read", await ReadErrorTextAsync(stale), StringComparison.Ordinal);
@@ -216,17 +227,41 @@ public sealed class AutomationSendIngressTests
         }
         using (var badAddress = await PostMcpAsync(client, token, ToolCallPayload(22, "pegasus_mail_send", new
         {
-            mode = "new", caseId, expectedVersion = version, subject = "Images", body = "Please send the images.",
-            operationKey = "mcp:mail-bad-address", to = NotAnAddress,
+            mode = "chaser", caseId, expectedVersion = version, subject = "Images", body = "Please send the images.",
+            operationKey = "mcp:mail-bad-address", to = NotAnAddress, fromMailbox = mailbox.Address,
         })))
         {
             Assert.Contains("plain e-mail address", await ReadErrorTextAsync(badAddress), StringComparison.Ordinal);
+        }
+        using (var noFrom = await PostMcpAsync(client, token, ToolCallPayload(24, "pegasus_mail_send", new
+        {
+            mode = "chaser", caseId, expectedVersion = version, subject = "Images", body = "Please send the images.",
+            operationKey = "mcp:mail-no-from", to = Handler,
+        })))
+        {
+            Assert.Contains(new CaseMailSenderRequiredException().Message, await ReadErrorTextAsync(noFrom), StringComparison.Ordinal);
+        }
+        using (var unknownFrom = await PostMcpAsync(client, token, ToolCallPayload(25, "pegasus_mail_send", new
+        {
+            mode = "chaser", caseId, expectedVersion = version, subject = "Images", body = "Please send the images.",
+            operationKey = "mcp:mail-unknown-from", to = Handler, fromMailbox = "someone@example.invalid",
+        })))
+        {
+            Assert.Contains("not an Outgoing approved mailbox", await ReadErrorTextAsync(unknownFrom), StringComparison.Ordinal);
+        }
+        using (var forwardFrom = await PostMcpAsync(client, token, ToolCallPayload(26, "pegasus_mail_send", new
+        {
+            mode = "forward", caseId, expectedVersion = version, subject = "Fw: Images", body = "For you.",
+            operationKey = "mcp:mail-forward-from", to = Handler, fromMailbox = mailbox.Address,
+        })))
+        {
+            Assert.Contains("fromMailbox applies to chaser only", await ReadErrorTextAsync(forwardFrom), StringComparison.Ordinal);
         }
         Assert.Empty(mail.Commands);
 
         using var sent = await PostMcpAsync(client, token, ToolCallPayload(23, "pegasus_mail_send", new
         {
-            mode = "new",
+            mode = "chaser",
             caseId,
             expectedVersion = version,
             subject = "Images",
@@ -234,10 +269,10 @@ public sealed class AutomationSendIngressTests
             operationKey = "mcp:mail-new",
             to = Handler,
             cc = Desk,
-            chaser = true,
+            fromMailbox = mailbox.Address,
         }));
         var result = await ReadStructuredContentAsync(sent);
-        Assert.Equal("new", result.GetProperty("mode").GetString());
+        Assert.Equal("chaser", result.GetProperty("mode").GetString());
         Assert.Equal(nameof(StaffMailPurpose.CaseChaser), result.GetProperty("purpose").GetString());
         Assert.Equal(nameof(StaffMailState.Submitted), result.GetProperty("state").GetString());
         Assert.Equal(caseId, result.GetProperty("caseId").GetGuid());
@@ -279,12 +314,12 @@ public sealed class AutomationSendIngressTests
     /// any other mode refuses it before anything is sent.
     /// </summary>
     [Fact]
-    public async Task ResolveQueryRidesAReplyAndIsRefusedOnNewMail()
+    public async Task ResolveQueryRidesAReplyAndIsRefusedOnAChaser()
     {
         const string graphId = "mcp-reply-query";
         const string address = "replies@collisionengineers.example";
         var mail = new RecordingMailSend();
-        var mailbox = ReadyDefaultMailbox() with { Id = TestMailboxId.From(graphId), Address = address };
+        var mailbox = OutgoingMailbox() with { Id = TestMailboxId.From(graphId), Address = address };
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithMailSend(factory, mail, mailbox);
         var caseId = await SeedAcceptedCaseAsync(mcpFactory);
@@ -295,8 +330,8 @@ public sealed class AutomationSendIngressTests
 
         using (var refused = await PostMcpAsync(client, token, ToolCallPayload(40, "pegasus_mail_send", new
         {
-            mode = "new", caseId, expectedVersion = version, subject = "Images", body = "Please send the images.",
-            operationKey = "mcp:mail-new-resolve", to = Handler, resolveQuery = true,
+            mode = "chaser", caseId, expectedVersion = version, subject = "Images", body = "Please send the images.",
+            operationKey = "mcp:mail-new-resolve", to = Handler, fromMailbox = address, resolveQuery = true,
         })))
         {
             Assert.Contains("resolveQuery applies to reply and reply_all only", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
@@ -322,6 +357,69 @@ public sealed class AutomationSendIngressTests
         Assert.Equal(messageId, command.OriginalMessage?.RetainedMessageId);
         Assert.Equal(caseId, command.ContextId);
         Assert.True(command.ResolvesCaseQueries);
+    }
+
+    /// <summary>
+    /// A Case that arrived by an approved mailbox: mode chaser is a reply to
+    /// its instruction e-mail from the mailbox it arrived in, and fromMailbox
+    /// is refused rather than ignored.
+    /// </summary>
+    [Fact]
+    public async Task AChaserRepliesToTheInstructionEmailFromTheMailboxItArrivedIn()
+    {
+        const string graphId = "mcp-chaser-instruction";
+        const string address = "instructions@collisionengineers.example";
+        var mail = new RecordingMailSend();
+        var mailbox = OutgoingMailbox() with { Id = TestMailboxId.From(graphId), Address = address };
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithMailSend(factory, mail, mailbox);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        var messageId = await SeedRetainedMessageAsync(mcpFactory, graphId, address);
+        await factory.Database.ExecuteAsync(
+            $"""
+            UPDATE RetainedMailboxMessages
+            SET ExternalReceiptToken = (
+                SELECT receipt.ExternalReceiptToken
+                FROM Cases c
+                INNER JOIN IntakeReceipts receipt ON receipt.Id = c.OriginIntakeReceiptId
+                WHERE c.Id = '{caseId:D}')
+            WHERE Id = '{messageId:D}'
+            """);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, SendScopes);
+        var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
+
+        using (var named = await PostMcpAsync(client, token, ToolCallPayload(50, "pegasus_mail_send", new
+        {
+            mode = "chaser", caseId, expectedVersion = version, subject = "Re: The labour rate", body = "Please send the images.",
+            operationKey = "mcp:chaser-instruction-from", to = Handler, fromMailbox = address,
+        })))
+        {
+            Assert.Contains("only for a Case with no instruction e-mail", await ReadErrorTextAsync(named), StringComparison.Ordinal);
+        }
+        Assert.Empty(mail.Commands);
+
+        using var sent = await PostMcpAsync(client, token, ToolCallPayload(51, "pegasus_mail_send", new
+        {
+            mode = "chaser",
+            caseId,
+            expectedVersion = version,
+            subject = "Re: The labour rate",
+            body = "Please send the images.",
+            operationKey = "mcp:chaser-instruction",
+            to = Handler,
+        }));
+        var result = await ReadStructuredContentAsync(sent);
+        Assert.Equal("chaser", result.GetProperty("mode").GetString());
+        Assert.Equal(messageId, result.GetProperty("messageId").GetGuid());
+
+        var command = Assert.Single(mail.Commands);
+        Assert.Equal(StaffMailPurpose.CaseChaser, command.Purpose);
+        Assert.Equal(StaffMailComposeMode.Reply, command.ComposeMode);
+        Assert.Equal(mailbox.Id, command.ApprovedMailboxId);
+        Assert.Equal(messageId, command.OriginalMessage?.RetainedMessageId);
+        Assert.Equal(caseId, command.ContextId);
+        Assert.Equal(["handler@principal.example"], command.To.Select(item => item.Address));
     }
 
     /// <summary>One retained inbox message, written as the poller's retention path writes it.</summary>
@@ -385,7 +483,7 @@ public sealed class AutomationSendIngressTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IApprovedMailboxStore>();
-                services.AddSingleton<IApprovedMailboxStore>(new FixedMailboxes(ReadyDefaultMailbox()));
+                services.AddSingleton<IApprovedMailboxStore>(new FixedMailboxes(OutgoingMailbox()));
             }));
         var caseId = await SeedAcceptedCaseAsync(mcpFactory);
         using var client = mcpFactory.CreateClient();
@@ -394,8 +492,8 @@ public sealed class AutomationSendIngressTests
 
         using var refused = await PostMcpAsync(client, token, ToolCallPayload(30, "pegasus_mail_send", new
         {
-            mode = "new", caseId, expectedVersion = version, subject = "Images", body = "Please send the images.",
-            operationKey = "mcp:mail-offline", to = Handler,
+            mode = "chaser", caseId, expectedVersion = version, subject = "Images", body = "Please send the images.",
+            operationKey = "mcp:mail-offline", to = Handler, fromMailbox = "claims@collisionengineers.example",
         }));
 
         Assert.Contains("unavailable", await ReadErrorTextAsync(refused), StringComparison.OrdinalIgnoreCase);
@@ -427,10 +525,11 @@ public sealed class AutomationSendIngressTests
                 services.AddSingleton<IApprovedMailboxStore>(new FixedMailboxes(mailbox));
             }));
 
-    private static ApprovedMailbox ReadyDefaultMailbox() => new(
+    /// <summary>An Outgoing mailbox that can send.</summary>
+    private static ApprovedMailbox OutgoingMailbox() => new(
         Guid.NewGuid(),
         "claims@collisionengineers.example",
-        [ApprovedMailboxRouteScope.StaffSend, ApprovedMailboxRouteScope.SentEvidence],
+        [ApprovedMailboxRouteScope.Outgoing],
         ApprovedMailboxState.Approved,
         "graph-mailbox",
         "inbox",
@@ -438,10 +537,7 @@ public sealed class AutomationSendIngressTests
         IdentityIsBound: true,
         ActivatedAtUtc: SeedUtcNow,
         Version: 1,
-        FolderBindings: [],
-        Generation: 3,
-        VerifiedEncodedMessageSizeLimit: 25_000_000,
-        IsDefaultStaffSend: true);
+        Generation: 3);
 
     private sealed class FixedMailboxes(ApprovedMailbox mailbox) : IApprovedMailboxStore
     {
@@ -449,9 +545,6 @@ public sealed class AutomationSendIngressTests
             Task.FromResult<IReadOnlyList<ApprovedMailbox>>([mailbox]);
 
         public Task<ApprovedMailbox> UpdateAsync(UpdateApprovedMailboxRequest request, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<ApprovedMailbox> SetDefaultAsync(SetDefaultApprovedMailboxRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<bool> IsApprovedAsync(

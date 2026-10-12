@@ -91,7 +91,7 @@ public sealed class AdministrationReportsWebTests
         Assert.Contains("id=\"months-title\"", html, StringComparison.Ordinal);
         Assert.Contains("id=\"outcomes-title\"", html, StringComparison.Ordinal);
         Assert.Contains("id=\"queues-title\"", html, StringComparison.Ordinal);
-        Assert.Contains("Amendment requests", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Amendment requests", html, StringComparison.Ordinal); // An amendment request is a query.
         Assert.DoesNotContain("Disputes", html, StringComparison.Ordinal); // A dispute is a query.
         // Reports by Principal: four columns, the Work choice picks the figures.
         Assert.DoesNotContain("Reports produced &#xB7; Inspection", html, StringComparison.Ordinal);
@@ -129,8 +129,9 @@ public sealed class AdministrationReportsWebTests
 
         using var csv = await client.GetAsync($"{Page}?handler=Csv&period=last-month");
         Assert.Equal(HttpStatusCode.OK, csv.StatusCode);
+        Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, (await csv.Content.ReadAsByteArrayAsync())[..3]);
         Assert.StartsWith(
-            "Person,Queries received,Amendment requests,Reports sent,Audit reports sent,Received to sent\r\n",
+            "Person,Queries received,Reports sent,Audit reports sent,Received to sent\r\n",
             await csv.Content.ReadAsStringAsync(),
             StringComparison.Ordinal);
         using var turnaround = await client.GetAsync($"{Page}?handler=TurnaroundCsv");
@@ -215,7 +216,7 @@ public sealed class AdministrationReportsWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("<span class=\"metric-value\">Unavailable</span>", html, StringComparison.Ordinal);
-        Assert.Contains("<td colspan=\"6\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
+        Assert.Contains("<td colspan=\"5\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
 
         using var workbookResponse = await client.GetAsync($"{Page}?handler=Workbook");
 

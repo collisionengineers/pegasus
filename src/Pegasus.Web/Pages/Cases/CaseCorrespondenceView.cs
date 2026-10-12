@@ -4,14 +4,12 @@ namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
 /// What the Files section's Correspondence tab draws: the retained e-mails,
-/// the Case/PO the message dialog and its Reply, Reply all and Forward carry,
-/// and whether the tab offers Compose. The Case record and the Triage Case
-/// both draw it.
+/// and the Case/PO the message dialog and its Reply, Reply all and Forward
+/// carry. The Case record and the Triage Case both draw it.
 /// </summary>
 public sealed record CaseCorrespondenceView(
     IReadOnlyList<CaseCorrespondenceEmail> Emails,
-    string CaseReference,
-    bool OffersCompose)
+    string CaseReference)
 {
     /// <summary>
     /// The Case whose Correspondence tab offers Tag as query on each received

@@ -420,6 +420,10 @@ internal sealed class ReportMcpTools(
                 break;
         }
 
+        // Linking also returns the tasks Report sent created; the tool reads the workflow alone.
+        async Task<CaseWorkflowRecord> LinkAsync(LinkReportEvidenceRequest request) =>
+            (await linkEvidence.ExecuteAsync(request, cancellationToken)).Workflow;
+
         await leases.RunCaseAsync(
             caseId,
             expectedVersion,
@@ -431,9 +435,8 @@ internal sealed class ReportMcpTools(
                 "record_approval" => recordApproval.ExecuteAsync(
                     new(caseId, expectedVersion, actor, key, reason, token, submission!, selector),
                     cancellationToken),
-                "link_sent_evidence" => linkEvidence.ExecuteAsync(
-                    new(caseId, expectedVersion, actor, key, reason, token, evidence, selector),
-                    cancellationToken),
+                "link_sent_evidence" => LinkAsync(
+                    new(caseId, expectedVersion, actor, key, reason, token, evidence, selector)),
                 _ => unlinkEvidence.ExecuteAsync(
                     new(caseId, expectedVersion, actor, key, reason, token, evidence),
                     cancellationToken),

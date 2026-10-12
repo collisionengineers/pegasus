@@ -389,7 +389,14 @@ public sealed class EfCaseQueryStore(
             evidence.Result.AvailableReportSentEvidence,
             related.Result.RecordNotes,
             linkedCancellationMessageId,
-            related.Result.LinkedTriage)
+            related.Result.LinkedTriage,
+            // Once Report sent is recorded the Next action lists the open tasks and
+            // they grey Mark completed and Archive (operator, 6 October 2026); a
+            // Case not yet sent reads none. The three chains have ended, so this
+            // context is free again.
+            frame.Workflow.ReportSentEvidence is not null
+                ? await EfCaseTaskStore.ReadOpenAsync(context, caseId, cancellationToken)
+                : [])
         {
             // The Next action's Resolve query route: read only while the
             // workflow says a query is open.
@@ -791,7 +798,7 @@ public sealed class EfCaseQueryStore(
                 item.Subject,
                 Classification: null,
                 item.SourceSha256,
-                MailDirection.Sent))
+                IsSent: true))
             .ToArray();
     }
 
@@ -982,13 +989,11 @@ public sealed class EfCaseQueryStore(
 
     /// <summary>
     /// The newest retained email currently linked to the Case whose current
-    /// classification is a received in-progress cancellation, in one command.
-    /// It keeps the rules the correspondence read applies in memory: an email
-    /// channel; an active manual association to this Case, or no manual
-    /// association and an accepted link to it (<see
-    /// cref="CurrentIntakeAssociations"/>); and the category the persisted
-    /// decision maps to, which ignores the decision's outcome and is Other
-    /// whenever an Other name is recorded.
+    /// category is Cancellation, in one command. It keeps the rules the
+    /// correspondence read applies in memory: an email channel; an active
+    /// manual association to this Case, or no manual association and an
+    /// accepted link to it (<see cref="CurrentIntakeAssociations"/>); and the
+    /// persisted category, which ignores the decision's outcome.
     /// </summary>
     private static Task<Guid?> ReadLinkedCancellationMessageIdAsync(
         PegasusDbContext context,
@@ -997,8 +1002,7 @@ public sealed class EfCaseQueryStore(
     {
         var mailbox = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox);
         var manualUpload = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload);
-        var received = EfIntakeReceiptStore.ToCode(MailDirection.Received);
-        var inProgressCases = MailTaxonomy.CategoryName(ReceivedMailFamily.InProgressCases);
+        var cancellation = MailCategories.Code(MailCategory.Cancellation);
         return context.IntakeReceipts.AsNoTracking()
             .Where(item => (item.SourceChannel == mailbox || item.SourceChannel == manualUpload)
                 && ((item.ManualAssociation != null
@@ -1008,10 +1012,7 @@ public sealed class EfCaseQueryStore(
                         && context.CaseIntakeLinks.Any(link =>
                             link.IntakeReceiptId == item.Id && link.CaseId == caseId)))
                 && item.MailClassificationDecision != null
-                && item.MailClassificationDecision.OtherName == null
-                && item.MailClassificationDecision.Direction == received
-                && item.MailClassificationDecision.Family == inProgressCases
-                && item.MailClassificationDecision.Subtype == MailCategory.CancellationSubtype)
+                && item.MailClassificationDecision.Category == cancellation)
             .Join(
                 context.RetainedMailboxMessages.AsNoTracking(),
                 receipt => receipt.ExternalReceiptToken,
@@ -1387,7 +1388,8 @@ public sealed class EfCaseQueryStore(
         item.IsCurrent,
         item.IsLogicallyRemoved,
         item.RemovalReason,
-        item.IsRecognisedEstimate);
+        item.IsRecognisedEstimate,
+        item.RecognisedEstimateProvider);
 
     /// <summary>
     /// The keyset-paged sibling of <see cref="ListHistoryAsync"/>:

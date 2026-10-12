@@ -74,8 +74,12 @@ the Triage may link to ([FRD-03](docs/frd/frd-03-triage.md)).
 _Avoid_: pre-Case Triage record, T-reference
 
 **Unidentified**:
-Safely retained material or an inseparable submission group that has not become a Case (Triage included) or Image intake: its identity, meaning, ownership or destination cannot be established, or it could not be read. It receives an immutable U-reference and a reason under FRD-02; material that could not be read carries the reason Could not be read with its file kind. Readable material that must not become a Case is closed with a reason, and a closed item can be reopened. It is distinct from Triage, a missing Audit original report, Image Intake and a formal Case in Not ready.
+Safely retained material or an inseparable submission group that has not become a Case (Triage included) or Image intake: its identity, meaning, ownership or destination cannot be established, or it could not be read. It receives an immutable U-reference and a reason under FRD-02; material that could not be read carries the reason Could not be read with its file kind. Readable material that must not become a Case is closed with a reason, and a closed item can be reopened. It is distinct from Triage, a missing Audit original report, Image Intake and a formal Case in Not ready. It is not a mail category.
 _Avoid_: Triage, Blocked, Blocked intake
+
+**Mail category**:
+The one category a retained received message has, from eleven: New instruction, Triage request, Pre-instruction, Images received, Case update, Cancellation, Query, Billing, General, Not client related and Internal CC ([FRD-08](docs/frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)). A message no classification has decided is Unclassified and shows as Unidentified. Sent items carry no category.
+_Avoid_: family, subtype, destination, Other, Ambiguous
 
 **Held**:
 A Case state that pauses progression and recurring chasers until staff decide. A hold records a reason and may carry a Review on date, which is when it is next due for a decision. A cancellation message never changes a Case by itself; staff may place the Case on Hold with the cancellation as the reason ([FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md)).
@@ -159,6 +163,10 @@ _Avoid_: IBA, image-based mode, desktop assessment value
 A Principal's table of Engineer's Value bands and the percentage of that value paid, for each salvage category (A, B, S, N). It fills the Case's salvage value while the Case edits, until the Engineer sets their own ([FRD-24](docs/frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement)). The pre-accident value (PAV) it bands is the Engineer's Value.
 _Avoid_: Salvage table, salvage rates
 
+**Report sending rules**:
+A Principal's standing instructions for sending a Case's report: where it goes and from, who is copied or never copied, what goes with it, what holds or stops it, what staff do after, and the report's file name ([FRD-04](docs/frd/frd-04-parties-accounts-and-access.md#contacts-administration)). A rule changes the copies, or holds, stops or reminds, when its conditions about the Case hold; a condition with no Case fact yet is undecided and is asked at delivery. In dispatch, a **Hold** is a text staff tick as done before Send, and a **Stop** refuses Send until staff with casework override it with a recorded reason; neither is the Held Case state.
+_Avoid_: Sending SOP, dispatch rules, Held (for a dispatch hold)
+
 **Vehicle enrichment**:
 The acquisition of externally sourced vehicle observations after case intake to enhance, but never silently replace, Case data.
 _Avoid_: Vehicle-data integration, automatic correction
@@ -193,9 +201,10 @@ completed (operator, 11 October 2026;
 _Avoid_: Completed, Complete, Post-report, Closed
 
 **Query**:
-A record on a Case: a received post-report e-mail tagged as one, or a query
+A record on a Case: a received e-mail classified Query, or a query
 staff logged with its channel and details. While any is open the Case reads
 Query, in purple, whatever its state; Resolve query closes every open one.
 A dispute, a challenge to a delivered report or finding, is a query: there is
-no separate dispute type, count or column (operator, 9 October 2026).
+no separate dispute type, count or column (operator, 9 October 2026). An
+amendment request is a query too (operator, 12 October 2026).
 _Avoid_: Query state, Dispute as its own category

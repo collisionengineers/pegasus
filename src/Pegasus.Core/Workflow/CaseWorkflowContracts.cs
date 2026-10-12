@@ -408,6 +408,12 @@ public sealed record LinkReportEvidenceRequest(
 /// the polling policy supplied one unambiguous authoritative Case identity.
 /// <paramref name="GenerationId"/> is the report generation the send carried,
 /// when the send was Pegasus's own: it names the work the evidence proves.
+/// <paramref name="SecondGenerationId"/> is the other work's report the same
+/// send carried, if any: the one Sent item proves both works (operator, 12
+/// October 2026). It is left out of the request hash while absent.
+/// <paramref name="SendOperationId"/> is that send's own operation, whose
+/// recorded after-send list becomes the Case's tasks; it too is left out of
+/// the request hash while absent.
 /// </summary>
 public sealed record AutoLinkReportEvidenceRequest(
     Guid CaseId,
@@ -415,7 +421,13 @@ public sealed record AutoLinkReportEvidenceRequest(
     ActionActor Actor,
     string OperationKey,
     string Reason,
-    Guid? GenerationId = null);
+    Guid? GenerationId = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    Guid? SecondGenerationId = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    Guid? SendOperationId = null);
 
 public enum AutoLinkReportEvidenceDisposition
 {
@@ -441,7 +453,23 @@ public sealed record AutoLinkedReportEvidence(
 public sealed record AutoLinkReportEvidenceResult(
     AutoLinkReportEvidenceDisposition Disposition,
     AutoLinkedReportEvidence? Link,
-    string? NotLinkedReasonCode);
+    string? NotLinkedReasonCode)
+{
+    /// <summary>
+    /// The tasks this link created, in the same transaction, from the after-send
+    /// list the delivery froze (CASE-20). Empty when nothing was linked, the send
+    /// was not Pegasus's own, the list was empty, or the link replayed.
+    /// </summary>
+    public IReadOnlyList<CaseTaskRecord> TasksCreated { get; init; } = [];
+}
+
+/// <summary>
+/// The outcome of staff Mark report sent: the Case's workflow as it now stands and
+/// the tasks the link created from the delivery's frozen after-send list.
+/// </summary>
+public sealed record LinkReportEvidenceResult(
+    CaseWorkflowRecord Workflow,
+    IReadOnlyList<CaseTaskRecord> TasksCreated);
 
 public sealed record UnlinkReportEvidenceRequest(
     Guid CaseId,
@@ -597,7 +625,7 @@ public interface ICaseWorkflowStore : ICaseWorkflowQueries, ILeaseCaseForEdit
         RecordCaseReportApprovalRequest request,
         CancellationToken cancellationToken);
 
-    Task<CaseWorkflowRecord> LinkReportEvidenceAsync(
+    Task<LinkReportEvidenceResult> LinkReportEvidenceAsync(
         LinkReportEvidenceRequest request,
         CancellationToken cancellationToken);
 
@@ -671,7 +699,7 @@ public interface IRecordCaseReportApproval
 
 public interface ILinkReportEvidence
 {
-    Task<CaseWorkflowRecord> ExecuteAsync(
+    Task<LinkReportEvidenceResult> ExecuteAsync(
         LinkReportEvidenceRequest request,
         CancellationToken cancellationToken);
 }

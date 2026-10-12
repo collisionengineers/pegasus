@@ -42,11 +42,25 @@ identity. The Graph mailbox and folder coordinates are replaceable cursor
 scope. Each mailbox holds its own lease and its own cursor, so one mailbox's
 failure or backlog never affects another.
 
+An approved mailbox is **Incoming**, **Outgoing** or both, and nothing else
+(operator, 12 October 2026). Incoming: Pegasus reads its Inbox into intake.
+Outgoing: staff mail is sent as it
+([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence))
+and its Sent Items are read as the evidence of what left. There is no
+per-mailbox instruction, Triage or query routing: what a message is, an
+instruction, a query, a Triage request or anything else, is decided per
+message by classification
+([FRD-08](frd-08-email-mailbox-and-background-processing.md)), whichever
+mailbox received it. Mail settings (`/Administration/Mailboxes`) shows the
+two as checkboxes under **Used for**.
+
 The accepted intake target is four business mailboxes:
 `instructions@collisionengineers.co.uk` (the first caller, INT-02),
 `desk@collisionengineers.co.uk` (INT-05),
 `engineers@collisionengineers.co.uk` (INT-06) and
-`info@collisionengineers.co.uk` (INT-07). Each is processed only while it is
+`info@collisionengineers.co.uk` (INT-07). `desk@`, `info@` and `engineers@`
+are to be added as Incoming and Outgoing; the tenant admission that covers
+them is a separate authorised step. Each is processed only while it is
 on the Administrator-managed allowlist and activated under the rules of this
 section. The addresses are data, not code.
 
@@ -60,14 +74,20 @@ rather than resuming the old cursor, so mail received while disabled never
 becomes a backlog.
 
 The global Worker switch, individual function switches and per-mailbox
-switches are separate. Sent-evidence polling stays off unless separately
-approved. Approving a mailbox in Pegasus grants no Exchange access; the
+switches are separate. The Sent-evidence poll reads the Sent Items of every
+activated Outgoing mailbox while the Worker and that function are enabled.
+Approving a mailbox in Pegasus grants no Exchange access; the
 Microsoft 365 tenant must separately admit the application to that mailbox.
 Until it does, polling that mailbox fails and says so. An approved intake
 mailbox becomes pollable only after an address check has stored its mailbox
 identity and activation time. Before that, the administration list reports
 it as not activated, not as awaiting a first poll, because no poll is
 pending.
+
+A mailbox has no purpose. Which approved mailbox received a message is
+never classification evidence; every mailbox feeds the one classification in
+[FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)
+(operator, 8 October 2026).
 
 **Wipe.** An explicitly authorised intake-data wipe records one UTC
 receive-time cutoff in the existing Inbox poll state, in the same

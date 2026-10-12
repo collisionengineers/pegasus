@@ -72,14 +72,13 @@ public static class AdministrationReportTables
             [
                 new("Person", WorkbookColumnKind.Text),
                 new("Queries received", WorkbookColumnKind.Count),
-                new("Amendment requests", WorkbookColumnKind.Count),
                 new("Reports sent", WorkbookColumnKind.Count),
                 new("Audit reports sent", WorkbookColumnKind.Count),
                 new("Received to sent", WorkbookColumnKind.Text)
             ],
             report.Rows.Select(row => (IReadOnlyList<object?>)
             [
-                row.DisplayName, row.QueriesReceived, row.AmendmentRequests,
+                row.DisplayName, row.QueriesReceived,
                 row.ReportsSent, row.AuditReportsSent, Turnaround(row.AverageReceivedToSent, labels)
             ]).ToArray(),
             Totals: true);

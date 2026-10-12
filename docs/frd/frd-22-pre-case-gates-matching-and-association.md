@@ -224,7 +224,7 @@ files.
 ## Edge cases and fail-closed behaviour
 
 - Two candidate Cases for an automatic route: Unidentified with the
-  Ambiguous ownership or destination reason.
+  Conflicting identification reason.
 - A route cannot establish an identity-critical fact: it keeps only what is
   safe and the material becomes Unidentified.
 - An automatic association meets a live staff lease: it yields and retries

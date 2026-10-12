@@ -684,16 +684,9 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             IntakeReceiptId = receipt.Id,
             IntakeReceipt = receipt,
             Outcome = ToCode(decision.Outcome),
-            Direction = decision.Category is null ? null : ToCode(decision.Category.Direction),
-            Family = decision.Category is { IsOther: false } category
-                ? category.Name
-                : null,
-            Subtype = decision.Category?.Subtype,
+            Category = decision.Category is { } category ? MailCategories.Code(category) : null,
             CaseType = decision.CaseType is null ? null : CaseTypeCodes.ToCode(decision.CaseType.Value),
-            IsReplyContext = decision.Category?.IsReplyContext ?? false,
-            OtherName = decision.Category?.OtherName,
-            OtherReasoning = decision.Category?.OtherReasoning,
-            AmbiguousCandidatesJson = SerializeEnvelope(decision.AmbiguousCandidates),
+            IsReplyContext = decision.IsReplyContext,
             PredicatesJson = SerializeEnvelope(decision.Predicates),
             Reason = decision.Reason,
             PolicyKey = decision.PolicyKey,
@@ -709,37 +702,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     internal static MailClassificationResult MapMailClassificationDecision(
         IntakeMailClassificationDecisionEntity entity)
     {
-        MailCategory? category = null;
-        if (entity.OtherName is not null)
-        {
-            if (entity.Direction is null || entity.OtherReasoning is null)
-            {
-                throw new InvalidDataException(
-                    "The persisted 'Other' classification is incomplete.");
-            }
-
-            category = MailCategory.Other(
-                ParseMailDirection(entity.Direction),
-                entity.OtherName,
-                entity.OtherReasoning);
-        }
-        else if (entity.Family is not null)
-        {
-            if (entity.Direction is null)
-            {
-                throw new InvalidDataException(
-                    "The persisted classification family carries no direction.");
-            }
-
-            category = ParseMailDirection(entity.Direction) == MailDirection.Received
-                ? MailCategory.Received(
-                    MailTaxonomy.ParseReceivedFamily(entity.Family),
-                    entity.Subtype,
-                    entity.IsReplyContext)
-                : MailCategory.Sent(
-                    MailTaxonomy.ParseSentFamily(entity.Family),
-                    entity.IsReplyContext);
-        }
+        MailCategory? category = entity.Category is null ? null : MailCategories.Parse(entity.Category);
 
         var hasAnyAuditReportValue = entity.StandaloneAuditReportAssetSourceLabel is not null
             || entity.StandaloneAuditReportAssessment is not null;
@@ -754,7 +717,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         return new(
             ParseMailClassificationOutcome(entity.Outcome),
             category,
-            DeserializeEnvelope<IReadOnlyList<string>>(entity.AmbiguousCandidatesJson) ?? [],
             DeserializeEnvelope<IReadOnlyList<MailClassificationPredicateResult>>(entity.PredicatesJson),
             entity.Reason,
             entity.PolicyKey,
@@ -764,10 +726,11 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 ? new(
                     entity.StandaloneAuditReportAssetSourceLabel!,
                     AuditAssessmentCode.Parse(entity.StandaloneAuditReportAssessment!))
-                : null);
+                : null,
+            entity.IsReplyContext);
     }
 
-    private static void ApplyMailClassificationDecision(
+    internal static void ApplyMailClassificationDecision(
         PegasusDbContext context,
         IntakeReceiptEntity receipt,
         MailClassificationResult? decision,
@@ -803,14 +766,9 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
 
         var entity = receipt.MailClassificationDecision;
         entity.Outcome = replacement.Outcome;
-        entity.Direction = replacement.Direction;
-        entity.Family = replacement.Family;
-        entity.Subtype = replacement.Subtype;
+        entity.Category = replacement.Category;
         entity.CaseType = replacement.CaseType;
         entity.IsReplyContext = replacement.IsReplyContext;
-        entity.OtherName = replacement.OtherName;
-        entity.OtherReasoning = replacement.OtherReasoning;
-        entity.AmbiguousCandidatesJson = replacement.AmbiguousCandidatesJson;
         entity.PredicatesJson = replacement.PredicatesJson;
         entity.Reason = replacement.Reason;
         entity.PolicyKey = replacement.PolicyKey;
@@ -1223,7 +1181,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     private static string ToCode(MailClassificationOutcome value) => value switch
     {
         MailClassificationOutcome.Classified => "classified",
-        MailClassificationOutcome.Ambiguous => "ambiguous",
         MailClassificationOutcome.Unclassified => "unclassified",
         _ => throw UnknownEnum(value)
     };
@@ -1231,7 +1188,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     private static MailClassificationOutcome ParseMailClassificationOutcome(string value) => value switch
     {
         "classified" => MailClassificationOutcome.Classified,
-        "ambiguous" => MailClassificationOutcome.Ambiguous,
         "unclassified" => MailClassificationOutcome.Unclassified,
         _ => throw UnknownCode("mail-classification outcome", value)
     };
@@ -1254,20 +1210,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         "no_keys" => CaseMatchOutcome.NoKeys,
         "ambiguous" => CaseMatchOutcome.Ambiguous,
         _ => throw UnknownCode("case-match outcome", value)
-    };
-
-    internal static string ToCode(MailDirection value) => value switch
-    {
-        MailDirection.Received => "received",
-        MailDirection.Sent => "sent",
-        _ => throw UnknownEnum(value)
-    };
-
-    private static MailDirection ParseMailDirection(string value) => value switch
-    {
-        "received" => MailDirection.Received,
-        "sent" => MailDirection.Sent,
-        _ => throw UnknownCode("mail direction", value)
     };
 
     private static string ToCode(MailRouteKind value) => value switch

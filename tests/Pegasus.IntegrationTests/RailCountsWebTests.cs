@@ -129,6 +129,9 @@ public sealed class RailCountsWebTests
         public Task<IReadOnlyList<PairedVehicleImagesCase>> ListPairedVehicleImagesAwaitingStaffAsync(
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<PairedVehicleImagesCase>>([]);
+
+        public Task<IReadOnlyList<OpenCaseTask>> ListOpenCaseTasksAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<OpenCaseTask>>([]);
     }
 
     [Fact]
@@ -166,6 +169,9 @@ public sealed class RailCountsWebTests
 
         public Task<IReadOnlyList<PairedVehicleImagesCase>> ListPairedVehicleImagesAwaitingStaffAsync(
             CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("A redirect must not query the rendered-page shell.");
+
+        public Task<IReadOnlyList<OpenCaseTask>> ListOpenCaseTasksAsync(CancellationToken cancellationToken) =>
             throw new InvalidOperationException("A redirect must not query the rendered-page shell.");
     }
 

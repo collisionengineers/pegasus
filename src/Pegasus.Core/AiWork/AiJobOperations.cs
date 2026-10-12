@@ -231,11 +231,7 @@ public static class AiJobPolicy
     {
         ArgumentNullException.ThrowIfNull(detail);
         return detail.Summary.CaseId is not null
-            && detail.Classification?.Current is
-            {
-                Outcome: Intake.MailClassificationOutcome.Classified,
-                Category.IsPostReport: true
-            };
+            && detail.Classification?.Current?.Is(Intake.MailCategory.Query) == true;
     }
 
     /// <summary>The instruction an Estimate job carries when its caller gives no direction.</summary>

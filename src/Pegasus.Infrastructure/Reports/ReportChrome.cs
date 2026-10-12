@@ -669,6 +669,19 @@ internal static class ReportChrome
         });
 
     /// <summary>
+    /// The right-hand slot alone, where <see cref="ImageSlots"/> stands it:
+    /// the left slot is left out, not printed empty.
+    /// </summary>
+    internal static void RightSlotAlone(
+        IContainer container,
+        float slotHeight,
+        Action<IContainer> right) => container.Row(row =>
+        {
+            row.RelativeItem();
+            right(row.ConstantItem(SlotWidth, Unit.Millimetre).Height(slotHeight, Unit.Millimetre));
+        });
+
+    /// <summary>
     /// An image prints whole in its slot (operator, 7 October 2026): fitted
     /// inside it at its own shape and centred, so nothing of it is trimmed.
     /// </summary>

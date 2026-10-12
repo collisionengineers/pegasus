@@ -198,8 +198,7 @@ public sealed class ProcessIntake(
         var assets = new List<IntakeAssetRecord> { sourceAsset };
         try
         {
-            foreach (var candidate in readResult.AssetCandidates
-                .Where(InstructionEvidenceImages.IsRetentionCandidate))
+            foreach (var candidate in InstructionEvidenceImages.RetentionCandidates(readResult))
             {
                 assets.Add(await RetainAsync(candidate, cancellationToken));
             }
@@ -563,7 +562,7 @@ public sealed class ProcessIntake(
 
     /// <summary>
     /// Whether this receipt is a Triage request. One reading, so no surface
-    /// re-derives it from the taxonomy.
+    /// re-derives it from the category.
     ///
     /// Two routes reach the same answer. A mail instruction has it read by the
     /// accepted route classification; a Principal API submission has its
@@ -623,8 +622,6 @@ public sealed class ProcessIntake(
             or IntakeDecision.TechnicalFailure => UnidentifiedReasonCode.CouldNotBeRead,
         _ when receipt.CaseMatchDecision?.Outcome == CaseMatchOutcome.Ambiguous =>
             UnidentifiedReasonCode.ConflictingIdentification,
-        _ when receipt.MailClassificationDecision?.Outcome == MailClassificationOutcome.Ambiguous =>
-            UnidentifiedReasonCode.AmbiguousOwnershipOrDestination,
         _ when receipt.Evidence.Any(evidence => evidence.Signal == "intake_limit_exceeded") =>
             UnidentifiedReasonCode.UnreadableOrCorruptContent,
         _ => UnidentifiedReasonCode.NoUsableIdentification
@@ -874,7 +871,8 @@ public sealed class ProcessIntake(
                 null,
                 null,
                 null,
-                mailRouteDecision);
+                mailRouteDecision,
+                MailClassificationResult.NoPolicy(mailRouteDecision.Reason));
         }
 
         var principalContext = EstablishPrincipalContext(mailRouteDecision)
@@ -902,10 +900,16 @@ public sealed class ProcessIntake(
             : principalContext?.PrincipalCode == QdosInstructionExtractionPolicy.SupportedPrincipalCode
                 ? readResult
                 : readResult with { Content = PrincipalMailRoutePolicy.CurrentInstructionContent(readResult).ToArray() };
-        var mailClassificationDecision = retainedClassification ?? EvaluateMailClassification(
-            readResult,
-            conflictingProfile ? null : principalContext?.PrincipalCode,
-            instructionSelection.InstructionContent);
+        // Every mail message leaves with a decision, so staff can correct one no
+        // policy classified; an uploaded or API file without a route keeps none.
+        var mailClassificationDecision = retainedClassification
+            ?? EvaluateMailClassification(
+                readResult,
+                conflictingProfile ? null : principalContext?.PrincipalCode,
+                instructionSelection.InstructionContent)
+            ?? (mailRouteDecision is null
+                ? null
+                : MailClassificationResult.NoPolicy("No classification policy ran for the accepted mail route."));
         var caseMatchDecision = await caseMatchEvaluator.ExecuteAsync(
             instructionRead,
             extractionPolicy is null ? null : mailRouteDecision,
@@ -1303,7 +1307,6 @@ public sealed class ProcessIntake(
     {
         ArgumentNullException.ThrowIfNull(result);
         ArgumentNullException.ThrowIfNull(result.Predicates);
-        ArgumentNullException.ThrowIfNull(result.AmbiguousCandidates);
         ArgumentException.ThrowIfNullOrWhiteSpace(result.Reason);
         ArgumentException.ThrowIfNullOrWhiteSpace(result.PolicyKey);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(result.PolicyVersion);
@@ -1322,18 +1325,14 @@ public sealed class ProcessIntake(
 
         var consistent = result.Outcome switch
         {
-            MailClassificationOutcome.Classified =>
-                result.Category is not null && result.AmbiguousCandidates.Count == 0,
-            MailClassificationOutcome.Ambiguous =>
-                result.Category is null && result.AmbiguousCandidates.Count > 1,
-            MailClassificationOutcome.Unclassified =>
-                result.Category is null && result.AmbiguousCandidates.Count == 0,
+            MailClassificationOutcome.Classified => result.Category is not null,
+            MailClassificationOutcome.Unclassified => result.Category is null,
             _ => false
         };
         if (!consistent)
         {
             throw new InvalidOperationException(
-                "The mail-classification outcome is inconsistent with its category and candidate evidence.");
+                "The mail-classification outcome is inconsistent with its category.");
         }
     }
 

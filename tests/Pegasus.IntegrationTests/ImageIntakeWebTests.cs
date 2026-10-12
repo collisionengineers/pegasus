@@ -5,15 +5,22 @@ using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
+using SkiaSharp;
+using UglyToad.PdfPig.Content;
+using UglyToad.PdfPig.Core;
+using UglyToad.PdfPig.Fonts.Standard14Fonts;
+using UglyToad.PdfPig.Writer;
 
 namespace Pegasus.IntegrationTests;
 
@@ -401,6 +408,180 @@ public sealed class ImageIntakeWebTests
             .ListForReceiptAsync(receiptId, CancellationToken.None);
         var suggestion = Assert.Single(suggestions);
         Assert.Equal(ImageVrmSuggestionDisposition.Confirmed, suggestion.Disposition);
+    }
+
+    /// <summary>
+    /// A Tractable capture e-mail (FRD-02 EXT-17, operator 12 October 2026):
+    /// its PDF's printed registration, not a plate read, files the photographs
+    /// on the matching Case; every photograph on the images page is kept
+    /// whatever its size and the letterhead logo and page icons are not; and
+    /// the PDF's vehicle identity fills only what the Case left empty.
+    /// </summary>
+    [Fact]
+    public async Task ACaptureEmailFilesItsPhotographsOnThePrintedRegistrationsCaseAndFillsItsGaps()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine("ZZ99ZZZ"));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "CAPTURE-WEB-01");
+        var filledFields = new[]
+        {
+            CaseDataFieldNames.VehicleMake,
+            CaseDataFieldNames.VehicleModel,
+            CaseDataFieldNames.VehicleMileage,
+            CaseDataFieldNames.IncidentDate
+        };
+        var seeded = await CurrentCaseDataAsync(factory, caseId, filledFields);
+
+        var small = CaptureImage(800, 600, seed: 1, noisy: false);
+        var large = CaptureImage(400, 533, seed: 2, noisy: true);
+        Assert.True(small.Length < InstructionEvidenceImages.EmbeddedPhotographMinimumBytes);
+        var email = IntakeTestEvidence.CreateEmail(
+            "tractable.eml",
+            "New completed lead",
+            senderAddress: "noreply@tractable.ai",
+            subject: "New completed lead: Book Test in today",
+            attachments: [("LINE_LEVEL_ESTIMATE.pdf", "application/pdf", CapturePdf(small, large))]);
+        var receiptId = await AllocationTestData.SubmitAndProcessAsync(
+            services,
+            new IntakeSource(
+                email.FileName,
+                email.MediaType,
+                email.Content,
+                services.GetRequiredService<TimeProvider>().GetUtcNow(),
+                "system-worker:approved-inbox-poller",
+                new(IntakeSourceChannel.Mailbox, $"capture:{Guid.NewGuid():N}")),
+            $"mailbox-capture:{Guid.NewGuid():N}");
+
+        var receipt = await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None);
+        Assert.Equal(caseId, receipt!.CurrentCaseId);
+        Assert.Null(await services.GetRequiredService<IImageIntakeQueries>()
+            .GetByOriginReceiptAsync(receiptId, CancellationToken.None));
+        // The printed registration paired the photographs: no plate was read.
+        Assert.Empty(await services.GetRequiredService<IVrmSuggestionStore>()
+            .ListForReceiptAsync(receiptId, CancellationToken.None));
+
+        var embedded = receipt.AssetRecords
+            .Where(asset => asset.Kind == IntakeAssetKind.EmbeddedImage)
+            .ToArray();
+        Assert.All(embedded, asset => Assert.Equal("image/jpeg", asset.MediaType));
+        Assert.Equal(3, embedded.Length);
+        var photographs = InstructionEvidenceImages.Select(receipt.AssetRecords);
+        Assert.Equal(2, photographs.Count);
+        Assert.Contains(photographs, photograph => photograph.ContentLength == small.Length);
+
+        var after = await CurrentCaseDataAsync(factory, caseId, filledFields);
+        var printed = new Dictionary<string, string>
+        {
+            [CaseDataFieldNames.VehicleMake] = "Toyota",
+            [CaseDataFieldNames.VehicleModel] = "Prius",
+            [CaseDataFieldNames.VehicleMileage] = "251525",
+            [CaseDataFieldNames.IncidentDate] = "2026-07-17"
+        };
+        foreach (var field in filledFields)
+        {
+            Assert.Equal(seeded[field] ?? printed[field], after[field]);
+        }
+
+        await using var context = await factory.Database.CreateContextAsync();
+        var vin = await context.CaseAssessmentFields.AsNoTracking()
+            .SingleAsync(item => item.WorkId == caseId && item.FieldPath == AssessmentVocabulary.VehicleVin);
+        Assert.Equal("JTDKB3FU703577122", vin.Value);
+        Assert.Equal(VehicleCaptureFill.RecorderId, vin.RecordedBy);
+    }
+
+    private static async Task<Dictionary<string, string?>> CurrentCaseDataAsync(
+        IntakeWebApplicationFactory factory,
+        Guid caseId,
+        string[] fieldNames)
+    {
+        await using var context = await factory.Database.CreateContextAsync();
+        var rows = await context.CaseDataFields.AsNoTracking()
+            .Where(item => item.WorkId == caseId
+                && fieldNames.Contains(item.FieldName)
+                && (item.ValueKind == "fact" || item.ValueKind == "confirmed"))
+            .ToListAsync();
+        return fieldNames.ToDictionary(
+            name => name,
+            name => rows
+                .Where(row => row.FieldName == name)
+                .OrderBy(row => row.ValueKind == "confirmed" ? 0 : 1)
+                .Select(row => row.Value)
+                .FirstOrDefault());
+    }
+
+    /// <summary>
+    /// The capture PDF's layout as the samples print it: a letterhead logo and
+    /// a page icon beside the vehicle block, an estimate page, and the
+    /// photograph page with its icon, a small photograph and one photograph
+    /// printed twice.
+    /// </summary>
+    private static byte[] CapturePdf(byte[] small, byte[] large)
+    {
+        var builder = new PdfDocumentBuilder();
+        var font = builder.AddStandard14Font(Standard14Font.Helvetica);
+        void Lines(PdfPageBuilder page, params string[] lines)
+        {
+            for (var index = 0; index < lines.Length; index++)
+            {
+                page.AddText(lines[index], 9, new PdfPoint(36, 760 - index * 14), font);
+            }
+        }
+
+        var first = builder.AddPage(PageSize.A4);
+        first.AddPng(CaptureImage(1016, 565, seed: 3, noisy: true, SKEncodedImageFormat.Png), new PdfRectangle(36, 790, 101, 826));
+        first.AddPng(CaptureImage(70, 65, seed: 4, noisy: true, SKEncodedImageFormat.Png), new PdfRectangle(500, 20, 520, 38));
+        Lines(
+            first,
+            "collisionengineers",
+            "Accident Date: Fri Jul 17 2026 Submission date: Fri Jul 17 2026 Case ID: 9992bf95-964d-4d6f-93c7-fa6cdf1bea67",
+            "Case Details",
+            "Vehicle Information",
+            "Producer Toyota",
+            "Model Prius",
+            "Type -",
+            "Year of Production 2017",
+            "VIN JTDKB3FU703577122",
+            "Registration Number Ab12cde",
+            "Registration Date -",
+            "Mileage 251,525");
+
+        var estimate = builder.AddPage(PageSize.A4);
+        Lines(estimate, "Preliminary AI Estimate", "Total excluding tax 2,620.91");
+
+        var images = builder.AddPage(PageSize.A4);
+        Lines(images, "Submitted Vehicle Images");
+        images.AddPng(CaptureImage(70, 65, seed: 4, noisy: true, SKEncodedImageFormat.Png), new PdfRectangle(500, 20, 520, 38));
+        images.AddJpeg(small, new PdfRectangle(36, 420, 276, 600));
+        images.AddJpeg(large, new PdfRectangle(300, 420, 540, 740));
+        images.AddJpeg(large, new PdfRectangle(36, 60, 276, 380));
+        return builder.Build();
+    }
+
+    private static byte[] CaptureImage(
+        int width,
+        int height,
+        int seed,
+        bool noisy,
+        SKEncodedImageFormat format = SKEncodedImageFormat.Jpeg)
+    {
+        using var bitmap = new SKBitmap(width, height);
+        var random = new Random(seed);
+        var flat = new SKColor((byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256));
+        bitmap.Pixels = Enumerable.Range(0, width * height)
+            .Select(_ => noisy
+                ? new SKColor((byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256))
+                : flat)
+            .ToArray();
+        using var image = SKImage.FromBitmap(bitmap);
+        using var encoded = image.Encode(format, 90);
+        return encoded.ToArray();
     }
 
     /// <summary>

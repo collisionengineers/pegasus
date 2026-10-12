@@ -174,7 +174,7 @@
     // instead, which is the double-submit guard every POST form has.
     //
     // A full-page post ends with its navigation. A script that answers a
-    // press in place (case-workspace.js, mail-compose.js, upload.js) prevents
+    // press in place (case-workspace.js, upload.js) prevents
     // the default, so this listener leaves it alone, and the script starts
     // and ends the state itself through window.pegasusBusy. Such a script
     // ends a success with { done: true }: the button holds a tick and its
@@ -898,8 +898,9 @@
             });
 
         // The actions are the shown row's own: Open full message is its
-        // subject's link, which carries the list's values, and Open Case or
-        // Open Triage comes with its preview.
+        // subject's link, which carries the list's values, Reply is the row's
+        // own Reply where it offers one, and Open Case or Open Triage comes
+        // with its preview.
         var renderActions = function (row, data) {
             if (!actions) {
                 return;
@@ -907,6 +908,16 @@
             actions.querySelector('[data-mail-preview-open]').setAttribute(
                 'href',
                 row.querySelector('[data-mail-preview-trigger]').getAttribute('href'));
+            var reply = actions.querySelector('[data-mail-preview-reply]');
+            if (reply) {
+                var replyUrl = row.getAttribute('data-mail-reply-url');
+                if (replyUrl) {
+                    reply.setAttribute('href', replyUrl);
+                } else {
+                    reply.removeAttribute('href');
+                }
+                reply.hidden = !replyUrl;
+            }
             var link = caseLink();
             if (!data.caseUrl) {
                 if (link) {
@@ -1832,17 +1843,12 @@
         (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindGalleryImages);
     })();
 
-    // The Other classification name and reasoning fields exist only while an
-    // Other option is selected, and the case type only while a New instruction
-    // is; the select drives their visibility.
-    document.querySelectorAll('[data-other-toggle]').forEach(function (select) {
+    // The case type exists only while a New instruction is selected; the
+    // select drives its visibility.
+    document.querySelectorAll('[data-work-type-toggle]').forEach(function (select) {
         var scope = select.closest('[data-dialog]') || document;
         function sync() {
-            var isOther = select.value === 'other-received' || select.value === 'other-sent';
-            scope.querySelectorAll('[data-other-field]').forEach(function (field) {
-                field.hidden = !isOther;
-            });
-            var isInstruction = select.value.indexOf('received:NewInstructionReceived') === 0;
+            var isInstruction = select.value === 'new-instruction';
             scope.querySelectorAll('[data-work-type-field]').forEach(function (field) {
                 field.hidden = !isInstruction;
             });

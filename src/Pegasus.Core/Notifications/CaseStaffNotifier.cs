@@ -166,8 +166,8 @@ public sealed class CaseStaffNotifier(
     // The message's current classification, read live: a correction after the
     // link changes what a later arrival on the same Case is called.
     private async Task<bool> IsCancellationAsync(Guid intakeReceiptId, CancellationToken cancellationToken) =>
-        (await _receipts.GetAsync(intakeReceiptId, cancellationToken))?.MailClassificationDecision?.Category
-            is { IsCancellation: true };
+        (await _receipts.GetAsync(intakeReceiptId, cancellationToken))?.MailClassificationDecision
+            ?.Is(MailCategory.Cancellation) == true;
 
     public async Task<StaffNotification?> NotifyAiDraftReadyAsync(AiJobRecord job, CancellationToken cancellationToken)
     {

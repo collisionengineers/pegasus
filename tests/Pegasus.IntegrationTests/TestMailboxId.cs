@@ -32,7 +32,7 @@ internal static class TestMailboxId
             {
                 Id = id,
                 Address = address,
-                AllowInboundIntake = true,
+                AllowIncoming = true,
                 State = "Approved",
                 MailboxIdentity = graphId,
                 InboxFolderIdentity = "inbox",

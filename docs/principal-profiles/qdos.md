@@ -33,7 +33,7 @@ context, no desk noise) is owned by the Mail pages and
 
 Owner:
 `src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs`
-(`principal_mail_classification`, Version 2).
+(`principal_mail_classification`, Version 3).
 
 Built **only on operator-guaranteed generated tells**, matched
 case-sensitively (the casing is part of the tell — a human sentence mentioning
@@ -49,6 +49,17 @@ being chased, not a new instruction.
 | `subject.engineer-triage` | `Engineer Triage`, opening the subject past any forward or reply prefix | Subject |
 | `attachment.audit-report-notification` | `AUDIT REPORT NOTIFICATION` | An attached document's text |
 | `attachment.engineer-notification` | `ENGINEER NOTIFICATION` (with or without the `REPORT + AUDIT REPORT` marker) | An attached document's text |
+| `body.garage-allocation-notice` | `Please be advised that the garage allocated to this claim are shown below for your records:` | The current email body (→ Case update) |
+| `body.repairs-authorised-notice` | `We are now able to authorise repairs. Please can you arrange this with the garage below:` | The current email body (→ Case update; one candidate with the rows above and below) |
+| `body.report-chase-notice` | `we note that we have heard nothing further from you since then.` | The current email body (→ Case update) |
+| `body.pav-dispute-letter` | `The client has confirmed that they do not agree with the figure for the pre-accident value of their vehicle.` | The current email body (→ Query) |
+
+The four body-notice tells (Version 3) are the fixed sentence of a letter Qdos's case
+system pastes into the email under its `Our Ref: / Dear Sirs / Our Client:` preamble.
+They were verified over the QDOS template registry of 8 October 2026 (the desk@ mailbox,
+twelve months): every example of each notice carries its sentence, no handrolled QDOS
+message does, and no two notices share one. A notice quoted under a later reply is not
+current content and does not fire. The three Case update tells feed one candidate.
 
 An Audit's automatic assessment (Version 2, #864) reads the second attached
 document for exactly one unnegated "repairable" or "total loss". When that
@@ -59,8 +70,8 @@ extraction reads no single outcome, the message gets no automatic Audit.
 
 QDOS sends triage requests in two reviewed templates and the templates are
 disjoint in the evaluated corpus. The two tells therefore feed **one** triage
-candidate — a second candidate for the same category would resolve to
-Ambiguous, so a message carrying both tells would classify worse than one
+candidate — a second candidate for the same category would make the message
+Unclassified with the candidates named, so a message carrying both tells would classify worse than one
 carrying either. Both predicates are still recorded separately, so the
 decision says which fired (MAIL-012). Exact current source counts and immutable
 hashes live in the versioned
@@ -77,12 +88,12 @@ All 47 accepted routes yielded a durable claim token. These counts are bound to
 the source aggregate in `qdos-policy-v5-volume-evaluation` and supersede the
 stale seven/five statement without changing policy behaviour.
 
-Outcomes: exactly one category predicate → that category; more than one → the
-recorded **Ambiguous** outcome (never an invented winner); none →
+Outcomes: exactly one category predicate → that category; more than one →
+**Unclassified** with the candidates named (never an invented winner); none →
 **Unclassified**, failing closed. Nested-message content is excluded from the
 attachment tells.
 
-**The triage classification is the Triage trigger.** A `triage-request`
+**The triage classification is the Triage trigger.** A Triage request
 classification is not an instruction: intake allocates no instructed Case from
 it, and the classification decision is written to the receipt as the accepted
 Triage-match evidence, carrying this policy's key and version. With the QDOS
@@ -92,7 +103,7 @@ known registration registers the material as Unidentified instead. There is no
 separate triage matcher — that abstraction had only a null implementation and
 was retired; one owner answers the question, and it is this policy.
 
-Display labels for the taxonomy (family · subtype) are owned by
+Display labels for the mail categories are owned by
 `src/Pegasus.Web/Presentation/OperatorLabels.cs`
 (`MailClassification`, exhaustive map, throws on an unmapped value) and the
 correction options by
@@ -107,14 +118,14 @@ Version 5 behaviour:
 
 | Candidate shape | Required review |
 | --- | --- |
-| Final repair account or final audit request | Label current-content positives and report/attachment confusers. |
-| Report chase | Separate a chase from a new instruction and from quoted history. |
-| Post-inspection repair authorisation | Prove the sender-authored authorisation wording and case association. |
-| Pre-accident-value dispute | Separate the dispute, which is a query, from an amendment. |
+| Final repair account or final audit request | Label current-content positives and report/attachment confusers. The generated notice is known (`Repairs to the above vehicle are now complete and we have pleasure in enclosing the final repair account…`); its category awaits the operator. |
 | Repair, total-loss, or category amendment | Label each accepted shared-taxonomy outcome without a principal-specific vocabulary. |
 | Additional images, estimates, or updates | Separate current evidence from quoted or nested-message evidence. |
 | Third-party-insurer comments or query | Prove authorship, direction, and the applicable shared category. |
 | Automatic reply and reply-thread exclusion | Pin automatic-reply handling and exclude quoted/nested tells. |
+
+Report chase, post-inspection repair authorisation and the pre-accident-value dispute
+left this table in Version 3: they are the `body.*` predicates above.
 
 ## 3. Case type
 

@@ -212,7 +212,10 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
             });
     }
 
-    /// <summary>Each work's first observed report send and who made it (MI-01's send record).</summary>
+    /// <summary>
+    /// Each work's first observed report send and who made it (MI-01's send
+    /// record); a send that carried both works' reports is each work's send.
+    /// </summary>
     private static async Task<Dictionary<Guid, SendRow>> FirstSendsAsync(
         PegasusDbContext db,
         IQueryable<CaseEntity> cases,
@@ -220,9 +223,9 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
     {
         var sends = await (
             from operation in db.Set<StaffMailSendOperationEntity>().AsNoTracking()
-            join generation in db.Set<CaseReportGenerationEntity>().AsNoTracking()
-                on operation.ContextId equals generation.Id
-            where operation.Purpose == StaffMailPurpose.CaseReport
+            from generation in db.Set<CaseReportGenerationEntity>().AsNoTracking()
+            where (generation.Id == operation.ContextId || generation.Id == operation.SecondContextId)
+                && operation.Purpose == StaffMailPurpose.CaseReport
                 && operation.State == StaffMailState.Sent
                 && operation.ObservedSentAtUtc != null
                 && cases.Any(@case => @case.Id == generation.CaseId)
@@ -284,36 +287,34 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
             select generation.CaseId,
             cancellationToken);
 
-        // MI-01's queries: post-report mailbox mail standing linked to the
-        // Case by the Inbox's own association rule.
+        // MI-01's queries: mailbox mail classified as a query standing linked
+        // to the Case by the Inbox's own association rule.
         var mailbox = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox);
-        var postReport = MailTaxonomy.CategoryName(ReceivedMailFamily.PostReportEmails);
+        var query = MailCategories.Code(MailCategory.Query);
         var receipts = await db.IntakeReceipts.AsNoTracking()
             .Where(item => item.SourceChannel == mailbox
                 && item.MailClassificationDecision != null
-                && item.MailClassificationDecision.Family == postReport
+                && item.MailClassificationDecision.Category == query
                 && (db.IntakeManualAssociations.Any(link => link.IntakeReceiptId == item.Id
                         && cases.Any(@case => @case.Id == link.CaseId))
                     || db.CaseIntakeLinks.Any(link => link.IntakeReceiptId == item.Id
                         && cases.Any(@case => @case.Id == link.CaseId))))
-            .Select(item => new { item.Id, item.MailClassificationDecision!.Subtype })
-            .ToDictionaryAsync(item => item.Id, item => item.Subtype, cancellationToken);
-        var associations = await CurrentIntakeAssociations.ReadAsync(db, receipts.Keys.ToList(), cancellationToken);
+            .Select(item => item.Id)
+            .ToListAsync(cancellationToken);
+        var associations = await CurrentIntakeAssociations.ReadAsync(db, receipts, cancellationToken);
         var queries = associations.Current
             .Where(pair => caseIds.Contains(pair.Value.CaseId))
             .GroupBy(pair => pair.Value.CaseId)
-            .ToDictionary(group => group.Key, group => group.Select(pair => receipts[pair.Key]).ToList());
+            .ToDictionary(group => group.Key, group => group.Count());
 
         return caseIds.ToDictionary(caseId => caseId, caseId =>
         {
             var document = documents.GetValueOrDefault(caseId);
-            var caseQueries = queries.GetValueOrDefault(caseId) ?? [];
             return new CaseListActivity(
                 document?.Images ?? 0,
                 document?.InReport ?? 0,
                 document?.Documents ?? 0,
-                caseQueries.Count,
-                caseQueries.Count(subtype => subtype == MailCategory.AmendmentRequestSubtype),
+                queries.GetValueOrDefault(caseId),
                 correspondence.GetValueOrDefault(caseId) + reportMail.GetValueOrDefault(caseId),
                 chases.GetValueOrDefault(caseId),
                 openTasks.GetValueOrDefault(caseId),

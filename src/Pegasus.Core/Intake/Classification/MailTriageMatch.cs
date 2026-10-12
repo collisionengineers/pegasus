@@ -22,7 +22,7 @@ public static class MailTriageMatch
     public static IntakeEvidence? Evidence(MailClassificationResult? classification, bool staffCorrected = false)
     {
         if (classification is not { IsTriageRequest: true }
-            || classification.Category?.IsReplyContext == true)
+            || classification.IsReplyContext)
         {
             return null;
         }
@@ -33,7 +33,7 @@ public static class MailTriageMatch
                 IntakeEvidenceSource.StaffCorrection,
                 IntakeEvidenceStrength.Strong,
                 IntakeEvidenceFinding.AcceptedTriageMatch,
-                MailCategory.TriageRequestSubtype,
+                MailCategories.Code(MailCategory.TriageRequest),
                 "A staff correction classified this message as a Triage request.",
                 classification.PolicyKey,
                 classification.PolicyVersion);
@@ -46,7 +46,7 @@ public static class MailTriageMatch
             IntakeEvidenceSource.SystemDefault,
             IntakeEvidenceStrength.Strong,
             IntakeEvidenceFinding.AcceptedTriageMatch,
-            MailCategory.TriageRequestSubtype,
+            MailCategories.Code(MailCategory.TriageRequest),
             $"The accepted route classification recorded this message as a Triage request (predicates: {matched}).",
             classification.PolicyKey,
             classification.PolicyVersion);

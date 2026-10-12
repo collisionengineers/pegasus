@@ -76,7 +76,18 @@ and the secret is write-only
 Contacts is the one directory for Principals, Claim Sources, Repairers,
 Storage and Third Party Engineers. Principal-specific settings are part of
 that Contact record. Report generation carries the Default fee (£) box above
-Save report settings. The Salvage matrix panel follows Report generation: one
+Save report settings; it has no Report recipients settings (operator, 6
+October 2026). The Report sending panel follows Report generation and is
+shown for a Principal only; every Principal has rules to show. Send from is a list of the Outgoing
+mailboxes that can send, with Not set. Send to, Cc, Never cc and Reminders are repeated
+inputs with an Add button; Send to only, Reply all, Garage figures and the
+six Attach choices are ticks; Hold and the First and Re-send attachment
+names are text, with no length limit. Rules are repeated rows, each with
+Match (All or Any condition), three condition lines (a kind, then a Contact
+list, the four outcomes, or text for Images from, Instruction mentions,
+Bodyshop mentions and Sender is not), and the actions Cc add, Cc remove,
+Remind, Hold and Stop. A Remove rule button per row, one spare blank row, an Add rule button,
+and one Save report sending. The Salvage matrix panel follows it: one
 table per salvage category, with From (£), To (£) and Percentage paid (%)
 columns, a Remove button per row, one spare blank row, an Add band button,
 and one Save salvage matrix. The list filters live as the operator types, 300
@@ -129,9 +140,11 @@ placeholder buttons that insert at the cursor, and Cancel and Save. The
 Triage outcome reply's placeholders are `{registration}`,
 `{roadworthiness}`, `{repair outcome}` and `{reason}`. The Case report
 delivery's are `{case reference}`, `{registration}`, `{outcome}`,
-`{principal name}` and `{superseded report date}`; its built-in body has a
-"This report supersedes our report dated ..." line that is left out on a first
-send. The Case chaser's are `{registration}`, `{outstanding material}` (the
+`{principal name}`, `{superseded report date}` and `{greeting}`. `{greeting}`
+is "morning" before noon in London, else "afternoon". Its built-in body is the
+Report Sending SOP wording: "Good {greeting}, Please see attached report and
+fee note. Any issues let us know. Kind Regards". A saved template is never
+changed by a new built-in body. The Case chaser's are `{registration}`, `{outstanding material}` (the
 Case's missing-material reason while it has due work), `{principal name}` and
 `{claimant}`; it has no Case/PO placeholder, since the reference is internal
 and means nothing to the party chased (operator, 5 October 2026). Its
@@ -142,10 +155,12 @@ stale save is refused and asks the Administrator to reload.
 
 A placeholder with no value renders nothing. A line whose placeholders are
 all empty is left out. The subject is not templated: a reply keeps
-"Re: {original subject}", a report delivery keeps its Case or Audit
-reference, and a chaser opens with the registration and the claimant.
+"Re: {original subject}", a report delivery follows
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules)
+(a reply keeps "Re:" the instruction's subject, and a new message is
+"{REG} Report"), and a chaser opens with the registration and the claimant.
 Until an Administrator saves a template, its built-in body is used.
-Staff can edit the rendered text before it is sent or prepared. Each save
+Staff can edit the rendered text before it is sent. Each save
 enters the Action logs.
 
 ### Valuation presets
@@ -198,11 +213,12 @@ Queues (MI-05) and the Case list (MI-04). No MI label is drawn.
 
 Reports and fees are counted per report: the first confirmed report of the
 Inspection and, once created, of the Audit of an Inspection + Audit Case
-each count once, with their own agreed fee. An Audit report is the report
+each count once, with their own agreed fee. An email that carried both
+reports is a send of each. An Audit report is the report
 of a standalone Audit Case or the Audit of an Inspection + Audit Case.
 
-- **Engineer activity** counts each person's queries (a dispute is a query),
-  with the amendment requests among them, credited to the Case's assigned
+- **Engineer activity** counts each person's queries (a dispute or an
+  amendment request is a query), credited to the Case's assigned
   Engineer; the reports sent, credited to their recorded sender; the Audit
   reports sent (the Audit uplift); and the turnaround to sent, from the
   instruction's receipt or, for the Audit of an Inspection + Audit Case,
@@ -273,8 +289,8 @@ the list's own order.
   engineer** is the signatory of the latest confirmed report, or the
   signatory the Case would use now. **Report sent by** is who made the
   work's first report send.
-- Queries (a dispute is a query) and amendment requests are post-report
-  mail linked to the Case, counted as MI-01 counts them.
+- Queries (a dispute or an amendment request is a query) are Query mail
+  linked to the Case, counted as MI-01 counts them.
 
 **Presets** are named column sets every Administrator shares, such as
 "Invoicing". **Use preset** ticks a preset's columns; the ticks can still be

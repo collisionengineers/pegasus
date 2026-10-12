@@ -153,7 +153,7 @@ section links and Refresh. The page always scrolls; there is no Tabs layout
 (operator, 9 October 2026). The section row
 links Case details, Claim, Original report on Audit Cases, Inspection details,
 Vehicle (with Damage and Valuation inside), Repair Spec, Decisions, Report,
-Files and Notes. Each is a foldable panel whose head carries its own Edit
+Files, Notes and Tasks. Each is a foldable panel whose head carries its own Edit
 (entering the one page-wide edit session), one availability label when the
 state does not allow editing, and the fold chevron. The aside holds Figures
 and Next action and folds into a two-up strip above the sections below 1441px.
@@ -708,13 +708,36 @@ Approved necessary copy includes:
 
 > {Source} valuation is unavailable. Contact an administrator or report a problem.
 
-The last is the operator's own wording (23 September 2026) for Get valuation
+> Complete or cancel every open task first.
+
+> The {document} this Principal requires has not been generated. Generate it, then send the report.
+
+> No recognised estimate is filed on this Case.
+
+> This Principal expects the fee note as a separate document and none is confirmed.
+
+> Empty: the original instruction sender.
+
+> Send stays off until staff tick this as done.
+
+> Use {ref}, {reg} and {outcome}. Empty: the standard name.
+
+> Separate several with commas.
+
+> Send is refused; staff may override with a reason.
+
+The nine after it are report sending copy (operator, 6 October 2026): the
+tooltip on a greyed Archive, two delivery-form notices and
+a warning, and the five hints on the Principal's Report sending panel. Two of
+them named "prepare" when they were approved and were reworded to "send" when
+delivery became one step; they are on the next design sign-off.
+
+The valuation sentence is the operator's own wording (23 September 2026) for Get valuation
 on a source with no working provider, shown in that source's card from the
 start (28 September 2026), with no Get valuation button; "report a
 problem" opens the Report a problem dialog. It replaces the 18 September
-"Error. Contact an administrator." Received-mail chasing categories read
-"Update request", also the operator's wording; "provider" never appears in
-operator copy (Principal is the word).
+"Error. Contact an administrator." "Provider" never appears in operator copy
+(Principal is the word).
 
 > Glass's cannot value this vehicle because of its age: Glass's values cars and motorcycles up to 20 years old and light commercial vehicles up to 15.
 

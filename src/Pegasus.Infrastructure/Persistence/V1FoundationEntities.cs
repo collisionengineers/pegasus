@@ -29,6 +29,13 @@ internal sealed class StaffMailSendOperationEntity : IApplicationManagedConcurre
     public Pegasus.Core.Operations.StaffMailPurpose Purpose { get; set; }
     public Guid ContextId { get; set; }
     public long ContextVersion { get; set; }
+
+    /// <summary>
+    /// The other work's report generation a Case report send also carries, at
+    /// its frozen version (operator, 12 October 2026); null on any other send.
+    /// </summary>
+    public Guid? SecondContextId { get; set; }
+    public long? SecondContextVersion { get; set; }
     public Pegasus.Core.Operations.StaffMailComposeMode ComposeMode { get; set; }
     public Guid? OriginalRetainedMessageId { get; set; }
     public string? OriginalImmutableMessageId { get; set; }
@@ -55,6 +62,22 @@ internal sealed class StaffMailSendOperationEntity : IApplicationManagedConcurre
     public DateTimeOffset? ObservedSentAtUtc { get; set; }
     public string? LastError { get; set; }
     public string? ReconciliationContinuation { get; set; }
+
+    /// <summary>
+    /// What a report send recorded: staff's answers, the holds they ticked, a Stop they
+    /// overrode and the after-send list (ReportDispatchRecord). Null for other purposes.
+    /// </summary>
+    public string? ReportDispatchJson { get; set; }
+
+    /// <summary>
+    /// The tidy of the answered instruction after a confirmed report send (ADR-0071):
+    /// null while due, then Moved, AlreadyMoved, MessageMissing or Failed (the third
+    /// failed attempt).
+    /// </summary>
+    public string? InstructionMoveState { get; set; }
+    public int InstructionMoveAttempts { get; set; }
+    public DateTimeOffset? InstructionMovedAtUtc { get; set; }
+    public string? InstructionMoveFailureCode { get; set; }
     public long Version { get; set; }
     public Guid ConcurrencyToken { get; set; }
 }

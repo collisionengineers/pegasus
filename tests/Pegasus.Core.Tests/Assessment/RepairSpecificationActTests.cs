@@ -159,8 +159,142 @@ public sealed class RepairSpecificationActTests
 
         var result = RepairSpecificationScaling.Scale(specification, 60.79m, ScalingFloors.Default);
 
-        Assert.Equal(60.79m, result.GrossAfter);
+        // The scaled rate lands on a 50p step (v38 P6), so the gross lands on
+        // the last step not above the target: within one step's worth of the
+        // line's hour, VAT included, and never over.
         Assert.True(result.GrossAfter <= 60.79m);
+        Assert.True(result.GrossAfter > 60.79m - 0.6m, result.GrossAfter.ToString(CultureInfo.InvariantCulture));
+        Assert.Equal(0m, result.Details.HourlyRate * 2m % 1m);
+    }
+
+    [Fact]
+    public void AScaledRateOffTheHalfPoundStepNeverRisesAboveTheRateItStartedFrom()
+    {
+        // FRD-25: £42 with the 15 % uplift prices at £48.30, off the 50p
+        // step; a light scaling the step would round up to £48.50 keeps £48.30.
+        var specification = Estimate(
+            Header(rate: 42m) with { RegionalUplift = true },
+            Line("new_part", price: 1_000m),
+            Line("repair", workUnits: 1m));
+        var before = EstimateTotals.Compute(specification).Printed.Gross;
+
+        var result = RepairSpecificationScaling.Scale(specification, before - 0.5m, ScalingFloors.Default);
+
+        Assert.Equal(48.30m, specification.Details.HourlyRate);
+        Assert.True(
+            result.Details.HourlyRate <= specification.Details.HourlyRate,
+            result.Details.HourlyRate.ToString(CultureInfo.InvariantCulture));
+        Assert.True(result.GrossAfter <= before - 0.5m);
+    }
+
+    [Fact]
+    public void ScalingLandsTheRateOnAHalfPoundAndLetsTheCardAndTheUpliftGo()
+    {
+        // v38 P5, P6 (operator, 12 October 2026): the rate scaled is the one
+        // the spec prices at, uplift included; the scaled spec is a typed
+        // figure on a 50p step with no card and no uplift; at factor one the
+        // rate is the estimate's own.
+        var specification = Estimate(
+            Header(rate: 80m) with { Rate = new EstimateRateSnapshot(Guid.NewGuid(), 1, 80m), RegionalUplift = true },
+            Line("new_part", price: 400m, quantity: 2),
+            Line("repair", workUnits: 4m));
+        var before = EstimateTotals.Compute(specification).Printed.Gross;
+
+        var result = RepairSpecificationScaling.Scale(specification, before * 0.8m, ScalingFloors.Default);
+
+        Assert.Null(result.Details.Rate);
+        Assert.False(result.Details.RegionalUplift);
+        Assert.Equal(0m, result.Details.HourlyRate * 2m % 1m);
+        Assert.True(result.Details.HourlyRate < specification.Details.HourlyRate);
+        Assert.True(result.Details.HourlyRate >= ScalingFloors.Default.LabourRatePerHour);
+
+        var untouched = RepairSpecificationScaling.Scale(specification, before, ScalingFloors.Default);
+        Assert.Equal(specification.Details.HourlyRate, untouched.Details.HourlyRate);
+        Assert.Equal(before, untouched.GrossAfter);
+    }
+
+    [Fact]
+    public void TheSliderBeginsAtTheFloorScaledShareOfValue()
+    {
+        var specification = Estimate(
+            Header(rate: 80m),
+            Line("new_part", price: 1_000m),
+            Line("repair", workUnits: 10m));
+        var floors = ScalingFloors.Default;
+        var (floor, _) = RepairSpecificationScaling.Range(specification, floors);
+
+        Assert.Equal(Math.Ceiling(floor / 4_000m * 100m), RepairSpecificationScaling.FloorPercentOfValue(4_000m, specification, floors));
+        Assert.Equal(1m, RepairSpecificationScaling.FloorPercentOfValue(1_000_000m, specification, floors));
+        Assert.Throws<InvalidOperationException>(() => RepairSpecificationScaling.FloorPercentOfValue(0m, specification, floors));
+    }
+
+    [Fact]
+    public void ALineTypePricesItsOwnColumns()
+    {
+        // v38 P1: the reference's map carried to the seven types.
+        Assert.Equal(
+            EstimateLineColumns.PartNumber | EstimateLineColumns.Quantity | EstimateLineColumns.UnitAmount | EstimateLineColumns.Hours | EstimateLineColumns.Materials,
+            EstimateOperations.PricedColumns(EstimateOperation.Replace));
+        Assert.Equal(EstimateLineColumns.Hours | EstimateLineColumns.Materials, EstimateOperations.PricedColumns(EstimateOperation.Repair));
+        Assert.Equal(EstimateLineColumns.Hours, EstimateOperations.PricedColumns(EstimateOperation.RemoveAndRefit));
+        Assert.Equal(EstimateLineColumns.Hours | EstimateLineColumns.PaintHours | EstimateLineColumns.Materials, EstimateOperations.PricedColumns(EstimateOperation.Paint));
+        Assert.Equal(EstimateOperations.PricedColumns(EstimateOperation.Paint), EstimateOperations.PricedColumns(EstimateOperation.Blend));
+        Assert.Equal(
+            EstimateLineColumns.Quantity | EstimateLineColumns.UnitAmount | EstimateLineColumns.Hours | EstimateLineColumns.Materials,
+            EstimateOperations.PricedColumns(EstimateOperation.Specialist));
+        Assert.Equal(EstimateLineColumns.Hours, EstimateOperations.PricedColumns(EstimateOperation.Other));
+        Assert.Equal(EstimateLineColumns.Hours, EstimateOperations.PricedColumnsOf("not-a-type"));
+        Assert.Equal(EstimateOperations.PricedColumns(EstimateOperation.Specialist), EstimateOperations.PricedColumnsOf("specialist_wu"));
+    }
+
+    [Fact]
+    public void ComparisonListsTheUnchangedLinesAndValuesALineAsTheTotalsDo()
+    {
+        // v38 P2: the side-by-side table lists every line; a line's value is
+        // what the totals price on it at that side's rate.
+        var from = Estimate(
+            Header(rate: 80m),
+            Line("new_part", price: 100m, quantity: 2) with { Description = "Bumper", Materials = 10m },
+            Line("repair", workUnits: 2m) with { Description = "Wing" });
+        var to = Estimate(
+            Header(rate: 90m),
+            Line("new_part", price: 100m, quantity: 2) with { Description = "Bumper", Materials = 10m },
+            Line("repair", workUnits: 3m) with { Description = "Wing" });
+
+        var diff = RepairSpecificationComparison.Compare(from, to);
+
+        Assert.Equal("Bumper", Assert.Single(diff.Unchanged).To.Description);
+        Assert.Equal("Wing", Assert.Single(diff.Changed).To.Description);
+        Assert.Equal((80m, 90m), (diff.RateFrom, diff.RateTo));
+        Assert.Equal(210m, RepairSpecificationComparison.LineValue(from.Lines[0], 80m));
+        Assert.Equal(160m, RepairSpecificationComparison.LineValue(from.Lines[1], 80m));
+        Assert.Equal(270m, RepairSpecificationComparison.LineValue(to.Lines[1], 90m));
+        var specialist = Line("specialist_fixed", price: 65m, workUnits: 2m);
+        Assert.Equal(65m, RepairSpecificationComparison.LineValue(specialist, 80m));
+        Assert.Equal(160m, RepairSpecificationComparison.LineValue(specialist with { Type = "specialist_wu", Price = null }, 80m));
+    }
+
+    [Fact]
+    public void AFrozenVersionComparesAsASpecification()
+    {
+        // v38 P2, P3: Compare and the Supplementary statement read a frozen
+        // version through AsSpecification; the lines it froze keep their ids,
+        // which the live spec's replaced lines do not share, so lines match by
+        // part number or description.
+        var saved = Estimate(Header(rate: 80m), Line("new_part", price: 100m) with { Description = "Bumper" });
+        var version = Snapshot(2, RepairSpecificationSnapshotKind.Sent, saved.SpecificationId, saved);
+        var later = Estimate(
+            Header(rate: 80m),
+            Line("new_part", price: 100m) with { Description = "Bumper", Id = Guid.NewGuid() },
+            Line("repair", workUnits: 1m) with { Description = "Wing" });
+
+        var asSpecification = version.AsSpecification();
+        Assert.Equal(saved.SpecificationId, asSpecification.SpecificationId);
+        Assert.Equal(2, asSpecification.Version);
+        var diff = RepairSpecificationComparison.Compare(version, later);
+        Assert.Single(diff.Unchanged);
+        Assert.Equal("Wing", Assert.Single(diff.Added).Description);
+        Assert.Empty(diff.Removed);
     }
 
     [Fact]
@@ -222,6 +356,35 @@ public sealed class RepairSpecificationActTests
     }
 
     [Fact]
+    public void ALineWhoseTypeChangedIsOneChangedLineThatSaysWhatItWas()
+    {
+        // v38 P2: line ids never survive a save, so a Repair turned Replace
+        // pairs by its description and names its type among the changed
+        // cells, while the panel's Paint line still pairs with its own.
+        var from = Estimate(
+            Header(rate: 48m),
+            Line("paint_repair", paintWorkUnits: 2m) with { Description = "Front wing" },
+            Line("repair", workUnits: 3m) with { Description = "Front wing" });
+        var to = Estimate(
+            Header(rate: 48m),
+            Line("new_part", price: 300m, quantity: 1) with { Description = "Front wing" },
+            Line("paint_repair", paintWorkUnits: 2m) with { Description = "Front wing" });
+
+        var diff = RepairSpecificationComparison.Compare(from, to);
+
+        Assert.Empty(diff.Added);
+        Assert.Empty(diff.Removed);
+        var change = Assert.Single(diff.Changed);
+        Assert.Equal(("repair", "new_part"), (change.From.Type, change.To.Type));
+        Assert.Equal("type", change.ChangedFields[0]);
+        Assert.Equal("paint_repair", Assert.Single(diff.Unchanged).To.Type);
+        Assert.DoesNotContain(
+            "no longer required",
+            RepairSpecificationComparison.SupplementaryStatement(diff, "estimate"),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TheSupplementaryStatementNamesWhatChangedAndHowTheCostMoved()
     {
         var from = Estimate(Header(rate: 48m), Line("new_part", price: 100m) with { Description = "Bumper" });
@@ -259,6 +422,31 @@ public sealed class RepairSpecificationActTests
         Assert.Contains("The repair time for Repair wing (2 h → 5 h) has been revised.", statement, StringComparison.Ordinal);
         Assert.Contains("Front wing is no longer required.", statement, StringComparison.Ordinal);
         Assert.Contains("reduced from", statement, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnImportOntoAnEmptySpecSupplementsNothingAndALongStatementFitsTheRecord()
+    {
+        // v38 P3: an import onto a spec with no lines adds to nothing; a
+        // statement naming more lines than the record holds is cut short with
+        // "…" and still says how the cost moved.
+        var imported = Estimate(
+            Header(rate: 48m),
+            Enumerable.Range(1, 60)
+                .Select(index => Line("new_part", price: 10m) with { Description = $"Part {index} " + new string('x', 280) })
+                .ToArray());
+
+        Assert.Null(RepairSpecificationComparison.ForImport(Guid.NewGuid(), Estimate(Header(rate: 48m)), imported));
+
+        var from = Estimate(Header(rate: 48m), Line("new_part", price: 100m) with { Description = "Bumper" });
+        var supplementary = RepairSpecificationComparison.ForImport(Guid.NewGuid(), from, imported);
+
+        Assert.NotNull(supplementary);
+        var statement = supplementary.Statement;
+        Assert.InRange(statement.Length, 1, RepairSpecificationComparison.MaximumStatementLength);
+        Assert.Contains("now required: Part 1 ", statement, StringComparison.Ordinal);
+        Assert.Contains("; …. Bumper is no longer required.", statement, StringComparison.Ordinal);
+        Assert.Contains("The estimated repair cost has increased from", statement, StringComparison.Ordinal);
     }
 
     /// <summary>

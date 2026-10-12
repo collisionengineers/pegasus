@@ -27,7 +27,7 @@ public sealed class ProcessIntakeTests
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Null(receipt.InstructionDraft);
         Assert.Null(receipt.ExtractionPolicyKey);
-        Assert.Null(receipt.MailClassificationDecision);
+        Assert.Equal(MailClassificationResult.NoPolicyKey, receipt.MailClassificationDecision?.PolicyKey);
         Assert.NotEqual(CaseMatchOutcome.UniqueMatch, receipt.CaseMatchDecision?.Outcome);
         Assert.Contains("conflicts", receipt.DecisionReason, StringComparison.Ordinal);
     }
@@ -456,7 +456,7 @@ public sealed class ProcessIntakeTests
         var source = CreateSource();
         var first = await sut.ExecuteAsync(source);
         var correction = MailClassificationResult.Classified(
-            MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
+            MailCategory.NewInstruction,
             [],
             "Corrected by staff.",
             "shared-mail-policy",
@@ -1258,7 +1258,7 @@ public sealed class ProcessIntakeTests
 
         var recorded = Assert.IsType<MailClassificationResult>(classified.MailClassificationDecision);
         Assert.Equal(MailClassificationOutcome.Classified, recorded.Outcome);
-        Assert.Null(unclassified.MailClassificationDecision);
+        Assert.Equal(MailClassificationOutcome.Unclassified, unclassified.MailClassificationDecision?.Outcome);
         Assert.Equal(unclassified.Decision, classified.Decision);
         Assert.Equal(unclassified.DecisionReason, classified.DecisionReason);
     }
@@ -1333,10 +1333,10 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
-    public async Task AMessageCarryingTwoCategoryTellsIsAmbiguousAndIsNoTriageMatch()
+    public async Task AMessageCarryingTwoCategoryTellsIsUnclassifiedAndIsNoTriageMatch()
     {
-        // Ambiguity is not a Triage request: it is a message no policy may
-        // resolve, and it must reach staff rather than open pre-case work.
+        // Competing tells are not a Triage request: the message is one no policy
+        // may resolve, and it must reach staff rather than open pre-case work.
         var receipt = await CreateSut(
                 new StubReader(Readable(
                     content:
@@ -1358,16 +1358,17 @@ public sealed class ProcessIntakeTests
                 SourceIdentity = new(IntakeSourceChannel.Mailbox, "triage-ambiguous")
             });
 
-        Assert.Equal(
-            MailClassificationOutcome.Ambiguous,
-            Assert.IsType<MailClassificationResult>(receipt.MailClassificationDecision).Outcome);
+        var classification = Assert.IsType<MailClassificationResult>(receipt.MailClassificationDecision);
+        Assert.Equal(MailClassificationOutcome.Unclassified, classification.Outcome);
+        Assert.Contains("triage-request", classification.Reason, StringComparison.Ordinal);
+        Assert.Contains("new-instruction", classification.Reason, StringComparison.Ordinal);
         Assert.DoesNotContain(
             receipt.Evidence,
             item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
     }
 
     [Fact]
-    public async Task AmbiguousClassificationIsRecordedOnlyAndNeverChangesTheIntakeDecision()
+    public async Task CompetingClassificationIsRecordedOnlyAndNeverChangesTheIntakeDecision()
     {
         IntakeSourceReadResult ReadResult() => Readable(
             transportEvidence:
@@ -1407,8 +1408,8 @@ public sealed class ProcessIntakeTests
             .ExecuteAsync(Source("classification-ambiguity-off"));
 
         var recorded = Assert.IsType<MailClassificationResult>(ambiguous.MailClassificationDecision);
-        Assert.Equal(MailClassificationOutcome.Ambiguous, recorded.Outcome);
-        Assert.Null(without.MailClassificationDecision);
+        Assert.Equal(MailClassificationOutcome.Unclassified, recorded.Outcome);
+        Assert.Equal(MailClassificationOutcome.Unclassified, without.MailClassificationDecision?.Outcome);
         Assert.Equal(without.Decision, ambiguous.Decision);
         Assert.Equal(without.DecisionReason, ambiguous.DecisionReason);
     }

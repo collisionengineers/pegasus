@@ -444,6 +444,85 @@ span.blocker-name{cursor:default;text-decoration:none}
 #section-estimate .grid tr.phantom .del{visibility:hidden}
 #section-estimate .est-add-line{justify-content:flex-end}
 
+/* Columns by line type (v38 P1): a cell the type does not price reads as one
+   quiet dash where the box would be; its input posts blank, unseen. */
+#section-estimate .grid td.na{color:var(--quiet);text-align:right;padding-right:10px;font-family:var(--mono);font-variant-numeric:tabular-nums}
+#section-estimate .grid td.na input{display:none}
+#section-estimate .grid td.na::before{content:"\2014"}
+
+/* The labour rate bar (v38 P5), as the reference draws it: one segment per
+   rate card and Custom · typed; the uplift tick and its chip; the figure the
+   spec prices at in the box at the right with its working and Manual. The
+   chosen segment is ink on white; the segments share the 36px row. */
+#section-estimate .est-rate{flex-wrap:wrap;gap:12px}
+#section-estimate .rseg{display:inline-flex;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+#section-estimate .rseg-btn{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;min-height:36px;padding:5px 11px;border-right:1px solid var(--line);background:#fff;color:var(--muted);font-size:12px;line-height:1.15;cursor:pointer}
+#section-estimate .rseg-btn:last-child{border-right:0}
+#section-estimate .rseg-btn small{font-family:var(--mono);font-size:10px;color:var(--quiet)}
+#section-estimate .rseg-btn:hover{color:var(--ink)}
+#section-estimate .rseg-btn input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+#section-estimate .rseg-btn:has(input:checked),#section-estimate .rseg-btn.is-static[aria-current="true"]{background:var(--ink);color:#fff}
+#section-estimate .rseg-btn:has(input:checked) small,#section-estimate .rseg-btn.is-static[aria-current="true"] small{color:rgba(255,255,255,.7)}
+#section-estimate .rseg-btn:has(input:focus-visible){outline:3px solid rgba(219,8,22,.38);outline-offset:-3px}
+#section-estimate .rseg-btn.is-static{cursor:default}
+#section-estimate .est-rate .ratebox{margin-left:auto;gap:6px}
+#section-estimate .est-rate .ratebox input{width:104px;text-align:right;font-weight:600;padding-right:8px}
+#section-estimate .est-rate .ratebox input::-webkit-inner-spin-button,#section-estimate .est-rate .ratebox input::-webkit-outer-spin-button{-webkit-appearance:none;appearance:none;margin:0}
+#section-estimate .est-rate .ratebox input[type=number]{-moz-appearance:textfield;appearance:textfield}
+#section-estimate .est-rate .ratebox .gv{min-width:104px;justify-content:flex-end;font-weight:600}
+#section-estimate .est-rate [data-rate-work]:empty{display:none}
+#section-estimate .est-rate .choice input[disabled]+input+span{color:var(--quiet)}
+
+/* The scaling bar as the reference scales (v38 P6): the floors and Apply on
+   a second row under the slider; Remove scaling never wraps. */
+#section-estimate .est-scale{flex-wrap:wrap}
+#section-estimate .est-scale .est-scale-row{flex-basis:100%;display:flex;align-items:center;gap:12px;margin-top:4px}
+#section-estimate .est-scale .est-scale-row [data-scale-apply]{margin-left:auto}
+#section-estimate .est-scale [data-scale-remove]{white-space:nowrap}
+
+/* The agreed sum's box in the contract bar (v38 P4); the mismatch chip is a button. */
+#section-estimate .est-contract .dsc input[data-contract-sum]{width:110px}
+#section-estimate .chip-button{font:inherit;cursor:pointer}
+#section-estimate .chip-button:hover{background:var(--amber);color:#fff}
+
+/* The Supplementary panel at the top of the section (v38 P3): the version it
+   changes against with the cost movement and the full comparison; one line
+   per change with its tag, the words and the line's value; then the Explain
+   tick, the reason and Dismiss. */
+#section-estimate .est-supp{border-left:3px solid var(--red)}
+#section-estimate .est-supp>h3{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#section-estimate .est-supp>h3 .rt{font-weight:400;text-transform:none;letter-spacing:0;font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+#section-estimate .est-supp>h3 .est-supp-sum{margin-left:auto;color:var(--muted)}
+#section-estimate .est-supp>h3 .est-supp-sum b{color:var(--ink)}
+#section-estimate .est-supp>h3 .est-supp-sum a{color:var(--muted);text-decoration:underline dotted}
+#section-estimate .est-supp-list{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:3px;font-size:12.5px}
+#section-estimate .est-supp-list li{display:flex;gap:8px;align-items:baseline}
+#section-estimate .est-supp-tag{font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.06em;min-width:64px}
+#section-estimate .est-supp-list .added .est-supp-tag{color:var(--red)}
+#section-estimate .est-supp-list .changed .est-supp-tag{color:var(--amber)}
+#section-estimate .est-supp-list .removed .est-supp-tag{color:var(--quiet)}
+#section-estimate .est-supp-list .removed .est-supp-desc{color:var(--muted)}
+#section-estimate .est-supp-num{margin-left:auto;color:var(--muted);font-variant-numeric:tabular-nums}
+#section-estimate .est-supp-row{align-items:center;gap:12px}
+#section-estimate .est-supp-row .choice{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;min-height:var(--control)}
+#section-estimate .est-supp-row .choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
+#section-estimate .est-supp-row select.fi{width:auto;min-width:260px}
+#section-estimate .est-supp-row [data-supp-dismiss]{margin-left:auto}
+
+/* Compare side by side (v38 P2): a rule between the groups, the group heads
+   centred over their five columns; the versions dialog's two actions. */
+.dialog--compare{width:min(100%,1100px)}
+.est-diff--sides th.side-head{text-align:center;border-left:1px solid var(--line)}
+.est-diff--sides th.side-first,.est-diff--sides td:nth-child(4),.est-diff--sides td:nth-child(9){border-left:1px solid var(--line)}
+.version-acts{gap:6px;justify-content:flex-end;flex-wrap:nowrap}
+.version-acts .btn{white-space:nowrap}
+@media print{
+  body.is-printing-compare>*:not(#compare-estimates-dialog){display:none}
+  body.is-printing-compare #compare-estimates-dialog{position:static;background:none;padding:0;display:block}
+  body.is-printing-compare #compare-estimates-dialog .dialog{width:100%;max-height:none;overflow:visible;border:0;box-shadow:none}
+  body.is-printing-compare #compare-estimates-dialog .noprint,body.is-printing-compare #compare-estimates-dialog .dialog-close{display:none!important}
+}
+
 /* Discounts and VAT bars. */
 #section-estimate .bar .dsc{display:flex;align-items:center;gap:7px;font-size:12.5px}
 #section-estimate .bar .dsc label{font-size:12px;color:var(--muted)}
@@ -519,7 +598,7 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 #section-report .recip-form{display:grid;gap:8px;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px}
 #section-report .recip-form .lg,#section-report .recip-form .lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
 #section-report .recip-form .stack{gap:4px}
-#section-report .recip-form input:not([type=checkbox]){min-height:var(--control);padding:6px 9px;border:1px solid var(--line-strong);border-radius:var(--radius);font-size:13px;width:100%;background:#fff}
+#section-report .recip-form input:not([type=checkbox]),#section-report .recip-form select{min-height:var(--control);padding:6px 9px;border:1px solid var(--line-strong);border-radius:var(--radius);font-size:13px;width:100%;background:#fff}
 #section-report .recip-form .btn{justify-self:start}
 #section-report .thumbs{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
 #section-report .th{aspect-ratio:4/3;border-radius:3px;position:relative;cursor:zoom-in;overflow:hidden;border:1px solid var(--line);display:flex;align-items:flex-end;padding:5px;font:600 9.5px var(--mono);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5);background:var(--surface-3);text-decoration:none}
@@ -657,9 +736,9 @@ body.case-images-window{margin:0;background:var(--surface-2)}
 
 /* ==== notes ==== */
 /* ---- Notes ---------------------------------------------------------------- */
-#section-notes .note-form{display:grid;gap:6px}
+#section-notes .note-form,#section-tasks .note-form{display:grid;gap:6px}
 #section-notes .note-form textarea{min-height:64px;padding:6px 9px;border:1px solid var(--line-strong);border-radius:var(--radius);font-size:13px;resize:vertical}
-#section-notes .note-form .lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
+#section-notes .note-form .lbl,#section-tasks .note-form .lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
 .notes-timeline{display:grid}
 .notes-timeline .note{display:grid;grid-template-columns:118px 1fr;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px}
 .notes-timeline .note:last-child{border-bottom:0}

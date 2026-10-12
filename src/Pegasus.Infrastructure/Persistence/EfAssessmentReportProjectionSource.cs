@@ -72,6 +72,9 @@ internal sealed class EfAssessmentReportProjectionSource(
                 PrincipalName = item.Case.Principal.Organization.Name,
                 PrincipalAddress = item.Case.Principal.Organization.Address,
                 PrincipalPostcode = item.Case.Principal.Organization.Postcode,
+                // Whether the report carries vehicle images is the Principal's
+                // rule, read with the rest of its row.
+                PrincipalReportSendingRulesJson = item.Case.Principal.ReportSendingRulesJson,
                 item.Case.Year,
                 item.Case.Sequence,
                 item.Case.Reference,
@@ -213,7 +216,8 @@ internal sealed class EfAssessmentReportProjectionSource(
             ValuationCommentary: AssessmentReportProjection.ValuationCommentaryOf(
                 workspace.Assessment, latestApplied?.Reason),
             Wording: wording,
-            SignOffEngineersOffered: profiles.Count > 0);
+            SignOffEngineersOffered: profiles.Count > 0,
+            IncludeVehicleImages: IncludesVehicleImages(workflow.PrincipalReportSendingRulesJson));
 
         var readiness = new CaseReportReadinessInput(
             workspace.Assessment,
@@ -252,6 +256,14 @@ internal sealed class EfAssessmentReportProjectionSource(
             .ToArrayAsync(cancellationToken);
         return (confirmed, guides, wording);
     }
+
+    /// <summary>
+    /// Whether a report for a Principal with these stored report sending
+    /// rules carries vehicle images. The projection and a generation's replay
+    /// check both read it here.
+    /// </summary>
+    internal static bool IncludesVehicleImages(string reportSendingRulesJson) =>
+        EfOrganizationAdministration.ReadReportSending(reportSendingRulesJson).Attach.ReportImages;
 
     /// <summary>
     /// The valuation guides the Case's accepted values were taken from. Only

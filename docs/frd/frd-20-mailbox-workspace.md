@@ -1,16 +1,13 @@
 # FRD-20: Mailbox workspace
 
-> Owner capabilities: MAIL-06, MAIL-10, MAIL-11, UI-10, UI-14 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MAIL-10, MAIL-11, UI-10, UI-14 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
 - The Inbox shows retained mail from every approved mailbox, newest first,
   from each mailbox's retention start. Nothing older is shown or rebuilt.
 - Looking at a message never changes anything. Only the opened message
-  record offers classification, Case linking and folder moves, one message
-  at a time.
-- A folder move is a separate confirmation after classification, and only
-  to the folder the policy names.
+  record offers classification and Case linking, one message at a time.
 - The list says when it was last refreshed and goes stale after 15 minutes.
   It never refreshes under an operator's hands.
 - Dismiss hides a message in Pegasus only. Outlook is untouched. Restore
@@ -29,17 +26,19 @@ owned by [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md).
 
 ### Inbox scopes and filters
 
-`/Inbox` lists retained mail by scope: All incoming, Receiving work, Case
-updates, Pre-instructions, Unidentified, Sent Items and Dismissed. There is
-no Unread scope; an unread row stays bold. The filters are mailbox, folder
-and **Category**, which lists destinations and approved categories.
+`/Inbox` lists retained mail by scope: All incoming, Unidentified, Sent Items
+and Dismissed. There is no Unread scope; an unread row stays bold. The
+filters are mailbox, folder and **Category**, one flat list: All categories,
+the eleven mail categories
+([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction))
+and Unidentified, with no groups.
 
 The default view is the incoming Inbox across all approved mailboxes, newest
-received first. Folder, mailbox, queue and search views are explicit
+received first. Folder, mailbox, category and search views are explicit
 refinements of that view. Sent mail and read-only Deleted Items search are
 separate folder scopes. Sent Items lists every Sent item the Sent-evidence
 poll ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md)) has read
-from an approved mailbox, newest sent first, whether Pegasus or Outlook
+from an Outgoing approved mailbox, newest sent first, whether Pegasus or Outlook
 sent it; a row opens the message record the same way a received one does.
 
 There is no historical backfill. The workspace shows retained mail from each
@@ -53,10 +52,14 @@ Unidentified item; they never create a second queue row.
 
 Each row shows sender, subject and a short excerpt of the body. The subject
 opens the message. Clicking elsewhere on a row selects it. The selected row
-is marked. Up and Down move through the rows. Rows show retained read and unread state, but this workspace never
+is marked. Up and Down move through the rows. A received row offers
+**Reply** when the mailbox it arrived in can send; it opens the message
+record's Reply
+([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
+Rows show retained read and unread state, but this workspace never
 changes that state.
 Lists use accessible pagination, not infinite scrolling. Active mailbox,
-folder, queue and search filters stay visible and are kept when the operator
+folder, category and search filters stay visible and are kept when the operator
 returns from a message or a Case. A fresh visit resets to the default
 all-Inboxes view; there is no cross-session preference.
 
@@ -77,13 +80,14 @@ and state. It shows the message text with its line breaks, up to the first
 eight lines. It counts the attachments by kind and does not name them. It
 shows the classification, the Case or Triage Case, and the folder. While a
 search term is typed, it also says where the term matched. Its actions are
-Open full message and Open Case, or Open Triage when the message opened a
-Triage. It has no controls that change anything. Previewing never changes
+Open full message, Reply when the mailbox the message arrived in can send
+(it opens the message record's Reply), and Open Case, or Open Triage when
+the message opened a Triage. It has no controls that change anything. Previewing never changes
 classification, association, read state, Case state or custody.
 
 Opening a message keeps the list's filter and position. The record shows the
 full retained message, its attachments and a chronological thread, and
-states the current classification, queue, processing outcome and Case
+states the current classification, processing outcome and Case
 association before any action is offered. When a message opened a Triage
 and is linked to no Case, its Case tab shows that Triage and still offers
 Link to Case.
@@ -120,26 +124,26 @@ current. The stale threshold is a fixed 15 minutes since the last successful
 update; it is not configurable and does not depend on load. The list does
 not refresh on its own while an operator is reading or acting.
 
-Refresh keeps the active mailbox, folder, queue, search filters, page and
+Refresh keeps the active mailbox, folder, category, search filters, page and
 open message when that message is still available. If the message has left
 the current scope, its detail stays open with a clear "no longer in this
 view" state and a way back to the list.
 
-### Classification, linking and folder-move actions
+### Classification and linking actions
 
-Classification, Case linking and folder moves are offered only from the
+Classification and Case linking are offered only from the
 opened message record, never from a row or the quick preview. There is no
 bulk action: each decision applies to one exact message.
 
-The correction picker offers only the message's own direction, and a
-correction to New instruction asks for the case type. Once a classification
+The correction picker offers every mail category and Unclassified, and a
+correction to New instruction asks for the work type. Once a classification
 is saved, the message record offers the one next action it calls for:
 **Create case** for a New instruction, **Open the Triage** for a Triage
 request, **Register images** for images received, each only while the
 receipt still qualifies and no Case holds it. Staff press it; nothing runs on
 its own, and a Case or Triage already opened from the message stays as it is
 when the message is corrected away (operator, 1 October 2026). A correction
-to or from a post-report classification on a linked Case follows
+to or from Query on a linked Case follows
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries).
 
 Case linking starts with a deliberate Case search, then shows the target
@@ -147,23 +151,10 @@ summary, asks for a reason and needs explicit confirmation. Linking may
 happen while classification is still unresolved, when the link evidence on
 its own is enough.
 
-After a classification is saved, the recommended Outlook folder move is a
-separate, explicit confirmation. Staff, or the Automation Actor through
-`pegasus_mail_action` ([ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)),
-may confirm only the folder the classification policy names. Wanting a different folder means correcting the
-classification, not picking a folder. If a later reclassification names a
-different folder, Pegasus offers another separate confirmation; it never
-moves the item automatically. If a move fails, the saved classification
-stays, the failure is visible, and only a retry by staff or the Automation
-Actor may repeat the move. After a successful move, the message leaves the Inbox view and is
-still found through its destination folder or search. It is never
-duplicated.
-
-The message's displayed destination reflects its current Case association
-even while its classification is Unclassified. Classification, actual
-destination and custody completion are separate facts. A resolved
-Unidentified origin is kept as history, not shown as the current
-destination.
+The message record shows its current Case association even while its
+classification is Unclassified. Classification, Case association and custody
+completion are separate facts. A resolved Unidentified origin is kept as
+history.
 
 Selecting the linked Case opens that Case in the same tab. Back returns to
 the exact message and the list context it came from.
@@ -183,15 +174,17 @@ stays in this mailbox workspace.
 
 ### Dismiss
 
-A row or the message record offers **Dismiss**. It moves the message into
-the `Dismissed` logical folder and out of every other scope. **Restore**
+A row or the message record offers **Dismiss**. It records the message as
+dismissed and takes it out of every other scope. **Restore**
 from the Dismissed scope brings it back. Both are always allowed, to staff
 and to the Automation Actor (`pegasus_mail_action`). An open
 Unidentified item stays open, and the message keeps its evidence,
 associations and history. Dismiss is Pegasus data only: the Outlook item
 does not move and no Graph call is made
-([ADR-0052](../adr/0052-dismiss-by-logical-folder.md)). There is no flag,
-no delete and no Deleted Items move on any surface
+([ADR-0052](../adr/0052-dismiss-by-logical-folder.md),
+[ADR-0069](../adr/0069-one-flat-mail-category.md)). There is no flag and
+no delete control on any surface. The only Deleted Items move is the
+automatic one after a confirmed report send
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 
 Both acts write only the message's dismissed-at and dismissed-by cells and one
@@ -216,12 +209,10 @@ workspace only shows them.
 
 - A search over an unsearchable attachment says so; it does not hide the
   attachment.
-- A folder move that fails leaves the classification intact and waits for a
-  retry by staff or the Automation Actor.
 - A refreshed message that left the scope stays readable with a way back.
 - A thread identity seen in another mailbox is never followed.
 - A count or list whose query has not run shows nothing, never `0`.
-- No bulk classification, linking, move or dismiss exists.
+- No bulk classification, linking or dismiss exists.
 
 ## Acceptance evidence
 
@@ -230,8 +221,6 @@ workspace only shows them.
   detail, and the fresh-visit reset.
 - Tests that a preview and an opened record change no classification,
   association, read state or custody.
-- Tests that the folder move is a separate confirmation and refuses any
-  folder other than the policy's.
 - Dismiss and Restore tests showing no Graph call.
 - A persistence test that a retried Dismiss replays without a second history
   entry and that concurrent acts do not deadlock, and a grant test that Web
@@ -241,7 +230,7 @@ workspace only shows them.
 
 ## Links
 
-- Capabilities: `MAIL-06`, `MAIL-10`, `MAIL-11`, `UI-10`, `UI-14` in
+- Capabilities: `MAIL-10`, `MAIL-11`, `UI-10`, `UI-14` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-08](frd-08-email-mailbox-and-background-processing.md)
   (classification and retention),
@@ -250,6 +239,7 @@ workspace only shows them.
   files), [FRD-12](frd-12-operator-experience.md) (shell and routes),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md) (Case states).
 - Technical constraints:
-  [ADR-0052](../adr/0052-dismiss-by-logical-folder.md) (dismiss by logical
-  folder), [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md)
+  [ADR-0052](../adr/0052-dismiss-by-logical-folder.md) (dismiss),
+  [ADR-0069](../adr/0069-one-flat-mail-category.md) (one flat mail
+  category, dismissed-at scope), [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md)
   (outbound mail).

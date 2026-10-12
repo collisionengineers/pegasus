@@ -7,7 +7,7 @@
 - Receiving material is not creating a Case. Pegasus keeps the original
   bytes and their identity first, then works out what the material is.
 - Anything safely kept but not understood becomes one Unidentified item
-  with a permanent `U<n>` reference and one of seven reasons. This document
+  with a permanent `U<n>` reference and one of six reasons. This document
   owns what Unidentified means.
 - Receipt is acknowledged only after the bytes, the receipt and one
   processing-dispatch record have committed. The Worker alone processes it.
@@ -69,7 +69,16 @@ document type, not a Principal, and it is ordinary inbound mail: it follows
 the same receipt, classification and extraction rules as any other
 attachment. Pegasus reads the vehicle identity from it (registration, make
 and model, VIN, mileage and accident date) and nothing else, and takes the
-vehicle images from the PDF itself.
+vehicle images from the PDF itself. Its photographs are every JPEG on its
+"Submitted Vehicle Images" page, whatever their size; the letterhead logo and
+page icons are not photographs, and a repeated photograph is kept once. The
+printed registration, not a plate read, pairs the photographs with a
+matching Case or registers their Image intake
+([FRD-19](frd-19-image-led-intake-and-pairing.md#image-initiated-case-projection)). On
+the Case the photographs join, the reading fills the make, model, mileage and
+accident date only where the Case holds none, and the VIN only where the
+work holds none; nothing already recorded is replaced (operator, 12 October
+2026).
 
 **Direct Case creation** is a staff path that the Automation Actor also
 takes, through `pegasus_case_create`
@@ -116,7 +125,7 @@ is never accepted where a Case/PO, Audit reference, Image reference, or
 Principal identifier is required. Work that can still be retried does not
 get a reference.
 
-**The seven reasons.** Every item stores exactly one Core-owned reason and
+**The six reasons.** Every item stores exactly one Core-owned reason and
 bounded safe detail:
 
 | Reason | Meaning |
@@ -125,7 +134,6 @@ bounded safe detail:
 | Unsupported | The file kind is not accepted. |
 | No usable identification | Nothing in the material identifies a Case, vehicle, or owner. |
 | Conflicting identification | The material names two different identities, for example two valid registrations in one image group. |
-| Ambiguous ownership or destination | More than one Case or owner could claim it. |
 | Terminal technical processing failure | Processing failed after custody and cannot be retried (`TechnicalProcessingFailure`). |
 | Could not be read (with the file kind) | Unsupported, failed OCR, or a technical failure on the file itself. |
 

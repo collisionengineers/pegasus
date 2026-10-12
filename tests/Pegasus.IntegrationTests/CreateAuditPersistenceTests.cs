@@ -254,9 +254,10 @@ public sealed class CreateAuditPersistenceTests
         // The refusal left the lease held at the same version, so the second
         // link reuses it: a fresh take-over writes its event at the version
         // Create audit already occupies (#826).
-        var linked = await harness.Workflows.LinkReportEvidenceAsync(
+        var linkedResult = await harness.Workflows.LinkReportEvidenceAsync(
             olderLink with { OperationKey = "link-newer", EvidenceId = newer.EvidenceId },
             default);
+        var linked = linkedResult.Workflow;
 
         Assert.Equal(CaseLifecycleState.ReportSent, linked.State);
         Assert.Equal(newer.EvidenceId, linked.ReportSentEvidence?.EvidenceId);
@@ -282,9 +283,10 @@ public sealed class CreateAuditPersistenceTests
         var evidence = await retain.ExecuteAsync(Evidence("inspection", now.AddHours(-2), now.AddHours(-1)), default);
 
         var link = await harness.LinkRequestAsync("link-inspection", evidence.EvidenceId);
-        var linked = await harness.Workflows.LinkReportEvidenceAsync(
+        var linkedResult = await harness.Workflows.LinkReportEvidenceAsync(
             link with { Work = CaseWorkSelector.Primary },
             default);
+        var linked = linkedResult.Workflow;
 
         Assert.Equal(CaseLifecycleState.ReportPreparation, linked.State);
         Assert.Null(linked.ReportSentEvidence);
@@ -299,6 +301,75 @@ public sealed class CreateAuditPersistenceTests
         var refused = await Assert.ThrowsAsync<InvalidOperationException>(
             () => harness.Workflows.LinkReportEvidenceAsync(again with { Work = CaseWorkSelector.Primary }, default));
         Assert.Equal("The case already has current report-Sent evidence.", refused.Message);
+    }
+
+    /// <summary>
+    /// One send carried both reports (operator, 12 October 2026): the one Sent
+    /// item links to the Audit, moving the Case to Report sent, and to the
+    /// Inspection's own work. Unlinking the Audit's leaves the Inspection's
+    /// link and the evidence the Case's.
+    /// </summary>
+    [Fact]
+    public async Task OneSentItemCarryingBothReportsLinksToBothWorks()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.ExecuteSqlAsync(
+            $"UPDATE CaseWorkflows SET ReportSentEvidenceId = NULL WHERE CaseId = '{harness.CaseId:D}'");
+        await harness.CreateAudit.ExecuteAsync(await harness.RequestAsync("create-audit-both-reports"), default);
+        await using (var context = await harness.ContextAsync())
+        {
+            Assert.Null((await context.CaseWorks.AsNoTracking().SingleAsync(item => item.Id == harness.CaseId)).ReportSentEvidenceId);
+        }
+        var auditWorkId = await harness.AuditWorkIdAsync();
+        var inspectionGeneration = Guid.NewGuid();
+        var auditGeneration = Guid.NewGuid();
+        foreach (var (generationId, workId) in new[] { (inspectionGeneration, harness.CaseId), (auditGeneration, auditWorkId) })
+        {
+            await harness.ExecuteSqlAsync(
+                $$"""
+                INSERT INTO CaseReportGenerations
+                    (Id, CaseId, CaseVersion, SnapshotHash, SnapshotJson, TemplateVersion, RendererVersion,
+                     State, GeneratedAtUtc, Version, WorkId)
+                VALUES
+                    ('{{generationId:D}}', '{{harness.CaseId:D}}', 0, REPLICATE(N'f', 64), N'{}', N'1', N'1',
+                     N'Confirmed', SYSDATETIMEOFFSET(), 1, '{{workId:D}}')
+                """);
+        }
+        var now = DateTimeOffset.UtcNow;
+        var evidence = await harness.Services.GetRequiredService<IRetainApprovedMailboxReportSentEvidence>()
+            .ExecuteAsync(Evidence("both-reports", now, now), default);
+        var autoLink = new AutoLinkReportEvidence(harness.Services.GetRequiredService<IAutoLinkReportEvidenceStore>());
+
+        var linked = await autoLink.ExecuteAsync(
+            new(harness.CaseId, evidence.EvidenceId, ActionActor.SystemWorker("sent-evidence-poll"),
+                "auto-link-both-reports", "Exact approved-mailbox Sent evidence",
+                auditGeneration, inspectionGeneration),
+            default);
+
+        Assert.Equal(AutoLinkReportEvidenceDisposition.Linked, linked.Disposition);
+        Assert.Equal(CaseLifecycleState.ReportSent, linked.Link!.State);
+        Assert.True(linked.Link.OfCurrentWork);
+        await using (var context = await harness.ContextAsync())
+        {
+            var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == harness.CaseId);
+            var primary = await context.CaseWorks.AsNoTracking().SingleAsync(item => item.Id == harness.CaseId);
+            Assert.Equal(evidence.EvidenceId, workflow.ReportSentEvidenceId);
+            Assert.Equal(evidence.EvidenceId, primary.ReportSentEvidenceId);
+        }
+
+        var (version, token) = await harness.ClaimAsync("unlink-audit-evidence");
+        var unlinked = await harness.Workflows.UnlinkReportEvidenceAsync(
+            new(harness.CaseId, version, harness.Actor, "unlink-audit-evidence", "Not the Audit report", token, evidence.EvidenceId),
+            default);
+
+        Assert.Equal(CaseLifecycleState.ReportPreparation, unlinked.State);
+        await using (var context = await harness.ContextAsync())
+        {
+            var primary = await context.CaseWorks.AsNoTracking().SingleAsync(item => item.Id == harness.CaseId);
+            var retained = await context.CaseReportSentEvidence.AsNoTracking().SingleAsync(item => item.Id == evidence.EvidenceId);
+            Assert.Equal(evidence.EvidenceId, primary.ReportSentEvidenceId);
+            Assert.Equal(harness.CaseId, retained.CaseId);
+        }
     }
 
     /// <summary>
@@ -507,8 +578,10 @@ public sealed class CreateAuditPersistenceTests
         var draft = Assert.Single(auditSpecifications, item => item.Version == 4);
         Assert.False(earlier.IsCurrent);
         Assert.Equal(nameof(RepairSpecificationState.Draft), earlier.State);
-        Assert.Null(draft.SupplementaryOfSpecificationId);
-        Assert.Equal("additional", draft.SupplementaryReason);
+        // A supplementary names a frozen version, which the Audit does not copy (v38 P3).
+        Assert.Null(draft.SupplementaryOfSnapshotId);
+        Assert.Null(draft.SupplementaryReason);
+        Assert.Null(draft.SupplementaryStatement);
         // The Current choice is copied with the estimates: one Current Draft.
         Assert.True(current.IsCurrent);
         Assert.Equal(nameof(RepairSpecificationState.Draft), current.State);
@@ -712,6 +785,15 @@ public sealed class CreateAuditPersistenceTests
             return (workflow.Version, workflow.EditLeaseTokenHash, workflow.EditLeaseHolder, workflow.EditLeaseExpiresAtUtc);
         }
 
+        public async Task<Guid> AuditWorkIdAsync()
+        {
+            await using var context = await database.CreateContextAsync();
+            return await context.CaseWorks.AsNoTracking()
+                .Where(item => item.CaseId == CaseId && item.Kind == CaseWorkKinds.Audit)
+                .Select(item => item.Id)
+                .SingleAsync();
+        }
+
         public async Task<Guid> AuditCustodyWorkIdAsync()
         {
             await using var context = await ContextAsync();
@@ -794,7 +876,7 @@ public sealed class CreateAuditPersistenceTests
                 var mailbox = (await context.ApprovedMailboxes.FindAsync(
                     await TestMailboxId.EnsureApprovedAsync(
                         context, ApprovedMailboxIdentity, ApprovedMailboxAddress, now.AddDays(-30))))!;
-                mailbox.AllowSentEvidence = true;
+                mailbox.AllowOutgoing = true;
                 mailbox.SentFolderIdentity = "sent-items";
                 mailbox.Version = 2;
 
@@ -1006,7 +1088,7 @@ public sealed class CreateAuditPersistenceTests
             current.Lines.Add(Line(caseId, current.Id, now));
             var discardedId = Guid.NewGuid();
             var draft = Specification(caseId, 4, nameof(RepairSpecificationState.Draft), now);
-            draft.SupplementaryOfSpecificationId = discardedId;
+            draft.SupplementaryOfSnapshotId = discardedId;
             draft.SupplementaryReason = "additional";
             draft.SupplementaryStatement = "Further damage found.";
             context.CaseRepairSpecifications.AddRange(earlier, current, draft);

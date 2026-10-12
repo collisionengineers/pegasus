@@ -1,13 +1,19 @@
-﻿@*
-    Repair Spec (v26 § Estimate; renamed by v28 P31). One section: the head
-    carries Import (visible in read mode, where it opens the edit session
-    first), the one Glass's / Resume slot, Send to AI, one More menu (New
-    repair spec, Print Repair Spec, Compare — greyed out with one spec) and
-    Expand; the body carries the outcome notice, the tabs (the selected tab
-    renames the spec by double-click, P32), the Glass's session line with its
-    guarded Close, Use repair spec / Duplicate / Discard, the header cells,
-    the grid with its Material column (P48) and trailing blank line, Add line
-    and Delete all lines (P16), the contract, discount and VAT bars, the three
+@*
+    Repair Spec (v26 § Estimate; renamed by v28 P31; the reference's bars
+    since v38, operator, 12 October 2026). One section: the head carries
+    Import (visible in read mode, where it opens the edit session first; an
+    import lands on the spec in view, P3), the one Glass's / Resume slot, Send
+    to AI, one More menu (New repair spec, Print Repair Spec, Versions,
+    Compare — offered with two specs or a frozen version, P2) and Expand; the
+    body carries the outcome notice, the tabs (the selected tab renames the
+    spec by double-click, P32), the Glass's session line with its guarded
+    Close, Use repair spec / Duplicate / Discard, the Supplementary panel an
+    import opens above the grid (P3), the header cells, the grid with its
+    Material column (P48) and trailing blank line — a cell the line type does
+    not price reads as a dash (P1) — Add line and Delete all lines (P16), the
+    labour rate bar with its rate-card segments (P5), the Target % of value
+    bar as the reference scales (P6), the contract bar whose agreed sum
+    previews the scaling (P4), the discount and VAT bars, the three
     work-lists and the rollup with its off-pattern line (P37). Reading and
     editing are one layout (operator, 23 September 2026): a spec that cannot
     be changed shows every field as a greyed value in its control's place
@@ -16,8 +22,8 @@
     ribbon Save records the spec as it stands; Apply and Remove scaling save
     the Case first. Every other action is a plain posted form;
     case-workspace.js adds the phantom row, the full-screen toggle, the VAT
-    reset, the range interaction, the tab rename, the one labour-rate control
-    (P33) and the Undo toast.
+    reset, the range interaction, the tab rename, the rate bar and the Undo
+    toast.
 *@
 @using System.Globalization
 @using Pegasus.Core.Assessment
@@ -54,6 +60,7 @@
     var rateCard = details?.Rate is { RateCardId: { } rateCardId, RateCardVersion: { } rateCardVersion }
         ? Model.LabourRateCards.FirstOrDefault(card => card.Id == rateCardId && card.Version == rateCardVersion)
         : null;
+    var enabledCards = Model.LabourRateCards.Where(card => card.Enabled).ToArray();
 
     string Money(decimal value) => "£" + value.ToString("N2", culture);
     string MoneyOrAbsent(decimal? value) => value is { } present ? Money(present) : OperatorLabels.CaseWorkspace.AbsentValue;
@@ -88,17 +95,22 @@
     var contractPercent = outcomeIsContract && contractSum is > 0m && engineerValue is > 0m
         ? contractSum.Value / engineerValue.Value * 100m
         : (decimal?)null;
-    // The slider starts at the spec's own share of the Engineer's Value and
-    // goes no higher; scaling only lowers prices (operator, 8 October 2026).
-    // An agreed sum below that share is the starting target (P35).
+    // The slider runs from the floor-scaled minimum (v38 P6) to the spec's
+    // own share of the Engineer's Value and goes no higher; scaling only
+    // lowers prices (operator, 8 October 2026). An agreed sum below that
+    // share is the starting target (P35).
     var specPercent = engineerValue is > 0m
         ? Math.Max(1m, RepairSpecificationScaling.PercentOfValue(engineerValue.Value, printed.Gross))
         : 100m;
+    var floorPercent = Math.Min(Model.ScaleFloorPercent, specPercent);
     var suggestedPercent = contractPercent is { } agreedPercent && agreedPercent >= 1m && agreedPercent <= specPercent
         ? Math.Round(agreedPercent, 1, MidpointRounding.AwayFromZero)
         : specPercent;
     var specPercentText = specPercent.ToString("0.#", CultureInfo.InvariantCulture);
-    var others = Model.Estimates.Where(item => item.SpecificationId != estimate?.SpecificationId).ToArray();
+    var floorPercentText = floorPercent.ToString("0.#", CultureInfo.InvariantCulture);
+    var scaleIdle = scaled && Model.ScaledFromGross is { } scaledFrom
+        ? $"{Money(printed.Gross)} — {EstimateLabels.ScaledFromEstimate} {Money(scaledFrom)}"
+        : $"{Money(printed.Gross)} — {EstimateLabels.AsEstimated}";
     string VersionOrigin(RepairSpecificationVersion version) =>
         $"Populated {OperatorLabels.OfficeTime(version.CreatedAtUtc)} by {Model.SpecAuthorName(version.CreatedBy)}, {RepairSpecificationRouteWords.Of(version.Source.Route)} · {EstimateLabels.LinesCount(version.Lines.Count)} · {EngineerLabels.LabourRate.ToLowerInvariant()} {Money(version.Details.HourlyRate)}/h";
 
@@ -118,17 +130,22 @@
     var lineOrigins = estimate?.Lines.ToDictionary(line => line.Id, line => line) ?? new Dictionary<Guid, CaseEstimateLineRecord>();
     var operations = new[]
     {
-        ("Replace", EngineerLabels.Replace),
-        ("Repair", EngineerLabels.Repair),
-        ("RemoveAndRefit", EngineerLabels.RemoveAndRefit),
-        ("Paint", EngineerLabels.PaintOperation),
-        ("Blend", EstimateLabels.Blend),
-        ("Specialist", TotalsLabels.Specialist),
-        ("Other", EngineerLabels.Other)
+        ("Replace", EngineerLabels.Replace, EstimateOperation.Replace),
+        ("Repair", EngineerLabels.Repair, EstimateOperation.Repair),
+        ("RemoveAndRefit", EngineerLabels.RemoveAndRefit, EstimateOperation.RemoveAndRefit),
+        ("Paint", EngineerLabels.PaintOperation, EstimateOperation.Paint),
+        ("Blend", EstimateLabels.Blend, EstimateOperation.Blend),
+        ("Specialist", TotalsLabels.Specialist, EstimateOperation.Specialist),
+        ("Other", EngineerLabels.Other, EstimateOperation.Other)
     };
     // A line's Type reads in the words its control offers, in both modes.
     string OperationWord(string operation) =>
         operations.FirstOrDefault(item => item.Item1 == operation).Item2 ?? operation;
+    // The columns a line's type prices (v38 P1): the editor draws a box for
+    // those, a dash for the rest, and keeps a value sitting in one.
+    EstimateLineColumns ColumnsOf(string operation) =>
+        EstimateOperations.TryParse(operation, out var parsed) ? EstimateOperations.PricedColumns(parsed) : EstimateLineColumns.Hours;
+    bool Prices(EstimateLineColumns columns, EstimateLineColumns column) => (columns & column) == column;
     var vatOverridden = vatPolicy.CategoriesOverridden;
     var readLines = estimate?.Lines.OrderBy(line => line.Position).ToArray() ?? [];
     var vatChargedOn = VatLabels.Categories.Where(vatPolicy.Charges).Select(VatLabels.CategoryLabel).ToArray();
@@ -140,6 +157,16 @@
             estimateId = estimate.SpecificationId,
             view = Model.ViewRoute
         });
+    string CompareHref(string from, string to) => Url.Page("/Cases/Details", null, new
+    {
+        id = caseId,
+        section = "estimate",
+        estimate = estimate?.SpecificationId,
+        dialog = "compare-estimates",
+        from,
+        to,
+        view = Model.ViewRoute
+    })!;
 
     // The work-lists sort recorded lines by operation; a type the mapping
     // does not know lands with the additional operations rather than failing.
@@ -158,52 +185,20 @@
 
 @{
     // One layout for reading and editing (operator, 23 September 2026): the
-    // same header cells, grid columns, bars and supplementary panel in both.
+    // same header cells, grid columns, bars and Supplementary panel in both.
     // Where the spec cannot be changed — reading, or a spec that is not this
     // staff member's Draft — each field reads as a greyed value where its
     // control sits; the tools (add and delete lines, the scale slider, Reset
-    // to repairer status) are drawn only while it edits.
+    // to repairer status, Dismiss) are drawn only while it edits.
     async Task EstimateBody()
     {
         var d = details!;
+        await Supplementary();
         <div class="est-head">
             <div class="fg g4">
                 @if (editable)
                 {
                     <div class="fc" data-estimate-name-cell><label for="estimate-name">@EngineerLabels.EstimateName</label><input id="estimate-name" class="fi" name="estimateName" form="case-edit-form" maxlength="100" required value="@(Model.PostedEstimateValue("estimateName") ?? d.Name)" /></div>
-                    @* One labour rate control (v28 P33): the card chooses the
-                       figure, the figure can be typed, typing keeps the entered rate. *@
-                    <div class="fc">
-                        <label for="estimate-labour-rate">@EngineerLabels.LabourRatePerHour</label>
-                        <div class="rate-pair" data-estimate-rate-pair>
-                            <select id="estimate-rate-card" class="fi" name="selectedRateCard" form="case-edit-form" aria-label="@EstimateLabels.LabourRateCard">
-                                <option value="">@EstimateLabels.KeepEnteredRate</option>
-                                @foreach (var card in Model.LabourRateCards.Where(card => card.Enabled))
-                                {
-                                    var cardKey = $"{card.Id:D}:{card.Version}";
-                                    var selected = Context.Request.HasFormContentType
-                                        ? Context.Request.Form["selectedRateCard"] == cardKey
-                                        : d.Rate is { RateCardId: { } selectedCardId, RateCardVersion: { } selectedCardVersion }
-                                            && selectedCardId == card.Id && selectedCardVersion == card.Version;
-                                    <option value="@cardKey" data-rate="@card.HourlyRate.ToString("0.##", CultureInfo.InvariantCulture)" selected="@(selected ? "selected" : null)">@card.Name — £@card.HourlyRate.ToString("N2", culture)/h</option>
-                                }
-                            </select>
-                            <input id="estimate-labour-rate" class="fi mono" name="estimateLabourRate" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateLabourRate") ?? d.LabourRate?.ToString(CultureInfo.InvariantCulture))" />
-                        </div>
-                    </div>
-                    @* Regional uplift (v28 P17): + 15 % on the rate, suggested
-                       from the repairer, claimant and storage postcodes. *@
-                    <div class="fc">
-                        <label for="estimate-regional-uplift">@EngineerLabels.RegionalUplift</label>
-                        <div class="uplift" data-estimate-uplift>
-                            <label class="choice">
-                                <input id="estimate-regional-uplift" type="checkbox" name="estimateRegionalUplift" form="case-edit-form" value="true" checked="@(d.RegionalUplift ? "checked" : null)" />
-                                <input type="hidden" name="estimateRegionalUplift" value="false" form="case-edit-form" />
-                                <span>@EstimateLabels.UpliftPercent</span>
-                            </label>
-                            <span class="src-tag @(upliftSuggestions.Count > 0 ? "src-tag--ai" : null)" data-estimate-uplift-chip>@(upliftSuggestions.Count > 0 ? EstimateLabels.Suggested + " · " + string.Join(", ", upliftSuggestions) : EstimateLabels.LondonAndHomeCounties)</span>
-                        </div>
-                    </div>
                     <div class="fc"><label for="estimate-other">@EngineerLabels.OtherCostsPounds</label><input id="estimate-other" class="fi mono" name="estimateOtherCosts" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateOtherCosts") ?? d.OtherCosts?.ToString(CultureInfo.InvariantCulture))" /></div>
                     <div class="fc"><label for="estimate-vat">@EngineerLabels.VatPercent</label><input id="estimate-vat" class="fi mono" name="estimateVatPercent" form="case-edit-form" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateVatPercent") ?? d.VatPercent.ToString(CultureInfo.InvariantCulture))" /></div>
                     <div class="fc">
@@ -218,22 +213,7 @@
                 }
                 else
                 {
-                    var enteredRate = d.LabourRate ?? d.Rate?.HourlyRate;
                     <div class="fc ro" data-estimate-name-cell><span class="lbl">@EngineerLabels.EstimateName</span><div class="fv">@d.Name</div></div>
-                    <div class="fc ro">
-                        <span class="lbl">@EngineerLabels.LabourRatePerHour</span>
-                        <div class="rate-pair" data-estimate-rate-pair>
-                            <div class="fv">@(rateCard is { } shownCard ? shownCard.Name + " — £" + shownCard.HourlyRate.ToString("N2", culture) + "/h" : EstimateLabels.KeepEnteredRate)</div>
-                            <div class="@(enteredRate is null ? "fv mono empty" : "fv mono")">@MoneyOrAbsent(enteredRate)</div>
-                        </div>
-                    </div>
-                    <div class="fc ro">
-                        <span class="lbl">@EngineerLabels.RegionalUplift</span>
-                        <div class="uplift" data-estimate-uplift>
-                            @{ StaticChoice(d.RegionalUplift, EstimateLabels.UpliftPercent); }
-                            <span class="src-tag @(upliftSuggestions.Count > 0 ? "src-tag--ai" : null)" data-estimate-uplift-chip>@(upliftSuggestions.Count > 0 ? EstimateLabels.Suggested + " · " + string.Join(", ", upliftSuggestions) : EstimateLabels.LondonAndHomeCounties)</span>
-                        </div>
-                    </div>
                     <div class="fc ro"><span class="lbl">@EngineerLabels.OtherCostsPounds</span><div class="@(d.OtherCosts is null ? "fv mono empty" : "fv mono")">@MoneyOrAbsent(d.OtherCosts)</div></div>
                     <div class="fc ro"><span class="lbl">@EngineerLabels.VatPercent</span><div class="fv mono">@d.VatPercent.ToString("0.##", CultureInfo.InvariantCulture) %</div></div>
                     <div class="fc ro"><span class="lbl">@VatLabels.RepairerStatus</span><div class="fv">@VatLabels.StatusLabel(vatPolicy.RepairerStatus)</div></div>
@@ -244,20 +224,21 @@
         {
             @* The blank line script keeps at the foot of the grid (v26):
                cloned from this template, posted with the same names,
-               dropped by the save when it stays blank. *@
+               dropped by the save when it stays blank. A blank line starts
+               as Replace, so it prices a part (v38 P1). *@
             <template data-estimate-line-template>
                 <tr class="phantom" data-estimate-phantom>
                     <td>
                         <input type="hidden" name="lineId" value="" form="case-edit-form" />
-                        <select name="lineOperation" form="case-edit-form" aria-label="@EngineerLabels.Operation">@foreach (var (value, label) in operations) {<option value="@value">@label</option>}</select>
+                        <select name="lineOperation" form="case-edit-form" aria-label="@EngineerLabels.Operation" data-line-operation>@foreach (var (value, label, operation) in operations) {<option value="@value" data-cols="@((int)EstimateOperations.PricedColumns(operation))">@label</option>}</select>
                     </td>
                     <td><input name="lineDescription" form="case-edit-form" placeholder="@EstimateLabels.AddALine" aria-label="@EngineerLabels.Description" /></td>
-                    <td><input class="mono" name="linePartNumber" form="case-edit-form" aria-label="@EngineerLabels.PartNumber" /></td>
-                    <td><input class="num" name="lineQuantity" form="case-edit-form" type="number" min="1" step="1" inputmode="numeric" aria-label="@EngineerLabels.Quantity" /></td>
-                    <td><input class="num" name="linePartPounds" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" aria-label="@EngineerLabels.PartAmount" /></td>
-                    <td><input class="num" name="lineLabourHours" form="case-edit-form" type="number" min="0" step="0.1" inputmode="decimal" aria-label="@EngineerLabels.LabourHours" /></td>
-                    <td><input class="num" name="linePaintHours" form="case-edit-form" type="number" min="0" step="0.1" inputmode="decimal" aria-label="@EngineerLabels.PaintHours" /></td>
-                    <td><input class="num" name="lineMaterials" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" aria-label="@EngineerLabels.MaterialPounds" /></td>
+                    <td data-col="@((int)EstimateLineColumns.PartNumber)"><input class="mono" name="linePartNumber" form="case-edit-form" aria-label="@EngineerLabels.PartNumber" /></td>
+                    <td class="num" data-col="@((int)EstimateLineColumns.Quantity)"><input class="num" name="lineQuantity" form="case-edit-form" type="number" min="1" step="1" inputmode="numeric" aria-label="@EngineerLabels.Quantity" /></td>
+                    <td class="num" data-col="@((int)EstimateLineColumns.UnitAmount)"><input class="num" name="linePartPounds" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" aria-label="@EngineerLabels.PartAmount" /></td>
+                    <td class="num" data-col="@((int)EstimateLineColumns.Hours)"><input class="num" name="lineLabourHours" form="case-edit-form" type="number" min="0" step="0.1" inputmode="decimal" aria-label="@EngineerLabels.LabourHours" /></td>
+                    <td class="num na" data-col="@((int)EstimateLineColumns.PaintHours)"><input class="num" name="linePaintHours" form="case-edit-form" type="number" min="0" step="0.1" inputmode="decimal" aria-label="@EngineerLabels.PaintHours" /></td>
+                    <td class="num" data-col="@((int)EstimateLineColumns.Materials)"><input class="num" name="lineMaterials" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" aria-label="@EngineerLabels.MaterialPounds" /></td>
                     <td><span class="src-tag">@EstimateLabels.SourceManual</span></td>
                     <td><button type="submit" class="del" name="removeLine" value="" form="case-edit-form" formaction="@editLineAction" aria-label="@EstimateLabels.RemoveThisLine">×</button></td>
                 </tr>
@@ -291,31 +272,36 @@
                             // A Glass's included operation reads as included (v36 item AC):
                             // indented under its row, its note across the figure columns.
                             var included = recordedLine is not null && IncludedOperations.IsIncluded(recordedLine.Type, recordedLine.WorkUnits, recordedLine.Price, recordedLine.Justification);
+                            var columns = ColumnsOf(row.Operation);
+                            // A cell its type does not price is a dash until a value sits in it (v38 P1).
+                            string Na(EstimateLineColumns column, string? value) =>
+                                !Prices(columns, column) && string.IsNullOrWhiteSpace(value) ? " na" : string.Empty;
                             <tr data-estimate-line data-estimate-included="@(included ? "true" : null)">
                                 <td>
                                     <input type="hidden" name="lineId" value="@row.ExistingLineId" form="case-edit-form" />
                                     <label class="sr-only" for="line-operation-@index">@EngineerLabels.LineField(EngineerLabels.Operation, lineNumber)</label>
-                                    <select id="line-operation-@index" name="lineOperation" form="case-edit-form">
-                                        @foreach (var (value, label) in operations)
+                                    <select id="line-operation-@index" name="lineOperation" form="case-edit-form" data-line-operation>
+                                        @foreach (var (value, label, operation) in operations)
                                         {
-                                            <option value="@value" selected="@(row.Operation == value ? "selected" : null)">@label</option>
+                                            <option value="@value" data-cols="@((int)EstimateOperations.PricedColumns(operation))" selected="@(row.Operation == value ? "selected" : null)">@label</option>
                                         }
                                     </select>
                                 </td>
                                 <td class="@(included ? "incl-indent" : null)"><label class="sr-only" for="line-description-@index">@EngineerLabels.LineField(EngineerLabels.Description, lineNumber)</label><input id="line-description-@index" name="lineDescription" form="case-edit-form" value="@row.Description" /></td>
-                                <td><label class="sr-only" for="line-part-@index">@EngineerLabels.LineField(EngineerLabels.PartNumber, lineNumber)</label><input id="line-part-@index" class="mono" name="linePartNumber" form="case-edit-form" value="@row.PartNumber" /></td>
                                 @if (included)
                                 {
                                     @* The posted arrays stay aligned: the figures post blank from hidden fields. *@
+                                    <td><input type="hidden" name="linePartNumber" value="" form="case-edit-form" /></td>
                                     <td colspan="5" class="incl-note">@IncludedOperations.Sentence(recordedLine!.Justification!)<input type="hidden" name="lineQuantity" value="" form="case-edit-form" /><input type="hidden" name="linePartPounds" value="" form="case-edit-form" /><input type="hidden" name="lineLabourHours" value="" form="case-edit-form" /><input type="hidden" name="linePaintHours" value="" form="case-edit-form" /><input type="hidden" name="lineMaterials" value="" form="case-edit-form" /></td>
                                 }
                                 else
                                 {
-                                <td><label class="sr-only" for="line-quantity-@index">@EngineerLabels.LineField(EngineerLabels.Quantity, lineNumber)</label><input id="line-quantity-@index" class="num" name="lineQuantity" form="case-edit-form" type="number" min="1" step="1" inputmode="numeric" value="@row.Quantity" /></td>
-                                <td><label class="sr-only" for="line-pounds-@index">@EngineerLabels.LineField(EngineerLabels.PartAmount, lineNumber)</label><input id="line-pounds-@index" class="num @OffPatternClass(lineNumber, "linePartPounds")" name="linePartPounds" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" value="@row.PartPounds" title="@OffPatternLabel(lineNumber, "linePartPounds")" /></td>
-                                <td><label class="sr-only" for="line-labour-@index">@EngineerLabels.LineField(EngineerLabels.LabourHours, lineNumber)</label><input id="line-labour-@index" class="num @OffPatternClass(lineNumber, "lineLabourHours")" name="lineLabourHours" form="case-edit-form" type="number" min="0" step="0.1" inputmode="decimal" value="@row.LabourHours" title="@OffPatternLabel(lineNumber, "lineLabourHours")" /></td>
-                                <td><label class="sr-only" for="line-paint-@index">@EngineerLabels.LineField(EngineerLabels.PaintHours, lineNumber)</label><input id="line-paint-@index" class="num @OffPatternClass(lineNumber, "linePaintHours")" name="linePaintHours" form="case-edit-form" type="number" min="0" step="0.1" inputmode="decimal" value="@row.PaintHours" title="@OffPatternLabel(lineNumber, "linePaintHours")" /></td>
-                                <td><label class="sr-only" for="line-materials-@index">@EngineerLabels.LineField(EngineerLabels.MaterialPounds, lineNumber)</label><input id="line-materials-@index" class="num" name="lineMaterials" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" value="@row.Materials" /></td>
+                                <td class="@Na(EstimateLineColumns.PartNumber, row.PartNumber)" data-col="@((int)EstimateLineColumns.PartNumber)"><label class="sr-only" for="line-part-@index">@EngineerLabels.LineField(EngineerLabels.PartNumber, lineNumber)</label><input id="line-part-@index" class="mono" name="linePartNumber" form="case-edit-form" value="@row.PartNumber" /></td>
+                                <td class="num@(Na(EstimateLineColumns.Quantity, row.Quantity))" data-col="@((int)EstimateLineColumns.Quantity)"><label class="sr-only" for="line-quantity-@index">@EngineerLabels.LineField(EngineerLabels.Quantity, lineNumber)</label><input id="line-quantity-@index" class="num" name="lineQuantity" form="case-edit-form" type="number" min="1" step="1" inputmode="numeric" value="@row.Quantity" /></td>
+                                <td class="num@(Na(EstimateLineColumns.UnitAmount, row.PartPounds))" data-col="@((int)EstimateLineColumns.UnitAmount)"><label class="sr-only" for="line-pounds-@index">@EngineerLabels.LineField(EngineerLabels.PartAmount, lineNumber)</label><input id="line-pounds-@index" class="num @OffPatternClass(lineNumber, "linePartPounds")" name="linePartPounds" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" value="@row.PartPounds" title="@OffPatternLabel(lineNumber, "linePartPounds")" /></td>
+                                <td class="num@(Na(EstimateLineColumns.Hours, row.LabourHours))" data-col="@((int)EstimateLineColumns.Hours)"><label class="sr-only" for="line-labour-@index">@EngineerLabels.LineField(EngineerLabels.LabourHours, lineNumber)</label><input id="line-labour-@index" class="num @OffPatternClass(lineNumber, "lineLabourHours")" name="lineLabourHours" form="case-edit-form" type="number" min="0" step="0.1" inputmode="decimal" value="@row.LabourHours" title="@OffPatternLabel(lineNumber, "lineLabourHours")" /></td>
+                                <td class="num@(Na(EstimateLineColumns.PaintHours, row.PaintHours))" data-col="@((int)EstimateLineColumns.PaintHours)"><label class="sr-only" for="line-paint-@index">@EngineerLabels.LineField(EngineerLabels.PaintHours, lineNumber)</label><input id="line-paint-@index" class="num @OffPatternClass(lineNumber, "linePaintHours")" name="linePaintHours" form="case-edit-form" type="number" min="0" step="0.1" inputmode="decimal" value="@row.PaintHours" title="@OffPatternLabel(lineNumber, "linePaintHours")" /></td>
+                                <td class="num@(Na(EstimateLineColumns.Materials, row.Materials))" data-col="@((int)EstimateLineColumns.Materials)"><label class="sr-only" for="line-materials-@index">@EngineerLabels.LineField(EngineerLabels.MaterialPounds, lineNumber)</label><input id="line-materials-@index" class="num" name="lineMaterials" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" value="@row.Materials" /></td>
                                 }
                                 <td><span class="src-tag @(origin == EstimateLabels.SourceAmended ? "src-tag--ai" : null)">@origin</span></td>
                                 <td><button type="submit" class="del" name="removeLine" value="@index" form="case-edit-form" formaction="@editLineAction" aria-label="@EngineerLabels.RemoveLine(lineNumber)">×</button></td>
@@ -334,6 +320,7 @@
                             var lineNumber = index + 1;
                             var source = LineSource(line);
                             var included = IncludedOperations.IsIncluded(line.Type, line.WorkUnits, line.Price, line.Justification);
+                            var columns = EstimateOperations.PricedColumnsOf(line.Type);
                             <tr data-estimate-line data-estimate-included="@(included ? "true" : null)">
                                 <td><span class="gv">@OperationWord(OperationOf(line.Type))</span></td>
                                 <td class="@(included ? "incl-indent" : null)"><span class="gv">@(line.Description ?? string.Empty)</span></td>
@@ -344,12 +331,12 @@
                                 }
                                 else
                                 {
-                                <td><span class="gv mono">@(line.PartNumber ?? "—")</span></td>
-                                <td class="num"><span class="gv">@(line.Quantity?.ToString(CultureInfo.InvariantCulture) ?? "—")</span></td>
-                                <td class="num"><span class="gv @OffPatternClass(lineNumber, "linePartPounds")" title="@OffPatternLabel(lineNumber, "linePartPounds")">@(line.Price is { } price ? Money(price) : line.Unpriced ? EngineerLabels.ToBeConfirmed : "—")</span></td>
-                                <td class="num"><span class="gv @OffPatternClass(lineNumber, "lineLabourHours")" title="@OffPatternLabel(lineNumber, "lineLabourHours")">@(line.WorkUnits is { } workUnits ? workUnits.ToString("0.0", CultureInfo.InvariantCulture) : "—")</span></td>
-                                <td class="num"><span class="gv @OffPatternClass(lineNumber, "linePaintHours")" title="@OffPatternLabel(lineNumber, "linePaintHours")">@(line.PaintWorkUnits is { } paintUnits ? paintUnits.ToString("0.0", CultureInfo.InvariantCulture) : "—")</span></td>
-                                <td class="num"><span class="gv">@(line.Materials is { } lineMaterials ? Money(lineMaterials) : "—")</span></td>
+                                @if (!Prices(columns, EstimateLineColumns.PartNumber) && string.IsNullOrWhiteSpace(line.PartNumber)) { <td class="na">—</td> } else { <td><span class="gv mono">@(line.PartNumber ?? "—")</span></td> }
+                                @if (!Prices(columns, EstimateLineColumns.Quantity) && line.Quantity is null) { <td class="num na">—</td> } else { <td class="num"><span class="gv">@(line.Quantity?.ToString(CultureInfo.InvariantCulture) ?? "—")</span></td> }
+                                @if (!Prices(columns, EstimateLineColumns.UnitAmount) && line.Price is null && !line.Unpriced) { <td class="num na">—</td> } else { <td class="num"><span class="gv @OffPatternClass(lineNumber, "linePartPounds")" title="@OffPatternLabel(lineNumber, "linePartPounds")">@(line.Price is { } price ? Money(price) : line.Unpriced ? EngineerLabels.ToBeConfirmed : "—")</span></td> }
+                                @if (!Prices(columns, EstimateLineColumns.Hours) && line.WorkUnits is null) { <td class="num na">—</td> } else { <td class="num"><span class="gv @OffPatternClass(lineNumber, "lineLabourHours")" title="@OffPatternLabel(lineNumber, "lineLabourHours")">@(line.WorkUnits is { } workUnits ? workUnits.ToString("0.0", CultureInfo.InvariantCulture) : "—")</span></td> }
+                                @if (!Prices(columns, EstimateLineColumns.PaintHours) && line.PaintWorkUnits is null) { <td class="num na">—</td> } else { <td class="num"><span class="gv @OffPatternClass(lineNumber, "linePaintHours")" title="@OffPatternLabel(lineNumber, "linePaintHours")">@(line.PaintWorkUnits is { } paintUnits ? paintUnits.ToString("0.0", CultureInfo.InvariantCulture) : "—")</span></td> }
+                                @if (!Prices(columns, EstimateLineColumns.Materials) && line.Materials is null) { <td class="num na">—</td> } else { <td class="num"><span class="gv">@(line.Materials is { } lineMaterials ? Money(lineMaterials) : "—")</span></td> }
                                 }
                                 <td><span class="src-tag @(source == EstimateLabels.SourceAmended ? "src-tag--ai" : null)">@source</span></td>
                                 <td></td>
@@ -372,19 +359,24 @@
                 </button>
             </div>
         }
+        RateBar(d);
         if (estimate is not null && !Model.EditingNewEstimate)
         {
             if (editable)
             {
-                @* Target % of value (v28 P34): one factor lowers prices,
-                   materials and the rate to their floors; hours never
-                   move. Moving the slider previews Core's result in the
-                   cells, the rollup and the readout (issue 897); Apply
-                   saves the Case first and scales the saved spec, and Core
-                   writes the authoritative result. A tool, so it is drawn
+                @* Target % of value as the reference scales (v38 P6; v28 P34):
+                   the slider runs from the floor-scaled minimum to the spec's
+                   share of the Engineer's Value; moving it previews Core's
+                   result in the cells, the rollup and the readout (issue 897)
+                   and offers Apply and Remove scaling; Apply saves the Case
+                   first and scales the saved spec, and Core writes the
+                   authoritative result; Remove scaling drops a preview, or
+                   returns an applied scaling to the version frozen before.
+                   The floors stand under the slider. A tool, so it is drawn
                    only while the spec edits. *@
                 <div class="bar est-scale" data-estimate-scale
-                     data-scale-preview-url="@(engineerValue is null ? null : Url.Page("/Cases/Details", "PreviewEstimateScale", new { id = caseId }))">
+                     data-scale-preview-url="@(engineerValue is null ? null : Url.Page("/Cases/Details", "PreviewEstimateScale", new { id = caseId }))"
+                     data-scale-engineer-value="@targetBase">
                     <span class="bl">@EstimateLabels.TargetPercentOfValue</span>
                     @if (scaled)
                     {
@@ -396,32 +388,33 @@
                     }
                     else
                     {
-                        <input type="range" min="1" max="@specPercentText" step="0.1" value="@suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-range />
-                        <span class="dsc"><input type="number" name="targetPercent" form="case-estimate-scale-form" min="1" max="@specPercentText" step="0.1" value="@suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)" inputmode="decimal" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-percent /><label>%</label></span>
-                        <span class="mono" data-scale-read aria-live="polite"></span>
+                        <input type="range" min="@floorPercentText" max="@specPercentText" step="0.1" value="@suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-range />
+                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Removing" class="btn btn--small" form="remove-scaling-form" data-scale-remove hidden="@(scaled ? null : "hidden")">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                            <span>@EstimateLabels.RemoveScaling</span>
+                        </button>
+                        <span class="dsc"><input type="number" name="targetPercent" form="case-estimate-scale-form" min="@floorPercentText" max="@specPercentText" step="0.1" value="@suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)" inputmode="decimal" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-percent /><label>%</label></span>
+                        <span class="mono" data-scale-read data-scale-idle="@scaleIdle" aria-live="polite">@scaleIdle</span>
                         <span class="status status--navy status--plain" data-scale-preview hidden>@EstimateLabels.ScalePreview</span>
                     }
-                    <span class="est-floors">@EstimateLabels.Floors
-                        <span class="dsc"><label for="estimate-floor-rate">@EstimateLabels.FloorLabour</label><input id="estimate-floor-rate" name="floorRate" form="case-estimate-scale-form" type="number" min="0" step="1" inputmode="decimal" value="@ScalingFloors.Default.LabourRatePerHour.ToString("0.##", CultureInfo.InvariantCulture)" data-scale-floor-rate /></span>
-                        <span class="dsc"><label for="estimate-floor-price">@EstimateLabels.FloorPrices</label><input id="estimate-floor-price" name="floorPrice" form="case-estimate-scale-form" type="number" min="0" max="100" step="5" inputmode="decimal" value="@ScalingFloors.Default.PricePercent.ToString("0.##", CultureInfo.InvariantCulture)" data-scale-floor-price /></span>
-                    </span>
-                    @if (contractPercent is { } shownPercent && shownPercent >= 1m && shownPercent <= specPercent)
-                    {
-                        <span class="muted">Agreed sum suggests @suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)%.</span>
-                    }
-                    else if (contractPercent > specPercent)
-                    {
-                        <span class="muted">Scaling cannot raise the repair spec to the agreed sum.</span>
-                    }
-                    @if (engineerValue is not null)
-                    {
-                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Applying" class="btn btn--small btn--primary" form="case-estimate-scale-form" data-scale-apply><span>@EstimateLabels.Apply</span></button>
-                    }
-                    @* Absent until there is scaling to remove, never disabled (v36 item Y, 9 October 2026). *@
-                    @if (scaled)
-                    {
-                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Removing" class="btn btn--small" form="remove-scaling-form" data-scale-remove><span>@EstimateLabels.RemoveScaling</span></button>
-                    }
+                    <div class="est-scale-row">
+                        <span class="est-floors">@EstimateLabels.Floors
+                            <span class="dsc"><label for="estimate-floor-rate">@EstimateLabels.FloorLabour</label><input id="estimate-floor-rate" name="floorRate" form="case-estimate-scale-form" type="number" min="0" step="1" inputmode="decimal" value="@ScalingFloors.Default.LabourRatePerHour.ToString("0.##", CultureInfo.InvariantCulture)" data-scale-floor-rate /></span>
+                            <span class="dsc"><label for="estimate-floor-price">@EstimateLabels.FloorPrices</label><input id="estimate-floor-price" name="floorPrice" form="case-estimate-scale-form" type="number" min="0" max="100" step="5" inputmode="decimal" value="@ScalingFloors.Default.PricePercent.ToString("0.##", CultureInfo.InvariantCulture)" data-scale-floor-price /></span>
+                        </span>
+                        @if (contractPercent is { } shownPercent && shownPercent >= 1m && shownPercent <= specPercent)
+                        {
+                            <span class="muted">Agreed sum suggests @suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)%.</span>
+                        }
+                        else if (contractPercent > specPercent)
+                        {
+                            <span class="muted">Scaling cannot raise the repair spec to the agreed sum.</span>
+                        }
+                        @if (engineerValue is not null)
+                        {
+                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Applying" class="btn btn--small btn--primary" form="case-estimate-scale-form" data-scale-apply hidden><span>@EstimateLabels.Apply</span></button>
+                        }
+                    </div>
                 </div>
             }
             else if (scaled)
@@ -433,26 +426,39 @@
                 <div class="bar est-scale" data-estimate-scale-read>
                     <span class="bl">@EstimateLabels.TargetPercentOfValue</span>
                     <span class="status status--amber status--plain" data-estimate-scaled>@EstimateLabels.Scaled</span>
+                    <span class="mono" data-scale-read>@scaleIdle</span>
                 </div>
             }
-            @* Contract repair (v28 P35): the agreed sum is Case data
-               saved with the page-wide Save; ticking sets the outcome
-               in Decisions and seeds the sum from the specification.
-               Reading, the same bar holds the tick as it stands. *@
+            @* Contract repair (v28 P35; v38 P4): the agreed sum is Case data
+               saved with the page-wide Save, held by Decisions' cell; ticking
+               sets the outcome in Decisions and seeds the sum from the
+               specification. The bar's own box mirrors that cell, and typing
+               in it previews the scaling to the sum as the slider does; once
+               the spec drifts from the sum again, the chip rescales it on
+               press. Reading, the same bar holds the tick and the sum as they stand. *@
             <div class="bar est-contract" data-estimate-contract data-estimate-outcome-control="f-assessment-outcome" data-estimate-contract-sum-control="f-settlement-contract-sum">
                 <span class="bl">@EstimateLabels.ContractRepair</span>
                 @if (editable)
                 {
                     <label class="choice"><input type="checkbox" checked="@(outcomeIsContract ? "checked" : null)" data-contract-agreed /><span>@EstimateLabels.ContractRepairAgreed</span></label>
+                    <span class="dsc"><label for="estimate-contract-sum">@EstimateLabels.AgreedTotalSum</label><input id="estimate-contract-sum" class="fi mono" type="number" min="0" step="0.01" inputmode="decimal" value="@(contractSum?.ToString("0.00", CultureInfo.InvariantCulture))" disabled="@(outcomeIsContract ? null : "disabled")" aria-label="@EstimateLabels.AgreedTotalSum" data-contract-sum /></span>
                 }
                 else
                 {
                     StaticChoice(outcomeIsContract, EstimateLabels.ContractRepairAgreed);
+                    <span class="dsc"><span class="lbl">@EstimateLabels.AgreedTotalSum</span><b class="mono" data-contract-sum-read>@(contractSum is { } shown ? Money(shown) : OperatorLabels.CaseWorkspace.AbsentValue)</b></span>
                 }
-                <span class="dsc"><span class="lbl">@EstimateLabels.AgreedTotalSum</span><b class="mono" data-contract-sum-read>@(contractSum is { } shown ? Money(shown) : OperatorLabels.CaseWorkspace.AbsentValue)</b></span>
                 @if (outcomeIsContract && contractSum is { } agreed && Math.Abs(printed.Gross - agreed) > 0.5m)
                 {
-                    <span class="status status--amber status--plain" data-contract-mismatch>@(printed.Gross > agreed ? EstimateLabels.SpecAboveAgreed(Money(printed.Gross)) : EstimateLabels.SpecBelowAgreed(Money(printed.Gross)))</span>
+                    var mismatch = printed.Gross > agreed ? EstimateLabels.SpecAboveAgreed(Money(printed.Gross)) : EstimateLabels.SpecBelowAgreed(Money(printed.Gross));
+                    if (editable && engineerValue is not null)
+                    {
+                        <button type="button" class="status status--amber status--plain chip-button" data-contract-mismatch data-contract-rescale>@mismatch · @EstimateLabels.Rescale</button>
+                    }
+                    else
+                    {
+                        <span class="status status--amber status--plain" data-contract-mismatch>@mismatch</span>
+                    }
                 }
                 @if (outcomeIsContract && contractSum is { } sentenceSum)
                 {
@@ -502,62 +508,162 @@
                 <button type="button" class="btn btn--small vat-reset" data-vat-reset hidden="@(vatOverridden ? null : "hidden")">@EstimateLabels.ResetToRepairerStatus</button>
             }
         </div>
-        if (others.Length > 0 && estimate is not null && !Model.EditingNewEstimate)
-        {
-            var supplementary = estimate.Supplementary;
-            var supplementaryOf = others.FirstOrDefault(other => other.SpecificationId == supplementary?.OfSpecificationId);
-            var supplementaryReason = RepairSpecificationComparison.SupplementaryReasons.FirstOrDefault(reason => reason.Code == supplementary?.Reason);
-            <div class="sub-panel" data-estimate-supplementary>
-                <h3>@EstimateLabels.Supplementary</h3>
-                <div class="fg g4">
-                    @if (editable)
-                    {
-                        <div class="fc">
-                            <label for="estimate-supplementary-of">@EstimateLabels.ChangesVs</label>
-                            <select id="estimate-supplementary-of" class="fi" name="supplementaryOf" form="case-edit-form">
-                                <option value="" selected="@(supplementary is null ? "selected" : null)">@EstimateLabels.Choose</option>
-                                @foreach (var other in others)
-                                {
-                                    <option value="@other.SpecificationId" selected="@(supplementary?.OfSpecificationId == other.SpecificationId ? "selected" : null)">@other.Details.Name</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="fc">
-                            <label for="estimate-supplementary-reason">@EngineerLabels.Reason</label>
-                            <select id="estimate-supplementary-reason" class="fi" name="supplementaryReason" form="case-edit-form">
-                                @foreach (var (code, label, _) in RepairSpecificationComparison.SupplementaryReasons)
-                                {
-                                    <option value="@code" selected="@(supplementary?.Reason == code ? "selected" : null)">@label</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="fc">
-                            <span class="lbl">@EngineerLabels.Report</span>
-                            <label class="choice"><input type="checkbox" name="supplementaryExplain" form="case-edit-form" value="true" checked="@(supplementary?.ExplainOnReport == true ? "checked" : null)" /><input type="hidden" name="supplementaryExplain" value="false" form="case-edit-form" /><span>@EstimateLabels.ExplainOnReport</span></label>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="fc ro"><span class="lbl">@EstimateLabels.ChangesVs</span><div class="@(supplementaryOf is null ? "fv empty" : "fv")">@(supplementaryOf?.Details.Name ?? OperatorLabels.CaseWorkspace.AbsentValue)</div></div>
-                        <div class="fc ro"><span class="lbl">@EngineerLabels.Reason</span><div class="@(supplementaryReason.Code is null ? "fv empty" : "fv")">@(supplementaryReason.Label ?? OperatorLabels.CaseWorkspace.AbsentValue)</div></div>
-                        <div class="fc ro">
-                            <span class="lbl">@EngineerLabels.Report</span>
-                            @{ StaticChoice(supplementary?.ExplainOnReport == true, EstimateLabels.ExplainOnReport); }
-                        </div>
-                    }
-                </div>
-                @if (supplementary is not null && Model.SupplementaryDiff is { } diff)
-                {
-                    @await Html.PartialAsync("Cases/Shared/_RepairSpecDiff", diff)
-                    <div class="fc ro"><span class="lbl">@EstimateLabels.SupplementaryDamage</span><div class="fv derived multi" data-supplementary-statement>@supplementary.Statement</div></div>
-                }
-            </div>
-        }
         RenderBottom(
             editable
                 ? Model.EditorLines.Select(row => (row.Operation, row.Description ?? string.Empty)).ToArray()
                 : readLines.Select(line => (OperationOf(line.Type), line.Description ?? string.Empty)).ToArray(),
             printed, totals, vatChargedOn, discounts, estimate?.IsCurrent == true);
+    }
+
+    // The labour rate bar under the grid, as the reference draws it (v38 P5;
+    // v28 P33, P17): one segment per enabled rate card and Custom · typed,
+    // all selectable; the regional uplift tick with its chip; the rate the
+    // spec prices at in the box at the right, with its working when the
+    // uplift is on and Manual when the figure was typed. The segments post
+    // the card, the hidden figure posts the base rate, so a chosen card is
+    // kept while the figure is the card's (RetainEditorRate).
+    void RateBar(EstimateDetails d)
+    {
+        var selectedKey = rateCard is { } chosen ? $"{chosen.Id:D}:{chosen.Version}" : string.Empty;
+        var postedKey = Model.PostedEstimateValue("selectedRateCard");
+        if (postedKey is not null) { selectedKey = postedKey; }
+        var custom = string.IsNullOrEmpty(selectedKey);
+        var baseRate = d.BaseHourlyRate;
+        // The uplift as recorded, so a typed rate or a card no longer current
+        // or enabled keeps it through a save and reads at the rate it prices.
+        var uplifted = d.RegionalUplift;
+        var effective = uplifted ? decimal.Round(baseRate * EstimateDetails.RegionalUpliftFactor, 2, MidpointRounding.AwayFromZero) : baseRate;
+        var work = uplifted ? $"{Money(baseRate)} × {EstimateDetails.RegionalUpliftFactor.ToString("0.00", CultureInfo.InvariantCulture)} =" : string.Empty;
+        var chip = upliftSuggestions.Count > 0 ? EstimateLabels.Suggested + " · " + string.Join(", ", upliftSuggestions) : EstimateLabels.LondonAndHomeCounties;
+        <div class="bar est-rate" data-estimate-rate data-uplift-factor="@EstimateDetails.RegionalUpliftFactor.ToString("0.00", CultureInfo.InvariantCulture)">
+            <span class="bl">@EngineerLabels.LabourRate</span>
+            @if (editable)
+            {
+                <div class="rseg" role="radiogroup" aria-label="@EstimateLabels.LabourRateCard" data-rate-cards>
+                    @foreach (var card in enabledCards)
+                    {
+                        var cardKey = $"{card.Id:D}:{card.Version}";
+                        <label class="rseg-btn"><input type="radio" name="selectedRateCard" form="case-edit-form" value="@cardKey" data-rate="@card.HourlyRate.ToString("0.##", CultureInfo.InvariantCulture)" checked="@(selectedKey == cardKey ? "checked" : null)" /><span>@card.Name</span><small>@Money(card.HourlyRate)@EstimateLabels.PerHour</small></label>
+                    }
+                    <label class="rseg-btn"><input type="radio" name="selectedRateCard" form="case-edit-form" value="" checked="@(custom ? "checked" : null)" data-rate-custom /><span>@EstimateLabels.Custom</span><small>@EstimateLabels.Typed</small></label>
+                </div>
+                <label class="choice"><input id="estimate-regional-uplift" type="checkbox" name="estimateRegionalUplift" form="case-edit-form" value="true" checked="@(uplifted ? "checked" : null)" disabled="@(custom && !uplifted ? "disabled" : null)" data-uplift /><input type="hidden" name="estimateRegionalUplift" value="false" form="case-edit-form" /><span>@EstimateLabels.RegionalUpliftTick</span></label>
+                <span class="src-tag @(upliftSuggestions.Count > 0 ? "src-tag--ai" : null)" data-estimate-uplift-chip>@chip</span>
+                <span class="dsc ratebox">
+                    <span class="mono muted" data-rate-work>@work</span>
+                    <input id="estimate-labour-rate" class="fi mono" type="number" min="0" step="0.01" inputmode="decimal" value="@effective.ToString("0.00", CultureInfo.InvariantCulture)" aria-label="@EngineerLabels.LabourRatePerHour" data-rate-display />
+                    <input type="hidden" name="estimateLabourRate" form="case-edit-form" value="@(Model.PostedEstimateValue("estimateLabourRate") ?? d.LabourRate?.ToString("0.00", CultureInfo.InvariantCulture))" data-rate-input />
+                    <span class="muted">@EstimateLabels.PerHour</span>
+                    <span class="status status--amber status--plain" data-rate-manual hidden="@(custom ? null : "hidden")">@EstimateLabels.Manual</span>
+                </span>
+            }
+            else
+            {
+                <div class="rseg" data-rate-cards>
+                    @foreach (var card in enabledCards)
+                    {
+                        <span class="rseg-btn is-static" aria-current="@(rateCard?.Id == card.Id && rateCard?.Version == card.Version ? "true" : "false")"><span>@card.Name</span><small>@Money(card.HourlyRate)@EstimateLabels.PerHour</small></span>
+                    }
+                    <span class="rseg-btn is-static" aria-current="@(rateCard is null ? "true" : "false")"><span>@EstimateLabels.Custom</span><small>@EstimateLabels.Typed</small></span>
+                </div>
+                StaticChoice(uplifted, EstimateLabels.RegionalUpliftTick);
+                <span class="src-tag @(upliftSuggestions.Count > 0 ? "src-tag--ai" : null)" data-estimate-uplift-chip>@chip</span>
+                <span class="dsc ratebox">
+                    <span class="mono muted" data-rate-work>@work</span>
+                    <span class="gv mono">@Money(effective)</span>
+                    <span class="muted">@EstimateLabels.PerHour</span>
+                    @if (rateCard is null)
+                    {
+                        <span class="status status--amber status--plain" data-rate-manual>@EstimateLabels.Manual</span>
+                    }
+                </span>
+            }
+        </div>
+    }
+
+    // The Supplementary panel at the top of the section, as the reference
+    // draws it (v38 P3; v28 P20): what an import onto the spec changed
+    // against the version the last sent report used, else the grid the import
+    // replaced — the version with its Sent on report mark, the cost movement
+    // and a link to the full comparison; one line per change with its value;
+    // then Explain the change on the report, the reason and Dismiss. The
+    // statement shows once Explain is ticked, and prints on the report. Dismiss
+    // clears what the spec supplements; the versions keep the history.
+    async Task Supplementary()
+    {
+        var supplementary = estimate?.Supplementary;
+        var baseVersion = Model.SupplementaryBase;
+        var diff = Model.SupplementaryDiff;
+        if (estimate is null || Model.EditingNewEstimate || supplementary is null || baseVersion is null || diff is null)
+        {
+            return;
+        }
+        var reason = supplementary.Reason;
+        var delta = diff.GrossDelta >= 0 ? "+" + Money(diff.GrossDelta) : "−" + Money(Math.Abs(diff.GrossDelta));
+        var fromKey = Pegasus.Web.Pages.Cases.DetailsModel.ComparisonKey(estimate.SpecificationId, baseVersion.Id);
+        var toKey = Pegasus.Web.Pages.Cases.DetailsModel.ComparisonKey(estimate.SpecificationId, null);
+        string Field(string field) => field switch
+        {
+            "quantity" => EngineerLabels.QuantityShort.ToLowerInvariant(),
+            "unit amount" => EstimateLabels.UnitPounds.ToLowerInvariant(),
+            "paint hours" => EngineerLabels.PaintHoursShort.ToLowerInvariant(),
+            "part number" => EstimateLabels.PartNumberShort.ToLowerInvariant(),
+            _ => field
+        };
+        string Value(CaseEstimateLineRecord line, string field) => field switch
+        {
+            "type" => OperationWord(OperationOf(line.Type)),
+            "part number" => line.PartNumber ?? "—",
+            "quantity" => (line.Quantity ?? 1).ToString(CultureInfo.InvariantCulture),
+            "unit amount" => line.Price is { } price ? Money(price) : "—",
+            "hours" => (line.WorkUnits ?? 0m).ToString("0.#", CultureInfo.InvariantCulture),
+            "paint hours" => (line.PaintWorkUnits ?? 0m).ToString("0.#", CultureInfo.InvariantCulture),
+            "materials" => line.Materials is { } materials ? Money(materials) : "—",
+            _ => line.Description ?? string.Empty
+        };
+        <div class="sub-panel est-supp" data-estimate-supplementary>
+            <h3>@EstimateLabels.Supplementary <span class="rt">@EstimateLabels.ChangesVsVersion(baseVersion.Number)@if (baseVersion.SentOnReport) { <span class="status status--plain status--green">@EstimateLabels.SentOnReport</span> }</span><span class="rt est-supp-sum mono">@Money(diff.GrossFrom) → <b>@Money(diff.GrossTo)</b> (@delta) · <a href="@CompareHref(fromKey, toKey)" data-no-inplace data-supp-compare>@EstimateLabels.FullComparison</a></span></h3>
+            <ul class="est-supp-list">
+                @foreach (var line in diff.Added)
+                {
+                    <li class="added"><span class="est-supp-tag">@EstimateLabels.Added</span><span class="est-supp-desc">@line.Description</span><span class="mono est-supp-num">@Money(RepairSpecificationComparison.LineValue(line, diff.RateTo))</span></li>
+                }
+                @foreach (var change in diff.Changed)
+                {
+                    <li class="changed"><span class="est-supp-tag">@EstimateLabels.Changed</span><span class="est-supp-desc">@change.To.Description<span class="muted"> — @string.Join(", ", change.ChangedFields.Where(field => field != "description").Select(field => $"{Field(field)} {Value(change.From, field)} → {Value(change.To, field)}"))</span></span><span class="mono est-supp-num">@Money(RepairSpecificationComparison.LineValue(change.To, diff.RateTo))</span></li>
+                }
+                @foreach (var line in diff.Removed)
+                {
+                    <li class="removed"><span class="est-supp-tag">@EstimateLabels.Removed</span><span class="est-supp-desc">@line.Description</span><span class="mono est-supp-num">@Money(RepairSpecificationComparison.LineValue(line, diff.RateFrom))</span></li>
+                }
+            </ul>
+            @if (editable)
+            {
+                <div class="cluster est-supp-row">
+                    <input type="hidden" name="supplementaryOf" form="case-edit-form" value="@baseVersion.Id" data-supp-of />
+                    <label class="choice"><input type="checkbox" name="supplementaryExplain" form="case-edit-form" value="true" checked="@(supplementary.ExplainOnReport ? "checked" : null)" data-supp-explain /><input type="hidden" name="supplementaryExplain" value="false" form="case-edit-form" /><span>@EstimateLabels.ExplainOnReport</span></label>
+                    <select class="fi" name="supplementaryReason" form="case-edit-form" aria-label="@EngineerLabels.Reason" data-supp-reason>
+                        @foreach (var (code, label, _) in RepairSpecificationComparison.SupplementaryReasons)
+                        {
+                            <option value="@code" selected="@(reason == code ? "selected" : null)">@label</option>
+                        }
+                    </select>
+                    <button type="button" class="btn btn--small" data-supp-dismiss>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                        <span>@EstimateLabels.Dismiss</span>
+                    </button>
+                </div>
+            }
+            else
+            {
+                <div class="cluster est-supp-row">
+                    @{ StaticChoice(supplementary.ExplainOnReport, EstimateLabels.ExplainOnReport); }
+                    <span class="muted">@(RepairSpecificationComparison.SupplementaryReasons.FirstOrDefault(item => item.Code == reason).Label ?? reason)</span>
+                </div>
+            }
+            <div class="fc ro" data-supplementary-statement-cell hidden="@(supplementary.ExplainOnReport ? null : "hidden")"><span class="lbl">@EstimateLabels.SupplementaryDamage</span><div class="fv derived multi" data-supplementary-statement>@supplementary.Statement</div></div>
+        </div>
+        await Task.CompletedTask;
     }
 
     // A choice the spec cannot change here reads as its box, ticked or not,
@@ -601,6 +707,11 @@
                     <input type="hidden" name="editLeaseToken" value="@(canImport ? Model.LeaseToken : string.Empty)" />
                     <input type="hidden" name="section" value="estimate" />
                     <input type="hidden" name="view" value="@Model.ViewRoute" />
+                    @if (estimate is not null && !Model.EditingNewEstimate)
+                    {
+                        @* The import lands on the spec in view (v38 P3). *@
+                        <input type="hidden" name="estimateId" value="@estimate.SpecificationId" />
+                    }
                     <div class="estimate-import-control">
                         <div class="estimate-import-fallback" data-estimate-import-fallback>
                             <label for="estimate-import-file">@ImportLabels.FileLabel</label>
@@ -634,13 +745,13 @@
             @{
                 var offersNewEstimate = editing && Model.AssessmentCanOpen;
                 var offersPrint = estimate is { Lines.Count: > 0 } && !Model.EditingNewEstimate;
-                var offersCompare = Model.Estimates.Count >= 2;
+                var offersCompare = Model.ComparisonOffered;
             }
             @if (offersNewEstimate || estimate is not null)
             {
                 @* More (v28 P9): New repair spec while editing, Print Repair
-                   Spec for a saved spec with lines, and Compare — greyed out
-                   until the Case holds two specs. *@
+                   Spec for a saved spec with lines, Versions, and Compare —
+                   offered with two specs or a frozen version (v38 P2). *@
                 <details class="menu" data-menu data-estimate-more>
                     <summary class="btn btn--small"><span>@CaseWorkspaceLabels.Frame.More</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
                     <div class="menu-body">
@@ -680,7 +791,7 @@
                                 <span>@EngineerLabels.Compare</span>
                             </a>
                         }
-                        @* With one spec there is nothing to compare: the item is absent, never disabled (v36 item Y). *@
+                        @* With nothing to compare the item is absent, never disabled (v36 item Y). *@
                     </div>
                 </details>
             }
@@ -833,14 +944,18 @@
     </div>
 </section>
 
-@if (Model.Estimates.Count >= 2)
+@if (Model.ComparisonOffered)
 {
     var openOnLoad = Model.OpenDialog == "compare-estimates"
         ? Html.Raw(" data-dialog-open-on-load=\"true\"")
         : Html.Raw(" hidden");
+    string SideName(Pegasus.Web.Pages.Cases.DetailsModel.CompareOption option) =>
+        option.Version is { } version ? EstimateLabels.VersionWord(version.Number)
+        : option.Specification.SpecificationId == estimate?.SpecificationId ? EstimateLabels.Working
+        : option.Specification.Details.Name;
     <div id="compare-estimates-dialog" class="dialog-backdrop" data-dialog="compare-estimates-dialog"
          @openOnLoad>
-        <section class="dialog dialog--wide" role="dialog" aria-modal="true"
+        <section class="dialog dialog--wide dialog--compare" role="dialog" aria-modal="true"
                  aria-labelledby="compare-estimates-dialog-title">
             <div class="dialog-head">
                 <h2 id="compare-estimates-dialog-title" tabindex="-1">@EngineerLabels.CompareEstimates</h2>
@@ -848,7 +963,7 @@
                     <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
                 </button>
             </div>
-            <div class="dialog-body">
+            <div class="dialog-body noprint">
                 <div class="table-wrap">
                     <table class="table table--compact cmp-table" data-estimate-compare-table>
                         <thead>
@@ -877,7 +992,9 @@
                 </div>
             </div>
             <div class="dialog-body stack" data-estimate-compare-diff>
-                <form method="get" asp-page="/Cases/Details" asp-route-id="@caseId" class="cluster" data-estimate-compare-form>
+                @* From and To list the selected spec's working draft and its
+                   versions, then the other specs and theirs (v38 P2). *@
+                <form method="get" asp-page="/Cases/Details" asp-route-id="@caseId" class="cluster noprint" data-estimate-compare-form>
                     <input type="hidden" name="section" value="estimate" />
                     <input type="hidden" name="estimate" value="@estimate?.SpecificationId" />
                     <input type="hidden" name="dialog" value="compare-estimates" />
@@ -888,29 +1005,36 @@
                     <label class="dsc">@EstimateLabels.From
                         <select class="fi" name="from" aria-label="@EstimateLabels.From">
                             <option value="">@EstimateLabels.Choose</option>
-                            @foreach (var option in Model.Estimates)
+                            @foreach (var option in Model.ComparisonOptions)
                             {
-                                <option value="@option.SpecificationId" selected="@(Model.ComparisonFrom?.SpecificationId == option.SpecificationId ? "selected" : null)">@option.Details.Name</option>
+                                <option value="@option.Key" selected="@(Model.ComparisonFrom?.Key == option.Key ? "selected" : null)">@option.Label</option>
                             }
                         </select>
                     </label>
                     <label class="dsc">@EstimateLabels.To
                         <select class="fi" name="to" aria-label="@EstimateLabels.To">
                             <option value="">@EstimateLabels.Choose</option>
-                            @foreach (var option in Model.Estimates)
+                            @foreach (var option in Model.ComparisonOptions)
                             {
-                                <option value="@option.SpecificationId" selected="@(Model.ComparisonTo?.SpecificationId == option.SpecificationId ? "selected" : null)">@option.Details.Name</option>
+                                <option value="@option.Key" selected="@(Model.ComparisonTo?.Key == option.Key ? "selected" : null)">@option.Label</option>
                             }
                         </select>
                     </label>
                     <button type="submit" class="btn btn--small" data-estimate-compare-go>@EngineerLabels.Compare</button>
                 </form>
-                @if (Model.Comparison is { } comparison)
+                @if (Model.Comparison is { } comparison && Model.ComparisonFrom is { } fromSide && Model.ComparisonTo is { } toSide)
                 {
-                    <partial name="Cases/Shared/_RepairSpecDiff" model="comparison" />
+                    <partial name="Cases/Shared/_RepairSpecDiff" model="new Pegasus.Web.Pages.Cases.RepairSpecDiffView(comparison, SideName(fromSide), SideName(toSide))" />
                 }
             </div>
-            <div class="dialog-foot">
+            <div class="dialog-foot noprint">
+                @if (Model.Comparison is not null)
+                {
+                    <button type="button" class="btn" data-compare-print>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+                        <span>@EstimateLabels.PrintComparisonSheet</span>
+                    </button>
+                }
                 <button type="button" class="btn" data-dialog-close>@EngineerLabels.CloseDialog</button>
             </div>
         </section>
@@ -965,17 +1089,21 @@
                                     <td class="num mono">@Money(version.Details.HourlyRate)</td>
                                     <td class="num mono"><b>@Money(version.Gross)</b></td>
                                     <td>
-                                        @if (editable)
-                                        {
-                                            <form method="post" asp-page="/Cases/Details" asp-page-handler="RestoreEstimateSnapshot" asp-route-id="@caseId" asp-route-section="estimate">
-                                                <input type="hidden" name="operationKey" value="@Model.RestoreOperationKey" />
-                                                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                                                <input type="hidden" name="view" value="@Model.ViewRoute" />
-                                                <input type="hidden" name="estimateId" value="@estimate.SpecificationId" />
-                                                <input type="hidden" name="snapshotId" value="@version.Id" />
-                                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Restoring" class="btn btn--small" data-estimate-restore="@version.Number">@EstimateLabels.Restore</button>
-                                            </form>
-                                        }
+                                        <div class="cluster version-acts">
+                                            @* Compare with current (v38 P2): this version against the working draft. *@
+                                            <a class="btn btn--small" href="@CompareHref(Pegasus.Web.Pages.Cases.DetailsModel.ComparisonKey(estimate.SpecificationId, version.Id), Pegasus.Web.Pages.Cases.DetailsModel.ComparisonKey(estimate.SpecificationId, null))" data-no-inplace data-estimate-version-compare="@version.Number">@EstimateLabels.CompareWithCurrent</a>
+                                            @if (editable)
+                                            {
+                                                <form method="post" asp-page="/Cases/Details" asp-page-handler="RestoreEstimateSnapshot" asp-route-id="@caseId" asp-route-section="estimate">
+                                                    <input type="hidden" name="operationKey" value="@Model.RestoreOperationKey" />
+                                                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                                                    <input type="hidden" name="view" value="@Model.ViewRoute" />
+                                                    <input type="hidden" name="estimateId" value="@estimate.SpecificationId" />
+                                                    <input type="hidden" name="snapshotId" value="@version.Id" />
+                                                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Restoring" class="btn btn--small" data-estimate-restore="@version.Number">@EstimateLabels.Restore</button>
+                                                </form>
+                                            }
+                                        </div>
                                     </td>
                                 </tr>
                             }
