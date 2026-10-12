@@ -1492,7 +1492,14 @@ internal sealed class DocumentThumbnailCache(
         }
         await using var stream = response.Value.Content;
         var content = new byte[entry.VerifiedSize];
-        await stream.ReadExactlyAsync(content, cancellationToken);
+        try
+        {
+            await stream.ReadExactlyAsync(content, cancellationToken);
+        }
+        catch (EndOfStreamException)
+        {
+            return null;
+        }
         return CachedDocumentContentStore.FixedHashEquals(Sha256Hex(content), entry.VerifiedSha256)
             ? content
             : null;
