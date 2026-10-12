@@ -135,15 +135,12 @@ public static class WorkerDependencyInjection
                         Path.Combine(GetOfflineArtifactRoot(configuration, environment), "vehicle-replay"),
                         provider.GetRequiredService<TimeProvider>()));
             }
-            services.AddScoped<IProcessQueuedVehicleLookup, ProcessQueuedVehicleLookup>();
-            services.AddScoped<IProcessQueuedExternalWork, ProcessQueuedExternalWork>();
         }
         else
         {
             services.AddProductionExternalAdapters(
                 productionOptions!.Value.Graph,
                 productionOptions.Value.Vehicle);
-            services.AddScoped<IProcessQueuedVehicleLookup, ProcessQueuedVehicleLookup>();
 
             if (ocrOptions is not null)
             {
@@ -151,9 +148,10 @@ public static class WorkerDependencyInjection
                 services.AddHttpClient<IIntakeOcrProvider, AzureDocumentIntelligenceOcr>();
                 services.AddScoped<IProcessIntakeOcr, ProcessIntakeOcr>();
             }
-            services.AddScoped<IProcessQueuedExternalWork, ProcessQueuedExternalWork>();
         }
 
+        services.AddScoped<IProcessQueuedVehicleLookup, ProcessQueuedVehicleLookup>();
+        services.AddScoped<IProcessQueuedExternalWork, ProcessQueuedExternalWork>();
         services.AddScoped<VehicleRegistrationCandidateLookup>();
 
         services.AddScoped<EfIntakeWorkStore>();
@@ -184,9 +182,6 @@ public static class WorkerDependencyInjection
         services.AddScoped<ReconcilePoisonedIntakeWork>();
         services.AddScoped<ReconcileStagedArtifacts>();
         services.AddScoped<ReconcileGroupedImageIntake>();
-        services.AddScoped<ReconcileAutomaticVehicleLookups>();
-        services.AddScoped<ResolveIntake>();
-        services.AddScoped<ReevaluateIntake>();
         services.AddSingleton<IExternalWorkEnqueuer>(serviceProvider =>
         {
             var queues = serviceProvider.GetRequiredService<WorkerQueueClients>();
