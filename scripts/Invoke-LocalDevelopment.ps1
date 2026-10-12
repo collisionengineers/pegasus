@@ -732,7 +732,7 @@ function Get-WorkerEnvironment {
         IntakeStorage__ConnectionString = $storageConnection
         Intake__LocalArtifactPath = [string]$Manifest.resources.paths.intake
         PendingWorkRecoverySchedule = '0 * * * * *'
-        IntakeStagedArtifactReconciliationSchedule = '*/10 * * * * *'
+        IntakeStagedArtifactReconciliationSchedule = '0 * * * * *'
         SentEvidencePollSchedule = '0 * * * * *'
         ApprovedInbox__MailboxId = 'instructions'
         ApprovedInbox__MailboxAddress = 'instructions@collisionengineers.co.uk'

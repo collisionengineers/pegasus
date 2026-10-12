@@ -327,7 +327,7 @@ public sealed class EfCaseAcceptanceStore(
 
         // The accepted instruction's registration is a Fact on the snapshot
         // above, so the DVLA/MOT lookup is due now rather than on the Worker's
-        // next ten-second reconciliation sweep (FRD-06 D34). Enqueued in the
+        // next reconciliation sweep (FRD-06 D34). Enqueued in the
         // acceptance transaction so it cannot outlive a rolled-back
         // acceptance; published by AcceptIntake after the commit. Looked-up
         // values remain suggestions.

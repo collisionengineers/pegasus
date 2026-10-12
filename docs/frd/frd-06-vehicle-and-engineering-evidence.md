@@ -294,7 +294,7 @@ fills nothing. A filled VIN stales a generated report, which prints it.
 Case is created, whether by hand or by an intake acceptance that allocates a
 Case. It queues the same external work item the manual action uses, inside
 the creation transaction, and only when lookup availability is enabled. This
-is an extra trigger, not a replacement for the existing 10-second Worker
+is an extra trigger, not a replacement for the existing Worker
 sweep, which remains the recovery path if the creation-time attempt fails or
 is unavailable. The outcome shows on the Case whichever trigger produced it:
 looked up and current, or a stated failure reason, separately from whether

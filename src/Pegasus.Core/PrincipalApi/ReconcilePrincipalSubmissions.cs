@@ -7,7 +7,7 @@ namespace Pegasus.Core.PrincipalApi;
 /// <paramref name="FirstFailure"/> is the type and message of the first
 /// swallowed failure of the pass, or null when there was none. A count on its
 /// own cannot tell a missing grant from a dropped connection, and this sweep
-/// runs every ten seconds: without the cause, a deployment that skipped a
+/// runs every minute: without the cause, a deployment that skipped a
 /// migration reads as a steady stream of healthy-looking zeros.
 /// </summary>
 public sealed record ReconcilePrincipalSubmissionsResult(

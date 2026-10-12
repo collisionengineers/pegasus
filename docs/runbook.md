@@ -942,7 +942,7 @@ trace's operation id and parent id, so it joins the invocation's `AppRequests` r
 The rows join adaptive sampling like other events. They carry no tag values: the
 intake receipt and custody work item ids the spans are tagged with are never sent.
 `triage_case_pairing` opens a span only when a Triage Case is waiting to be
-linked, so an idle ten-second tick sends no row.
+linked, so an idle tick sends no row.
 
 `SqlDependencyTelemetryFilter` still drops a successful SQL call, but keeps one that
 took 250 ms or more, and every failed one. It runs before sampling, so a dropped
@@ -966,7 +966,7 @@ load a run can keep its spans and lose its slow statement, or the reverse.
 
 ### A failing sweep step names its cause
 
-The ten-second sweep logs each step's result line at Information. The line
+The staged-artifact sweep logs each step's result line at Information. The line
 becomes a Warning when the step counted a failure, so the worker process's
 default level records it. A custody item that fails to file also logs its
 exception type and message, once for each attempt, as

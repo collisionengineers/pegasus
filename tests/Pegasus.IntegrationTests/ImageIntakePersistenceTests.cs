@@ -529,7 +529,7 @@ public sealed class ImageIntakePersistenceTests
     }
 
     /// <summary>
-    /// The pairing sweep runs every ten seconds and usually finds nothing awaiting
+    /// The pairing sweep runs every minute and usually finds nothing awaiting
     /// an instruction. That costs one read: no Case, lease, archive or association
     /// read follows it.
     /// </summary>
