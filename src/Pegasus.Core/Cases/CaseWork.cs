@@ -49,6 +49,27 @@ public sealed record CaseWorkSet(CaseWork Primary, CaseWork? Audit)
         selector == CaseWorkSelector.Primary ? Primary : Current;
 }
 
+/// <summary>Whether a Case has its Audit work, read from the works alone.</summary>
+public interface ICaseWorkQueries
+{
+    Task<bool> HasAuditWorkAsync(Guid caseId, CancellationToken cancellationToken);
+}
+
+public interface IGetCaseHasAuditWork
+{
+    Task<bool> ExecuteAsync(Guid caseId, CancellationToken cancellationToken);
+}
+
+public sealed class GetCaseHasAuditWork(ICaseWorkQueries queries) : IGetCaseHasAuditWork
+{
+    private readonly ICaseWorkQueries _queries = queries ?? throw new ArgumentNullException(nameof(queries));
+
+    public Task<bool> ExecuteAsync(Guid caseId, CancellationToken cancellationToken) =>
+        caseId == Guid.Empty
+            ? Task.FromResult(false)
+            : _queries.HasAuditWorkAsync(caseId, cancellationToken);
+}
+
 public static class CaseWorkPolicy
 {
     /// <summary>

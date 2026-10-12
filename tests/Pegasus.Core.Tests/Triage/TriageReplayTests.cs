@@ -219,6 +219,30 @@ public sealed class TriageReplayTests
     }
 
     /// <summary>
+    /// A mutation that needs only the Triage's state reads its record, not the
+    /// findings, evidence, history and files of its detail; a mutation that
+    /// reads the findings still reads the detail.
+    /// </summary>
+    [Theory]
+    [InlineData(ReplayCommand.Complete, 0)]
+    [InlineData(ReplayCommand.Cancel, 0)]
+    [InlineData(ReplayCommand.RecordFinding, 1)]
+    public async Task AMutationReadsTheDetailOnlyWhenItNeedsTheFindings(
+        ReplayCommand command,
+        int expectedDetailReads)
+    {
+        var store = new ReplayStore
+        {
+            Current = CreateDetail(InvalidCurrentState(command))
+        };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => ExecuteAsync(command, store));
+
+        Assert.Equal(1, store.QueryCount);
+        Assert.Equal(expectedDetailReads, store.DetailQueryCount);
+    }
+
+    /// <summary>
     /// Unassign asks for no reason either: Core writes its fixed history
     /// text into the one mutation the store records.
     /// </summary>
@@ -428,6 +452,7 @@ public sealed class TriageReplayTests
         public int ProbeCount { get; private set; }
 
         public int QueryCount { get; private set; }
+        public int DetailQueryCount { get; private set; }
 
         public int MutationCount { get; private set; }
 
@@ -478,10 +503,18 @@ public sealed class TriageReplayTests
             CancellationToken cancellationToken) =>
             Task.FromResult<TriageOperationReplay?>(null);
 
+        public Task<TriageRecord?> GetRecordAsync(Guid caseId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            QueryCount++;
+            return Task.FromResult(Current?.Record);
+        }
+
         public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             QueryCount++;
+            DetailQueryCount++;
             return Task.FromResult(Current);
         }
 

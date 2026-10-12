@@ -144,6 +144,9 @@ public sealed class GetTriageDisplayNameTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
 
+        public Task<TriageRecord?> GetRecordAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult<TriageRecord?>(detail.Record);
+
         public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult<TriageDetail?>(detail);
 

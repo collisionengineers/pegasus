@@ -1327,6 +1327,9 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         public Task<int> CountAsync(IReadOnlyCollection<TriageState>? state, CancellationToken cancellationToken) =>
             Task.FromResult(0);
 
+        public Task<TriageRecord?> GetRecordAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult(TriageCases.TryGetValue(caseId, out var detail) ? detail.Record : null);
+
         public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult(TriageCases.TryGetValue(caseId, out var detail) ? detail : null);
 
