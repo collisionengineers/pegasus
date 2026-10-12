@@ -439,7 +439,7 @@ internal sealed class EfIntakeMutationStore(
             expectedCaseId: null,
             expectedCaseVersion: null,
             editLeaseToken: null,
-            (context, receipt, _, _) =>
+            (context, receipt, _, _, _) =>
             {
                 var correctedDraft = request.CorrectedDraft
                     ?? throw new ArgumentException(
@@ -482,7 +482,7 @@ internal sealed class EfIntakeMutationStore(
             expectedCaseId: null,
             expectedCaseVersion: null,
             editLeaseToken: null,
-            async (context, receipt, _, token) =>
+            async (context, receipt, _, _, token) =>
             {
                 // A first holding hand-over can fail after receipt persistence
                 // but before an evaluation is recorded. The immutable ingress
@@ -539,7 +539,7 @@ internal sealed class EfIntakeMutationStore(
             expectedCaseId: null,
             expectedCaseVersion: null,
             editLeaseToken: null,
-            async (context, receipt, _, token) =>
+            async (context, receipt, _, _, token) =>
             {
                 var last = await EfIntakeOcrOperationStore.FindLastForReceiptAsync(context, receipt.Id, token)
                     ?? throw new InvalidOperationException("This received item has no OCR attempt to retry.");
@@ -572,7 +572,7 @@ internal sealed class EfIntakeMutationStore(
             request.CaseId,
             request.ExpectedCaseVersion,
             request.EditLeaseToken,
-            async (context, receipt, @case, token) =>
+            async (context, receipt, @case, _, token) =>
             {
                 if (@case is null)
                 {
@@ -645,7 +645,7 @@ internal sealed class EfIntakeMutationStore(
             request.CaseId,
             request.ExpectedCaseVersion,
             request.EditLeaseToken,
-            async (context, receipt, @case, token) =>
+            async (context, receipt, @case, acceptedCaseId, token) =>
             {
                 var association = receipt.ManualAssociation;
                 if (association is null
@@ -670,7 +670,7 @@ internal sealed class EfIntakeMutationStore(
                 // cancelled with it. A receipt since relinked to some other
                 // case is not that case's source, and unlinking it leaves that
                 // case alone.
-                if (await AcceptedCaseIdAsync(context, receipt.Id, token) == request.CaseId)
+                if (acceptedCaseId == request.CaseId)
                 {
                     await CancelOnSourceUnlinkAsync(context, @case, occurredAtUtc, token);
                 }
@@ -958,7 +958,7 @@ internal sealed class EfIntakeMutationStore(
         Guid? expectedCaseId,
         long? expectedCaseVersion,
         string? editLeaseToken,
-        Func<PegasusDbContext, IntakeReceiptEntity, CaseEntity?, CancellationToken, Task> mutate,
+        Func<PegasusDbContext, IntakeReceiptEntity, CaseEntity?, Guid?, CancellationToken, Task> mutate,
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken)
     {
@@ -1065,7 +1065,7 @@ internal sealed class EfIntakeMutationStore(
 
         var beforeVersion = receipt.Version;
         var beforeJson = Snapshot(receipt);
-        await mutate(context, receipt, @case, cancellationToken);
+        await mutate(context, receipt, @case, acceptedCaseId, cancellationToken);
         receipt.Version++;
         var queryRaised = false;
         var queryWithdrawn = false;
