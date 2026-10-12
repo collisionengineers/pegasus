@@ -963,7 +963,8 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("data-mail-row-action=\"dismiss\"", sendingRow, StringComparison.Ordinal);
         var receivingRow = MailRow(html, receivingId);
         Assert.DoesNotContain("data-mail-row-reply", receivingRow, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-mail-reply-url", receivingRow, StringComparison.Ordinal);
+        // Razor keeps a data- attribute with a null value, so the row carries an empty one.
+        Assert.Contains("data-mail-reply-url=\"\"", receivingRow, StringComparison.Ordinal);
         Assert.Contains("data-mail-row-action=\"dismiss\"", receivingRow, StringComparison.Ordinal);
 
         var preview = Between(html, "<aside id=\"mail-quick-preview\"", "</aside>");
