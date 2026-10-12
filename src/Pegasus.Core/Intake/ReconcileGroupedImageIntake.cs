@@ -29,6 +29,12 @@ public sealed record ReconcileGroupedImageIntakeResult(
 /// used elsewhere in intake processing, measured in wall-clock age because
 /// this receipt's own work item never re-attempts on its own; only this
 /// sweep, and the ordinary pipeline's first pass, ever touch it.
+/// <para>
+/// A manual upload whose images matched existing Cases waits for staff with
+/// nothing registered (operator, 11 October 2026). This sweep is also what
+/// re-drives it at <see cref="EscapeAfter"/>: the replay then registers the
+/// Image-initiated Case, and that wait is never escaped to Unidentified.
+/// </para>
 /// </remarks>
 public sealed class ReconcileGroupedImageIntake(
     IIntakeReceiptQueries receiptQueries,
@@ -40,7 +46,9 @@ public sealed class ReconcileGroupedImageIntake(
 {
     /// <summary>
     /// How long a grouped-image receipt may sit pending before this sweep
-    /// gives up waiting for its group and registers it Unidentified instead.
+    /// gives up waiting for its group and registers it Unidentified instead,
+    /// and the window within which a manual upload's matched Cases wait for
+    /// a staff destination before the images register.
     /// Matches the longest delay in a genuine processing failure's retry
     /// budget (<c>ProcessQueuedIntake.RetryDelays</c>) rather than inventing a
     /// second bound.
@@ -76,12 +84,8 @@ public sealed class ReconcileGroupedImageIntake(
             var group = await groupStore.FindForMemberSourceAsync(
                 receipt.SourceIdentity,
                 cancellationToken);
-            if (group is null || !group.HasSiblingMembers)
+            if (group is null)
             {
-                // Not a multi-member upload: no sibling can ever change this
-                // receipt's outcome, so it is not this reconciliation's
-                // concern (the ordinary single-receipt automation already had
-                // its chance).
                 continue;
             }
 

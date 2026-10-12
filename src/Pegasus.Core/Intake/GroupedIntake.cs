@@ -10,7 +10,8 @@ public sealed record IntakeSubmissionGroup(
     IReadOnlyList<IntakeSubmissionGroupMember> Members,
     Guid? ParentReceiptId = null,
     long Version = 0,
-    IntakeSubmissionGroupDiscard? Discard = null)
+    IntakeSubmissionGroupDiscard? Discard = null,
+    ImageMatchDeclined? ImageMatchDeclined = null)
 {
     /// <summary>
     /// Whether this submission declared more than one member. Every manual
@@ -22,6 +23,12 @@ public sealed record IntakeSubmissionGroup(
     /// </summary>
     public bool HasSiblingMembers => ExpectedMemberCount > 1;
 }
+
+/// <summary>
+/// Staff left a manual upload's matched Cases undecided (operator, 11 October
+/// 2026): its images register as an Image-initiated Case instead of waiting.
+/// </summary>
+public sealed record ImageMatchDeclined(string ActorSubjectId, DateTimeOffset DeclinedAtUtc);
 
 /// <summary>The terminal staff decision recorded for a discarded submission.</summary>
 public sealed record IntakeSubmissionGroupDiscard(
@@ -132,6 +139,17 @@ public interface IIntakeSubmissionGroupStore
         CancellationToken cancellationToken = default) =>
         Task.FromResult(DiscardIntakeSubmissionGroupResult.Conflict(
             "Discarding this submission is unavailable."));
+
+    /// <summary>
+    /// Records, once, that staff declined the matched Cases of a manual
+    /// upload. Idempotent: a group already declined keeps its first decision.
+    /// </summary>
+    Task DeclineImageMatchAsync(
+        Guid groupId,
+        string staffSubjectId,
+        DateTimeOffset declinedAtUtc,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Declining an image match is unavailable.");
 }
 
 public interface IGroupedIntakeSubmission

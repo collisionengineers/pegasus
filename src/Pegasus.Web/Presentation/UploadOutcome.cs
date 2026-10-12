@@ -130,7 +130,8 @@ public interface IUploadOutcomeQueries
 public sealed class UploadOutcomeQueries(
     IImageIntakeQueries imageIntakeQueries,
     IUnidentifiedStore unidentifiedStore,
-    IIntakeAssociationDestinationQueries destinations) : IUploadOutcomeQueries
+    IIntakeAssociationDestinationQueries destinations,
+    IIntakeSubmissionGroupStore submissionGroups) : IUploadOutcomeQueries
 {
     public async Task<UploadOutcomeView> BuildAsync(
         QueuedIntakeStatus status,
@@ -330,6 +331,40 @@ public sealed class UploadOutcomeQueries(
                 new("Review", $"/Unidentified/{unidentified.Id:D}"),
                 null,
                 attach);
+        }
+
+        if (isImageOnlyMaterial
+            && receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload
+            && receipt.Decision == IntakeDecision.NeedsSorting
+            && unidentified is null)
+        {
+            // A manual upload whose images matched existing Cases waits
+            // unregistered for one staff destination (operator, 11 October
+            // 2026). Once staff decline the match, it is being processed.
+            var group = submissionGroupId is { } matchGroupId
+                ? await submissionGroups.GetAsync(matchGroupId, cancellationToken)
+                : await submissionGroups.FindForMemberSourceAsync(receipt.SourceIdentity, cancellationToken);
+            if (group?.ImageMatchDeclined is not null)
+            {
+                return new(
+                    UploadOutcomeKind.Working,
+                    "Processing",
+                    "The submission is being processed.",
+                    null,
+                    null);
+            }
+
+            var matches = await SuggestionsAsync(receipt, actor, cancellationToken);
+            if (matches.Count > 0)
+            {
+                return new(
+                    UploadOutcomeKind.PossibleMatch,
+                    "Choose a case destination",
+                    "Choose a case destination. Select a viable existing case and confirm it, or search for a different existing case.",
+                    null,
+                    null,
+                    new UploadOutcomeAttach(receipt.Id, receipt.Version, matches));
+            }
         }
 
         if (groupedImage && receipt.Decision == IntakeDecision.NeedsSorting)
