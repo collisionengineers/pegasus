@@ -233,8 +233,8 @@ public sealed partial class DetailsModel
     /// requirement, the state's own step, or, while the report is not ready,
     /// its first blocker in page order. A read-only Audit view names Report
     /// not ready instead. The Inspection view states the Inspection report's
-    /// own step and nothing once that report is sent (operator, 2 October
-    /// 2026). Everything else outstanding is the Report not ready card's.
+    /// own step and nothing once a send of that report is accepted
+    /// (operator, 2 and 12 October 2026). Everything else outstanding is the Report not ready card's.
     /// </summary>
     public CaseNextActionStep? NextAction
     {
@@ -246,7 +246,8 @@ public sealed partial class DetailsModel
                     ReportNotReadyBlockers,
                     BlockerSectionKey,
                     CurrentReportGeneration,
-                    Works?.Primary.ReportSentEvidence);
+                    Works?.Primary.ReportSentEvidence,
+                    ReportSendHistory.Accepted);
             }
             var details = Case!;
             var next = CaseNextAction.Of(
@@ -256,7 +257,8 @@ public sealed partial class DetailsModel
                 OutstandingRequirements.Count > 0 ? OutstandingRequirements[0].Title : null,
                 ReportDraftNotReady ? ReportDraftReasons : [],
                 BlockerSectionKey,
-                CurrentReportGeneration);
+                CurrentReportGeneration,
+                ReportSendHistory.Accepted);
             return next.Blocker is not null && AssessmentIsReadOnly
                 ? new(CaseWorkspaceLabels.Report.NotReady, "report")
                 : next;

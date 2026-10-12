@@ -35,15 +35,17 @@ public static class CaseNextAction
     /// (operator, 11 October 2026). With Engineer, while the report is not
     /// ready, it names the first blocker at the section that clears it, and
     /// at the Report section when that blocker has none, and carries that
-    /// blocker. Delivery is the next action only once the report is stored.
-    /// Once the report is sent, an Inspection + Audit Case without its Audit
-    /// creates it next (operator, 2 October 2026); any other Case has none.
+    /// blocker. Once the report is stored, an Inspection + Audit Case without
+    /// its Audit creates it next, whether or not the report is sent; any
+    /// other Case sends the report, and has no step once a send of it is
+    /// accepted (operator, 12 October 2026).
     /// </summary>
-    /// <param name="caseType">The Case's type: Create audit follows the sent report of an Inspection + Audit Case.</param>
+    /// <param name="caseType">The Case's type: Create audit follows the stored report of an Inspection + Audit Case.</param>
     /// <param name="works">The Case's works; null reads as the primary work alone.</param>
     /// <param name="firstRequirement">The first outstanding requirement's words, if any.</param>
     /// <param name="reportBlockers">The report readiness items; empty when the report is ready or its readiness was not read.</param>
     /// <param name="blockerSection">The section that clears a blocker on this Case, or null.</param>
+    /// <param name="reportSent">Whether a send of the current work's report was accepted: Pegasus's own send record, which the Sent evidence follows.</param>
     public static CaseNextActionStep Of(
         CaseWorkflowRecord workflow,
         CaseType caseType,
@@ -51,7 +53,8 @@ public static class CaseNextAction
         string? firstRequirement,
         IReadOnlyList<AssessmentReadinessItem> reportBlockers,
         Func<AssessmentReadinessItem, string?> blockerSection,
-        CaseReportGenerationRecord? currentReport)
+        CaseReportGenerationRecord? currentReport,
+        bool reportSent)
     {
         ArgumentNullException.ThrowIfNull(workflow);
         ArgumentNullException.ThrowIfNull(reportBlockers);
@@ -65,29 +68,32 @@ public static class CaseNextAction
             return new(CaseWorkspaceLabels.Frame.ResolveQuery, "queries", ResolvesQuery: true);
         }
         return ReportStep(reportBlockers, blockerSection, currentReport)
-            ?? (workflow.ReportSentEvidence is not null
-                ? AfterTheSend(workflow, caseType, works)
+            ?? AuditStep(workflow, caseType, works)
+            ?? (workflow.ReportSentEvidence is not null || reportSent
+                ? new("None", "notes")
                 : DeliveryStep);
     }
 
     /// <summary>
     /// The Inspection report's own step once the Case has its Audit, as the
     /// Inspection view states it: the Case's state is the Audit's, so no state
-    /// gate applies; once the Inspection report is sent there is no step
-    /// (operator, 2 October 2026), unless a later change made that report
-    /// stale, when it is generated again.
+    /// gate applies; once a send of the Inspection report is accepted there
+    /// is no step (operator, 2 and 12 October 2026), unless a later change
+    /// made that report stale, when it is generated again.
     /// </summary>
     /// <param name="sentEvidence">The Inspection work's own Sent evidence, if any.</param>
+    /// <param name="reportSent">Whether a send of the Inspection report was accepted.</param>
     public static CaseNextActionStep? OfPastWork(
         IReadOnlyList<AssessmentReadinessItem> reportBlockers,
         Func<AssessmentReadinessItem, string?> blockerSection,
         CaseReportGenerationRecord? report,
-        ApprovedMailboxReportSentEvidence? sentEvidence)
+        ApprovedMailboxReportSentEvidence? sentEvidence,
+        bool reportSent)
     {
         ArgumentNullException.ThrowIfNull(reportBlockers);
         ArgumentNullException.ThrowIfNull(blockerSection);
         return ReportStep(reportBlockers, blockerSection, report)
-            ?? (sentEvidence is not null ? null : DeliveryStep);
+            ?? (sentEvidence is not null || reportSent ? null : DeliveryStep);
     }
 
     /// <summary>
@@ -120,7 +126,7 @@ public static class CaseNextAction
     }
 
     // What stands between a work and its stored report; null once the report
-    // is stored, when delivery or what follows the send is the step.
+    // is stored, when Create audit or delivery is the step.
     private static CaseNextActionStep? ReportStep(
         IReadOnlyList<AssessmentReadinessItem> reportBlockers,
         Func<AssessmentReadinessItem, string?> blockerSection,
@@ -160,11 +166,12 @@ public static class CaseNextAction
     private static CaseNextActionStep DeliveryStep =>
         new(CaseWorkspaceLabels.ReportDelivery.SendReport, "report");
 
-    // What follows the sent report: Create audit on an Inspection + Audit Case
-    // that has no Audit yet (offered even without an Engineer, where the item
-    // is greyed with that reason), else none (operator, 11 October 2026).
-    private static CaseNextActionStep AfterTheSend(CaseWorkflowRecord workflow, CaseType caseType, CaseWorkSet? works) =>
+    // What follows the stored report of an Inspection + Audit Case that has
+    // no Audit yet: Create audit, offered even without an Engineer, where the
+    // item is greyed with that reason (operator, 11 and 12 October 2026). Null
+    // on any other Case, which sends its report.
+    private static CaseNextActionStep? AuditStep(CaseWorkflowRecord workflow, CaseType caseType, CaseWorkSet? works) =>
         AuditPolicy.Refusal(caseType, workflow, works) is null or AuditRefusal.NoAssignedEngineer
             ? new(CaseWorkspaceLabels.Frame.CreateAudit, "overview", OpensCreateAudit: true)
-            : new("None", "notes");
+            : null;
 }

@@ -29,7 +29,8 @@
     // One report per work (v29 P4): each view's card is its own work's report,
     // generated and sent under the same rules, the Inspection's
     // before and after it is sent (operator, 1 and 2 October 2026). The Audit
-    // view shows the Audit report alone (operator, 2 October 2026).
+    // view shows the Audit report alone (operator, 2 October 2026); only its
+    // send form also offers the Inspection report (operator, 12 October 2026).
     var auditView = !Model.IsInspectionView && Model.Works is { HasAudit: true };
     var generation = Model.CurrentReportGeneration;
     var suggestedRecipients = Model.DeliveryRecipientSuggestions is { } suggestions
@@ -126,6 +127,19 @@
             (CaseReportArtifactKind.RepairSpecification, ReportLabels.AttachRepairSpec),
             (CaseReportArtifactKind.ImagePack, ReportLabels.AttachImages),
         }.Where(item => generation.Artifacts.Any(artifact =>
+            artifact.Kind == item.Item1 && artifact.Status == CaseReportArtifactStatus.Confirmed)).ToArray();
+    // Once the Audit exists, the other work's report is its own tick in the
+    // same send, with its own documents (operator, 12 October 2026). It starts
+    // unticked, so a send carries it only when staff choose it.
+    var otherReport = Model.OtherReportSendable ? Model.OtherReportGeneration : null;
+    var otherAttachable = otherReport is null
+        ? Array.Empty<(CaseReportArtifactKind Kind, string Label)>()
+        : new[]
+        {
+            (CaseReportArtifactKind.FeeNote, ReportLabels.AttachFeeNote),
+            (CaseReportArtifactKind.RepairSpecification, ReportLabels.AttachRepairSpec),
+            (CaseReportArtifactKind.ImagePack, ReportLabels.AttachImages),
+        }.Where(item => otherReport.Artifacts.Any(artifact =>
             artifact.Kind == item.Item1 && artifact.Status == CaseReportArtifactStatus.Confirmed)).ToArray();
     var specificationId = Model.CurrentSpecification?.SpecificationId;
     var imagePackHref = Url.Page("/Cases/Details", "PreviewImagePack", new { id = caseId })!;
@@ -386,7 +400,9 @@
                     <button type="button" class="btn btn--small" data-add-report-recipient="report-recipient-cc" data-report-recipient-name="ccRecipients">@Words.AddCc</button>
                     @* P22: which of this generation's documents the delivery
                        attaches. A document the generation does not hold is not
-                       offered; the report is always attached. *@
+                       offered; the report is always attached. Once the Audit
+                       exists the other work's report and its documents follow,
+                       each its own tick. *@
                     @if (attachable.Length > 0)
                     {
                         <span class="lbl">@ReportLabels.Attach</span>
@@ -412,6 +428,27 @@
                                 }
                             }
                         </div>
+                        @if (otherReport is not null)
+                        {
+                            @* The other work's report, named as the send names it. *@
+                            <div class="cluster" data-report-attach-other>
+                                <label class="choice" for="report-attach-other">
+                                    <input type="checkbox" id="report-attach-other" name="secondGenerationId" value="@otherReport.Id"
+                                           data-report-attach-other-report />
+                                    <span>@Model.OtherReportDeliveryFileName</span>
+                                </label>
+                                <input type="hidden" name="secondExpectedGenerationVersion" value="@otherReport.Version" />
+                                @foreach (var (otherKind, otherLabel) in otherAttachable)
+                                {
+                                    var otherId = "report-attach-other-" + otherKind.ToString().ToLowerInvariant();
+                                    <label class="choice" for="@otherId">
+                                        <input type="checkbox" id="@otherId" name="secondAttach" value="@otherKind"
+                                               data-report-attach-other-choice="@otherKind" />
+                                        <span>@otherLabel</span>
+                                    </label>
+                                }
+                            </div>
+                        }
                     }
                     @* P23: what the attached report will be called, read from
                        the same policy the send names it with. The message is
@@ -448,6 +485,16 @@
                                 <span class="choice is-static" data-on="@(on ? "true" : "false")"><span class="tick">@if (on) {<svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>}</span><span>@attachLabel</span></span>
                             }
                         </div>
+                        @if (otherReport is not null)
+                        {
+                            <div class="cluster" data-report-attach-other>
+                                <span class="choice is-static" data-on="false"><span class="tick"></span><span>@Model.OtherReportDeliveryFileName</span></span>
+                                @foreach (var (_, otherLabel) in otherAttachable)
+                                {
+                                    <span class="choice is-static" data-on="false"><span class="tick"></span><span>@otherLabel</span></span>
+                                }
+                            </div>
+                        }
                     }
                     <span class="lbl">@ReportLabels.FileName</span>
                     <div class="fv mono" data-report-file-name>@Model.ReportDeliveryFileName</div>

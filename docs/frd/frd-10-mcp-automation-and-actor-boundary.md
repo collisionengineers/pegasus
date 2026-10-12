@@ -257,8 +257,10 @@ submission is not part of it.
   names the Outgoing mailbox only for a Case with no instruction e-mail to
   reply to, which sends a new message
   ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
-  It holds the Case's lease for its one send unless a lease token is
-  presented.
+  On a Case that has its Audit, `otherReport` adds the other work's current
+  confirmed report to the same email, with `otherAttach` choosing its
+  documents as `attach` does. It holds the Case's lease for its one send
+  unless a lease token is presented.
 - `pegasus_mail_send` is the staff mail send with a `mode`: `chaser` is the
   Case's **Send chaser**, recorded as the Case's chaser, with `fromMailbox`
   naming the Outgoing mailbox only when there is no instruction reply to

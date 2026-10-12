@@ -212,7 +212,10 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
             });
     }
 
-    /// <summary>Each work's first observed report send and who made it (MI-01's send record).</summary>
+    /// <summary>
+    /// Each work's first observed report send and who made it (MI-01's send
+    /// record); a send that carried both works' reports is each work's send.
+    /// </summary>
     private static async Task<Dictionary<Guid, SendRow>> FirstSendsAsync(
         PegasusDbContext db,
         IQueryable<CaseEntity> cases,
@@ -220,9 +223,9 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
     {
         var sends = await (
             from operation in db.Set<StaffMailSendOperationEntity>().AsNoTracking()
-            join generation in db.Set<CaseReportGenerationEntity>().AsNoTracking()
-                on operation.ContextId equals generation.Id
-            where operation.Purpose == StaffMailPurpose.CaseReport
+            from generation in db.Set<CaseReportGenerationEntity>().AsNoTracking()
+            where (generation.Id == operation.ContextId || generation.Id == operation.SecondContextId)
+                && operation.Purpose == StaffMailPurpose.CaseReport
                 && operation.State == StaffMailState.Sent
                 && operation.ObservedSentAtUtc != null
                 && cases.Any(@case => @case.Id == generation.CaseId)

@@ -38,7 +38,10 @@ afterwards links to the Inspection's own work from the Inspection view, and
 the Audit report's must be of that report and sent after the Audit was
 created. Automatic matching reads which report Pegasus's own send carried
 and links the Sent item to that work; a send of the Inspection report after
-Create audit never moves the Case's state (operator, 1 October 2026)
+Create audit never moves the Case's state (operator, 1 October 2026). A send
+that carried both reports links its one Sent item to both works, each by the
+rules above, and unlinking the Audit's leaves the Inspection's (operator,
+12 October 2026)
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#create-audit)).
 
 The record keeps:

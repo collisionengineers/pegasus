@@ -45,6 +45,7 @@ public sealed class IndexModel(
     IGetCaseEditBasis getCaseEditBasis,
     ICaseReportSnapshotSource reportSnapshotSource,
     ICaseReportGenerationStore reportGenerations,
+    ICaseReportSendHistoryQueries reportSendHistory,
     IDashboardQueries dashboardQueries,
     IUnidentifiedStore unidentifiedStore,
     IImageIntakeQueries imageIntakeQueries,
@@ -72,6 +73,8 @@ public sealed class IndexModel(
         reportSnapshotSource ?? throw new ArgumentNullException(nameof(reportSnapshotSource));
     private readonly ICaseReportGenerationStore _reportGenerations =
         reportGenerations ?? throw new ArgumentNullException(nameof(reportGenerations));
+    private readonly ICaseReportSendHistoryQueries _reportSendHistory =
+        reportSendHistory ?? throw new ArgumentNullException(nameof(reportSendHistory));
     private readonly IDashboardQueries _dashboardQueries =
         dashboardQueries ?? throw new ArgumentNullException(nameof(dashboardQueries));
     private readonly IUnidentifiedStore _unidentifiedStore =
@@ -591,18 +594,21 @@ public sealed class IndexModel(
         // Current work is the Case's Next action, the one the Case page's
         // aside states (issue 896), read from the same facts: the first
         // missing requirement, and once the report is the Case's concern its
-        // readiness while the assessment can open, and the current report.
+        // readiness while the assessment can open, the current report and
+        // whether a send of it was accepted.
         var caseId = basis.Workflow.CaseId;
         IReadOnlyList<AssessmentReadinessItem> reportBlockers = [];
         CaseReportGenerationRecord? currentReport = null;
+        var reportSent = false;
         if (CaseNextAction.ReadsTheReport(basis.Workflow))
         {
-            // The snapshot and the current report are independent reads.
+            // The snapshot, the current report and its sends are independent reads.
             using var reads = new BoundedReads(cancellationToken);
             var snapshotTask = AssessmentAccessPolicy.For(actor, basis.Workflow).CanOpen
                 ? reads.Start(token => _reportSnapshotSource.GetAsync(caseId, actor, CaseWorkSelector.Current, reuse: null, token))
                 : null;
             var currentTask = reads.Start(token => _reportGenerations.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, token));
+            var historyTask = reads.Start(token => _reportSendHistory.GetAsync(caseId, CaseWorkSelector.Current, token));
             await reads.WhenAllAsync();
             if (snapshotTask?.Result is { } reportInputs)
             {
@@ -610,6 +616,7 @@ public sealed class IndexModel(
                     CaseReportReadiness.Evaluate(reportInputs.Readiness).Reasons);
             }
             currentReport = currentTask.Result;
+            reportSent = historyTask.Result.Accepted;
         }
         var next = CaseNextAction.Of(
             basis.Workflow,
@@ -618,7 +625,8 @@ public sealed class IndexModel(
             missingRequirements is [var firstMissing, ..] ? OperatorLabels.RequirementIncomplete(firstMissing) : null,
             reportBlockers,
             _ => null,
-            currentReport);
+            currentReport,
+            reportSent);
 
         var work = new List<(string Label, string Value)>(3) { ("Current work", next.Label) };
 

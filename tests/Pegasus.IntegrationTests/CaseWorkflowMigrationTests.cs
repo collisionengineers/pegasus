@@ -468,6 +468,7 @@ public sealed class CaseWorkflowMigrationTests
                 "20261011191701_ReportSentAndCaseQueries",
                 "20261012120000_MailboxIncomingOutgoing",
                 "20261012120000_WorkerObservesReportSends",
+                "20261012130000_ReportSendCarriesSecondReport",
                 "20261012180000_FlatMailCategory"
             ],
             await context.Database.GetPendingMigrationsAsync());
