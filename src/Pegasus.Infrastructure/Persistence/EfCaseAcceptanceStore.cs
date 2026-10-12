@@ -304,7 +304,7 @@ public sealed class EfCaseAcceptanceStore(
                 MissingMaterialReason = "Details are incomplete",
                 DueBy = request.AcceptedInspectionDeadline,
                 State = CaseDueWorkState.Scheduled.ToString(),
-                NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(acceptedAtUtc, workflowConfiguration.ChaseIntervalDays),
+                NextChaseAtUtc = CaseChaseSchedule.NextChaseAt(acceptedAtUtc, workflowConfiguration.ChaseIntervalDays),
                 Version = 0
             });
         }

@@ -242,7 +242,7 @@ internal static class CaseOperationReplay
     }
 
     public static string Hash(string value) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 
     public static bool FixedTimeEquals(string left, string right)
     {

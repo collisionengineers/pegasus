@@ -14,6 +14,7 @@ using Pegasus.Core.Reports;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
+using SearchIndexModel = Pegasus.Web.Pages.Search.IndexModel;
 
 namespace Pegasus.Web.Pages.Cases;
 
@@ -741,7 +742,7 @@ public sealed class IndexModel(
         return new QueueRow(
             RowKind.Case,
             item.CaseId,
-            Join(item.Reference, item.Registration),
+            SearchIndexModel.Join(item.Reference, item.Registration),
             [
                 new Cell(item.Reference, CellKind.Link),
                 item.Registration is { } registration ? new Cell(registration, CellKind.Mono) : Cell.Empty,
@@ -788,7 +789,7 @@ public sealed class IndexModel(
         return new QueueRow(
             RowKind.Image,
             item.Id,
-            Join(item.ImageIntakeReference, item.NormalizedVehicleRegistration),
+            SearchIndexModel.Join(item.ImageIntakeReference, item.NormalizedVehicleRegistration),
             [
                 new Cell(item.ImageIntakeReference, CellKind.Link),
                 new Cell(item.NormalizedVehicleRegistration, CellKind.Mono),
@@ -817,7 +818,7 @@ public sealed class IndexModel(
         return new QueueRow(
             RowKind.Triage,
             item.CaseId,
-            Join(item.Reference, item.NormalizedVehicleRegistration),
+            SearchIndexModel.Join(item.Reference, item.NormalizedVehicleRegistration),
             [
                 new Cell(item.Reference, CellKind.Link),
                 new Cell(item.NormalizedVehicleRegistration, CellKind.Mono),
@@ -835,7 +836,7 @@ public sealed class IndexModel(
     private static QueueRow UnidentifiedRow(UnidentifiedQueueRow row) => new(
         RowKind.Unidentified,
         row.Id,
-        Join(row.Reference, OperatorLabels.UnidentifiedMediaKind(row.MediaKind)),
+        SearchIndexModel.Join(row.Reference, OperatorLabels.UnidentifiedMediaKind(row.MediaKind)),
         [
             new Cell(row.Reference, CellKind.Link),
             new Cell(OperatorLabels.OfficeTime(row.ReceivedAtUtc), CellKind.Date),
@@ -860,7 +861,7 @@ public sealed class IndexModel(
         return new(
             RowKind.Unidentified,
             row.Id,
-            Join(row.Reference, OperatorLabels.UnidentifiedMediaKind(row.MediaKind)),
+            SearchIndexModel.Join(row.Reference, OperatorLabels.UnidentifiedMediaKind(row.MediaKind)),
             [
                 new Cell(row.Reference, CellKind.Link),
                 new Cell(OperatorLabels.OfficeTime(row.ReceivedAtUtc), CellKind.Date),
@@ -879,10 +880,6 @@ public sealed class IndexModel(
             Notice: outcome,
             NoticeTone: "success");
     }
-
-    /// <summary>"first · second", dropping whichever half is absent.</summary>
-    private static string Join(string? first, string? second) =>
-        string.Join(" · ", new[] { first, second }.Where(part => !string.IsNullOrWhiteSpace(part)));
 
     private static string[] PrincipalsOf(IEnumerable<CaseSearchItem> items) => items
         .Select(item => item.Principal)
