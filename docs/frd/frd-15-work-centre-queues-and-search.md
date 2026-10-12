@@ -234,8 +234,7 @@ with no open query and whose Query choice finds every Case with one.
 Cancellation, rejection and Created in error are recorded dispositions, not
 a Closed queue.
 
-Filters are Principal (every queue) and, on Not ready only, Missing with the
-exact options `All`, `Instructions`, `Images`, `Both missing`, plus Clear.
+The filter is Principal (every queue), plus Clear.
 
 Each queue keeps its own row shape:
 
