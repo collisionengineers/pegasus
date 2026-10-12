@@ -958,7 +958,7 @@ public sealed partial class AssessmentReportDraftWebTests
             form,
             StringComparison.Ordinal);
         Assert.Contains(
-            "data-report-from>From engineers@collisionengineers.example — reply in the instruction's thread</div>",
+            "data-report-from>engineers@collisionengineers.example</div>",
             form,
             StringComparison.Ordinal);
         // The Stop is only possible until the images question is answered.

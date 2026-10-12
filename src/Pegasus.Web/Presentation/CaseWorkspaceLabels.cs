@@ -1135,9 +1135,6 @@ public static class CaseWorkspaceLabels
                 ? $"Already sent on {when}."
                 : $"Already sent on {when} to {recipients}.";
 
-        public static string FromReply(string address) =>
-            $"From {address} — reply in the instruction's thread";
-
         public const string From = "From";
         public const string Stopped = "Stopped";
         public const string OverrideReason = "Override reason";
