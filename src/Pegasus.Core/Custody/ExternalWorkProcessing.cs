@@ -45,7 +45,7 @@ public static class ImageCustodyRetryPolicy
 }
 
 /// <summary>
-/// The one owner of how long the ten-second pending-custody sweep leaves an
+/// The one owner of how long the pending-custody sweep leaves an
 /// item alone after its filing failed. The wait grows with the number of
 /// consecutive failed attempts, so a fault that no retry can cure costs a few
 /// attempts an hour instead of one every tick. An attempt that only retained the
@@ -152,10 +152,7 @@ public sealed class UnknownExternalWorkKindException(Guid workItemId, string? ki
 
 public sealed record PendingWorkDispatchResult(
     int IntakeWorkCount,
-    int ExternalWorkCount)
-{
-    public int TotalCount => checked(IntakeWorkCount + ExternalWorkCount);
-}
+    int ExternalWorkCount);
 
 /// <summary>
 /// The single timer-facing Core use case for both durable work outboxes.

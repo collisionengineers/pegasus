@@ -99,11 +99,11 @@ public sealed class StaffNotificationTests
     public async Task TheCaseNotifierReadsTheEngineerAndTellsQueriesFromEmail()
     {
         var store = new FakeStore();
-        var workflows = new FakeWorkflows(Workflow(CaseLifecycleState.Query, EngineerId));
+        var workflows = new FakeWorkflows(Workflow(CaseLifecycleState.ReportSent, EngineerId, hasOpenQuery: true));
         var notifier = new CaseStaffNotifier(new RaiseStaffNotification(store), workflows, new NoReceipts());
 
         var query = await notifier.NotifyMailArrivalAsync(CaseId, Guid.NewGuid(), null, default);
-        workflows.Current = Workflow(CaseLifecycleState.PostReport, EngineerId);
+        workflows.Current = Workflow(CaseLifecycleState.ReportSent, EngineerId);
         var mail = await notifier.NotifyMailArrivalAsync(CaseId, Guid.NewGuid(), ActionActor.Staff(OtherId, [StaffRole.User]), default);
         var own = await notifier.NotifyMailArrivalAsync(CaseId, Guid.NewGuid(), ActionActor.Staff(EngineerId, [StaffRole.Engineer]), default);
         workflows.Current = Workflow(CaseLifecycleState.Review, null);
@@ -131,7 +131,7 @@ public sealed class StaffNotificationTests
         var open = await notifier.NotifyMailArrivalAsync(CaseId, receiptId, null, default);
         var corrected = await notifier.NotifyCancellationReceivedAsync(CaseId, ActionActor.Staff(OtherId, [StaffRole.User]), default);
         var other = await notifier.NotifyMailArrivalAsync(CaseId, Guid.NewGuid(), null, default);
-        workflows.Current = Workflow(CaseLifecycleState.PostReportComplete, EngineerId);
+        workflows.Current = Workflow(CaseLifecycleState.PrincipalCancelled, EngineerId);
         var closed = await notifier.NotifyMailArrivalAsync(CaseId, receiptId, null, default);
         var closedCorrection = await notifier.NotifyCancellationReceivedAsync(CaseId, null, default);
 
@@ -147,7 +147,7 @@ public sealed class StaffNotificationTests
     public async Task ACancellationOnACaseAlreadyInQueryIsNamedAsACancellation()
     {
         var store = new FakeStore();
-        var workflows = new FakeWorkflows(Workflow(CaseLifecycleState.Query, EngineerId));
+        var workflows = new FakeWorkflows(Workflow(CaseLifecycleState.ReportSent, EngineerId, hasOpenQuery: true));
         var receiptId = Guid.NewGuid();
         var receipts = new FakeReceipts(
             receiptId,
@@ -199,18 +199,21 @@ public sealed class StaffNotificationTests
         Assert.Empty(await bell.ListAsync(engineer, default));
         store.Rows[0] = store.Rows[0] with { RaisedAtUtc = Now.AddDays(-29) };
         var mine = Assert.Single(await bell.ListAsync(engineer, default));
-        Assert.Equal(1, await bell.CountUnreadAsync(engineer, default));
+        Assert.True(mine.IsUnread);
 
         var opened = await bell.OpenAsync(engineer, mine.Id, default);
         Assert.Equal(Now, opened!.ReadAtUtc);
-        Assert.Equal(0, await bell.CountUnreadAsync(engineer, default));
+        Assert.DoesNotContain(await bell.ListAsync(engineer, default), row => row.IsUnread);
         Assert.Null(await bell.OpenAsync(ActionActor.Staff(OtherId, [StaffRole.User]), mine.Id, default));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => bell.ListAsync(ActionActor.Automation("client"), default));
     }
 
-    private static CaseWorkflowRecord Workflow(CaseLifecycleState state, Guid? engineerId) => new(
+    private static CaseWorkflowRecord Workflow(CaseLifecycleState state, Guid? engineerId, bool hasOpenQuery = false) => new(
         CaseId, new(CaseId, "QDOS", 2026, 1, "QDOS260001"), state, engineerId,
-        null, null, null, null, null, null, 1);
+        null, null, null, null, null, null, 1)
+    {
+        HasOpenQuery = hasOpenQuery
+    };
 
     private static AiJobRecord Job(AiJobKind jobKind, Guid? subjectId, string? resultReference = null, AiJobSubjectKind kind = AiJobSubjectKind.Case) => new(
         Guid.NewGuid(), jobKind, kind, subjectId, kind == AiJobSubjectKind.Unidentified ? "U-00001" : "QDOS260001",
@@ -278,9 +281,6 @@ public sealed class StaffNotificationTests
         public Task<IReadOnlyList<StaffNotification>> ListAsync(Guid staffId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<StaffNotification>>(
                 Rows.Where(row => row.StaffId == staffId && row.RaisedAtUtc >= sinceUtc).OrderByDescending(row => row.RaisedAtUtc).ToArray());
-
-        public Task<int> CountUnreadAsync(Guid staffId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) =>
-            Task.FromResult(Rows.Count(row => row.StaffId == staffId && row.RaisedAtUtc >= sinceUtc && row.ReadAtUtc is null));
 
         public Task<StaffNotification?> MarkReadAsync(Guid staffId, Guid notificationId, DateTimeOffset readAtUtc, CancellationToken cancellationToken)
         {

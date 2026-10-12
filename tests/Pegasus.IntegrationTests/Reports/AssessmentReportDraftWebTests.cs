@@ -39,7 +39,7 @@ public sealed partial class AssessmentReportDraftWebTests
     {
         var caseId = Guid.NewGuid();
         var renderer = new FakeRenderer([1, 2, 3, 4]);
-        var preview = new GenerateCaseAssessmentReportDraft(new FakeGetAssessmentAccess(true),
+        var preview = new GenerateCaseAssessmentReportDraft(
             new FakeProjectionSource(ReadyInput(caseId) with { ReportDate = null }),
             new GenerateAssessmentReportDraft(renderer),
             new ReportClock(new DateTimeOffset(2026, 9, 6, 23, 30, 0, TimeSpan.Zero)));
@@ -49,6 +49,24 @@ public sealed partial class AssessmentReportDraftWebTests
 
         Assert.Equal(GenerateCaseAssessmentReportDraftOutcome.Generated, result.Outcome);
         Assert.Equal(new DateOnly(2026, 9, 7), renderer.Snapshot!.ReportDate);
+    }
+
+    [Fact]
+    public async Task PreviewOfACaseInANonOpenableStateIsNotFoundAndNeverRenders()
+    {
+        var caseId = Guid.NewGuid();
+        var ready = ReadyInput(caseId);
+        var renderer = new FakeRenderer([1]);
+        var preview = new GenerateCaseAssessmentReportDraft(
+            new FakeProjectionSource(ready with { Assessment = ready.Assessment with { State = CaseLifecycleState.Held } }),
+            new GenerateAssessmentReportDraft(renderer),
+            new ReportClock(ReportFixtureAtUtc));
+
+        var result = await preview.ExecuteAsync(caseId,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), CaseReportArtifactKind.AssessmentReport);
+
+        Assert.Equal(GenerateCaseAssessmentReportDraftOutcome.NotFound, result.Outcome);
+        Assert.Null(renderer.Snapshot);
     }
 
     [Fact]
@@ -873,7 +891,7 @@ public sealed partial class AssessmentReportDraftWebTests
             GetCaseSectionQuery query,
             CancellationToken cancellationToken) =>
             Task.FromResult<CasePageFrame?>(Frame(query.CaseId) is { } frame
-                ? new(frame, [], [], CaseRecordNotes.None, Data(frame))
+                ? new(frame, [], [], new(null, null), Data(frame))
                 : null);
 
         Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(

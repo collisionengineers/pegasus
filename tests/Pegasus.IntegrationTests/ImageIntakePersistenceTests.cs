@@ -247,23 +247,32 @@ public sealed class ImageIntakePersistenceTests
         {
             var submissionServices = submissionScope.ServiceProvider;
             var receivedAtUtc = submissionServices.GetRequiredService<TimeProvider>().GetUtcNow();
-            var submittedGroup = await submissionServices.GetRequiredService<IGroupedIntakeSubmission>()
-                .ExecuteAsync(
-                    new(
-                        submissionToken,
-                        "system-worker:approved-inbox-poller",
-                        receivedAtUtc,
-                        [
-                            new(0, new("overview.png", "image/png", Convert.FromBase64String(TinyPngBase64),
-                                receivedAtUtc, "system-worker:approved-inbox-poller",
-                                new(IntakeSourceChannel.Mailbox, GroupedIntakeMemberToken.Create(submissionToken, 0)))),
-                            new(1, new("close-up.png", "image/png", Convert.FromBase64String(TinyPngBase64),
-                                receivedAtUtc, "system-worker:approved-inbox-poller",
-                                new(IntakeSourceChannel.Mailbox, GroupedIntakeMemberToken.Create(submissionToken, 1))))
-                        ],
-                        IntakeSourceChannel.Mailbox),
+            // A Mailbox-channel group is seeded straight through the group store
+            // and the per-file submission: the grouped-submission use case now
+            // serves manual upload only.
+            var groupStore = submissionServices.GetRequiredService<IIntakeSubmissionGroupStore>();
+            var submission = submissionServices.GetRequiredService<IIntakeSubmission>();
+            var submittedGroup = await groupStore.GetOrCreateAsync(
+                Guid.NewGuid(),
+                IntakeSourceChannel.Mailbox,
+                submissionToken,
+                2,
+                "system-worker:approved-inbox-poller",
+                receivedAtUtc,
+                null,
+                CancellationToken.None);
+            foreach (var (ordinal, fileName) in new[] { (0, "overview.png"), (1, "close-up.png") })
+            {
+                var received = await submission.ExecuteAsync(
+                    new(fileName, "image/png", Convert.FromBase64String(TinyPngBase64),
+                        receivedAtUtc, "system-worker:approved-inbox-poller",
+                        new(IntakeSourceChannel.Mailbox, GroupedIntakeMemberToken.Create(submissionToken, ordinal))),
+                    $"mailbox-image:{submissionToken}:{ordinal}",
                     CancellationToken.None);
-            groupId = submittedGroup.Group.Id;
+                await groupStore.AddMemberAsync(submittedGroup.Id, ordinal, received, CancellationToken.None);
+            }
+
+            groupId = submittedGroup.Id;
         }
 
         Guid[] stagedReceiptIds;
@@ -520,7 +529,7 @@ public sealed class ImageIntakePersistenceTests
     }
 
     /// <summary>
-    /// The pairing sweep runs every ten seconds and usually finds nothing awaiting
+    /// The pairing sweep runs every minute and usually finds nothing awaiting
     /// an instruction. That costs one read: no Case, lease, archive or association
     /// read follows it.
     /// </summary>
@@ -791,7 +800,7 @@ public sealed class ImageIntakePersistenceTests
 
         await using var context = await contextFactory.CreateDbContextAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.PostReport)} WHERE CaseId = {olderCase}");
+            $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.ReportSent)} WHERE CaseId = {olderCase}");
         Assert.Equal(imageReceipt,
             Assert.Single(await store.ListPendingPairingAsync(50, null, CancellationToken.None)).OriginReceiptId);
         await StagedArtifactReconciliationFunctionIntegrationTests.RunPairingTimerAsync(
@@ -860,7 +869,7 @@ public sealed class ImageIntakePersistenceTests
             $"UPDATE CaseMatchIndex SET NormalizedVrm = {"AB12CDE"} WHERE CaseId = {caseId}");
         var secondOrigin = await UploadCaseOriginAsync(factory, client, "AUTO-LINK-02");
         var secondCase = await SeedCaseAsync(services, secondOrigin, "IMG26012",
-            nameof(CaseLifecycleState.PostReport), "AB12CDE");
+            nameof(CaseLifecycleState.ReportSent), "AB12CDE");
         var otherPrincipal = await context.Cases.Where(item => item.Id == secondCase)
             .Select(item => item.PrincipalId).SingleAsync();
         var store = services.GetRequiredService<IImageIntakeStore>();
@@ -881,7 +890,7 @@ public sealed class ImageIntakePersistenceTests
         await Assert.ThrowsAsync<IntakeAssociationConflictException>(() => mutations.AutoLinkAsync(
             request, DateTimeOffset.UtcNow, CancellationToken.None));
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE CaseWorkflows SET EditLeaseExpiresAtUtc = {DateTimeOffset.UtcNow.AddMinutes(-1)}, State = {nameof(CaseLifecycleState.PostReport)} WHERE CaseId = {caseId}");
+            $"UPDATE CaseWorkflows SET EditLeaseExpiresAtUtc = {DateTimeOffset.UtcNow.AddMinutes(-1)}, State = {nameof(CaseLifecycleState.ReportSent)} WHERE CaseId = {caseId}");
         await Assert.ThrowsAsync<IntakeAssociationConflictException>(() => mutations.AutoLinkAsync(
             request, DateTimeOffset.UtcNow, CancellationToken.None));
         await context.Database.ExecuteSqlInterpolatedAsync(
@@ -965,7 +974,7 @@ public sealed class ImageIntakePersistenceTests
         // 24 September 2026): the Case moving past its report does not strand
         // the images staff linked to it.
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE CaseWorkflows SET EditLeaseExpiresAtUtc = {DateTimeOffset.UtcNow.AddMinutes(-1)}, State = {nameof(CaseLifecycleState.PostReport)} WHERE CaseId = {secondCase}");
+            $"UPDATE CaseWorkflows SET EditLeaseExpiresAtUtc = {DateTimeOffset.UtcNow.AddMinutes(-1)}, State = {nameof(CaseLifecycleState.ReportSent)} WHERE CaseId = {secondCase}");
 
         // The timer is a SystemWorker, but the CURRENT recorded decision is
         // Staff's: its intentional VRM/principal override remains authoritative.
@@ -1123,11 +1132,11 @@ public sealed class ImageIntakePersistenceTests
     /// <summary>
     /// Staff "Link to case" reaches every Case in any lifecycle state
     /// (operator, 24 September 2026): the Vehicle images record it links is
-    /// merged into a post-report or closed Case and its evidence folded into
+    /// merged into a Report sent or closed Case and its evidence folded into
     /// that Case's folder, not left awaiting instruction.
     /// </summary>
     [Theory]
-    [InlineData(nameof(CaseLifecycleState.PostReport))]
+    [InlineData(nameof(CaseLifecycleState.ReportSent))]
     [InlineData(nameof(CaseLifecycleState.PrincipalCancelled))]
     public async Task StaffLinkMergesVehicleImagesIntoACaseInAnyState(string workflowState)
     {

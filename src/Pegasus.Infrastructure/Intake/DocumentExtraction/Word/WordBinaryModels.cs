@@ -128,7 +128,6 @@ internal sealed record WordFibRange(int Index, uint Offset, uint Length)
 }
 
 internal sealed record WordFib(
-    ushort FibBaseVersion,
     ushort EffectiveVersion,
     ushort LanguageId,
     bool IsComplex,
@@ -150,8 +149,7 @@ internal sealed record WordPiece(
     uint CpEnd,
     uint FileOffset,
     uint ByteLength,
-    bool IsUnicode,
-    ushort PropertyModifier);
+    bool IsUnicode);
 
 /// <summary>
 /// One table cell a story's own character stream states, in the order it was
@@ -202,7 +200,4 @@ internal sealed record WordBinaryExtractionResult(
     WordFib? Fib,
     ImmutableArray<WordPiece> Pieces,
     ImmutableArray<WordStory> Stories,
-    ImmutableArray<WordBinaryIssue> Issues)
-{
-    public bool IsComplete => Outcome == WordBinaryOutcome.Complete;
-}
+    ImmutableArray<WordBinaryIssue> Issues);

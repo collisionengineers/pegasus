@@ -249,12 +249,13 @@ public static class RetainedMailDirection
 /// <summary>
 /// What one correction did: the dossier it produced, the Case the message is
 /// currently linked to (null when none, or a Triage Case), and whether the
-/// correction moved that Case into Query or withdrew its query.
+/// correction raised a query on that Case (a post-report classification) or
+/// withdrew the one it had raised (corrected away).
 /// </summary>
 public sealed record MailClassificationCorrectionResult(
     MailClassificationDossier Dossier,
     Guid? LinkedCaseId,
-    PostReportQueryEntry QueryEntry,
+    bool QueryRaised,
     bool QueryWithdrawn);
 
 public interface IRetainedMailClassificationStore
@@ -437,7 +438,7 @@ public sealed class CorrectRetainedMailClassification(
         {
             return;
         }
-        if (result.QueryEntry == PostReportQueryEntry.EnterQuery)
+        if (result.QueryRaised)
         {
             await notifier.NotifyAsync(
                 StaffNotificationCause.QueryReceived, caseId, actor, "correspondence", null, cancellationToken);
@@ -524,11 +525,6 @@ public interface IRetainedMailQueries
         int limit,
         CancellationToken cancellationToken);
 
-    /// <summary>How many retained messages the scope holds — the scope list's count wells.</summary>
-    Task<int> CountAsync(
-        MailWorkspaceScope scope,
-        CancellationToken cancellationToken);
-
     Task<IReadOnlyList<int>> CountManyAsync(
         IReadOnlyList<MailWorkspaceScope> scopes,
         CancellationToken cancellationToken);
@@ -597,16 +593,6 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
                 "The requested page size is outside the supported range.");
         }
         return await queries.ListAsync(Normalize(scope), page, pageSize, cancellationToken);
-    }
-
-    public async Task<int> CountAsync(
-        ActionActor actor,
-        MailWorkspaceScope scope,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(scope);
-        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        return await queries.CountAsync(Normalize(scope), cancellationToken);
     }
 
     public async Task<IReadOnlyList<int>> CountManyAsync(

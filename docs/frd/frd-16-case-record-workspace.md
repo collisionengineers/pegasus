@@ -4,8 +4,8 @@
 
 ## Short version
 
-- A Case is one scrolling page at `/Cases/{id}` with ten sections. Every
-  section can always be read.
+- A Case is one scrolling page at `/Cases/{id}` with its sections, Queries
+  last. Every section can always be read.
 - Editing is one page-wide session over one lease. Edit Case and, while
   editing, Done sit in the ribbon. Every change is saved as it is made: a
   cell as it is left, a composite editor when it is left or after a short
@@ -16,9 +16,9 @@
   out with its reason when refused. Assign Engineer is the only way out of
   Review.
 - The Engineer sections (Damage, Valuation, Estimate, Settlement, Report)
-  are editable by every enabled staff role in Not ready, Review and With
-  Engineer, and read-only in Held,
-  Completed and Query.
+  are editable by every enabled staff role in Not ready, Review, With
+  Engineer and Report sent, and read-only in Held (operator, 11 October
+  2026).
 - Staff with Case edit rights can import an estimate on the Repair Spec
   section using its keyboard-accessible Import action or a section-scoped
   file drop. The imported spec is the one in use at once.
@@ -138,11 +138,12 @@ is on its way to Box. Delivery is the Next action only once the report is
 stored (operator, 27 September 2026). Once the report is sent, the Next
 action is **Create audit** on an Inspection + Audit Case that has no Audit
 yet, with the Actions menu's own control (greyed with its reason where Core
-refuses it), **None** on a Completed or Query Case (operator, 11 October
-2026), and **Mark completed** on any other Case (operator, 2 October
-2026), with the Actions menu's own control that opens its dialog; where the
-menu does not offer it, the step is named without a control (operator,
-10 October 2026).
+refuses it), and **None** on any other Case (operator, 11 October 2026).
+On a Report sent Case with an open query the step is **Resolve query**,
+before any report step: when the oldest open query came by e-mail and staff
+mail is available, its control is **Reply**, which opens that message's
+reply composer with Also resolve query ticked; otherwise it is the Actions
+menu's own Resolve query (operator, 11 October 2026).
 Once the Case has an Audit, the **Views** card heads the aside
 ([Inspection and Audit views](#inspection-and-audit-views)).
 While a Triage Case is linked to the Case, a **Linked cases** card follows
@@ -297,10 +298,9 @@ action and consumed by it, the way Generate report does
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)); a refused action
 frees the lease it claimed, as does a request abandoned mid-action. While a
 colleague holds the lease the menu offers nothing that needs one, so only
-Export case remains; the ribbon names them and offers Take over, a Completed
-or Query Case included. A
-Completed or Query Case offers no Edit, since its sections read and Return
-to Engineer needs no session. The rules behind each action are in
+Export case remains; the ribbon names them and offers Take over. A Report
+sent Case offers Edit Case like With Engineer (operator, 11 October 2026);
+Return to Engineer needs no session. The rules behind each action are in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
 
 - **Assign Engineer**, in Review. Its dialog selects an
@@ -311,13 +311,17 @@ to Engineer needs no session. The rules behind each action are in
   Case export, needs no lease and never changes the Case
   ([FRD-07](frd-07-case-export.md#export-case)).
 - **Mark report sent**, in With Engineer. It confirms detected or linked
-  Sent evidence and enters post-report work. It never completes the Case and
-  never records a manual assertion
+  Sent evidence and moves the Case to Report sent. It never records a manual
+  assertion
   ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence)).
-- **Mark completed**
-  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#completed-and-query)).
-- **Return to Review** or **Return to Engineer**, in Completed or Query when
-  engineering changes are needed. Both record a reason.
+- **Log query**, in Report sent. Its compact dialog takes the channel
+  (E-mail, Phone, WhatsApp, Other) and the details, and no reason
+  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
+- **Resolve query**, while the Case holds an open query. It posts at once,
+  with no dialog and no reason, and resolves every open query.
+- **Return to Review**, in With Engineer or Report sent, and **Return to
+  Engineer**, in Report sent, when engineering changes are needed. Both
+  record a reason.
 - **Archive**, on a closed Case
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#archive)).
 - **Place on Hold** (reason and optional Review on date) or **Release Hold**
@@ -391,9 +395,13 @@ the page-wide session (v28 P51, ruled 20 September 2026).
 A filed original report fills them (#840). Pegasus reads the report file
 itself, never the e-mail it arrived in:
 
-- when a standalone Audit is accepted, from the report retained at intake;
-  custody then files that report as the Case's Audit report, and the other
-  attachments as instruction documents;
+- when a standalone Audit is accepted, from the reading intake already
+  recorded of the report retained at intake (the same report content), so the
+  same document is not read twice; only when intake recorded no reading is the
+  retained report read, once (operator, 11 October 2026). A scan's reading is
+  its OCR recording when intake made one. Custody then files that report as
+  the Case's Audit report, and the other attachments as instruction
+  documents;
 - when files reach an open Audit that lists **Original report missing** —
   through Add evidence, through Upload and Add to an existing case, or by
   e-mail, matched or linked by staff — and exactly one of them is a report
@@ -740,9 +748,9 @@ in report. No tool on the tile depends on the account type or on With
 Engineer.
 
 The Crop lease gate is the record's whole edit mode
-([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). Crop is unavailable
-once the Case reaches Completed or Query, and never on an archived Case. It
-is not tied to With Engineer, so a Review-state Case shows Crop. Images open
+([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). Crop is never
+offered on an archived Case. It is not tied to With Engineer, so a
+Review-state or Report sent Case shows Crop. Images open
 in a full-screen viewer (title, tag, position, Rotate, Zoom, Download, Pop
 out, In report while editing, which is the tile's own In report, and a
 filmstrip). Crop happens on the viewer stage. Opening a document brings the
@@ -774,7 +782,11 @@ newest first ([FRD-20](frd-20-mailbox-workspace.md#case-correspondence-view)).
 A Sent item's classification cell reads **Sent**. Each row's
 **Open message** shows that message in a dialog over the Case: sender,
 received time, recipients, its text and attachment names. The dialog changes
-nothing. Where the record offers **Reply**, **Reply all** and **Forward**, the
+nothing. A received row not yet classified post-report also offers **Tag as
+query** (operator, 11 October 2026): one click corrects its classification
+to a query through the Inbox record's own correction, recorded with the
+reason "Tagged as query", and returns here; on a Report sent Case that
+raises the query ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)). Where the record offers **Reply**, **Reply all** and **Forward**, the
 dialog does too; each opens the record's composer with this Case chosen. Its
 **Open full message** leads to the Inbox message record, which keeps
 classification and the Case link; without script the row opens that record.
@@ -801,6 +813,21 @@ The workspace keeps the missing-material reason, next chase, last recorded
 outcome and next permitted action together. A Triage Case's due target and
 chaser are on the Triage Case page
 ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
+
+### Queries
+
+Queries is the last section (operator, 11 October 2026). It lists every
+query raised on the Case: the open ones first, then the resolved ones, each
+newest first. When none is open it reads the one sentence "No active queries
+on this case", above any resolved rows. A row carries the query's state chip
+(**Query** in purple while open, **Resolved** once closed), when and by whom
+it was raised, its channel, and either the e-mail it came by (sender and
+subject, with **Open message** as the Correspondence tab draws it and, while
+open, **Reply** into that message's composer) or the logged query's details,
+then when and by whom it was resolved. A withdrawn query (its e-mail untagged
+or unlinked) is not listed. The section has no edit session: Log query and
+Resolve query are the Actions menu's and the Next action's
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
 
 ### Assessment
 
@@ -937,9 +964,11 @@ Section editability by state:
 
 | State | Overview, Inspection, Vehicle, Files, Notes | Engineer sections |
 | --- | --- | --- |
-| Not ready, Review, With Engineer | Editable under the lease | Editable with `PerformCasework` |
+| Not ready, Review, With Engineer, Report sent | Editable under the lease | Editable with `PerformCasework` |
 | Held | Read-only | Read-only |
-| Completed, Query | Read-only (Return to Engineer to edit) | Read-only |
+
+A Case with an open query keeps its state's row; Query is a mark, not a
+state (operator, 11 October 2026).
 
 The Inspection view of a Case with an Audit follows the same table: the
 state is the Case's, so the Audit's, and a save there writes the
@@ -960,7 +989,7 @@ Inspection's values only.
   sent as the page hides.
 - An action bar for a state with no permitted action shows the state and no
   control.
-- Crop is refused on an archived Case and in Completed or Query.
+- Crop is refused on an archived Case.
 - An ambiguous raw estimate file is refused with its reason.
 - A `view` value on a Case without an Audit is ignored. Every write names
   the view it was posted from and returns to it: from the Audit view it
@@ -972,7 +1001,8 @@ Inspection's values only.
 
 Acceptance covers the ten sections and the `?section=` jump, the Report
 readiness list in the aside's Report not ready card linking each blocker to its section,
-the read-only rule in Completed, the Actions menu per state, and save as
+the read-only rule in Held, the Actions menu per state, the Queries
+section empty and filled, and save as
 you go: a save keeps the session and returns the authority the next one
 carries, and the ribbon offers Done and no Save or Cancel. Web tests cover
 what a save's answer draws and the authority it carries; they do not prove

@@ -210,6 +210,45 @@ public sealed class CaseWorkspaceScriptContractTests
         Assert.DoesNotContain("swap(", show, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The five-minute Work Centre refresh waits for five minutes since the last
+    /// applied refresh, and only an applied refresh sets that time (operator,
+    /// 11 October 2026).
+    /// </summary>
+    [Fact]
+    public void TheWorkCentreIntervalWaitsFiveMinutesFromTheLastAppliedRefresh()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "work-centre.js"));
+
+        Assert.Contains(
+            "if (document.hidden || Date.now() - lastRefresh < FIVE_MINUTES) { return; }",
+            script,
+            StringComparison.Ordinal);
+        Assert.Equal(2, script.Split("lastRefresh = Date.now();", StringSplitOptions.None).Length - 1);
+    }
+
+    /// <summary>
+    /// A saved Mine scope is carried on the brand and navigation links by the
+    /// layout-wide script, read defensively and only for Mine (operator, 11 October
+    /// 2026).
+    /// </summary>
+    [Fact]
+    public void TheLayoutScriptCarriesASavedMineScopeOnTheWorkCentreLinks()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "site.js"));
+
+        var start = script.IndexOf("window.localStorage.getItem('pegasus.workCentre.scope')", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The saved Work Centre scope is not read in site.js.");
+        var block = script[start..];
+        Assert.Contains("} catch (error) {", block, StringComparison.Ordinal);
+        Assert.Contains("if (scope !== 'mine') { return; }", block, StringComparison.Ordinal);
+        Assert.Contains("document.querySelectorAll('a.brand, a.nav-link')", block, StringComparison.Ordinal);
+        Assert.Contains("link.pathname === '/' && !link.search", block, StringComparison.Ordinal);
+        Assert.Contains("link.search = '?scope=mine';", block, StringComparison.Ordinal);
+    }
+
     private static string FunctionBody(string script, string signature, string indent = "        ")
     {
         var start = script.IndexOf(signature, StringComparison.Ordinal);

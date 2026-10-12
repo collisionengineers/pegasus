@@ -7,7 +7,7 @@ namespace Pegasus.Core.PrincipalApi;
 /// <paramref name="FirstFailure"/> is the type and message of the first
 /// swallowed failure of the pass, or null when there was none. A count on its
 /// own cannot tell a missing grant from a dropped connection, and this sweep
-/// runs every ten seconds: without the cause, a deployment that skipped a
+/// runs every minute: without the cause, a deployment that skipped a
 /// migration reads as a steady stream of healthy-looking zeros.
 /// </summary>
 public sealed record ReconcilePrincipalSubmissionsResult(
@@ -52,21 +52,17 @@ public sealed class ReconcilePrincipalSubmissions(
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
 
+        var nowUtc = timeProvider.GetUtcNow();
         var candidates = await submissionStore.ListAcceptRecoveryCandidatesAsync(
             maximumItems,
+            nowUtc - AcceptHistoryGracePeriod,
             cancellationToken);
         var repaired = 0;
         var failures = 0;
         string? firstFailure = null;
-        var nowUtc = timeProvider.GetUtcNow();
         foreach (var candidate in candidates)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (nowUtc - candidate.ReceivedAtUtc < AcceptHistoryGracePeriod)
-            {
-                continue;
-            }
-
             try
             {
                 // Stamped with when the submission was received, not with this

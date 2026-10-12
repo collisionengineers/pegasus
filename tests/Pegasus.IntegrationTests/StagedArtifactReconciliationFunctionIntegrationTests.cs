@@ -278,7 +278,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             return Task.FromResult(new ImageIntakePairingResult(7, 3, 2, nameof(IntakeAssociationConflictException)));
         }
         public Task<ImageIntakePairingResult> PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<ImageIntakePairingResult> PairRegisteredReceiptAsync(Guid receiptId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ImageIntakePairingResult> PairRegisteredReceiptAsync(Guid receiptId, CancellationToken cancellationToken, ImageIntakeDetail? registered = null) => throw new NotSupportedException();
     }
 
 
@@ -329,7 +329,6 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         public int Purges { get; private set; }
         public Task<StaffNotification> AddAsync(NewStaffNotification notification, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<StaffNotification>> ListAsync(Guid staffId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<int> CountUnreadAsync(Guid staffId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<StaffNotification?> MarkReadAsync(Guid staffId, Guid notificationId, DateTimeOffset readAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<int> MarkAllReadAsync(Guid staffId, DateTimeOffset readAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<int> PurgeOlderThanAsync(DateTimeOffset cutoffUtc, CancellationToken cancellationToken)
@@ -419,6 +418,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
 
         public Task<IReadOnlyList<PrincipalSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
             int maximumItems,
+            DateTimeOffset receivedAtOrBeforeUtc,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<PrincipalSubmissionAcceptCandidate>>([]);
 
@@ -532,12 +532,6 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
-        public Task ScheduleReevaluationAsync(
-            Guid stagedReceiptId,
-            DateTimeOffset dueAtUtc,
-            CancellationToken cancellationToken) =>
-            throw UnexpectedCall();
-
         public Task<Guid?> FindStagedReceiptIdForReceiptAsync(
             Guid intakeReceiptId,
             CancellationToken cancellationToken) =>
@@ -634,11 +628,6 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken = default) =>
             throw UnexpectedCall();
 
-        public Task<UnidentifiedRegisterResult?> ProbeRegisterReplayAsync(
-            RegisterUnidentifiedRequest request,
-            CancellationToken cancellationToken = default) =>
-            throw UnexpectedCall();
-
         public Task<UnidentifiedResolveResult> ResolveAsync(
             ResolveUnidentifiedRequest request,
             CancellationToken cancellationToken = default) =>
@@ -700,6 +689,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken) => throw UnexpectedCall();
 
         public Task<Pegasus.Core.Triage.TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
+        public Task<Pegasus.Core.Triage.TriageRecord?> GetRecordAsync(Guid id, CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
         public Task<Pegasus.Core.Triage.TriageSummary?> GetByOriginReceiptAsync(

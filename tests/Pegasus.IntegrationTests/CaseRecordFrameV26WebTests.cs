@@ -24,23 +24,20 @@ public sealed class CaseRecordFrameV26WebTests
 {
     /// <summary>
     /// The Actions menu offers exactly the items the state permits inside an
-    /// edit session (v25 § Coverage): the hold pair swaps with the state, the
-    /// post-report items appear only after the report, and Return to Engineer
-    /// only on a completed Case.
+    /// edit session (v25 § Coverage): the hold pair swaps with the state, and
+    /// Log query, Return to Review and Return to Engineer appear once the
+    /// report is sent (operator, 11 October 2026).
     /// </summary>
     [Theory]
     [InlineData(CaseLifecycleState.NotReady,
         "case-hold-dialog,case-correct-principal-dialog",
-        "case-release-hold-dialog,case-complete-dialog,case-return-review-dialog,case-return-engineer-dialog")]
+        "case-release-hold-dialog,case-log-query-dialog,case-return-review-dialog,case-return-engineer-dialog")]
     [InlineData(CaseLifecycleState.Held,
         "case-release-hold-dialog,case-correct-principal-dialog",
-        "case-hold-dialog,case-complete-dialog,case-return-engineer-dialog")]
-    [InlineData(CaseLifecycleState.PostReport,
-        "case-complete-dialog,case-return-review-dialog,case-hold-dialog",
-        "case-release-hold-dialog,case-return-engineer-dialog")]
-    [InlineData(CaseLifecycleState.PostReportComplete,
-        "case-return-engineer-dialog",
-        "case-hold-dialog,case-release-hold-dialog,case-complete-dialog,case-correct-principal-dialog")]
+        "case-hold-dialog,case-log-query-dialog,case-return-engineer-dialog")]
+    [InlineData(CaseLifecycleState.ReportSent,
+        "case-log-query-dialog,case-return-review-dialog,case-return-engineer-dialog,case-hold-dialog,case-correct-principal-dialog",
+        "case-release-hold-dialog,case-complete-dialog")]
     public async Task TheActionsMenuOffersTheItemsTheStatePermits(
         CaseLifecycleState state, string offered, string absent)
     {
@@ -94,21 +91,23 @@ public sealed class CaseRecordFrameV26WebTests
     }
 
     /// <summary>
-    /// A Completed or Query Case offers no Edit, but a colleague's lease on
-    /// it is still offered Take over (operator, 29 September 2026): while the
-    /// colleague holds the Case the Actions menu keeps only Export case, so
-    /// Take over is the way in before the lease lapses.
+    /// A Report sent Case, with or without an open query, is editable like a
+    /// With Engineer Case (operator, 11 October 2026): it offers Edit Case,
+    /// and a colleague's lease on it is offered Take over (operator, 29
+    /// September 2026) while the Actions menu keeps only Export case.
     /// </summary>
     [Theory]
-    [InlineData(CaseLifecycleState.PostReportComplete)]
-    [InlineData(CaseLifecycleState.Query)]
-    public async Task ACompletedOrQueryCaseOffersTakeOverOfAColleaguesLeaseButNoEdit(CaseLifecycleState state)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AReportSentCaseOffersEditAndTakeOverOfAColleaguesLease(bool hasOpenQuery)
     {
-        var reading = RecordBar(await ReadCaseAsync(new RecordingCaseDetailsStore { State = state }));
-        Assert.DoesNotContain(CaseWorkspaceLabels.Frame.EditCase, reading, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=ClaimLease", reading, StringComparison.Ordinal);
+        const CaseLifecycleState state = CaseLifecycleState.ReportSent;
+        var reading = RecordBar(await ReadCaseAsync(new RecordingCaseDetailsStore { State = state, HasOpenQuery = hasOpenQuery }));
+        Assert.Contains(CaseWorkspaceLabels.Frame.EditCase, reading, StringComparison.Ordinal);
+        Assert.Contains("handler=ClaimLease", reading, StringComparison.Ordinal);
+        Assert.Contains("data-case-edit-form", reading, StringComparison.Ordinal);
 
-        var held = RecordBar(await ReadCaseAsync(new RecordingCaseDetailsStore { State = state, LeaseHolder = "colleague-staff-id" }));
+        var held = RecordBar(await ReadCaseAsync(new RecordingCaseDetailsStore { State = state, HasOpenQuery = hasOpenQuery, LeaseHolder = "colleague-staff-id" }));
         Assert.Contains("data-case-export", held, StringComparison.Ordinal);
         Assert.DoesNotContain("data-dialog-open", held, StringComparison.Ordinal);
         Assert.Contains(CaseWorkspaceLabels.Frame.TakeOver, held, StringComparison.Ordinal);
@@ -388,14 +387,12 @@ public sealed class CaseRecordFrameV26WebTests
     /// post are covered by <see cref="CaseViewsWebTests"/>.
     /// </summary>
     [Theory]
-    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.PostReport, true, false, null)]
-    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.PostReportComplete, true, false, null)]
-    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.Query, true, false, null)]
+    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.ReportSent, true, false, null)]
     [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.ReportPreparation, false, false, null)]
     [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.Review, false, false, null)]
     [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.Held, true, false, "A held case cannot have an audit created from it.")]
-    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.PostReport, true, true, "This case already has its audit.")]
-    [InlineData(CaseType.Inspection, CaseLifecycleState.PostReport, true, false, null)]
+    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.ReportSent, true, true, "This case already has its audit.")]
+    [InlineData(CaseType.Inspection, CaseLifecycleState.ReportSent, true, false, null)]
     public async Task CreateAuditIsListedOnEveryInspectionAndAuditCaseAndLiveWhereTheAuditPolicyAccepts(
         CaseType caseType, CaseLifecycleState state, bool sent, bool auditExists, string? condition)
     {
@@ -590,28 +587,6 @@ public sealed class CaseRecordFrameV26WebTests
 
         var offline = RecordBar(await ReadCaseAsync(new RecordingCaseDetailsStore()));
         Assert.DoesNotContain("data-send-chaser", offline, StringComparison.Ordinal);
-    }
-
-    /// <summary>A staff mail sender the page reads as available; the frame never sends.</summary>
-    private sealed class OfferedStaffMailSend : IStaffMailSend
-    {
-        public Task<StaffMailOperation> SendAsync(StaffMailSendCommand command, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<StaffMailOperation?> GetAsync(ActionActor actor, Guid operationId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<StaffMailOperation?> GetLatestForOriginalAsync(
-            ActionActor actor, Guid retainedMessageId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<StaffMailOperation> ReconcileAsync(
-            ActionActor actor, Guid operationId, long expectedVersion, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<StaffMailOperation> CancelAsync(
-            ActionActor actor, Guid operationId, long expectedVersion, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
     }
 
     /// <summary>The store's own Case data with this Case's notes recorded on it.</summary>

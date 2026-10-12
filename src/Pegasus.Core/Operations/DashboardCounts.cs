@@ -14,13 +14,11 @@ namespace Pegasus.Core.Operations;
 /// <see cref="IDashboardQueries.GetAwaitingInstructionCountAsync"/>.
 /// </remarks>
 /// <param name="WithEngineer">
-/// Cases in <see cref="Pegasus.Core.Workflow.CaseLifecycleState.ReportPreparation"/>
-/// or <see cref="Pegasus.Core.Workflow.CaseLifecycleState.PostReport"/>: the
-/// operator reads both as "With Engineer" (operator decision D3).
+/// Cases in <see cref="Pegasus.Core.Workflow.CaseLifecycleState.ReportPreparation"/>.
 /// </param>
 /// <param name="Query">
-/// Cases in <see cref="Pegasus.Core.Workflow.CaseLifecycleState.Query"/>,
-/// a separate reversible workflow queue.
+/// Open Cases with an open query, whatever their state (operator, 11 October
+/// 2026); a Report sent Case without one has no queue.
 /// </param>
 public sealed record CaseStageCounts(
     int NotReady,

@@ -13,33 +13,6 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Operations;
 
 /// <summary>
-/// The staged-artifact reconciliation inventory.
-/// </summary>
-/// <remarks>
-/// No longer part of the dashboard: it printed storage keys, byte counts and
-/// dispositions at an operator who had no link to the receipt or work item
-/// behind any of them, and no action to take. Retained because the shape is a
-/// genuine reconciliation summary; if it earns a screen again it belongs on a
-/// system-health surface.
-/// </remarks>
-public sealed record StagedArtifactOperationsSnapshot(
-    IReadOnlyList<StagedArtifactInventoryItem> Items)
-{
-    public int Pending => Count(StagedArtifactDisposition.Pending);
-
-    public int Completed => Count(StagedArtifactDisposition.Completed);
-
-    public int Failed => Count(StagedArtifactDisposition.Failed);
-
-    public int Unmatched => Count(StagedArtifactDisposition.Unmatched);
-
-    public int Orphans => Count(StagedArtifactDisposition.Orphan);
-
-    private int Count(StagedArtifactDisposition disposition) =>
-        Items.Count(item => item.Disposition == disposition);
-}
-
-/// <summary>
 /// Office or Mine (Work Centre P2): Office is everything; Mine is the rows whose
 /// owner is the signed-in person plus the unowned rows of the kinds they can take.
 /// </summary>
@@ -113,8 +86,6 @@ public sealed record OperationsSnapshot(
     /// <summary>The page the <see cref="NeedsAttention"/> rows came from, with the whole-list counts.</summary>
     public NeedsAttentionPage Attention { get; init; } = new(NeedsAttention, 1, GetOperationsSnapshot.PageSize, NeedsAttention.Count, new Dictionary<NeedsAttentionKind, int>(), 0, 0, 0);
 
-    public NeedsAttentionScope Scope { get; init; } = NeedsAttentionScope.Office;
-
     public WorkCentreMetrics Metrics { get; init; } = new(CaseStages.NotReady, CaseStages.Review, CaseStages.Held, UnidentifiedCount, TriageCount);
 }
 
@@ -127,20 +98,6 @@ public interface IGetOperationsSnapshot
 
     Task<OperationsSnapshot> ExecuteAsync(
         NeedsAttentionQuery query,
-        CancellationToken cancellationToken = default);
-}
-
-/// <summary>
-/// The first rows of the Office list, cut to
-/// <see cref="GetOperationsSnapshot.MaximumAttentionRows"/>. The shell bell no
-/// longer mirrors this (Work Centre D10, personal notifications); it remains for
-/// the Today pane and any caller that wants the head of the list without the
-/// counts.
-/// </summary>
-public interface IGetAttentionRows
-{
-    Task<IReadOnlyList<NeedsAttentionItem>> ExecuteAsync(
-        ActionActor actor,
         CancellationToken cancellationToken = default);
 }
 
@@ -259,16 +216,10 @@ public sealed class GetOperationsSnapshot(
     IWorkCentreDismissalStore dismissals,
     TimeProvider timeProvider,
     IAiJobQueries? aiJobs = null,
-    ICaseWorkflowQueries? workflows = null) : IGetOperationsSnapshot, IGetAttentionRows
+    ICaseWorkflowQueries? workflows = null) : IGetOperationsSnapshot
 {
     /// <summary>The list's page size (D4): paged, never cut.</summary>
     public const int PageSize = 50;
-
-    /// <summary>
-    /// The Today pane's bound: more than ten items in a pane is a list the
-    /// operator cannot scan, so the same ordered rows are cut here.
-    /// </summary>
-    public const int MaximumAttentionRows = 10;
 
     private const int SourcePageSize = 100;
 
@@ -341,24 +292,9 @@ public sealed class GetOperationsSnapshot(
             page.Items)
         {
             Attention = page,
-            Scope = query.Scope,
             Metrics = new(caseStages.NotReady, caseStages.Review, caseStages.Held, inputs.Unidentified.Count,
                 inputs.TriageTotalCount + findingRecordedTriageCount)
         };
-    }
-
-    /// <inheritdoc cref="IGetAttentionRows.ExecuteAsync"/>
-    async Task<IReadOnlyList<NeedsAttentionItem>> IGetAttentionRows.ExecuteAsync(
-        ActionActor actor,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(actor);
-        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-
-        var asOfUtc = timeProvider.GetUtcNow();
-        var inputs = await FetchAttentionInputsAsync(actor, asOfUtc, null, null, cancellationToken);
-        var rows = await ComposeNeedsAttentionAsync(asOfUtc, inputs, cancellationToken);
-        return rows.Take(MaximumAttentionRows).ToArray();
     }
 
     private static NeedsAttentionPage Page(

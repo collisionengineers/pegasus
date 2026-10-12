@@ -17,7 +17,7 @@ public sealed class ImageIntakeChaseScheduleTests
     [Fact]
     public void NotDueOneTickBeforeTheFirstChaseInstant()
     {
-        var firstChaseAtUtc = CaseChaseSchedule.FirstChaseAt(RegisteredAtUtc);
+        var firstChaseAtUtc = CaseChaseSchedule.NextChaseAt(RegisteredAtUtc);
 
         Assert.False(ImageIntakeChaseSchedule.IsChaseDue(RegisteredAtUtc, firstChaseAtUtc.AddTicks(-1)));
     }
@@ -25,7 +25,7 @@ public sealed class ImageIntakeChaseScheduleTests
     [Fact]
     public void DueExactlyAtTheFirstChaseInstant()
     {
-        var firstChaseAtUtc = CaseChaseSchedule.FirstChaseAt(RegisteredAtUtc);
+        var firstChaseAtUtc = CaseChaseSchedule.NextChaseAt(RegisteredAtUtc);
 
         Assert.True(ImageIntakeChaseSchedule.IsChaseDue(RegisteredAtUtc, firstChaseAtUtc));
     }
@@ -33,7 +33,7 @@ public sealed class ImageIntakeChaseScheduleTests
     [Fact]
     public void DueWellPastTheFirstChaseInstant()
     {
-        var firstChaseAtUtc = CaseChaseSchedule.FirstChaseAt(RegisteredAtUtc);
+        var firstChaseAtUtc = CaseChaseSchedule.NextChaseAt(RegisteredAtUtc);
 
         Assert.True(ImageIntakeChaseSchedule.IsChaseDue(RegisteredAtUtc, firstChaseAtUtc.AddDays(30)));
     }
@@ -42,9 +42,9 @@ public sealed class ImageIntakeChaseScheduleTests
     public void ReusesTheCaseSideSevenCalendarDaySchedule()
     {
         // The image side deliberately owns no second cadence: this asserts
-        // the exact instant it uses is CaseChaseSchedule.FirstChaseAt's own
+        // the exact instant it uses is CaseChaseSchedule.NextChaseAt's own
         // result, not a re-derived approximation of it.
-        var expected = CaseChaseSchedule.FirstChaseAt(RegisteredAtUtc);
+        var expected = CaseChaseSchedule.NextChaseAt(RegisteredAtUtc);
 
         Assert.False(ImageIntakeChaseSchedule.IsChaseDue(RegisteredAtUtc, expected.AddSeconds(-1)));
         Assert.True(ImageIntakeChaseSchedule.IsChaseDue(RegisteredAtUtc, expected));

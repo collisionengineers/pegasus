@@ -38,6 +38,44 @@ public sealed class ImageCaseCustodyIntegrationTests
         [StaffRole.Administrator]);
 
     [Fact]
+    public async Task AMailboxImageMatchingSeveralCasesRegistersAndQueuesItsFolder()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        _ = await ImageIntakeTestData.SeedInstructionCaseAsync(factory, client, "AB12 CDE", "MULTI-MATCH-01");
+        _ = await ImageIntakeTestData.SeedInstructionCaseAsync(factory, client, "AB12 CDE", "MULTI-MATCH-02");
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var receiptId = await AllocationTestData.SubmitAndProcessAsync(
+            services,
+            new IntakeSource(
+                "vehicle.png",
+                "image/png",
+                PngBytes,
+                services.GetRequiredService<TimeProvider>().GetUtcNow(),
+                "system-worker:approved-inbox-poller",
+                new(IntakeSourceChannel.Mailbox, $"image-multi:{Guid.NewGuid():N}")),
+            $"mailbox-image-multi:{Guid.NewGuid():N}");
+
+        // Several Cases match, so nothing is filed automatically: the images
+        // register as before and their folder is queued.
+        var detail = await services.GetRequiredService<IImageIntakeQueries>()
+            .GetByOriginReceiptAsync(receiptId, CancellationToken.None);
+        Assert.NotNull(detail);
+        Assert.Null(detail!.AssociatedCaseId);
+        await using var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var work = await context.ExternalWorkItems.AsNoTracking()
+            .SingleAsync(item => item.ImageIntakeId == detail.Record.Id
+                && item.Kind == ExternalWorkKinds.CreateImageCaseCustody);
+        Assert.Equal("pending", work.State);
+    }
+
+    [Fact]
     public async Task PdfParentRetainsItsSourceAndEachSelectedEmbeddedPhotographExactlyOnce()
     {
         using var factory = new IntakeWebApplicationFactory(

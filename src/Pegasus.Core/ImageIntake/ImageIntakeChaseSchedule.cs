@@ -6,7 +6,7 @@ namespace Pegasus.Core.ImageIntake;
 /// Whether an Image-initiated Case still Awaiting instruction has been
 /// waiting long enough to chase. This is a derived read, not a persisted
 /// projection: it reuses the Case side's seven-calendar-day schedule
-/// (<see cref="CaseChaseSchedule.FirstChaseAt"/>) rather than defining a
+/// (<see cref="CaseChaseSchedule.NextChaseAt"/>) rather than defining a
 /// second cadence, exactly the way the pairing-visibility half of INT-32
 /// derives <c>Associated with Case</c> from the origin receipt instead of
 /// storing a second, independently-set copy of the same fact.
@@ -21,5 +21,5 @@ namespace Pegasus.Core.ImageIntake;
 public static class ImageIntakeChaseSchedule
 {
     public static bool IsChaseDue(DateTimeOffset registeredAtUtc, DateTimeOffset asOfUtc, int intervalDays = 7) =>
-        asOfUtc >= CaseChaseSchedule.FirstChaseAt(registeredAtUtc, intervalDays);
+        asOfUtc >= CaseChaseSchedule.NextChaseAt(registeredAtUtc, intervalDays);
 }

@@ -6,7 +6,7 @@ authorization comes from the operator; the primary agent owns verification.
 
 - [Local setup](runbook.md#local-setup-and-run)
 - [Build and test commands](runbook.md#locked-restore-build-and-test)
-- [Reference authoring](runbook.md#principal-domain-reference-authoring)
+- [Reference authoring](runbook.md#principal-identification-corpus-authoring)
 - [Mailbox operations](runbook.md#approved-mailbox-estate)
 - [OAuth certificate operations](runbook.md#automation-oauth-certificate-operation)
 - [Monitoring](runbook.md#monitoring-and-diagnosis) and [recovery](runbook.md#recovery)
@@ -552,79 +552,6 @@ source evidence as unavailable. Ordinary CI excludes the Corpus category and
 is not evidence that the private collection passed. Keep `corpus/` immutable;
 the private collection is separate and does not replace it.
 
-## Principal-domain reference authoring
-
-Principal-domain authoring is an offline operation over one immutable package. The `provider-domains-v1` command reads only (the package version id keeps its original name; it is the hash-pinned identity):
-
-```text
-reference/workproviders-and-repairers/initial.xlsx
-```
-
-The published package retains its original
-`docs/reference/workproviders-and-repairers/initial.xlsx` source identity as
-immutable provenance. The authoring helper maps that identity to the physical
-path above only while regenerating or verifying the same bytes; it never
-republishes `provider-domains-v1` with a new path or hash.
-
-It retains:
-
-- the Principal code from column A; and
-- the final lowercase `@domain` suffix from each semicolon-separated column-E observation.
-
-It ignores columns B–D and all later columns. It never edits the workbook or emits an email local part, full email address, inspection location, default, Case ID, or opaque source value.
-
-Close the workbook, then run from PowerShell 7 at the repository root:
-
-```powershell
-pwsh ./scripts/Build-PrincipalReferenceData.ps1
-pwsh ./scripts/Build-PrincipalReferenceData.ps1 -Verify
-```
-
-Before discovering Python or reading source bytes, the wrapper rejects:
-
-- the selected workbook’s exact sibling Office lock marker; and
-- an exclusive-read failure;
-
-as `source-locked`.
-
-The helper requires Python 3.11+ and uses only `zipfile` and `xml.etree.ElementTree`. There is no virtual environment, pip installation, dependency lock, package cache, recursive workbook discovery, network operation, or second manifest.
-
-The command stages beneath:
-
-```text
-artifacts/reference-data-staging/
-```
-
-and publishes:
-
-```text
-src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v1.json
-```
-
-Publication rules are immutable:
-
-- generation completes in staging before publication;
-- an absent output is moved atomically into place;
-- a byte-identical existing output is a no-op;
-- a different existing output fails `immutable-output` and is not replaced;
-- `-Verify` requires the output and byte-compares a regenerated staged package without mutating it.
-
-Future versions use a new cumulative workbook, version, output, and the previously validated package:
-
-```powershell
-pwsh ./scripts/Build-PrincipalReferenceData.ps1 `
-  -SourcePath ./reference/workproviders-and-repairers/provider-domains-v2.xlsx `
-  -Version provider-domains-v2 `
-  -PackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v2.json `
-  -PreviousPackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v1.json
-```
-
-Every previous Principal/suffix pair must remain. Removal fails `non-monotonic-source`. Source, previous package, staging, and output paths must be distinct; staging and output may not be beneath `reference/`.
-
-Corrections or removals require separately accepted authority and a new explicit contract. Published snapshots remain unchanged.
-
-Successful completion proves deterministic authoring bytes only. It does not activate an email route, resolve a Principal at intake, prove a migration or caller, or establish release acceptance. Runtime reads only the explicit versioned SQL snapshot and never opens a workbook. Reference ownership is indexed in [reference material](../reference/README.md).
-
 ## Principal-identification corpus authoring
 
 The tracked principal-identification corpus is review evidence for all 49
@@ -942,12 +869,14 @@ trace's operation id and parent id, so it joins the invocation's `AppRequests` r
 The rows join adaptive sampling like other events. They carry no tag values: the
 intake receipt and custody work item ids the spans are tagged with are never sent.
 `triage_case_pairing` opens a span only when a Triage Case is waiting to be
-linked, so an idle ten-second tick sends no row.
+linked, so an idle tick sends no row.
 
 `SqlDependencyTelemetryFilter` still drops a successful SQL call, but keeps one that
 took 250 ms or more, and every failed one. It runs before sampling, so a dropped
 call does not count towards the sampling rate. `AppDependencies` therefore shows a
-lock wait or a slow statement on an intake run, unless sampling dropped it.
+lock wait or a slow statement on an intake run, unless sampling dropped it. The
+dependency carries no statement text; [Query Store](#statement-level-evidence-from-query-store)
+names the statement.
 
 Dependencies are sampled. The worker process samples everything it sends itself.
 `AddApplicationInsightsTelemetryWorkerService` in `src/Pegasus.Worker/Program.cs`
@@ -964,9 +893,58 @@ stage, and a slow statement in the same trace shows as a dependency. Sampling ke
 or drops a whole operation, but events and the other types are sampled apart. Under
 load a run can keep its spans and lose its slow statement, or the reverse.
 
+### Statement-level evidence from Query Store
+
+SQL dependency telemetry carries no statement text, so a per-statement claim needs
+Query Store on the production database. The check is read-only:
+
+```sql
+SELECT actual_state_desc FROM sys.database_query_store_options;
+```
+
+`READ_WRITE` is the working state. Any other value is reported to the operator;
+do not change the database to make it so.
+
+The statement query is also read-only. Set the window in the two variables:
+
+```sql
+DECLARE @from datetimeoffset = DATEADD(day, -1, SYSDATETIMEOFFSET());
+DECLARE @to datetimeoffset = SYSDATETIMEOFFSET();
+
+SELECT t.query_sql_text,
+       SUM(rs.count_executions) AS executions,
+       SUM(rs.count_executions * rs.avg_duration) / NULLIF(SUM(rs.count_executions), 0) AS avg_duration_us,
+       SUM(rs.count_executions * rs.avg_duration) AS total_duration_us
+FROM sys.query_store_query AS q
+JOIN sys.query_store_query_text AS t ON t.query_text_id = q.query_text_id
+JOIN sys.query_store_plan AS p ON p.query_id = q.query_id
+JOIN sys.query_store_runtime_stats AS rs ON rs.plan_id = p.plan_id
+JOIN sys.query_store_runtime_stats_interval AS i
+  ON i.runtime_stats_interval_id = rs.runtime_stats_interval_id
+WHERE i.start_time >= @from AND i.end_time <= @to
+GROUP BY t.query_sql_text
+HAVING SUM(rs.count_executions) > 0
+ORDER BY total_duration_us DESC;
+```
+
+Durations are microseconds.
+
+**Who runs it.** The Entra admin identity, which holds `VIEW DATABASE STATE`. The
+Web and Worker runtime roles are not granted it.
+
+**When.** Before and after each release that changes data access or telemetry,
+save the output under `artifacts/performance/` (gitignored) and name the files in
+the release record.
+
+**Limits.** Query Store has no per-request attribution: it says which statements
+ran and how long they took, not which request issued them. Its capture mode can
+skip rare, cheap statements. Parameters appear as `@p0`, not as values. For one
+slow request, use the [Worker's spans and slow SQL](#the-workers-own-spans-and-slow-sql)
+above and the request's own trace.
+
 ### A failing sweep step names its cause
 
-The ten-second sweep logs each step's result line at Information. The line
+The staged-artifact sweep logs each step's result line at Information. The line
 becomes a Warning when the step counted a failure, so the worker process's
 default level records it. A custody item that fails to file also logs its
 exception type and message, once for each attempt, as

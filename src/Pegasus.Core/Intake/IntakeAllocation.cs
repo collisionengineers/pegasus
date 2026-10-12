@@ -38,7 +38,6 @@ public enum IntakeAllocationRecoveryDisposition
 
 public enum IntakeAllocationProjectionStatus
 {
-    NotApplicable,
     Pending,
     Succeeded,
     FailedRecoverable,

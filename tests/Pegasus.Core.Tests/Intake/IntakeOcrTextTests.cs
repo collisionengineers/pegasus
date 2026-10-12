@@ -36,7 +36,6 @@ public sealed class IntakeOcrTextTests
                 Assert.Equal(IntakeOcrText.DocumentRole, first.Locator.DocumentRole);
                 Assert.Equal(SourceHash, first.Locator.Sha256);
                 Assert.Contains(ResponseHash, first.Locator.Region, StringComparison.Ordinal);
-                Assert.True(IntakeOcrText.IsOcrLocator(first.Locator));
             },
             second =>
             {
@@ -95,8 +94,7 @@ public sealed class IntakeOcrTextTests
         Assert.DoesNotContain(merged.Content, fragment => fragment.Text == "x");
         Assert.Contains(merged.Content, fragment =>
             fragment.Text == "OCR page two"
-            && fragment.SourceLabel == "uploaded mail.eml, attachment 2: report.pdf, page 2"
-            && IntakeOcrText.IsOcrLocator(fragment.Locator));
+            && fragment.SourceLabel == "uploaded mail.eml, attachment 2: report.pdf, page 2");
         Assert.Contains(merged.Content, fragment => fragment.Text == "OCR page three");
         // The other document's scanned page still awaits its own OCR.
         var remaining = Assert.Single(merged.ScannedPdfPages);

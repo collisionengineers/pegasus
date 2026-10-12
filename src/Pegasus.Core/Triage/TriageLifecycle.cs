@@ -55,7 +55,7 @@ public sealed class TriageCasePairing(ITriageStore store) : ITriageCasePairing
         }
         if (candidates.Count == 0)
         {
-            // The Worker asks every ten seconds and usually nothing is waiting.
+            // The Worker asks every minute and usually nothing is waiting.
             // A span is opened only for a pass that has something to link.
             return new(0, 0, 0);
         }
@@ -129,7 +129,7 @@ public sealed class AssignTriage(ITriageStore store) : IAssignTriage
     {
         TriageLifecycleRules.ValidateAssign(request);
         var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        TriageLifecycleRules.RequireMutable(current.Record, "assign");
+        TriageLifecycleRules.RequireMutable(current, "assign");
         return await _store.AssignAsync(request, cancellationToken);
     }
 }
@@ -161,7 +161,7 @@ public sealed class AddTriageNote(ITriageStore store) : IAddTriageNote
             _store,
             request.CaseId,
             cancellationToken);
-        TriageLifecycleRules.RequireMutable(current.Record, "note");
+        TriageLifecycleRules.RequireMutable(current, "note");
         return await _store.AddNoteAsync(request, cancellationToken);
     }
 }
@@ -179,7 +179,7 @@ public sealed class UnassignTriage(ITriageStore store) : IUnassignTriage
     {
         var mutation = TriageLifecycleRules.ToMutation(request, Reason);
         var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        TriageLifecycleRules.RequireMutable(current.Record, "unassign");
+        TriageLifecycleRules.RequireMutable(current, "unassign");
         return await _store.UnassignAsync(mutation, cancellationToken);
     }
 }
@@ -206,7 +206,7 @@ public sealed class AwaitTriageInformation(ITriageStore store) : IAwaitTriageInf
         }
 
         var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if (current.Record.State is not (TriageState.Open or TriageState.FindingRecorded))
+        if (current.State is not (TriageState.Open or TriageState.FindingRecorded))
         {
             throw new InvalidOperationException(
                 "Triage can await information only while open or after a finding is recorded.");
@@ -231,7 +231,7 @@ public sealed class RecordTriageFinding(ITriageStore store) : IRecordTriageFindi
             return replay.Result;
         }
 
-        var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
+        var current = await TriageLifecycleRules.GetRequiredDetailAsync(_store, request.CaseId, cancellationToken);
         TriageLifecycleRules.RequireMutable(current.Record, "record a finding");
         if (current.Record.State is not (TriageState.Open or TriageState.AwaitingInformation)
             || TriageLifecycleRules.HasActiveFinding(current))
@@ -259,7 +259,7 @@ public sealed class SupersedeTriageFinding(ITriageStore store) : ISupersedeTriag
             return replay.Result;
         }
 
-        var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
+        var current = await TriageLifecycleRules.GetRequiredDetailAsync(_store, request.CaseId, cancellationToken);
         if (current.Record.State == TriageState.Cancelled)
         {
             throw new InvalidOperationException(
@@ -293,7 +293,7 @@ public sealed class LinkTriageResponseEvidence(ITriageStore store) : ILinkTriage
         }
 
         var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        TriageLifecycleRules.RequireMutable(current.Record, "link response evidence");
+        TriageLifecycleRules.RequireMutable(current, "link response evidence");
         await _store.LinkResponseEvidenceAsync(request, cancellationToken);
     }
 }
@@ -313,7 +313,7 @@ public sealed class UnlinkTriageResponseEvidence(ITriageStore store) : IUnlinkTr
         }
 
         var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        TriageLifecycleRules.RequireMutable(current.Record, "unlink response evidence");
+        TriageLifecycleRules.RequireMutable(current, "unlink response evidence");
         await _store.UnlinkResponseEvidenceAsync(request, cancellationToken);
     }
 }
@@ -340,7 +340,7 @@ public sealed class CompleteTriage(ITriageStore store) : ICompleteTriage
         }
 
         var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if (current.Record.State != TriageState.FindingRecorded)
+        if (current.State != TriageState.FindingRecorded)
         {
             throw new InvalidOperationException("Triage can be completed only after a finding is recorded.");
         }
@@ -368,7 +368,7 @@ public sealed class CancelTriage(ITriageStore store) : ICancelTriage
         }
 
         var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        TriageLifecycleRules.RequireMutable(current.Record, "cancel");
+        TriageLifecycleRules.RequireMutable(current, "cancel");
         return await _store.ChangeStateAsync(request, TriageState.Cancelled, cancellationToken);
     }
 }
@@ -392,7 +392,7 @@ public sealed class ReopenTriage(ITriageStore store) : IReopenTriage
         }
 
         var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if (current.Record.State is not (TriageState.Completed or TriageState.Cancelled))
+        if (current.State is not (TriageState.Completed or TriageState.Cancelled))
         {
             throw new InvalidOperationException("Only completed or cancelled triage can be reopened.");
         }
@@ -427,7 +427,26 @@ public sealed class UnlinkTriageCase(ITriageStore store) : IUnlinkTriageCase
 
 public static class TriageLifecycleRules
 {
-    public static async Task<TriageDetail> GetRequiredAsync(
+    /// <summary>
+    /// The Triage's record, for a mutation that needs only its existence or
+    /// state. A mutation that reads the findings uses
+    /// <see cref="GetRequiredDetailAsync"/>.
+    /// </summary>
+    public static async Task<TriageRecord> GetRequiredAsync(
+        ITriageQueries queries,
+        Guid triageId,
+        CancellationToken cancellationToken)
+    {
+        if (triageId == Guid.Empty)
+        {
+            throw new ArgumentException("A triage identifier is required.", nameof(triageId));
+        }
+
+        return await queries.GetRecordAsync(triageId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Triage '{triageId}' was not found.");
+    }
+
+    public static async Task<TriageDetail> GetRequiredDetailAsync(
         ITriageQueries queries,
         Guid triageId,
         CancellationToken cancellationToken)

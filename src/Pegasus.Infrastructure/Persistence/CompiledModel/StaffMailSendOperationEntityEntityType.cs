@@ -20,7 +20,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.StaffMailSendOperationEntity",
                 typeof(StaffMailSendOperationEntity),
                 baseEntityType,
-                propertyCount: 36,
+                propertyCount: 37,
                 unnamedIndexCount: 2,
                 keyCount: 1);
 
@@ -281,6 +281,14 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 fieldInfo: typeof(StaffMailSendOperationEntity).GetField("<RequestedAtUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: new DateTimeOffset(new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)));
             requestedAtUtc.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var resolvesCaseQueries = runtimeEntityType.AddProperty(
+                "ResolvesCaseQueries",
+                typeof(bool),
+                propertyInfo: typeof(StaffMailSendOperationEntity).GetProperty("ResolvesCaseQueries", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(StaffMailSendOperationEntity).GetField("<ResolvesCaseQueries>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                sentinel: false);
+            resolvesCaseQueries.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var state = runtimeEntityType.AddProperty(
                 "State",

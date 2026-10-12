@@ -75,7 +75,11 @@ public sealed record CaseListRecord(
     IReadOnlyDictionary<string, string> ClaimData,
     CaseListWorkFacts Primary,
     CaseListWorkFacts? AuditWork,
-    CaseListActivity Activity);
+    CaseListActivity Activity)
+{
+    /// <summary>Whether the Case holds an open query, which its stage column reads as Query.</summary>
+    public bool HasOpenQuery { get; init; }
+}
 
 /// <summary>A record with its people named: the row the columns read.</summary>
 public sealed record CaseListRow(
@@ -108,7 +112,8 @@ public interface ICaseListLabels
 {
     string CaseType(CaseType type);
 
-    string Stage(CaseLifecycleState state);
+    /// <summary>The stage word; a Case with an open query reads as Query.</summary>
+    string Stage(CaseLifecycleState state, bool hasOpenQuery);
 
     string TriageStage(TriageState state);
 
@@ -238,7 +243,7 @@ public static class CaseListPolicy
         ArgumentNullException.ThrowIfNull(labels);
         return record.Type == CaseType.Triage
             ? labels.TriageStage(record.TriageState!.Value)
-            : labels.Stage(record.State!.Value);
+            : labels.Stage(record.State!.Value, record.HasOpenQuery);
     }
 
     public static string? Value(CaseListWorkFacts? work, string path) =>
@@ -310,7 +315,7 @@ public sealed class GetCaseList(ICaseListQueries queries, IStaffAccountQueries s
 
         var names = await ActorDisplayNames.ResolveStaffNamesAsync(
             staffAccounts,
-            records.SelectMany(StaffIds),
+            columns.Any(column => column.ShowsStaff) ? records.SelectMany(StaffIds) : [],
             cancellationToken);
         var profiles = columns.Any(column => column.Key == CaseListColumns.SignOffEngineer)
             ? await staffAccounts.ListSignOffEngineersAsync(cancellationToken)

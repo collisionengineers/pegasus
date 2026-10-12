@@ -142,6 +142,17 @@ public sealed class DiscardIntakeSubmissionGroupTests
         await harness.AssertActionableAsync();
     }
 
+    [Fact]
+    public async Task PendingImageSweepListSkipsReceiptsAlreadyLinkedToACase()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.AddActiveAssociationAsync();
+
+        var pending = await harness.Store.ListPendingImageGroupReceiptsAsync(50);
+
+        Assert.DoesNotContain(harness.ReceiptId, pending);
+    }
+
     private sealed class Harness : IAsyncDisposable
     {
         private Harness(LocalDbTestDatabase database, IDbContextFactory<PegasusDbContext> factory)
@@ -153,7 +164,7 @@ public sealed class DiscardIntakeSubmissionGroupTests
 
         public LocalDbTestDatabase Database { get; }
         public IDbContextFactory<PegasusDbContext> Factory { get; }
-        public IIntakeSubmissionGroupStore Store { get; }
+        public EfIntakeSubmissionGroupStore Store { get; }
         public Guid GroupId { get; } = Guid.NewGuid();
         public Guid StagedReceiptId { get; } = Guid.NewGuid();
         public Guid ReceiptId { get; } = Guid.NewGuid();

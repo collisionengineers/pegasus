@@ -246,7 +246,7 @@ public sealed class StaffAccountAdministrationPersistenceTests
         Assert.NotNull(await context.Users.AsNoTracking().SingleOrDefaultAsync(item => item.Id == engineer.Id));
 
         var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
-        workflow.State = nameof(CaseLifecycleState.PostReportComplete);
+        workflow.State = nameof(CaseLifecycleState.ReportSent);
         await context.SaveChangesAsync();
 
         var result = await delete.ExecuteAsync(

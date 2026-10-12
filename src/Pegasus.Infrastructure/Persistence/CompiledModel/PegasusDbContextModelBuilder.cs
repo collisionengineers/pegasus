@@ -13,7 +13,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
     public partial class PegasusDbContextModel
     {
         private PegasusDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("b846fd6f-064a-4128-a590-0939384d3649"), entityTypeCount: 125)
+            : base(skipDetectChanges: false, modelId: new Guid("702a9d22-e000-4bdb-99f2-a1790c7ecd56"), entityTypeCount: 126)
         {
         }
 
@@ -54,6 +54,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             var caseListPresetEntity = CaseListPresetEntityEntityType.Create(this);
             var caseManualChaseEntity = CaseManualChaseEntityEntityType.Create(this);
             var caseMatchIndexEntity = CaseMatchIndexEntityEntityType.Create(this);
+            var caseQueryEntity = CaseQueryEntityEntityType.Create(this);
             var caseRepairSpecificationEntity = CaseRepairSpecificationEntityEntityType.Create(this);
             var caseRepairSpecificationSnapshotEntity = CaseRepairSpecificationSnapshotEntityEntityType.Create(this);
             var caseReportApprovalEntity = CaseReportApprovalEntityEntityType.Create(this);
@@ -179,6 +180,8 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             CaseIntakeLinkEntityEntityType.CreateForeignKey3(caseIntakeLinkEntity, intakeReceiptEntity);
             CaseManualChaseEntityEntityType.CreateForeignKey1(caseManualChaseEntity, caseDueWorkEntity);
             CaseMatchIndexEntityEntityType.CreateForeignKey1(caseMatchIndexEntity, caseEntity);
+            CaseQueryEntityEntityType.CreateForeignKey1(caseQueryEntity, caseWorkflowEntity);
+            CaseQueryEntityEntityType.CreateForeignKey2(caseQueryEntity, intakeReceiptEntity);
             CaseRepairSpecificationEntityEntityType.CreateForeignKey1(caseRepairSpecificationEntity, caseWorkEntity);
             CaseRepairSpecificationSnapshotEntityEntityType.CreateForeignKey1(caseRepairSpecificationSnapshotEntity, caseWorkEntity);
             CaseReportApprovalEntityEntityType.CreateForeignKey1(caseReportApprovalEntity, caseEntity);
@@ -318,6 +321,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             CaseListPresetEntityEntityType.CreateAnnotations(caseListPresetEntity);
             CaseManualChaseEntityEntityType.CreateAnnotations(caseManualChaseEntity);
             CaseMatchIndexEntityEntityType.CreateAnnotations(caseMatchIndexEntity);
+            CaseQueryEntityEntityType.CreateAnnotations(caseQueryEntity);
             CaseRepairSpecificationEntityEntityType.CreateAnnotations(caseRepairSpecificationEntity);
             CaseRepairSpecificationSnapshotEntityEntityType.CreateAnnotations(caseRepairSpecificationSnapshotEntity);
             CaseReportApprovalEntityEntityType.CreateAnnotations(caseReportApprovalEntity);

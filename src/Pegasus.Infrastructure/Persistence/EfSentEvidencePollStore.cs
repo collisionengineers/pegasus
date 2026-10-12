@@ -14,25 +14,9 @@ internal sealed class EfSentEvidencePollStore(
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly TimeSpan CompletedPollDelay = TimeSpan.FromMinutes(1);
 
-    public Task<ApprovedSentPollLease?> ClaimAsync(
+    public async Task<ApprovedSentPollLease?> ClaimAsync(
         DateTimeOffset nowUtc,
         TimeSpan leaseDuration,
-        CancellationToken cancellationToken) =>
-        ClaimCoreAsync(null, nowUtc, leaseDuration, cancellationToken);
-
-    public Task<ApprovedSentPollLease?> ClaimAsync(
-        Guid approvedMailboxId, DateTimeOffset nowUtc, TimeSpan leaseDuration,
-        CancellationToken cancellationToken)
-    {
-        if (approvedMailboxId == Guid.Empty)
-        {
-            throw new ArgumentException("An approved mailbox is required.", nameof(approvedMailboxId));
-        }
-        return ClaimCoreAsync(approvedMailboxId, nowUtc, leaseDuration, cancellationToken);
-    }
-
-    private async Task<ApprovedSentPollLease?> ClaimCoreAsync(
-        Guid? approvedMailboxId, DateTimeOffset nowUtc, TimeSpan leaseDuration,
         CancellationToken cancellationToken)
     {
         RequireUtc(nowUtc, nameof(nowUtc));
@@ -45,7 +29,6 @@ internal sealed class EfSentEvidencePollStore(
         var mailboxes = await context.ApprovedMailboxes
             .Where(item => item.State == approvedState
                 && item.AllowSentEvidence
-                && (approvedMailboxId == null || item.Id == approvedMailboxId)
                 && item.MailboxIdentity != null
                 && item.SentFolderIdentity != null
                 && item.ActivatedAtUtc != null
@@ -100,7 +83,7 @@ internal sealed class EfSentEvidencePollStore(
         }
 
         var state = states.Values
-            .Where(value => (approvedMailboxId is not null || value.DueAtUtc <= nowUtc)
+            .Where(value => value.DueAtUtc <= nowUtc
                 && (value.LeaseExpiresAtUtc is null || value.LeaseExpiresAtUtc <= nowUtc))
             .OrderBy(value => value.DueAtUtc)
             .ThenBy(value => value.MailboxId, StringComparer.Ordinal)

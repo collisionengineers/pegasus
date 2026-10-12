@@ -94,16 +94,6 @@ public sealed class EfCaseWorkflowStore(
             .AnyAsync(cancellationToken);
     }
 
-    async Task<CaseDueWork?> ICaseDueWorkQueries.GetAsync(Guid caseId, CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.CaseDueWork.AsNoTracking()
-            .Include(item => item.Workflow)
-            .ThenInclude(workflow => workflow.Case)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
-        return entity is null ? null : Map(entity);
-    }
-
     public async Task<IReadOnlyList<CaseDueWork>> GetDueAsync(
         DateTimeOffset asOfUtc,
         int page,
@@ -574,7 +564,7 @@ public sealed class EfCaseWorkflowStore(
                     CaseLifecycleState.NotReady
                     or CaseLifecycleState.Review
                     or CaseLifecycleState.ReportPreparation
-                    or CaseLifecycleState.PostReport))
+                    or CaseLifecycleState.ReportSent))
             {
                 throw new InvalidOperationException(
                     "The case hold does not retain a valid previous lifecycle state.");
@@ -687,23 +677,6 @@ public sealed class EfCaseWorkflowStore(
                 cancellationToken);
         }, cancellationToken, targetState.ToString());
 
-    public Task<CaseWorkflowRecord> SetSignOffEngineerAsync(
-        SetCaseSignOffEngineerRequest request,
-        CancellationToken cancellationToken) =>
-        MutateAsync(request, "case_sign_off_engineer_selected", async (context, workflow, now) =>
-        {
-            var beforeAssignedEngineerId = workflow.AssignedEngineerId;
-            var beforeSignOffEngineerId = workflow.SignOffEngineerId;
-            workflow.SignOffEngineerId = request.SignOffEngineerId;
-            await MarkReportStaleIfEffectiveSignatoryChangedAsync(
-                context,
-                workflow,
-                beforeAssignedEngineerId,
-                beforeSignOffEngineerId,
-                now,
-                cancellationToken);
-        }, cancellationToken);
-
     public Task<CaseWorkflowRecord> RecordReportApprovalAsync(
         RecordCaseReportApprovalRequest request,
         CancellationToken cancellationToken) =>
@@ -712,7 +685,14 @@ public sealed class EfCaseWorkflowStore(
             // The current work's report is approved from Report preparation.
             // The Inspection report of a Case that has its Audit is approved on
             // its own work, whatever the Case's state (operator, 1 October 2026).
-            var pastWork = await PastWorkAsync(context, workflow.CaseId, request.Work, cancellationToken);
+            // The Primary selector resolves the current work once; the id serves
+            // both the past-work test and the generation check below.
+            var selectedCurrentWorkId = request.Work == CaseWorkSelector.Primary
+                ? await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken)
+                : (Guid?)null;
+            var pastWork = selectedCurrentWorkId is { } currentId
+                ? await PastWorkAsync(context, workflow.CaseId, currentId, cancellationToken)
+                : null;
             if (pastWork is null && workflow.State != nameof(CaseLifecycleState.ReportPreparation))
             {
                 throw new InvalidOperationException(
@@ -723,6 +703,7 @@ public sealed class EfCaseWorkflowStore(
             // A generated report is approved on the work it was made for.
             var approvedSha256 = approval.ArtifactSha256.ToLowerInvariant();
             var workId = pastWork?.Id
+                ?? selectedCurrentWorkId
                 ?? await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
             if (await (
                     from artifact in context.Set<GeneratedCaseArtifactEntity>().AsNoTracking()
@@ -800,9 +781,19 @@ public sealed class EfCaseWorkflowStore(
             return null;
         }
 
-        var currentWorkId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
-        return currentWorkId == caseId ? null : await TrackedWorkAsync(context, caseId, cancellationToken);
+        return await PastWorkAsync(
+            context,
+            caseId,
+            await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken),
+            cancellationToken);
     }
+
+    private static async Task<CaseWorkEntity?> PastWorkAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        Guid currentWorkId,
+        CancellationToken cancellationToken) =>
+        currentWorkId == caseId ? null : await TrackedWorkAsync(context, caseId, cancellationToken);
 
     /// <summary>
     /// The past work a Pegasus report send proves, from the generation the
@@ -905,7 +896,7 @@ public sealed class EfCaseWorkflowStore(
             evidence.LinkedByRolesJson = null;
             workflow.ReportSentEvidenceId = null;
             workflow.ReportSentEvidence = null;
-            if (workflow.State == nameof(CaseLifecycleState.PostReport))
+            if (workflow.State == nameof(CaseLifecycleState.ReportSent))
             {
                 workflow.State = nameof(CaseLifecycleState.ReportPreparation);
             }
@@ -918,9 +909,7 @@ public sealed class EfCaseWorkflowStore(
         CancellationToken cancellationToken) =>
         MutateAsync(
             request,
-            request.Outcome == CaseClosureOutcome.PostReportComplete
-                ? "case_completed"
-                : $"case_closed_{request.Outcome}",
+            $"case_closed_{request.Outcome}",
             async (context, workflow, now) =>
         {
             await CaseTerminalReadinessGuard.RequireNoOpenTasksAsync(
@@ -953,6 +942,29 @@ public sealed class EfCaseWorkflowStore(
             return Task.CompletedTask;
         }, cancellationToken);
 
+    public Task<CaseWorkflowRecord> RaiseQueryAsync(RaiseCaseQueryRequest request, CancellationToken cancellationToken) =>
+        MutateAsync(request, CaseQueryLedger.QueryLoggedEvent, (context, workflow, now) =>
+        {
+            // Re-checked under the lock: a query is logged only once the report is sent.
+            if (workflow.State != nameof(CaseLifecycleState.ReportSent))
+            {
+                throw new InvalidOperationException("A query can be logged only once the report is sent.");
+            }
+            CaseQueryLedger.RaiseForStaff(context, workflow, request, now);
+            return Task.CompletedTask;
+        }, cancellationToken);
+
+    public Task<CaseWorkflowRecord> ResolveQueriesAsync(ResolveCaseQueriesRequest request, CancellationToken cancellationToken) =>
+        MutateAsync(request, CaseQueryLedger.QueriesResolvedEvent, async (context, workflow, now) =>
+        {
+            var resolved = await CaseQueryLedger.ResolveAllAsync(
+                context, workflow, request.Actor.Kind, request.Actor.SubjectId, now, null, cancellationToken);
+            if (resolved == 0)
+            {
+                throw new InvalidOperationException("The case has no open query to resolve.");
+            }
+        }, cancellationToken);
+
     public Task<CaseWorkflowRecord> ReopenAsync(ReopenCaseRequest request, CancellationToken cancellationToken) =>
         MutateAsync(request, $"case_reopened_{request.Destination}", async (context, workflow, now) =>
         {
@@ -974,14 +986,14 @@ public sealed class EfCaseWorkflowStore(
                         Workflow = workflow,
                         MissingMaterialReason = request.Reason,
                         State = nameof(CaseDueWorkState.Scheduled),
-                        NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays),
+                        NextChaseAtUtc = CaseChaseSchedule.NextChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays),
                         Version = 0
                     });
                 }
                 else
                 {
                     due.State = nameof(CaseDueWorkState.Scheduled);
-                    due.NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays);
+                    due.NextChaseAtUtc = CaseChaseSchedule.NextChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays);
                     due.Version++;
                 }
             }
@@ -1065,16 +1077,16 @@ public sealed class EfCaseWorkflowStore(
             return Map(replayedDue);
         }
 
-        var workflow = await context.CaseWorkflows.SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
+        var workflow = await context.CaseWorkflows
+                .Include(item => item.Case)
+                .Include(item => item.DueWork)
+                .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         ArchivedCaseGuard.RequireMutable(workflow);
         RequireLease(workflow, request.Actor, request.EditLeaseToken, timeProvider.GetUtcNow());
         RequireVersionUnderLease(workflow, request.ExpectedCaseVersion);
-        var due = await context.CaseDueWork
-                .Include(item => item.Workflow)
-                .ThenInclude(workflow => workflow.Case)
-                .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
+        var due = workflow.DueWork
             ?? throw new InvalidOperationException("The case has no due work to chase.");
         if (due.State != nameof(CaseDueWorkState.Scheduled))
         {
@@ -1307,7 +1319,7 @@ public sealed class EfCaseWorkflowStore(
                 .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken);
             if (replay.EventType == "report_evidence_auto_linked" && replayWorkflow is not null)
             {
-                if (replayWorkflow.State == nameof(CaseLifecycleState.PostReport)
+                if (replayWorkflow.State == nameof(CaseLifecycleState.ReportSent)
                     && replayWorkflow.ReportSentEvidenceId == request.EvidenceId
                     && replayWorkflow.ReportSentEvidence?.CaseId == request.CaseId)
                 {
@@ -1537,7 +1549,7 @@ public sealed class EfCaseWorkflowStore(
 
         workflow.ReportSentEvidenceId = evidence.Id;
         workflow.ReportSentEvidence = evidence;
-        workflow.State = nameof(CaseLifecycleState.PostReport);
+        workflow.State = nameof(CaseLifecycleState.ReportSent);
         workflow.StateEnteredAtUtc = linkedAtUtc;
     }
 
@@ -1555,7 +1567,7 @@ public sealed class EfCaseWorkflowStore(
 
     private static AutoLinkReportEvidenceResult AutoLinkLinked(CaseWorkflowEntity workflow)
     {
-        if (workflow.State != nameof(CaseLifecycleState.PostReport)
+        if (workflow.State != nameof(CaseLifecycleState.ReportSent)
             || workflow.ReportSentEvidenceId is not { } evidenceId
             || workflow.ReportSentEvidence is not { } evidence
             || evidence.Id != evidenceId
@@ -1570,7 +1582,7 @@ public sealed class EfCaseWorkflowStore(
             new(
                 workflow.CaseId,
                 evidenceId,
-                CaseLifecycleState.PostReport,
+                CaseLifecycleState.ReportSent,
                 workflow.Version),
             null);
     }
@@ -1964,7 +1976,8 @@ public sealed class EfCaseWorkflowStore(
         SignOffEngineerId = entity.SignOffEngineerId,
         HeldAtUtc = entity.HeldAtUtc,
         HoldReviewOn = entity.HoldReviewOn,
-        StateEnteredAtUtc = entity.StateEnteredAtUtc
+        StateEnteredAtUtc = entity.StateEnteredAtUtc,
+        HasOpenQuery = entity.HasOpenQuery
     };
     internal static ReportApprovalEvidence MapReportApproval(CaseReportApprovalEntity approval) => new(
         approval.Id,
@@ -2009,6 +2022,7 @@ public sealed class EfCaseWorkflowStore(
             entity.ReportApprovalId,
             entity.ReportSentEvidenceId,
             entity.ClosureOutcome,
+            entity.HasOpenQuery,
             entity.ArchivedAtUtc,
             entity.ArchivedBySubjectId,
             entity.ArchiveReason,
@@ -2121,6 +2135,7 @@ public sealed class EfCaseWorkflowStore(
         Guid? ReportApprovalId,
         Guid? ReportSentEvidenceId,
         string? ClosureOutcome,
+        bool HasOpenQuery,
         DateTimeOffset? ArchivedAtUtc,
         string? ArchivedBySubjectId,
         string? ArchiveReason,

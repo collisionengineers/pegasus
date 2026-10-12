@@ -425,6 +425,41 @@ public sealed class ImageIntakeCasePairingTests
     }
 
     [Fact]
+    public async Task AGroupRegistrationReadByTheCallerIsNotReadAgain()
+    {
+        var receiptId = Guid.NewGuid();
+        var siblingReceiptId = Guid.NewGuid();
+        var detail = new ImageIntakeDetail(
+            new ImageIntakeRecord(
+                Guid.NewGuid(),
+                new ImageIntakeOrigin(
+                    receiptId,
+                    new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, "manual-image"),
+                    new string('a', 64),
+                    Guid.NewGuid()),
+                "AB12CDE",
+                "AB12CDE-01"),
+            DateTimeOffset.UtcNow,
+            null,
+            null);
+        var queries = new FakeQueries
+        {
+            OriginChannel = IntakeSourceChannel.ManualUpload,
+            ManualLinkedCaseIds = { [receiptId] = CaseId },
+            Images = [new(siblingReceiptId, "sibling.png", "image/png")]
+        };
+        var pairing = new ImageIntakeCasePairing(
+            queries, new FakeCandidates(), new FakeMutationStore(), TimeProvider.System, new CommittedWorkPublisherDouble(), queries);
+
+        Assert.Equal(
+            new ImageIntakePairingResult(0, 0, 0),
+            await pairing.PairRegisteredReceiptAsync(receiptId, CancellationToken.None));
+        Assert.Equal(
+            new ImageIntakePairingResult(1, 0, 0),
+            await pairing.PairRegisteredReceiptAsync(receiptId, CancellationToken.None, detail));
+    }
+
+    [Fact]
     public async Task AnAlreadyLinkedAwaitingIntakeRetriesTheMergeWithoutRelinking()
     {
         // AutoLinkAsync already succeeded on a previous pass (or a manual

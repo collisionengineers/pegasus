@@ -50,6 +50,16 @@ public sealed class FwInstructionExtractionPolicyTests
     }
 
     [Fact]
+    public void QuotedFragmentWithoutTheInstructionMarkerYieldsNoCandidates()
+    {
+        var result = Extract("Please see the earlier correspondence.\n-----Original Message-----\nClaim reference: 29674-01");
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+
+        Assert.Null(draft.ClaimNumber);
+        Assert.Empty(result.Fields.SelectMany(field => field.Candidates));
+    }
+
+    [Fact]
     public void ThirdPartyAndInspectionLocationRemainSeparateRoles()
     {
         var result = Extract(Instruction(

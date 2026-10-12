@@ -18,6 +18,13 @@ public static class MailClassificationSelection
     public const string OtherReceivedKey = "other-received";
     public const string OtherSentKey = "other-sent";
 
+    /// <summary>The one-click Tag as query correction (operator, 11 October 2026): a received post-report query.</summary>
+    public static readonly string QueryKey =
+        $"received:{ReceivedMailFamily.PostReportEmails}:{MailCategory.QuerySubtype}";
+
+    /// <summary>The reason Tag as query records in the message's classification history.</summary>
+    public const string TaggedAsQueryReason = "Tagged as query";
+
     // Labels resolve through the one operator label map, so the picker and
     // every read-only rendering of a classification use the same words.
     public static IReadOnlyList<SelectionOption> Options { get; } =

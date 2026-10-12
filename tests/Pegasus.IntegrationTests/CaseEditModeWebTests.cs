@@ -426,7 +426,7 @@ public sealed class CaseEditModeWebTests
 
     [Theory]
     [InlineData(CaseLifecycleState.Held)]
-    [InlineData(CaseLifecycleState.PostReportComplete)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled)]
     public async Task CraftedEngineeringSaveIsRefusedOutsideTheCoreEditStates(CaseLifecycleState state)
     {
         var store = new RecordingCaseDetailsStore();
@@ -493,7 +493,7 @@ public sealed class CaseEditModeWebTests
     [Fact]
     public async Task InvalidTypedEngineeringValueCannotBecomeASilentClear()
     {
-        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.PostReport };
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportSent };
         using var workspace = await EnterEditModeAsync(store, services =>
             Substitute<ISaveCaseWorkspace>(services, store));
         using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
@@ -506,7 +506,7 @@ public sealed class CaseEditModeWebTests
     [Fact]
     public async Task AnAssessmentPathOutsideTheCaseEditorRefusesTheWholeSave()
     {
-        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.PostReport };
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportSent };
         using var workspace = await EnterEditModeAsync(store, services =>
             Substitute<ISaveCaseWorkspace>(services, store));
         using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
@@ -808,16 +808,17 @@ public sealed class CaseEditModeWebTests
 
 
     [Fact]
-    public async Task HoldingTheEditLeaseDefersOnlyFilesAndNotesAndKeepsTheSingleEditorComplete()
+    public async Task HoldingTheEditLeaseDefersOnlyFilesNotesAndQueriesAndKeepsTheSingleEditorComplete()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, _ => { });
 
         var html = await workspace.GetWorkspaceAsync();
 
-        Assert.Equal(["files", "notes"], DeferredSections(html));
+        Assert.Equal(["files", "notes", "queries"], DeferredSections(html));
         Assert.Contains("id=\"section-files\"", html, StringComparison.Ordinal);
         Assert.Contains("id=\"section-notes\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"section-queries\"", html, StringComparison.Ordinal);
         Assert.Contains("section-placeholder", html, StringComparison.Ordinal);
         Assert.Equal(CaseSectionKeys, HostOrder(html));
         Assert.Equal(store.LeaseToken, InputValue(html, "editLeaseToken"));

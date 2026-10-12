@@ -12,7 +12,7 @@ public sealed class OperatorCaseListLabels : ICaseListLabels
 
     public string CaseType(CaseType type) => OperatorLabels.CaseTypeName(type);
 
-    public string Stage(CaseLifecycleState state) => OperatorLabels.CaseStage(state);
+    public string Stage(CaseLifecycleState state, bool hasOpenQuery) => OperatorLabels.CaseStage(state, hasOpenQuery);
 
     public string TriageStage(TriageState state) => OperatorLabels.TriageState(state);
 

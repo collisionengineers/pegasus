@@ -194,14 +194,7 @@ public static class ThirdPartyReportProfiles
     /// The assessors the signature table names, by display name and once each,
     /// offered where an Audit's Original report names its assessor (v28 P51).
     /// </summary>
-    public static IReadOnlyList<string> KnownIssuers =>
-        SignatureTable
-            .Select(signature => signature.Issuer)
-            .Where(issuer => !string.IsNullOrWhiteSpace(issuer))
-            .Select(issuer => issuer!)
-            .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal)
-            .ToArray();
+    public static IReadOnlyList<string> KnownIssuers => KnownIssuerList;
 
     private const string ExclusiveIssuer = @"Exclusive\s*Vehicle\s*Assessors";
     private const string ConnexusIssuer = @"Connexus\s*Vehicle\s*Assessors";
@@ -298,6 +291,15 @@ public static class ThirdPartyReportProfiles
     private static readonly CompiledSignature[] Compiled =
         [.. SignatureTable.Select(CompiledSignature.Compile)];
 
+    private static readonly string[] KnownIssuerList =
+        SignatureTable
+            .Select(signature => signature.Issuer)
+            .Where(issuer => !string.IsNullOrWhiteSpace(issuer))
+            .Select(issuer => issuer!)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
     /// <summary>
     /// Whether a document-owned signature establishes a non-image source role.
     /// Ambiguous signatures still establish that the source is not image-only,
@@ -326,17 +328,6 @@ public static class ThirdPartyReportProfiles
     /// Selects the issuer family or the explicit non-report role for one source.
     /// Every signature is evaluated; the outcome is decided by how many matched.
     /// </summary>
-    public static ThirdPartyReportSelection Select(
-        IntakeSourceReadResult readResult,
-        ThirdPartyReportSourceContext context)
-    {
-        ArgumentNullException.ThrowIfNull(readResult);
-        ArgumentNullException.ThrowIfNull(context);
-
-        var pages = ThirdPartySourcePage.Read(readResult);
-        return Select(pages, context);
-    }
-
     internal static ThirdPartyReportSelection Select(
         IReadOnlyList<ThirdPartySourcePage> pages,
         ThirdPartyReportSourceContext context)

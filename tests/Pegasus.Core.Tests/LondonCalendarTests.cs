@@ -15,6 +15,23 @@ public sealed class LondonCalendarTests
     }
 
     [Fact]
+    public void RepeatedCallsAcrossTheSpringBstChangeReturnTheSameInstants()
+    {
+        for (var call = 0; call < 2; call++)
+        {
+            Assert.Equal(
+                new DateTimeOffset(2026, 3, 29, 0, 0, 0, TimeSpan.Zero),
+                LondonCalendar.StartOfDay(new DateOnly(2026, 3, 29)));
+            Assert.Equal(
+                new DateTimeOffset(2026, 3, 29, 23, 0, 0, TimeSpan.Zero),
+                LondonCalendar.StartOfDay(new DateOnly(2026, 3, 30)));
+            Assert.Equal(
+                new DateOnly(2026, 3, 30),
+                LondonCalendar.DateAt(new DateTimeOffset(2026, 3, 29, 23, 30, 0, TimeSpan.Zero)));
+        }
+    }
+
+    [Fact]
     public void WinterCivilDateUsesUtcMidnightBoundaries()
     {
         var date = new DateOnly(2026, 1, 15);

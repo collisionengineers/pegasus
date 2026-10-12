@@ -145,8 +145,7 @@ internal static class WordPieceTableParser
                     return false;
                 }
 
-                ushort prm = U16(tableStream, pcdOffset + 6);
-                builder.Add(new(index, previousCp, nextCp, fileOffset, byteLength, unicode, prm));
+                builder.Add(new(index, previousCp, nextCp, fileOffset, byteLength, unicode));
                 previousCp = nextCp;
             }
 

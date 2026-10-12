@@ -772,23 +772,17 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Empty(store.LeaseClaims);
     }
 
+    // Report sent is editable (operator, 11 October 2026), so no open state
+    // reads the assessment read-only any more; an archived Case is the one
+    // readable Case that refuses the import.
     [Fact]
-    public async Task ArchivedAndReadOnlyCasesCannotStoreAnEstimate()
+    public async Task AnArchivedCaseCannotStoreAnEstimate()
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
         using var engineerClient = CreateEngineerClient(factory);
-        store.CaseState = CaseLifecycleState.PostReportComplete;
-        store.AssessmentState = CaseLifecycleState.PostReportComplete;
-        var readOnlyHtml = await GetHtmlAsync(engineerClient, $"/Cases/{caseId:D}?section=estimate");
-        using (var readOnlyForm = ImportForm(AntiforgeryValue(readOnlyHtml), caseId, NewOperationKey(), AudatexEstimateFixture.Build()))
-        using (var readOnlyResponse = await engineerClient.PostAsync($"/Cases/{caseId:D}?handler=ImportEstimate", readOnlyForm))
-        {
-            Assert.Equal(HttpStatusCode.Redirect, readOnlyResponse.StatusCode);
-        }
-        Assert.Empty(store.DocumentCalls);
 
         store.CaseState = CaseLifecycleState.Review;
         store.AssessmentState = CaseLifecycleState.ReportPreparation;
@@ -2300,7 +2294,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             GetCaseSectionQuery query,
             CancellationToken cancellationToken) =>
             Task.FromResult<CasePageFrame?>(Frame(query.CaseId) is { } frame
-                ? new(frame, Documents(), [], CaseRecordNotes.None, Data(frame))
+                ? new(frame, Documents(), [], new(null, null), Data(frame))
                 : null);
 
         Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
@@ -2594,10 +2588,6 @@ public sealed partial class AssessmentEstimateImportWebTests
             Guid ownerCaseId, Guid specificationId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RepairSpecificationSnapshot>>(
                 Snapshots.Where(item => item.CaseId == ownerCaseId && item.SpecificationId == specificationId).ToArray());
-
-        public Task<RepairSpecificationSnapshot?> GetAsync(
-            Guid ownerCaseId, Guid snapshotId, CancellationToken cancellationToken) =>
-            Task.FromResult<RepairSpecificationSnapshot?>(Snapshots.FirstOrDefault(item => item.Id == snapshotId));
 
         public Task<RepairSpecificationVersion> ScaleAsync(
             ScaleRepairSpecificationRequest request, CancellationToken cancellationToken) =>

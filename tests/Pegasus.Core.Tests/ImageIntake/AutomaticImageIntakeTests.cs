@@ -13,7 +13,7 @@ public sealed class AutomaticImageIntakeTests
     [Theory]
     [InlineData(IntakeSourceChannel.Mailbox)]
     [InlineData(IntakeSourceChannel.PrincipalApi)]
-    public async Task NonManualConfidentReadRegistersAndAssociatesTheSingleEligibleCase(
+    public async Task MailboxSingleMatchAssociatesWithoutRegistering(
         IntakeSourceChannel sourceChannel)
     {
         var harness = new Harness(sourceChannel: sourceChannel);
@@ -23,15 +23,19 @@ public sealed class AutomaticImageIntakeTests
             new(Guid.NewGuid(), "QDS26001", 3, "AB12CDE", DateTimeOffset.UnixEpoch)
         ];
 
-        await harness.ApplyAsync();
+        var outcome = await harness.ApplyAsync();
 
-        var registration = Assert.Single(harness.Register.Requests);
-        Assert.Equal("AB12CDE", registration.NormalizedVehicleRegistration);
-        Assert.Equal(ActorKind.SystemWorker, registration.Actor.Kind);
-        var link = Assert.Single(harness.MutationStore.AutoLinks);
-        Assert.Equal(harness.Receipt.Id, link.ReceiptId);
-        Assert.Equal(harness.CaseCandidates.Candidates[0].CaseId, link.CaseId);
-        Assert.Equal(3, link.ExpectedCaseVersion);
+        Assert.True(outcome.AssociatedCase);
+        Assert.False(outcome.AwaitingStaffDecision);
+        Assert.Empty(harness.Register.Requests);
+        var association = Assert.Single(harness.AssociationStore.Requests);
+        Assert.Equal(harness.Receipt.Id, association.IntakeReceiptId);
+        Assert.Equal(harness.CaseCandidates.Candidates[0].CaseId, association.CaseId);
+        Assert.Equal(ImageIntakeAutomation.MatchPolicyKey, association.MatchPolicyKey);
+        Assert.Equal(ImageIntakeAutomation.MatchPolicyVersion, association.MatchPolicyVersion);
+        Assert.Equal($"image-case-association:{harness.Receipt.Id:N}", association.OperationKey);
+        Assert.Equal(harness.Receipt.Id, outcome.Receipt.Id);
+        Assert.Equal(harness.CaseCandidates.Candidates[0].CaseId, outcome.Receipt.CurrentCaseId);
         var suggestion = Assert.Single(harness.SuggestionStore.Records);
         Assert.Equal(VrmRecognitionOutcomeKind.Suggested, suggestion.Outcome);
         Assert.Contains(
@@ -40,15 +44,35 @@ public sealed class AutomaticImageIntakeTests
     }
 
     [Fact]
-    public async Task ManualUploadRegistersItsRetainedImageButDefersTheCandidateUntilStaffAssociation()
+    public async Task ManualMatchWaitsWithoutRegistering()
     {
-        var harness = new Harness();
+        var harness = new Harness(inGroup: true);
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
         harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26001", 3, "AB12CDE", DateTimeOffset.UnixEpoch)];
 
-        await harness.ApplyAsync();
+        var outcome = await harness.ApplyAsync();
+
+        Assert.True(outcome.AwaitingStaffDecision);
+        Assert.False(outcome.AssociatedCase);
+        Assert.Empty(harness.Register.Requests);
+        Assert.Empty(harness.AssociationStore.Requests);
+        Assert.Empty(harness.MutationStore.AutoLinks);
+        Assert.Null(harness.ImageIntakeQueries.Existing);
+    }
+
+    [Fact]
+    public async Task ManualMatchPastTheWindowRegisters()
+    {
+        var harness = new Harness(
+            inGroup: true,
+            groupReceivedAtUtc: DateTimeOffset.UtcNow - ReconcileGroupedImageIntake.EscapeAfter - TimeSpan.FromMinutes(1));
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26001", 3, "AB12CDE", DateTimeOffset.UnixEpoch)];
+
+        var outcome = await harness.ApplyAsync();
         await harness.ApplyAsync();
 
+        Assert.False(outcome.AwaitingStaffDecision);
         var registration = Assert.Single(harness.Register.Requests);
         Assert.Equal(harness.Receipt.Id, registration.Origin.ReceiptId);
         Assert.Equal(harness.Receipt.SourceIdentity, registration.Origin.SourceIdentity);
@@ -56,6 +80,34 @@ public sealed class AutomaticImageIntakeTests
         Assert.Equal(ImageInitiatedCaseState.AwaitingInstruction, harness.ImageIntakeQueries.Existing!.State);
         Assert.Empty(harness.MutationStore.AutoLinks);
         Assert.Equal(1, harness.ImageIntakeQueries.EnsureRegisteredCalls);
+    }
+
+    [Fact]
+    public async Task DeclinedManualMatchRegisters()
+    {
+        var harness = new Harness(
+            inGroup: true,
+            imageMatchDeclined: new("staff-1", DateTimeOffset.UtcNow));
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26001", 3, "AB12CDE", DateTimeOffset.UnixEpoch)];
+
+        var outcome = await harness.ApplyAsync();
+
+        Assert.False(outcome.AwaitingStaffDecision);
+        Assert.Single(harness.Register.Requests);
+        Assert.Empty(harness.MutationStore.AutoLinks);
+    }
+
+    [Fact]
+    public async Task ManualNoCandidateRegisters()
+    {
+        var harness = new Harness(inGroup: true);
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+
+        var outcome = await harness.ApplyAsync();
+
+        Assert.False(outcome.AwaitingStaffDecision);
+        Assert.Single(harness.Register.Requests);
     }
 
     [Fact]
@@ -160,12 +212,13 @@ public sealed class AutomaticImageIntakeTests
             new(Guid.NewGuid(), "QDS26003", 2, "BX69YLM", DateTimeOffset.UnixEpoch)
         ];
 
-        await harness.ApplyAsync();
+        var outcome = await harness.ApplyAsync();
 
-        var registration = Assert.Single(harness.Register.Requests);
-        Assert.Equal("BX69YLM", registration.NormalizedVehicleRegistration);
-        var link = Assert.Single(harness.MutationStore.AutoLinks);
-        Assert.Equal(harness.CaseCandidates.Candidates[0].CaseId, link.CaseId);
+        Assert.True(outcome.AssociatedCase);
+        Assert.Empty(harness.Register.Requests);
+        var association = Assert.Single(harness.AssociationStore.Requests);
+        Assert.Equal(harness.CaseCandidates.Candidates[0].CaseId, association.CaseId);
+        Assert.Contains("one character missing", association.Reason, StringComparison.Ordinal);
         Assert.Contains(
             harness.SuggestionStore.Dispositions,
             disposition => disposition.Disposition == ImageVrmSuggestionDisposition.Confirmed);
@@ -185,10 +238,8 @@ public sealed class AutomaticImageIntakeTests
 
         await harness.ApplyAsync();
 
-        var registration = Assert.Single(harness.Register.Requests);
-        Assert.Equal("BX69YLM", registration.NormalizedVehicleRegistration);
-        var link = Assert.Single(harness.MutationStore.AutoLinks);
-        Assert.Equal(exactCaseId, link.CaseId);
+        Assert.Empty(harness.Register.Requests);
+        Assert.Equal(exactCaseId, Assert.Single(harness.AssociationStore.Requests).CaseId);
     }
 
     [Fact]
@@ -203,10 +254,10 @@ public sealed class AutomaticImageIntakeTests
 
         await harness.ApplyAsync();
 
-        var registration = Assert.Single(harness.Register.Requests);
-        Assert.Equal("PK20YHR", registration.NormalizedVehicleRegistration);
-        var link = Assert.Single(harness.MutationStore.AutoLinks);
-        Assert.Equal(harness.CaseCandidates.Candidates[0].CaseId, link.CaseId);
+        Assert.Empty(harness.Register.Requests);
+        Assert.Equal(
+            harness.CaseCandidates.Candidates[0].CaseId,
+            Assert.Single(harness.AssociationStore.Requests).CaseId);
     }
 
     [Fact]
@@ -227,6 +278,26 @@ public sealed class AutomaticImageIntakeTests
         var registration = Assert.Single(harness.Register.Requests);
         Assert.Equal("BX69YL", registration.NormalizedVehicleRegistration);
         Assert.Empty(harness.MutationStore.AutoLinks);
+        Assert.Empty(harness.AssociationStore.Requests);
+    }
+
+    [Fact]
+    public async Task MailboxSeveralMatchesRegisters()
+    {
+        var harness = new Harness(sourceChannel: IntakeSourceChannel.Mailbox);
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.CaseCandidates.Candidates =
+        [
+            new(Guid.NewGuid(), "QDS26001", 1, "AB12CDE", DateTimeOffset.UnixEpoch),
+            new(Guid.NewGuid(), "QDS26002", 1, "AB12CDE", DateTimeOffset.UnixEpoch)
+        ];
+
+        var outcome = await harness.ApplyAsync();
+
+        Assert.False(outcome.AssociatedCase);
+        Assert.False(outcome.AwaitingStaffDecision);
+        Assert.Single(harness.Register.Requests);
+        Assert.Empty(harness.AssociationStore.Requests);
     }
 
     [Fact]
@@ -497,7 +568,9 @@ public sealed class AutomaticImageIntakeTests
         // the group hands off to ImageIntake. A member-level candidate
         // search would, on its own, resolve the ambiguity by exact match and
         // associate — that must never overrule the group decision.
-        var harness = new GroupHarness(memberCount: 2);
+        var harness = new GroupHarness(
+            memberCount: 2,
+            receivedAtUtc: DateTimeOffset.UtcNow - ReconcileGroupedImageIntake.EscapeAfter - TimeSpan.FromMinutes(1));
         harness.Engine.Enqueue(Suggested("BX69YLM", 0.95));
         harness.Engine.Enqueue(Suggested("BX69YLM", 0.95));
         var exactCaseId = Guid.NewGuid();
@@ -562,12 +635,96 @@ public sealed class AutomaticImageIntakeTests
             new(Guid.NewGuid(), "QDS26015", 1, "BX69YLMA", DateTimeOffset.UnixEpoch)
         ];
 
-        await harness.ApplyAsync(triggerOrdinal: 0);
+        var outcome = await harness.ApplyAsync(triggerOrdinal: 0);
 
+        Assert.True(outcome.AssociatedCase);
+        Assert.Empty(harness.Register.Requests);
+        var association = Assert.Single(harness.AssociationStore.Requests);
+        Assert.Equal(exactCaseId, association.CaseId);
+        Assert.Equal(ImageIntakeAutomation.MatchPolicyKey, association.MatchPolicyKey);
+    }
+
+    [Fact]
+    public async Task ManualGroupMatchWaitsWithoutRegistering()
+    {
+        var harness = new GroupHarness(memberCount: 2);
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26013", 1, "AB12CDE", DateTimeOffset.UnixEpoch)];
+
+        var outcome = await harness.ApplyAsync(triggerOrdinal: 1);
+
+        Assert.True(outcome.AwaitingStaffDecision);
+        Assert.False(outcome.GroupPending);
+        Assert.Empty(harness.Register.Requests);
+        Assert.Empty(harness.MutationStore.AutoLinks);
+    }
+
+    [Fact]
+    public async Task ManualGroupMatchPastTheWindowRegistersTheGroupOnce()
+    {
+        var harness = new GroupHarness(
+            memberCount: 2,
+            receivedAtUtc: DateTimeOffset.UtcNow - ReconcileGroupedImageIntake.EscapeAfter - TimeSpan.FromMinutes(1));
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26013", 1, "AB12CDE", DateTimeOffset.UnixEpoch)];
+
+        var outcome = await harness.ApplyAsync(triggerOrdinal: 1);
+
+        Assert.False(outcome.AwaitingStaffDecision);
         var registration = Assert.Single(harness.Register.Requests);
-        Assert.Equal("BX69YLM", registration.NormalizedVehicleRegistration);
-        var link = Assert.Single(harness.MutationStore.AutoLinks);
-        Assert.Equal(exactCaseId, link.CaseId);
+        Assert.Equal(harness.GroupId, registration.SubmissionGroupId);
+        Assert.Empty(harness.MutationStore.AutoLinks);
+    }
+
+    [Fact]
+    public async Task DeclinedManualGroupMatchRegistersTheGroup()
+    {
+        var harness = new GroupHarness(
+            memberCount: 2,
+            imageMatchDeclined: new("staff-1", DateTimeOffset.UtcNow));
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26013", 1, "AB12CDE", DateTimeOffset.UnixEpoch)];
+
+        var outcome = await harness.ApplyAsync(triggerOrdinal: 1);
+
+        Assert.False(outcome.AwaitingStaffDecision);
+        Assert.Single(harness.Register.Requests);
+    }
+
+    [Fact]
+    public async Task ManualGroupWithNoMatchRegistersTheGroup()
+    {
+        var harness = new GroupHarness(memberCount: 2);
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+
+        var outcome = await harness.ApplyAsync(triggerOrdinal: 1);
+
+        Assert.False(outcome.AwaitingStaffDecision);
+        Assert.Single(harness.Register.Requests);
+    }
+
+    [Fact]
+    public async Task AStaffLinkedMemberNeitherWaitsNorRegistersTheGroup()
+    {
+        var harness = new GroupHarness(memberCount: 2);
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26013", 1, "AB12CDE", DateTimeOffset.UnixEpoch)];
+        // Staff linked then reversed the first member: the decision is theirs.
+        harness.ReplaceReceipt(0, harness.Receipts[0] with
+        {
+            ManualAssociationVersion = 1,
+            ManualAssociationActorKind = ActorKind.Staff
+        });
+
+        var outcome = await harness.ApplyAsync(triggerOrdinal: 1);
+
+        Assert.False(outcome.AwaitingStaffDecision);
+        Assert.False(outcome.GroupPending);
+        Assert.Empty(harness.Register.Requests);
     }
 
     [Fact]
@@ -658,7 +815,10 @@ public sealed class AutomaticImageIntakeTests
             string mediaType = "image/jpeg",
             Guid? manualLinkedCaseId = null,
             IntakeSourceChannel sourceChannel = IntakeSourceChannel.ManualUpload,
-            IReadOnlyList<IntakeAssetRecord>? retainedAssets = null)
+            IReadOnlyList<IntakeAssetRecord>? retainedAssets = null,
+            bool inGroup = false,
+            DateTimeOffset? groupReceivedAtUtc = null,
+            ImageMatchDeclined? imageMatchDeclined = null)
         {
             var assets = retainedAssets?.ToArray() ?? Enumerable.Range(0, assetCount)
                 .Select(index =>
@@ -722,6 +882,20 @@ public sealed class AutomaticImageIntakeTests
             Register.ImageStore = ImageIntakeQueries;
             ImageIntakeQueries.ReceiptQueries = ReceiptQueries;
             MutationStore.ReceiptQueries = ReceiptQueries;
+            AssociationStore.ReceiptQueries = ReceiptQueries;
+            if (inGroup)
+            {
+                // A manual upload of one file is still a submission group.
+                GroupStore.Group = new IntakeSubmissionGroup(
+                    Guid.NewGuid(),
+                    sourceChannel,
+                    "receipt-token",
+                    1,
+                    "staff:test",
+                    groupReceivedAtUtc ?? DateTimeOffset.UtcNow,
+                    [],
+                    ImageMatchDeclined: imageMatchDeclined);
+            }
             Automation = new ImageIntakeAutomation(
                 Engine,
                 SuggestionStore,
@@ -737,7 +911,10 @@ public sealed class AutomaticImageIntakeTests
                     MutationStore,
                     TimeProvider.System,
                     new CommittedWorkPublisherDouble(),
-                    ReceiptQueries));
+                    ReceiptQueries),
+                TimeProvider.System,
+                AssociationStore,
+                inGroup ? GroupStore : null);
         }
 
         public IntakeReceipt Receipt { get; }
@@ -757,6 +934,10 @@ public sealed class AutomaticImageIntakeTests
         public FakeCaseCandidates CaseCandidates { get; } = new();
 
         public FakeMutationStore MutationStore { get; } = new();
+
+        public FakeAssociationStore AssociationStore { get; } = new();
+
+        public FakeGroupStore GroupStore { get; } = new();
 
         public FakeReceiptQueries ReceiptQueries { get; } = new();
 
@@ -845,9 +1026,6 @@ public sealed class AutomaticImageIntakeTests
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ImageVrmSuggestion>>(
                 Records.Where(record => record.IntakeReceiptId == intakeReceiptId).ToArray());
-
-        public Task<ImageVrmSuggestion?> GetAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult(Records.FirstOrDefault(record => record.Id == id));
 
         public Task<ImageVrmSuggestion> SetDispositionAsync(
             ImageVrmSuggestionDispositionRequest request,
@@ -1082,6 +1260,30 @@ public sealed class AutomaticImageIntakeTests
         }
     }
 
+    private sealed class FakeAssociationStore : Pegasus.Core.Intake.IAutomaticCaseAssociationStore
+    {
+        public FakeReceiptQueries ReceiptQueries { get; set; } = null!;
+        public List<AutomaticCaseAssociationRequest> Requests { get; } = [];
+
+        public Task<AutomaticCaseAssociationOutcome> AssociateFromMatchAsync(
+            AutomaticCaseAssociationRequest request,
+            DateTimeOffset occurredAtUtc,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            if (ReceiptQueries.Receipt?.Id == request.IntakeReceiptId)
+            {
+                ReceiptQueries.Receipt = ReceiptQueries.Receipt with
+                {
+                    ManualLinkedCaseId = request.CaseId,
+                    ManualAssociationVersion = 0,
+                    ManualAssociationActorKind = ActorKind.SystemWorker
+                };
+            }
+            return Task.FromResult(AutomaticCaseAssociationOutcome.Associated);
+        }
+    }
+
     [Theory]
     [InlineData(QueuedIntakeProcessingOutcome.Completed, 3, 1, 0)]
     [InlineData(QueuedIntakeProcessingOutcome.RetryScheduled, 0, 1, 0)]
@@ -1247,7 +1449,9 @@ public sealed class AutomaticImageIntakeTests
             int memberCount,
             int? expectedMemberCount = null,
             IReadOnlyDictionary<int, string>? mediaTypeByOrdinal = null,
-            IntakeSourceChannel sourceChannel = IntakeSourceChannel.ManualUpload)
+            IntakeSourceChannel sourceChannel = IntakeSourceChannel.ManualUpload,
+            DateTimeOffset? receivedAtUtc = null,
+            ImageMatchDeclined? imageMatchDeclined = null)
         {
             const string submissionToken = "group-token";
             var groupId = Guid.NewGuid();
@@ -1318,13 +1522,15 @@ public sealed class AutomaticImageIntakeTests
                 submissionToken,
                 expectedMemberCount ?? memberCount,
                 "staff:test",
-                DateTimeOffset.UtcNow,
-                members);
+                receivedAtUtc ?? DateTimeOffset.UtcNow,
+                members,
+                ImageMatchDeclined: imageMatchDeclined);
 
             Register.ImageStore = ImageIntakeQueries;
             Register.GroupExpectedMemberCount = GroupStore.Group.ExpectedMemberCount;
             ImageIntakeQueries.ReceiptQueries = ReceiptQueries;
             MutationStore.ReceiptQueries = ReceiptQueries;
+            AssociationStore.ReceiptQueries = ReceiptQueries;
             automation = new ImageIntakeAutomation(
                 Engine,
                 SuggestionStore,
@@ -1341,6 +1547,8 @@ public sealed class AutomaticImageIntakeTests
                     TimeProvider.System,
                     new CommittedWorkPublisherDouble(),
                     ReceiptQueries),
+                TimeProvider.System,
+                AssociationStore,
                 GroupStore);
         }
 
@@ -1363,6 +1571,8 @@ public sealed class AutomaticImageIntakeTests
         public FakeCaseCandidates CaseCandidates { get; } = new();
 
         public FakeMutationStore MutationStore { get; } = new();
+
+        public FakeAssociationStore AssociationStore { get; } = new();
 
         public FakeReceiptQueries ReceiptQueries { get; } = new();
 

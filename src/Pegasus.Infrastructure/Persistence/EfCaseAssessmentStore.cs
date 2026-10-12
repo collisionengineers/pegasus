@@ -416,9 +416,9 @@ internal static class CaseDataFieldValues
         IReadOnlyList<CaseDataFieldEntity> fields,
         string fieldName)
     {
-        var values = fields.Where(item => item.FieldName == fieldName).ToArray();
-        return values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Confirmed)
-            ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Fact)
-            ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Suggestion);
+        return AcceptedField(fields, fieldName)
+            ?? fields
+                .Where(item => item.FieldName == fieldName)
+                .SingleOrDefault(item => item.ValueKind == CaseDataCodes.Suggestion);
     }
 }

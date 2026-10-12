@@ -172,11 +172,11 @@
                says what the step says is that control alone; any other names
                itself above its section's control. The step is the viewed
                work's and its link stays in that view (operator, 2 October
-               2026). Assign Engineer, Create audit and Mark completed open the
-               Actions menu's own dialogs, Create audit greyed with its reason
-               as the menu item is; where the menu does not offer Assign
-               Engineer or Mark completed the step is its words alone
-               (issue 1025). *@
+               2026). Assign Engineer and Create audit open the Actions menu's
+               own dialogs, Create audit greyed with its reason as the menu
+               item is; Resolve query is the menu's own post, or the mail
+               query's Reply (operator, 11 October 2026); where the menu does
+               not offer the act the step is its words alone (issue 1025). *@
             @if (next is { } nextRow)
             {
                 if (nextRow.Blocker is { } first)
@@ -226,12 +226,21 @@
                         }
                     </div>
                 }
-                else if (nextRow.OpensMarkCompleted)
+                else if (nextRow.ResolvesQuery)
                 {
-                    <div class="next-step" data-next-step>
-                        @if (Model.CanMarkCompleted)
+                    @* Resolve query (operator, 11 October 2026): a query that came
+                       by e-mail leads to that message's reply, where the composer's
+                       tick resolves it on observed Sent; a staff-logged query is the
+                       Actions menu's own Resolve query. *@
+                    <div class="next-step" data-next-step data-next-resolve-query>
+                        @if (Model.OldestOpenQuery is { Source: Pegasus.Core.Workflow.CaseQuerySource.Mail, RetainedMessageId: { } queryMessageId } && Model.StaffMailAvailable)
                         {
-                            <button type="button" class="@StepButton" data-dialog-open="case-complete-dialog" data-next-mark-completed>@Frame.MarkCompleted</button>
+                            <strong data-next-label>@nextRow.Label</strong>
+                            <a class="@StepButton" asp-page="/Mail/Message" asp-route-id="@queryMessageId" asp-route-compose="reply" asp-route-correspondenceCaseReference="@workflow.Identity.Reference" asp-route-resolveQuery="true" data-next-reply-query>@OperatorLabels.StaffMail.Reply</a>
+                        }
+                        else if (Model.CanResolveQuery)
+                        {
+                            <partial name="Cases/Shared/_ResolveQueryForm" model="Model" view-data="@(new ViewDataDictionary(ViewData) { ["ResolveQueryButtonClass"] = StepButton })" />
                         }
                         else
                         {
@@ -261,7 +270,7 @@
                        Actions menu's own dialog (v36 item D, 9 October 2026). *@
                     <div class="next-step" data-next-step data-next-held>
                         <strong data-next-label>@Model.StateChipText</strong>
-                        @if (!Model.ColleagueIsEditing && !Model.IsPostReportReadOnly)
+                        @if (!Model.ColleagueIsEditing)
                         {
                             <button type="button" class="@StepButton" data-dialog-open="case-release-hold-dialog" data-next-release-hold>@Frame.ReleaseHold</button>
                         }

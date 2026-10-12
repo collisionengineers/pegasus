@@ -175,9 +175,9 @@ automation remain deferred.
 ## Ongoing Case responsibility
 
 Inspection, Audit, Inspection + Audit and Triage are active product scope.
-Formal Cases have no terminally closed state: Completed returns to Query when a
-query is received or attached, and returns to Completed when the query is
-replied to. Every Audit Case/PO uses the `a.` prefix independently of its
+Formal Cases have no terminally closed state: Report sent is the last stage,
+a query raised on the Case marks it Query until the query is resolved, and
+the Case stays editable throughout. Every Audit Case/PO uses the `a.` prefix independently of its
 assessment outcome, and every Triage Case/PO the `t.` prefix. The Audit of an
 Inspection + Audit Case lives on that Case under the Audit reference
 `a.{Case/PO}`.

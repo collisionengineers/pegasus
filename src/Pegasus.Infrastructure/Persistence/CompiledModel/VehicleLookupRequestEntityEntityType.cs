@@ -20,7 +20,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 typeof(VehicleLookupRequestEntity),
                 baseEntityType,
                 propertyCount: 10,
-                navigationCount: 3,
+                navigationCount: 2,
                 foreignKeyCount: 2,
                 unnamedIndexCount: 2,
                 keyCount: 1);

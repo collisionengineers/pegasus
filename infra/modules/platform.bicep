@@ -72,7 +72,7 @@ var queueDataMessageSenderRole = subscriptionResourceId('Microsoft.Authorization
 var tableDataContributorRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')
 var monitoringMetricsPublisherRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3913510d-42f4-4e42-8a64-420c390055eb')
 var cognitiveServicesUserRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')
-var webSqlConnectionString = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDatabase.name};Authentication=Active Directory Managed Identity;User Id=${webIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
+var webSqlConnectionString = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDatabase.name};Authentication=Active Directory Managed Identity;User Id=${webIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;Min Pool Size=5;'
 var workerSqlConnectionString = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDatabase.name};Authentication=Active Directory Managed Identity;User Id=${workerIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
@@ -567,7 +567,7 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         // The one-minute recovery timer also runs the due-work sweep and the approved-inbox
         // fallback poll on every fifth minute; they have no schedule or Disabled setting of their own.
         { name: 'PendingWorkRecoverySchedule', value: '0 * * * * *' }
-        { name: 'IntakeStagedArtifactReconciliationSchedule', value: '*/10 * * * * *' }
+        { name: 'IntakeStagedArtifactReconciliationSchedule', value: '0 * * * * *' }
         { name: 'SentEvidencePollSchedule', value: '0 * * * * *' }
         { name: 'AzureWebJobs.PendingWorkRecoveryFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.UnifiedWorkFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
@@ -713,6 +713,42 @@ resource applicationExceptionAlert 'Microsoft.Insights/scheduledQueryRules@2023-
       ]
     }
     autoMitigate: true
+    actions: {
+      actionGroups: [actionGroup.id]
+    }
+  }
+}
+
+resource telemetryDailyCapAlert 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+  name: '${prefix}-telemetry-daily-cap'
+  location: location
+  tags: tags
+  properties: {
+    displayName: 'Pegasus production telemetry approaching the daily cap'
+    description: 'Telemetry ingested since 00:00Z has reached 80 percent of the daily cap. Request telemetry is dropped once the cap trips.'
+    severity: 3
+    enabled: true
+    evaluationFrequency: 'PT5M'
+    scopes: [logAnalytics.id]
+    targetResourceTypes: ['Microsoft.OperationalInsights/workspaces']
+    windowSize: 'PT15M'
+    overrideQueryTimeRange: 'P1D'
+    criteria: {
+      allOf: [
+        {
+          query: 'Usage | where TimeGenerated >= startofday(now()) and IsBillable == true | summarize IngestedMb=sum(Quantity) | project PercentOfCap=100.0 * IngestedMb / (${telemetryDailyCapGb} * 1000.0)'
+          timeAggregation: 'Maximum'
+          metricMeasureColumn: 'PercentOfCap'
+          operator: 'GreaterThanOrEqual'
+          threshold: 80
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+        }
+      ]
+    }
+    autoMitigate: false
     actions: {
       actionGroups: [actionGroup.id]
     }

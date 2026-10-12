@@ -135,15 +135,12 @@ public static class WorkerDependencyInjection
                         Path.Combine(GetOfflineArtifactRoot(configuration, environment), "vehicle-replay"),
                         provider.GetRequiredService<TimeProvider>()));
             }
-            services.AddScoped<IProcessQueuedVehicleLookup, ProcessQueuedVehicleLookup>();
-            services.AddScoped<IProcessQueuedExternalWork, ProcessQueuedExternalWork>();
         }
         else
         {
             services.AddProductionExternalAdapters(
                 productionOptions!.Value.Graph,
                 productionOptions.Value.Vehicle);
-            services.AddScoped<IProcessQueuedVehicleLookup, ProcessQueuedVehicleLookup>();
 
             if (ocrOptions is not null)
             {
@@ -151,9 +148,10 @@ public static class WorkerDependencyInjection
                 services.AddHttpClient<IIntakeOcrProvider, AzureDocumentIntelligenceOcr>();
                 services.AddScoped<IProcessIntakeOcr, ProcessIntakeOcr>();
             }
-            services.AddScoped<IProcessQueuedExternalWork, ProcessQueuedExternalWork>();
         }
 
+        services.AddScoped<IProcessQueuedVehicleLookup, ProcessQueuedVehicleLookup>();
+        services.AddScoped<IProcessQueuedExternalWork, ProcessQueuedExternalWork>();
         services.AddScoped<VehicleRegistrationCandidateLookup>();
 
         services.AddScoped<EfIntakeWorkStore>();
@@ -184,9 +182,6 @@ public static class WorkerDependencyInjection
         services.AddScoped<ReconcilePoisonedIntakeWork>();
         services.AddScoped<ReconcileStagedArtifacts>();
         services.AddScoped<ReconcileGroupedImageIntake>();
-        services.AddScoped<ReconcileAutomaticVehicleLookups>();
-        services.AddScoped<ResolveIntake>();
-        services.AddScoped<ReevaluateIntake>();
         services.AddSingleton<IExternalWorkEnqueuer>(serviceProvider =>
         {
             var queues = serviceProvider.GetRequiredService<WorkerQueueClients>();
@@ -280,27 +275,11 @@ public static class WorkerDependencyInjection
         IConfiguration configuration,
         IHostEnvironment environment)
     {
-        var mailboxId = configuration["ApprovedInbox:MailboxId"]
-            ?? throw new InvalidOperationException("ApprovedInbox:MailboxId is required.");
-        var mailboxAddress = configuration["ApprovedInbox:MailboxAddress"]
-            ?? throw new InvalidOperationException("ApprovedInbox:MailboxAddress is required.");
         var localPath = configuration["ApprovedInbox:LocalRootPath"]
             ?? throw new InvalidOperationException("ApprovedInbox:LocalRootPath is required.");
-        // Optional: the offline root is now the root of a local mailbox estate, and each
-        // mailbox reads one folder beneath it. Existing settings keep the default.
-        var inboxFolderIdentity = configuration["ApprovedInbox:InboxFolderIdentity"];
-        return string.IsNullOrWhiteSpace(inboxFolderIdentity)
-            ? new(
-                DevelopmentOfflineProfile,
-                mailboxId,
-                mailboxAddress,
-                Path.GetFullPath(Path.Combine(environment.ContentRootPath, localPath)))
-            : new(
-                DevelopmentOfflineProfile,
-                mailboxId,
-                mailboxAddress,
-                Path.GetFullPath(Path.Combine(environment.ContentRootPath, localPath)),
-                inboxFolderIdentity);
+        return new(
+            DevelopmentOfflineProfile,
+            Path.GetFullPath(Path.Combine(environment.ContentRootPath, localPath)));
     }
 
     private static LocalApprovedSentOptions GetLocalApprovedSentOptions(

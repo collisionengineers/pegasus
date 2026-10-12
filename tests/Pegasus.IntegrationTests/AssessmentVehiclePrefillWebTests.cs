@@ -169,7 +169,7 @@ public sealed class AssessmentVehiclePrefillWebTests
             GetCaseSectionQuery query,
             CancellationToken cancellationToken) =>
             Task.FromResult<CasePageFrame?>(Frame(query.CaseId) is { } frame
-                ? new(frame, [], [], CaseRecordNotes.None, CaseData(frame))
+                ? new(frame, [], [], new(null, null), CaseData(frame))
                 : null);
 
         Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(

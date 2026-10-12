@@ -41,41 +41,6 @@
     var damageFields = CaseWorkspaceLabels.Editors.Damage;
     var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "damage");
     var profile = DamagePlanGeometry.ProfileFor(Model.AssessmentEditorValue(AssessmentVocabulary.VehicleType));
-    // The vocabulary and the plan the editor works with, handed to script once
-    // so the browser holds no second copy of the areas, the bands, the disc
-    // limits or the severity table.
-    var areaTable = JsonSerializer.Serialize(new
-    {
-        plan = AssessmentVocabulary.DamagePlanAreas,
-        other = AssessmentVocabulary.DamageOtherAreas,
-        names = AssessmentVocabulary.DamageAreas,
-        centres = DamageAreaGeometry.Centres.ToDictionary(
-            entry => entry.Key,
-            entry => new { x = entry.Value.X, y = entry.Value.Y }),
-        box = new { x = DamagePlanGeometry.PlanLeft, y = DamagePlanGeometry.PlanTop, w = DamagePlanGeometry.PlanWidth, h = DamagePlanGeometry.PlanHeight },
-        bands = new { front = DamageAreaGeometry.FrontBand, rear = DamageAreaGeometry.RearBand, left = DamageAreaGeometry.LeftBand, right = DamageAreaGeometry.RightBand },
-        radius = DamageAreaGeometry.BaseRadius,
-        margin = DamageAreaGeometry.Margin,
-        minRadius = DamageAreaGeometry.MinRadius,
-        maxRadius = DamageAreaGeometry.MaxRadius,
-        burst = new
-        {
-            points = DamageBurst.Points,
-            depth = DamageBurst.SpikeDepth,
-            rotation = DamageBurst.Rotation,
-            stretchX = DamageBurst.StretchX,
-            stretchY = DamageBurst.StretchY,
-            jitter = DamageBurst.Jitter,
-            fill = DamageBurst.Fill,
-            opacity = DamageBurst.FillOpacity,
-            line = DamageBurst.Line,
-            lineWidth = DamageBurst.LineWidth
-        }
-    });
-    var severityTable = JsonSerializer.Serialize(AssessmentVocabulary.DamageSeverities
-        .OrderBy(entry => entry.Value.Rank)
-        .Select(entry => new { k = entry.Key, n = entry.Value.Display }));
-
     // The derived cells follow Core's rule: one distinct area reads as itself,
     // more than one reads "Multiple · a, b"; the severity is the highest rank
     // recorded.
@@ -102,7 +67,7 @@
 
 <section class="record-section record-section--nested panel @Model.CollapsedClass("case.damage") case-damage @(Model.IsEditing && !editable ? "is-locked" : null)" id="section-damage" data-section="damage" data-section-parent="vehicle" data-collapse="case.damage" aria-labelledby="section-damage-title"
          data-damage-editor data-damage-editable="@(editable ? "true" : "false")" data-damage-impacts="@rawImpacts"
-         data-damage-areas="@areaTable" data-damage-severities="@severityTable" data-damage-multiple="@DamageLabels.Multiple"
+         data-damage-areas="@DamageEditorTables.AreaTable" data-damage-severities="@DamageEditorTables.SeverityTable" data-damage-multiple="@DamageLabels.Multiple"
          data-damage-absent="@OperatorLabels.CaseWorkspace.AbsentValue" data-damage-none="@DamageLabels.NoDamageRecorded"
          data-damage-no-note="@DamageLabels.NoNote" data-damage-note-label="@DamageLabels.Note" data-damage-remove-label="@DamageLabels.Remove"
          data-damage-grade-label="@DamageLabels.Severity">

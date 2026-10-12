@@ -222,6 +222,7 @@ public interface IRenderCaseEstimateDocument
 
 public sealed class RenderCaseEstimateDocument(
     IGetAssessmentWorkspace workspaces,
+    IGetAssessmentWorkspaceVersion workspaceVersions,
     IRepairSpecificationStore estimates,
     IEstimateDocumentRenderer renderer,
     TimeProvider clock) : IRenderCaseEstimateDocument
@@ -249,12 +250,12 @@ public sealed class RenderCaseEstimateDocument(
             {
                 return NotFound();
             }
-            var current = await workspaces.ExecuteAsync(new(caseId, actor), cancellationToken);
-            if (current is null)
+            var currentVersion = await workspaceVersions.ExecuteAsync(new(caseId, actor), cancellationToken);
+            if (currentVersion is null)
             {
                 return NotFound();
             }
-            if (current.Header.Version != workspace.Header.Version)
+            if (currentVersion != workspace.Header.Version)
             {
                 continue;
             }

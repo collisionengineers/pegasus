@@ -14,6 +14,7 @@ using Pegasus.Core.Reports;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
+using SearchIndexModel = Pegasus.Web.Pages.Search.IndexModel;
 
 namespace Pegasus.Web.Pages.Cases;
 
@@ -25,8 +26,9 @@ namespace Pegasus.Web.Pages.Cases;
 /// <remarks>
 /// The rail is one continuous list with no groups (issue 1046): Not ready,
 /// Review, With Engineer, Query, Triage, Awaiting instruction, Held and
-/// Unidentified. Completed Cases have no queue; Search's State filter finds
-/// them. The Unidentified scope lists open items, with closed items
+/// Unidentified. Report sent Cases have no queue; Search's State filter finds
+/// them. Query lists every open Case with an open query (operator, 11
+/// October 2026). The Unidentified scope lists open items, with closed items
 /// behind its Show filter (received file D5); nothing here lists a Blocked
 /// receipt or links to a received item (received file D1, D2).
 ///
@@ -102,7 +104,7 @@ public sealed class IndexModel(
         new("not_ready", OperatorLabels.CaseStage(CaseLifecycleState.NotReady), "icon-clock"),
         new("review", OperatorLabels.CaseStage(CaseLifecycleState.Review), "icon-check-circle"),
         new("with_engineer", OperatorLabels.CaseStage(CaseLifecycleState.ReportPreparation), "icon-user"),
-        new("query", OperatorLabels.CaseStage(CaseLifecycleState.Query), "icon-reply"),
+        new("query", OperatorLabels.QueryStage, "icon-reply"),
         new("triage", "Triage", "icon-file-text"),
         new("awaiting", "Awaiting instruction", "icon-image"),
         new("held", OperatorLabels.CaseStage(CaseLifecycleState.Held), "icon-pause"),
@@ -489,19 +491,19 @@ public sealed class IndexModel(
 
     private async Task<IReadOnlyList<QueueRow>> LoadCasesAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        // With Engineer is two Core states read as one stage (D3), searched
-        // together so the stage pages as one list.
-        var stage = Queue switch
+        // Each queue is one stage option: Query is every open Case with an
+        // open query, whatever its state (operator, 11 October 2026).
+        var stage = OperatorLabels.FindCaseStageOption(Queue switch
         {
-            "review" => CaseLifecycleState.Review,
-            "with_engineer" => CaseLifecycleState.ReportPreparation,
-            "query" => CaseLifecycleState.Query,
-            _ => CaseLifecycleState.Held
-        };
+            "review" => nameof(CaseLifecycleState.Review),
+            "with_engineer" => nameof(CaseLifecycleState.ReportPreparation),
+            "query" => OperatorLabels.QueryStage,
+            _ => nameof(CaseLifecycleState.Held)
+        })!;
         var result = await _searchCases.ExecuteAsync(
             new(
                 actor,
-                new(States: OperatorLabels.CaseStageStates(stage), Principal: PrincipalFilter),
+                new(States: stage.States, Principal: PrincipalFilter, HasOpenQuery: stage.HasOpenQuery),
                 CurrentPage,
                 PageSize),
             cancellationToken);
@@ -715,7 +717,7 @@ public sealed class IndexModel(
     public static string StateChipText(CaseSearchItem item) =>
         item.State == CaseLifecycleState.Held && item.HoldReviewOn is { } reviewOn
             ? $"{OperatorLabels.CaseStage(CaseLifecycleState.Held)} · review on {reviewOn.ToString("d MMM", CultureInfo.InvariantCulture)}"
-            : OperatorLabels.CaseStage(item.State);
+            : OperatorLabels.CaseStage(item.State, item.HasOpenQuery);
 
     /// <summary>What a Not ready Case is missing, from its recorded completeness facts.</summary>
     public static string MissingText(CaseSearchItem item) => (item.InstructionComplete, item.ImagesComplete) switch
@@ -741,7 +743,7 @@ public sealed class IndexModel(
         return new QueueRow(
             RowKind.Case,
             item.CaseId,
-            Join(item.Reference, item.Registration),
+            SearchIndexModel.Join(item.Reference, item.Registration),
             [
                 new Cell(item.Reference, CellKind.Link),
                 item.Registration is { } registration ? new Cell(registration, CellKind.Mono) : Cell.Empty,
@@ -788,7 +790,7 @@ public sealed class IndexModel(
         return new QueueRow(
             RowKind.Image,
             item.Id,
-            Join(item.ImageIntakeReference, item.NormalizedVehicleRegistration),
+            SearchIndexModel.Join(item.ImageIntakeReference, item.NormalizedVehicleRegistration),
             [
                 new Cell(item.ImageIntakeReference, CellKind.Link),
                 new Cell(item.NormalizedVehicleRegistration, CellKind.Mono),
@@ -817,7 +819,7 @@ public sealed class IndexModel(
         return new QueueRow(
             RowKind.Triage,
             item.CaseId,
-            Join(item.Reference, item.NormalizedVehicleRegistration),
+            SearchIndexModel.Join(item.Reference, item.NormalizedVehicleRegistration),
             [
                 new Cell(item.Reference, CellKind.Link),
                 new Cell(item.NormalizedVehicleRegistration, CellKind.Mono),
@@ -835,7 +837,7 @@ public sealed class IndexModel(
     private static QueueRow UnidentifiedRow(UnidentifiedQueueRow row) => new(
         RowKind.Unidentified,
         row.Id,
-        Join(row.Reference, OperatorLabels.UnidentifiedMediaKind(row.MediaKind)),
+        SearchIndexModel.Join(row.Reference, OperatorLabels.UnidentifiedMediaKind(row.MediaKind)),
         [
             new Cell(row.Reference, CellKind.Link),
             new Cell(OperatorLabels.OfficeTime(row.ReceivedAtUtc), CellKind.Date),
@@ -860,7 +862,7 @@ public sealed class IndexModel(
         return new(
             RowKind.Unidentified,
             row.Id,
-            Join(row.Reference, OperatorLabels.UnidentifiedMediaKind(row.MediaKind)),
+            SearchIndexModel.Join(row.Reference, OperatorLabels.UnidentifiedMediaKind(row.MediaKind)),
             [
                 new Cell(row.Reference, CellKind.Link),
                 new Cell(OperatorLabels.OfficeTime(row.ReceivedAtUtc), CellKind.Date),
@@ -879,10 +881,6 @@ public sealed class IndexModel(
             Notice: outcome,
             NoticeTone: "success");
     }
-
-    /// <summary>"first · second", dropping whichever half is absent.</summary>
-    private static string Join(string? first, string? second) =>
-        string.Join(" · ", new[] { first, second }.Where(part => !string.IsNullOrWhiteSpace(part)));
 
     private static string[] PrincipalsOf(IEnumerable<CaseSearchItem> items) => items
         .Select(item => item.Principal)

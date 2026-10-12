@@ -271,6 +271,14 @@ public interface IAiJobQueries
         Guid subjectId,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The subject's newest pending Market research job (see
+    /// <c>MarketResearchPolicy.PendingOf</c>), without reading its other jobs.
+    /// </summary>
+    Task<AiJobRecord?> GetPendingMarketResearchAsync(
+        Guid subjectId,
+        CancellationToken cancellationToken);
+
     /// <summary>The most recently created jobs, newest first.</summary>
     Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(int max, CancellationToken cancellationToken);
 

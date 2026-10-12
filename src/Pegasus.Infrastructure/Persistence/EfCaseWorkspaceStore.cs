@@ -187,13 +187,16 @@ public sealed class EfCaseWorkspaceStore(
                 assessmentFields.ToDictionary(
                     item => item.FieldPath, item => (string?)item.Value, StringComparer.Ordinal));
         }
+        CaseValuationEntity? postedGuide = null;
         if (request.Valuation is { Adoption: { } chosen } chosenValuation)
         {
             // The report's Retail and Trade follow the guide card the
             // calculation is chosen against (operator, 8 October 2026).
             var withReportValues = new Dictionary<string, string?>(requestedFields, StringComparer.Ordinal);
-            foreach (var (path, value) in await EfValuationStore.ReportValuesAsync(
-                context, workId, chosen, chosenValuation.GuideEntries ?? [], cancellationToken))
+            var reportValues = await EfValuationStore.ReportValuesAsync(
+                context, workId, chosen, chosenValuation.GuideEntries ?? [], cancellationToken);
+            postedGuide = reportValues.PostedGuide;
+            foreach (var (path, value) in reportValues.Values)
             {
                 withReportValues[path] = value;
             }
@@ -296,6 +299,7 @@ public sealed class EfCaseWorkspaceStore(
                 request.OperationKey,
                 adoption,
                 guideEntries?.Written ?? [],
+                postedGuide,
                 string.Equals(
                     afterAssessment.GetValueOrDefault(AssessmentVocabulary.SettlementClaimantVatRegistered),
                     "true",

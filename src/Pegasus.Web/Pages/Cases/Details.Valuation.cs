@@ -288,10 +288,10 @@ public sealed partial class DetailsModel
     private async Task LoadValuationSectionAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken)
     {
         var section = ReadValuationSectionAsync(caseId, actor, WorkSelector, cancellationToken);
-        var jobs = aiJobs.ListForSubjectAsync(caseId, cancellationToken);
-        await Task.WhenAll(section, jobs);
+        var pending = aiJobs.GetPendingMarketResearchAsync(caseId, cancellationToken);
+        await Task.WhenAll(section, pending);
         ApplyValuationSection(section.Result);
-        PendingMarketResearch = MarketResearchPolicy.PendingOf(jobs.Result);
+        PendingMarketResearch = pending.Result;
     }
 
     private async Task<ValuationSectionReads> ReadValuationSectionAsync(

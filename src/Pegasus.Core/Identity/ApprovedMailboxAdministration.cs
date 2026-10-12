@@ -94,8 +94,7 @@ public sealed record ApprovedMailboxPollStatus(
     DateTimeOffset? LastCompletedAtUtc,
     string? LastFailureCode,
     DateTimeOffset StartBoundaryUtc = default,
-    long Generation = 0,
-    IReadOnlyList<ApprovedMailboxRouteScope>? Capabilities = null)
+    long Generation = 0)
 {
     public bool IsFresh(DateTimeOffset nowUtc) =>
         LastCompletedAtUtc is { } completed

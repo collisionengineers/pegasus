@@ -38,6 +38,7 @@ public sealed class EfCaseAcceptanceStore(
         }
         ArgumentNullException.ThrowIfNull(request.Completeness);
         ArgumentNullException.ThrowIfNull(request.CompletenessEvaluation);
+        ArgumentNullException.ThrowIfNull(request.WorkflowConfiguration);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.CompletenessEvaluation.PolicyKey);
         if (request.CompletenessEvaluation.PolicyVersion < 1)
         {
@@ -216,7 +217,7 @@ public sealed class EfCaseAcceptanceStore(
 
         var caseId = Guid.NewGuid();
         var custodyWorkId = Guid.NewGuid();
-        var workflowConfiguration = await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken);
+        var workflowConfiguration = request.WorkflowConfiguration;
         var completenessEvaluation = CaseCompletenessPolicy.Evaluate(request.Completeness, workflowConfiguration);
         var initialState = completenessEvaluation.SatisfiesPolicy
             ? CaseInitialState.Review
@@ -304,7 +305,7 @@ public sealed class EfCaseAcceptanceStore(
                 MissingMaterialReason = "Details are incomplete",
                 DueBy = request.AcceptedInspectionDeadline,
                 State = CaseDueWorkState.Scheduled.ToString(),
-                NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(acceptedAtUtc, workflowConfiguration.ChaseIntervalDays),
+                NextChaseAtUtc = CaseChaseSchedule.NextChaseAt(acceptedAtUtc, workflowConfiguration.ChaseIntervalDays),
                 Version = 0
             });
         }
@@ -327,7 +328,7 @@ public sealed class EfCaseAcceptanceStore(
 
         // The accepted instruction's registration is a Fact on the snapshot
         // above, so the DVLA/MOT lookup is due now rather than on the Worker's
-        // next ten-second reconciliation sweep (FRD-06 D34). Enqueued in the
+        // next reconciliation sweep (FRD-06 D34). Enqueued in the
         // acceptance transaction so it cannot outlive a rolled-back
         // acceptance; published by AcceptIntake after the commit. Looked-up
         // values remain suggestions.

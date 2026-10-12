@@ -73,7 +73,7 @@ exclusion.
 | CASE-13 | Instruction and image completeness as separate named blockers | [Readiness and Review](frd/frd-13-case-lifecycle-and-workflow.md#readiness-and-review) |
 | CASE-14 | Mandatory instruction-completeness and image-completeness gate before Engineers-queue eligibility | [Readiness and Review](frd/frd-13-case-lifecycle-and-workflow.md#readiness-and-review) |
 | CASE-15 | Not ready becomes Review automatically when requirements are met | [Readiness and Review](frd/frd-13-case-lifecycle-and-workflow.md#readiness-and-review) |
-| CASE-16 | `Not ready`, `Review`, `With Engineer`, `Completed`, `Query` and `Held` workflow | [States and labels](frd/frd-13-case-lifecycle-and-workflow.md#states-and-labels) |
+| CASE-16 | `Not ready`, `Review`, `With Engineer`, `Report sent` and `Held` workflow, with `Query` as the open-query mark | [States and labels](frd/frd-13-case-lifecycle-and-workflow.md#states-and-labels) |
 | CASE-17 | Due-by date extraction and overdue display | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-18 | Configurable whole-calendar-day missing-information chase schedule | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-19 | Hold/release behavior that preserves the chase interval | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
@@ -110,7 +110,7 @@ exclusion.
 | DOC-01 | Automatic Box case-folder creation using the Case/PO name | [Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody) |
 | DOC-02 | Store source emails, instruction documents, images, correspondence, and reports in Box | [Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody) |
 | DOC-03 | Retained document versions | [Custody and derived reads](frd/frd-05-documents-extraction-and-custody.md#custody-and-derived-reads) |
-| DOC-04 | Case document authorization and reversible Completed/Query handling | [Staging and custody](frd/frd-05-documents-extraction-and-custody.md#staging-and-custody) |
+| DOC-04 | Case document authorization on a Report sent Case and its queries | [Staging and custody](frd/frd-05-documents-extraction-and-custody.md#staging-and-custody) |
 | DOC-05 | Logical file removal without destroying history | [Custody and derived reads](frd/frd-05-documents-extraction-and-custody.md#custody-and-derived-reads) |
 | DOC-07 | Staff upload, view, download, and export actions | [Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody) |
 | DOC-08 | Private transient file staging for Worker processing | [Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody) |
@@ -138,7 +138,6 @@ exclusion.
 | OPS-14 | Production cutover and previous-artifact rollback procedure | [ADR-0007 decision](adr/0007-direct-terminal-azure-deployment.md#decision) |
 | OPS-20 | Capacity for about eight concurrent staff and 2,000 new cases per month | [ADR-0002 context](adr/0002-dotnet-modular-monolith-on-azure.md#context) |
 | OPS-24 | Direct production deployment from an authorised terminal using committed Bicep through `azd` | [ADR-0007 decision](adr/0007-direct-terminal-azure-deployment.md#decision) |
-| DATA-01 | Publish immutable cumulative Principal-domain reference snapshots from approved spreadsheets | [Principal-domain reference authoring](runbook.md#principal-domain-reference-authoring) |
 | OPS-23 | Operator acceptance against the real end-to-end workflow | [Acceptance model](prd/pegasus-product.md#acceptance-model) |
 | OPS-25 | Collision Engineers management approval before production release | [Acceptance model](prd/pegasus-product.md#acceptance-model) |
 | DATA-02 | Prepare inspection-address / repairer reference data from separately approved spreadsheets | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
@@ -161,7 +160,7 @@ exclusion.
 | MAIL-10 | Manual email/case association, unlink, relink, correction, and the next action a corrected classification offers | [Classification, linking and folder-move actions](frd/frd-20-mailbox-workspace.md#classification-linking-and-folder-move-actions) |
 | MAIL-11 | Browse, search and view mailbox messages and threads | [Quick preview and message detail](frd/frd-20-mailbox-workspace.md#quick-preview-and-message-detail) |
 | MAIL-13 | Outlook category by allowlisted identifier; no read-state, flag or delete | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
-| CASE-23 | Post-report query work, disputes included, on the existing Case | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
+| CASE-23 | Queries, disputes included, raised, listed and resolved on the existing Case | [Report sent and queries](frd/frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries) |
 | UI-10 | Full email-management workspace | [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
 | UI-14 | Categorised email views by destination and classification | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue); [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
 | API-01 | Principal-scoped submission API | [Accepted API-01 submission contract](frd/frd-09-principal-and-intermediary-routes.md#accepted-api-01-submission-contract) |

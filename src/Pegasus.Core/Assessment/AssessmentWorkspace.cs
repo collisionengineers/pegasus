@@ -40,8 +40,7 @@ public static class AssessmentAccessPolicy
     public static bool CanOpen(AssessmentAccessState access)
     {
         ArgumentNullException.ThrowIfNull(access);
-        return AssessmentPolicy.IsWritableState(access.State)
-            || access.State is CaseLifecycleState.PostReportComplete;
+        return AssessmentPolicy.IsWritableState(access.State);
     }
 
     public static bool IsReadOnly(AssessmentAccessState access)
@@ -120,6 +119,15 @@ public interface IAssessmentWorkspaceSource
         Guid caseId,
         CaseWorkSelector work,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The workspace's <see cref="AssessmentWorkspaceHeader.Version"/> alone,
+    /// or null when the Case has no workflow: one narrow read for a caller
+    /// that only checks whether a workspace it holds is still current.
+    /// </summary>
+    Task<long?> GetVersionAsync(
+        Guid caseId,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IGetAssessmentWorkspace
@@ -144,5 +152,32 @@ public sealed class GetAssessmentWorkspace(IAssessmentWorkspaceSource source)
         }
 
         return source.GetAsync(query.CaseId, query.Work, cancellationToken);
+    }
+}
+
+public sealed record GetAssessmentWorkspaceVersionQuery(Guid CaseId, ActionActor Actor);
+
+public interface IGetAssessmentWorkspaceVersion
+{
+    Task<long?> ExecuteAsync(
+        GetAssessmentWorkspaceVersionQuery query,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class GetAssessmentWorkspaceVersion(IAssessmentWorkspaceSource source)
+    : IGetAssessmentWorkspaceVersion
+{
+    public Task<long?> ExecuteAsync(
+        GetAssessmentWorkspaceVersionQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        if (query.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(query));
+        }
+
+        return source.GetVersionAsync(query.CaseId, cancellationToken);
     }
 }

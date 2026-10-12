@@ -33,8 +33,21 @@ The Work Centre (`/`) shows office-wide work in one ledger (v30 design B,
 HH:MM", the page's one clock, with **Refresh** and **Create Case**; the utility bar's New case is omitted on this page and only
 this page, so the action has one home. The page refreshes itself only while
 its browser tab is visible: every five minutes, and when the tab regains focus
-after 30 seconds away. It never refreshes while a dialog is open or a field has
-focus. A refresh does not mark New cases as seen.
+after 30 seconds away. The five-minute refresh fires only when at least five
+minutes have passed since the last successful refresh; a failed or deferred
+refresh does not count. A focus refresh is therefore not followed by an
+interval refresh within seconds, and up to about 9 minutes 45 seconds can pass
+between automatic refreshes after one (operator, 11 October 2026). It never
+refreshes while a dialog is open or a field has focus. A refresh does not mark
+New cases as seen.
+
+**Saved scope on links.** When the browser's saved scope is Mine, the brand and
+Work Centre navigation links on every page carry `?scope=mine`, so a Mine user
+loads the Work Centre once, with no flash of Office content. The links render
+unscoped from the server and are rewritten in the browser. The "Since you last
+looked" divider is computed from that single load. Typed addresses, bookmarks
+and other links to `/` still load Office first and then move to Mine (operator,
+11 October 2026).
 
 **Metrics.** Five counts in one strip, label and figure on one line, in this
 order: Not ready, Review, Held, Unidentified and Triages. Each is an exact
@@ -46,8 +59,8 @@ no figure and the section's unavailable notice, never `0`.
 **Activity** (v32 A, operator 5 October 2026). Under the counts, a panel
 headed Activity holds a table: the figures head the columns and the rows are
 **Today** and **This week**. The figures are New cases, Sent to Engineer,
-Reports sent, Completed and E-mails received, each counted for both rows
-(operator 8 October 2026). Today runs from midnight Europe/London and This week
+Reports sent and E-mails received, each counted for both rows (operator 8
+and 11 October 2026). Today runs from midnight Europe/London and This week
 from Monday 00:00 Europe/London, both to the instant of the read. Every
 figure is office-wide and plain text; New cases opens the New cases tab
 when that tab is shown. The definitions:
@@ -56,8 +69,7 @@ when that tab is shown. The definitions:
 | --- | --- |
 | New cases | Cases created in the window, excluding Triage Cases, as the New cases list counts them |
 | Sent to Engineer | Cases whose first entry into With Engineer (`First sent to Engineer`, [FRD-13](frd-13-case-lifecycle-and-workflow.md#assign-engineer)) falls in the window; a later return to With Engineer is not counted |
-| Reports sent | Sent report e-mails, Automation's included, as the Engineer activity report MI-01 counts them ([FRD-17](frd-17-administration-workspace.md#management-reports)), so the two agree for the same week |
-| Completed | Cases that entered Complete in the window, including one reopened since |
+| Reports sent | Cases whose first report was sent in the window, each once: the first link of report-Sent evidence, by staff or the Worker; a re-send is not a second report (operator, 11 October 2026). MI-01 counts every sent report e-mail ([FRD-17](frd-17-administration-workspace.md#management-reports)), so the two can differ in a week with a re-send |
 | E-mails received | Mailbox receipts; an upload is also a receipt and is not counted |
 
 The figures are their own section with their own refresh state: a failed
@@ -215,10 +227,12 @@ found through Search by its `t.` Case/PO or registration (operator, issue
 A vehicle-images record still awaiting an instruction is listed under
 Awaiting instruction, never in a Case queue
 ([FRD-19](frd-19-image-led-intake-and-pairing.md#image-initiated-case-projection)).
-Completed and Query are reversible workflow states. Query has a queue;
-Completed has none, and a Completed Case is found through Search's State
-filter. Cancellation, rejection and Created in error are recorded
-dispositions, not a Closed queue.
+Query lists every open Case that holds an open query, whatever its state
+(operator, 11 October 2026). Report sent has no queue; a Report sent Case is
+found through Search's State filter, whose Report sent choice finds those
+with no open query and whose Query choice finds every Case with one.
+Cancellation, rejection and Created in error are recorded dispositions, not
+a Closed queue.
 
 Filters are Principal (every queue) and, on Not ready only, Missing with the
 exact options `All`, `Instructions`, `Images`, `Both missing`, plus Clear.

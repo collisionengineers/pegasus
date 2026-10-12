@@ -40,7 +40,11 @@ source, with its identity, version, and time. The UI shows provenance without
 treating it as confirmation: one word in a source tag beside the value
 (Extracted, AI, E-mail, Lookup, Principal, Automatic, Principal API), and no tag
 on a value staff typed or corrected. A derived value names its inputs and
-calculation rather than claiming a raw source.
+calculation rather than claiming a raw source. A standalone Audit's Original
+report cells are Extracted from the reading intake already recorded of that
+report, and from a fresh read of it only when none was recorded (operator,
+11 October 2026; see
+[Original report](frd-16-case-record-workspace.md#original-report)).
 
 Each datum also carries a value kind (Fact, Suggestion, or Confirmed) and a
 source kind (intake evidence, mail route, case acceptance, staff correction,

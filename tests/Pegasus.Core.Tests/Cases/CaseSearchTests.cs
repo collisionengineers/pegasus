@@ -64,10 +64,10 @@ public sealed class CaseSearchTests
 
         await search.ExecuteAsync(
             new(actor, new CaseSearchFilters(States:
-                [CaseLifecycleState.PostReport, CaseLifecycleState.ReportPreparation, CaseLifecycleState.PostReport])),
+                [CaseLifecycleState.ReportSent, CaseLifecycleState.ReportPreparation, CaseLifecycleState.ReportSent])),
             default);
         Assert.Equal(
-            new[] { CaseLifecycleState.ReportPreparation, CaseLifecycleState.PostReport },
+            new[] { CaseLifecycleState.ReportPreparation, CaseLifecycleState.ReportSent },
             store.Query!.Filters.States);
 
         await search.ExecuteAsync(new(actor, new CaseSearchFilters(States: [])), default);
@@ -106,6 +106,9 @@ public sealed class CaseSearchTests
             CancellationToken cancellationToken) => Task.FromResult<CaseHeader?>(null);
 
         public Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryAsync(Guid caseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<CaseQueryItem>> ListCaseQueriesAsync(Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<CaseSectionFrame?> GetSectionFrameAsync(Guid caseId, CancellationToken cancellationToken) =>

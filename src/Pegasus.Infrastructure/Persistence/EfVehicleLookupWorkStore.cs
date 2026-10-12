@@ -212,14 +212,24 @@ internal sealed class EfVehicleLookupWorkStore(
         var caseDataFields = await context.CaseDataFields
             .Where(item => item.WorkId == workId)
             .ToListAsync(cancellationToken);
-        var selectedMileageSource = await context.CaseAssessmentFields
-            .Where(item => item.WorkId == workId
-                && item.FieldPath == Pegasus.Core.Assessment.AssessmentVocabulary.VehicleMileageSource)
-            .Select(item => item.Value)
-            .SingleOrDefaultAsync(cancellationToken);
+        // The selected mileage source and the facts the lookup records are
+        // read together; the source is a dependency, not one of those facts,
+        // so it stays out of the rows the fill compares before and after.
+        string[] assessmentPaths =
+        [
+            AssessmentVocabulary.VehicleMileageSource,
+            AssessmentVocabulary.VehicleType,
+            .. AssessmentVocabulary.LookupDerivedPaths
+        ];
+        var assessmentRows = await context.CaseAssessmentFields
+            .Where(item => item.WorkId == workId && assessmentPaths.Contains(item.FieldPath))
+            .ToListAsync(cancellationToken);
+        var selectedMileageSource = assessmentRows
+            .SingleOrDefault(item => item.FieldPath == AssessmentVocabulary.VehicleMileageSource)?.Value;
+        assessmentRows.RemoveAll(item => item.FieldPath == AssessmentVocabulary.VehicleMileageSource);
         var beforeVehicle = ReportVehicleDependencies(caseDataFields, selectedMileageSource);
-        var (beforeAssessment, afterAssessment) = await FillVehicleFieldsAsync(
-            context, caseDataFields, workId, observationId, result, outcome.Mileage, recordedAtUtc, cancellationToken);
+        var (beforeAssessment, afterAssessment) = FillVehicleFields(
+            context, caseDataFields, assessmentRows, workId, observationId, result, outcome.Mileage, recordedAtUtc);
         var freshness = CaseReportFreshness.ClassifyVehicle(
             beforeVehicle,
             ReportVehicleDependencies(caseDataFields, selectedMileageSource));
@@ -342,15 +352,15 @@ internal sealed class EfVehicleLookupWorkStore(
     /// Runs inside the caller's transaction, alongside the observation it
     /// came from, so the two can never disagree about what the lookup said.
     /// </summary>
-    private static async Task<(Dictionary<string, string?> Before, Dictionary<string, string?> After)> FillVehicleFieldsAsync(
+    private static (Dictionary<string, string?> Before, Dictionary<string, string?> After) FillVehicleFields(
         PegasusDbContext context,
         List<CaseDataFieldEntity> caseDataFields,
+        List<CaseAssessmentFieldEntity> assessmentRows,
         Guid workId,
         Guid observationId,
         VehicleLookupResult result,
         VehicleMileageCalculation? mileage,
-        DateTimeOffset recordedAtUtc,
-        CancellationToken cancellationToken)
+        DateTimeOffset recordedAtUtc)
     {
         // An answer describes the vehicle it looked up. One for a registration
         // the work no longer names (staff corrected it while the lookup was
@@ -454,12 +464,8 @@ internal sealed class EfVehicleLookupWorkStore(
         }
 
         // The Vehicle type keeps its fill rule; the facts only the lookup records
-        // follow each answer. Both are read once, so report freshness compares
-        // their values before and after this answer.
-        string[] assessmentPaths = [AssessmentVocabulary.VehicleType, .. AssessmentVocabulary.LookupDerivedPaths];
-        var assessmentRows = await context.CaseAssessmentFields
-            .Where(item => item.WorkId == workId && assessmentPaths.Contains(item.FieldPath))
-            .ToListAsync(cancellationToken);
+        // follow each answer. Both are read once by the caller, so report
+        // freshness compares their values before and after this answer.
         var before = Values(assessmentRows);
 
         void Write(CaseAssessmentFieldEntity? existing, string path, string value)

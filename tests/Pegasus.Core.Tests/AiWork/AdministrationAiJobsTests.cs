@@ -60,6 +60,7 @@ public sealed class AdministrationAiJobsTests
         public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<AiJobRecord>>([]);
         public Task<AiJobQueryPage> ListOpenPageAsync(AiJobKind? kind, string grantId, DateTimeOffset? afterCreatedAtUtc, Guid? afterJobId, int limit, CancellationToken cancellationToken) => Task.FromResult(new AiJobQueryPage([], false));
         public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(Guid subjectId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<AiJobRecord>>([]);
+        public Task<AiJobRecord?> GetPendingMarketResearchAsync(Guid subjectId, CancellationToken cancellationToken) => Task.FromResult<AiJobRecord?>(null);
         public Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(int max, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<AiJobRecord>>([]);
         public Task<AiJobCounts> GetCountsAsync(CancellationToken cancellationToken) => Task.FromResult(new AiJobCounts(2, 1));
     }

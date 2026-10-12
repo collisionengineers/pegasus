@@ -524,6 +524,72 @@ public sealed class ProductionVehicleLookupTests
         Assert.Empty(result.MotTests);
     }
 
+    private const string DvlaHost = "driver-vehicle-licensing.api.gov.uk";
+
+    private static HttpResponseMessage PairedProviders(
+        HttpRequestMessage request,
+        bool dvlaThrows,
+        bool dvsaThrows)
+    {
+        if (request.RequestUri!.Host == DvlaHost)
+        {
+            return dvlaThrows
+                ? throw new HttpRequestException("dvla transport")
+                : Json(HttpStatusCode.OK, """{"make":"FORD"}""");
+        }
+        if (request.RequestUri.Host == "login.microsoftonline.com")
+        {
+            return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
+        }
+        return dvsaThrows
+            ? throw new TimeoutException("dvsa transport")
+            : Json(HttpStatusCode.OK, """{"make":"FORD","model":"FOCUS","motTests":[]}""");
+    }
+
+    [Fact]
+    public async Task WhenBothProvidersAnswerTheLookupIsCurrent()
+    {
+        using var adapter = Create(request => PairedProviders(request, dvlaThrows: false, dvsaThrows: false));
+
+        var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
+
+        Assert.Equal(VehicleLookupOutcome.Current, result.Outcome);
+        Assert.Equal("FOCUS", result.Vehicle?.Model);
+    }
+
+    [Fact]
+    public async Task WhenOnlyDvlaThrowsItsExceptionSurfaces()
+    {
+        using var adapter = Create(request => PairedProviders(request, dvlaThrows: true, dvsaThrows: false));
+
+        var thrown = await Assert.ThrowsAsync<HttpRequestException>(() =>
+            adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None));
+
+        Assert.Equal("dvla transport", thrown.Message);
+    }
+
+    [Fact]
+    public async Task WhenOnlyDvsaThrowsItsExceptionSurfaces()
+    {
+        using var adapter = Create(request => PairedProviders(request, dvlaThrows: false, dvsaThrows: true));
+
+        var thrown = await Assert.ThrowsAsync<TimeoutException>(() =>
+            adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None));
+
+        Assert.Equal("dvsa transport", thrown.Message);
+    }
+
+    [Fact]
+    public async Task WhenBothProvidersThrowTheDvlaExceptionWins()
+    {
+        using var adapter = Create(request => PairedProviders(request, dvlaThrows: true, dvsaThrows: true));
+
+        var thrown = await Assert.ThrowsAsync<HttpRequestException>(() =>
+            adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None));
+
+        Assert.Equal("dvla transport", thrown.Message);
+    }
+
     private static DvlaDvsaProductionAdapter Create(Func<HttpRequestMessage, HttpResponseMessage> handler)
     {
         var values = new Dictionary<string, string?>

@@ -826,6 +826,10 @@ public sealed class StartupWarmupTests
             Guid subjectId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        Task<AiJobRecord?> IAiJobQueries.GetPendingMarketResearchAsync(
+            Guid subjectId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         Task<IReadOnlyList<AiJobRecord>> IAiJobQueries.ListRecentAsync(
             int max, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
@@ -881,9 +885,6 @@ public sealed class StartupWarmupTests
         public Task<RetainedMailCursorPage> ListByCursorAsync(
             MailWorkspaceScope scope, DateTimeOffset? beforeReceivedAtUtc, Guid? beforeId, int limit,
             CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<int> CountAsync(MailWorkspaceScope scope, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<int>> CountManyAsync(

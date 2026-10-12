@@ -58,18 +58,6 @@ public sealed class VehicleRegistrationCandidateLookupTests
         Assert.Contains(alternative, candidates);
     }
 
-    [Theory]
-    [InlineData(MachineReadRegistrationSource.EmbeddedDocumentText)]
-    [InlineData(MachineReadRegistrationSource.StaffConfirmed)]
-    [InlineData(MachineReadRegistrationSource.CaseSearch)]
-    public async Task NonMachineSourcesNeverInvokeLookup(MachineReadRegistrationSource source)
-    {
-        var adapter = new RecordingAdapter((registration, _) => Valid(registration, VehicleLookupOutcome.NotFound));
-        await Assert.ThrowsAsync<ArgumentException>(() => new VehicleRegistrationCandidateLookup(adapter)
-            .LookupAsync(new("O100IOO", source, "recorded-source")));
-        Assert.Empty(adapter.Requests);
-    }
-
     [Fact]
     public async Task OneViableAfterAllConclusiveNotFoundIsAcceptedAndLedgerPreserved()
     {
@@ -93,7 +81,7 @@ public sealed class VehicleRegistrationCandidateLookupTests
         var adapter = new RecordingAdapter((registration, order) => Valid(registration,
             order == 0 ? VehicleLookupOutcome.Partial : unresolved));
         var result = await new VehicleRegistrationCandidateLookup(adapter).LookupAsync(
-            new("O100IOO", MachineReadRegistrationSource.VehicleRecognition, "image-4"));
+            new("O100IOO", MachineReadRegistrationSource.DocumentOcr, "image-4"));
         Assert.Null(result.AcceptedResult);
         Assert.Null(result.AcceptedRegistration);
         Assert.Contains(result.Attempts, attempt => attempt.Result.Outcome == unresolved);

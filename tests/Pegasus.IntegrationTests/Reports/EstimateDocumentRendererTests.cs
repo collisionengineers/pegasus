@@ -93,7 +93,7 @@ public sealed partial class EstimateDocumentRendererTests
             Assert.Equal(
                 [
                     Squeeze(AssessmentReportWording.Footer("AB12 CDE", "QDOS26001", feeNote: false)),
-                    Squeeze(AssessmentReportWording.PageNumber(index + 1, pages.Count)),
+                    Squeeze(PageNumber(index + 1, pages.Count)),
                 ],
                 foot.OrderBy(line => line.Left).Select(line => line.Text));
             Assert.All(foot, line => Assert.Equal("#777777", line.Colour));

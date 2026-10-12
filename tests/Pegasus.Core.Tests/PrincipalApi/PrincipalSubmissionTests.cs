@@ -519,7 +519,7 @@ public sealed class PrincipalSubmissionTests
 
         var result = await Reconcile(store, intake, history).ExecuteAsync(50);
 
-        Assert.Equal(1, result.Candidates);
+        Assert.Equal(0, result.Candidates);
         Assert.Equal(0, result.Repaired);
         Assert.Empty(history.Entries);
     }
@@ -592,6 +592,7 @@ public sealed class PrincipalSubmissionTests
 
         public Task<IReadOnlyList<PrincipalSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
             int maximumItems,
+            DateTimeOffset receivedAtOrBeforeUtc,
             CancellationToken cancellationToken)
         {
             var accepted = HistoryEntries
@@ -601,7 +602,8 @@ public sealed class PrincipalSubmissionTests
                 .Select(entry => Guid.Parse(entry.AggregateId))
                 .ToHashSet();
             IReadOnlyList<PrincipalSubmissionAcceptCandidate> candidates = Records.Values
-                .Where(record => Intake?.IsRetained(record.Id) == true && !accepted.Contains(record.Id))
+                .Where(record => Intake?.IsRetained(record.Id) == true && !accepted.Contains(record.Id)
+                    && record.ReceivedAtUtc <= receivedAtOrBeforeUtc)
                 .OrderBy(record => record.ReceivedAtUtc)
                 .ThenBy(record => record.Id)
                 .Take(maximumItems)
@@ -658,7 +660,17 @@ public sealed class PrincipalSubmissionTests
             return Task.FromResult(new ReceivedIntake(id, IsDuplicate: false));
         }
 
-        public async Task<ReceivedIntake> ExecuteStreamedAsync(
+        public Task<ReceivedIntake> ExecuteStreamedAsync(
+            StreamedIntakeSource source,
+            string operationKey,
+            CancellationToken cancellationToken = default) =>
+            ReceiveStreamedAsync(source, operationKey, cancellationToken);
+
+        public Task PublishCommittedAsync(
+            ReceivedIntake received,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public async Task<ReceivedIntake> ReceiveStreamedAsync(
             StreamedIntakeSource source,
             string operationKey,
             CancellationToken cancellationToken = default)
@@ -731,6 +743,9 @@ public sealed class PrincipalSubmissionTests
             throw new NotSupportedException();
 
         public Task<int> CountAsync(IReadOnlyCollection<TriageState>? state, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<TriageRecord?> GetRecordAsync(Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>

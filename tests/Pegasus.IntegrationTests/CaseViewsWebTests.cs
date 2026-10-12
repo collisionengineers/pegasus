@@ -48,7 +48,7 @@ public sealed class CaseViewsWebTests
     /// <summary>An Inspection + Audit Case whose Inspection report is sent, with its Engineer.</summary>
     private static RecordingCaseDetailsStore SentCase(Guid engineerId) => new()
     {
-        State = CaseLifecycleState.PostReport,
+        State = CaseLifecycleState.ReportSent,
         SummaryCaseType = CaseType.InspectionAndAudit,
         AssignedEngineerId = engineerId,
         ReportSentEvidence = SentEvidence(InspectionSentAtUtc)
@@ -547,8 +547,8 @@ public sealed class CaseViewsWebTests
     /// Once the Inspection report is sent, Create audit is the Next action of
     /// an Inspection + Audit Case that has no Audit yet, with the Actions
     /// menu's own control: live, or greyed with Core's reason (operator,
-    /// 2 October 2026). Any other Case is marked completed next, with the
-    /// Actions menu's own Mark completed control.
+    /// 2 October 2026). Any other Report sent Case without an open query has
+    /// none (operator, 11 October 2026).
     /// </summary>
     [Theory]
     [InlineData(CaseType.InspectionAndAudit, true, null)]
@@ -559,7 +559,7 @@ public sealed class CaseViewsWebTests
     {
         var store = new RecordingCaseDetailsStore
         {
-            State = CaseLifecycleState.PostReport,
+            State = CaseLifecycleState.ReportSent,
             SummaryCaseType = caseType,
             AssignedEngineerId = engineerAssigned ? Guid.NewGuid() : null,
             ReportSentEvidence = SentEvidence(InspectionSentAtUtc)
@@ -574,14 +574,12 @@ public sealed class CaseViewsWebTests
 
         var next = NextAction(await host.ReadAsync($"/Cases/{store.CaseId:D}"));
 
+        Assert.DoesNotContain("data-next-mark-completed", next, StringComparison.Ordinal);
         if (caseType != CaseType.InspectionAndAudit)
         {
-            Assert.Contains(
-                $"<button type=\"button\" class=\"btn next-step-go\" data-dialog-open=\"case-complete-dialog\" data-next-mark-completed>{Frame.MarkCompleted}</button>",
-                next,
-                StringComparison.Ordinal);
-            Assert.DoesNotContain("data-next-label", next, StringComparison.Ordinal);
+            Assert.Contains("<strong data-next-label>None</strong>", next, StringComparison.Ordinal);
             Assert.DoesNotContain("data-next-create-audit", next, StringComparison.Ordinal);
+            Assert.DoesNotContain("data-next-resolve-query", next, StringComparison.Ordinal);
             return;
         }
         // The step is Create audit's own control, not its words beside it
@@ -604,22 +602,77 @@ public sealed class CaseViewsWebTests
     }
 
     /// <summary>
-    /// A Completed or Query Case cannot be marked completed, so once its report
-    /// is sent its Next action is None; a Completed Inspection + Audit Case
-    /// without its Audit still creates it next (operator, 11 October 2026;
-    /// issue 1163).
+    /// A Report sent Case with an open query resolves it next, before Create
+    /// audit (operator, 11 October 2026): a query that came by e-mail leads to
+    /// that message's reply with Also resolve query ticked, while staff mail is
+    /// available; otherwise, and for a staff-logged query, the step is the
+    /// Actions menu's own Resolve query post. The ribbon's chip reads Query.
     /// </summary>
     [Theory]
-    [InlineData(CaseLifecycleState.Query, CaseType.Inspection)]
-    [InlineData(CaseLifecycleState.PostReportComplete, CaseType.Inspection)]
-    [InlineData(CaseLifecycleState.PostReportComplete, CaseType.InspectionAndAudit)]
-    public async Task CompletedOrQueryCaseIsNotMarkedCompletedOnceTheReportIsSent(
-        CaseLifecycleState state, CaseType caseType)
+    [InlineData(CaseQuerySource.Mail, true, CaseType.Inspection)]
+    [InlineData(CaseQuerySource.Mail, false, CaseType.Inspection)]
+    [InlineData(CaseQuerySource.Staff, true, CaseType.InspectionAndAudit)]
+    public async Task ResolveQueryIsTheNextActionOfAReportSentCaseWithAnOpenQuery(
+        CaseQuerySource source, bool staffMail, CaseType caseType)
+    {
+        var messageId = Guid.NewGuid();
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportSent,
+            SummaryCaseType = caseType,
+            AssignedEngineerId = Guid.NewGuid(),
+            ReportSentEvidence = SentEvidence(InspectionSentAtUtc),
+            HasOpenQuery = true,
+            OldestOpenQuery = new(source, source == CaseQuerySource.Mail ? messageId : null)
+        };
+        using var host = new ReadingHost(store, services =>
+        {
+            Substitute<ICaseReportGenerationStore>(services, new ReportsPerWork(store.CaseId));
+            Substitute<ICaseReportSnapshotSource>(
+                services,
+                new AssessmentReportDraftWebTests.FakeProjectionSource(AssessmentReportDraftWebTests.ReadyInput(store.CaseId)));
+            if (staffMail)
+            {
+                Substitute<IStaffMailSend>(services, new OfferedStaffMailSend());
+            }
+        });
+
+        var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
+        var next = NextAction(html);
+
+        Assert.Contains("data-next-resolve-query", next, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-next-create-audit", next, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-next-mark-completed", next, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.QueryStage}</span>", RibbonStateChip(html), StringComparison.Ordinal);
+        if (source == CaseQuerySource.Mail && staffMail)
+        {
+            Assert.Contains($"<strong data-next-label>{Frame.ResolveQuery}</strong>", next, StringComparison.Ordinal);
+            var reply = Regex.Match(next, "<a[^>]*data-next-reply-query[^>]*>");
+            Assert.True(reply.Success, "The Next action does not lead to the query's reply.");
+            Assert.Contains($"href=\"/Inbox/{messageId:D}?", reply.Value, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("compose=reply", reply.Value, StringComparison.Ordinal);
+            Assert.Contains($"correspondenceCaseReference={Reference}", reply.Value, StringComparison.Ordinal);
+            Assert.Contains("resolveQuery=true", reply.Value, StringComparison.Ordinal);
+            Assert.DoesNotContain("data-resolve-query-form", next, StringComparison.Ordinal);
+            return;
+        }
+        Assert.DoesNotContain("data-next-reply-query", next, StringComparison.Ordinal);
+        Assert.Contains("data-resolve-query-form", next, StringComparison.Ordinal);
+        Assert.Contains($"/Cases/{store.CaseId:D}/Closure?handler=ResolveQuery", next, StringComparison.OrdinalIgnoreCase);
+        Assert.Matches("<button type=\"submit\" class=\"btn next-step-go\"[^>]*data-resolve-query>", next);
+        Assert.Contains(Frame.ResolveQuery, next, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A Report sent Case with no open query reads Report sent and has no
+    /// query step (operator, 11 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task AReportSentCaseWithoutAnOpenQueryReadsReportSentAndHasNoQueryStep()
     {
         var store = new RecordingCaseDetailsStore
         {
-            State = state,
-            SummaryCaseType = caseType,
+            State = CaseLifecycleState.ReportSent,
             AssignedEngineerId = Guid.NewGuid(),
             ReportSentEvidence = SentEvidence(InspectionSentAtUtc)
         };
@@ -631,16 +684,14 @@ public sealed class CaseViewsWebTests
                 new AssessmentReportDraftWebTests.FakeProjectionSource(AssessmentReportDraftWebTests.ReadyInput(store.CaseId)));
         });
 
-        var next = NextAction(await host.ReadAsync($"/Cases/{store.CaseId:D}"));
+        var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
+        var next = NextAction(html);
 
-        Assert.DoesNotContain("data-next-mark-completed", next, StringComparison.Ordinal);
-        Assert.DoesNotContain($">{Frame.MarkCompleted}<", next, StringComparison.Ordinal);
-        if (caseType == CaseType.InspectionAndAudit)
-        {
-            Assert.Contains("data-next-create-audit>", next, StringComparison.Ordinal);
-            return;
-        }
         Assert.Contains("<strong data-next-label>None</strong>", next, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-next-resolve-query", next, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-resolve-query", html, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.CaseStage(CaseLifecycleState.ReportSent)}</span>", RibbonStateChip(html), StringComparison.Ordinal);
+        Assert.DoesNotContain("Completed", next, StringComparison.Ordinal);
     }
 
     /// <summary>
