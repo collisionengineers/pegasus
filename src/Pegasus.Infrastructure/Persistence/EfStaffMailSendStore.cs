@@ -706,6 +706,11 @@ internal sealed class EfStaffMailSendStore(
                 var remaining = generated
                     .Select(value => (VersionId: (Guid?)value.VersionId, value.Sha256))
                     .ToList();
+                // The Principal's rules may attach the Case's recognised filed
+                // estimates beside the generated documents (#1015).
+                remaining.AddRange(
+                    (await EfFiledEstimateAttachmentQueries.ReadAsync(db, caseId.Value, cancellationToken).ConfigureAwait(false))
+                        .Select(estimate => (estimate.Attachment.VersionId, estimate.Attachment.Sha256)));
                 foreach (var wanted in frozen)
                 {
                     var index = remaining.FindIndex(value =>
