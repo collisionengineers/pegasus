@@ -290,14 +290,7 @@ public sealed class ImageIntakeAutomation(
             }
         }
 
-        var registrationCandidates = recognitions
-            .Select(recognition => VrmRecognitionProvisionalBar.AcceptedRegistration(
-                recognition.Outcome,
-                recognition.NormalizedRegistration,
-                recognition.Confidence))
-            .OfType<string>()
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+        var registrationCandidates = VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(recognitions);
         IReadOnlyList<ImageIntakeCaseCandidate> eligibleCases = registrationCandidates.Length == 1
             ? await caseCandidates.FindEligibleByRegistrationAsync(
                 registrationCandidates[0],

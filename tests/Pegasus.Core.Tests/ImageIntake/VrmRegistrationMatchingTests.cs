@@ -67,6 +67,30 @@ public sealed class VrmRegistrationMatchingTests
         Assert.Equal(["PK2Y01HR"], VrmRegistrationMatching.CandidateForms("PK2Y01HR"));
     }
 
+    [Fact]
+    public void AConfidentReadContainedInALongerConfidentReadIsNotADistinctRegistration()
+    {
+        // AK, AK24 and AK24UYD are one plate read three times (operator,
+        // 12 October 2026).
+        Assert.Equal(
+            new[] { "AK24UYD" },
+            VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(
+                new[] { Read("AK", 0.9), Read("AK24", 0.85), Read("AK24UYD", 0.89), Read("AK24UYD", 0.95) }));
+        // Only a confident longer read absorbs a shorter one.
+        Assert.Equal(
+            new[] { "AK24" },
+            VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(
+                new[] { Read("AK24", 0.85), Read("AK24UYD", 0.5) }));
+        // Two full plates that do not contain each other still conflict.
+        Assert.Equal(
+            new[] { "AK24UYD", "BX69YLM" },
+            VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(
+                new[] { Read("AK24UYD", 0.89), Read("BX69YLM", 0.9) }));
+    }
+
+    private static ImageIntakeGroupMemberRecognition Read(string registration, double confidence) =>
+        new(Guid.NewGuid(), IsTerminal: true, VrmRecognitionOutcomeKind.Suggested, registration, confidence);
+
     private static IEnumerable<string> OneEditAway(string value)
     {
         const string alphabet = "1AXZ";

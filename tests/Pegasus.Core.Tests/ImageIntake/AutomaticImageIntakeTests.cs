@@ -391,6 +391,44 @@ public sealed class AutomaticImageIntakeTests
     }
 
     [Fact]
+    public async Task PdfWithATruncatedReadBesideTheFullReadRegistersTheFullRead()
+    {
+        // The incident shape (operator, 12 October 2026): one photograph read
+        // AK24UYD and another the truncated AK24. That is one plate.
+        var pdf = Asset("images.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
+        var firstPhoto = Asset(
+            "page-1-image-1.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 90_000, width: 547, height: 650);
+        var secondPhoto = Asset(
+            "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 90_000, width: 552, height: 650);
+        var harness = new Harness(retainedAssets: [pdf, firstPhoto, secondPhoto]);
+        harness.Engine.Enqueue(Suggested("AK24UYD", 0.89));
+        harness.Engine.Enqueue(Suggested("AK24", 0.85));
+
+        var outcome = await harness.ApplyAsync();
+
+        Assert.Null(outcome.UnidentifiedGroup);
+        var registration = Assert.Single(harness.Register.Requests);
+        Assert.Equal("AK24UYD", registration.NormalizedVehicleRegistration);
+    }
+
+    [Fact]
+    public async Task ImageGroupWithATruncatedReadBesideTheFullReadRegistersTheFullRead()
+    {
+        var harness = new GroupHarness(memberCount: 2);
+        harness.Engine.Enqueue(Suggested("AK24", 0.85));
+        harness.Engine.Enqueue(Suggested("AK24UYD", 0.89));
+
+        var outcome = await harness.ApplyAsync(triggerOrdinal: 1);
+
+        Assert.Null(outcome.UnidentifiedGroup);
+        var registration = Assert.Single(harness.Register.Requests);
+        Assert.Equal("AK24UYD", registration.NormalizedVehicleRegistration);
+        Assert.Equal(harness.GroupId, registration.SubmissionGroupId);
+    }
+
+    [Fact]
     public async Task PdfSuggestionPersistenceFailureOnSecondPhotoPropagatesWithoutRegistration()
     {
         var pdf = Asset("images.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);

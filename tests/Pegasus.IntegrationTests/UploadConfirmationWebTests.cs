@@ -371,6 +371,47 @@ public sealed class UploadConfirmationWebTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// a.QDOS26102 (operator, 12 October 2026): a manually uploaded
+    /// third-party report suggests the Case its printed registration and claim
+    /// reference match in the case-match index. The suggestion is never a
+    /// selection; staff confirm it and Attach links the upload there.
+    /// </summary>
+    [Fact]
+    public async Task AnUploadedThirdPartyReportSuggestsTheIndexedCaseAndAttachLinksIt()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AK24 UYD", "LAIRD-REPORT-01");
+        var caseReference = await CaseReferenceAsync(factory, caseId);
+
+        var report = IntakeTestEvidence.CreatePdf(
+            "Supplementary Report Your Reference JF/48913/1 Further to our report regarding your client's, "
+            + "registration AK24UYD. Email: enquiries@laird-assessors.com");
+        var upload = await IntakeWebDriver.UploadAsync(
+            client, "Bodyshopsuppreport.pdf", "application/pdf", report);
+        var stagedReceiptId = IntakeWebDriver.ReceiptId(upload);
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var receiptId = IntakeWebDriver.ReceiptId(processed);
+
+        var statusPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
+        Assert.Contains("data-upload-phase=\"decision\"", statusPage, StringComparison.Ordinal);
+        Assert.Contains($"data-upload-candidate=\"{caseReference}\"", statusPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("checked=\"checked\"", statusPage, StringComparison.Ordinal);
+
+        var (receiptVersion, caseVersion) = await AttachmentVersionsAsync(factory, receiptId, caseId);
+        Assert.Equal(HttpStatusCode.Redirect, await PostAttachAsync(
+            client,
+            $"/Upload/Status/{stagedReceiptId:D}?handler=Attach",
+            receiptId,
+            caseId: caseId,
+            operationId: Guid.NewGuid(),
+            receiptVersion: receiptVersion,
+            caseVersion: caseVersion));
+        await AssertLinkedAsync(factory, receiptId, caseId);
+    }
+
     [Fact]
     public async Task AddEvidenceRefusesAnUnknownCaseAndStagesNothing()
     {

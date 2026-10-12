@@ -35,6 +35,36 @@ public sealed class ImageIntakeGroupRoutingPolicyTests
     }
 
     [Fact]
+    public void ATruncatedReadBesideTheFullReadIsOneRegistration()
+    {
+        var result = ImageIntakeGroupRoutingPolicy.Evaluate(
+        [
+            Member(VrmRecognitionOutcomeKind.Suggested, "AK24", 0.85),
+            Member(VrmRecognitionOutcomeKind.Suggested, "AK24UYD", 0.89)
+        ],
+        expectedMemberCount: 2,
+        eligibleCaseCount: 1);
+
+        Assert.Equal(ImageIntakeGroupRoutingDecision.AssociateExistingCase, result.Decision);
+        Assert.Equal("AK24UYD", result.NormalizedRegistration);
+    }
+
+    [Fact]
+    public void TwoFullPlatesStillConflict()
+    {
+        var result = ImageIntakeGroupRoutingPolicy.Evaluate(
+        [
+            Member(VrmRecognitionOutcomeKind.Suggested, "AK24UYD", 0.89),
+            Member(VrmRecognitionOutcomeKind.Suggested, "AK24UYE", 0.89)
+        ],
+        expectedMemberCount: 2,
+        eligibleCaseCount: 1);
+
+        Assert.Equal(ImageIntakeGroupRoutingDecision.RouteToUnidentified, result.Decision);
+        Assert.Equal("conflicting_vrms", result.ReasonCode);
+    }
+
+    [Fact]
     public void ConflictingPhotographsWithinOnePdfRouteToUnidentified()
     {
         var receiptId = Guid.NewGuid();
