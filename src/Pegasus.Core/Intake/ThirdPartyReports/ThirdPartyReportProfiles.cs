@@ -32,7 +32,14 @@ public enum ThirdPartyDocumentRole
     Estimate,
     VehicleHistory,
     Invoice,
-    ImageEvidence
+    ImageEvidence,
+
+    /// <summary>
+    /// A capture service's PDF (Tractable, FRD-02 EXT-17): a document type,
+    /// not a Principal or an issuer. Its vehicle identity is read and its
+    /// photographs are kept; it yields no report verdict.
+    /// </summary>
+    VehicleCapture
 }
 
 /// <summary>Exactly one of three outcomes; there is no confidence score.</summary>
@@ -185,10 +192,13 @@ internal sealed record ThirdPartySourcePage(
 public static class ThirdPartyReportProfiles
 {
     /// <summary>Versioned with the signature table; recorded on every candidate.</summary>
-    public const string ProfileVersion = "third-party-report-profiles/3";
+    public const string ProfileVersion = "third-party-report-profiles/4";
 
     /// <summary>The document role recorded on a selected report's candidates.</summary>
     public const string ReportDocumentRole = "third-party-engineer-report";
+
+    /// <summary>The document role recorded on a capture PDF's rows.</summary>
+    public const string VehicleCaptureDocumentRole = "vehicle-capture";
 
     /// <summary>
     /// The assessors the signature table names, by display name and once each,
@@ -207,6 +217,12 @@ public static class ThirdPartyReportProfiles
     /// the document's own words are spelled in one place.
     /// </summary>
     internal const string SupplementaryReportTitle = @"Supplementary\s+Report";
+
+    /// <summary>
+    /// The printed heading of a capture PDF's photograph page. The signature
+    /// requires it and the photograph designation finds its page by it.
+    /// </summary>
+    internal const string CaptureImagesHeading = @"Submitted\s+Vehicle\s+Images";
 
     private static readonly ThirdPartyDocumentSignature[] SignatureTable =
     [
@@ -285,7 +301,15 @@ public static class ThirdPartyReportProfiles
                 @"Full\s+Estimate\s+Report", @"Vehicle\s+History\s+Check",
                 @"Consulting\s+Motor\s+Engineers", @"Automotive\s+Claims\s+Assessors",
                 @"laird-assessors\.com", SupplementaryReportTitle
-            ])
+            ]),
+
+        // Tractable's PDF never prints its own name (its logo is an image),
+        // so the layout is the evidence: the preliminary AI estimate or quote
+        // heading, the vehicle block and the photograph page. Its format is
+        // the same whichever Principal used the service (FRD-02 EXT-17).
+        new("tractable-capture/1", "1", null, null,
+            ThirdPartyDocumentRole.VehicleCapture, @"Preliminary\s+AI\s+(?:Estimate|quote)",
+            [CaptureImagesHeading, @"Vehicle\s+Information", @"Registration\s+Number"], [])
     ];
 
     private static readonly CompiledSignature[] Compiled =
@@ -306,7 +330,8 @@ public static class ThirdPartyReportProfiles
     /// so every matching non-image role protects its normal intake route. This
     /// deliberately has no source context because the caller needs only the
     /// classification fact; it must not manufacture a receipt or asset identity
-    /// merely to test a route guard.
+    /// merely to test a route guard. A capture PDF is not one: its
+    /// photographs are the material image automation exists to place.
     /// </summary>
     public static bool HasRecognizedNonImageDocument(IntakeSourceReadResult readResult)
     {
@@ -318,11 +343,30 @@ public static class ThirdPartyReportProfiles
             return false;
         }
 
-        var document = string.Join(' ', pages.Select(page => page.Flat));
+        var document = Document(pages);
         return Compiled.Any(candidate =>
-            candidate.Signature.Role != ThirdPartyDocumentRole.ImageEvidence
+            candidate.Signature.Role is not (ThirdPartyDocumentRole.ImageEvidence or ThirdPartyDocumentRole.VehicleCapture)
             && candidate.Matches(document));
     }
+
+    /// <summary>
+    /// Whether one document's pages select the capture role: its signature
+    /// matched and no other did, the same count <see cref="Select"/> decides by.
+    /// </summary>
+    internal static bool IsVehicleCapture(IReadOnlyList<ThirdPartySourcePage> pages)
+    {
+        if (pages.Count == 0)
+        {
+            return false;
+        }
+
+        var document = Document(pages);
+        var matched = Compiled.Where(candidate => candidate.Matches(document)).Take(2).ToArray();
+        return matched is [{ Signature.Role: ThirdPartyDocumentRole.VehicleCapture }];
+    }
+
+    private static string Document(IReadOnlyList<ThirdPartySourcePage> pages) =>
+        string.Join(' ', pages.Select(page => page.Flat));
 
     /// <summary>
     /// Selects the issuer family or the explicit non-report role for one source.
@@ -345,7 +389,7 @@ public static class ThirdPartyReportProfiles
                 null);
         }
 
-        var document = string.Join(' ', pages.Select(page => page.Flat));
+        var document = Document(pages);
         var matches = new List<ThirdPartyDocumentSignatureMatch>();
         CompiledSignature? single = null;
         foreach (var candidate in Compiled)
@@ -416,6 +460,7 @@ public static class ThirdPartyReportProfiles
         ThirdPartyDocumentRole.VehicleHistory => "vehicle-history",
         ThirdPartyDocumentRole.Invoice => "invoice",
         ThirdPartyDocumentRole.ImageEvidence => "image-evidence",
+        ThirdPartyDocumentRole.VehicleCapture => VehicleCaptureDocumentRole,
         _ => "unclassified"
     };
 

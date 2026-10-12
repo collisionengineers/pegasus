@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Custody;
 
 namespace Pegasus.Core.ImageIntake;
@@ -49,7 +50,8 @@ public sealed class ImageIntakeCasePairing(
     IIntakeMutationStore intakeMutationStore,
     TimeProvider timeProvider,
     ICommittedExternalWorkPublisher committedExternalWorkPublisher,
-    IIntakeReceiptQueries receiptQueries) : IImageIntakeCasePairing
+    IIntakeReceiptQueries receiptQueries,
+    FillCaseFromVehicleCapture? captureFill = null) : IImageIntakeCasePairing
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.ImageIntake");
 
@@ -299,6 +301,12 @@ public sealed class ImageIntakeCasePairing(
             if (!merged)
             {
                 return new(1, 0, 0);
+            }
+            if (captureFill is not null)
+            {
+                // A capture PDF registered this Image intake: its vehicle
+                // identity fills the Case it merged into (FRD-02 EXT-17).
+                await captureFill.ExecuteAsync(targetId.Value, detail.Record.Origin.ReceiptId, cancellationToken);
             }
             activity?.SetTag("image_intake.pairing", "merged");
             return new(1, 1, 0);
