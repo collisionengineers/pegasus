@@ -129,6 +129,7 @@ public sealed class AdministrationReportsWebTests
 
         using var csv = await client.GetAsync($"{Page}?handler=Csv&period=last-month");
         Assert.Equal(HttpStatusCode.OK, csv.StatusCode);
+        Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, (await csv.Content.ReadAsByteArrayAsync())[..3]);
         Assert.StartsWith(
             "Person,Queries received,Amendment requests,Reports sent,Audit reports sent,Received to sent\r\n",
             await csv.Content.ReadAsStringAsync(),
