@@ -2661,3 +2661,23 @@ window.pegasusPreferences = (function () {
         }
     });
 })();
+
+// --- Work Centre links carry a saved Mine scope -----------------------------------
+// work-centre.js remembers Office/Mine per browser and redirects an unscoped open
+// to Mine. When the saved scope is Mine, the brand and nav links to the Work
+// Centre name it, so a Mine user loads the page once. Storage is read defensively.
+(function () {
+    'use strict';
+    var scope = null;
+    try {
+        scope = window.localStorage.getItem('pegasus.workCentre.scope');
+    } catch (error) {
+        return;
+    }
+    if (scope !== 'mine') { return; }
+    document.querySelectorAll('a.brand, a.nav-link').forEach(function (link) {
+        if (link.pathname === '/' && !link.search) {
+            link.search = '?scope=mine';
+        }
+    });
+})();
