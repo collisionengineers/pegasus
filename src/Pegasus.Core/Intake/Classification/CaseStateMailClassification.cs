@@ -28,21 +28,22 @@ public static class CaseStateMailClassification
             return null;
         }
 
-        (MailCategory? category, string? reason) = state switch
+        MailCategory? category = state switch
         {
-            CaseLifecycleState.ReportSent => (
-                MailCategory.Query,
-                "The linked Case's report had been sent when the message joined it."),
+            CaseLifecycleState.ReportSent => MailCategory.Query,
             CaseLifecycleState.NotReady
                 or CaseLifecycleState.Held
                 or CaseLifecycleState.Review
-                or CaseLifecycleState.ReportPreparation => (
-                    MailCategory.CaseUpdate,
-                    "The linked Case was still in progress when the message joined it."),
-            _ => (null, null)
+                or CaseLifecycleState.ReportPreparation => MailCategory.CaseUpdate,
+            _ => null
         };
-        return category is null
-            ? null
-            : MailClassificationResult.Classified(category.Value, current?.Predicates ?? [], reason!, Key, Version);
+        if (category is null)
+        {
+            return null;
+        }
+        var reason = category == MailCategory.Query
+            ? "The linked Case's report had been sent when the message joined it."
+            : "The linked Case was still in progress when the message joined it.";
+        return MailClassificationResult.Classified(category.Value, current?.Predicates ?? [], reason, Key, Version);
     }
 }
