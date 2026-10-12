@@ -986,14 +986,14 @@ public sealed class EfCaseWorkflowStore(
                         Workflow = workflow,
                         MissingMaterialReason = request.Reason,
                         State = nameof(CaseDueWorkState.Scheduled),
-                        NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays),
+                        NextChaseAtUtc = CaseChaseSchedule.NextChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays),
                         Version = 0
                     });
                 }
                 else
                 {
                     due.State = nameof(CaseDueWorkState.Scheduled);
-                    due.NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays);
+                    due.NextChaseAtUtc = CaseChaseSchedule.NextChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays);
                     due.Version++;
                 }
             }

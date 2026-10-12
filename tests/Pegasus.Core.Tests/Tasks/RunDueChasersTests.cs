@@ -10,7 +10,7 @@ public sealed class RunDueChasersTests
     {
         var enteredAtUtc = new DateTimeOffset(2026, 3, 22, 1, 30, 0, TimeSpan.Zero);
 
-        var scheduledAtUtc = CaseChaseSchedule.FirstChaseAt(enteredAtUtc);
+        var scheduledAtUtc = CaseChaseSchedule.NextChaseAt(enteredAtUtc);
 
         Assert.Equal(
             new DateTimeOffset(2026, 3, 29, 1, 0, 0, TimeSpan.Zero),

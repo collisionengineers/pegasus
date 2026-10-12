@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Persistence;
 
@@ -17,11 +16,7 @@ internal sealed class LocalLogicalDocumentVersionReader(
         CancellationToken cancellationToken)
     {
         CachedDocumentContentStore.ValidateRequest(request);
-        StaffAuthorization.Require(
-            request.Actor,
-            request.Actor.Kind == ActorKind.SystemWorker
-                ? StaffAccessRight.ExecuteSystemWork
-                : StaffAccessRight.PerformCasework);
+        CachedDocumentContentStore.RequireStaffRight(request.Actor);
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         if (request.IntakeAssetId is { } assetId)
         {
