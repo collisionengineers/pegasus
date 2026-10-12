@@ -366,7 +366,11 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             return Task.FromResult<IReadOnlyList<EstimateRecognitionCandidate>>([]);
         }
 
-        public Task RecordAsync(Guid versionId, bool isEstimate, CancellationToken cancellationToken) =>
+        public Task RecordAsync(
+            Guid versionId, bool isEstimate, string? provider, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Nothing is recorded without a candidate.");
+
+        public Task RecordProviderAsync(Guid versionId, string provider, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("Nothing is recorded without a candidate.");
 
         public void Defer(Guid versionId) =>

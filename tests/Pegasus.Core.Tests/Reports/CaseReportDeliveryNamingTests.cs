@@ -51,13 +51,13 @@ public sealed class CaseReportDeliveryNamingTests
     /// <summary>
     /// The template's values come from the delivery's facts: the superseded
     /// report date has a value only when a report of this Case was sent
-    /// before, so the built-in body's "supersedes" line is left out on a
-    /// first send and names the date on a re-issue.
+    /// before, so a template's "supersedes" line is left out on a first send
+    /// and names the date on a re-issue.
     /// </summary>
     [Fact]
     public void TheSupersedesLineNamesTheEarlierReportOnlyOnAReIssue()
     {
-        var body = EmailTemplates.DefaultBody(EmailTemplatePurpose.CaseReportDelivery);
+        const string body = SupersedesBody;
 
         var first = EmailTemplates.Render(
             body, Facts(CaseReportSendHistory.None).Values());
@@ -83,7 +83,7 @@ public sealed class CaseReportDeliveryNamingTests
         Assert.Null(values[EmailTemplates.SupersededReportDate]);
         Assert.DoesNotContain(
             "supersedes",
-            EmailTemplates.Render(EmailTemplates.DefaultBody(EmailTemplatePurpose.CaseReportDelivery), values),
+            EmailTemplates.Render(SupersedesBody, values),
             StringComparison.Ordinal);
     }
 
@@ -121,29 +121,39 @@ public sealed class CaseReportDeliveryNamingTests
     }
 
     [Fact]
-    public void TheAddressBookOffersThePrincipalsAddressesAndTheCasesOwnSender()
+    public void TheAddressBookOffersTheCasesOwnAddressesAndThePrincipals()
     {
         var book = CaseReportDeliveryPolicy.AddressBook(Suggestions(
-            ["claims@principal.example", "claims@principal.example", "reports@principal.example"],
-            includeOriginalInstructionSender: true,
-            originalInstructionSender: "handler@principal.example"));
+            PrincipalReportSendingRules.Default with
+            {
+                SendTo = ["claims@principal.example"],
+                Cc = ["claims@principal.example", "reports@principal.example", "Copy@Insurer.example"]
+            },
+            originalInstructionSender: "handler@insurer.example",
+            instructionCc: ["copy@insurer.example"]));
 
         Assert.Equal(
-            ["handler@principal.example", "claims@principal.example", "reports@principal.example"],
+            ["handler@insurer.example", "copy@insurer.example", "claims@principal.example", "reports@principal.example"],
             book.Select(candidate => candidate.Address));
-        Assert.Equal("This case", book[0].Source);
-        Assert.Equal("Principal", book[1].Source);
+        Assert.Equal(
+            ["This case", "This case", "Principal", "Principal"],
+            book.Select(candidate => candidate.Source));
     }
 
+    /// <summary>
+    /// A Case opened from an uploaded e-mail holds no mailbox instruction,
+    /// and its original sender is still offered.
+    /// </summary>
     [Fact]
-    public void TheAddressBookLeavesOutTheSenderThePrincipalDoesNotWant()
+    public void TheAddressBookOffersTheUploadedInstructionsSender()
     {
-        var book = CaseReportDeliveryPolicy.AddressBook(Suggestions(
-            ["claims@principal.example"],
-            includeOriginalInstructionSender: false,
-            originalInstructionSender: "handler@principal.example"));
+        var book = CaseReportDeliveryPolicy.AddressBook(
+            Suggestions(PrincipalReportSendingRules.Default, originalInstructionSender: null)
+                with { OriginalSender = "uploaded@insurer.example" });
 
-        Assert.Equal(["claims@principal.example"], book.Select(candidate => candidate.Address));
+        var candidate = Assert.Single(book);
+        Assert.Equal("uploaded@insurer.example", candidate.Address);
+        Assert.Equal("This case", candidate.Source);
     }
 
     [Fact]
@@ -220,6 +230,66 @@ public sealed class CaseReportDeliveryNamingTests
             [Artifact(CaseReportArtifactKind.AssessmentReport, ReportAttachment)],
             [CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.RepairSpecification]));
 
+    private static readonly ReportAttachmentNamePattern PchPattern =
+        new("{reg} Initial", "{reg} Supplementary");
+
+    [Fact]
+    public void APrincipalsPatternNamesTheFirstSendAndEveryLaterOne()
+    {
+        Assert.Equal(
+            "PK12TMZ Initial",
+            CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Repairable", 0, PchPattern));
+        // A re-send carries its own pattern, not the dots of the default naming.
+        Assert.Equal(
+            "PK12TMZ Supplementary",
+            CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Repairable", 1, PchPattern));
+        Assert.Equal(
+            "PK12TMZ Supplementary",
+            CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Repairable", 3, PchPattern));
+    }
+
+    [Fact]
+    public void APatternFillsTheReferenceRegistrationAndOutcomeAndClosesUpAMissingOne()
+    {
+        var pattern = new ReportAttachmentNamePattern("{ref} {reg} {outcome}", "{ref} {outcome} again");
+
+        Assert.Equal(
+            "QDOS26001 PK12TMZ Total loss",
+            CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Total loss", 0, pattern));
+        Assert.Equal(
+            "QDOS26001 Total loss",
+            CaseReportDeliveryNaming.ReportName("QDOS26001", " ", "Total loss", 0, pattern));
+        Assert.Equal(
+            "QDOS26001 PK12TMZ",
+            CaseReportDeliveryNaming.ReportName(" QDOS26001 ", "PK12TMZ", null, 0, pattern));
+        Assert.Equal(
+            "QDOS26001 Total loss again",
+            CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Total loss", 2, pattern));
+    }
+
+    [Fact]
+    public void WithNoPatternTheDefaultNamingIsUnchanged() =>
+        Assert.Equal(
+            "QDOS26001 PK12TMZ Repairable report.",
+            CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Repairable", 1, null));
+
+    [Fact]
+    public void TheDeliveryFactsSupplyTheGreeting()
+    {
+        var values = new CaseReportDeliveryFacts(
+            "QDOS26001", "PK12TMZ", "Total loss", "Principal Ltd", CaseReportSendHistory.None,
+            "afternoon").Values();
+
+        Assert.Equal("afternoon", values[EmailTemplates.Greeting]);
+        Assert.Equal(
+            "Good afternoon,\n\nPlease see attached report and fee note.\n\nAny issues let us know.\n\nKind Regards",
+            EmailTemplates.Render(EmailTemplates.DefaultBody(EmailTemplatePurpose.CaseReportDelivery), values));
+    }
+
+    /// <summary>A template body that names the superseded report; the built-in body does not.</summary>
+    private const string SupersedesBody =
+        "Our reference: {case reference}\nThis report supersedes our report dated {superseded report date}.";
+
     private static CaseReportDeliveryFacts Facts(CaseReportSendHistory history) => new(
         "QDOS26001", "PK12TMZ", "Total loss", "Principal Ltd", history);
 
@@ -232,12 +302,17 @@ public sealed class CaseReportDeliveryNamingTests
         attachment.ContentLength, attachment.FileName, attachment.MediaType,
         "box-file", "box-version", null, null);
 
-    private static ReportRecipientSuggestions Suggestions(
-        IReadOnlyList<string> additionalAddresses,
-        bool includeOriginalInstructionSender = false,
-        string? originalInstructionSender = null) => new(
+    private static ReportDispatchFacts Suggestions(
+        PrincipalReportSendingRules rules,
+        string? originalInstructionSender,
+        IReadOnlyList<string>? instructionCc = null) => new(
         "QDOS26001",
-        PrincipalReportRecipientSettings.Normalize(
-            includeOriginalInstructionSender, additionalAddresses),
-        originalInstructionSender);
+        "PK12TMZ",
+        "Principal Ltd",
+        rules,
+        originalInstructionSender is null
+            ? null
+            : new ReportInstructionMessage(
+                Guid.NewGuid(), Guid.NewGuid(), "info@collisionengineers.example", "immutable-1", null, null,
+                originalInstructionSender, instructionCc ?? [], "Instruction"));
 }

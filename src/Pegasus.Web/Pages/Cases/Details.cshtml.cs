@@ -43,6 +43,12 @@ public sealed partial class DetailsModel(
     IGetCaseVehicleSection getCaseVehicleSection,
     IGetCaseValuationSection getCaseValuationSection,
     IGetCaseNotesSection getCaseNotesSection,
+    IGetCaseTasksSection getCaseTasksSection,
+    Pegasus.Core.Tasks.ICreateCaseTask createCaseTask,
+    Pegasus.Core.Tasks.IAssignCaseTask assignCaseTask,
+    Pegasus.Core.Tasks.ICompleteCaseTask completeCaseTask,
+    Pegasus.Core.Tasks.ICancelCaseTask cancelCaseTask,
+    ICaseEngineerChoices caseEngineerChoices,
     IGetCaseFilesSection getCaseFilesSection,
     IGetCaseQueriesSection getCaseQueriesSection,
     ICaseDocumentQueries caseDocuments,
@@ -260,16 +266,17 @@ public sealed partial class DetailsModel(
             ["valuation"] = "/Pages/Cases/Shared/_CaseValuation.cshtml",
             ["files"] = "/Pages/Cases/Shared/_CaseFiles.cshtml",
             ["notes"] = "/Pages/Cases/Shared/_CaseHistory.cshtml",
+            ["tasks"] = "/Pages/Cases/Shared/_CaseTasks.cshtml",
             ["queries"] = "/Pages/Cases/Shared/_CaseQueries.cshtml"
         };
 
     /// <summary>
     /// Whether <paramref name="key"/> is fetched rather than rendered with the
     /// first response. The addressed section is always rendered, so
-    /// <c>?section=</c> works over plain HTTP. Files and Notes have no fields
-    /// in the record's single Save form, so they remain deferred while editing
-    /// without replacing entered values elsewhere; their bodies act through
-    /// their own posts with the render lease token.
+    /// <c>?section=</c> works over plain HTTP. Files, Notes, Tasks and Queries
+    /// have no fields in the record's single Save form, so they remain deferred
+    /// while editing without replacing entered values elsewhere; their bodies
+    /// act through their own posts with the render lease token.
     /// </summary>
     public bool SectionIsDeferred(string key) =>
         !string.Equals(key, Section, StringComparison.Ordinal)
@@ -277,7 +284,7 @@ public sealed partial class DetailsModel(
         && !string.Equals(key, SectionLinkKey, StringComparison.Ordinal)
         && !(string.Equals(Section, "vehicle", StringComparison.Ordinal) && IsNestedSection(key))
         && LazySectionViews.ContainsKey(key)
-        && (LeaseToken is null || key is "files" or "notes" or "queries");
+        && (LeaseToken is null || key is "files" or "notes" or "tasks" or "queries");
 
     /// <summary>
     /// A lease token supplied only for rendering an asynchronously mounted
@@ -354,12 +361,14 @@ public sealed partial class DetailsModel(
     public CaseVehicleSection? VehicleSection { get; private set; }
     public CaseValuationSection? ValuationSection { get; private set; }
     public CaseNotesSection? NotesSection { get; private set; }
+    public CaseTasksSection? TasksSection { get; private set; }
     public CaseFilesSection? FilesSection { get; private set; }
     public CaseQueriesSection? QueriesSection { get; private set; }
 
     public CaseSectionFrame? SectionFrame => VehicleSection?.Frame
         ?? ValuationSection?.Frame
         ?? NotesSection?.Frame
+        ?? TasksSection?.Frame
         ?? FilesSection?.Frame
         ?? QueriesSection?.Frame;
 
@@ -707,8 +716,14 @@ public sealed partial class DetailsModel(
         _ => null,
     };
 
-    /// <summary>Principal suggestions offered for staff review before preparation.</summary>
-    public ReportRecipientSuggestions? DeliveryRecipientSuggestions { get; private set; }
+    /// <summary>The dispatch facts of the shown generation: the Principal's rules read with the Case.</summary>
+    public ReportDispatchFacts? DeliveryRecipientSuggestions { get; private set; }
+
+    /// <summary>
+    /// The one plan the delivery form follows, made once when the page loads
+    /// with no answers; Send report plans again with staff's answers.
+    /// </summary>
+    public ReportDispatchPlan? DeliveryDispatchPlan { get; private set; }
 
     public string? OpenDialog { get; private set; }
 
@@ -1194,13 +1209,29 @@ public sealed partial class DetailsModel(
                 ? null
                 : RepairSpecificationComparison.Compare(ComparisonFrom, ComparisonTo);
         }
-        DeliveryRecipientSuggestions = suggestions is null ? null : await suggestions;
-        ReportAddressBook = DeliveryRecipientSuggestions is { } addressBook
-            ? CaseReportDeliveryPolicy.AddressBook(addressBook)
-            : [];
         ReportSendHistory = history is null
             ? CaseReportSendHistory.None
             : await history;
+        DeliveryRecipientSuggestions = suggestions is null ? null : await suggestions;
+        if (DeliveryRecipientSuggestions is { } dispatchFacts)
+        {
+            // The generation's own facts complete what the query reads, and
+            // the plan is made once here for every part of the form.
+            DeliveryRecipientSuggestions = dispatchFacts with
+            {
+                History = ReportSendHistory,
+                ConfirmedArtifacts =
+                [
+                    .. CurrentReportGeneration?.Artifacts
+                        .Where(artifact => artifact.Status == CaseReportArtifactStatus.Confirmed)
+                        .Select(artifact => artifact.Kind) ?? []
+                ]
+            };
+            DeliveryDispatchPlan = ReportDispatchPolicy.Plan(DeliveryRecipientSuggestions, [], clock.GetUtcNow());
+        }
+        ReportAddressBook = DeliveryRecipientSuggestions is { } addressBook
+            ? CaseReportDeliveryPolicy.AddressBook(addressBook)
+            : [];
         ReportSenders = senders is null ? ReportSenders : await senders;
         OtherReportSendHistory = otherHistory is null
             ? CaseReportSendHistory.None
@@ -1441,6 +1472,13 @@ public sealed partial class DetailsModel(
                         return FragmentNotFound();
                     }
                     break;
+                case "tasks":
+                    TasksSection = await getCaseTasksSection.ExecuteAsync(new(id, actor), cancellationToken);
+                    if (TasksSection is null)
+                    {
+                        return FragmentNotFound();
+                    }
+                    break;
                 case "queries":
                     QueriesSection = await getCaseQueriesSection.ExecuteAsync(new(id, actor), cancellationToken);
                     if (QueriesSection is null)
@@ -1483,6 +1521,10 @@ public sealed partial class DetailsModel(
             if (key == "valuation")
             {
                 await LoadValuationSectionAsync(id, actor, cancellationToken);
+            }
+            if (key == "tasks" && TasksReadAssignees)
+            {
+                TaskAssigneeChoices = await caseEngineerChoices.GetAsync(actor, cancellationToken);
             }
             return Partial(view, this);
         }
@@ -1573,6 +1615,14 @@ public sealed partial class DetailsModel(
         var notes = rendered.Contains("notes")
             ? reads.Start(token => getCaseNotesSection.ExecuteAsync(query, token))
             : null;
+        var tasks = rendered.Contains("tasks")
+            ? reads.Start(token => getCaseTasksSection.ExecuteAsync(query, token))
+            : null;
+        // An open task's Assign offers the enabled staff only while the Tasks
+        // body is rendered here and can be changed.
+        var taskAssignees = rendered.Contains("tasks") && CanEditCaseData
+            ? reads.Start(token => caseEngineerChoices.GetAsync(actor, token))
+            : null;
         var queries = rendered.Contains("queries")
             ? reads.Start(token => getCaseQueriesSection.ExecuteAsync(query, token))
             : null;
@@ -1605,6 +1655,15 @@ public sealed partial class DetailsModel(
         {
             NotesSection = await notes
                 ?? throw new InvalidOperationException("The Case notes section is unavailable.");
+        }
+        if (tasks is not null)
+        {
+            TasksSection = await tasks
+                ?? throw new InvalidOperationException("The Case tasks section is unavailable.");
+        }
+        if (taskAssignees is not null)
+        {
+            TaskAssigneeChoices = await taskAssignees;
         }
         if (queries is not null)
         {
@@ -2757,6 +2816,29 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
+    /// Staff's answers to the questions the Principal's rules ask: one radio
+    /// pair per question, named <c>decision-{rule}-{condition}</c> with the
+    /// value true or false.
+    /// </summary>
+    private List<ReportRuleDecision> PostedReportDecisions()
+    {
+        var decisions = new List<ReportRuleDecision>();
+        foreach (var key in Request.Form.Keys)
+        {
+            var parts = key.Split('-');
+            if (parts.Length == 3
+                && parts[0] == "decision"
+                && int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var rule)
+                && int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var condition)
+                && bool.TryParse(Request.Form[key].ToString(), out var holds))
+            {
+                decisions.Add(new(rule, condition, holds));
+            }
+        }
+        return decisions;
+    }
+
+    /// <summary>
     /// Sends the current generation's report in one step (operator, 6 October
     /// 2026): the staff-reviewed recipients, the documents chosen and the
     /// message submitted go to A's staff send transport under this form's
@@ -2780,6 +2862,9 @@ public sealed partial class DetailsModel(
         Guid? secondGenerationId,
         long? secondExpectedGenerationVersion,
         CaseReportArtifactKind[]? secondAttach,
+        string? dispatchFingerprint,
+        string? stopOverrideReason,
+        string[]? holdsDone,
         CancellationToken cancellationToken)
     {
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -2824,7 +2909,11 @@ public sealed partial class DetailsModel(
                     secondGenerationId is { } secondId && secondExpectedGenerationVersion is { } secondVersion
                         ? new(secondId, secondVersion,
                             [CaseReportArtifactKind.AssessmentReport, .. (secondAttach ?? [])])
-                        : null),
+                        : null,
+                    DispatchFingerprint: dispatchFingerprint,
+                    Decisions: PostedReportDecisions(),
+                    AcknowledgedHolds: holdsDone ?? [],
+                    StopOverrideReason: stopOverrideReason),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)
