@@ -282,8 +282,9 @@ yields nothing; with a choice, exactly the chosen documents must be present
 and confirmed, so a companion still being filed never silently drops out of a
 delivery that asked for it and never blocks one that did not. The report is
 always attached. The other work's report, when ticked, attaches with the
-documents of it ticked, after the viewed report's, and is re-checked the
-same way. The send names each chosen attachment by document,
+documents of it ticked, after the viewed report's, under the same
+Principal attachment rules (its required companions must be confirmed), and
+is re-checked the same way. The send names each chosen attachment by document,
 version, hash and length, and re-checks just before the mail is submitted that
 every one is still a confirmed artifact, byte for byte.
 
