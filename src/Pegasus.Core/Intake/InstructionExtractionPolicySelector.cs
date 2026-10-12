@@ -185,6 +185,7 @@ public sealed class InstructionExtractionPolicySelector(
         var documents = PrincipalMailRoutePolicy.CurrentInstructionContent(readResult)
             .GroupBy(fragment => DocumentIdentity(fragment.SourceLabel), StringComparer.Ordinal)
             .Select(group => group.ToArray())
+            .Select(content => (Content: content, Text: string.Join('\n', content.Select(fragment => fragment.Text))))
             .ToArray();
         var matches = this.policies
             .Select(policy => (Policy: policy, Profile: policy as IInstructionDocumentProfile))
@@ -198,8 +199,8 @@ public sealed class InstructionExtractionPolicySelector(
                 entry.Policy,
                 Documents = documents.Select(content => new
                 {
-                    Content = content,
-                    Text = string.Join('\n', content.Select(fragment => fragment.Text))
+                    content.Content,
+                    content.Text
                 })
                 .Where(document => Matches(entry.Profile!.Signature, document.Text))
                 .Select(document => new
