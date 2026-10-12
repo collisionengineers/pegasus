@@ -62,10 +62,11 @@ An Inspection + Audit Case whose Audit has been created has two views of one rec
   links, Refresh, previews, lazy section loads, the Next action's links, and every POST form
   (hidden `view`), whose handler writes the view's work (`WorkOf(view)`) and returns to that view.
 - The Next action is the viewed work's (operator, 2 October 2026): the Inspection view states
-  the Inspection report's own step and lists its blockers, nothing once that report is sent;
-  the Audit view states the Audit's. Once the report is sent on an Inspection + Audit Case with
-  no Audit, the step is Create audit with the Actions menu's own control (`data-dialog-open` or
-  the `.menu-gated` span with its reason).
+  the Inspection report's own step and lists its blockers, nothing once a send of that report
+  is accepted; the Audit view states the Audit's. Once the report is stored on an Inspection +
+  Audit Case with no Audit, sent or not, the step is Create audit with the Actions menu's own
+  control (`data-dialog-open` or the `.menu-gated` span with its reason). Send report ends at
+  the accepted send (Submitted), not at the observed Sent item (operator, 12 October 2026).
 - Report in the Audit view shows the Audit report alone (operator, 2 October 2026); the Views
   card is the route to the Inspection report. In the Inspection view the card is the Inspection
   report with its Generate and Send report controls, before and after it is sent

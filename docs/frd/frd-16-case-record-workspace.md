@@ -134,11 +134,15 @@ control that opens its dialog; where the menu does not offer it, the step is
 named without a control (issue 1025).
 Once the report is ready, the Next action is **Generate report** until the
 report is stored, or **Waiting for the report to be stored** while its file
-is on its way to Box. Delivery is the Next action only once the report is
-stored (operator, 27 September 2026). Once the report is sent, the Next
-action is **Create audit** on an Inspection + Audit Case that has no Audit
-yet, with the Actions menu's own control (greyed with its reason where Core
-refuses it), and **None** on any other Case (operator, 11 October 2026).
+is on its way to Box. Once the report is stored, the Next action is
+**Create audit** on an Inspection + Audit Case that has no Audit yet, whether
+or not the report is sent, with the Actions menu's own control (greyed with
+its reason where Core refuses it). On any other Case delivery is the Next
+action once the report is stored (operator, 27 September 2026), and it is
+**None** once a send of the report is accepted: the step follows Pegasus's
+own send record, not the Sent poll, while the Case state still moves to
+Report sent when the Sent item is observed (operator, 11 and 12 October
+2026).
 On a Report sent Case with an open query the step is **Resolve query**,
 before any report step: when the oldest open query came by e-mail and staff
 mail is available, its control is **Reply**, which opens that message's
@@ -280,8 +284,9 @@ report may be generated and sent again when needed (operator, 2 October
 2026). The Next action is the viewed work's (operator, 2 October 2026): in
 the Inspection view it states the Inspection report's own step, lists that
 report's blockers while it is not ready, and its links stay in the
-Inspection view; once the Inspection report is sent it states nothing,
-unless a later change made that report stale.
+Inspection view; once a send of the Inspection report is accepted it states
+nothing (operator, 12 October 2026), unless a later change made that report
+stale.
 
 ### Actions menu
 

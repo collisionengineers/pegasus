@@ -7,10 +7,13 @@ using Pegasus.Core.Reports;
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// What a Case's report has already been sent (v28 P23): the sends that
-/// actually left the approved mailbox, counted from the staff-send operations
-/// whose report context is one of this Case's generations, with the report
-/// date of the one sent last. A prepared-but-unsent delivery is not a send.
+/// What a Case's report has already been sent (v28 P23): the sends the
+/// provider accepted, counted from the staff-send operations whose report
+/// context is one of this Case's generations, with the report date of the one
+/// sent last. A send counts once Graph accepts it (Submitted) and stays
+/// counted when its Sent item is observed; the Next action follows the same
+/// record rather than waiting for the Sent poll (operator, 12 October 2026).
+/// A prepared, failed or cancelled delivery is not a send.
 /// </summary>
 internal sealed class EfCaseReportSendHistoryQueries(
     IDbContextFactory<PegasusDbContext> contextFactory) : ICaseReportSendHistoryQueries
@@ -31,8 +34,8 @@ internal sealed class EfCaseReportSendHistoryQueries(
                 on send.ContextId equals generation.Id
             where generation.WorkId == workId
                 && send.Purpose == StaffMailPurpose.CaseReport
-                && send.State == StaffMailState.Sent
-            select new { send.ObservedSentAtUtc, generation.SnapshotJson };
+                && (send.State == StaffMailState.Submitted || send.State == StaffMailState.Sent)
+            select new { send.CreatedAtUtc, generation.SnapshotJson };
         var sentCount = await sent.CountAsync(cancellationToken).ConfigureAwait(false);
         if (sentCount == 0)
         {
@@ -42,7 +45,7 @@ internal sealed class EfCaseReportSendHistoryQueries(
         // Only the newest send's snapshot is read: the count and the last
         // report date are all the history carries.
         var latestSnapshotJson = await sent
-            .OrderByDescending(row => row.ObservedSentAtUtc)
+            .OrderByDescending(row => row.CreatedAtUtc)
             .Select(row => row.SnapshotJson)
             .FirstAsync(cancellationToken)
             .ConfigureAwait(false);
