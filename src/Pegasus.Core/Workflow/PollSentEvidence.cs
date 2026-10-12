@@ -689,16 +689,9 @@ public sealed class PollSentEvidence(
                 : SentEvidencePollOutcomeKind.Ambiguous;
         }
 
-        await RecordOutcomeAsync(
-            lease,
-            item,
-            outcomeId,
-            outcomeKind,
-            relatedEvidenceId,
-            failureCode,
-            nowUtc,
-            operationKey,
-            cancellationToken);
+        // The send is observed before the outcome moves the cursor past the
+        // item, so an observation that fails is retried with the item rather
+        // than lost; the retention and link above replay by operation key.
         if (staffExecution is not null && staffExecution.Operation.State is not StaffMailState.Sent)
         {
             await staffMailSendStore!.TransitionObservedSentAsync(
@@ -710,6 +703,16 @@ public sealed class PollSentEvidence(
                 nowUtc,
                 cancellationToken);
         }
+        await RecordOutcomeAsync(
+            lease,
+            item,
+            outcomeId,
+            outcomeKind,
+            relatedEvidenceId,
+            failureCode,
+            nowUtc,
+            operationKey,
+            cancellationToken);
         return new(outcomeKind, reportEvidenceRetained);
     }
 
