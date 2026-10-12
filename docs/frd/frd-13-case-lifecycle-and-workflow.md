@@ -211,7 +211,11 @@ the claimant; a dispute is a query. A query is a record on the Case
   Automation Actor both tag this way;
 - **Log query**, from the Actions menu or `pegasus_case_action`, on a Report
   sent Case: the channel it came by and its details;
-- nothing else yet: no e-mail criteria raise a query by themselves.
+- a received e-mail with no classification of its own that joins a Report
+  sent Case: [case-state classification](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)
+  makes it Query in the same transaction, so an automatic association or a
+  staff link raises the query without a separate correction (operator,
+  8 October 2026).
 
 A Query e-mail joining a Case in any other state raises nothing. The
 Case's Engineer is told of a query raised from mail

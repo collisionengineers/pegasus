@@ -87,6 +87,7 @@ never renumbered or reused.
 | [ADR-0067](0067-report-sent-replaces-completed-and-queries-are-case-records.md) | Report sent replaces Completed, and queries are Case records | accepted | — | CASE-16, CASE-23 |
 | [ADR-0068](0068-incoming-and-outgoing-mailboxes-and-case-mail-replies.md) | Incoming and Outgoing mailboxes, and Case mail replies to its instruction | accepted | — | MAIL-12, MAIL-18 |
 | [ADR-0069](0069-one-flat-mail-category.md) | One flat mail category | accepted | — | MAIL-02, MAIL-21, MAIL-22 |
+| [ADR-0070](0070-case-state-mail-classification.md) | Case-state mail classification | accepted | — | MAIL-02, MAIL-09, MAIL-21 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

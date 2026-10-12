@@ -380,6 +380,9 @@ internal sealed class EfIntakeMutationStore(
         };
 
         receipt.Version++;
+        // FRD-08 case-state classification first, so the query rule reads the
+        // category the Case's state gives a message no predicate classified.
+        ApplyCaseStateClassification(context, receipt, caseWorkflow, occurredAtUtc);
         // FRD-13 "Report sent and queries": a post-report receipt joining a
         // Report sent Case raises a query, recorded as the Case's own event.
         var beforeStateJson = CaseQueryLedger.SnapshotState(caseWorkflow);
@@ -1074,6 +1077,7 @@ internal sealed class EfIntakeMutationStore(
         {
             if (eventType == "intake_case_linked")
             {
+                ApplyCaseStateClassification(context, receipt, caseWorkflow, occurredAtUtc);
                 queryRaised = await CaseQueryLedger.RaiseForMailAsync(
                     context, receipt, caseWorkflow, actor.Kind, actor.SubjectId,
                     operationKey, occurredAtUtc, cancellationToken);
@@ -1154,6 +1158,34 @@ internal sealed class EfIntakeMutationStore(
         }
 
         return EfIntakeReceiptStore.Map(receipt, false, acceptedCaseId);
+    }
+
+    /// <summary>
+    /// FRD-08 case-state classification: a retained mail message joining a Case
+    /// with no Principal classification takes its category from the Case's state,
+    /// written as the automated decision before the query rule reads it. A
+    /// corrected decision (version above one) is left alone by the shared apply.
+    /// </summary>
+    private static void ApplyCaseStateClassification(
+        PegasusDbContext context,
+        IntakeReceiptEntity receipt,
+        CaseWorkflowEntity workflow,
+        DateTimeOffset occurredAtUtc)
+    {
+        if (receipt.SourceChannel != "mailbox")
+        {
+            return;
+        }
+        var current = receipt.MailClassificationDecision is { } decision
+            ? EfIntakeReceiptStore.MapMailClassificationDecision(decision)
+            : null;
+        var derived = CaseStateMailClassification.Derive(
+            current, Enum.Parse<CaseLifecycleState>(workflow.State));
+        if (derived is not null)
+        {
+            EfIntakeReceiptStore.ApplyMailClassificationDecision(
+                context, receipt, derived, CaseStateMailClassification.Actor, occurredAtUtc);
+        }
     }
 
     private static Task<IntakeReceiptEntity?> LoadReceiptAsync(

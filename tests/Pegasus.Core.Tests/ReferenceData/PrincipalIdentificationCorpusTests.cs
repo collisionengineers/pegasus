@@ -219,7 +219,7 @@ public sealed class PrincipalIdentificationCorpusTests
             .Single(item => item.GetProperty("code").GetString() == "QDOS");
 
         var accepted = qdos.GetProperty("sharedTaxonomyPredicates").EnumerateArray().ToArray();
-        Assert.Equal(6, accepted.Length);
+        Assert.Equal(10, accepted.Length);
         Assert.All(accepted, item =>
         {
             var criterionState = item.GetProperty("criterionState");
@@ -229,7 +229,7 @@ public sealed class PrincipalIdentificationCorpusTests
         });
 
         var candidates = qdos.GetProperty("candidateTaxonomyPredicates").EnumerateArray().ToArray();
-        Assert.Equal(8, candidates.Length);
+        Assert.Equal(5, candidates.Length);
         Assert.All(candidates, item =>
         {
             Assert.Equal(JsonValueKind.Null, item.GetProperty("taxonomyTarget").ValueKind);
