@@ -6,7 +6,7 @@ authorization comes from the operator; the primary agent owns verification.
 
 - [Local setup](runbook.md#local-setup-and-run)
 - [Build and test commands](runbook.md#locked-restore-build-and-test)
-- [Reference authoring](runbook.md#principal-domain-reference-authoring)
+- [Reference authoring](runbook.md#principal-identification-corpus-authoring)
 - [Mailbox operations](runbook.md#approved-mailbox-estate)
 - [OAuth certificate operations](runbook.md#automation-oauth-certificate-operation)
 - [Monitoring](runbook.md#monitoring-and-diagnosis) and [recovery](runbook.md#recovery)
@@ -551,79 +551,6 @@ Run these tests explicitly with the collection configured; report unavailable
 source evidence as unavailable. Ordinary CI excludes the Corpus category and
 is not evidence that the private collection passed. Keep `corpus/` immutable;
 the private collection is separate and does not replace it.
-
-## Principal-domain reference authoring
-
-Principal-domain authoring is an offline operation over one immutable package. The `provider-domains-v1` command reads only (the package version id keeps its original name; it is the hash-pinned identity):
-
-```text
-reference/workproviders-and-repairers/initial.xlsx
-```
-
-The published package retains its original
-`docs/reference/workproviders-and-repairers/initial.xlsx` source identity as
-immutable provenance. The authoring helper maps that identity to the physical
-path above only while regenerating or verifying the same bytes; it never
-republishes `provider-domains-v1` with a new path or hash.
-
-It retains:
-
-- the Principal code from column A; and
-- the final lowercase `@domain` suffix from each semicolon-separated column-E observation.
-
-It ignores columns B–D and all later columns. It never edits the workbook or emits an email local part, full email address, inspection location, default, Case ID, or opaque source value.
-
-Close the workbook, then run from PowerShell 7 at the repository root:
-
-```powershell
-pwsh ./scripts/Build-PrincipalReferenceData.ps1
-pwsh ./scripts/Build-PrincipalReferenceData.ps1 -Verify
-```
-
-Before discovering Python or reading source bytes, the wrapper rejects:
-
-- the selected workbook’s exact sibling Office lock marker; and
-- an exclusive-read failure;
-
-as `source-locked`.
-
-The helper requires Python 3.11+ and uses only `zipfile` and `xml.etree.ElementTree`. There is no virtual environment, pip installation, dependency lock, package cache, recursive workbook discovery, network operation, or second manifest.
-
-The command stages beneath:
-
-```text
-artifacts/reference-data-staging/
-```
-
-and publishes:
-
-```text
-src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v1.json
-```
-
-Publication rules are immutable:
-
-- generation completes in staging before publication;
-- an absent output is moved atomically into place;
-- a byte-identical existing output is a no-op;
-- a different existing output fails `immutable-output` and is not replaced;
-- `-Verify` requires the output and byte-compares a regenerated staged package without mutating it.
-
-Future versions use a new cumulative workbook, version, output, and the previously validated package:
-
-```powershell
-pwsh ./scripts/Build-PrincipalReferenceData.ps1 `
-  -SourcePath ./reference/workproviders-and-repairers/provider-domains-v2.xlsx `
-  -Version provider-domains-v2 `
-  -PackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v2.json `
-  -PreviousPackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v1.json
-```
-
-Every previous Principal/suffix pair must remain. Removal fails `non-monotonic-source`. Source, previous package, staging, and output paths must be distinct; staging and output may not be beneath `reference/`.
-
-Corrections or removals require separately accepted authority and a new explicit contract. Published snapshots remain unchanged.
-
-Successful completion proves deterministic authoring bytes only. It does not activate an email route, resolve a Principal at intake, prove a migration or caller, or establish release acceptance. Runtime reads only the explicit versioned SQL snapshot and never opens a workbook. Reference ownership is indexed in [reference material](../reference/README.md).
 
 ## Principal-identification corpus authoring
 

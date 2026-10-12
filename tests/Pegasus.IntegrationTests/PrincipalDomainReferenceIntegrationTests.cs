@@ -1,29 +1,24 @@
 using System.Collections.Immutable;
-using System.Data.Common;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Pegasus.Core.Intake;
-using Pegasus.Core.ReferenceData;
-using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Persistence;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Pegasus.IntegrationTests;
 
 [Trait("Category", "SqlServer")]
 public sealed class PrincipalDomainReferenceIntegrationTests
 {
-    private const string PackageResourceName =
-        "Pegasus.Infrastructure.Persistence.ReferenceData.principal-domains.v1.json";
-    private const string PackageVersion = "provider-domains-v1";
+    private const string PackagePath =
+        "src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v1.json";
     private const string PackageSha256 = "f6b5ad8ecdd428db4316b23e16aa7e0ffc93562aec33374c03ea68cd4f0370a3";
     private const string HistoricalWorkbookPath =
         "docs/reference/workproviders-and-repairers/initial.xlsx";
@@ -33,12 +28,9 @@ public sealed class PrincipalDomainReferenceIntegrationTests
         "20260801220500_GrantWebMigrationHistoryRead";
 
     [Fact]
-    public void EmbeddedPackageMatchesApprovedWorkbookDomainEvidence()
+    public void PackageFileMatchesApprovedWorkbookDomainEvidence()
     {
-        var packageBytes = LoadEmbeddedPackageBytes();
-        var requested = ExactPackageVersion();
-        var validation = ReferenceDataPolicy.Validate(requested, packageBytes);
-        Assert.True(validation.IsValid, string.Join(", ", validation.Issues.Select(issue => issue.Code)));
+        var packageBytes = LoadPackageBytes();
         Assert.Equal(PackageSha256, Convert.ToHexStringLower(SHA256.HashData(packageBytes)));
 
         var package = DeserializePackage(packageBytes);
@@ -63,7 +55,7 @@ public sealed class PrincipalDomainReferenceIntegrationTests
     [Fact]
     public void CoreAcceptedQdosRouteSetMatchesTheReferenceSnapshotExactly()
     {
-        var package = DeserializePackage(LoadEmbeddedPackageBytes());
+        var package = DeserializePackage(LoadPackageBytes());
         var qdos = Assert.Single(package.Principals, provider => provider.Code == "QDOS");
 
         Assert.Equal(
@@ -77,12 +69,9 @@ public sealed class PrincipalDomainReferenceIntegrationTests
     }
 
     [Fact]
-    public async Task FreshSchemaMigrationSeedsExactPackageAndCatalogUsesOneBoundedQuery()
+    public async Task FreshSchemaMigrationSeedsExactPackage()
     {
-        var commandCounter = new ReaderCommandCounter();
-        await using var database = await LocalDbTestDatabase.CreateAsync(
-            migrate: false,
-            configureDatabase: options => options.AddInterceptors(commandCounter));
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
         await using var connection = database.CreateConnection();
         await connection.OpenAsync();
 
@@ -93,7 +82,7 @@ public sealed class PrincipalDomainReferenceIntegrationTests
             Assert.Empty(await context.Database.GetPendingMigrationsAsync());
         }
 
-        var package = DeserializePackage(LoadEmbeddedPackageBytes());
+        var package = DeserializePackage(LoadPackageBytes());
         Assert.Equal(package.Principals.Length, await ScalarAsync<long>(connection, "SELECT COUNT(*) FROM PrincipalReferences"));
         Assert.Equal(
             package.Principals.Sum(provider => provider.DomainSuffixes.Length),
@@ -121,79 +110,6 @@ public sealed class PrincipalDomainReferenceIntegrationTests
                 .ThenBy(item => item.DomainSuffix, StringComparer.Ordinal)
                 .ToArray(),
             (await PrincipalEvidenceRowsAsync(connection)).ToArray());
-
-        await SeedSharedDomainFixtureAsync(connection);
-
-
-        await using var scope = database.CreateAsyncScope();
-        var catalog = scope.ServiceProvider.GetRequiredService<IPrincipalReferenceCatalog>();
-
-        commandCounter.Reset();
-        var found = await catalog.FindCandidatesByDomainSuffixAsync(
-            ExactPackageVersion(), "@qdosassist.co.uk", CancellationToken.None);
-        Assert.Equal(PrincipalDomainCandidateStatus.Found, found.Status);
-        Assert.Equal("QDOS", Assert.Single(found.PrincipalCodes));
-        Assert.Equal(1, commandCounter.ExecutedReaderCommands);
-
-        commandCounter.Reset();
-        var unknown = await catalog.FindCandidatesByDomainSuffixAsync(
-            ExactPackageVersion(), "@unknown.invalid", CancellationToken.None);
-        Assert.Equal(PrincipalDomainCandidateStatus.Unknown, unknown.Status);
-        Assert.Empty(unknown.PrincipalCodes);
-        Assert.Equal(1, commandCounter.ExecutedReaderCommands);
-
-        commandCounter.Reset();
-        var rejected = await catalog.FindCandidatesByDomainSuffixAsync(
-            ExactPackageVersion() with { PackageSha256 = new string('0', 64) },
-            "@qdosassist.co.uk",
-            CancellationToken.None);
-        Assert.Equal(PrincipalDomainCandidateStatus.PackageRejected, rejected.Status);
-        Assert.Empty(rejected.PrincipalCodes);
-        Assert.Equal(1, commandCounter.ExecutedReaderCommands);
-
-        commandCounter.Reset();
-        var ambiguous = await catalog.FindCandidatesByDomainSuffixAsync(
-            new PrincipalDomainPackageVersion(1, "provider-domains-test", new string('1', 64)),
-            "@shared.example",
-            CancellationToken.None);
-        Assert.Equal(PrincipalDomainCandidateStatus.Ambiguous, ambiguous.Status);
-        Assert.Collection(
-            ambiguous.PrincipalCodes,
-            code => Assert.Equal("ALPHA", code),
-            code => Assert.Equal("ZETA", code));
-        Assert.Equal(1, commandCounter.ExecutedReaderCommands);
-
-        commandCounter.Reset();
-        var missing = await catalog.FindCandidatesByDomainSuffixAsync(
-            ExactPackageVersion() with { Version = "provider-domains-v2" },
-            "@qdosassist.co.uk",
-            CancellationToken.None);
-        Assert.Equal(PrincipalDomainCandidateStatus.PackageNotFound, missing.Status);
-        Assert.Empty(missing.PrincipalCodes);
-        Assert.Equal(1, commandCounter.ExecutedReaderCommands);
-
-        commandCounter.Reset();
-        var invalid = await catalog.FindCandidatesByDomainSuffixAsync(
-            ExactPackageVersion(), "qdosassist.co.uk", CancellationToken.None);
-        Assert.Equal(PrincipalDomainCandidateStatus.InvalidSuffix, invalid.Status);
-        Assert.Empty(invalid.PrincipalCodes);
-        Assert.Equal(0, commandCounter.ExecutedReaderCommands);
-
-        commandCounter.Reset();
-        var invalidPackage = await catalog.FindCandidatesByDomainSuffixAsync(
-            ExactPackageVersion() with { SchemaVersion = 2 },
-            "@qdosassist.co.uk",
-            CancellationToken.None);
-        Assert.Equal(PrincipalDomainCandidateStatus.PackageRejected, invalidPackage.Status);
-        Assert.Empty(invalidPackage.PrincipalCodes);
-        Assert.Equal(0, commandCounter.ExecutedReaderCommands);
-
-        commandCounter.Reset();
-        using var cancellation = new CancellationTokenSource();
-        await cancellation.CancelAsync();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-            await catalog.FindCandidatesByDomainSuffixAsync(
-                ExactPackageVersion(), "@qdosassist.co.uk", cancellation.Token));
     }
 
     [Fact]
@@ -202,7 +118,7 @@ public sealed class PrincipalDomainReferenceIntegrationTests
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
         await using var connection = database.CreateConnection();
         await connection.OpenAsync();
-        var package = DeserializePackage(LoadEmbeddedPackageBytes());
+        var package = DeserializePackage(LoadPackageBytes());
 
         await using var context = await database.CreateContextAsync();
         var migrator = context.GetService<IMigrator>();
@@ -226,20 +142,11 @@ public sealed class PrincipalDomainReferenceIntegrationTests
             await context.Database.GetAppliedMigrationsAsync());
     }
 
-    private static PrincipalDomainPackageVersion ExactPackageVersion() =>
-        new(ReferenceDataPolicy.SupportedSchemaVersion, PackageVersion, PackageSha256);
+    private static byte[] LoadPackageBytes() =>
+        File.ReadAllBytes(Path.Combine(FindRepositoryRoot(), PackagePath.Replace('/', Path.DirectorySeparatorChar)));
 
-    private static byte[] LoadEmbeddedPackageBytes()
-    {
-        using var stream = typeof(InfrastructureAssembly).Assembly.GetManifestResourceStream(PackageResourceName)
-            ?? throw new InvalidOperationException("Principal-domain package resource was not found.");
-        using var buffer = new MemoryStream();
-        stream.CopyTo(buffer);
-        return buffer.ToArray();
-    }
-
-    private static PrincipalDomainPackage DeserializePackage(ReadOnlySpan<byte> packageBytes) =>
-        JsonSerializer.Deserialize<PrincipalDomainPackage>(packageBytes, JsonSerializerOptions.Strict)
+    private static PackageFile DeserializePackage(ReadOnlySpan<byte> packageBytes) =>
+        JsonSerializer.Deserialize<PackageFile>(packageBytes, JsonSerializerOptions.Strict)
         ?? throw new InvalidDataException("Principal-domain package deserialized to null.");
 
     private static WorkbookEvidence ReadApprovedWorkbook(string repositoryPath, string sheetName)
@@ -329,32 +236,6 @@ public sealed class PrincipalDomainReferenceIntegrationTests
 
 
 
-    private static async Task SeedSharedDomainFixtureAsync(SqlConnection connection)
-    {
-        await using var command = connection.CreateCommand();
-        command.CommandText =
-            """
-            INSERT INTO PrincipalDomainPackages
-                (Version, SchemaVersion, PackageSha256, SourcePath,
-                 SourceContentSha256, SourceSheet, SourceRowCount)
-            VALUES
-                ('provider-domains-test', 1,
-                 '1111111111111111111111111111111111111111111111111111111111111111',
-                 'tests/provider-domains-test.xlsx',
-                 '2222222222222222222222222222222222222222222222222222222222222222',
-                 'Sheet1', 2);
-            INSERT INTO PrincipalReferences (Version, Code, SourceRow)
-            VALUES
-                ('provider-domains-test', 'ZETA', 1),
-                ('provider-domains-test', 'ALPHA', 2);
-            INSERT INTO PrincipalDomainEvidence (Version, Code, DomainSuffix)
-            VALUES
-                ('provider-domains-test', 'ZETA', '@shared.example'),
-                ('provider-domains-test', 'ALPHA', '@shared.example');
-            """;
-        await command.ExecuteNonQueryAsync();
-    }
-
     private static async Task<PrincipalPackageRow> PrincipalPackageRowAsync(
         SqlConnection connection,
         string packageTable)
@@ -386,7 +267,7 @@ public sealed class PrincipalDomainReferenceIntegrationTests
         return package;
     }
 
-    private static PrincipalPackageRow ExpectedPackageRow(PrincipalDomainPackage package) =>
+    private static PrincipalPackageRow ExpectedPackageRow(PackageFile package) =>
         new(
             package.Version,
             package.SchemaVersion,
@@ -453,27 +334,28 @@ public sealed class PrincipalDomainReferenceIntegrationTests
         string SourceSheet,
         int SourceRowCount);
 
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed record PackageFile(
+        [property: JsonPropertyName("schemaVersion")] int SchemaVersion,
+        [property: JsonPropertyName("version")] string Version,
+        [property: JsonPropertyName("source")] PackageSource Source,
+        [property: JsonPropertyName("providers")] ImmutableArray<PackagePrincipal> Principals);
+
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed record PackageSource(
+        [property: JsonPropertyName("path")] string Path,
+        [property: JsonPropertyName("contentSha256")] string ContentSha256,
+        [property: JsonPropertyName("sheet")] string Sheet,
+        [property: JsonPropertyName("rowCount")] int RowCount);
+
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed record PackagePrincipal(
+        [property: JsonPropertyName("code")] string Code,
+        [property: JsonPropertyName("sourceRow")] int SourceRow,
+        [property: JsonPropertyName("domainSuffixes")] ImmutableArray<string> DomainSuffixes);
+
     private sealed record WorkbookEvidence(
         string ContentSha256,
         int HighestContractRow,
         ImmutableArray<PrincipalEvidence> DomainEvidence);
-
-    private sealed class ReaderCommandCounter : DbCommandInterceptor
-    {
-        private int executedReaderCommands;
-
-        public int ExecutedReaderCommands => Volatile.Read(ref executedReaderCommands);
-
-        public void Reset() => Interlocked.Exchange(ref executedReaderCommands, 0);
-
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command,
-            CommandEventData eventData,
-            InterceptionResult<DbDataReader> result,
-            CancellationToken cancellationToken = default)
-        {
-            Interlocked.Increment(ref executedReaderCommands);
-            return ValueTask.FromResult(result);
-        }
-    }
 }

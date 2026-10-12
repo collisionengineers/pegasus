@@ -11,7 +11,6 @@ using Pegasus.Worker;
 using Pegasus.Core.Documents;
 using Pegasus.Core.CaseExport;
 using Pegasus.Web.Pages.Cases;
-using Pegasus.Core.ReferenceData;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
@@ -249,23 +248,7 @@ public sealed class DependencyDirectionTests
         }
 
         var resources = typeof(InfrastructureAssembly).Assembly.GetManifestResourceNames();
-        Assert.Contains(
-            "Pegasus.Infrastructure.Persistence.ReferenceData.principal-domains.v1.json",
-            resources);
         Assert.DoesNotContain(resources, name => name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
-    public void PrincipalReferenceCatalogBoundaryHasOneInfrastructureImplementation()
-    {
-        Assert.Equal(typeof(CoreAssembly).Assembly, typeof(IPrincipalReferenceCatalog).Assembly);
-
-        var implementations = typeof(InfrastructureAssembly).Assembly.GetTypes()
-            .Where(type => !type.IsAbstract && typeof(IPrincipalReferenceCatalog).IsAssignableFrom(type))
-            .ToArray();
-        var implementation = Assert.Single(implementations);
-        Assert.False(implementation.IsPublic);
-        Assert.Equal("EfPrincipalReferenceCatalog", implementation.Name);
     }
 
     [Fact]
