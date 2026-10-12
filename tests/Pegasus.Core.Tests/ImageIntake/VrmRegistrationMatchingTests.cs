@@ -73,17 +73,17 @@ public sealed class VrmRegistrationMatchingTests
         // AK, AK24 and AK24UYD are one plate read three times (operator,
         // 12 October 2026).
         Assert.Equal(
-            new[] { "AK24UYD" },
+            ["AK24UYD"],
             VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(
                 new[] { Read("AK", 0.9), Read("AK24", 0.85), Read("AK24UYD", 0.89), Read("AK24UYD", 0.95) }));
         // Only a confident longer read absorbs a shorter one.
         Assert.Equal(
-            new[] { "AK24" },
+            ["AK24"],
             VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(
                 new[] { Read("AK24", 0.85), Read("AK24UYD", 0.5) }));
         // Two full plates that do not contain each other still conflict.
         Assert.Equal(
-            new[] { "AK24UYD", "BX69YLM" },
+            ["AK24UYD", "BX69YLM"],
             VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(
                 new[] { Read("AK24UYD", 0.89), Read("BX69YLM", 0.9) }));
     }
