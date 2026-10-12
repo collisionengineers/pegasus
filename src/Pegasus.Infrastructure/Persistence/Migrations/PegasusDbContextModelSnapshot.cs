@@ -2709,8 +2709,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Description")
                         .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("State")
                         .IsRequired()
@@ -3358,6 +3357,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("PendingContentStorageKey")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("RecognisedEstimateProvider")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("RemovalOperationKey")
                         .HasMaxLength(256)
@@ -5993,9 +5996,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<long?>("DefaultInspectionSourceVersion")
                         .HasColumnType("bigint");
 
-                    b.Property<bool>("IncludeOriginalInstructionSender")
-                        .HasColumnType("bit");
-
                     b.Property<string>("InspectionMode")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -6012,9 +6012,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("PredecessorId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("ReportRecipientAddressesJson")
+                    b.Property<string>("ReportSendingRulesJson")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("{\"sendTo\":[],\"sendToOnly\":false,\"replyAll\":true,\"cc\":[],\"neverCc\":[],\"attach\":{\"feeNoteSeparate\":true,\"estimate\":false,\"audatex\":false,\"reportImages\":true,\"vehicleImagesDocument\":false,\"figureBreakdown\":false},\"garageFigures\":false,\"reminders\":[],\"rules\":[]}");
 
                     b.Property<string>("SalvageMatrixJson")
                         .HasColumnType("nvarchar(max)");
@@ -6685,6 +6687,22 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("DraftImmutableId")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("InstructionMoveAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("InstructionMoveFailureCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("InstructionMoveState")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset?>("InstructionMovedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<DateTimeOffset?>("LastAttemptAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -6745,6 +6763,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("ReconciliationContinuation")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ReportDispatchJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTimeOffset>("RequestedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -6777,6 +6798,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Purpose", "State")
+                        .HasFilter("[InstructionMoveState] IS NULL");
 
                     b.HasIndex("ActorSubjectId", "MailboxId", "OperationKey")
                         .IsUnique();

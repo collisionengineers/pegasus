@@ -20,7 +20,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.DocumentVersionEntity",
                 typeof(DocumentVersionEntity),
                 baseEntityType,
-                propertyCount: 18,
+                propertyCount: 19,
                 foreignKeyCount: 1,
                 unnamedIndexCount: 1,
                 keyCount: 1);
@@ -143,6 +143,15 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 nullable: true,
                 maxLength: 200);
             pendingContentStorageKey.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var recognisedEstimateProvider = runtimeEntityType.AddProperty(
+                "RecognisedEstimateProvider",
+                typeof(string),
+                propertyInfo: typeof(DocumentVersionEntity).GetProperty("RecognisedEstimateProvider", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(DocumentVersionEntity).GetField("<RecognisedEstimateProvider>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true,
+                maxLength: 100);
+            recognisedEstimateProvider.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var removalOperationKey = runtimeEntityType.AddProperty(
                 "RemovalOperationKey",

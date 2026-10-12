@@ -20,7 +20,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.PrincipalEntity",
                 typeof(PrincipalEntity),
                 baseEntityType,
-                propertyCount: 19,
+                propertyCount: 18,
                 navigationCount: 6,
                 foreignKeyCount: 4,
                 unnamedIndexCount: 5,
@@ -109,14 +109,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 nullable: true);
             defaultInspectionSourceVersion.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
-            var includeOriginalInstructionSender = runtimeEntityType.AddProperty(
-                "IncludeOriginalInstructionSender",
-                typeof(bool),
-                propertyInfo: typeof(PrincipalEntity).GetProperty("IncludeOriginalInstructionSender", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(PrincipalEntity).GetField("<IncludeOriginalInstructionSender>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                sentinel: false);
-            includeOriginalInstructionSender.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
             var inspectionMode = runtimeEntityType.AddProperty(
                 "InspectionMode",
                 typeof(string),
@@ -151,12 +143,14 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 nullable: true);
             predecessorId.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
-            var reportRecipientAddressesJson = runtimeEntityType.AddProperty(
-                "ReportRecipientAddressesJson",
+            var reportSendingRulesJson = runtimeEntityType.AddProperty(
+                "ReportSendingRulesJson",
                 typeof(string),
-                propertyInfo: typeof(PrincipalEntity).GetProperty("ReportRecipientAddressesJson", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(PrincipalEntity).GetField("<ReportRecipientAddressesJson>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly));
-            reportRecipientAddressesJson.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+                propertyInfo: typeof(PrincipalEntity).GetProperty("ReportSendingRulesJson", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(PrincipalEntity).GetField("<ReportSendingRulesJson>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd);
+            reportSendingRulesJson.AddAnnotation("Relational:DefaultValue", "{\"sendTo\":[],\"sendToOnly\":false,\"replyAll\":true,\"cc\":[],\"neverCc\":[],\"attach\":{\"feeNoteSeparate\":true,\"estimate\":false,\"audatex\":false,\"reportImages\":true,\"vehicleImagesDocument\":false,\"figureBreakdown\":false},\"garageFigures\":false,\"reminders\":[],\"rules\":[]}");
+            reportSendingRulesJson.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var salvageMatrixJson = runtimeEntityType.AddProperty(
                 "SalvageMatrixJson",
