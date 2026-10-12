@@ -42,8 +42,29 @@ body.v38-strip-hidden .v38-strip{display:none}
 .v38-cmp-dialog{width:min(100%,1100px)}
 #section-estimate .v38-version-acts{gap:6px;justify-content:flex-end;flex-wrap:nowrap}
 #section-estimate .v38-version-acts .btn{white-space:nowrap}
-/* P3 · Dismiss sits in the sub-panel head, at the right. */
-#section-estimate .sub-panel>h3 .v38-supp-tools{margin-left:auto;font-weight:400;text-transform:none;letter-spacing:0}
+/* P3 · the Supplementary panel at the top of the section, as the reference draws it: the head names the
+   version it changes against with the cost movement and a link to the full comparison; one list line per
+   change with its tag, the words and the line's value; then the Explain tick, the reason and Dismiss. */
+#section-estimate .v38-supp{border-left:3px solid var(--red)}
+#section-estimate .v38-supp>h3{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#section-estimate .v38-supp>h3 .rt{font-weight:400;text-transform:none;letter-spacing:0;font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+#section-estimate .v38-supp>h3 .v38-supp-sum{margin-left:auto;color:var(--muted)}
+#section-estimate .v38-supp>h3 .v38-supp-sum b{color:var(--ink)}
+#section-estimate .v38-supp>h3 .v38-supp-sum a{color:var(--muted);text-decoration:underline dotted}
+#section-estimate .v38-supp-list{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:3px;font-size:12.5px}
+#section-estimate .v38-supp-list li{display:flex;gap:8px;align-items:baseline}
+#section-estimate .v38-supp-tag{font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.06em;min-width:64px}
+#section-estimate .v38-supp-added .v38-supp-tag{color:var(--red)}
+#section-estimate .v38-supp-changed .v38-supp-tag{color:var(--amber)}
+#section-estimate .v38-supp-removed .v38-supp-tag{color:var(--quiet)}
+#section-estimate .v38-supp-removed .v38-supp-desc{color:var(--muted)}
+#section-estimate .v38-supp-num{margin-left:auto;color:var(--muted);font-variant-numeric:tabular-nums}
+#section-estimate .v38-supp-row{align-items:center;gap:12px}
+#section-estimate .v38-supp-row .choice{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;min-height:var(--control)}
+#section-estimate .v38-supp-row .choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
+#section-estimate .v38-supp-row select.fi{width:auto;min-width:260px}
+#section-estimate .v38-supp-row .v38-supp-reason{min-height:0;padding:0;border:0;background:transparent;font-size:12.5px;color:var(--muted)}
+#section-estimate .v38-supp-row [data-supp-dismiss]{margin-left:auto}
 /* P5 · the labour rate as a bar under the grid: the control keeps its 36px row. */
 #section-estimate .bar.v38-rate-bar{flex-wrap:wrap}
 #section-estimate .bar.v38-rate-bar .rate-pair{grid-template-columns:260px 96px}

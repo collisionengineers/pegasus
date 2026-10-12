@@ -73,6 +73,10 @@ READ = """() => {
     mismatch: text(sec.querySelector('[data-contract-mismatch]')),
     stmt: text(document.querySelector('[data-supplementary-statement]')),
     suppPanel: !!document.querySelector('[data-estimate-supplementary]'),
+    suppTop: (() => { const p = document.querySelector('[data-supp-top]'); const g = sec.querySelector('.grid'); return !!p && !!g && !!(p.compareDocumentPosition(g) & Node.DOCUMENT_POSITION_FOLLOWING); })(),
+    suppItems: document.querySelectorAll('[data-supp-top] .v38-supp-list li').length,
+    suppHead: text(document.querySelector('[data-supp-top] > h3')),
+    tabs: sec.querySelectorAll('[data-estimate-tab]').length,
     suppOf: document.querySelector('[data-supp-of]') ? document.querySelector('[data-supp-of]').value : text(document.querySelector('[data-estimate-supplementary] .fv')),
     dismiss: !!document.querySelector('[data-supp-dismiss]'),
     side: !!document.querySelector('[data-estimate-compare-side]'),
@@ -112,7 +116,7 @@ def main():
 
         for design in ['today', 'proposal']:
             for mode in ['read', 'edit']:
-                for spec in ['1', '2']:
+                for spec in (['1', '2'] if design == 'today' else ['1']):
                     for width, height in WIDTHS:
                         tag = f'{design}/{mode}/spec{spec}@{width}'
                         r = load(f'design={design}&mode={mode}&spec={spec}', width, height)
@@ -121,7 +125,7 @@ def main():
                         check(f'{tag} mode', r['editing'] == (mode == 'edit'))
                         check(f'{tag} no sideways spill', not r['spill'])
                         check(f'{tag} read shows no live control', mode == 'edit' or not r['liveControls'], r['liveControls'][:6])
-                        check(f'{tag} rows drawn', r['rows'] == (14 if spec == '1' else 17), r['rows'])
+                        check(f'{tag} rows drawn', r['rows'] == (14 if design == 'today' and spec == '1' else 17), r['rows'])
                         check(f'{tag} no account id in the spec origin', not r['guid'])
                         check(f'{tag} frame patched', not r['layoutSwitch'] and not r['metricStrip'])
                         check(f'{tag} ribbon chip', r['chip'].startswith('Repairs ') and r['chip'].endswith('% of value'), r['chip'])
@@ -129,11 +133,10 @@ def main():
                             check(f'{tag} marks only the proposals on', set(r['changed']) <= set(r['applied']), sorted(set(r['changed']) - set(r['applied'])))
                             check(f'{tag} P1 dashes', r['na'] > 0, r['na'])
                             check(f'{tag} P5 rate bar under the grid and in the head', r['rateBar'] and r['rateInHead'] and r['headCells'] == 6, (r['rateBar'], r['rateInHead'], r['headCells']))
-                            if spec == '2':
-                                check(f'{tag} P3 statement on the imported spec', r['stmt'].startswith('Following receipt of a supplementary estimate'), r['stmt'][:40])
-                                check(f'{tag} P3 changes vs the sent version', 'v2' in r['suppOf'] or 'spec-1:v2' in r['suppOf'], r['suppOf'])
-                            else:
-                                check(f'{tag} P3 nothing filled on the earlier spec', not r['stmt'], r['stmt'][:40])
+                            check(f'{tag} P3 one spec, the import landed on it', r['tabs'] == 1, r['tabs'])
+                            check(f'{tag} P3 Supplementary at the top, against the sent version', r['suppTop'] and 'changes vs v2' in r['suppHead'] and 'Sent on report' in r['suppHead'], r['suppHead'][:80])
+                            check(f'{tag} P3 six changes listed', r['suppItems'] == 6, r['suppItems'])
+                            check(f'{tag} P3 statement waits for Explain', not r['stmt'], r['stmt'][:40])
                         else:
                             check(f'{tag} nothing marked', not r['changed'], r['changed'])
                             check(f'{tag} no dashes today', r['na'] == 0, r['na'])
@@ -158,9 +161,9 @@ def main():
 
         # P1: the dash count follows the type map; a Replace line keeps its boxes.
         r = load('design=proposal&mode=edit&spec=1')
-        check('P1 spec 1 dashes (14 lines)', r['na'] == 38, r['na'])
+        check('P1 dashes over the 17 lines', r['na'] == 46, r['na'])
         n_replace_dash = page.evaluate("[...document.querySelectorAll('#section-estimate tr[data-estimate-line]')].filter(tr => tr.querySelector('select').value === 'Replace').reduce((n, tr) => n + tr.querySelectorAll('td.na').length, 0)")
-        check('P1 a Replace line dashes only Paint h', n_replace_dash == 4, n_replace_dash)
+        check('P1 a Replace line dashes only Paint h', n_replace_dash == 5, n_replace_dash)
         n_ri = page.evaluate("[...document.querySelectorAll('#section-estimate tr[data-estimate-line]')].filter(tr => tr.querySelector('select').value === 'RemoveAndRefit').map(tr => tr.querySelectorAll('td.na').length)")
         check('P1 an R&I line keeps Hours only', n_ri == [5, 5], n_ri)
 
@@ -177,7 +180,7 @@ def main():
         check('P2 print sheet prints the comparison alone', visible['table'] and not visible['ribbon'] and not visible['grid'] and not visible['form'], visible)
         page.emulate_media(media='screen')
         r = load('design=proposal&mode=edit&spec=1&dialog=versions-dialog')
-        check('P2 Compare with current on every version row', r['versionCompare'] == 2 and r['versionRows'] == 3, (r['versionCompare'], r['versionRows']))
+        check('P2 Compare with current on every version row', r['versionCompare'] == 3 and r['versionRows'] == 4, (r['versionCompare'], r['versionRows']))
         page.click('[data-version-compare="1"]')
         page.wait_for_timeout(150)
         r = page.evaluate(READ)
@@ -188,14 +191,23 @@ def main():
         r = page.evaluate(READ)
         check('today compare lists added, changed and removed only', r['diffRows'] == 6 and not r['side'], r['diffRows'])
 
-        # P3: Dismiss folds the panel; today the panel waits for a choice.
-        r = load('design=proposal&mode=edit&spec=2')
+        # P3: Explain shows the statement; full comparison opens Compare; Dismiss folds the panel; today the panel waits for a choice.
+        r = load('design=proposal&mode=edit')
         check('P3 Dismiss offered while editing', r['dismiss'])
+        page.check('[data-supp-explain]'); page.wait_for_timeout(150)
+        r = page.evaluate(READ)
+        check('P3 Explain shows the statement', r['stmt'].startswith('Following receipt of a supplementary estimate') and r['suppTop'], r['stmt'][:40])
+        page.click('[data-supp-compare]'); page.wait_for_timeout(150)
+        r = page.evaluate(READ)
+        check('P3 full comparison opens Compare on v2 -> Working', r['dialogsOpen'] == ['compare-estimates-dialog'] and page.evaluate("document.querySelector('[data-cmp-from]').value") == 'spec-1:v2' and r['side'], r['dialogsOpen'])
+        page.keyboard.press('Escape')
         page.click('[data-supp-dismiss]'); page.wait_for_timeout(150)
         r = page.evaluate(READ)
         check('P3 Dismiss folds the panel', not r['suppPanel'] and not r['stmt'])
-        r = load('design=proposal&mode=read&spec=2')
-        check('P3 read shows the filled panel without Dismiss', r['stmt'].startswith('Following') and not r['dismiss'])
+        r = load('design=proposal&mode=read&explain=1')
+        check('P3 read shows the filled panel at the top without Dismiss', r['suppTop'] and r['stmt'].startswith('Following') and not r['dismiss'])
+        r = load('design=proposal&mode=read')
+        check('P3 read: no live control in the panel', not r['liveControls'])
         r = load('design=today&mode=edit&spec=2')
         check('today Supplementary waits for Changes vs', r['suppPanel'] and not r['stmt'])
         page.select_option('[data-supp-of]', 'spec-1:working'); page.wait_for_timeout(150)
@@ -241,13 +253,13 @@ def main():
         # The grid edits: a type change redraws the cells (P1), a removed line can be undone.
         load('design=proposal&mode=edit&spec=1')
         before = page.evaluate("document.querySelectorAll('#section-estimate td.na').length")
-        page.select_option('#line-operation-4', 'Replace'); page.wait_for_timeout(150)
+        page.select_option('#line-operation-5', 'Replace'); page.wait_for_timeout(150)
         after = page.evaluate("document.querySelectorAll('#section-estimate td.na').length")
         check('P1 a type change redraws the cells (a Repair line made Replace opens Part no., Qty and Unit)', after == before - 3, (before, after))
         page.click('[data-remove-line="1"]'); page.wait_for_timeout(150)
-        check('remove line offers Undo', page.locator('[data-undo-line]').count() == 1 and page.evaluate("document.querySelectorAll('#section-estimate tr[data-estimate-line]').length") == 13)
+        check('remove line offers Undo', page.locator('[data-undo-line]').count() == 1 and page.evaluate("document.querySelectorAll('#section-estimate tr[data-estimate-line]').length") == 16)
         page.click('[data-undo-line]'); page.wait_for_timeout(150)
-        check('Undo restores the line', page.evaluate("document.querySelectorAll('#section-estimate tr[data-estimate-line]').length") == 14)
+        check('Undo restores the line', page.evaluate("document.querySelectorAll('#section-estimate tr[data-estimate-line]').length") == 17)
         check('no console error', not console, console[:5])
 
         names = []
@@ -265,8 +277,11 @@ def main():
             for design in ['today', 'proposal']:
                 for mode in ['read', 'edit']:
                     for width, height in WIDTHS:
-                        shot(f'{design}-{mode}-spec2-{width}', f'design={design}&mode={mode}&spec=2', width, height)
-                    shot(f'{design}-{mode}-spec1', f'design={design}&mode={mode}&spec=1')
+                        shot(f'{design}-{mode}-{width}', f'design={design}&mode={mode}&spec=2', width, height)
+                    if design == 'today':
+                        shot(f'{design}-{mode}-spec1', f'design={design}&mode={mode}&spec=1')
+                    else:
+                        shot(f'{design}-{mode}-explain', f'design={design}&mode={mode}&explain=1')
                 shot(f'{design}-edit-spec2-full', f'design={design}&mode=edit&spec=2', full=True)
                 shot(f'{design}-compare', f'design={design}&mode=edit&spec=2&dialog=compare-estimates-dialog' + ('' if design == 'proposal' else '&cmpfrom=spec-1:working&cmpto=spec-2:working'))
                 shot(f'{design}-versions', f'design={design}&mode=edit&spec=1&dialog=versions-dialog')
@@ -277,7 +292,7 @@ def main():
             shot('rate-bar-only', 'design=proposal&mode=edit&spec=2&opt=rate:bar')
             shot('rate-head', 'design=proposal&mode=edit&spec=2&opt=rate:head')
             shot('cols-today-on-proposal', 'design=proposal&mode=edit&spec=2&opt=cols:today')
-            shot('supp-read', 'design=proposal&mode=read&spec=2')
+            shot('supp-today-on-proposal', 'design=proposal&mode=edit&opt=supp:today')
             shot('diff-edit', 'design=proposal&mode=edit&spec=2&diff=1')
             shot('split-edit', 'design=proposal&mode=edit&spec=2&split=1')
             shot('split-read', 'design=proposal&mode=read&spec=2&split=1')

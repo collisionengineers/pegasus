@@ -54,27 +54,33 @@
 
   // One state per drawn pane (Split draws two).
   function newState(design) {
-    const specs = M.clone(M.SPECS);
     const p = switchesFor(design);
-    const spec = specs[q.spec];
+    // P3 (the reference's model): the supplementary estimate was imported
+    // onto the existing spec, so the Case holds one spec with three versions.
+    const oneSpec = p.supp === 'auto';
+    const specs = M.clone(oneSpec ? M.SPECS_ONE : M.SPECS);
+    const specIndex = oneSpec ? 0 : q.spec;
+    const spec = specs[specIndex];
     const st = {
-      design, mode: q.mode, spec: q.spec, specs, p,
+      design, mode: q.mode, spec: specIndex, specs, p,
       preview: null, scaled: false, preScale: null,
       contract: q.sum > 0, sum: q.sum,
-      suppOf: null, suppReason: 'estimate', suppExplain: false, suppDismissed: false,
+      suppOf: null, suppReason: 'estimate', suppExplain: params.get('explain') === '1', suppDismissed: false,
       cmpFrom: q.cmpFrom, cmpTo: q.cmpTo,
       floors: { ...M.FLOORS },
     };
-    // P3: the just-imported spec (Current) supplements the version the last
-    // sent report used, else the spec it replaced.
-    if (p.supp === 'auto' && spec.current) {
+    // P3: the import onto the spec fills Supplementary against the version
+    // the last sent report used, else the grid it replaced.
+    if (oneSpec) {
       const sent = R.lastSent(specs);
-      st.suppOf = sent ? `${sent.spec.id}:v${sent.version.n}` : (specs.find((s) => s !== spec) ? `${specs.find((s) => s !== spec).id}:working` : null);
+      const before = spec.versions.length > 1 ? spec.versions[spec.versions.length - 2] : null;
+      st.suppOf = sent ? `${sent.spec.id}:v${sent.version.n}` : before ? `${spec.id}:v${before.n}` : null;
     }
     // P2: Compare opens on the last sent version against the working draft.
     if (p.cmp === 'side' && !st.cmpFrom && !st.cmpTo) {
       const sent = R.lastSent(specs);
-      st.cmpFrom = sent ? `${sent.spec.id}:v${sent.version.n}` : `${specs.find((s) => s !== spec).id}:working`;
+      const other = specs.find((s) => s !== spec);
+      st.cmpFrom = sent ? `${sent.spec.id}:v${sent.version.n}` : other ? `${other.id}:working` : (spec.versions.length ? `${spec.id}:v${spec.versions[spec.versions.length - 1].n}` : '');
       st.cmpTo = `${spec.id}:working`;
     }
     if (q.scale != null && q.mode === 'edit') st.preview = M.scaleTo(spec.lines, spec.header, M.ENGINEER_VALUE * q.scale / 100, st.floors);
@@ -117,13 +123,18 @@
     const body = section.querySelector('.panel-body');
     body.innerHTML = out.body;
     const meta = section.querySelector('[data-estimate-meta]'); if (meta) meta.textContent = out.meta;
-    // The More menu: Versions (n); Compare, offered with two specs (an item, never disabled).
-    const versions = section.querySelector('[data-estimate-versions] span:last-child'); if (versions) versions.textContent = `Versions (${st.specs[st.spec].versions.length})`;
+    // The More menu: Versions (n); Compare, offered with two specs today and
+    // with a frozen version under P2 (an item, never disabled; v36 item Y).
+    const selected = st.specs[st.spec];
+    const versions = section.querySelector('[data-estimate-versions] span:last-child'); if (versions) versions.textContent = `Versions (${selected.versions.length})`;
     const compareOld = section.querySelector('[data-estimate-compare]');
     if (compareOld) {
-      const a = document.createElement('a'); a.className = 'btn'; a.href = '#'; a.setAttribute('data-dialog-open', 'compare-estimates-dialog'); a.setAttribute('data-estimate-compare', '');
-      a.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-list"></use></svg><span>Compare</span>';
-      compareOld.replaceWith(a);
+      const offered = st.p.cmp === 'side' ? st.specs.length > 1 || selected.versions.length > 0 : st.specs.length > 1;
+      if (offered) {
+        const a = document.createElement('a'); a.className = 'btn'; a.href = '#'; a.setAttribute('data-dialog-open', 'compare-estimates-dialog'); a.setAttribute('data-estimate-compare', '');
+        a.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-list"></use></svg><span>Compare</span>';
+        compareOld.replaceWith(a);
+      } else compareOld.remove();
     }
     for (const d of pane.querySelectorAll('[data-v38-dialogs]')) d.remove();
     const holder = document.createElement('div'); holder.setAttribute('data-v38-dialogs', ''); holder.innerHTML = out.dialogs;
@@ -183,7 +194,7 @@
       const target = frame.querySelector(`#section-${q.section}`);
       if (target) target.scrollIntoView({ block: 'start', behavior: 'instant' });
     }
-    document.documentElement.dataset.ready = `${q.design}:${q.mode}:${q.spec + 1}`;
+    document.documentElement.dataset.ready = `${q.design}:${q.mode}:${st.spec + 1}`;
     window.v38Applied = applied(st);
   }
 
@@ -267,7 +278,7 @@
     }
     if (t.hasAttribute('data-supp-of')) { st.suppOf = t.value || null; redraw(t); return; }
     if (t.hasAttribute('data-supp-reason')) { st.suppReason = t.value; redraw(t); return; }
-    if (t.hasAttribute('data-supp-explain')) { st.suppExplain = t.checked; return; }
+    if (t.hasAttribute('data-supp-explain')) { st.suppExplain = t.checked; if (st.p.supp === 'auto') redraw(t); return; }
     if (t.hasAttribute('data-cmp-from')) { st.cmpFrom = t.value; return; }
     if (t.hasAttribute('data-cmp-to')) { st.cmpTo = t.value; return; }
   });
@@ -321,6 +332,8 @@
     if (rescale) { if (st.sum > 0) st.preview = M.scaleTo(spec.lines, spec.header, st.sum, st.floors); redraw(e.target); return; }
     const suppDismiss = e.target.closest('[data-supp-dismiss]');
     if (suppDismiss) { st.suppDismissed = true; redraw(e.target); return; }
+    const suppCompare = e.target.closest('[data-supp-compare]');
+    if (suppCompare) { e.preventDefault(); st.cmpFrom = st.suppOf; st.cmpTo = `${spec.id}:working`; redraw(e.target, 'compare-estimates-dialog'); return; }
     const vc = e.target.closest('[data-version-compare]');
     if (vc) { st.cmpFrom = `${spec.id}:v${vc.dataset.versionCompare}`; st.cmpTo = `${spec.id}:working`; redraw(e.target, 'compare-estimates-dialog'); return; }
     const go2 = e.target.closest('[data-estimate-compare-go]');
@@ -372,20 +385,20 @@
     el.innerHTML = `<summary>Mockup controls · v38 Repair Spec <small>demo control, not product UI</small></summary><div class="v38-body">
       ${seg('design', q.design, [['today', 'Today'], ['proposal', 'Proposal']])}
       ${seg('mode', q.mode, [['read', 'Read'], ['edit', 'Edit']])}
-      ${seg('spec', q.spec + 1, [['1', 'Audatex est. 88214-01'], ['2', 'Audatex supp. est. 88214-02']])}
-      <div class="v38-row"><b>Presets</b><div class="v38-seg"><button type="button" data-set="scale" data-value="${q.scale ? '' : '60'}" aria-pressed="${!!q.scale}">Target 60 % preview</button><button type="button" data-set="sum" data-value="${q.sum ? '' : String(M.AGREED_SUM)}" aria-pressed="${!!q.sum}">Agreed sum £${M.AGREED_SUM.toLocaleString('en-GB')}</button></div></div>
+      ${sw.supp === 'auto' ? '<div class="v38-row"><b>Spec</b><div class="v38-note">One spec: the supplementary estimate was imported onto it (P3)</div></div>' : seg('spec', q.spec + 1, [['1', 'Audatex est. 88214-01'], ['2', 'Audatex supp. est. 88214-02']])}
+      <div class="v38-row"><b>Presets</b><div class="v38-seg"><button type="button" data-set="scale" data-value="${q.scale ? '' : '60'}" aria-pressed="${!!q.scale}">Target 60 % preview</button><button type="button" data-set="sum" data-value="${q.sum ? '' : String(M.AGREED_SUM)}" aria-pressed="${!!q.sum}">Agreed sum £${M.AGREED_SUM.toLocaleString('en-GB')}</button><button type="button" data-set="explain" data-value="${params.get('explain') === '1' ? '' : '1'}" aria-pressed="${params.get('explain') === '1'}">Explain on report ticked</button></div></div>
       <div class="v38-row"><b>Widgets</b><div class="v38-seg">${[['diff', 'Diff'], ['split', 'Split']].map(([k, l]) => `<button type="button" data-toggle="${k}" aria-pressed="${q[k]}">${l}</button>`).join('')}</div></div>
       <div class="v38-row"><b>Dialog</b><select data-select="dialog"><option value="">(none)</option>${dialogs.map((d) => `<option value="${d}"${d === q.dialog ? ' selected' : ''}>${d}</option>`).join('')}</select></div>
       <div class="v38-findings"><div class="v38-group">Proposals</div>${proposals}</div>
       <div class="v38-seg"><button type="button" data-reset>Reset to Today</button><button type="button" data-hide>Hide strip</button></div>
-      <div class="v38-note">Every choice is also a query string: design, mode, spec, dialog, diff, split, scale, sum, cmpfrom, cmpto, opt=cols:dash,cmp:side,supp:auto,agreed:drives,rate:both.</div>
+      <div class="v38-note">Every choice is also a query string: design, mode, spec, dialog, diff, split, scale, sum, explain, cmpfrom, cmpto, opt=cols:dash,cmp:side,supp:auto,agreed:drives,rate:both.</div>
     </div>`;
     el.addEventListener('click', (e) => {
       const b = e.target.closest('button');
       if (!b) return;
       if (b.dataset.set) go({ [b.dataset.set]: b.dataset.value });
       else if (b.dataset.toggle) go({ [b.dataset.toggle]: !q[b.dataset.toggle] });
-      else if (b.hasAttribute('data-reset')) go({ design: 'today', opt: '', diff: '', split: '', scale: '', sum: '', dialog: '', cmpfrom: '', cmpto: '' });
+      else if (b.hasAttribute('data-reset')) go({ design: 'today', opt: '', diff: '', split: '', scale: '', sum: '', explain: '', dialog: '', cmpfrom: '', cmpto: '' });
       else if (b.hasAttribute('data-hide')) go({ strip: '0' });
     });
     el.addEventListener('change', (e) => {

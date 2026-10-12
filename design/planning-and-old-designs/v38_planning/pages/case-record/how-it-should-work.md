@@ -14,11 +14,11 @@ Decided with the operator on 12 October 2026: the five proposals are the request
 - D5. Opened from More, Compare starts at the version the last sent report used against the selected spec's Working draft.
 - D6. Every version row offers Compare with current, which opens Compare on that version against the Working draft; the dialog offers Print comparison sheet, which prints the summary and the table alone.
 
-## P3 · Supplementary after an import
+## P3 · Supplementary from an import onto the spec
 
-- D7. The spec an import has just made opens with Supplementary filled: Changes vs the version the last sent report used, else the spec it replaced; Reason Supplementary estimate received; Explain the change on the report unticked; the diff and the statement drawn.
-- D8. Changes vs lists the Case's sent versions beside its other specs.
-- D9. Dismiss folds the filled panel for that spec while editing; the versions keep the history.
+- D7. An estimate imported onto the selected repair spec replaces its lines, freezing the grid it replaces and the import as numbered versions, as a Glass's return does today.
+- D8. The Supplementary panel then opens at the top of the section, above the grid: the version it changes against (the one the last sent report used, else the grid replaced) with its Sent on report mark, the cost movement and a full comparison link; one line per change (Added, Changed with the fields that changed, Removed) with the line's value; Explain the change on the report; the reason; Dismiss.
+- D9. The statement prints under the panel once Explain is ticked, and on the report as the Supplementary damage block; Dismiss folds the panel while editing and the versions keep the history.
 
 ## P4 · The agreed sum drives the spec
 

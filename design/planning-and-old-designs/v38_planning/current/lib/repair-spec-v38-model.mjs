@@ -132,6 +132,29 @@ const v38Model = (() => {
     },
   ];
 
+  // The reference's model (P3): the supplementary estimate is imported onto
+  // the existing spec; the grid it replaces is frozen as a version and the
+  // import is frozen too, as a Glass's return is today (FRD-25).
+  const SPECS_ONE = [
+    {
+      id: 'spec-1',
+      route: 'AudatexPdf',
+      state: 'Draft',
+      current: true,
+      createdAt: '28 Aug 2026 14:22',
+      createdBy: 'A Patterson',
+      populated: { when: '12 Oct 2026 09:40', who: 'A Patterson', route: 'AudatexPdf', file: 'Audatex supp. est. 88214-02' },
+      header: header('Audatex est. 88214-01'),
+      lines: ROWS_SUPP,
+      versions: [
+        { n: 1, kind: 'Imported', when: '28 Aug 2026 14:22', who: 'A Patterson', origin: 'Imported from Audatex', lines: ROWS_V1, rate: RATE, sent: false },
+        { n: 2, kind: 'Sent', when: '28 Aug 2026 16:40', who: 'A Patterson', origin: 'Report sent', lines: ROWS_V2, rate: RATE, sent: true },
+        { n: 3, kind: 'Imported', when: '12 Oct 2026 09:40', who: 'A Patterson', origin: 'Imported from Audatex (supp. est. 88214-02)', lines: ROWS_SUPP, rate: RATE, sent: false },
+      ],
+      supplementary: null,
+    },
+  ];
+
   const ROUTE_TAG = { Manual: 'Manual', Glasses: "Glass's", AudatexPdf: 'Audatex PDF', Json: 'JSON', AiDraft: 'AI' };
   const ROUTE_WORDS = { Manual: 'entered by hand', Glasses: "from Glass's", AudatexPdf: 'from Audatex', Json: 'from a JSON estimate', AiDraft: 'drafted by AI' };
   const SOURCE_SHORT = { AudatexPdf: 'AX', Glasses: 'GL', Json: 'JSON', AiDraft: 'AI' };
@@ -246,6 +269,6 @@ const v38Model = (() => {
 
   const clone = (v) => JSON.parse(JSON.stringify(v));
 
-  return { OPERATIONS, WORD, COLS, SPECS: clone(SPECS), RATE, ENGINEER_VALUE, AGREED_SUM, ROUTE_TAG, ROUTE_WORDS, SOURCE_SHORT, REASONS, FLOORS: { rate: 50, price: 65 }, money, pence, totals, effectiveRate, scaleTo, grossAt, percentOfValue, diff, statement, contractSentence, lineValue, clone };
+  return { OPERATIONS, WORD, COLS, SPECS: clone(SPECS), SPECS_ONE: clone(SPECS_ONE), RATE, ENGINEER_VALUE, AGREED_SUM, ROUTE_TAG, ROUTE_WORDS, SOURCE_SHORT, REASONS, FLOORS: { rate: 50, price: 65 }, money, pence, totals, effectiveRate, scaleTo, grossAt, percentOfValue, diff, statement, contractSentence, lineValue, clone };
 })();
 export default v38Model;

@@ -29,3 +29,11 @@ The operator:
 > things i tell you to do are not issues to be settled.
 
 Nine of the ten restated the request or asked about mechanics the reference file already has. They were withdrawn and the mockup now follows the reference on each: the rate bar is drawn as well as the head cells ("also"); typing the agreed sum rescales and the mismatch chip rescales on press; Compare opens on the last sent version against the working draft with Compare with current and Print comparison sheet; Supplementary fills itself after an import against the last sent version, with Dismiss; a cell the type does not price reads "—" and an imported value in one stays amber. Section 4 of the notes records what was taken from the reference and the three column choices the reference could not make (Part no., Paint h, Other). Item A (the folder) is the one left. Self-check rerun: see the notes' section 7.
+
+## 12 October 2026: Supplementary matched to the reference
+
+The operator, on the first draft's Supplementary (filled, but still a sub-panel at the foot on a second spec):
+
+> try harder to make it match. this supplementary bit is at the top clearly, and i think its from uploading/importing something onto an existing repair spec
+
+Redrawn as the reference has it: the supplementary estimate is imported onto the existing repair spec (the grid it replaces frozen as a version, the import frozen too, as a Glass's return is today), so the proposal's Case holds one spec with three versions; the panel opens at the top of the section above the grid with the version it changes against, the cost movement, a full comparison link, one line per change, the Explain tick, the reason and Dismiss; the statement appears once Explain is ticked. Today's fixture keeps the live behaviour (an import makes a second spec, the sub-panel at the foot waits for Changes vs) so the two can be compared. Self-check rerun: see the notes' section 7.

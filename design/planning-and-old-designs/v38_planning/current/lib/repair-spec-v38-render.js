@@ -66,7 +66,8 @@
     const rateInBar = P.rate === 'bar' || P.rate === 'both';
 
     const tabs = state.specs.map((s, i) => `<a class="estimate-tab" role="tab" href="#" aria-selected="${i === state.spec}" data-estimate-tab="${s.id}" data-spec-index="${i}"><span data-estimate-tab-label>${esc(s.header.name)}</span><span class="src-tag">${esc(M.ROUTE_TAG[s.route])}</span><span class="status status--plain ${s.current ? 'status--green' : 'status--amber'}">${s.current ? 'Current' : 'Draft'}</span></a>`).join('');
-    const origin = `Populated ${spec.createdAt} by ${spec.createdBy}, ${M.ROUTE_WORDS[spec.route]} · ${spec.lines.length === 1 ? '1 line' : spec.lines.length + ' lines'} · labour rate ${money(M.effectiveRate(spec.header))}/h`;
+    const pop = spec.populated || { when: spec.createdAt, who: spec.createdBy, route: spec.route };
+    const origin = `Populated ${pop.when} by ${pop.who}, ${M.ROUTE_WORDS[pop.route]} · ${spec.lines.length === 1 ? '1 line' : spec.lines.length + ' lines'} · labour rate ${money(M.effectiveRate(spec.header))}/h`;
 
     let actions = '';
     if (editing) {
@@ -167,24 +168,48 @@
     const cats = ['Labour', 'Parts', 'Materials', 'Specialist'];
     const vatBar = `<div class="bar" data-estimate-vat><span class="bl">VAT charged on</span>${cats.map((c) => editing ? `<label class="choice"><input type="checkbox" value="true" data-vat-category="${c}"${h.vat[c] ? ' checked' : ''} /><span>${c}</span></label>` : staticChoice(h.vat[c], c)).join('')}<span class="status status--amber status--plain" data-vat-overridden${h.vatOverridden ? '' : ' hidden'}>Overridden</span>${editing ? `<button type="button" class="btn btn--small vat-reset" data-vat-reset${h.vatOverridden ? '' : ' hidden'}>Reset to repairer status</button>` : ''}</div>`;
 
-    // Supplementary (P3: automatic after an import).
+    // Supplementary. Today: the sub-panel at the foot, with two specs, filled
+    // once Changes vs is chosen. P3, as the reference draws it: an import
+    // onto the existing spec fills the panel at the top of the section with
+    // the changes against the version the last sent report used.
     let supp = '';
-    if (others.length > 0) {
-      const auto = P.supp === 'auto';
-      const options = auto ? comparables(state, spec).filter((c) => c.key !== `${spec.id}:working`) : specComparables(state).filter((c) => c.spec !== spec);
+    let suppTop = '';
+    const auto = P.supp === 'auto';
+    const reason = state.suppReason || 'estimate';
+    if (auto) {
+      const options = comparables(state, spec).filter((c) => c.key !== `${spec.id}:working`);
       const chosen = state.suppOf ? options.find((c) => c.key === state.suppOf) : null;
-      const reason = state.suppReason || 'estimate';
-      // The panel reads the recorded spec; a scaling preview changes nothing here until Apply.
+      if (chosen && !state.suppDismissed) {
+        // The panel reads the recorded spec; a scaling preview changes nothing here until Apply.
+        const d = M.diff(chosen.lines, chosen.header, spec.lines, spec.header);
+        const stmt = M.statement(d, reason);
+        const rateTo = M.effectiveRate(spec.header), rateFrom = M.effectiveRate(chosen.header);
+        const fieldWord = { type: 'type', quantity: 'qty', 'unit amount': 'unit', hours: 'hours', 'paint hours': 'paint h', materials: 'materials', 'part number': 'part no.' };
+        const valueOf = (l, f) => f === 'type' ? M.WORD[l.t] : f === 'part number' ? (l.p || '—') : f === 'quantity' ? (l.q || 1) : f === 'unit amount' ? (l.u || 0) : f === 'hours' ? (l.h || 0) : f === 'paint hours' ? (l.ph || 0) : (l.m || 0);
+        const li = (word, cls, l, extra, value) => `<li class="v38-supp-${cls}"><span class="v38-supp-tag">${word}</span><span class="v38-supp-desc">${esc(l.d)}${extra ? `<span class="muted"> — ${extra}</span>` : ''}</span><span class="mono v38-supp-num">${value}</span></li>`;
+        const items = [
+          ...d.added.map((l) => li('Added', 'added', l, '', money(M.lineValue(l, rateTo)))),
+          ...d.changed.map((c) => li('Changed', 'changed', c.to, c.fields.map((f) => `${fieldWord[f]} ${valueOf(c.from, f)} → ${valueOf(c.to, f)}`).join(', '), '')),
+          ...d.removed.map((l) => li('Removed', 'removed', l, '', money(M.lineValue(l, rateFrom)))),
+        ].join('');
+        const versionWord = chosen.version ? `v${chosen.version.n}` : esc(chosen.label.split(' · ')[0]);
+        const head = `<h3>Supplementary <span class="rt">changes vs ${versionWord}${chosen.version && chosen.version.sent ? ' <span class="status status--plain status--green">Sent on report</span>' : ''}</span><span class="rt v38-supp-sum mono">${money(d.grossFrom)} → <b>${money(d.grossTo)}</b> (${d.grossDelta >= 0 ? '+' : '−'}${money(Math.abs(d.grossDelta))}) · <a href="#" data-supp-compare>full comparison</a></span></h3>`;
+        const row = editing
+          ? `<div class="cluster v38-supp-row"><label class="choice"><input type="checkbox" name="supplementaryExplain" form="case-edit-form" value="true"${state.suppExplain ? ' checked' : ''} data-supp-explain /><span>Explain the change on the report</span></label><select class="fi" name="supplementaryReason" form="case-edit-form" aria-label="Reason" data-supp-reason>${M.REASONS.map(([code, label]) => `<option value="${code}"${reason === code ? ' selected' : ''}>${label}</option>`).join('')}</select><button type="button" class="btn btn--small" data-supp-dismiss>${icon('icon-x')}<span>Dismiss</span></button></div>`
+          : `<div class="cluster v38-supp-row">${staticChoice(!!state.suppExplain, 'Explain the change on the report')}<span class="fv v38-supp-reason">${M.REASONS.find((r) => r[0] === reason)[1]}</span></div>`;
+        const statement = state.suppExplain ? `<div class="fc ro"><span class="lbl">Supplementary damage</span><div class="fv derived multi" data-supplementary-statement>${esc(stmt)}</div></div>` : '';
+        suppTop = `<div class="sub-panel v38-supp" data-estimate-supplementary data-supp-top${mark('P3', true)}>${head}<ul class="v38-supp-list">${items}</ul>${row}${statement}</div>`;
+      }
+    } else if (others.length > 0) {
+      const options = specComparables(state).filter((c) => c.spec !== spec);
+      const chosen = state.suppOf ? options.find((c) => c.key === state.suppOf) : null;
       const suppDiff = chosen ? M.diff(chosen.lines, chosen.header, spec.lines, spec.header) : null;
       const diffHtml = suppDiff ? renderDiff(suppDiff) : '';
       const stmt = suppDiff ? M.statement(suppDiff, reason) : '';
-      const dismiss = auto && editing ? `<button type="button" class="btn btn--small" data-supp-dismiss${mark('P3', true)}>${icon('icon-x')}<span>Dismiss</span></button>` : '';
       const fields = editing
-        ? `<div class="fc"><label for="estimate-supplementary-of">Changes vs</label><select id="estimate-supplementary-of" class="fi" name="supplementaryOf" form="case-edit-form" data-supp-of${mark('P3', auto)}><option value=""${chosen ? '' : ' selected'}>Choose…</option>${options.map((c) => `<option value="${c.key}"${chosen && chosen.key === c.key ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}</select></div><div class="fc"><label for="estimate-supplementary-reason">Reason</label><select id="estimate-supplementary-reason" class="fi" name="supplementaryReason" form="case-edit-form" data-supp-reason>${M.REASONS.map(([code, label]) => `<option value="${code}"${reason === code ? ' selected' : ''}>${label}</option>`).join('')}</select></div><div class="fc"><span class="lbl">Report</span><label class="choice"><input type="checkbox" name="supplementaryExplain" form="case-edit-form" value="true"${state.suppExplain ? ' checked' : ''} data-supp-explain /><span>Explain the change on the report</span></label></div>`
-        : `<div class="fc ro"><span class="lbl">Changes vs</span><div class="${chosen ? 'fv' : 'fv empty'}"${mark('P3', auto && !!chosen)}>${chosen ? esc(chosen.label) : ABSENT}</div></div><div class="fc ro"><span class="lbl">Reason</span><div class="${chosen ? 'fv' : 'fv empty'}">${chosen ? M.REASONS.find((r) => r[0] === reason)[1] : ABSENT}</div></div><div class="fc ro"><span class="lbl">Report</span>${staticChoice(!!state.suppExplain, 'Explain the change on the report')}</div>`;
-      if (!(auto && state.suppDismissed)) {
-        supp = `<div class="sub-panel" data-estimate-supplementary${mark('P3', auto && !!chosen)}><h3>Supplementary${dismiss ? `<span class="rt v38-supp-tools">${dismiss}</span>` : ''}</h3><div class="fg g4">${fields}</div>${chosen ? `${diffHtml}<div class="fc ro"><span class="lbl">Supplementary damage</span><div class="fv derived multi" data-supplementary-statement>${esc(stmt)}</div></div>` : ''}</div>`;
-      }
+        ? `<div class="fc"><label for="estimate-supplementary-of">Changes vs</label><select id="estimate-supplementary-of" class="fi" name="supplementaryOf" form="case-edit-form" data-supp-of><option value=""${chosen ? '' : ' selected'}>Choose…</option>${options.map((c) => `<option value="${c.key}"${chosen && chosen.key === c.key ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}</select></div><div class="fc"><label for="estimate-supplementary-reason">Reason</label><select id="estimate-supplementary-reason" class="fi" name="supplementaryReason" form="case-edit-form" data-supp-reason>${M.REASONS.map(([code, label]) => `<option value="${code}"${reason === code ? ' selected' : ''}>${label}</option>`).join('')}</select></div><div class="fc"><span class="lbl">Report</span><label class="choice"><input type="checkbox" name="supplementaryExplain" form="case-edit-form" value="true"${state.suppExplain ? ' checked' : ''} data-supp-explain /><span>Explain the change on the report</span></label></div>`
+        : `<div class="fc ro"><span class="lbl">Changes vs</span><div class="${chosen ? 'fv' : 'fv empty'}">${chosen ? esc(chosen.label) : ABSENT}</div></div><div class="fc ro"><span class="lbl">Reason</span><div class="${chosen ? 'fv' : 'fv empty'}">${chosen ? M.REASONS.find((r) => r[0] === reason)[1] : ABSENT}</div></div><div class="fc ro"><span class="lbl">Report</span>${staticChoice(!!state.suppExplain, 'Explain the change on the report')}</div>`;
+      supp = `<div class="sub-panel" data-estimate-supplementary><h3>Supplementary</h3><div class="fg g4">${fields}</div>${chosen ? `${diffHtml}<div class="fc ro"><span class="lbl">Supplementary damage</span><div class="fv derived multi" data-supplementary-statement>${esc(stmt)}</div></div>` : ''}</div>`;
     }
 
     // Work-lists and the rollup (RenderBottom).
@@ -196,7 +221,7 @@
     const dRow = (key, label) => d[key] > 0 ? `<div class="rr"><dt>${label}</dt><dd>−${d[key]}%</dd></div>` : '';
     const bottom = `<div class="est-bottom"><div class="wl" data-estimate-worklists>${list('Main new parts required', newParts)}${list('Repairs required', repairs)}${list('Additional operations', operations)}</div><dl class="rollup" data-estimate-rollup><div class="rr"><dt>Parts</dt><dd data-rollup="parts">${money(printed.parts)}</dd></div><div class="rr"><dt>Panel labour</dt><dd data-rollup="panelLabour">${money(printed.panelLabour)}</dd></div><div class="rr"><dt>Paint labour</dt><dd data-rollup="paintLabour">${money(printed.paintLabour)}</dd></div><div class="rr"><dt>Materials</dt><dd data-rollup="materials">${money(printed.materials)}</dd></div><div class="rr"><dt>Specialist</dt><dd data-rollup="specialist">${money(printed.specialist)}</dd></div>${dRow('Parts', 'Parts discount')}${dRow('Materials', 'Materials discount')}${dRow('Specialist', 'Specialist discount')}${dRow('Overall', 'Overall discount')}${t.offPattern > 0 ? `<div class="rr" data-estimate-off-pattern><dt>Off-pattern items (treated as specialist)</dt><dd data-rollup="offPattern">${money(t.offPattern)}</dd></div>` : ''}<div class="rr"><dt>Net</dt><dd data-rollup="net">${money(printed.net)}</dd></div><div class="rr"><dt>VAT ${h.vatPercent} % on ${vatOn.length ? vatOn.join(', ') : 'nothing'}</dt><dd data-rollup="vat">${money(printed.vat)}</dd></div><div class="rr tot"><dt>Repair cost inc VAT${spec.current ? '' : ' · draft'}</dt><dd data-estimate-gross data-rollup="gross">${money(printed.gross)}</dd></div></dl></div>`;
 
-    const body = `${head}${grid}${addLine}${rateBar}${scaleBar}${contractBar}${discounts}${vatBar}${supp}${bottom}`;
+    const body = `${suppTop}${head}${grid}${addLine}${rateBar}${scaleBar}${contractBar}${discounts}${vatBar}${supp}${bottom}`;
     const wrap = editing ? `<div class="stack" data-estimate-form><input type="hidden" name="estimateId" value="${spec.id}" form="case-edit-form" />${body}</div>` : `<div class="stack" data-estimate-read>${body}</div>`;
 
     return {
@@ -245,8 +270,8 @@
   }
 
   function renderCompare(state, spec) {
-    if (state.specs.length < 2) return '';
     const side = state.p.cmp === 'side';
+    if (!(side ? state.specs.length > 1 || spec.versions.length > 0 : state.specs.length > 1)) return '';
     const list = side ? comparables(state, spec) : specComparables(state);
     const specRows = state.specs.map((s) => { const tt = M.totals(s.lines, s.header).printed; return `<tr><td>${esc(s.header.name)}<br /><small class="muted">${M.ROUTE_TAG[s.route]} · ${s.createdAt}</small></td><td><span class="status status--plain ${s.current ? 'status--green' : 'status--amber'}">${s.current ? 'Current' : 'Draft'}</span></td><td class="num mono">${money(tt.net)}</td><td class="num mono">${money(tt.vat)}</td><td class="num mono">${money(tt.gross)}</td></tr>`; }).join('');
     const sel = (name, value) => `<label class="dsc">${name === 'from' ? 'From' : 'To'} <select class="fi" name="${name}" aria-label="${name === 'from' ? 'From' : 'To'}" data-cmp-${name}><option value="">Choose…</option>${list.map((c) => `<option value="${c.key}"${value === c.key ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}</select></label>`;
