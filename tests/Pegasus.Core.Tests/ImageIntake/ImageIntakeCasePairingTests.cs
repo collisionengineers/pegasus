@@ -1,6 +1,8 @@
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
+using Pegasus.Core.Tests.Intake.ThirdPartyReports;
 
 namespace Pegasus.Core.Tests.ImageIntake;
 
@@ -502,6 +504,50 @@ public sealed class ImageIntakeCasePairingTests
         Assert.Equal(detail.Record.Id, merge.ImageIntakeId);
         Assert.Equal(CaseId, merge.CaseId);
         Assert.Equal([workItemId], publisher.ExternalWorkIds);
+    }
+
+    [Fact]
+    public async Task AMergedCaptureIntakeFillsTheCaseFromItsDocument()
+    {
+        // A capture PDF registered the Image intake; once it merges into the
+        // Case, the PDF's vehicle identity fills that Case (FRD-02 EXT-17).
+        var receiptId = Guid.NewGuid();
+        var detail = new ImageIntakeDetail(
+            new ImageIntakeRecord(
+                Guid.NewGuid(),
+                new ImageIntakeOrigin(
+                    receiptId,
+                    new IntakeSourceIdentity(IntakeSourceChannel.Mailbox, "token"),
+                    new string('a', 64),
+                    Guid.NewGuid()),
+                "AB12CDE",
+                "AB12CDE-01"),
+            DateTimeOffset.UtcNow,
+            CaseId,
+            "QDS26001");
+        var queries = new FakeQueries
+        {
+            Unassociated = [Summary("AB12CDE-01", "AB12CDE", associatedCaseId: CaseId) with { OriginReceiptId = receiptId }],
+            ByOriginReceipt = { [receiptId] = detail }
+        };
+        var pdf = VehicleCaptureFixture.Pdf();
+        var capture = VehicleCaptureFixture.Receipt(pdf) with { Id = receiptId };
+        var fill = new VehicleCaptureFixture.FillSpy();
+        var captureFill = new FillCaseFromVehicleCapture(
+            new VehicleCaptureFixture.Receipts(capture),
+            new RecordedVehicleCaptureReading(new VehicleCaptureFixture.Analyses().Record(
+                capture, pdf, VehicleCaptureFixture.Rows((ThirdPartyReportFields.Registration, "AB12CDE")))),
+            fill);
+
+        await new ImageIntakeCasePairing(
+                queries, new FakeCandidates(), new FakeMutationStore(), TimeProvider.System,
+                new CommittedWorkPublisherDouble(), queries, captureFill)
+            .PairAcceptedCaseAsync(CaseId, CancellationToken.None);
+
+        Assert.Single(queries.Merges);
+        var (caseId, reading) = Assert.Single(fill.Calls);
+        Assert.Equal(CaseId, caseId);
+        Assert.Equal("AB12CDE", reading.Registration);
     }
 
     private static readonly DateTimeOffset Registered = new(2026, 9, 28, 12, 25, 53, TimeSpan.Zero);

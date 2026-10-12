@@ -1734,7 +1734,7 @@ public static class OperatorLabels
     /// <summary>
     /// The source tag of a recorded assessment value: the vehicle lookup's
     /// writes read Lookup, an Original report cell filled from the filed report
-    /// Extracted, the agreed fee a new Case took from its Principal Principal,
+    /// and a VIN filled from a capture document Extracted, the agreed fee a new Case took from its Principal Principal,
     /// the findings a linked Triage filled Triage, any other Automation
     /// actor's AI, a Pegasus worker's Automatic; a staff
     /// value carries none.
@@ -1743,6 +1743,7 @@ public static class OperatorLabels
     {
         ActorKind.Automation when field.RecordedBy == VehicleLookupFillPolicy.RecorderId => SourceTagWord.Lookup,
         ActorKind.Automation when field.RecordedBy == OriginalReportPrefillPolicy.RecorderId => SourceTagWord.Extracted,
+        ActorKind.Automation when field.RecordedBy == Pegasus.Core.Intake.ThirdPartyReports.VehicleCaptureFill.RecorderId => SourceTagWord.Extracted,
         ActorKind.Automation when field.RecordedBy == PrincipalDefaultFeePolicy.RecorderId => SourceTagWord.Principal,
         ActorKind.Automation when field.RecordedBy == Pegasus.Core.Triage.TriageFindingFill.RecorderId => SourceTagWord.Triage,
         ActorKind.Automation => SourceTagWord.Ai,

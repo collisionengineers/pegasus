@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake.ThirdPartyReports;
 
 namespace Pegasus.Core.Intake;
 
@@ -18,7 +19,8 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
     IIntakeArtifactStore artifactStore,
     ICaseArtifactCustody custody,
     IAutomaticCaseEvidencePromotionStore promotionStore,
-    RecogniseFiledOriginalReport? recogniseOriginalReport = null)
+    RecogniseFiledOriginalReport? recogniseOriginalReport = null,
+    FillCaseFromVehicleCapture? captureFill = null)
 {
     private static readonly ActionActor SystemWorkerActor =
         ActionActor.SystemWorker("intake-processing");
@@ -43,11 +45,20 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
         }
 
         var outcome = await FileAsync(receipt, caseId, cancellationToken);
-        if (recogniseOriginalReport is not null
-            && outcome is not (AutomaticCaseEvidencePromotionOutcome.Deferred
+        if (outcome is not (AutomaticCaseEvidencePromotionOutcome.Deferred
                 or AutomaticCaseEvidencePromotionOutcome.Failed))
         {
-            await recogniseOriginalReport.ExecuteAsync(caseId, receipt, cancellationToken);
+            if (recogniseOriginalReport is not null)
+            {
+                await recogniseOriginalReport.ExecuteAsync(caseId, receipt, cancellationToken);
+            }
+
+            // A capture PDF's vehicle identity fills the Case its evidence
+            // joined (FRD-02 EXT-17); a receipt without one fills nothing.
+            if (captureFill is not null)
+            {
+                await captureFill.ExecuteAsync(caseId, receipt.Id, cancellationToken);
+            }
         }
 
         return outcome;
