@@ -13,7 +13,7 @@ public sealed class AdministrationReportTablesTests
     {
         var engineer = new EngineerActivityReport(From, To,
         [
-            new(Guid.NewGuid(), "alex", 4, 3, AmendmentRequests: 1, AuditReportsSent: 2, AverageReceivedToSent: TimeSpan.FromHours(30))
+            new(Guid.NewGuid(), "alex", 4, 3, AuditReportsSent: 2, AverageReceivedToSent: TimeSpan.FromHours(30))
         ]);
         var principal = new PrincipalReportActivityReport(From, To,
         [
@@ -38,11 +38,11 @@ public sealed class AdministrationReportTablesTests
 
         Assert.Equal(["Engineer activity", "Reports by Principal", "By month", "Outcomes", "Turnaround", "Queues"], sheets.Select(sheet => sheet.Name));
         var engineerSheet = sheets[0];
-        Assert.Equal(["Person", "Queries received", "Amendment requests", "Reports sent", "Audit reports sent", "Received to sent"],
+        Assert.Equal(["Person", "Queries received", "Reports sent", "Audit reports sent", "Received to sent"],
             engineerSheet.Columns.Select(column => column.Title));
         Assert.True(engineerSheet.Totals);
         // Item K: a turnaround reads as the page writes it.
-        Assert.Equal(["alex", 3, 1, 4, 2, "30h"], engineerSheet.Rows.Single());
+        Assert.Equal(["alex", 3, 4, 2, "30h"], engineerSheet.Rows.Single());
 
         // MI-02: each total sits beside its Inspection and Audit split.
         var byPrincipal = sheets[1];
@@ -96,17 +96,17 @@ public sealed class AdministrationReportTablesTests
         var csv = WorkbookSheetCsv.Write(AdministrationReportTables.EngineerActivity(
             new EngineerActivityReport(From, To,
             [
-                new(Guid.NewGuid(), "alex", 4, 3, 1, 2, TimeSpan.FromHours(1)),
+                new(Guid.NewGuid(), "alex", 4, 3, 2, TimeSpan.FromHours(1)),
                 new(Guid.NewGuid(), "Smith, \"J\"", 0, 1),
                 new(Guid.NewGuid(), "=SUM(A1:A2)", 0, 0)
             ]),
             new Words()));
 
         Assert.Equal(
-            "Person,Queries received,Amendment requests,Reports sent,Audit reports sent,Received to sent\r\n"
-            + "alex,3,1,4,2,1h\r\n"
-            + "\"Smith, \"\"J\"\"\",1,0,0,0,\r\n"
-            + "'=SUM(A1:A2),0,0,0,0,\r\n",
+            "Person,Queries received,Reports sent,Audit reports sent,Received to sent\r\n"
+            + "alex,3,4,2,1h\r\n"
+            + "\"Smith, \"\"J\"\"\",1,0,0,\r\n"
+            + "'=SUM(A1:A2),0,0,0,\r\n",
             csv);
     }
 

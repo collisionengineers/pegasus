@@ -842,7 +842,7 @@ public sealed class StaffCorrespondenceWebTests
                 ? [ApprovedMailboxRouteScope.Incoming, ApprovedMailboxRouteScope.Outgoing]
                 : [ApprovedMailboxRouteScope.Incoming],
             state,
-            "mailbox-identity", "inbox", sentFolderIdentity, true, NowUtc, 1, [], generation);
+            "mailbox-identity", "inbox", sentFolderIdentity, true, NowUtc, 1, generation);
         using var configured = Configure(baseFactory, send);
         using var factory = configured.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>

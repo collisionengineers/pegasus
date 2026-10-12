@@ -253,8 +253,8 @@ public sealed class EmailEvaluationWorkflow
     }
 
     /// <summary>
-    /// Renders the rule-generated category, subtype, matched evidence and policy
-    /// version beside the human review. Unclassified stays null (rendered as
+    /// Renders the rule-generated category, matched evidence and policy version
+    /// beside the human review. Unclassified stays null (rendered as
     /// "No category"): the reviewer's own selection remains authoritative either way.
     /// </summary>
     private static string? FormatSuggestion(MailClassificationResult result)
@@ -264,9 +264,7 @@ public sealed class EmailEvaluationWorkflow
             return null;
         }
 
-        var headline = result.Outcome == MailClassificationOutcome.Classified
-            ? FormatCategory(result.Category!)
-            : $"Ambiguous ({string.Join(", ", result.AmbiguousCandidates)})";
+        var headline = $"Received / {MailCategories.Code(result.Category!.Value)}";
 
         var matched = result.Predicates.Where(predicate => predicate.Matched).ToArray();
         var evidenceLines = matched.Length == 0
@@ -276,13 +274,6 @@ public sealed class EmailEvaluationWorkflow
                 matched.Select(predicate => $"  - {predicate.Key}: {predicate.Detail}"));
 
         return $"{headline} (policy {result.PolicyKey} v{result.PolicyVersion}){Environment.NewLine}Evidence:{Environment.NewLine}{evidenceLines}";
-    }
-
-    private static string FormatCategory(MailCategory category)
-    {
-        var direction = category.Direction == MailDirection.Received ? "Received" : "Sent";
-        var name = category.Subtype is null ? category.Name : $"{category.Name}/{category.Subtype}";
-        return $"{direction} / {name}";
     }
 
     private EvaluationSnapshot Clear(string messageText)

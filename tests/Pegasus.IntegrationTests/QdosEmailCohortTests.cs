@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Intake;
 using Xunit.Abstractions;
@@ -24,29 +25,35 @@ public sealed class QdosEmailCohortTests(ITestOutputHelper output)
 
     // The folder records what the case became, not what every message in it announced: a
     // genuine Triage request precedes the formal instruction and is filed under the case's
-    // eventual work-type folder, so pre-instruction-emails is a correct message-level
+    // eventual work-type folder, so a pre-instruction category is a correct message-level
     // classification anywhere. The hard guard is the cross-work-type row: an audit letter
-    // must never classify as inspection and vice versa, and a triage-labelled email must
-    // never classify as a new instruction.
-    private static readonly (string Folder, ReceivedMailFamily Family, string? Subtype)[] LabelledFolders =
+    // must never classify as inspection work and vice versa, and a triage-labelled email
+    // must never classify as a new instruction.
+    private static readonly (string Folder, MailCategory Category, CaseType[] CaseTypes)[] LabelledFolders =
     [
-        ("audits", ReceivedMailFamily.NewInstructionReceived, "audit"),
-        ("inspections", ReceivedMailFamily.NewInstructionReceived, "inspection"),
-        ("inspection-and-audit", ReceivedMailFamily.NewInstructionReceived, "inspection"),
-        ("triage", ReceivedMailFamily.PreInstructionEmails, null)
+        ("audits", MailCategory.NewInstruction, [CaseType.Audit]),
+        ("inspections", MailCategory.NewInstruction, [CaseType.Inspection, CaseType.InspectionAndAudit]),
+        ("inspection-and-audit", MailCategory.NewInstruction, [CaseType.Inspection, CaseType.InspectionAndAudit]),
+        ("triage", MailCategory.TriageRequest, [])
     ];
+
+    private static readonly MailCategory[] PreInstructionCategories =
+        [MailCategory.TriageRequest, MailCategory.PreInstruction, MailCategory.ImagesReceived];
+
+    private static string? Code(MailClassificationResult result) =>
+        result.Category is { } category ? MailCategories.Code(category) : null;
 
     [QdosLabelledCorpusFact]
     public async Task LabelledWorkTypeEmailsNeverMisclassifyAcrossFamilies()
     {
         var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
         var policy = new PrincipalMailClassificationPolicy("QDOS");
-        var rows = new StringBuilder("label,file,outcome,family,subtype\n");
+        var rows = new StringBuilder("label,file,outcome,category,case_type\n");
         var processed = 0;
         var classified = 0;
         var honestlyUndecided = 0;
 
-        foreach (var (folder, expectedFamily, expectedSubtype) in LabelledFolders)
+        foreach (var (folder, expectedCategory, expectedCaseTypes) in LabelledFolders)
         {
             var root = Path.Combine(QdosCorpus.ExtractionRoot, folder);
             if (!Directory.Exists(root))
@@ -69,21 +76,21 @@ public sealed class QdosEmailCohortTests(ITestOutputHelper output)
                 var result = policy.Classify(readResult);
                 rows.AppendLine(
                     CultureInfo.InvariantCulture,
-                    $"{folder},{CsvName(path)},{result.Outcome},{result.Category?.Name},{result.Category?.Subtype}");
+                    $"{folder},{CsvName(path)},{result.Outcome},{Code(result)},{result.CaseType}");
                 processed++;
                 if (result.Outcome == MailClassificationOutcome.Classified)
                 {
                     classified++;
-                    var category = result.Category!;
+                    var category = result.Category!.Value;
                     var matchesFolder =
-                        category.ReceivedFamily == expectedFamily
-                        && category.Subtype == expectedSubtype;
-                    var isMessageLevelPreInstruction =
-                        category.ReceivedFamily == ReceivedMailFamily.PreInstructionEmails;
+                        category == expectedCategory
+                        && (expectedCaseTypes.Length == 0
+                            || (result.CaseType is { } caseType && expectedCaseTypes.Contains(caseType)));
+                    var isMessageLevelPreInstruction = PreInstructionCategories.Contains(category);
                     Assert.True(
                         matchesFolder || isMessageLevelPreInstruction,
                         $"'{Path.GetFileName(path)}' in '{folder}' classified as "
-                            + $"{category.Name}/{category.Subtype} against the folder's ground truth.");
+                            + $"{MailCategories.Code(category)}/{result.CaseType} against the folder's ground truth.");
                 }
                 else
                 {
@@ -95,7 +102,7 @@ public sealed class QdosEmailCohortTests(ITestOutputHelper output)
         QdosCorpus.WriteArtifact("labelled-cohort.csv", rows.ToString());
         output.WriteLine(
             $"labelled cohort: processed={processed}; classified={classified}; "
-            + $"ambiguous-or-unclassified={honestlyUndecided}");
+            + $"unclassified={honestlyUndecided}");
         Assert.True(processed > 0, "The labelled QDOS extraction corpus yielded no emails.");
     }
 
@@ -114,7 +121,7 @@ public sealed class QdosEmailCohortTests(ITestOutputHelper output)
         var unreadable = 0;
         var processed = 0;
         var rows = new StringBuilder(
-            "file,route,classification,family,subtype,claim_token,vrm,surname,incident_date\n");
+            "file,route,classification,category,case_type,claim_token,vrm,surname,incident_date\n");
 
         foreach (var path in QdosCorpus.VolumeRoots
                      .SelectMany(EnumerateEmails)
@@ -146,7 +153,7 @@ public sealed class QdosEmailCohortTests(ITestOutputHelper output)
             Count(
                 familyCounts,
                 classification.Outcome == MailClassificationOutcome.Classified
-                    ? $"{classification.Category!.Name}{(classification.Category.Subtype is null ? "" : "/" + classification.Category.Subtype)}"
+                    ? Code(classification)!
                     : classification.Outcome.ToString());
             var keys = matchPolicy.ExtractMatchKeys(readResult);
             if (keys.DurableClaimToken is not null)
@@ -157,7 +164,7 @@ public sealed class QdosEmailCohortTests(ITestOutputHelper output)
             rows.AppendLine(
                 CultureInfo.InvariantCulture,
                 $"{CsvName(path)},{route.Disposition},{classification.Outcome},"
-                + $"{classification.Category?.Name},{classification.Category?.Subtype},"
+                + $"{Code(classification)},{classification.CaseType},"
                 + $"{keys.DurableClaimToken},{keys.NormalizedVrm},{keys.NormalizedSurname},"
                 + $"{keys.IncidentDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}");
         }
@@ -167,7 +174,7 @@ public sealed class QdosEmailCohortTests(ITestOutputHelper output)
         output.WriteLine(
             $"routes: {string.Join("; ", routeCounts.OrderBy(item => item.Key).Select(item => $"{item.Key}={item.Value}"))}");
         output.WriteLine(
-            $"accepted-route families: {string.Join("; ", familyCounts.OrderBy(item => item.Key).Select(item => $"{item.Key}={item.Value}"))}");
+            $"accepted-route categories: {string.Join("; ", familyCounts.OrderBy(item => item.Key).Select(item => $"{item.Key}={item.Value}"))}");
         output.WriteLine(
             $"matched classification predicates: {string.Join("; ", matchedPredicateCounts.OrderBy(item => item.Key).Select(item => $"{item.Key}={item.Value}"))}");
         output.WriteLine($"claim-token coverage: {claimTokens}/{acceptedRoute} accepted-route emails");

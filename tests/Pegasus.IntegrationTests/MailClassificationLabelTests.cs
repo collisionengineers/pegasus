@@ -4,68 +4,40 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// MAIL-008: every settled mail category renders through the one operator
-/// label map — no kebab-case registry key, no raw enum name, no fallback.
+/// MAIL-008: every mail category renders through the one operator label map —
+/// no category code, no fallback — in the wording the
+/// operator ruled (12 October 2026).
 /// </summary>
 public sealed class MailClassificationLabelTests
 {
     [Fact]
-    public void EveryReceivedFamilyAndSubtypeHasAnOperatorLabel()
+    public void EveryCategoryHasAnOperatorLabel()
     {
-        foreach (var family in Enum.GetValues<ReceivedMailFamily>())
+        foreach (var category in MailCategories.All)
         {
-            AssertOperatorWorded(OperatorLabels.MailClassification(MailCategory.Received(family)));
-            foreach (var subtype in MailTaxonomy.ConfirmedReceivedSubtypes[family])
-            {
-                AssertOperatorWorded(
-                    OperatorLabels.MailClassification(MailCategory.Received(family, subtype)));
-            }
+            var label = OperatorLabels.MailClassification(category);
+            Assert.False(string.IsNullOrWhiteSpace(label));
+            Assert.NotEqual(MailCategories.Code(category), label);
+            Assert.True(char.IsUpper(label[0]), $"'{label}' does not start with a capital.");
         }
     }
+
+    [Theory]
+    [InlineData("new-instruction", "New instruction")]
+    [InlineData("triage-request", "Triage request")]
+    [InlineData("pre-instruction", "Pre-instruction")]
+    [InlineData("images-received", "Images received")]
+    [InlineData("case-update", "Case update")]
+    [InlineData("cancellation", "Cancellation")]
+    [InlineData("query", "Query")]
+    [InlineData("billing", "Billing")]
+    [InlineData("general", "General")]
+    [InlineData("not-client-related", "Not client related")]
+    [InlineData("internal-cc", "Internal CC")]
+    public void LabelsUseTheRuledWording(string code, string label) =>
+        Assert.Equal(label, OperatorLabels.MailClassification(MailCategories.Parse(code)));
 
     [Fact]
-    public void EverySentFamilyHasAnOperatorLabel()
-    {
-        foreach (var family in Enum.GetValues<SentMailFamily>())
-        {
-            AssertOperatorWorded(OperatorLabels.MailClassification(MailCategory.Sent(family)));
-        }
-    }
-
-    [Fact]
-    public void AnOtherCategoryRendersTheOperatorsOwnName()
-    {
-        var category = MailCategory.Other(
-            MailDirection.Received,
-            "Salvage circulars",
-            "Circulated salvage lists fit no settled family.");
-
-        Assert.Equal("Salvage circulars", OperatorLabels.MailClassification(category));
-    }
-
-    [Fact]
-    public void RegistryNamesStillRoundTrip()
-    {
-        foreach (var family in Enum.GetValues<ReceivedMailFamily>())
-        {
-            Assert.Equal(family, MailTaxonomy.ParseReceivedFamily(MailTaxonomy.CategoryName(family)));
-        }
-
-        foreach (var family in Enum.GetValues<SentMailFamily>())
-        {
-            Assert.Equal(family, MailTaxonomy.ParseSentFamily(MailTaxonomy.CategoryName(family)));
-        }
-    }
-
-    private static void AssertOperatorWorded(string label)
-    {
-        Assert.False(string.IsNullOrWhiteSpace(label));
-        // No registry key reaches the operator: no kebab-case, no slash-joined
-        // family/subtype, and the label starts with a capital.
-        Assert.DoesNotContain("-received", label, StringComparison.Ordinal);
-        Assert.DoesNotContain("-cases", label, StringComparison.Ordinal);
-        Assert.DoesNotContain("-emails", label, StringComparison.Ordinal);
-        Assert.DoesNotContain("/", label, StringComparison.Ordinal);
-        Assert.True(char.IsUpper(label[0]), $"'{label}' does not start with a capital.");
-    }
+    public void EveryCategoryHasARuledLabelRow() =>
+        Assert.Equal(11, MailCategories.All.Count);
 }

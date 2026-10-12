@@ -125,7 +125,7 @@ public sealed class StaffNotificationTests
         var receiptId = Guid.NewGuid();
         var receipts = new FakeReceipts(
             receiptId,
-            MailCategory.Received(ReceivedMailFamily.InProgressCases, MailCategory.CancellationSubtype));
+            MailCategory.Cancellation);
         var notifier = new CaseStaffNotifier(new RaiseStaffNotification(store), workflows, receipts);
 
         var open = await notifier.NotifyMailArrivalAsync(CaseId, receiptId, null, default);
@@ -151,7 +151,7 @@ public sealed class StaffNotificationTests
         var receiptId = Guid.NewGuid();
         var receipts = new FakeReceipts(
             receiptId,
-            MailCategory.Received(ReceivedMailFamily.InProgressCases, MailCategory.CancellationSubtype));
+            MailCategory.Cancellation);
         var notifier = new CaseStaffNotifier(new RaiseStaffNotification(store), workflows, receipts);
 
         var cancellation = await notifier.NotifyMailArrivalAsync(

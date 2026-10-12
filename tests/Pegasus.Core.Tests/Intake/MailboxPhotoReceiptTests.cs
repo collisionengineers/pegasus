@@ -43,13 +43,13 @@ public sealed class MailboxPhotoReceiptTests
         var imagesReceived = photos with
         {
             MailClassificationDecision = MailClassificationResult.Classified(
-                MailCategory.Received(ReceivedMailFamily.PreInstructionEmails, MailCategory.ImagesReceivedSubtype),
+                MailCategory.ImagesReceived,
                 [], "Corrected by staff.", "shared-mail-policy", 1)
         };
         var caseUpdate = photos with
         {
             MailClassificationDecision = MailClassificationResult.Classified(
-                MailCategory.Received(ReceivedMailFamily.InProgressCases, "case-update"),
+                MailCategory.CaseUpdate,
                 [], "Corrected by staff.", "shared-mail-policy", 1)
         };
 

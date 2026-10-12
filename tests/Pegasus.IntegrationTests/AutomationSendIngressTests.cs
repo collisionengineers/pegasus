@@ -537,7 +537,6 @@ public sealed class AutomationSendIngressTests
         IdentityIsBound: true,
         ActivatedAtUtc: SeedUtcNow,
         Version: 1,
-        FolderBindings: [],
         Generation: 3);
 
     private sealed class FixedMailboxes(ApprovedMailbox mailbox) : IApprovedMailboxStore

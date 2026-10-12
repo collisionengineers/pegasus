@@ -169,8 +169,7 @@ public static class ImageIntakeLifecycleRules
         }
 
         return receipt.MailClassificationDecision is not { } classification
-            || MailOperationalDestinationPolicy.Map(classification).Destination
-                == MailOperationalDestination.Unidentified;
+            || classification.Outcome == MailClassificationOutcome.Unclassified;
     }
 
     /// <summary>
@@ -186,7 +185,7 @@ public static class ImageIntakeLifecycleRules
                 && receipt.CurrentCaseId is null
                 && !ProcessIntake.IsTriageRequest(receipt)
                 && IsSupportedImageEvidenceSource(receipt.MediaType)
-                && receipt.MailClassificationDecision?.Category is { IsImagesReceived: true });
+                && receipt.MailClassificationDecision?.Is(MailCategory.ImagesReceived) == true);
     }
 
     private static bool IsSupportedImageEvidenceSource(string mediaType) =>

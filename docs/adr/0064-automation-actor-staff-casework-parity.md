@@ -3,7 +3,7 @@ id: ADR-0064
 status: accepted
 date: 2026-10-07
 supersedes: [ADR-0021, ADR-0031]
-superseded_by: [ADR-0068]
+superseded_by: [ADR-0068, ADR-0069]
 related_capabilities: [MCP-01, MCP-02, MCP-06]
 related_frd: [frd-06, frd-10, frd-11, frd-14, frd-21, frd-24, frd-25, frd-27]
 tags: [mcp, automation, ai, assessment, estimate]
@@ -39,6 +39,10 @@ tool count is history. FRD-10 owns the current inventory.
 [ADR-0068](0068-incoming-and-outgoing-mailboxes-and-case-mail-replies.md)
 replaces decision 9's "`pegasus_mail_send` sends new mail": its `new` mode
 is gone and `chaser` replaces it. The rest of decision 9 stands.
+
+[ADR-0069](0069-one-flat-mail-category.md) removes the folder move: the
+Actor's mail actions are dismiss and restore, and it corrects a
+classification as before.
 
 ## Context
 
