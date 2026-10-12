@@ -966,9 +966,9 @@ public static class EstimatePolicy
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
 
     /// <summary>
-    /// A document import is not an AI-draft save; it creates one new
-    /// source-backed estimate. The one import that names an existing estimate
-    /// is a Glass's return for the spec that belongs to its estimate.
+    /// A document import is not an AI-draft save; it records a source-backed
+    /// estimate, either a new one or onto the live spec it names (a Glass's
+    /// return for its spec, or a document import onto the selected spec).
     /// </summary>
     public static SaveEstimateRequest ValidateImportedSave(SaveEstimateRequest request)
     {
