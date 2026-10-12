@@ -3202,8 +3202,9 @@
         var initial = percent.value || range.max;
         percent.value = initial;
         range.value = initial;
-        // Apply and Remove scaling stand only while a preview is shown, or
-        // Remove scaling while a scaling is in force (v38 P6).
+        // Apply stands once the target moves, until Remove scaling puts it
+        // back; Remove scaling while a preview is shown, or while a scaling
+        // is in force (v38 P6).
         var remove = bar.querySelector('[data-scale-remove]');
         var scaledAlready = !!bar.querySelector('[data-estimate-scaled]');
         function reveal() {
@@ -3239,19 +3240,21 @@
             }
             if (read) { read.textContent = idle; }
             if (chip) { chip.hidden = true; }
-            if (apply) { apply.hidden = true; }
             if (remove) { remove.hidden = !scaledAlready; }
-            percent.value = initial;
-            range.value = initial;
             if (scalePreview === end) { scalePreview = null; }
         }
-        // Remove scaling while previewing drops the preview (the reference's
-        // scaleOff); with a scaling in force it posts the removal.
+        // Remove scaling while previewing drops the preview and puts the
+        // target back (the reference's scaleOff); with a scaling in force it
+        // posts the removal. Any other end (a submit, a failed preview) keeps
+        // the target and Apply, so Apply posts the target as previewed.
         if (remove) {
             remove.addEventListener('click', function (event) {
                 if (shown || timer) {
                     event.preventDefault();
                     end();
+                    if (apply) { apply.hidden = true; }
+                    percent.value = initial;
+                    range.value = initial;
                 }
             });
         }
