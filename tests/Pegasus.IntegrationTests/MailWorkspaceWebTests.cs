@@ -424,7 +424,7 @@ public sealed class MailWorkspaceWebTests
     // 29 before #1179 (the rail no longer counts Awaiting instruction) and #1181 (the Message page trims).
     // Each of the three is one fewer since #1198: the password-change redirect reads
     // the account the cookie check read, not the database.
-    private const int InboxMessageCommands = 26;
+    private const int InboxMessageCommands = 24;
 
     // 24 before #1179 (the rail no longer counts Awaiting instruction) and #1181 (the Inbox list trims).
     private const int InboxListCommands = 19;

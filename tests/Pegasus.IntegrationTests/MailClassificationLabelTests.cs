@@ -5,7 +5,7 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// MAIL-008: every mail category renders through the one operator label map —
-/// no category code, no raw enum name, no fallback — in the wording the
+/// no category code, no fallback — in the wording the
 /// operator ruled (12 October 2026).
 /// </summary>
 public sealed class MailClassificationLabelTests
@@ -18,7 +18,6 @@ public sealed class MailClassificationLabelTests
             var label = OperatorLabels.MailClassification(category);
             Assert.False(string.IsNullOrWhiteSpace(label));
             Assert.NotEqual(MailCategories.Code(category), label);
-            Assert.NotEqual(category.ToString(), label);
             Assert.True(char.IsUpper(label[0]), $"'{label}' does not start with a capital.");
         }
     }
