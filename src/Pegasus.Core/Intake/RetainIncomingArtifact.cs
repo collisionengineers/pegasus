@@ -296,6 +296,12 @@ public sealed class RetainIncomingArtifact(
     /// </summary>
     private const string RefusedFailureCode = "custody_refused";
 
+    /// <summary>
+    /// Marks the retentions made until it is disposed as one batch, so those
+    /// into one folder share a single folder proof (FRD-05).
+    /// </summary>
+    public IDisposable BeginBatch() => custody.BeginDocumentBatch();
+
     public async Task<RetainedIncomingArtifact> ExecuteAsync(
         ActionActor actor,
         IncomingArtifactOccurrence occurrence,

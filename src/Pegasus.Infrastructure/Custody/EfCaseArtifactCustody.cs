@@ -31,15 +31,24 @@ internal sealed class EfCaseArtifactCustody(
         Validate(request);
         RequireRetainAuthorization(request);
         await using var staged = await StageVerifiedAsync(request, cancellationToken);
-        staged.Position = 0;
-        var retained = await quarantineArtifactStore.StoreStreamAsync(
-            staged, request.ContentLength, cancellationToken);
-        if (retained.ContentLength != request.ContentLength
-            || !string.Equals(retained.ContentHash, NormalizeHash(request.Sha256), StringComparison.OrdinalIgnoreCase))
+        // The caller read these verified bytes from the intake store's own
+        // content-addressed copy, so that copy is the pending copy: storing
+        // and reading it back again would only find the same blob.
+        var retained = request.RetainedStorageKey is { } retainedStorageKey
+            ? quarantineArtifactStore.TryAdopt(retainedStorageKey, request.Sha256, request.ContentLength)
+            : null;
+        if (retained is null)
         {
-            throw new InvalidDataException("The retained artifact does not match the verified content.");
+            staged.Position = 0;
+            retained = await quarantineArtifactStore.StoreStreamAsync(
+                staged, request.ContentLength, cancellationToken);
+            if (retained.ContentLength != request.ContentLength
+                || !string.Equals(retained.ContentHash, NormalizeHash(request.Sha256), StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("The retained artifact does not match the verified content.");
+            }
+            await quarantineArtifactStore.VerifyAsync(retained, cancellationToken);
         }
-        await quarantineArtifactStore.VerifyAsync(retained, cancellationToken);
         return request.CaseId is { } caseId
             ? await RetainCaseAsync(caseId, request, staged, retained.StorageKey, cancellationToken)
             : await RetainHoldingAsync(request, staged, cancellationToken);
@@ -258,14 +267,9 @@ internal sealed class EfCaseArtifactCustody(
             return Pending(version, occurrence.Id, auditFolder ? "audit_custody_pending" : "case_custody_pending");
         }
 
-        if (request.IsAutomaticIntakeEvidencePromotion
-            && !await IntakePromotionTarget.IsCurrentAsync(
-                db, caseId, request.IntakeReceiptId!.Value,
-                request.ExpectedCaseVersion!.Value, timeProvider.GetUtcNow(), cancellationToken))
-        {
-            return Pending(version, occurrence.Id, "case_custody_pending");
-        }
-
+        // An automatic promotion's target was checked before the version was
+        // recorded and is checked again inside the confirmation below; a
+        // target that moves in between leaves the version pending there.
         var address = new ManagedDocumentContentAddress(
             caseId,
             caseEntity.Reference,
@@ -420,23 +424,20 @@ internal sealed class EfCaseArtifactCustody(
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
+        // Every caller has already found the promotion target current inside
+        // the same serializable confirmation, so it is not asked again here.
+        // The completion marker and the plan are read together.
         var completionKey = $"case-intake-promotion-complete:{receiptId:N}";
-        if (await db.IntakeMutationHistory.AsNoTracking()
-            .AnyAsync(item => item.OperationKey == completionKey, cancellationToken))
+        var planKey = AutomaticCaseEvidencePromotionOperationKey.Plan(receiptId);
+        var history = await db.IntakeMutationHistory.AsNoTracking()
+            .Where(item => item.OperationKey == completionKey || item.OperationKey == planKey)
+            .ToArrayAsync(cancellationToken);
+        if (history.Any(item => item.OperationKey == completionKey))
         {
             return;
         }
 
-        // One target check ahead of both completion branches below.
-        if (!await IntakePromotionTarget.IsCurrentAsync(
-                db, caseId, receiptId, expectedCaseVersion, nowUtc, cancellationToken))
-        {
-            return;
-        }
-
-        var plan = await db.IntakeMutationHistory.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.OperationKey
-                == AutomaticCaseEvidencePromotionOperationKey.Plan(receiptId), cancellationToken);
+        var plan = history.SingleOrDefault(item => item.OperationKey == planKey);
         if (plan?.CaseId != caseId || string.IsNullOrWhiteSpace(plan.AfterJson))
         {
             return;
@@ -685,7 +686,7 @@ internal sealed class EfCaseArtifactCustody(
         {
             throw new InvalidOperationException("Box holding custody is not configured.");
         }
-        var holdingFolder = await box.ProveFolderAsync(holdingFolderId, cancellationToken);
+        // A replay of a confirmed asset answers from its record, before Box is asked anything.
         if (!string.IsNullOrWhiteSpace(asset.BoxFileId)
             && !string.IsNullOrWhiteSpace(asset.BoxVersionId))
         {
@@ -700,47 +701,73 @@ internal sealed class EfCaseArtifactCustody(
                 null,
                 null);
         }
+        // One receipt's holding retention is one batch, so the holding folder is
+        // proved once for the batch (FRD-05). The name is not looked for first:
+        // a file that already holds it is Box's 409, and the upload accepts it
+        // only once it has read those bytes back and found them the same.
+        var store = (BoxDocumentContentStore)documentContentStore;
+        BoxContentClient client = box;
+        var holdingFolder = await store.ProveFolderAsync(holdingFolderId, cancellationToken);
         var fileName = $"{receiptId:N}-{asset.Id:N}-{SafeName(request.FileName)}";
-        var existing = await box.FindChildAsync(
-            holdingFolderId, fileName, "file", cancellationToken);
-        content.Position = 0;
-        var file = existing ?? (await box.UploadAsync(
-            holdingFolder,
-            fileName,
-            content,
-            request.ContentLength,
-            request.MediaType,
-            NormalizeHash(request.Sha256),
-            cancellationToken)).File;
-        await using (var retained = await box.OpenVersionReadAsync(
-                         file.Id,
-                         file.VersionId ?? throw new InvalidDataException(
-                             "Box omitted the holding file version identity."),
-                         request.ContentLength,
-                         cancellationToken))
+        var normalizedHash = NormalizeHash(request.Sha256);
+        BoxContentClient.BoxUpload upload;
+        try
         {
-            await VerifyStreamAsync(
-                retained,
-                request.ContentLength,
-                NormalizeHash(request.Sha256),
+            // The staged stream was verified against this hash when it was
+            // staged, so it is uploaded as it is rather than hashed again.
+            upload = await BoxDocumentContentStore.RetryTransientAsync(
+                token =>
+                {
+                    content.Position = 0;
+                    return client.UploadVerifiedAsync(
+                        holdingFolder,
+                        fileName,
+                        content,
+                        request.ContentLength,
+                        request.MediaType,
+                        normalizedHash,
+                        token);
+                },
                 cancellationToken);
         }
-        asset.ConfirmCustody(file.Id, file.VersionId, holdingFolderId);
+        catch (Exception exception) when (BoxContentClient.IsFenceFailure(exception))
+        {
+            store.DropProof(holdingFolderId);
+            throw;
+        }
+        var file = upload.File;
+        var versionId = file.VersionId
+            ?? throw new InvalidDataException("Box omitted the holding file version identity.");
+        if (upload.Created)
+        {
+            // The version Box has just created in the proved folder is read back
+            // exactly, without walking its ancestry again.
+            await BoxDocumentContentStore.RetryTransientAsync(
+                async token =>
+                {
+                    await using var retained = await client.OpenCreatedVersionReadAsync(
+                        file.Id, versionId, request.ContentLength, token);
+                    await VerifyStreamAsync(retained, request.ContentLength, normalizedHash, token);
+                    return true;
+                },
+                cancellationToken);
+        }
+        asset.ConfirmCustody(file.Id, versionId, holdingFolderId);
         await db.SaveChangesAsync(cancellationToken);
         // The asset is confirmed and its staged bytes are still in hand, so its
         // first read is a cache hit. Best effort; it never changes the answer.
         await PublishFiledAsync(
             DocumentContentCacheKey.ForIntakeAsset(asset.Id),
             content,
-            NormalizeHash(request.Sha256),
+            normalizedHash,
             request.ContentLength,
             cancellationToken);
         return new(
             CaseArtifactCustodyDisposition.Confirmed,
             null, null, null,
             file.Id,
-            file.VersionId,
-            NormalizeHash(request.Sha256),
+            versionId,
+            normalizedHash,
             request.ContentLength,
             request.MediaType,
             null,

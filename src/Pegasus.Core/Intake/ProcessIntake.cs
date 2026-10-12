@@ -369,38 +369,43 @@ public sealed class ProcessIntake(
             return receipt;
         }
 
+        RetainIncomingArtifact retention = retainIncomingArtifact;
         var actor = ActionActor.SystemWorker("intake-processing");
-        var unconfirmedStates = new HashSet<IncomingArtifactCustodyState>();
         var selectedPhotographIds = InstructionEvidenceImages.Select(receipt.AssetRecords)
             .Select(asset => asset.Id)
             .ToHashSet();
-        foreach (var asset in IntakeFileIdentity.Ordered(receipt)
+        var candidates = IntakeFileIdentity.Ordered(receipt)
             .Where(asset => asset.CustodyState != IncomingArtifactCustodyState.Confirmed)
-            .Where(asset => IsHoldingRetentionCandidate(asset, selectedPhotographIds)))
+            .Where(asset => IsHoldingRetentionCandidate(asset, selectedPhotographIds))
+            .ToArray();
+
+        // One receipt's holding retention is one batch sharing one folder
+        // proof, and up to four files are retained at once (FRD-05). Every
+        // file runs to its own end, so a failure never abandons an upload
+        // already in flight; the first failure, in file order, is then thrown.
+        RetainedIncomingArtifact[] retained;
+        using (retention.BeginBatch())
+        using (var gate = new SemaphoreSlim(MaximumConcurrentHoldingRetentions))
         {
-            var content = await artifactStore.ReadAsync(asset.StorageKey, cancellationToken)
-                ?? throw new FileNotFoundException(
-                    $"The retained intake asset '{asset.Id}' is unavailable.");
-            await using var stream = DocumentContentCachePublisherExtensions.StreamOf(content);
-            var retained = await retainIncomingArtifact.ExecuteAsync(
-                actor,
-                new(
-                    OccurrenceId: asset.Id,
-                    CaseId: null,
-                    IntakeReceiptId: receipt.Id,
-                    OperationKey: IncomingArtifactOperationKey.ForIntake(receipt.Id, asset.Id),
-                    ProposedFileName: asset.FileName,
-                    MediaType: asset.MediaType,
-                    ContentLength: asset.ContentLength,
-                    Sha256: asset.ContentHash),
-                stream,
-                cancellationToken);
-            if (!retained.IsConfirmed)
+            retained = await Task.WhenAll(candidates.Select(async asset =>
             {
-                unconfirmedStates.Add(retained.State);
-            }
+                await gate.WaitAsync(cancellationToken);
+                try
+                {
+                    return await RetainHoldingAssetAsync(
+                        retention, actor, receipt.Id, asset, cancellationToken);
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            }));
         }
 
+        var unconfirmedStates = retained
+            .Where(item => !item.IsConfirmed)
+            .Select(item => item.State)
+            .ToHashSet();
         if (unconfirmedStates.Count != 0)
         {
             // RetainIncomingArtifact has recorded the honest custody state.
@@ -426,6 +431,35 @@ public sealed class ProcessIntake(
             ?? throw new InvalidDataException(
                 "The receipt retained for holding custody is no longer available.");
         return reloaded with { IsDuplicate = receipt.IsDuplicate };
+    }
+
+    /// <summary>How many of one receipt's files are put into holding custody at once.</summary>
+    internal const int MaximumConcurrentHoldingRetentions = 4;
+
+    private async Task<RetainedIncomingArtifact> RetainHoldingAssetAsync(
+        RetainIncomingArtifact retention,
+        ActionActor actor,
+        Guid receiptId,
+        IntakeAssetRecord asset,
+        CancellationToken cancellationToken)
+    {
+        var content = await artifactStore.ReadAsync(asset.StorageKey, cancellationToken)
+            ?? throw new FileNotFoundException(
+                $"The retained intake asset '{asset.Id}' is unavailable.");
+        await using var stream = DocumentContentCachePublisherExtensions.StreamOf(content);
+        return await retention.ExecuteAsync(
+            actor,
+            new(
+                OccurrenceId: asset.Id,
+                CaseId: null,
+                IntakeReceiptId: receiptId,
+                OperationKey: IncomingArtifactOperationKey.ForIntake(receiptId, asset.Id),
+                ProposedFileName: asset.FileName,
+                MediaType: asset.MediaType,
+                ContentLength: asset.ContentLength,
+                Sha256: asset.ContentHash),
+            stream,
+            cancellationToken);
     }
 
     private static bool IsHoldingRetentionCandidate(

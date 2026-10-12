@@ -240,8 +240,8 @@ public sealed partial class DetailsModel(
                     $"Linked from {context.Item.Reference}."),
                 cancellationToken);
             lease = null;
-            // The link commits the association; the Worker files the material on
-            // the Case and resolves this item (LinkIntake).
+            // The link commits the association and resolves this item; the
+            // Worker files the material on the Case (LinkIntake).
             StatusMessage = $"{context.Item.Reference} was linked to {destination.Reference}. {OperatorLabels.Upload.AppearUnderFiles}";
             return RedirectToPage(new { id });
         }
