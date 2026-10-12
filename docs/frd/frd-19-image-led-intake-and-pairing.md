@@ -36,8 +36,10 @@ instruction when it arrives, and no invented Case identity.
 Image-only material with a usable registration creates a searchable
 Image-initiated Case with an Image reference. It is not Unidentified just
 because it has no instruction or accepted Principal. A usable registration
-is either a staff-confirmed registration or an automatic read that meets the
-accepted recognition bar; the bar is owned by
+is either a staff-confirmed registration, an automatic read that meets the
+accepted recognition bar, or the registration a capture document prints
+([FRD-02](frd-02-intake-and-source-identity.md) `EXT-17`), which is used
+instead of plate reads and matches a Case's registration exactly; the bar is owned by
 [FRD-06](frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis).
 Image material without a usable registration enters Unidentified with a
 reason ([FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference)).
@@ -270,7 +272,10 @@ complete membership, and fail-closed source-identity rules apply to both.
   selected as before. Embedded images need at least 40,000
   encoded bytes and, when dimensions are known, a longest-to-shortest side
   ratio below 3. Unknown dimensions keep the size-based selection. These are
-  image heuristics, not a logo classifier. Repeated photograph content is
+  image heuristics, not a logo classifier. Inside a capture document
+  ([FRD-02](frd-02-intake-and-source-identity.md) `EXT-17`) the photographs
+  are every JPEG on its "Submitted Vehicle Images" page whatever their size,
+  and no other image in that document is one. Repeated photograph content is
   shown and recognised once while provenance is kept. Excluded document art
   stays only inside its retained original.
 - **Membership and completeness.** A group's member count is fixed at
