@@ -211,36 +211,6 @@ public static class CaseReportDeliveryPolicy
     }
 
     /// <summary>
-    /// Resolves only the Principal's configured recipient suggestions. The
-    /// original sender comes from the Case's origin instruction, never a
-    /// later reply, and Claim Source is never copied implicitly.
-    /// </summary>
-    public static CaseReportDeliveryAddressing Address(ReportRecipientSuggestions suggestions)
-    {
-        ArgumentNullException.ThrowIfNull(suggestions);
-        ArgumentNullException.ThrowIfNull(suggestions.Settings);
-        var recipients = suggestions.Settings.AdditionalAddresses
-            .Select(address => Recipient(address, null))
-            .OfType<StaffMailRecipient>()
-            .ToList();
-        if (suggestions.Settings.IncludeOriginalInstructionSender
-            && Recipient(suggestions.OriginalInstructionSender, null) is { } original)
-        {
-            recipients.Insert(0, original);
-        }
-        var to = recipients
-            .GroupBy(recipient => recipient.Address, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
-            .ToArray();
-        if (to.Length == 0)
-        {
-            throw new InvalidOperationException(
-                $"Case '{suggestions.CaseReference}' has no resolved report recipients.");
-        }
-        return new(to, [], suggestions.CaseReference);
-    }
-
-    /// <summary>
     /// Validates the staff-reviewed To and Cc fields of one delivery. The
     /// Principal suggestions seed the review only; they never overwrite the
     /// staff choice and Claim Source is not an implicit recipient.

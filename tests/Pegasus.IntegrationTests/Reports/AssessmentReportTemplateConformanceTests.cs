@@ -257,7 +257,7 @@ public sealed class AssessmentReportTemplateConformanceTests(RenderedTemplateSam
             Assert.InRange(footer.Baseline, setFooter.Baseline - Near, setFooter.Baseline + Near);
 
             var number = Assert.Single(Lines(report[index].Letters.Where(IsPageNumber)));
-            Assert.Equal(Squeeze(AssessmentReportWording.PageNumber(index + 1, template.Count)), number.Text);
+            Assert.Equal(Squeeze(PageNumber(index + 1, template.Count)), number.Text);
             Assert.Equal(number.Text, Assert.Single(Lines(template[index].Letters.Where(IsPageNumber))).Text);
             Assert.Equal((7.5d, Quiet), (number.Size, number.Colour));
             Assert.InRange(number.Right, HeaderRight - Near, HeaderRight + Near);

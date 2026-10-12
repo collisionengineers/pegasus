@@ -23,10 +23,15 @@ public sealed class CaseReportDeliveryTests
     private static readonly StaffMailAttachment FeeAttachment = new(
         Guid.NewGuid(), Guid.NewGuid(), new string('b', 64), 60, "fee-note.pdf", "application/pdf");
 
+    /// <summary>Addressing as the send path derives it from the Principal's suggestions.</summary>
+    private static CaseReportDeliveryAddressing AddressedBySuggestion(ReportRecipientSuggestions suggestions) =>
+        CaseReportDeliveryPolicy.ReviewedAddress(
+            suggestions, CaseReportDeliveryPolicy.SuggestedReview(suggestions));
+
     [Fact]
     public void AddressingUsesConfiguredRecipientsAndTheOriginalInstructionSender()
     {
-        var addressing = CaseReportDeliveryPolicy.Address(Suggestions(
+        var addressing = AddressedBySuggestion(Suggestions(
             ["handler@principal.example"],
             includeOriginalInstructionSender: true,
             originalInstructionSender: "instructor@insurer.example"));
@@ -40,7 +45,7 @@ public sealed class CaseReportDeliveryTests
     [Fact]
     public void AddressingDeduplicatesTheOriginalInstructionSender()
     {
-        var addressing = CaseReportDeliveryPolicy.Address(Suggestions(
+        var addressing = AddressedBySuggestion(Suggestions(
             ["handler@principal.example"],
             includeOriginalInstructionSender: true,
             originalInstructionSender: "Handler@Principal.Example"));
@@ -53,9 +58,9 @@ public sealed class CaseReportDeliveryTests
     public void AddressingRefusesACaseWithNoConfiguredRecipient()
     {
         Assert.Throws<InvalidOperationException>(
-            () => CaseReportDeliveryPolicy.Address(Suggestions([])));
+            () => AddressedBySuggestion(Suggestions([])));
         Assert.Throws<InvalidOperationException>(
-            () => CaseReportDeliveryPolicy.Address(Suggestions(
+            () => AddressedBySuggestion(Suggestions(
                 [], includeOriginalInstructionSender: true)));
     }
 

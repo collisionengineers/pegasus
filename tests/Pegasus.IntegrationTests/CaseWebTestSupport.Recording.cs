@@ -412,7 +412,7 @@ internal static partial class CaseWebTestSupport
         public Guid? StandaloneAuditEvidenceId { get; init; }
 
         /// <summary>The Principal and Claim source records' notes the Case reads live.</summary>
-        public CaseRecordNotes RecordNotes { get; init; } = CaseRecordNotes.None;
+        public CaseRecordNotes RecordNotes { get; init; } = new(null, null);
 
         /// <summary>The hold's review date the workflow reports.</summary>
         public DateOnly? HoldReviewOn { get; set; }

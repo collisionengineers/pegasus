@@ -191,7 +191,7 @@ public sealed class AssessmentCopyWebTests
             GetCaseSectionQuery query,
             CancellationToken cancellationToken) =>
             Task.FromResult<CasePageFrame?>(Frame(query.CaseId) is { } frame
-                ? new(frame, [], [], CaseRecordNotes.None, AssessmentWorkspaceTestData.Create(CreateAssessment()).Data)
+                ? new(frame, [], [], new(null, null), AssessmentWorkspaceTestData.Create(CreateAssessment()).Data)
                 : null);
 
         public Task<AssessmentWorkspace?> ExecuteAsync(

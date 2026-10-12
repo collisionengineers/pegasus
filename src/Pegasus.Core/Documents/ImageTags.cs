@@ -64,11 +64,6 @@ public static class ImageTagVocabulary
     public static readonly Guid ThirdPartyId = new("00000000-0000-4000-8000-0000000017a3");
     public static readonly Guid ReflectionId = new("00000000-0000-4000-8000-0000000017a4");
 
-    public const string OverviewName = "Overview";
-    public const string CloseUpName = "Close-up";
-    public const string ThirdPartyName = "Third party";
-    public const string ReflectionName = "Reflection";
-
     /// <summary>
     /// Whether putting <paramref name="tagId"/> on an image takes it out of
     /// the report (operator, 26 September 2026): a third party's vehicle or a

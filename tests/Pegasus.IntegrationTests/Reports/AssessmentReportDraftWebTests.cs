@@ -873,7 +873,7 @@ public sealed partial class AssessmentReportDraftWebTests
             GetCaseSectionQuery query,
             CancellationToken cancellationToken) =>
             Task.FromResult<CasePageFrame?>(Frame(query.CaseId) is { } frame
-                ? new(frame, [], [], CaseRecordNotes.None, Data(frame))
+                ? new(frame, [], [], new(null, null), Data(frame))
                 : null);
 
         Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
