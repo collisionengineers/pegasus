@@ -544,12 +544,11 @@ internal sealed class EfStaffMailSendStore(
             return;
         }
 
-        var workflow = await db.CaseWorkflows.SingleOrDefaultAsync(
-            item => item.CaseId == mail.ContextId, cancellationToken);
         var due = await db.CaseDueWork
             .Include(item => item.Workflow)
             .ThenInclude(item => item.Case)
             .SingleOrDefaultAsync(item => item.CaseId == mail.ContextId, cancellationToken);
+        var workflow = due?.Workflow;
         if (workflow is null
             || due is null
             || workflow.ArchivedAtUtc is not null

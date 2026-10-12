@@ -89,9 +89,7 @@ internal sealed class EfVehicleWorkflowStore(
             throw new VehicleOperationConflictException(command.CaseId, command.OperationKey);
         }
 
-        await ArchivedCaseGuard.RequireMutableAsync(context, command.CaseId, cancellationToken);
-        var workflow = await context.CaseWorkflows
-            .SingleAsync(item => item.CaseId == command.CaseId, cancellationToken);
+        var workflow = await ArchivedCaseGuard.RequireMutableAsync(context, command.CaseId, cancellationToken);
         RequireVersionUnderLease(workflow, command.ExpectedCaseVersion);
         RequireVehicleDataWritable(workflow);
         RequireLease(workflow, command.Actor, command.EditLeaseToken, UtcNow());
