@@ -2,6 +2,7 @@ using Azure.Core;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Queues;
+using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -18,26 +19,6 @@ internal sealed record WorkerQueueClients(
 internal sealed class WorkerStorageProvisioning(bool allowLocalCreateIfNotExists)
 {
     internal bool AllowLocalCreateIfNotExists { get; } = allowLocalCreateIfNotExists;
-
-    internal async ValueTask EnsureQueueExistsAsync(
-        QueueClient queueClient,
-        CancellationToken cancellationToken)
-    {
-        if (AllowLocalCreateIfNotExists)
-        {
-            await queueClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        }
-    }
-
-    internal async ValueTask EnsureContainerExistsAsync(
-        BlobContainerClient containerClient,
-        CancellationToken cancellationToken)
-    {
-        if (AllowLocalCreateIfNotExists)
-        {
-            await containerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        }
-    }
 }
 
 internal sealed class WorkerAzureClientRegistration(
@@ -64,6 +45,29 @@ internal sealed class WorkerAzureClientRegistration(
             services.AddSingleton(credentialOptions);
             services.AddSingleton(credential);
         }
+    }
+}
+
+internal static class WorkerTelemetryCredential
+{
+    internal static IServiceCollection AddWorkerTelemetryCredential(this IServiceCollection services)
+    {
+        services.AddOptions<TelemetryConfiguration>()
+            .Configure<IServiceProvider>((telemetry, provider) => Apply(telemetry, provider));
+        return services;
+    }
+
+    // Telemetry stays without a credential when none is registered.
+    internal static bool Apply(TelemetryConfiguration telemetry, IServiceProvider services)
+    {
+        var credential = services.GetService<TokenCredential>();
+        if (credential is null)
+        {
+            return false;
+        }
+
+        telemetry.SetAzureTokenCredential(credential);
+        return true;
     }
 }
 

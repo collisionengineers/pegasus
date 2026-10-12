@@ -789,8 +789,6 @@ builder.Services.AddScoped<ISecurityEventWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIdentityAuditStore>());
 builder.Services.AddScoped<IActionHistoryWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIdentityAuditStore>());
-builder.Services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
-builder.Services.AddScoped<IPrincipalInspectionModeStore, EfPrincipalInspectionModeStore>();
 builder.Services.AddScoped<IInspectionAddressResolutionStore, InspectionAddressResolutionStore>();
 builder.Services.AddScoped<EfIntakeWorkStore>();
 builder.Services.AddScoped<IIntakeWorkStore>(serviceProvider =>

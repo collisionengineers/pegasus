@@ -1,10 +1,13 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
 using Azure.Core;
 using Azure.Core.Pipeline;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Queues;
+using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
@@ -205,12 +208,13 @@ public sealed class WorkerAzureClientCompositionTests
     {
         using var handler = new RecordingStorageHandler();
         var clients = CreateRecordingClients(handler);
-        var provisioning = new WorkerStorageProvisioning(allowLocalCreateIfNotExists: false);
 
-        await provisioning.EnsureQueueExistsAsync(clients.IntakeQueue, CancellationToken.None);
-        await provisioning.EnsureContainerExistsAsync(clients.Container, CancellationToken.None);
+        await WriteThroughStorageAdaptersAsync(clients, allowCreateIfNotExists: false);
 
-        Assert.Empty(handler.Requests);
+        Assert.DoesNotContain(
+            handler.Requests,
+            request => request.Method == HttpMethod.Put
+                && request.Uri.AbsolutePath is "/intake-work" or "/intake-staging");
     }
 
     [Fact]
@@ -218,16 +222,25 @@ public sealed class WorkerAzureClientCompositionTests
     {
         using var handler = new RecordingStorageHandler();
         var clients = CreateRecordingClients(handler);
-        var provisioning = new WorkerStorageProvisioning(allowLocalCreateIfNotExists: true);
 
-        await provisioning.EnsureQueueExistsAsync(clients.IntakeQueue, CancellationToken.None);
-        await provisioning.EnsureContainerExistsAsync(clients.Container, CancellationToken.None);
+        await WriteThroughStorageAdaptersAsync(clients, allowCreateIfNotExists: true);
 
-        Assert.Equal(2, handler.Requests.Count);
-        Assert.All(handler.Requests, request => Assert.Equal(HttpMethod.Put, request.Method));
         Assert.Equal(
-            ["/intake-work", "/intake-staging"],
-            handler.Requests.Select(request => request.Uri.AbsolutePath));
+            ["/intake-work", "/intake-work", "/intake-staging"],
+            handler.Requests
+                .Where(request => request.Method == HttpMethod.Put
+                    && request.Uri.AbsolutePath is "/intake-work" or "/intake-staging")
+                .Select(request => request.Uri.AbsolutePath));
+    }
+
+    [Fact]
+    public void ProductionTelemetryUsesTheRegisteredWorkerCredentialAndOfflineHasNone()
+    {
+        using var production = CreateProvider(CreateProductionValues());
+        Assert.True(WorkerTelemetryCredential.Apply(new TelemetryConfiguration(), production));
+
+        using var offline = CreateProvider(CreateDevelopmentOfflineValues());
+        Assert.False(WorkerTelemetryCredential.Apply(new TelemetryConfiguration(), offline));
     }
 
     [Fact]
@@ -242,6 +255,23 @@ public sealed class WorkerAzureClientCompositionTests
         Assert.Equal(
             [typeof(BlobContainerClient), typeof(bool)],
             TypeInspection.OnlyConstructorParameterTypes(typeof(AzureBlobIntakeArtifactStore)));
+    }
+
+    private static async Task WriteThroughStorageAdaptersAsync(
+        RecordingClients clients,
+        bool allowCreateIfNotExists)
+    {
+        await new AzureQueueIntakeWorkEnqueuer(clients.IntakeQueue, allowCreateIfNotExists)
+            .EnqueueAsync(Guid.NewGuid(), CancellationToken.None);
+        await new AzureQueueExternalWorkEnqueuer(clients.IntakeQueue, allowCreateIfNotExists)
+            .EnqueueAsync(Guid.NewGuid(), CancellationToken.None);
+
+        var content = "intake"u8.ToArray();
+        await new AzureBlobIntakeArtifactStore(clients.Container, allowCreateIfNotExists)
+            .StoreAsync(
+                Convert.ToHexStringLower(SHA256.HashData(content)),
+                content,
+                CancellationToken.None);
     }
 
     private static ServiceProvider CreateProvider(Dictionary<string, string?> values)
@@ -348,6 +378,15 @@ public sealed class WorkerAzureClientCompositionTests
 
     private sealed class RecordingStorageHandler : HttpMessageHandler
     {
+        private const string EnqueueReceiptXml =
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?><QueueMessagesList><QueueMessage>" +
+            "<MessageId>00000000-0000-0000-0000-000000000001</MessageId>" +
+            "<InsertionTime>Mon, 01 Jan 2024 00:00:00 GMT</InsertionTime>" +
+            "<ExpirationTime>Mon, 08 Jan 2024 00:00:00 GMT</ExpirationTime>" +
+            "<PopReceipt>receipt</PopReceipt>" +
+            "<TimeNextVisible>Mon, 01 Jan 2024 00:00:00 GMT</TimeNextVisible>" +
+            "</QueueMessage></QueueMessagesList>";
+
         internal List<RecordedRequest> Requests { get; } = [];
 
         protected override Task<HttpResponseMessage> SendAsync(
@@ -355,10 +394,14 @@ public sealed class WorkerAzureClientCompositionTests
             CancellationToken cancellationToken)
         {
             Requests.Add(new(request.Method, request.RequestUri!));
+            var isEnqueue = request.Method == HttpMethod.Post
+                && request.RequestUri!.AbsolutePath.EndsWith("/messages", StringComparison.Ordinal);
             var response = new HttpResponseMessage(HttpStatusCode.Created)
             {
                 RequestMessage = request,
-                Content = new ByteArrayContent([])
+                Content = isEnqueue
+                    ? new StringContent(EnqueueReceiptXml, Encoding.UTF8, "application/xml")
+                    : new ByteArrayContent([])
             };
             response.Headers.Date = DateTimeOffset.UtcNow;
             response.Headers.ETag = new EntityTagHeaderValue("\"test-etag\"");
