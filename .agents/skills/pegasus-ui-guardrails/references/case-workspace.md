@@ -68,7 +68,10 @@ An Inspection + Audit Case whose Audit has been created has two views of one rec
   control (`data-dialog-open` or the `.menu-gated` span with its reason). Send report ends at
   the accepted send (Submitted), not at the observed Sent item (operator, 12 October 2026).
 - Report in the Audit view shows the Audit report alone (operator, 2 October 2026); the Views
-  card is the route to the Inspection report. In the Inspection view the card is the Inspection
+  card is the route to the Inspection report. Only the delivery form names the other work's
+  report: a second `.cluster` in the Attach row (`data-report-attach-other`) whose first tick is
+  that report under its delivery file name, unticked, then its own document ticks with the
+  existing labels; read mode shows the same cells greyed (operator, 12 October 2026). In the Inspection view the card is the Inspection
   report with its Generate and Send report controls, before and after it is sent
   (operator, 1 and 2 October 2026), and the Actions menu's Mark report sent takes its evidence;
   every form carries `view=inspection` and acts on the Inspection's own work, never on the

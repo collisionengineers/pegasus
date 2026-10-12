@@ -663,9 +663,10 @@ public sealed class PollSentEvidence(
                         actor,
                         CreateAutoLinkOperationKey(caseIdentities[0], retained.EvidenceId, provenance),
                         "Exact approved-mailbox Sent evidence and one authoritative Case identity",
-                        // Pegasus's own report send names the generation, and so
-                        // the work, the evidence proves.
-                        staffExecution is { Purpose: StaffMailPurpose.CaseReport } ? staffExecution.ContextId : null),
+                        // Pegasus's own report send names the generations, and so
+                        // the works, the evidence proves.
+                        staffExecution is { Purpose: StaffMailPurpose.CaseReport } ? staffExecution.ContextId : null,
+                        staffExecution is { Purpose: StaffMailPurpose.CaseReport } ? staffExecution.SecondContextId : null),
                     cancellationToken);
                 if (autoLink.Disposition == AutoLinkReportEvidenceDisposition.Linked)
                 {

@@ -1099,6 +1099,11 @@ public sealed partial class DetailsModel(
         var reportInputs = reads.Start(token => reportSnapshotSource.GetAsync(id, actor, work, reuse, token));
         var currentGeneration = reads.Start(token =>
             reportGenerations.GetCurrentAsync(actor, id, work, token));
+        // The other work's report goes in the same send once the Audit exists.
+        var otherWork = work == CaseWorkSelector.Primary ? CaseWorkSelector.Current : CaseWorkSelector.Primary;
+        var otherGeneration = Works is { HasAudit: true }
+            ? reads.Start(token => reportGenerations.GetCurrentAsync(actor, id, otherWork, token))
+            : null;
         var sendingToAi = asksSendToAi
             ? reads.Start(token => sendToAiControl.IsEnabledAsync(token))
             : null;
@@ -1138,6 +1143,7 @@ public sealed partial class DetailsModel(
             }
         }
         CurrentReportGeneration = await currentGeneration;
+        OtherReportGeneration = otherGeneration is null ? null : await otherGeneration;
         EvaluateEngineerSectionConditions(sendingToAi is not null && await sendingToAi);
         ApplyGlassSession(await glass);
 
@@ -1153,6 +1159,9 @@ public sealed partial class DetailsModel(
             : null;
         var history = generated
             ? reads.Start(token => reportSendHistory.GetAsync(id, work, token))
+            : null;
+        var otherHistory = generated && OtherReportGeneration is not null
+            ? reads.Start(token => reportSendHistory.GetAsync(id, otherWork, token))
             : null;
         await reads.WhenAllAsync();
 
@@ -1182,6 +1191,9 @@ public sealed partial class DetailsModel(
         ReportSendHistory = history is null
             ? CaseReportSendHistory.None
             : await history;
+        OtherReportSendHistory = otherHistory is null
+            ? CaseReportSendHistory.None
+            : await otherHistory;
         ReportDeliveryMessage = await RenderReportDeliveryMessageAsync(actor, cancellationToken);
         OpenDialog = dialog switch
         {
@@ -2753,6 +2765,9 @@ public sealed partial class DetailsModel(
         string[]? toRecipients,
         string[]? ccRecipients,
         CaseReportArtifactKind[]? attach,
+        Guid? secondGenerationId,
+        long? secondExpectedGenerationVersion,
+        CaseReportArtifactKind[]? secondAttach,
         CancellationToken cancellationToken)
     {
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -2790,7 +2805,13 @@ public sealed partial class DetailsModel(
                     coveringMessage!,
                     new(toRecipients ?? [], ccRecipients ?? []),
                     attach,
-                    WorkSelector),
+                    WorkSelector,
+                    // The other work's report, when its tick is on: always
+                    // its report, with the documents of it ticked.
+                    secondGenerationId is { } secondId && secondExpectedGenerationVersion is { } secondVersion
+                        ? new(secondId, secondVersion,
+                            [CaseReportArtifactKind.AssessmentReport, .. (secondAttach ?? [])])
+                        : null),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)

@@ -645,7 +645,7 @@ public sealed class IndexModel(
                     CaseReportReadiness.Evaluate(reportInputs.Readiness).Reasons);
             }
             currentReport = currentTask.Result;
-            reportSent = historyTask.Result.SentCount > 0;
+            reportSent = historyTask.Result.Accepted;
         }
         var next = CaseNextAction.Of(
             basis.Workflow,

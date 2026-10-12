@@ -305,6 +305,9 @@ public sealed class CaseViewsWebTests
     /// and shows the Audit report alone (operator, 2 October 2026); the
     /// Inspection view shows its own report, sent or not, with the same
     /// delivery and More menu the Audit view offers (operator, 2 October 2026).
+    /// Each view's send form also offers the other work's report as its own
+    /// unticked choice, so one email can carry both (operator, 12 October
+    /// 2026); nothing else of the other report is shown.
     /// </summary>
     [Fact]
     public async Task EachViewShowsItsOwnReport()
@@ -319,7 +322,7 @@ public sealed class CaseViewsWebTests
         var auditReport = Section(auditHtml, "section-report-title");
         Assert.Contains($"<span class=\"mono\" data-report-reference>{AuditReference} · </span>", auditReport, StringComparison.Ordinal);
         Assert.DoesNotContain(sentLine, auditReport, StringComparison.Ordinal);
-        Assert.DoesNotContain(reports.Inspection!.Id.ToString("D"), auditReport, StringComparison.Ordinal);
+        AssertOffersOnlyTheOtherReportsChoice(auditReport, reports.Inspection!);
         Assert.Contains($"{AuditReference} · </span>", ReportStatus(auditReport), StringComparison.Ordinal);
         Assert.Contains("data-send-report", auditReport, StringComparison.Ordinal);
         // The delivery message is the Case report delivery template, rendered
@@ -336,7 +339,7 @@ public sealed class CaseViewsWebTests
         Assert.DoesNotContain(sentLine, ReportStatus(inspectionReport), StringComparison.Ordinal);
         Assert.Contains("data-report-filing", ReportStatus(inspectionReport), StringComparison.Ordinal);
         Assert.Contains(reports.Inspection!.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
-        Assert.DoesNotContain(reports.Audit!.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
+        AssertOffersOnlyTheOtherReportsChoice(inspectionReport, reports.Audit!);
         Assert.DoesNotContain("data-report-reference", inspectionReport, StringComparison.Ordinal);
         Assert.Contains("data-send-report", inspectionReport, StringComparison.Ordinal);
         Assert.Equal(
@@ -486,7 +489,7 @@ public sealed class CaseViewsWebTests
         Assert.Contains("data-send-report", inspectionReport, StringComparison.Ordinal);
         Assert.Contains("<input type=\"hidden\" name=\"view\" value=\"inspection\" />", inspectionReport, StringComparison.Ordinal);
         Assert.Contains(reports.Inspection!.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
-        Assert.DoesNotContain(reports.Audit!.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
+        AssertOffersOnlyTheOtherReportsChoice(inspectionReport, reports.Audit!);
         Assert.DoesNotContain("data-report-reference", inspectionReport, StringComparison.Ordinal);
         Assert.Contains(CaseWorkSelector.Primary, reports.CurrentReads);
     }
@@ -975,7 +978,25 @@ public sealed class CaseViewsWebTests
     /// Inspection's for the primary one. Only the reads the Case page makes
     /// are answered.
     /// </summary>
-    /// <summary>Each work's accepted report sends, as the send history counts them.</summary>
+    // The other work's report is in the send form only: an unticked choice
+    // naming its generation, with its version beside it.
+    private static void AssertOffersOnlyTheOtherReportsChoice(string report, CaseReportGenerationRecord other)
+    {
+        var id = other.Id.ToString("D");
+        Assert.Matches(
+            $"<input type=\"checkbox\" id=\"report-attach-other\" name=\"secondGenerationId\" value=\"{id}\"\\s+data-report-attach-other-report />",
+            report);
+        Assert.Contains(
+            $"<input type=\"hidden\" name=\"secondExpectedGenerationVersion\" value=\"{other.Version}\" />",
+            report,
+            StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(report, Regex.Escape(id)));
+    }
+
+    /// <summary>
+    /// Each work's report sends Graph accepted whose Sent item is not yet
+    /// observed, as the send history counts them.
+    /// </summary>
     private sealed class SendsPerWork : ICaseReportSendHistoryQueries
     {
         public int Inspection { get; set; }
@@ -984,10 +1005,8 @@ public sealed class CaseViewsWebTests
 
         public Task<CaseReportSendHistory> GetAsync(
             Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
-            Task.FromResult(
-                (work == CaseWorkSelector.Primary ? Inspection : Audit) is var count and > 0
-                    ? new CaseReportSendHistory(count, null)
-                    : CaseReportSendHistory.None);
+            Task.FromResult(new CaseReportSendHistory(
+                0, null, work == CaseWorkSelector.Primary ? Inspection : Audit));
     }
 
     private sealed class ReportsPerWork(Guid caseId) : ICaseReportGenerationStore

@@ -408,6 +408,9 @@ public sealed record LinkReportEvidenceRequest(
 /// the polling policy supplied one unambiguous authoritative Case identity.
 /// <paramref name="GenerationId"/> is the report generation the send carried,
 /// when the send was Pegasus's own: it names the work the evidence proves.
+/// <paramref name="SecondGenerationId"/> is the other work's report the same
+/// send carried, if any: the one Sent item proves both works (operator, 12
+/// October 2026). It is left out of the request hash while absent.
 /// </summary>
 public sealed record AutoLinkReportEvidenceRequest(
     Guid CaseId,
@@ -415,7 +418,10 @@ public sealed record AutoLinkReportEvidenceRequest(
     ActionActor Actor,
     string OperationKey,
     string Reason,
-    Guid? GenerationId = null);
+    Guid? GenerationId = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    Guid? SecondGenerationId = null);
 
 public enum AutoLinkReportEvidenceDisposition
 {

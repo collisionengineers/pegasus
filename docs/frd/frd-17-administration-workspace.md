@@ -198,7 +198,8 @@ Queues (MI-05) and the Case list (MI-04). No MI label is drawn.
 
 Reports and fees are counted per report: the first confirmed report of the
 Inspection and, once created, of the Audit of an Inspection + Audit Case
-each count once, with their own agreed fee. An Audit report is the report
+each count once, with their own agreed fee. An email that carried both
+reports is a send of each. An Audit report is the report
 of a standalone Audit Case or the Audit of an Inspection + Audit Case.
 
 - **Engineer activity** counts each person's queries (a dispute is a query),

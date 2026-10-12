@@ -18,7 +18,9 @@ public interface IReportSendReadiness
 /// <summary>
 /// One report send as staff submit it (operator, 6 October 2026): the
 /// generation, the reviewed recipients, the documents to attach and the
-/// covering message, under the Case's edit lease.
+/// covering message, under the Case's edit lease. On an Inspection + Audit
+/// Case with its Audit, the same email may carry the other work's report too
+/// (operator, 12 October 2026).
 /// </summary>
 public sealed record SendCaseReportRequest(
     ActionActor Actor, Guid CaseId, long ExpectedCaseVersion, string LeaseToken,
@@ -26,7 +28,16 @@ public sealed record SendCaseReportRequest(
     string CoveringMessage,
     ReportRecipientReview? ReviewedRecipients = null,
     IReadOnlyList<CaseReportArtifactKind>? Attach = null,
-    CaseWorkSelector Work = CaseWorkSelector.Current);
+    CaseWorkSelector Work = CaseWorkSelector.Current,
+    SecondCaseReport? SecondReport = null);
+
+/// <summary>
+/// The other work's report one send also carries: its generation at the
+/// version staff saw, and the documents of it to attach.
+/// </summary>
+public sealed record SecondCaseReport(
+    Guid GenerationId, long ExpectedGenerationVersion,
+    IReadOnlyList<CaseReportArtifactKind>? Attach = null);
 public interface ISendCaseReport
 {
     Task<StaffMailOperation> ExecuteAsync(
@@ -65,11 +76,16 @@ public sealed record ReportRecipientCandidate(string Address, string Source);
 /// <summary>
 /// What the Case's report has already been sent, for the naming a re-send
 /// carries (v28 P23): how many times a report of this Case has been sent, and
-/// the report date of the one sent last.
+/// the report date of the one sent last. <paramref name="AcceptedCount"/>
+/// also counts the sends the provider accepted whose Sent item is not yet
+/// observed; the Next action reads it (operator, 12 October 2026).
 /// </summary>
-public sealed record CaseReportSendHistory(int SentCount, DateOnly? LastSentReportDate)
+public sealed record CaseReportSendHistory(int SentCount, DateOnly? LastSentReportDate, int AcceptedCount = 0)
 {
     public static CaseReportSendHistory None { get; } = new(0, null);
+
+    /// <summary>Whether a send of the work's report was accepted, observed or not.</summary>
+    public bool Accepted => AcceptedCount > 0 || SentCount > 0;
 }
 
 public interface ICaseReportSendHistoryQueries
@@ -130,6 +146,20 @@ public static class CaseReportDeliveryNaming
         AssessmentReportOutcome.ContractRepair => "Contract repair",
         _ => "Repairable",
     };
+
+    /// <summary>
+    /// The attached report's own name for one generation, without its
+    /// extension, after <paramref name="sentCount"/> sends of its work.
+    /// </summary>
+    public static string ReportName(CaseReportGenerationSnapshot snapshot, int sentCount)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        return ReportName(
+            snapshot.CaseReference,
+            snapshot.Report.Vehicle.Registration,
+            OutcomeWords(snapshot.Report.Outcome),
+            sentCount);
+    }
 
     /// <summary>The attached report's own name, without its extension.</summary>
     public static string ReportName(
@@ -508,11 +538,42 @@ public sealed class SendCaseReport(
         // v28 P23: what the work has already sent decides the report's name,
         // read with the generation this delivery sends.
         var history = await sendHistory.GetAsync(request.CaseId, request.Work, cancellationToken).ConfigureAwait(false);
-        var reportName = CaseReportDeliveryNaming.ReportName(
-            generation.Snapshot.CaseReference,
-            generation.Snapshot.Report.Vehicle.Registration,
-            CaseReportDeliveryNaming.OutcomeWords(generation.Snapshot.Report.Outcome),
-            history.SentCount);
+        IReadOnlyList<StaffMailAttachment> named = CaseReportDeliveryNaming.Named(
+            attachments, CaseReportDeliveryNaming.ReportName(generation.Snapshot, history.SentCount));
+
+        // The other work's report the same email carries: deliverable on its
+        // own work under the same lease, and named by its own work's sends.
+        CaseReportGenerationRecord? second = null;
+        IReadOnlyList<StaffMailAttachment> secondAttachments = [];
+        if (request.SecondReport is { } secondReport)
+        {
+            if (secondReport.GenerationId == Guid.Empty || secondReport.GenerationId == generation.Id)
+            {
+                throw new ArgumentException("The second report must be another generation.", nameof(request));
+            }
+            var otherWork = request.Work == CaseWorkSelector.Primary
+                ? CaseWorkSelector.Current
+                : CaseWorkSelector.Primary;
+            second = await generations.GetForDeliveryAsync(
+                request with
+                {
+                    GenerationId = secondReport.GenerationId,
+                    ExpectedGenerationVersion = secondReport.ExpectedGenerationVersion,
+                    Attach = secondReport.Attach,
+                    Work = otherWork,
+                    SecondReport = null
+                },
+                cancellationToken).ConfigureAwait(false);
+            secondAttachments = CaseReportDeliveryPolicy.Attachments(
+                second.Id, second.Artifacts, secondReport.Attach);
+            var secondHistory = await sendHistory.GetAsync(request.CaseId, otherWork, cancellationToken).ConfigureAwait(false);
+            named =
+            [
+                .. named,
+                .. CaseReportDeliveryNaming.Named(
+                    secondAttachments, CaseReportDeliveryNaming.ReportName(second.Snapshot, secondHistory.SentCount))
+            ];
+        }
 
         var mailbox = await SendingMailboxAsync(cancellationToken).ConfigureAwait(false);
         var mail = new StaffMailSendCommand(
@@ -533,11 +594,16 @@ public sealed class SendCaseReport(
             addressing.Subject,
             Body: message,
             // Custody keeps its own name for the same bytes.
-            CaseReportDeliveryNaming.Named(attachments, reportName),
-            request.OperationKey);
+            named,
+            request.OperationKey,
+            SecondReport: second is null ? null : new(second.Id, second.Version));
         var report = new ReportSendReadinessRequest(
             request.Actor, request.CaseId, generation.Id, generation.Version, attachments);
-        return await send.SendAsync(new(mail, report), cancellationToken).ConfigureAwait(false);
+        var secondReadiness = second is null
+            ? null
+            : new ReportSendReadinessRequest(
+                request.Actor, request.CaseId, second.Id, second.Version, secondAttachments);
+        return await send.SendAsync(new(mail, report, secondReadiness), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

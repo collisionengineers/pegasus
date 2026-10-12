@@ -29,11 +29,12 @@ internal sealed class EfEngineerActivityQueries(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         // A report send's context is its generation, which names its Case and
-        // work: the Case type and work kind decide an Audit report
+        // work, and a send that carried both works' reports counts each
+        // (operator, 12 October 2026): the Case type and work kind decide an Audit report
         // (CaseWorkPolicy.IsAuditReport); the turnaround runs from the Case's
         // origin receipt for the primary work and from the Audit work's
         // creation for an Inspection + Audit Case's Audit.
-        var sentOperations = await context.Set<StaffMailSendOperationEntity>()
+        var sentOperations = (await context.Set<StaffMailSendOperationEntity>()
             .AsNoTracking()
             // Every report send, so the total agrees with Reports by Principal:
             // a staff member's under their account, Automation's as its own row.
@@ -41,8 +42,12 @@ internal sealed class EfEngineerActivityQueries(
                 && item.State == StaffMailState.Sent
                 && item.ObservedSentAtUtc >= fromUtc
                 && item.ObservedSentAtUtc < toUtc)
-            .Select(item => new { item.ActorKind, item.ActorSubjectId, item.ContextId, SentAtUtc = item.ObservedSentAtUtc!.Value })
-            .ToListAsync(cancellationToken);
+            .Select(item => new { item.ActorKind, item.ActorSubjectId, item.ContextId, item.SecondContextId, SentAtUtc = item.ObservedSentAtUtc!.Value })
+            .ToListAsync(cancellationToken))
+            .SelectMany(item => item.SecondContextId is { } second
+                ? new[] { (item.ActorKind, item.ActorSubjectId, item.ContextId, item.SentAtUtc), (item.ActorKind, item.ActorSubjectId, ContextId: second, item.SentAtUtc) }
+                : [(item.ActorKind, item.ActorSubjectId, item.ContextId, item.SentAtUtc)])
+            .ToList();
         var generationIds = sentOperations.Select(item => item.ContextId).Distinct().ToArray();
         var sentCases = generationIds.Length == 0
             ? new Dictionary<Guid, SentReport>()
