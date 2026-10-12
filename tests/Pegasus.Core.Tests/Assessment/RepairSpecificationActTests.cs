@@ -168,6 +168,26 @@ public sealed class RepairSpecificationActTests
     }
 
     [Fact]
+    public void AScaledRateOffTheHalfPoundStepNeverRisesAboveTheRateItStartedFrom()
+    {
+        // FRD-25: £42 with the 15 % uplift prices at £48.30, off the 50p
+        // step; a light scaling the step would round up to £48.50 keeps £48.30.
+        var specification = Estimate(
+            Header(rate: 42m) with { RegionalUplift = true },
+            Line("new_part", price: 1_000m),
+            Line("repair", workUnits: 1m));
+        var before = EstimateTotals.Compute(specification).Printed.Gross;
+
+        var result = RepairSpecificationScaling.Scale(specification, before - 0.5m, ScalingFloors.Default);
+
+        Assert.Equal(48.30m, specification.Details.HourlyRate);
+        Assert.True(
+            result.Details.HourlyRate <= specification.Details.HourlyRate,
+            result.Details.HourlyRate.ToString(CultureInfo.InvariantCulture));
+        Assert.True(result.GrossAfter <= before - 0.5m);
+    }
+
+    [Fact]
     public void ScalingLandsTheRateOnAHalfPoundAndLetsTheCardAndTheUpliftGo()
     {
         // v38 P5, P6 (operator, 12 October 2026): the rate scaled is the one
