@@ -45,13 +45,6 @@ internal sealed class EfStaffNotificationStore(
         return rows.Select(Map).ToArray();
     }
 
-    public async Task<int> CountUnreadAsync(Guid staffId, DateTimeOffset sinceUtc, CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await context.Set<StaffNotificationEntity>().AsNoTracking()
-            .CountAsync(item => item.StaffId == staffId && item.RaisedAtUtc >= sinceUtc && item.ReadAtUtc == null, cancellationToken);
-    }
-
     public async Task<StaffNotification?> MarkReadAsync(
         Guid staffId,
         Guid notificationId,

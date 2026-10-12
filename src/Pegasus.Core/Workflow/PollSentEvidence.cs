@@ -146,13 +146,6 @@ public interface ISentEvidencePollStore
         TimeSpan leaseDuration,
         CancellationToken cancellationToken);
 
-    Task<ApprovedSentPollLease?> ClaimAsync(
-        Guid approvedMailboxId,
-        DateTimeOffset nowUtc,
-        TimeSpan leaseDuration,
-        CancellationToken cancellationToken) =>
-        ClaimAsync(nowUtc, leaseDuration, cancellationToken);
-
     Task RecordOutcomeAsync(
         string mailboxId,
         string leaseToken,
@@ -249,19 +242,11 @@ public sealed class PollSentEvidence(
         return new(attempted, failed, pages, items, reportEvidence, firstFailure);
     }
 
-    public Task<PollSentEvidenceResult> ExecuteAsync(
+    public async Task<PollSentEvidenceResult> ExecuteAsync(
         int maximumPages,
         int maximumItemsPerPage,
         ActionActor actor,
-        CancellationToken cancellationToken = default) =>
-        ExecuteCoreAsync(null, maximumPages, maximumItemsPerPage, actor, cancellationToken);
-
-    private async Task<PollSentEvidenceResult> ExecuteCoreAsync(
-        Guid? approvedMailboxId,
-        int maximumPages,
-        int maximumItemsPerPage,
-        ActionActor actor,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
         if (maximumPages is < 1 or > 10)
         {
@@ -284,11 +269,8 @@ public sealed class PollSentEvidence(
             throw new UnauthorizedAccessException("Sent-evidence polling requires a system-worker actor.");
         }
 
-        var lease = approvedMailboxId is { } targetMailboxId
-            ? await pollStore.ClaimAsync(
-                targetMailboxId, timeProvider.GetUtcNow(), LeaseDuration, cancellationToken)
-            : await pollStore.ClaimAsync(
-                timeProvider.GetUtcNow(), LeaseDuration, cancellationToken);
+        var lease = await pollStore.ClaimAsync(
+            timeProvider.GetUtcNow(), LeaseDuration, cancellationToken);
         if (lease is null)
         {
             return PollSentEvidenceResult.Empty;

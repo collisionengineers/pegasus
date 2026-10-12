@@ -199,11 +199,11 @@ public sealed class StaffNotificationTests
         Assert.Empty(await bell.ListAsync(engineer, default));
         store.Rows[0] = store.Rows[0] with { RaisedAtUtc = Now.AddDays(-29) };
         var mine = Assert.Single(await bell.ListAsync(engineer, default));
-        Assert.Equal(1, await bell.CountUnreadAsync(engineer, default));
+        Assert.True(mine.IsUnread);
 
         var opened = await bell.OpenAsync(engineer, mine.Id, default);
         Assert.Equal(Now, opened!.ReadAtUtc);
-        Assert.Equal(0, await bell.CountUnreadAsync(engineer, default));
+        Assert.DoesNotContain(await bell.ListAsync(engineer, default), row => row.IsUnread);
         Assert.Null(await bell.OpenAsync(ActionActor.Staff(OtherId, [StaffRole.User]), mine.Id, default));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => bell.ListAsync(ActionActor.Automation("client"), default));
     }
@@ -278,9 +278,6 @@ public sealed class StaffNotificationTests
         public Task<IReadOnlyList<StaffNotification>> ListAsync(Guid staffId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<StaffNotification>>(
                 Rows.Where(row => row.StaffId == staffId && row.RaisedAtUtc >= sinceUtc).OrderByDescending(row => row.RaisedAtUtc).ToArray());
-
-        public Task<int> CountUnreadAsync(Guid staffId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) =>
-            Task.FromResult(Rows.Count(row => row.StaffId == staffId && row.RaisedAtUtc >= sinceUtc && row.ReadAtUtc is null));
 
         public Task<StaffNotification?> MarkReadAsync(Guid staffId, Guid notificationId, DateTimeOffset readAtUtc, CancellationToken cancellationToken)
         {

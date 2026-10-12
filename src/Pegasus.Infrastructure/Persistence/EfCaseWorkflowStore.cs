@@ -687,23 +687,6 @@ public sealed class EfCaseWorkflowStore(
                 cancellationToken);
         }, cancellationToken, targetState.ToString());
 
-    public Task<CaseWorkflowRecord> SetSignOffEngineerAsync(
-        SetCaseSignOffEngineerRequest request,
-        CancellationToken cancellationToken) =>
-        MutateAsync(request, "case_sign_off_engineer_selected", async (context, workflow, now) =>
-        {
-            var beforeAssignedEngineerId = workflow.AssignedEngineerId;
-            var beforeSignOffEngineerId = workflow.SignOffEngineerId;
-            workflow.SignOffEngineerId = request.SignOffEngineerId;
-            await MarkReportStaleIfEffectiveSignatoryChangedAsync(
-                context,
-                workflow,
-                beforeAssignedEngineerId,
-                beforeSignOffEngineerId,
-                now,
-                cancellationToken);
-        }, cancellationToken);
-
     public Task<CaseWorkflowRecord> RecordReportApprovalAsync(
         RecordCaseReportApprovalRequest request,
         CancellationToken cancellationToken) =>

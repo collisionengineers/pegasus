@@ -254,11 +254,6 @@ public sealed class AssignCaseEngineerTests
             return Task.FromResult(Current);
         }
 
-        public Task<CaseWorkflowRecord> SetSignOffEngineerAsync(
-            SetCaseSignOffEngineerRequest request,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
         public Task<CaseEditLease> ClaimAsync(
             ClaimCaseEditLeaseRequest request,
             CancellationToken cancellationToken) =>

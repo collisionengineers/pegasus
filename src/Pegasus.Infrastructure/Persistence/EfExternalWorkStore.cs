@@ -12,7 +12,7 @@ namespace Pegasus.Infrastructure.Persistence;
 internal sealed class EfExternalWorkStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider timeProvider)
-    : IExternalWorkStore, IQueuedExternalWorkReader, ICaseCustodyQueries, ICustodyRecoveryPersistence
+    : IExternalWorkStore, IQueuedExternalWorkReader, ICustodyRecoveryPersistence
 {
     private const int CandidateBatchSize = 256;
 
@@ -33,47 +33,6 @@ internal sealed class EfExternalWorkStore(
                 && item.LeaseToken == leaseToken
                 && item.LeaseExpiresAtUtc > now,
             cancellationToken);
-    }
-
-    public async Task<IReadOnlyList<CaseCustodyPreparation>> GetPreparationsAsync(
-        Guid caseId,
-        CancellationToken cancellationToken = default)
-    {
-        if (caseId == Guid.Empty)
-        {
-            return [];
-        }
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var version = await CaseMutationAuthority.ReadVersionAsync(context, caseId, cancellationToken);
-        if (version is null)
-        {
-            return [];
-        }
-        var work = await context.ExternalWorkItems
-            .AsNoTracking()
-            .Where(item => item.CaseId == caseId
-                && (item.Kind == ExternalWorkKinds.CreateCaseCustody
-                    || item.Kind == ExternalWorkKinds.CreateAuditReferenceCustody))
-            .OrderBy(item => item.Kind)
-            .Select(item => new
-            {
-                item.Kind,
-                item.State,
-                item.FailureReason,
-                item.AttemptCount
-            })
-            .ToArrayAsync(cancellationToken);
-        return work.Select(item => new CaseCustodyPreparation(
-            caseId,
-            version.Value,
-            item.Kind == ExternalWorkKinds.CreateCaseCustody
-                ? CustodyTargetKind.CaseSource
-                : CustodyTargetKind.AuditReference,
-            item.State,
-            item.FailureReason,
-            item.AttemptCount,
-            string.Equals(item.State, ExternalWorkStatePersistence.Failed, StringComparison.Ordinal)))
-            .ToArray();
     }
 
     public async Task<RetryCaseCustodyResult> RetryAsync(

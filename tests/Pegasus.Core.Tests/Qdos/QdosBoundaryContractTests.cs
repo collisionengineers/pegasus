@@ -231,7 +231,6 @@ public sealed class QdosBoundaryContractTests
         var accepted = AcceptedExportEvidence();
         var export = CaseExportMapping.MapForOperatorExport(accepted with
         {
-            InstructionComplete = false,
             Inspection = accepted.Inspection with
             {
                 Evidence = accepted.Inspection.Evidence with
@@ -262,11 +261,6 @@ public sealed class QdosBoundaryContractTests
     {
         var accepted = new CaseExportEvidenceValue("confirmed", CaseExportEvidenceStatus.Accepted, "staff", "1");
         return new(
-            Guid.NewGuid(),
-            1,
-            true,
-            true,
-            true,
             accepted with { Value = "QDOS-001", Source = "case", SourceVersion = "1" },
             accepted,
             accepted with { Value = "AB12 CDE" },
