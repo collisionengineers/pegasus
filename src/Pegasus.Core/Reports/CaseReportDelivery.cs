@@ -26,7 +26,8 @@ public sealed record SendCaseReportRequest(
     string CoveringMessage,
     ReportRecipientReview? ReviewedRecipients = null,
     IReadOnlyList<CaseReportArtifactKind>? Attach = null,
-    CaseWorkSelector Work = CaseWorkSelector.Current);
+    CaseWorkSelector Work = CaseWorkSelector.Current,
+    Guid? FromMailboxId = null);
 public interface ISendCaseReport
 {
     Task<StaffMailOperation> ExecuteAsync(
@@ -472,7 +473,7 @@ public sealed class SendCaseReport(
     ICaseReportGenerationStore generations,
     ICaseReportSendHistoryQueries sendHistory,
     IReportRecipientSuggestionQueries recipientSuggestions,
-    IApprovedMailboxStore mailboxes,
+    ResolveCaseMailSender senders,
     IStaffReportSend send) : ISendCaseReport
 {
     public async Task<StaffMailOperation> ExecuteAsync(
@@ -514,23 +515,25 @@ public sealed class SendCaseReport(
             CaseReportDeliveryNaming.OutcomeWords(generation.Snapshot.Report.Outcome),
             history.SentCount);
 
-        var mailbox = await SendingMailboxAsync(cancellationToken).ConfigureAwait(false);
+        // A reply to the instruction email from the mailbox it arrived in, or
+        // a new message from the mailbox staff chose when there is none.
+        var sender = await senders.ExecuteAsync(request.CaseId, request.FromMailboxId, cancellationToken).ConfigureAwait(false);
         var mail = new StaffMailSendCommand(
             request.Actor,
-            mailbox.Id,
+            sender.Mailbox.Id,
             // The transport's generation guard is the mailbox's Generation
             // (G14), never the administration row's concurrency Version.
-            mailbox.Generation,
+            sender.Mailbox.Generation,
             StaffMailPurpose.CaseReport,
             // A03's report context is the immutable generation, not the Case:
             // the generation's version is what the transport re-checks.
             generation.Id,
             generation.Version,
-            StaffMailComposeMode.New,
-            OriginalMessage: null,
+            sender.Mode,
+            sender.ReplyTo?.Original,
             addressing.To,
             addressing.Cc,
-            addressing.Subject,
+            sender.ReplyTo?.ReplySubject ?? addressing.Subject,
             Body: message,
             // Custody keeps its own name for the same bytes.
             CaseReportDeliveryNaming.Named(attachments, reportName),
@@ -538,30 +541,5 @@ public sealed class SendCaseReport(
         var report = new ReportSendReadinessRequest(
             request.Actor, request.CaseId, generation.Id, generation.Version, attachments);
         return await send.SendAsync(new(mail, report), cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// The approved mailbox reports leave from is the one bound for both
-    /// directions of that journey: StaffSend, because a report send is a
-    /// staff send, and SentEvidence, because A reads the same mailbox's Sent
-    /// items for truthful report-sent evidence. Exactly one identified,
-    /// Approved mailbox with a valid Generation may hold both scopes; none,
-    /// a missing scope or several fails closed.
-    /// </summary>
-    private async Task<ApprovedMailbox> SendingMailboxAsync(CancellationToken cancellationToken)
-    {
-        var candidates = (await mailboxes.ListAsync(cancellationToken).ConfigureAwait(false))
-            .Where(mailbox => mailbox.State == ApprovedMailboxState.Approved
-                && mailbox.IdentityIsBound
-                && mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
-                && mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence)
-                && mailbox.Generation > 0)
-            .ToArray();
-        return candidates.Length == 1
-            ? candidates[0]
-            : throw new InvalidOperationException(
-                candidates.Length == 0
-                    ? "No approved mailbox is bound for both staff send and report-sent evidence, so no report can be sent."
-                    : "More than one approved mailbox is bound for both staff send and report-sent evidence.");
     }
 }

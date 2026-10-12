@@ -284,7 +284,10 @@ public sealed class CaseReportDeliveryPersistenceTests
             expectedGenerationVersion,
             "send-report-1",
             "Please find attached our report.",
-            new(["handler@principal.example"], []));
+            new(["handler@principal.example"], []),
+            // The Case arrived by upload, so it has no instruction email to
+            // reply to: the report is new from the chosen Outgoing mailbox.
+            FromMailboxId: FixedMailboxes.Mailbox.Id);
 
         /// <summary>
         /// One send through the real use case over this database: the real
@@ -299,7 +302,7 @@ public sealed class CaseReportDeliveryPersistenceTests
                     Store,
                     new EfCaseReportSendHistoryQueries(Factory),
                     new EfReportRecipientSuggestionQueries(Factory),
-                    new FixedMailboxes(),
+                    new ResolveCaseMailSender(new EfCaseInstructionEmailQueries(Factory), new FixedMailboxes()),
                     send)
                 .ExecuteAsync(request, CancellationToken.None);
             return Assert.Single(send.Commands);
@@ -530,13 +533,13 @@ public sealed class CaseReportDeliveryPersistenceTests
             throw new NotSupportedException("A delivery freezes no snapshot.");
     }
 
-    /// <summary>The one approved mailbox bound for staff send and report-sent evidence.</summary>
+    /// <summary>The one approved Outgoing mailbox, able to send.</summary>
     private sealed class FixedMailboxes : IApprovedMailboxStore
     {
-        private static readonly ApprovedMailbox Mailbox = new(
+        public static readonly ApprovedMailbox Mailbox = new(
             Guid.NewGuid(),
             "reports@collisionengineers.example",
-            [ApprovedMailboxRouteScope.StaffSend, ApprovedMailboxRouteScope.SentEvidence],
+            [ApprovedMailboxRouteScope.Outgoing],
             ApprovedMailboxState.Approved,
             "identity",
             "inbox",
@@ -552,10 +555,6 @@ public sealed class CaseReportDeliveryPersistenceTests
 
         public Task<ApprovedMailbox> UpdateAsync(
             UpdateApprovedMailboxRequest request, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<ApprovedMailbox> SetDefaultAsync(
-            SetDefaultApprovedMailboxRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<bool> IsApprovedAsync(

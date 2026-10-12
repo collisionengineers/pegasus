@@ -3174,7 +3174,7 @@ public sealed class CaseWorkflowPersistenceTests
                 var mailbox = (await context.ApprovedMailboxes.FindAsync(
                     await TestMailboxId.EnsureApprovedAsync(
                         context, ApprovedMailboxIdentity, ApprovedMailboxAddress, StartUtc.AddDays(-1))))!;
-                mailbox.AllowSentEvidence = true;
+                mailbox.AllowOutgoing = true;
                 mailbox.SentFolderIdentity = ApprovedSentFolderIdentity;
                 mailbox.Version = 2;
                 await context.Database.ExecuteSqlInterpolatedAsync(

@@ -561,9 +561,9 @@ public sealed class CaseRecordFrameV26WebTests
 
     /// <summary>
     /// Send chaser is offered on any open Case while staff mail is available
-    /// (operator, 5 October 2026): a link to the composer opened as this
-    /// Case's chaser, with no dialog and no lease. A closed Case, archived or
-    /// not, and a host without staff mail offer none.
+    /// (operator, 5 October 2026): a link to this Case's chaser page
+    /// (operator, 12 October 2026), with no dialog and no lease. A closed
+    /// Case, archived or not, and a host without staff mail offer none.
     /// </summary>
     [Fact]
     public async Task SendChaserIsOfferedOnAnOpenCaseWhileStaffMailIsAvailable()
@@ -571,11 +571,12 @@ public sealed class CaseRecordFrameV26WebTests
         static void Mail(IServiceCollection services) =>
             Substitute<IStaffMailSend>(services, new OfferedStaffMailSend());
 
-        var open = RecordBar(await ReadCaseAsync(new RecordingCaseDetailsStore(), Mail));
+        var store = new RecordingCaseDetailsStore();
+        var open = RecordBar(await ReadCaseAsync(store, Mail));
         var link = Regex.Match(open, "<a[^>]*data-send-chaser[^>]*>");
         Assert.True(link.Success, "Send chaser is not offered on an open Case.");
         Assert.Contains(
-            "href=\"/Inbox/Compose?caseReference=QDOS3100042&amp;purpose=chaser\"",
+            $"href=\"/Cases/{store.CaseId:D}/Chaser\"",
             link.Value,
             StringComparison.Ordinal);
         Assert.DoesNotContain("data-dialog-open", link.Value, StringComparison.Ordinal);

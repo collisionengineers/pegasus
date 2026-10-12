@@ -3,7 +3,7 @@ id: ADR-0024
 status: accepted
 date: 2026-08-10
 supersedes: [ADR-0022]
-superseded_by: [ADR-0044]
+superseded_by: [ADR-0044, ADR-0068]
 related_capabilities: []
 related_frd: [frd-26]
 tags: [mailbox, identity]
@@ -19,6 +19,11 @@ tags: [mailbox, identity]
   administrator-owned database policy, not deployment configuration, and the
   Worker stays read-only on that policy. ADR-0022 remains the historical record
   for the clauses not restated here.
+- Partly replaced by
+  [ADR-0068](0068-incoming-and-outgoing-mailboxes-and-case-mail-replies.md):
+  Sent-evidence reading is no longer a separately approved activation; the
+  Sent-evidence poll reads every Outgoing mailbox. §4's other settings and the
+  rest of this record stand.
 
 ## Context
 

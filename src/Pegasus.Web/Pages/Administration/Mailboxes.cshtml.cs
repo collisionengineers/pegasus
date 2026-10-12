@@ -13,7 +13,6 @@ namespace Pegasus.Web.Pages.Administration;
 public sealed class MailboxesModel(
     ListApprovedMailboxes listApprovedMailboxes,
     UpdateApprovedMailbox updateApprovedMailbox,
-    SetDefaultApprovedMailbox setDefaultApprovedMailbox,
     IApprovedMailboxPollStatusQueries pollStatusQueries,
     IApprovedMailboxSubscriptionStore subscriptionStore,
     IResolveApprovedMailboxIdentity resolveApprovedMailboxIdentity,
@@ -45,17 +44,8 @@ public sealed class MailboxesModel(
 
     public bool IsNewCategoryEditorOpen { get; private set; }
 
-    /// <summary>The default-sender dialog is reopened after a failed save.</summary>
-    public bool IsDefaultEditorOpen { get; private set; }
-
-    private DefaultMailboxFormInput? ActiveDefaultForm =>
-        IsDefaultEditorOpen ? DefaultMailboxForm : null;
-
     [BindProperty]
     public MailboxFormInput? MailboxForm { get; set; }
-
-    [BindProperty]
-    public DefaultMailboxFormInput? DefaultMailboxForm { get; set; }
 
     [BindProperty]
     public CategoryFormInput? CategoryForm { get; set; }
@@ -90,8 +80,7 @@ public sealed class MailboxesModel(
                     SelectedRouteScopes = mailbox.RouteScopes.Select(item => item.ToString()).ToArray(),
                     SelectedState = mailbox.State.ToString(),
                     ExpectedVersion = mailbox.Version,
-                    OperationKey = NewOperationKey(),
-                    VerifiedEncodedMessageSizeLimit = mailbox.VerifiedEncodedMessageSizeLimit
+                    OperationKey = NewOperationKey()
                 };
             }
         }
@@ -203,8 +192,7 @@ public sealed class MailboxesModel(
                         resolution?.MailboxIdentity ?? existingMailbox?.MailboxIdentity,
                         resolution?.InboxFolderIdentity ?? existingMailbox?.InboxFolderIdentity,
                         resolution?.SentFolderIdentity ?? existingMailbox?.SentFolderIdentity,
-                        resolution?.FolderBindings ?? existingMailbox?.FolderBindings,
-                        input.VerifiedEncodedMessageSizeLimit),
+                        resolution?.FolderBindings ?? existingMailbox?.FolderBindings),
                     cancellationToken);
                 TempData["AdministrationStatus"] =
                     $"The mailbox policy for {updated.Address} was saved.";
@@ -284,8 +272,7 @@ public sealed class MailboxesModel(
                         mailbox.MailboxIdentity,
                         mailbox.InboxFolderIdentity,
                         mailbox.SentFolderIdentity,
-                        resolution!.FolderBindings ?? [],
-                        mailbox.VerifiedEncodedMessageSizeLimit),
+                        resolution!.FolderBindings ?? []),
                     cancellationToken);
                 TempData["AdministrationStatus"] =
                     $"{updated.FolderBindings.Count} logical folder bindings were saved for {updated.Address}.";
@@ -296,65 +283,6 @@ public sealed class MailboxesModel(
                 ModelState.AddModelError(string.Empty, MailboxErrorMessage(exception));
             }
         }
-        await LoadAsync(actor, cancellationToken);
-        PrepareFormState();
-        return Page();
-    }
-
-    public async Task<IActionResult> OnPostSetDefaultAsync(CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedMailboxes);
-        IsDefaultEditorOpen = true;
-        var input = RequireForm(DefaultMailboxForm, value => DefaultMailboxForm = value);
-        ValidateForm(input, nameof(DefaultMailboxForm));
-        if (!TryParseMailboxSelection(input.SelectedMailbox, out var mailboxId, out var expectedVersion))
-        {
-            ModelState.AddModelError(
-                nameof(DefaultMailboxFormInput.SelectedMailbox),
-                "Select an eligible staff-send mailbox.");
-        }
-        if (!IsOperationKeyValid(input.OperationKey))
-        {
-            ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
-        }
-
-        if (ModelState.IsValid)
-        {
-            try
-            {
-                var selected = await setDefaultApprovedMailbox.ExecuteAsync(
-                    new(
-                        mailboxId,
-                        expectedVersion,
-                        input.ExpectedPreviousDefaultMailboxId,
-                        input.ExpectedPreviousDefaultMailboxVersion,
-                        actor,
-                        input.OperationKey),
-                    cancellationToken);
-                TempData["AdministrationStatus"] =
-                    $"{selected.Address} is the default Compose sender.";
-                return RedirectToPage();
-            }
-            catch (ApprovedMailboxUpdateException exception)
-            {
-                ModelState.AddModelError(string.Empty,
-                    exception.Error == ApprovedMailboxUpdateError.VersionConflict
-                        ? "The selected mailbox changed. Select it again before saving."
-                        : MailboxErrorMessage(exception));
-            }
-            catch (ArgumentException)
-            {
-                ModelState.AddModelError(
-                    nameof(DefaultMailboxFormInput.SelectedMailbox),
-                    "Select an eligible staff-send mailbox.");
-            }
-        }
-
         await LoadAsync(actor, cancellationToken);
         PrepareFormState();
         return Page();
@@ -454,65 +382,8 @@ public sealed class MailboxesModel(
             ? input.SelectedState == state.ToString()
             : mailbox.State == state;
 
-    public long? VerifiedSendLimitFor(ApprovedMailbox mailbox) =>
-        MailboxForm is { ExpectedVersion: > 0 } input && input.MailboxId == mailbox.Id
-            ? input.VerifiedEncodedMessageSizeLimit
-            : mailbox.VerifiedEncodedMessageSizeLimit;
-
-    public IReadOnlyList<ApprovedMailbox> EligibleDefaultStaffSendMailboxes =>
-        Mailboxes.Where(IsEligibleDefaultStaffSendMailbox).ToArray();
-
-    public string DefaultMailboxSelectionFor(ApprovedMailbox mailbox) =>
-        $"{mailbox.Id:D}|{mailbox.Version}";
-
-    public bool IsDefaultMailboxSelection(ApprovedMailbox mailbox) =>
-        ActiveDefaultForm is { } input
-            ? string.Equals(
-                input.SelectedMailbox,
-                DefaultMailboxSelectionFor(mailbox),
-                StringComparison.Ordinal)
-            : mailbox.IsDefaultStaffSend;
-
-    public bool DefaultMailboxPromptIsSelected =>
-        ActiveDefaultForm is { } input
-            ? !EligibleDefaultStaffSendMailboxes.Any(mailbox =>
-                string.Equals(
-                    input.SelectedMailbox,
-                    DefaultMailboxSelectionFor(mailbox),
-                    StringComparison.Ordinal))
-            : !Mailboxes.Any(mailbox => mailbox.IsDefaultStaffSend);
-
-    public string? StaleDefaultMailboxSelectionAddress
-    {
-        get
-        {
-            if (ActiveDefaultForm is not { } input
-                || !DefaultMailboxPromptIsSelected
-                || !TryParseMailboxSelection(input.SelectedMailbox, out var mailboxId, out _))
-            {
-                return null;
-            }
-
-            return Mailboxes.SingleOrDefault(mailbox => mailbox.Id == mailboxId)?.Address;
-        }
-    }
-
-    public string DefaultMailboxOperationKey =>
-        DefaultMailboxForm is { } input && IsOperationKeyValid(input.OperationKey)
-            ? input.OperationKey
-            : NewOperationKey();
-
-    public Guid? ExpectedPreviousDefaultMailboxIdFor(ApprovedMailbox? currentDefault) =>
-        DefaultMailboxForm is { } input ? input.ExpectedPreviousDefaultMailboxId : currentDefault?.Id;
-
-    public int? ExpectedPreviousDefaultMailboxVersionFor(ApprovedMailbox? currentDefault) =>
-        DefaultMailboxForm is { } input ? input.ExpectedPreviousDefaultMailboxVersion : currentDefault?.Version;
-
     public string NewAddress =>
         MailboxForm is { ExpectedVersion: 0 } input ? input.Address : string.Empty;
-
-    public long? NewVerifiedSendLimit =>
-        MailboxForm is { ExpectedVersion: 0 } input ? input.VerifiedEncodedMessageSizeLimit : null;
 
     public ApprovedMailboxPollStatus? PollStatusForMailbox(ApprovedMailbox mailbox) =>
         PollStatuses.SingleOrDefault(item =>
@@ -680,11 +551,6 @@ public sealed class MailboxesModel(
         {
             mailboxInput.OperationKey = NewOperationKey();
         }
-        if (DefaultMailboxForm is { } defaultMailboxInput
-            && !IsOperationKeyValid(defaultMailboxInput.OperationKey))
-        {
-            defaultMailboxInput.OperationKey = NewOperationKey();
-        }
         if (CategoryForm is { } categoryInput && !IsOperationKeyValid(categoryInput.OperationKey))
         {
             categoryInput.OperationKey = NewOperationKey();
@@ -728,12 +594,6 @@ public sealed class MailboxesModel(
                 "This mailbox's address cannot be changed once saved. Disable it and add a new one.",
             ApprovedMailboxUpdateError.DuplicateMailboxIdentity =>
                 "That address already resolves to a mailbox approved under another row.",
-            ApprovedMailboxUpdateError.MissingVerifiedSendLimit =>
-                "Record the verified encoded-message size limit before enabling staff send.",
-            ApprovedMailboxUpdateError.DefaultStaffSendMailboxIneligible =>
-                "Select an approved, active staff-send mailbox with a verified send limit.",
-            ApprovedMailboxUpdateError.DefaultStaffSendMailboxRequiresReplacement =>
-                "Select another default Compose sender before disabling this mailbox or removing staff send.",
             _ => "The approved-mailbox change was not accepted."
         };
 
@@ -750,31 +610,6 @@ public sealed class MailboxesModel(
             "The category policy no longer exists.",
         _ => "The category policy was not saved."
     };
-
-    private static bool IsEligibleDefaultStaffSendMailbox(ApprovedMailbox mailbox) =>
-        mailbox.State == ApprovedMailboxState.Approved
-        && mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
-        && mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence)
-        && mailbox.ActivatedAtUtc is not null
-        && mailbox.MailboxIdentity is not null
-        && mailbox.SentFolderIdentity is not null
-        && mailbox.Generation > 0
-        && mailbox.VerifiedEncodedMessageSizeLimit > 0;
-
-    private static bool TryParseMailboxSelection(
-        string selection,
-        out Guid mailboxId,
-        out int expectedVersion)
-    {
-        mailboxId = Guid.Empty;
-        expectedVersion = 0;
-        var values = selection.Split('|', StringSplitOptions.TrimEntries);
-        return values.Length == 2
-            && Guid.TryParse(values[0], out mailboxId)
-            && mailboxId != Guid.Empty
-            && int.TryParse(values[1], out expectedVersion)
-            && expectedVersion > 0;
-    }
 
     [ValidateNever]
     public sealed class MailboxFormInput
@@ -793,23 +628,6 @@ public sealed class MailboxesModel(
         public int ExpectedVersion { get; set; }
 
         public string OperationKey { get; set; } = string.Empty;
-
-        [Range(1, long.MaxValue)]
-        public long? VerifiedEncodedMessageSizeLimit { get; set; }
-    }
-
-    [ValidateNever]
-    public sealed class DefaultMailboxFormInput
-    {
-        [Required]
-        public string SelectedMailbox { get; set; } = string.Empty;
-
-        public Guid? ExpectedPreviousDefaultMailboxId { get; set; }
-
-        public int? ExpectedPreviousDefaultMailboxVersion { get; set; }
-
-        public string OperationKey { get; set; } = string.Empty;
-
     }
 
     [ValidateNever]

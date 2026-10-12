@@ -28,7 +28,7 @@ internal sealed class EfSentEvidencePollStore(
         var approvedState = Pegasus.Core.Identity.ApprovedMailboxState.Approved.ToString();
         var mailboxes = await context.ApprovedMailboxes
             .Where(item => item.State == approvedState
-                && item.AllowSentEvidence
+                && item.AllowOutgoing
                 && item.MailboxIdentity != null
                 && item.SentFolderIdentity != null
                 && item.ActivatedAtUtc != null

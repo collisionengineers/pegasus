@@ -933,6 +933,73 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
+    /// Operator, 12 October 2026: a received message whose mailbox can send
+    /// offers Reply on its row and in the preview pane, opening the message
+    /// record's own reply; a message in a mailbox that cannot send offers none.
+    /// </summary>
+    [Fact]
+    public async Task AMessageInASendingMailboxOffersReplyOnItsRowAndInThePreview()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var sendingId = Assert.Single(await SeedAsync(baseFactory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        var receivingId = Assert.Single(await SeedAsync(baseFactory, SecondMailboxId, SecondMailboxAddress, count: 1));
+        await MakeSendReadyAsync(baseFactory, FirstMailboxId);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<Pegasus.Core.Operations.IStaffMailSend>();
+                services.AddSingleton<Pegasus.Core.Operations.IStaffMailSend>(
+                    new CaseWebTestSupport.OfferedStaffMailSend());
+            }));
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Inbox?selected={sendingId:D}");
+
+        var sendingRow = MailRow(html, sendingId);
+        Assert.Contains("data-mail-row-reply", sendingRow, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Inbox/{sendingId:D}?", sendingRow, StringComparison.Ordinal);
+        Assert.Contains("compose=reply", sendingRow, StringComparison.Ordinal);
+        Assert.Contains("data-mail-reply-url=", sendingRow, StringComparison.Ordinal);
+        Assert.Contains("data-mail-row-action=\"dismiss\"", sendingRow, StringComparison.Ordinal);
+        var receivingRow = MailRow(html, receivingId);
+        Assert.DoesNotContain("data-mail-row-reply", receivingRow, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-mail-reply-url", receivingRow, StringComparison.Ordinal);
+        Assert.Contains("data-mail-row-action=\"dismiss\"", receivingRow, StringComparison.Ordinal);
+
+        var preview = Between(html, "<aside id=\"mail-quick-preview\"", "</aside>");
+        var previewReply = Regex.Match(preview, "<a[^>]*data-mail-preview-reply[^>]*>");
+        Assert.True(previewReply.Success, "The preview pane has no Reply.");
+        Assert.Contains($"href=\"/Inbox/{sendingId:D}?", previewReply.Value, StringComparison.Ordinal);
+        Assert.Contains("compose=reply", previewReply.Value, StringComparison.Ordinal);
+        Assert.DoesNotContain("hidden", previewReply.Value, StringComparison.Ordinal);
+
+        var receivingHtml = await GetHtmlAsync(client, $"/Inbox?selected={receivingId:D}");
+        var receivingPreview = Between(receivingHtml, "<aside id=\"mail-quick-preview\"", "</aside>");
+        var hiddenReply = Regex.Match(receivingPreview, "<a[^>]*data-mail-preview-reply[^>]*>");
+        Assert.True(hiddenReply.Success, "The preview pane keeps its Reply slot for a row that offers one.");
+        Assert.Contains("hidden=\"hidden\"", hiddenReply.Value, StringComparison.Ordinal);
+        Assert.DoesNotContain("href=", hiddenReply.Value, StringComparison.Ordinal);
+    }
+
+    /// <summary>Without staff mail the Inbox offers no Reply, even for a mailbox that can send.</summary>
+    [Fact]
+    public async Task WithoutStaffMailTheInboxOffersNoReply()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var messageId = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await MakeSendReadyAsync(factory, FirstMailboxId);
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Inbox?selected={messageId:D}");
+
+        Assert.DoesNotContain("data-mail-row-reply", MailRow(html, messageId), StringComparison.Ordinal);
+        Assert.Contains(
+            "hidden=\"hidden\"",
+            Regex.Match(html, "<a[^>]*data-mail-preview-reply[^>]*>").Value,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The row (26 September 2026): the subject opens the message with the
     /// list's query values, the selection mark sits on the row where the shared
     /// highlight rule reads it, and the list carries the row-list keyboard hook.
@@ -2896,6 +2963,20 @@ public sealed class MailWorkspaceWebTests
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         Assert.True(match.Success, $"The hidden input '{name}' was not rendered.");
         return WebUtility.HtmlDecode(match.Groups[1].Value);
+    }
+
+    /// <summary>Makes a seeded mailbox able to send: Outgoing, with its Sent Items and a generation.</summary>
+    private static async Task MakeSendReadyAsync(IntakeWebApplicationFactory factory, string mailboxId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var mailbox = await context.ApprovedMailboxes.SingleAsync(item => item.Id == TestMailboxId.From(mailboxId));
+        mailbox.AllowOutgoing = true;
+        mailbox.SentFolderIdentity = "sent-items";
+        mailbox.MailboxGeneration = Math.Max(1, mailbox.MailboxGeneration);
+        await context.SaveChangesAsync();
     }
 
     private static async Task<Guid[]> SeedAsync(

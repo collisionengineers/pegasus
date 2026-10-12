@@ -279,7 +279,11 @@ bounded detail. Its actions are:
 
 - **Open file** (the retained original) and **Open message** (when it came
   by e-mail);
-- **Request again**, a reply to that message;
+- **Request again**, a reply to that message, while the item is open; once
+  it is closed the same reply is offered as **Reply**. Both open the message
+  record's Reply from the mailbox the message arrived in and appear only
+  when that mailbox can send
+  ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence));
 - **Link to Case**, a dialog searching every Case and every Triage Case, in
   any state. Linking claims that Case's edit lease, or a Triage Case's edit
   scope;
@@ -394,7 +398,7 @@ finding when a reply can be sent.
 person first as "Name (you)". Nothing is preselected. Its buttons are
 Unassign (when assigned), Cancel and Assign. Neither asks a reason.
 
-**Composer.** Send chaser and Reply with finding open the Inbox composer's
+**Composer.** Send chaser and Reply with finding open the mail composer's
 frame over the page: From (the approved mailbox), To, Cc, Subject, Message
 and the request's own files as attachments. It is offered only when the
 Triage came by e-mail and its approved mailbox may send. To answers the

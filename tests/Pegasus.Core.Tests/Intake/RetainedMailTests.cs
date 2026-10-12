@@ -1002,7 +1002,7 @@ public sealed class RetainedMailTests
         params ApprovedMailboxFolderBinding[] bindings) => new(
             MailboxId(mailboxIdentity),
             "mailbox@example.test",
-            [ApprovedMailboxRouteScope.InboundIntake],
+            [ApprovedMailboxRouteScope.Incoming],
             state,
             mailboxIdentity,
             "inbox-folder",
@@ -1134,10 +1134,6 @@ public sealed class RetainedMailTests
 
         public Task<ApprovedMailbox> UpdateAsync(
             UpdateApprovedMailboxRequest request,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<ApprovedMailbox> SetDefaultAsync(
-            SetDefaultApprovedMailboxRequest request,
             CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 

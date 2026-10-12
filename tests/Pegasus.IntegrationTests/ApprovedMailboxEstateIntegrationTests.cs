@@ -370,8 +370,7 @@ public sealed class ApprovedMailboxEstateIntegrationTests
                     current.MailboxIdentity,
                     current.InboxFolderIdentity,
                     current.SentFolderIdentity,
-                    current.FolderBindings,
-                    current.VerifiedEncodedMessageSizeLimit),
+                    current.FolderBindings),
                 CancellationToken.None);
         }
 
@@ -635,7 +634,7 @@ public sealed class ApprovedMailboxEstateIntegrationTests
         string? inboxFolderIdentity) =>
         $"""
         INSERT INTO ApprovedMailboxes
-            (Id, Address, AllowInboundIntake, AllowSentEvidence, State,
+            (Id, Address, AllowIncoming, AllowOutgoing, State,
              MailboxIdentity, InboxFolderIdentity, SentFolderIdentity, ActivatedAtUtc,
              MailboxGeneration, Version)
         VALUES

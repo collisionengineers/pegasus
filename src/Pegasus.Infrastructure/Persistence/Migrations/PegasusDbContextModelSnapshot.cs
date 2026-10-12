@@ -809,23 +809,15 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("nvarchar(320)");
 
-                    b.Property<bool>("AllowInboundIntake")
+                    b.Property<bool>("AllowIncoming")
                         .HasColumnType("bit");
 
-                    b.Property<bool>("AllowSentEvidence")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("AllowStaffSend")
+                    b.Property<bool>("AllowOutgoing")
                         .HasColumnType("bit");
 
                     b.Property<string>("InboxFolderIdentity")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
-
-                    b.Property<bool>("IsDefaultStaffSend")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
 
                     b.Property<long>("MailboxGeneration")
                         .HasColumnType("bigint");
@@ -833,13 +825,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("MailboxIdentity")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTimeOffset?>("SendLimitVerifiedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("SendLimitVerifiedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("SentFolderIdentity")
                         .HasMaxLength(200)
@@ -850,9 +835,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
-                    b.Property<long?>("VerifiedEncodedMessageSizeLimit")
-                        .HasColumnType("bigint");
-
                     b.Property<int>("Version")
                         .HasColumnType("int");
 
@@ -861,21 +843,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("Address")
                         .IsUnique();
 
-                    b.HasIndex("IsDefaultStaffSend")
-                        .IsUnique()
-                        .HasFilter("[IsDefaultStaffSend] = 1");
-
                     b.HasIndex("MailboxIdentity")
                         .IsUnique()
                         .HasFilter("[MailboxIdentity] IS NOT NULL");
 
                     b.ToTable("ApprovedMailboxes", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ApprovedMailboxes_DefaultStaffSendEligibility", "[IsDefaultStaffSend] = 0 OR ([State] = 'Approved' AND [AllowStaffSend] = 1 AND [AllowSentEvidence] = 1 AND [ActivatedAtUtc] IS NOT NULL AND [MailboxIdentity] IS NOT NULL AND [SentFolderIdentity] IS NOT NULL AND [MailboxGeneration] > 0 AND [VerifiedEncodedMessageSizeLimit] IS NOT NULL AND [VerifiedEncodedMessageSizeLimit] > 0)");
-
                             t.HasCheckConstraint("CK_ApprovedMailboxes_MailboxGeneration", "[MailboxGeneration] >= 0");
-
-                            t.HasCheckConstraint("CK_ApprovedMailboxes_SendLimit", "[VerifiedEncodedMessageSizeLimit] IS NULL OR [VerifiedEncodedMessageSizeLimit] > 0");
                         });
 
                     b.HasData(
@@ -883,10 +857,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("49f47eb9-c5b0-464f-b8f0-8c90ba061728"),
                             Address = "instructions@collisionengineers.co.uk",
-                            AllowInboundIntake = true,
-                            AllowSentEvidence = false,
-                            AllowStaffSend = false,
-                            IsDefaultStaffSend = false,
+                            AllowIncoming = true,
+                            AllowOutgoing = false,
                             MailboxGeneration = 1L,
                             State = "Approved",
                             Version = 1

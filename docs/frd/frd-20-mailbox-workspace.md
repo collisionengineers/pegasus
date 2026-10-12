@@ -39,7 +39,7 @@ received first. Folder, mailbox, queue and search views are explicit
 refinements of that view. Sent mail and read-only Deleted Items search are
 separate folder scopes. Sent Items lists every Sent item the Sent-evidence
 poll ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md)) has read
-from an approved mailbox, newest sent first, whether Pegasus or Outlook
+from an Outgoing approved mailbox, newest sent first, whether Pegasus or Outlook
 sent it; a row opens the message record the same way a received one does.
 
 There is no historical backfill. The workspace shows retained mail from each
@@ -53,7 +53,11 @@ Unidentified item; they never create a second queue row.
 
 Each row shows sender, subject and a short excerpt of the body. The subject
 opens the message. Clicking elsewhere on a row selects it. The selected row
-is marked. Up and Down move through the rows. Rows show retained read and unread state, but this workspace never
+is marked. Up and Down move through the rows. A received row offers
+**Reply** when the mailbox it arrived in can send; it opens the message
+record's Reply
+([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
+Rows show retained read and unread state, but this workspace never
 changes that state.
 Lists use accessible pagination, not infinite scrolling. Active mailbox,
 folder, queue and search filters stay visible and are kept when the operator
@@ -77,8 +81,9 @@ and state. It shows the message text with its line breaks, up to the first
 eight lines. It counts the attachments by kind and does not name them. It
 shows the classification, the Case or Triage Case, and the folder. While a
 search term is typed, it also says where the term matched. Its actions are
-Open full message and Open Case, or Open Triage when the message opened a
-Triage. It has no controls that change anything. Previewing never changes
+Open full message, Reply when the mailbox the message arrived in can send
+(it opens the message record's Reply), and Open Case, or Open Triage when
+the message opened a Triage. It has no controls that change anything. Previewing never changes
 classification, association, read state, Case state or custody.
 
 Opening a message keeps the list's filter and position. The record shows the

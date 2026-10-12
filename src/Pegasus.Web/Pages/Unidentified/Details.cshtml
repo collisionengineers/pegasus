@@ -161,6 +161,12 @@
                                 <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg><span>Open message</span>
                             </a>
                         }
+                        @if (Model.ReplyHref is { } replyHref)
+                        {
+                            <a class="btn" href="@replyHref" data-unidentified-action="reply">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-reply" /></svg><span>@OperatorLabels.StaffMail.Reply</span>
+                            </a>
+                        }
                         @if (Model.RequestAgainHref is { } requestHref)
                         {
                             <a class="btn" href="@requestHref" data-unidentified-action="request-again">

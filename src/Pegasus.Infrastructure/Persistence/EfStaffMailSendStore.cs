@@ -26,18 +26,16 @@ internal sealed class EfStaffMailSendStore(
         return await db.ApprovedMailboxes.AsNoTracking()
             .Where(value => value.Id == mailboxId
                 && value.State == approved
-                && value.AllowStaffSend
-                && value.AllowSentEvidence
+                && value.AllowOutgoing
                 && value.ActivatedAtUtc != null
                 && value.MailboxIdentity != null
                 && value.SentFolderIdentity != null
-                && value.MailboxGeneration > 0
-                && value.VerifiedEncodedMessageSizeLimit != null)
+                && value.MailboxGeneration > 0)
             .Select(value => new ApprovedStaffSendMailbox(
                 value.Id,
                 value.MailboxIdentity!,
                 value.MailboxGeneration,
-                value.VerifiedEncodedMessageSizeLimit!.Value))
+                ApprovedStaffSendMailbox.OutgoingEncodedMessageSizeLimit))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -83,19 +81,6 @@ internal sealed class EfStaffMailSendStore(
                     "The staff mail operation key was already used for different content.");
             }
             return Map(existing);
-        }
-
-        if (command.OriginalMessage is { } activeOriginal
-            && await rows.AnyAsync(value =>
-                value.MailboxId == command.ApprovedMailboxId
-                && value.OriginalRetainedMessageId == activeOriginal.RetainedMessageId
-                && value.State != StaffMailState.Sent
-                && value.State != StaffMailState.Failed
-                && value.State != StaffMailState.Cancelled,
-                cancellationToken))
-        {
-            throw new InvalidOperationException(
-                "The retained message already has an active staff mail operation.");
         }
 
         // The marker names the durable operation, not a separate random identity.

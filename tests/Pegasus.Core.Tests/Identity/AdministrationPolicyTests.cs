@@ -149,7 +149,7 @@ public sealed class AdministrationPolicyTests
             new(
                 Guid.NewGuid(),
                 "instructions@collisionengineers.co.uk",
-                [ApprovedMailboxRouteScope.InboundIntake],
+                [ApprovedMailboxRouteScope.Incoming],
                 ApprovedMailboxState.Approved,
                 1,
                 ActionActor.SystemWorker("mailbox-policy-test"),
@@ -158,25 +158,6 @@ public sealed class AdministrationPolicyTests
             default));
 
         Assert.Null(store.UpdateRequest);
-    }
-
-    [Fact]
-    public async Task DefaultStaffSendMailboxSelectionRequiresAdministrator()
-    {
-        var store = new MailboxStore();
-        var command = new SetDefaultApprovedMailbox(store);
-
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() => command.ExecuteAsync(
-            new(
-                Guid.NewGuid(),
-                1,
-                null,
-                null,
-                ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
-                "mailbox-default-denied"),
-            default));
-
-        Assert.Null(store.DefaultRequest);
     }
 
     [Fact]
@@ -191,7 +172,7 @@ public sealed class AdministrationPolicyTests
             new(
                 mailboxId,
                 "  Instructions@CollisionEngineers.co.uk  ",
-                [ApprovedMailboxRouteScope.SentEvidence, ApprovedMailboxRouteScope.InboundIntake],
+                [ApprovedMailboxRouteScope.Outgoing, ApprovedMailboxRouteScope.Incoming],
                 ApprovedMailboxState.Approved,
                 0,
                 actor,
@@ -210,8 +191,8 @@ public sealed class AdministrationPolicyTests
         Assert.Equal(
             new[]
             {
-                ApprovedMailboxRouteScope.InboundIntake,
-                ApprovedMailboxRouteScope.SentEvidence
+                ApprovedMailboxRouteScope.Incoming,
+                ApprovedMailboxRouteScope.Outgoing
             },
             request.RouteScopes);
         Assert.Equal("mailbox-op", request.OperationKey);
@@ -234,31 +215,6 @@ public sealed class AdministrationPolicyTests
     }
 
     [Fact]
-    public async Task StaffSendCannotBeEnabledWithoutAdministratorVerifiedSizeCeiling()
-    {
-        var store = new MailboxStore();
-        var command = new UpdateApprovedMailbox(store);
-        var request = new UpdateApprovedMailboxRequest(
-            Guid.NewGuid(),
-            "mail@collisionengineers.co.uk",
-            [ApprovedMailboxRouteScope.StaffSend],
-            ApprovedMailboxState.Approved,
-            0,
-            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
-            "mailbox-send",
-            "mailbox-id");
-
-        var missing = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(() =>
-            command.ExecuteAsync(request, default));
-        Assert.Equal(ApprovedMailboxUpdateError.MissingVerifiedSendLimit, missing.Error);
-        Assert.Null(store.UpdateRequest);
-
-        await command.ExecuteAsync(
-            request with { VerifiedEncodedMessageSizeLimit = 25_000_000 }, default);
-        Assert.Equal(25_000_000, store.UpdateRequest!.VerifiedEncodedMessageSizeLimit);
-    }
-
-    [Fact]
     public async Task ApprovedMailboxRejectsDuplicateOrInexactFolderBindingsBeforeStore()
     {
         var store = new MailboxStore();
@@ -266,7 +222,7 @@ public sealed class AdministrationPolicyTests
         var request = new UpdateApprovedMailboxRequest(
             Guid.NewGuid(),
             "instructions@collisionengineers.co.uk",
-            [ApprovedMailboxRouteScope.InboundIntake],
+            [ApprovedMailboxRouteScope.Incoming],
             ApprovedMailboxState.Approved,
             0,
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
@@ -310,7 +266,7 @@ public sealed class AdministrationPolicyTests
                 new(
                     Guid.NewGuid(),
                     "instructions@collisionengineers.co.uk",
-                    [ApprovedMailboxRouteScope.InboundIntake, ApprovedMailboxRouteScope.SentEvidence],
+                    [ApprovedMailboxRouteScope.Incoming, ApprovedMailboxRouteScope.Outgoing],
                     ApprovedMailboxState.Approved,
                     0,
                     ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
@@ -334,7 +290,7 @@ public sealed class AdministrationPolicyTests
             new(
                 Guid.NewGuid(),
                 "later@collisionengineers.co.uk",
-                [ApprovedMailboxRouteScope.InboundIntake],
+                [ApprovedMailboxRouteScope.Incoming],
                 ApprovedMailboxState.Disabled,
                 0,
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
@@ -359,7 +315,7 @@ public sealed class AdministrationPolicyTests
                 new(
                     Guid.NewGuid(),
                     "instructions@collisionengineers.co.uk",
-                    [ApprovedMailboxRouteScope.InboundIntake],
+                    [ApprovedMailboxRouteScope.Incoming],
                     ApprovedMailboxState.Approved,
                     0,
                     ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
@@ -383,7 +339,7 @@ public sealed class AdministrationPolicyTests
                 new(
                     Guid.NewGuid(),
                     "instructions@collisionengineers.co.uk",
-                    [ApprovedMailboxRouteScope.InboundIntake],
+                    [ApprovedMailboxRouteScope.Incoming],
                     ApprovedMailboxState.Approved,
                     0,
                     ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
@@ -406,7 +362,7 @@ public sealed class AdministrationPolicyTests
             new(
                 Guid.NewGuid(),
                 "not a mailbox",
-                [ApprovedMailboxRouteScope.InboundIntake],
+                [ApprovedMailboxRouteScope.Incoming],
                 ApprovedMailboxState.Approved,
                 0,
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
@@ -414,6 +370,50 @@ public sealed class AdministrationPolicyTests
             default));
 
         Assert.Null(store.UpdateRequest);
+    }
+
+    /// <summary>
+    /// The one send-ready rule (operator, 12 October 2026): only an Approved,
+    /// activated, identified Outgoing mailbox with its Sent Items and a
+    /// generation can send, and Sender names it only then.
+    /// </summary>
+    [Theory]
+    [InlineData("ready", true)]
+    [InlineData("incoming-only", false)]
+    [InlineData("disabled", false)]
+    [InlineData("not-activated", false)]
+    [InlineData("unbound", false)]
+    [InlineData("no-sent-folder", false)]
+    [InlineData("no-generation", false)]
+    public void OnlyASendReadyOutgoingMailboxCanSend(string shape, bool canSend)
+    {
+        var ready = new ApprovedMailbox(
+            Guid.NewGuid(),
+            "desk@collisionengineers.co.uk",
+            [ApprovedMailboxRouteScope.Incoming, ApprovedMailboxRouteScope.Outgoing],
+            ApprovedMailboxState.Approved,
+            "desk-mailbox",
+            "desk-inbox",
+            "desk-sent",
+            true,
+            DateTimeOffset.UtcNow,
+            1,
+            [],
+            1);
+        var mailbox = shape switch
+        {
+            "incoming-only" => ready with { RouteScopes = [ApprovedMailboxRouteScope.Incoming] },
+            "disabled" => ready with { State = ApprovedMailboxState.Disabled },
+            "not-activated" => ready with { ActivatedAtUtc = null },
+            "unbound" => ready with { IdentityIsBound = false },
+            "no-sent-folder" => ready with { SentFolderIdentity = null },
+            "no-generation" => ready with { Generation = 0 },
+            _ => ready
+        };
+
+        Assert.Equal(canSend, mailbox.CanSend);
+        Assert.Equal(canSend ? mailbox : null, new[] { mailbox }.Sender(mailbox.Id));
+        Assert.Null(new[] { mailbox }.Sender(Guid.NewGuid()));
     }
 
     private sealed class WorkflowStore : IWorkflowConfigurationStore
@@ -446,8 +446,6 @@ public sealed class AdministrationPolicyTests
 
         public UpdateApprovedMailboxRequest? UpdateRequest { get; private set; }
 
-        public SetDefaultApprovedMailboxRequest? DefaultRequest { get; private set; }
-
         public Task<IReadOnlyList<ApprovedMailbox>> ListAsync(CancellationToken cancellationToken)
         {
             ListCount++;
@@ -471,28 +469,6 @@ public sealed class AdministrationPolicyTests
                 request.State == ApprovedMailboxState.Approved ? DateTimeOffset.UtcNow : null,
                 request.ExpectedVersion + 1,
                 request.FolderBindings?.ToArray() ?? []));
-        }
-
-        public Task<ApprovedMailbox> SetDefaultAsync(
-            SetDefaultApprovedMailboxRequest request,
-            CancellationToken cancellationToken)
-        {
-            DefaultRequest = request;
-            return Task.FromResult(new ApprovedMailbox(
-                request.MailboxId,
-                "default@collisionengineers.co.uk",
-                [ApprovedMailboxRouteScope.StaffSend],
-                ApprovedMailboxState.Approved,
-                "default-mailbox",
-                null,
-                null,
-                true,
-                DateTimeOffset.UtcNow,
-                request.ExpectedVersion + 1,
-                [],
-                1,
-                10485760,
-                true));
         }
 
         public Task<bool> IsApprovedAsync(
