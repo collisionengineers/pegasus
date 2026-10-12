@@ -169,10 +169,10 @@ public sealed class EfRepairSpecificationStore(
         // The Engineer's Value is read by the act, not posted: the hash is the
         // operator's intent, so a replay is judged on what was asked.
         var replayHash = Hash(request with { EngineerValue = null });
-        if (await CaseOperationReplay.FindAsync(
-                context, request.CaseId, request.OperationKey, replayHash, cancellationToken))
+        if (await CaseOperationReplay.FindEventTypeAsync(
+                context, request.CaseId, request.OperationKey, replayHash, cancellationToken) is { } replayedEventType)
         {
-            return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
+            return await ReplayedAsync(context, request.CaseId, request.OperationKey, replayedEventType, cancellationToken);
         }
 
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
@@ -237,9 +237,9 @@ public sealed class EfRepairSpecificationStore(
             IsolationLevel.Serializable,
             cancellationToken);
         var requestHash = Hash(request);
-        if (await CaseOperationReplay.FindAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
+        if (await CaseOperationReplay.FindEventTypeAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken) is { } replayedEventType)
         {
-            return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
+            return await ReplayedAsync(context, request.CaseId, request.OperationKey, replayedEventType, cancellationToken);
         }
 
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
@@ -323,9 +323,9 @@ public sealed class EfRepairSpecificationStore(
             IsolationLevel.Serializable,
             cancellationToken);
         var requestHash = Hash(request);
-        if (await CaseOperationReplay.FindAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
+        if (await CaseOperationReplay.FindEventTypeAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken) is { } replayedEventType)
         {
-            return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
+            return await ReplayedAsync(context, request.CaseId, request.OperationKey, replayedEventType, cancellationToken);
         }
 
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
@@ -433,9 +433,9 @@ public sealed class EfRepairSpecificationStore(
             }
         }
         var requestHash = Hash(request);
-        if (await CaseOperationReplay.FindAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
+        if (await CaseOperationReplay.FindEventTypeAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken) is { } replayedEventType)
         {
-            return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
+            return await ReplayedAsync(context, request.CaseId, request.OperationKey, replayedEventType, cancellationToken);
         }
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now, request.KeepsLease);
 
@@ -617,9 +617,9 @@ public sealed class EfRepairSpecificationStore(
             IsolationLevel.Serializable,
             cancellationToken);
         var requestHash = Hash(request);
-        if (await CaseOperationReplay.FindAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
+        if (await CaseOperationReplay.FindEventTypeAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken) is { } replayedEventType)
         {
-            return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
+            return await ReplayedAsync(context, request.CaseId, request.OperationKey, replayedEventType, cancellationToken);
         }
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
@@ -710,9 +710,9 @@ public sealed class EfRepairSpecificationStore(
             IsolationLevel.Serializable,
             cancellationToken);
         var requestHash = Hash(request);
-        if (await CaseOperationReplay.FindAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
+        if (await CaseOperationReplay.FindEventTypeAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken) is { } replayedEventType)
         {
-            return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
+            return await ReplayedAsync(context, request.CaseId, request.OperationKey, replayedEventType, cancellationToken);
         }
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
@@ -726,7 +726,11 @@ public sealed class EfRepairSpecificationStore(
 
         // Use repair spec switches which live estimate the Case uses.
         EstimatePolicy.ValidateSetCurrent(Map(entity), request.Actor);
-        var previous = await MakeCurrentAsync(context, workId, entity, cancellationToken);
+        // The first read already names the one Current estimate.
+        Guid[] previous = beforeEstimate.CurrentEstimateId is { } currentId && currentId != entity.Id
+            ? [currentId]
+            : [];
+        await MakeCurrentAsync(context, workId, entity, previous, cancellationToken);
         entity.LastOperationKey = request.OperationKey;
         await MarkEstimateStaleIfNeededAsync(
             context,
@@ -852,6 +856,21 @@ public sealed class EfRepairSpecificationStore(
             .Where(item => item.WorkId == workId && item.IsCurrent && item.Id != entity.Id)
             .Select(item => item.Id)
             .ToArrayAsync(cancellationToken);
+        await MakeCurrentAsync(context, workId, entity, previous, cancellationToken);
+        return previous;
+    }
+
+    /// <summary>
+    /// <see cref="MakeCurrentAsync(PegasusDbContext, Guid, CaseRepairSpecificationEntity, CancellationToken)"/>
+    /// for a caller that already holds the estimates it replaces.
+    /// </summary>
+    private static async Task MakeCurrentAsync(
+        PegasusDbContext context,
+        Guid workId,
+        CaseRepairSpecificationEntity entity,
+        Guid[] previous,
+        CancellationToken cancellationToken)
+    {
         if (previous.Length > 0)
         {
             await context.CaseRepairSpecifications
@@ -864,7 +883,6 @@ public sealed class EfRepairSpecificationStore(
             }
         }
         entity.IsCurrent = true;
-        return previous;
     }
 
     internal static async Task<int> NextVersionAsync(
@@ -1003,14 +1021,11 @@ public sealed class EfRepairSpecificationStore(
             .SingleOrDefaultAsync(cancellationToken);
 
     private static async Task<RepairSpecificationVersion> ReplayedAsync(
-        PegasusDbContext context, Guid caseId, string operationKey, CancellationToken cancellationToken)
+        PegasusDbContext context, Guid caseId, string operationKey, string eventType, CancellationToken cancellationToken)
     {
         // LastOperationKey moves on every edit. The append-only operation
         // history keeps the result identity even after K2 has been followed
         // by K3; a replay reads that aggregate now, never reapplies K2.
-        var eventType = await context.CaseWorkflowEvents.AsNoTracking()
-            .Where(item => item.CaseId == caseId && item.OperationKey == operationKey)
-            .Select(item => item.EventType).SingleAsync(cancellationToken);
         var after = await ReplayedCaseAfterJsonAsync(context, caseId, operationKey, eventType, cancellationToken);
         using var result = JsonDocument.Parse(after
             ?? throw new InvalidOperationException("The estimate operation has no recorded result identity."));
