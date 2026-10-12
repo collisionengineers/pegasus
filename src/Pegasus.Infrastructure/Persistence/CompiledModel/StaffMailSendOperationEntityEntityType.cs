@@ -20,8 +20,8 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.StaffMailSendOperationEntity",
                 typeof(StaffMailSendOperationEntity),
                 baseEntityType,
-                propertyCount: 39,
-                unnamedIndexCount: 2,
+                propertyCount: 44,
+                unnamedIndexCount: 3,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -134,6 +134,42 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 fieldInfo: typeof(StaffMailSendOperationEntity).GetField("<DraftImmutableId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 nullable: true);
             draftImmutableId.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var instructionMoveAttempts = runtimeEntityType.AddProperty(
+                "InstructionMoveAttempts",
+                typeof(int),
+                propertyInfo: typeof(StaffMailSendOperationEntity).GetProperty("InstructionMoveAttempts", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(StaffMailSendOperationEntity).GetField("<InstructionMoveAttempts>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: 0);
+            instructionMoveAttempts.AddAnnotation("Relational:DefaultValue", 0);
+            instructionMoveAttempts.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var instructionMoveFailureCode = runtimeEntityType.AddProperty(
+                "InstructionMoveFailureCode",
+                typeof(string),
+                propertyInfo: typeof(StaffMailSendOperationEntity).GetProperty("InstructionMoveFailureCode", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(StaffMailSendOperationEntity).GetField("<InstructionMoveFailureCode>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true,
+                maxLength: 100);
+            instructionMoveFailureCode.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var instructionMoveState = runtimeEntityType.AddProperty(
+                "InstructionMoveState",
+                typeof(string),
+                propertyInfo: typeof(StaffMailSendOperationEntity).GetProperty("InstructionMoveState", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(StaffMailSendOperationEntity).GetField("<InstructionMoveState>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true,
+                maxLength: 20);
+            instructionMoveState.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var instructionMovedAtUtc = runtimeEntityType.AddProperty(
+                "InstructionMovedAtUtc",
+                typeof(DateTimeOffset?),
+                propertyInfo: typeof(StaffMailSendOperationEntity).GetProperty("InstructionMovedAtUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(StaffMailSendOperationEntity).GetField("<InstructionMovedAtUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            instructionMovedAtUtc.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var lastAttemptAtUtc = runtimeEntityType.AddProperty(
                 "LastAttemptAtUtc",
@@ -274,6 +310,14 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 nullable: true);
             reconciliationContinuation.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
+            var reportDispatchJson = runtimeEntityType.AddProperty(
+                "ReportDispatchJson",
+                typeof(string),
+                propertyInfo: typeof(StaffMailSendOperationEntity).GetProperty("ReportDispatchJson", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(StaffMailSendOperationEntity).GetField("<ReportDispatchJson>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            reportDispatchJson.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
             var requestedAtUtc = runtimeEntityType.AddProperty(
                 "RequestedAtUtc",
                 typeof(DateTimeOffset),
@@ -353,10 +397,14 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
+                new[] { purpose, state });
+            index.AddAnnotation("Relational:Filter", "[InstructionMoveState] IS NULL");
+
+            var index0 = runtimeEntityType.AddIndex(
                 new[] { actorSubjectId, mailboxId, operationKey },
                 unique: true);
 
-            var index0 = runtimeEntityType.AddIndex(
+            var index1 = runtimeEntityType.AddIndex(
                 new[] { purpose, state, observedSentAtUtc });
 
             return runtimeEntityType;

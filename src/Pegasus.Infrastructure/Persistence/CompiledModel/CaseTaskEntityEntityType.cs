@@ -64,8 +64,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Description",
                 typeof(string),
                 propertyInfo: typeof(CaseTaskEntity).GetProperty("Description", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(CaseTaskEntity).GetField("<Description>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                maxLength: 500);
+                fieldInfo: typeof(CaseTaskEntity).GetField("<Description>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly));
             description.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var state = runtimeEntityType.AddProperty(
