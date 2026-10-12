@@ -89,8 +89,8 @@ public sealed partial class DetailsModel
     public string DownloadUrl(CaseFile file) => CaseFileAddresses.Download(CurrentCaseId, file);
 
     /// <summary>The tile's derived rendering, by its preparation version.</summary>
-    public string ThumbnailUrl(CaseFile file) =>
-        CaseFileAddresses.Thumbnail(CurrentCaseId, file, PreparationFor(file.Occurrence.Id));
+    public string ThumbnailUrl(CaseFile file, CaseAssetPreparation? preparation) =>
+        CaseFileAddresses.Thumbnail(CurrentCaseId, file, preparation);
 
     private Guid CurrentCaseId => FilesSection?.Frame.Workflow.CaseId ?? Case!.Workflow.CaseId;
 }
