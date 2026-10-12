@@ -23,7 +23,7 @@ owner* column in [`capabilities.md`](../capabilities.md).
 | [FRD-05](frd-05-documents-extraction-and-custody.md) | Supported source boundary, staging, Box custody | DOC |
 | [FRD-06](frd-06-vehicle-and-engineering-evidence.md) | Inspection address, image and VRM analysis, vehicle data and MOT enrichment, MOT mileage estimation | INT (image), EXT |
 | [FRD-07](frd-07-case-export.md) | Case export: the Export case download and its history record | EXT |
-| [FRD-08](frd-08-email-mailbox-and-background-processing.md) | Inbound mail identity, taxonomy, classification, Case association of mail | MAIL |
+| [FRD-08](frd-08-email-mailbox-and-background-processing.md) | Inbound mail identity, mail categories, classification, Case association of mail | MAIL |
 | [FRD-09](frd-09-principal-and-intermediary-routes.md) | Route versus Principal identity, Principal API contract | API |
 | [FRD-10](frd-10-mcp-automation-and-actor-boundary.md) | Automation Actor boundary, direct-write model, tool inventory | MCP |
 | [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md) | Report outcomes, Audit parity, renderer, generation, correction and finality, estimate VAT | RPT |
@@ -35,7 +35,7 @@ owner* column in [`capabilities.md`](../capabilities.md).
 | [FRD-17](frd-17-administration-workspace.md) | Administration areas: accounts, contacts, workflow configuration, logs, reports | UI, MI |
 | [FRD-18](frd-18-manual-upload.md) | Staff upload page, upload limits and confirmation | INT |
 | [FRD-19](frd-19-image-led-intake-and-pairing.md) | Vehicle images that arrive without an instruction: grouping, pairing, merge | INT |
-| [FRD-20](frd-20-mailbox-workspace.md) | The Inbox: browsing, preview, classify, link, move, dismiss | UI, MAIL |
+| [FRD-20](frd-20-mailbox-workspace.md) | The Inbox: browsing, preview, classify, link, dismiss | UI, MAIL |
 | [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md) | Sending mail from Pegasus and proving a report was sent | MAIL |
 | [FRD-22](frd-22-pre-case-gates-matching-and-association.md) | Pre-Case gates, matching conflicts, reversible association, staff linking to any Case | INT |
 | [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md) | Case draft fields, field provenance, global vehicle and value checks | INT |

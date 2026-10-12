@@ -53,7 +53,7 @@ in the same folder by the operator.
 | Area | Why | Owner |
 | --- | --- | --- |
 | Staff mail send, report send, Triage reply | `Unavailable` offline until a Graph test mailbox is approved | [FRD-21](../frd/README.md) |
-| Graph subscriptions, webhooks, folder move, deleted-mail search | folder adapters replace Graph | [FRD-26](../frd/README.md) |
+| Graph subscriptions, webhooks, deleted-mail search | folder adapters replace Graph | [FRD-26](../frd/README.md) |
 | OCR (INT-16) | Document Intelligence needs the Worker managed identity | [ADR-0040](../adr/0040-qualified-document-intelligence-ocr.md) |
 | Problem-report issue creation | a real token would file issues in the production repository | [ADR-0055](../adr/0055-github-issues-as-the-problem-report-sink.md) |
 | Durable cloud behaviour, RBAC, deployment | the local run proves the process graph and these flows only | [runbook](../runbook.md#status-and-smoke) |

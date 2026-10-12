@@ -712,9 +712,8 @@ The last is the operator's own wording (23 September 2026) for Get valuation
 on a source with no working provider, shown in that source's card from the
 start (28 September 2026), with no Get valuation button; "report a
 problem" opens the Report a problem dialog. It replaces the 18 September
-"Error. Contact an administrator." Received-mail chasing categories read
-"Update request", also the operator's wording; "provider" never appears in
-operator copy (Principal is the word).
+"Error. Contact an administrator." "Provider" never appears in operator copy
+(Principal is the word).
 
 > Glass's cannot value this vehicle because of its age: Glass's values cars and motorcycles up to 20 years old and light commercial vehicles up to 15.
 

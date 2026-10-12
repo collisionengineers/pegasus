@@ -92,18 +92,10 @@
                 <label for="queue-filter">@OperatorLabels.Inbox.Category</label>
                 <select id="queue-filter" name="queue" disabled="@(Model.Folder is MailFolderScope.DeletedItems or MailFolderScope.Sent)">
                     <option value="" selected="@(Model.QueueFilter is null)">@OperatorLabels.Inbox.AllCategories</option>
-                    <optgroup label="@OperatorLabels.Inbox.DestinationGroup">
-                        @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.AggregateViews)
-                        {
-                            <option value="@option.Value" selected="@(Model.QueueFilter == option.Value)">@option.Label</option>
-                        }
-                    </optgroup>
-                    <optgroup label="@OperatorLabels.Inbox.CategoryGroup">
-                        @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.DetailedViews)
-                        {
-                            <option value="@option.Value" selected="@(Model.QueueFilter == option.Value)">@option.Label</option>
-                        }
-                    </optgroup>
+                    @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.CategoryViews)
+                    {
+                        <option value="@option.Value" selected="@(Model.QueueFilter == option.Value)">@option.Label</option>
+                    }
                 </select>
             </div>
             <div class="field inbox-filter__search">
@@ -310,14 +302,7 @@
                                 }
                                 @if (item.Classification is { } classification)
                                 {
-                                    <span class="row-meta">
-                                        @Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(classification)
-                                        @if (item.CaseId is null
-                                            && item.OperationalDestination is { } operationalDestination)
-                                        {
-                                            @: · @OperatorLabels.MailOperationalDestinationLabel(operationalDestination.Destination)
-                                        }
-                                    </span>
+                                    <span class="row-meta">@Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(classification)</span>
                                 }
                             </span>
                             @if (item.CaseId is { } rowCaseId && item.CaseReference is { Length: > 0 } rowCaseReference)

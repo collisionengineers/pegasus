@@ -17,7 +17,6 @@ public sealed record EngineerActivityCounts(
     Guid EngineerId,
     int ReportsSent,
     int QueriesReceived,
-    int AmendmentRequests = 0,
     int AuditReportsSent = 0,
     TimeSpan? AverageReceivedToSent = null)
 {
@@ -41,8 +40,7 @@ public interface IEngineerActivityQueries
         CancellationToken cancellationToken);
 }
 
-/// <param name="QueriesReceived">Post-report mail; a dispute is a query.</param>
-/// <param name="AmendmentRequests">Post-report mail classified as an amendment request; part of <paramref name="QueriesReceived"/>.</param>
+/// <param name="QueriesReceived">Mail classified as a query; disputes and amendment requests included.</param>
 /// <param name="AuditReportsSent">Audit reports sent (<c>CaseWorkPolicy.IsAuditReport</c>: a standalone Audit Case's or an Inspection + Audit Case's Audit); part of <paramref name="ReportsSent"/> (MI-01's Audit uplift).</param>
 /// <param name="AverageReceivedToSent">Instruction received to report sent, averaged over the sends with a known origin; an Audit work's report counts from the Audit's creation.</param>
 public sealed record EngineerActivityRow(
@@ -50,7 +48,6 @@ public sealed record EngineerActivityRow(
     string DisplayName,
     int ReportsSent,
     int QueriesReceived,
-    int AmendmentRequests = 0,
     int AuditReportsSent = 0,
     TimeSpan? AverageReceivedToSent = null)
 {
@@ -114,8 +111,6 @@ public sealed class GetEngineerActivityReport(
                 : item.EngineerId != Guid.Empty || item.QueriesReceived != 0)
             || item.ReportsSent < 0
             || item.QueriesReceived < 0
-            || item.AmendmentRequests < 0
-            || item.AmendmentRequests > item.QueriesReceived
             || item.AuditReportsSent < 0
             || item.AuditReportsSent > item.ReportsSent
             || item.AverageReceivedToSent < TimeSpan.Zero))
@@ -137,7 +132,6 @@ public sealed class GetEngineerActivityReport(
                 ActorDisplayNames.Resolve(item.SenderKind, item.EngineerId.ToString("D"), names),
                 item.ReportsSent,
                 item.QueriesReceived,
-                item.AmendmentRequests,
                 item.AuditReportsSent,
                 item.AverageReceivedToSent)
             {

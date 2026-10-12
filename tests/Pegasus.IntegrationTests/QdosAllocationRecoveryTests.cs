@@ -2042,9 +2042,7 @@ internal static class AllocationTestData
                     [],
                     new($"instructions@{principalCode.ToLowerInvariant()}.example", "outer message")),
                 MailClassificationDecision: classificationDecision ?? MailClassificationResult.Classified(
-                    MailCategory.Received(
-                        ReceivedMailFamily.NewInstructionReceived,
-                        caseType == CaseType.Audit ? "audit" : "inspection"),
+                    MailCategory.NewInstruction,
                     [],
                     "Definitive QDOS instruction.",
                     "qdos_mail_classification",
@@ -2295,7 +2293,7 @@ internal sealed class ConsumerTypedClassificationPolicy : IMailClassificationPol
         IntakeSourceReadResult readResult,
         IReadOnlyList<IntakeContentFragment>? instructionContent = null) =>
         MailClassificationResult.Classified(
-            MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
+            MailCategory.NewInstruction,
             [],
             "Deterministic typed classification for the SQL allocation caller fixture.",
             PolicyKey,

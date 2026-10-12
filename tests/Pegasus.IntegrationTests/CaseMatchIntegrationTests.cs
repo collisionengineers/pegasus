@@ -625,10 +625,8 @@ public sealed class CaseMatchIntegrationTests
             {
                 IntakeReceiptId = receiptId,
                 Outcome = "classified",
-                Direction = "received",
-                Family = "post-report-emails",
+                Category = "query",
                 IsReplyContext = false,
-                AmbiguousCandidatesJson = "{\"version\":1,\"data\":[]}",
                 PredicatesJson = "{\"version\":1,\"data\":[]}",
                 Reason = "Test post-report query classification.",
                 PolicyKey = "test-post-report-query",

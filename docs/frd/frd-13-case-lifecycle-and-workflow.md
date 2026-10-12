@@ -204,7 +204,7 @@ The Engineer answers queries from the Principal, a third-party insurer or
 the claimant; a dispute is a query. A query is a record on the Case
 (operator, 11 October 2026). It is raised in three ways:
 
-- a received e-mail classified as post-report that joins a Report sent Case,
+- a received e-mail classified as Query that joins a Report sent Case,
   by automatic association, a staff link or a classification correction
   (the Correspondence tab's **Tag as query** is that correction in one
   click, recorded with the reason "Tagged as query"); staff and the
@@ -213,7 +213,7 @@ the claimant; a dispute is a query. A query is a record on the Case
   sent Case: the channel it came by and its details;
 - nothing else yet: no e-mail criteria raise a query by themselves.
 
-A post-report e-mail joining a Case in any other state raises nothing. The
+A Query e-mail joining a Case in any other state raises nothing. The
 Case's Engineer is told of a query raised from mail
 ([FRD-12](frd-12-operator-experience.md#the-shell)).
 
@@ -232,7 +232,7 @@ reply's Sent item is observed ([FRD-21](frd-21-outbound-correspondence-and-sent-
 or `pegasus_case_action` resolve_query and `pegasus_mail_send` resolveQuery.
 A reply without the tick resolves nothing; a draft or an acknowledgement is
 not a reply. Unlinking a tagged e-mail, or correcting its classification
-away from post-report, withdraws the open query it raised and no other;
+away from Query, withdraws the open query it raised and no other;
 a withdrawn query is not listed. Every raise, withdrawal and resolution is
 Case history, and none erases earlier history. Pegasus keeps the received
 query and the actual reply as Case correspondence. Further engineering
@@ -391,7 +391,7 @@ Automation Actor action.
 | Report sent | With Engineer | Return to Engineer (reason), or Unlink report evidence |
 | With Engineer, Report sent | Review | Return to Review (reason) |
 | Not ready, Review, With Engineer, Report sent | With Engineer before the report | Create audit, once, on an Inspection + Audit Case |
-| any open state | same state, query open | A post-report e-mail joining a Report sent Case; Log query on a Report sent Case |
+| any open state | same state, query open | A Query e-mail joining a Report sent Case; Log query on a Report sent Case |
 | any open state, query open | same state, no query open | Resolve query; a reply with Also resolve query reaching Sent; the last tagged e-mail unlinked or corrected away |
 | pre-report states | Principal cancelled, Collision Engineers rejected | Close case (reason) |
 | any open state | Created in error | Corrected-Principal replacement action |

@@ -183,7 +183,7 @@ public sealed record CaseCorrespondenceEmail(
     string? Subject,
     MailCategory? Classification,
     string? SourceSha256 = null,
-    MailDirection Direction = MailDirection.Received)
+    bool IsSent = false)
 {
     /// <summary>
     /// The current classification's version, which a correction posted from

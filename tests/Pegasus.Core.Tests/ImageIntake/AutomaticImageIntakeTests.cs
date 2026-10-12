@@ -488,9 +488,7 @@ public sealed class AutomaticImageIntakeTests
         var triage = harness.Receipts[1] with
         {
             MailClassificationDecision = MailClassificationResult.Classified(
-                MailCategory.Received(
-                    ReceivedMailFamily.PreInstructionEmails,
-                    MailCategory.TriageRequestSubtype),
+                MailCategory.TriageRequest,
                 [],
                 "The mailbox classifier identified a Triage request.",
                 "test",

@@ -59,8 +59,8 @@ extraction reads no single outcome, the message gets no automatic Audit.
 
 QDOS sends triage requests in two reviewed templates and the templates are
 disjoint in the evaluated corpus. The two tells therefore feed **one** triage
-candidate — a second candidate for the same category would resolve to
-Ambiguous, so a message carrying both tells would classify worse than one
+candidate — a second candidate for the same category would make the message
+Unclassified with the candidates named, so a message carrying both tells would classify worse than one
 carrying either. Both predicates are still recorded separately, so the
 decision says which fired (MAIL-012). Exact current source counts and immutable
 hashes live in the versioned
@@ -77,12 +77,12 @@ All 47 accepted routes yielded a durable claim token. These counts are bound to
 the source aggregate in `qdos-policy-v5-volume-evaluation` and supersede the
 stale seven/five statement without changing policy behaviour.
 
-Outcomes: exactly one category predicate → that category; more than one → the
-recorded **Ambiguous** outcome (never an invented winner); none →
+Outcomes: exactly one category predicate → that category; more than one →
+**Unclassified** with the candidates named (never an invented winner); none →
 **Unclassified**, failing closed. Nested-message content is excluded from the
 attachment tells.
 
-**The triage classification is the Triage trigger.** A `triage-request`
+**The triage classification is the Triage trigger.** A Triage request
 classification is not an instruction: intake allocates no instructed Case from
 it, and the classification decision is written to the receipt as the accepted
 Triage-match evidence, carrying this policy's key and version. With the QDOS
@@ -92,7 +92,7 @@ known registration registers the material as Unidentified instead. There is no
 separate triage matcher — that abstraction had only a null implementation and
 was retired; one owner answers the question, and it is this policy.
 
-Display labels for the taxonomy (family · subtype) are owned by
+Display labels for the mail categories are owned by
 `src/Pegasus.Web/Presentation/OperatorLabels.cs`
 (`MailClassification`, exhaustive map, throws on an unmapped value) and the
 correction options by
@@ -110,7 +110,7 @@ Version 5 behaviour:
 | Final repair account or final audit request | Label current-content positives and report/attachment confusers. |
 | Report chase | Separate a chase from a new instruction and from quoted history. |
 | Post-inspection repair authorisation | Prove the sender-authored authorisation wording and case association. |
-| Pre-accident-value dispute | Separate the dispute, which is a query, from an amendment. |
+| Pre-accident-value dispute | Label the dispute, which is a query, as is an amendment. |
 | Repair, total-loss, or category amendment | Label each accepted shared-taxonomy outcome without a principal-specific vocabulary. |
 | Additional images, estimates, or updates | Separate current evidence from quoted or nested-message evidence. |
 | Third-party-insurer comments or query | Prove authorship, direction, and the applicable shared category. |

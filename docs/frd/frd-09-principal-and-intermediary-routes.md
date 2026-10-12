@@ -269,17 +269,17 @@ body phrase `Triage Only Request`, and a subject opening with
 `Engineer Triage` after any forward or reply prefix. Both are matched
 case-exactly, because the casing is part of the generated tell; a human
 sentence mentioning either is not the tell. Two tells feed one Triage
-candidate. A second candidate for one category would resolve to the
-Ambiguous outcome, so a message carrying both would classify worse than one
-carrying either.
+candidate. A second candidate for one category would make the message
+Unclassified with the candidates named, so a message carrying both would
+classify worse than one carrying either.
 
 The classification decision is itself the Triage-match evidence, stamped with
 that policy's key and version. There is no separate Triage matcher.
 Message-type classification has one route-owned owner
 ([ADR-0008](../adr/0008-separate-direct-provider-and-intermediary-email-policies.md)),
 and FRD-03 names that owner as what begins a Triage. Exclusions and outcomes
-are the classification policy's own: more than one matching category is the
-recorded Ambiguous outcome and opens no Triage, and no numeric confidence
+are the classification policy's own: more than one matching category is
+Unclassified with the candidates named and opens no Triage, and no numeric confidence
 score or threshold exists here either.
 
 The registration that decides FRD-03's branch is read by the ordinary
@@ -323,7 +323,8 @@ permission to guess.
 - Envelope over the limits: 413.
 - Existing-Case match, unique or ambiguous: `principal_existing_case_match`,
   nothing allocated or changed.
-- Two matching classification categories: Ambiguous, no Triage, no Case.
+- Two matching classification categories: Unclassified with the candidates
+  named, no Triage, no Case.
 - Overlapping route predicates: fail closed with evidence.
 - No retained submission binding: kept for sorting, not allocated.
 

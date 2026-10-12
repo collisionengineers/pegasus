@@ -787,9 +787,9 @@ newest first ([FRD-20](frd-20-mailbox-workspace.md#case-correspondence-view)).
 A Sent item's classification cell reads **Sent**. Each row's
 **Open message** shows that message in a dialog over the Case: sender,
 received time, recipients, its text and attachment names. The dialog changes
-nothing. A received row not yet classified post-report also offers **Tag as
+nothing. A received row not yet classified Query also offers **Tag as
 query** (operator, 11 October 2026): one click corrects its classification
-to a query through the Inbox record's own correction, recorded with the
+to Query through the Inbox record's own correction, recorded with the
 reason "Tagged as query", and returns here; on a Report sent Case that
 raises the query ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)). Where the record offers **Reply**, **Reply all** and **Forward**, the
 dialog does too; each opens the record's composer with this Case chosen. Its

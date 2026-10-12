@@ -201,8 +201,8 @@ Inspection and, once created, of the Audit of an Inspection + Audit Case
 each count once, with their own agreed fee. An Audit report is the report
 of a standalone Audit Case or the Audit of an Inspection + Audit Case.
 
-- **Engineer activity** counts each person's queries (a dispute is a query),
-  with the amendment requests among them, credited to the Case's assigned
+- **Engineer activity** counts each person's queries (a dispute or an
+  amendment request is a query), credited to the Case's assigned
   Engineer; the reports sent, credited to their recorded sender; the Audit
   reports sent (the Audit uplift); and the turnaround to sent, from the
   instruction's receipt or, for the Audit of an Inspection + Audit Case,
@@ -273,8 +273,8 @@ the list's own order.
   engineer** is the signatory of the latest confirmed report, or the
   signatory the Case would use now. **Report sent by** is who made the
   work's first report send.
-- Queries (a dispute is a query) and amendment requests are post-report
-  mail linked to the Case, counted as MI-01 counts them.
+- Queries (a dispute or an amendment request is a query) are Query mail
+  linked to the Case, counted as MI-01 counts them.
 
 **Presets** are named column sets every Administrator shares, such as
 "Invoicing". **Use preset** ticks a preset's columns; the ticks can still be

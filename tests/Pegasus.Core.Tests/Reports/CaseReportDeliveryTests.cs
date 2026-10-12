@@ -573,7 +573,7 @@ public sealed class CaseReportDeliveryTests
         id ?? MailboxId, "reports@collisionengineers.example",
         scopes ?? [ApprovedMailboxRouteScope.Incoming, ApprovedMailboxRouteScope.Outgoing],
         ApprovedMailboxState.Approved,
-        "identity", "inbox", "sent", IdentityIsBound: true, ActivatedAtUtc: GeneratedAtUtc, version, [],
+        "identity", "inbox", "sent", IdentityIsBound: true, ActivatedAtUtc: GeneratedAtUtc, version,
         Generation: generation);
 
     private static ReportRecipientSuggestions Suggestions(

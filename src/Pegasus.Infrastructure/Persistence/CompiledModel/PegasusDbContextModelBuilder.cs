@@ -13,7 +13,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
     public partial class PegasusDbContextModel
     {
         private PegasusDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("702a9d22-e000-4bdb-99f2-a1790c7ecd56"), entityTypeCount: 126)
+            : base(skipDetectChanges: false, modelId: new Guid("702a9d22-e000-4bdb-99f2-a1790c7ecd56"), entityTypeCount: 124)
         {
         }
 
@@ -35,7 +35,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             var approvedInboxPoisonMessageEntity = ApprovedInboxPoisonMessageEntityEntityType.Create(this);
             var approvedInboxPollStateEntity = ApprovedInboxPollStateEntityEntityType.Create(this);
             var approvedMailboxEntity = ApprovedMailboxEntityEntityType.Create(this);
-            var approvedMailboxFolderBindingEntity = ApprovedMailboxFolderBindingEntityEntityType.Create(this);
             var approvedMailboxSubscriptionEntity = ApprovedMailboxSubscriptionEntityEntityType.Create(this);
             var approvedOutlookCategoryEntity = ApprovedOutlookCategoryEntityEntityType.Create(this);
             var approvedSentPollOutcomeEntity = ApprovedSentPollOutcomeEntityEntityType.Create(this);
@@ -122,7 +121,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             var releaseNoteAcknowledgementEntity = ReleaseNoteAcknowledgementEntityEntityType.Create(this);
             var releaseNoteEntity = ReleaseNoteEntityEntityType.Create(this);
             var retainedInstructionAnalysisEntity = RetainedInstructionAnalysisEntityEntityType.Create(this);
-            var retainedMailFolderMoveEntity = RetainedMailFolderMoveEntityEntityType.Create(this);
             var retainedMailboxAttachmentEntity = RetainedMailboxAttachmentEntityEntityType.Create(this);
             var retainedMailboxMessageEntity = RetainedMailboxMessageEntityEntityType.Create(this);
             var securityEventEntity = SecurityEventEntityEntityType.Create(this);
@@ -158,7 +156,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             AppliedValuationSnapshotEntityEntityType.CreateForeignKey1(appliedValuationSnapshotEntity, caseWorkEntity);
             ApprovedInboxPoisonMessageEntityEntityType.CreateForeignKey1(approvedInboxPoisonMessageEntity, approvedInboxPollStateEntity);
             ApprovedInboxPollStateEntityEntityType.CreateForeignKey1(approvedInboxPollStateEntity, approvedMailboxEntity);
-            ApprovedMailboxFolderBindingEntityEntityType.CreateForeignKey1(approvedMailboxFolderBindingEntity, approvedMailboxEntity);
             ApprovedMailboxSubscriptionEntityEntityType.CreateForeignKey1(approvedMailboxSubscriptionEntity, approvedMailboxEntity);
             ApprovedSentPollOutcomeEntityEntityType.CreateForeignKey1(approvedSentPollOutcomeEntity, approvedSentPollStateEntity);
             CaseAssessmentFieldEntityEntityType.CreateForeignKey1(caseAssessmentFieldEntity, caseWorkEntity);
@@ -265,7 +262,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             ReleaseNoteAcknowledgementEntityEntityType.CreateForeignKey1(releaseNoteAcknowledgementEntity, releaseNoteEntity);
             RetainedInstructionAnalysisEntityEntityType.CreateForeignKey1(retainedInstructionAnalysisEntity, intakeAssetEntity);
             RetainedInstructionAnalysisEntityEntityType.CreateForeignKey2(retainedInstructionAnalysisEntity, intakeReceiptEntity);
-            RetainedMailFolderMoveEntityEntityType.CreateForeignKey1(retainedMailFolderMoveEntity, retainedMailboxMessageEntity);
             RetainedMailboxAttachmentEntityEntityType.CreateForeignKey1(retainedMailboxAttachmentEntity, retainedMailboxMessageEntity);
             RetainedMailboxMessageEntityEntityType.CreateForeignKey1(retainedMailboxMessageEntity, approvedMailboxEntity);
             SentEmailEvidenceEntityEntityType.CreateForeignKey1(sentEmailEvidenceEntity, triageEntity);
@@ -302,7 +298,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             ApprovedInboxPoisonMessageEntityEntityType.CreateAnnotations(approvedInboxPoisonMessageEntity);
             ApprovedInboxPollStateEntityEntityType.CreateAnnotations(approvedInboxPollStateEntity);
             ApprovedMailboxEntityEntityType.CreateAnnotations(approvedMailboxEntity);
-            ApprovedMailboxFolderBindingEntityEntityType.CreateAnnotations(approvedMailboxFolderBindingEntity);
             ApprovedMailboxSubscriptionEntityEntityType.CreateAnnotations(approvedMailboxSubscriptionEntity);
             ApprovedOutlookCategoryEntityEntityType.CreateAnnotations(approvedOutlookCategoryEntity);
             ApprovedSentPollOutcomeEntityEntityType.CreateAnnotations(approvedSentPollOutcomeEntity);
@@ -389,7 +384,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             ReleaseNoteAcknowledgementEntityEntityType.CreateAnnotations(releaseNoteAcknowledgementEntity);
             ReleaseNoteEntityEntityType.CreateAnnotations(releaseNoteEntity);
             RetainedInstructionAnalysisEntityEntityType.CreateAnnotations(retainedInstructionAnalysisEntity);
-            RetainedMailFolderMoveEntityEntityType.CreateAnnotations(retainedMailFolderMoveEntity);
             RetainedMailboxAttachmentEntityEntityType.CreateAnnotations(retainedMailboxAttachmentEntity);
             RetainedMailboxMessageEntityEntityType.CreateAnnotations(retainedMailboxMessageEntity);
             SecurityEventEntityEntityType.CreateAnnotations(securityEventEntity);

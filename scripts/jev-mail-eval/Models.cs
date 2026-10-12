@@ -137,10 +137,14 @@ public static class EvaluationTaxonomy
 {
     public const string Abstain = "unclassified-or-ambiguous";
 
+    /// <summary>
+    /// The flat Core mail categories (operator, 12 October 2026): each is its own
+    /// family with no subtypes, so the hierarchical question asks only one.
+    /// </summary>
     public static readonly IReadOnlyDictionary<string, string[]> Received =
-        Enum.GetValues<ReceivedMailFamily>().ToDictionary(
-            MailTaxonomy.CategoryName,
-            family => MailTaxonomy.ConfirmedReceivedSubtypes[family].ToArray(),
+        MailCategories.All.ToDictionary(
+            MailCategories.Code,
+            _ => Array.Empty<string>(),
             StringComparer.Ordinal);
 
     public static void Validate(GoldLabel label)
