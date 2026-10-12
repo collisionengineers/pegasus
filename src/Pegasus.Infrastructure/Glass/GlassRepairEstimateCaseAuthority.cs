@@ -63,6 +63,14 @@ public sealed class EfGlassRepairEstimateCaseAuthority(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider timeProvider) : IGlassRepairEstimateCaseAuthority
 {
+    /// <summary>The only fields a launch reads: the vehicle, its reading and the reading's unit.</summary>
+    private static readonly string[] LaunchFieldNames =
+    [
+        CaseDataFieldNames.VehicleRegistration,
+        CaseDataFieldNames.VehicleMileage,
+        CaseDataFieldNames.VehicleMileageUnit,
+    ];
+
     public async Task<GlassRepairEstimateCaseFacts> RequireEditAuthorityAsync(
         ActionActor actor,
         Guid caseId,
@@ -83,7 +91,7 @@ public sealed class EfGlassRepairEstimateCaseAuthority(
         var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
         var fields = await context.Set<CaseDataFieldEntity>()
             .AsNoTracking()
-            .Where(item => item.WorkId == workId)
+            .Where(item => item.WorkId == workId && LaunchFieldNames.Contains(item.FieldName))
             .ToArrayAsync(cancellationToken);
         return new(RequireRegistration(fields), RequireMileageMiles(fields));
     }

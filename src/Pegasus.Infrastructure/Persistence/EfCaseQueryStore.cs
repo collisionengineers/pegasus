@@ -1344,15 +1344,19 @@ public sealed class EfCaseQueryStore(
                         row.IsBuiltIn,
                         row.AppliedAtUtc))]);
 
+        // Grouped once, in the order each read already fixed, rather than
+        // filtered again for every document.
+        var occurrencesByDocument = occurrences.ToLookup(item => item.DocumentId);
+        var versionsByDocument = versions.ToLookup(item => item.DocumentId);
         return documentEntities.Select(document => new CaseDocument(
                 document.Id,
                 caseId,
-                occurrences.Where(item => item.DocumentId == document.Id)
+                occurrencesByDocument[document.Id]
                     .Select(item => MapOccurrence(
                         item,
                         tagsByOccurrence.GetValueOrDefault(item.Id, [])))
                     .ToArray(),
-                versions.Where(item => item.DocumentId == document.Id).Select(MapVersion).ToArray()))
+                versionsByDocument[document.Id].Select(MapVersion).ToArray()))
             .ToArray();
     }
 
