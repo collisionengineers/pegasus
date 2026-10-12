@@ -1301,8 +1301,9 @@ public sealed class DocumentCustodyDurabilityTests
             var vocabulary = await scope.ServiceProvider
                 .GetRequiredService<IReadImageTagVocabulary>()
                 .ListAsync(CancellationToken.None);
+            string[] builtIn = ["Close-up", "Overview", "Reflection", "Third party"];
             Assert.Equal(
-                [.. new[] { ImageTagVocabulary.OverviewName, ImageTagVocabulary.CloseUpName, ImageTagVocabulary.ThirdPartyName, ImageTagVocabulary.ReflectionName }.OrderBy(name => name, StringComparer.Ordinal)],
+                builtIn,
                 vocabulary.Where(tag => tag.IsBuiltIn).Select(tag => tag.Name).OrderBy(name => name, StringComparer.Ordinal));
             Assert.Contains(vocabulary, tag => tag.Id == created.Tag.Id);
         }

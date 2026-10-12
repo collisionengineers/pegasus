@@ -25,21 +25,6 @@ public sealed class SettlementDecisionTests
             Assert.Equal(wording, UnroadworthyReasonBank.Normalize(wording)));
     }
 
-    [Fact]
-    public void InsertingAWordingStartsTheSentenceThenJoinsWithAnd()
-    {
-        var first = UnroadworthyReasonBank.Insert(null, "the rear lamp assemblies are inoperative");
-        Assert.Equal("The rear lamp assemblies are inoperative", first);
-
-        var second = UnroadworthyReasonBank.Insert(first, "there is a loss of essential fluids");
-        Assert.Equal(
-            "The rear lamp assemblies are inoperative and there is a loss of essential fluids",
-            second);
-
-        // A wording already in the reason is not repeated.
-        Assert.Equal(second, UnroadworthyReasonBank.Insert(second, "There is a loss of essential fluids."));
-    }
-
     /// <summary>
     /// PR 792 took the Engineer account type out of the authority rules, and
     /// saving to a firm's reason bank is casework: a User saves the same as an

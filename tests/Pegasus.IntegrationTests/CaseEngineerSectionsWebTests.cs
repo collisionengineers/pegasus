@@ -202,7 +202,7 @@ public sealed class CaseEngineerSectionsWebTests
             GetCaseSectionQuery query,
             CancellationToken cancellationToken) =>
             Task.FromResult<CasePageFrame?>(query.CaseId == CaseId
-                ? new(frame, [], [], CaseRecordNotes.None, workspace.Data)
+                ? new(frame, [], [], new(null, null), workspace.Data)
                 : null);
 
         public Task<AssessmentWorkspace?> ExecuteAsync(

@@ -115,17 +115,6 @@ public sealed record CaseReportActor(
             actor.SubjectId,
             actor.Roles.OrderBy(role => role).Select(role => role.ToString()).ToArray());
     }
-
-    /// <summary>The frozen actor as the identity model expresses it.</summary>
-    public ActionActor ToActor() => Enum.Parse<ActorKind>(Kind) switch
-    {
-        ActorKind.Staff => ActionActor.Staff(
-            Guid.Parse(SubjectId), Roles.Select(Enum.Parse<StaffRole>)),
-        ActorKind.SystemWorker => ActionActor.SystemWorker(SubjectId),
-        ActorKind.Automation => ActionActor.Automation(SubjectId),
-        var kind => throw new InvalidDataException(
-            $"A case report generation cannot be attributed to a '{kind}' actor."),
-    };
 }
 
 /// <summary>

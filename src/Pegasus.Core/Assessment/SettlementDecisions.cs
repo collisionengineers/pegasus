@@ -62,24 +62,6 @@ public static class UnroadworthyReasonBank
         ArgumentNullException.ThrowIfNull(saved);
         return Standard.Concat(saved).Any(item => string.Equals(item, normalized, StringComparison.OrdinalIgnoreCase));
     }
-
-    /// <summary>
-    /// The reason text after inserting a wording: the first joins as its own
-    /// sentence, a later one joins the previous with "and".
-    /// </summary>
-    public static string Insert(string? current, string wording)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(wording);
-        var normalized = Normalize(wording);
-        var text = string.Join(' ', (current ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-        if (text.Contains(normalized, StringComparison.OrdinalIgnoreCase))
-        {
-            return current ?? string.Empty;
-        }
-        return text.Length == 0
-            ? char.ToUpperInvariant(normalized[0]) + normalized[1..]
-            : text.TrimEnd('.') + " and " + normalized;
-    }
 }
 
 public sealed record SaveUnroadworthyReasonRequest(

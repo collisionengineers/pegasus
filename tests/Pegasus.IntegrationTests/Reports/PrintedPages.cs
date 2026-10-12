@@ -1,4 +1,5 @@
 using System.Globalization;
+using Pegasus.Core.Reports;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Graphics.Colors;
 
@@ -111,6 +112,11 @@ internal static class PrintedPages
     /// <summary>A text with its spaces taken out, as <see cref="Lines"/> reads one.</summary>
     internal static string Squeeze(string text) =>
         string.Concat(text.Where(character => !char.IsWhiteSpace(character)));
+
+    /// <summary>The page number a report footer prints, "Page 1 of 7".</summary>
+    internal static string PageNumber(int page, int pages) =>
+        AssessmentReportWording.PageNumberLead + page.ToString(CultureInfo.InvariantCulture)
+        + AssessmentReportWording.PageNumberJoin + pages.ToString(CultureInfo.InvariantCulture);
 
     private static string? Colour(IColor? colour)
     {

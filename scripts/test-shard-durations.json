@@ -118,7 +118,6 @@
   "Pegasus.IntegrationTests.ImageViewingWebTests": 43.85,
   "Pegasus.IntegrationTests.InlineForwardedMailRouteTests": 0.02,
   "Pegasus.IntegrationTests.InspectionAddressChoicesPersistenceTests": 17.13,
-  "Pegasus.IntegrationTests.InspectionAddressSuggestionTests": 55.67,
   "Pegasus.IntegrationTests.InstructionDraftWebTests": 79.72,
   "Pegasus.IntegrationTests.IntakeAllocationConsumerTests": 29.92,
   "Pegasus.IntegrationTests.IntakeOcrRetryPersistenceTests": 10.61,
