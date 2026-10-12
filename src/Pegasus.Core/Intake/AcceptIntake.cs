@@ -115,7 +115,7 @@ public sealed class AcceptIntake(
             // The acceptance transaction also enqueued the automatic vehicle
             // lookup for an unambiguous registration (FRD-06 D34). Publishing
             // it here is what makes DVLA/MOT evidence arrive with the Case
-            // instead of on the next ten-second reconciliation sweep; the
+            // instead of on the next reconciliation sweep; the
             // sweep stays as the recovery path for a lost publication.
             if (outcome.VehicleLookupWorkId is { } vehicleLookupWorkId)
             {

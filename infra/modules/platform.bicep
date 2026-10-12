@@ -567,7 +567,7 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         // The one-minute recovery timer also runs the due-work sweep and the approved-inbox
         // fallback poll on every fifth minute; they have no schedule or Disabled setting of their own.
         { name: 'PendingWorkRecoverySchedule', value: '0 * * * * *' }
-        { name: 'IntakeStagedArtifactReconciliationSchedule', value: '*/10 * * * * *' }
+        { name: 'IntakeStagedArtifactReconciliationSchedule', value: '0 * * * * *' }
         { name: 'SentEvidencePollSchedule', value: '0 * * * * *' }
         { name: 'AzureWebJobs.PendingWorkRecoveryFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.UnifiedWorkFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
