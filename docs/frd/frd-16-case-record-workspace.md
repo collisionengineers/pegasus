@@ -331,10 +331,15 @@ Return to Engineer needs no session. The rules behind each action are in
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
 - **Send chaser**, on any open Case where staff mail is composed in
   (operator, 5 October 2026). It is a link, not a dialog, and needs no lease:
-  it opens the composer with this Case chosen, To addressed to the sender of
-  the Case's instruction and the sender of each image-intake e-mail paired to
-  the Case and the repairer's directory e-mail, Subject the registration and
-  claimant, and Message the Case chaser template rendered from the Case
+  it opens the chaser composer (`/Cases/{id}/Chaser`), a reply to the
+  Case's instruction email from the mailbox it arrived in, or, with no
+  usable instruction email, a new message from the Outgoing mailbox staff
+  choose as From (operator, 12 October 2026). To is addressed to the sender
+  of the Case's instruction and the sender of each image-intake e-mail
+  paired to the Case and the repairer's directory e-mail; Subject is "Re:"
+  and the instruction's subject for a reply, or opens with the registration
+  and claimant for a new message; Message is the Case chaser template
+  rendered from the Case
   ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
   When its Sent evidence arrives on a Not ready Case with a scheduled chase,
   the chase is recorded and the next one scheduled
@@ -790,7 +795,7 @@ raises the query ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and
 dialog does too; each opens the record's composer with this Case chosen. Its
 **Open full message** leads to the Inbox message record, which keeps
 classification and the Case link; without script the row opens that record.
-Compose sits above the list where staff mail is available
+There is no Compose
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 A file whose bytes are one of these emails is read here and is not repeated
 on Documents.
@@ -925,7 +930,11 @@ not yet hold it, in or out of edit mode as Generate report is. Generate report
 makes the separate fee note with the report (operator, 7 October 2026), and
 once the separate fee note is confirmed the report card offers Open fee note
 beside Open report (issue 912).
-The delivery form offers the Case's known addresses on every recipient field
+The delivery form shows From: the mailbox the Case's instruction email
+arrived in, read-only, or, with no usable instruction email, a choice of
+Outgoing mailbox (operator, 12 October 2026;
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches)).
+It offers the Case's known addresses on every recipient field
 (v28 P21), the documents to attach (v28 P22), with Report and Fee note ticked,
 and states the name the report will be attached under (v28 P23) and the
 covering message it will carry, in an editable box pre-filled from the Case

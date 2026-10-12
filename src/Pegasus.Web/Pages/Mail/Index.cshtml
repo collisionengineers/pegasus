@@ -6,10 +6,6 @@
     ViewData["Title"] = "Inbox";
     ViewData["RefreshStatus"] = Pegasus.Web.Pages.Mail.IndexModel.FreshnessStatus(Model.Freshness.State);
     ViewData["RefreshFields"] = Model.RefreshFields;
-    // Compose sits in this same action group, so Refresh renders first here
-    // to stay grouped with it; the status text moves to the far side rather
-    // than sitting between the two buttons.
-    ViewData["FreshnessActionsFirst"] = true;
     var selectedDetail = Model.SelectedDetail;
     var selectedSummary = selectedDetail?.Summary;
     var totalPages = Model.DeletedResults?.TotalPages ?? Model.Results.TotalPages;
@@ -29,23 +25,10 @@
     </div>
     <div class="page-actions">
         <div class="page-action-group">
-            @if (Model.StaffMailAvailable)
-            {
-                <a class="btn" asp-page="/Mail/Compose"
-                   data-mail-compose-open
-                   data-mail-compose-url="@Url.Page("/Mail/Compose", "Form")"
-                   aria-controls="mail-compose-host"
-                   aria-expanded="false">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
-                    <span>Compose</span>
-                </a>
-            }
             <partial name="Shared/_FreshnessBanner" model="Model.Freshness.LastSuccessfulUpdateAtUtc" />
         </div>
     </div>
 </header>
-
-<div id="mail-compose-host" class="mail-compose-backdrop" data-mail-compose-host hidden></div>
 
 <section class="pane-layout @(selectedDetail is null ? "pane-layout--2" : "pane-layout--3") inbox-layout"
          data-mail-preview-workspace aria-label="Emails">
@@ -256,8 +239,24 @@
                     var isSelected = selectedSummary?.Id == item.Id;
                     @* The selection mark sits on the row, where the shared
                        highlight rule reads it; the subject opens the message. *@
-                    <div class="row-button inbox-row @(item.IsRead ? null : "unread")"
+                    var offersReply = Model.OffersReply(item);
+                    var offersDismiss = Model.Folder == MailFolderScope.Inbox;
+                    var replyUrl = offersReply
+                        ? Url.Page("/Mail/Message", new
+                        {
+                            id = item.Id,
+                            mailbox = Model.MailboxFilter,
+                            folder = Model.FolderRouteValue,
+                            search = Model.SearchTerm,
+                            queue = Model.QueueFilter,
+                            sort = Model.OldestFirst ? "oldest" : null,
+                            pageNumber = Model.Results.Page > 1 ? Model.Results.Page : (int?)null,
+                            compose = "reply"
+                        })
+                        : null;
+                    <div class="row-button inbox-row @(item.IsRead ? null : "unread") @(offersReply && offersDismiss ? "inbox-row--two-actions" : null)"
                          data-mail-preview-row data-mail-row="@item.Id"
+                         data-mail-reply-url="@replyUrl"
                          aria-current="@(isSelected ? "true" : null)">
                         <span class="row-top">
                             <span class="row-title">
@@ -346,8 +345,19 @@
                                 <partial name="Shared/_StatusChip" model="@("No longer polled")" />
                             </span>
                         }
-                        @if (Model.Folder == MailFolderScope.Inbox)
+                        @if (offersReply || offersDismiss)
                         {
+                            <div class="inbox-row-actions">
+                            @if (offersReply)
+                            {
+                                <a class="icon-button" href="@replyUrl" data-mail-row-reply
+                                   title="@OperatorLabels.StaffMail.Reply"
+                                   aria-label="@OperatorLabels.StaffMail.Reply @Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-reply" /></svg>
+                                </a>
+                            }
+                            @if (offersDismiss)
+                            {
                             <form method="post" class="inbox-row-action"
                                   asp-page-handler="@rowHandler"
                                   asp-route-mailbox="@Model.MailboxFilter"
@@ -365,6 +375,8 @@
                                     <svg class="icon" aria-hidden="true"><use href="@(Model.Dismissed ? "#icon-undo" : "#icon-x")" /></svg>
                                 </button>
                             </form>
+                            }
+                            </div>
                         }
                     </div>
                 }
@@ -481,6 +493,15 @@
                                 <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
                                 <span>@OperatorLabels.Inbox.OpenFullMessage</span>
                             </a>
+                            @{
+                                var previewReply = Model.OffersReply(summary);
+                            }
+                            <a class="btn" data-mail-preview-reply
+                               href="@(previewReply ? Url.Page("/Mail/Message", new { id = summary.Id, mailbox = Model.MailboxFilter, folder = Model.FolderRouteValue, search = Model.SearchTerm, queue = Model.QueueFilter, sort = Model.OldestFirst ? "oldest" : null, pageNumber = Model.Results.Page > 1 ? Model.Results.Page : (int?)null, compose = "reply" }) : null)"
+                               hidden="@(previewReply ? null : "hidden")">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-reply" /></svg>
+                                <span>@OperatorLabels.StaffMail.Reply</span>
+                            </a>
                             @if (summary.CaseId is { } linkedCaseId)
                             {
                                 <a class="btn" data-mail-preview-case asp-page="/Cases/Details" asp-route-id="@linkedCaseId">
@@ -495,8 +516,3 @@
         </div>
     }
 </section>
-
-@section Scripts {
-    <script src="~/js/case-picker.js" asp-append-version="true"></script>
-    <script src="~/js/mail-compose.js" asp-append-version="true"></script>
-}

@@ -541,7 +541,7 @@ public sealed class PollApprovedInbox(
             // disabled this mailbox between listing and claiming.
             if (!await approvedMailboxPolicy.IsApprovedAsync(
                     lease.MailboxAddress,
-                    ApprovedMailboxRouteScope.InboundIntake,
+                    ApprovedMailboxRouteScope.Incoming,
                     cancellationToken))
             {
                 await pollStore.ReleaseAsync(

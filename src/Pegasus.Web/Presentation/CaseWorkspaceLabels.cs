@@ -1223,7 +1223,6 @@ public static class CaseWorkspaceLabels
         public const string ImportEstimate = "Import as repair spec";
         public const string Remove = "Remove";
         public const string RemoveFile = "Remove file";
-        public const string Compose = "Compose";
         public const string StorageNotReady = "Storage not ready";
         public const string NoDocuments = "No documents on this Case.";
         public const string NoImages = "No images on this Case.";

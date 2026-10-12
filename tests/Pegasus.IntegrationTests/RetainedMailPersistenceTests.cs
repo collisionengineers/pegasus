@@ -2495,7 +2495,7 @@ public sealed class RetainedMailPersistenceTests
             {
                 Id = approvedMailboxId,
                 Address = mailboxAddress,
-                AllowInboundIntake = true,
+                AllowIncoming = true,
                 State = ApprovedMailboxState.Approved.ToString(),
                 MailboxIdentity = mailboxId,
                 InboxFolderIdentity = "inbox",

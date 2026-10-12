@@ -43,11 +43,7 @@ internal static class AdministrationPolicyModelConfiguration
         {
             entity.ToTable("ApprovedMailboxes", table =>
             {
-                table.HasCheckConstraint("CK_ApprovedMailboxes_SendLimit", "[VerifiedEncodedMessageSizeLimit] IS NULL OR [VerifiedEncodedMessageSizeLimit] > 0");
                 table.HasCheckConstraint("CK_ApprovedMailboxes_MailboxGeneration", "[MailboxGeneration] >= 0");
-                table.HasCheckConstraint(
-                    "CK_ApprovedMailboxes_DefaultStaffSendEligibility",
-                    "[IsDefaultStaffSend] = 0 OR ([State] = 'Approved' AND [AllowStaffSend] = 1 AND [AllowSentEvidence] = 1 AND [ActivatedAtUtc] IS NOT NULL AND [MailboxIdentity] IS NOT NULL AND [SentFolderIdentity] IS NOT NULL AND [MailboxGeneration] > 0 AND [VerifiedEncodedMessageSizeLimit] IS NOT NULL AND [VerifiedEncodedMessageSizeLimit] > 0)");
             });
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Address).HasMaxLength(320).IsRequired();
@@ -55,12 +51,7 @@ internal static class AdministrationPolicyModelConfiguration
             entity.Property(item => item.MailboxIdentity).HasMaxLength(100);
             entity.Property(item => item.InboxFolderIdentity).HasMaxLength(200);
             entity.Property(item => item.SentFolderIdentity).HasMaxLength(200);
-            entity.Property(item => item.SendLimitVerifiedBy).HasMaxLength(200);
-            entity.Property(item => item.IsDefaultStaffSend).HasDefaultValue(false);
             entity.HasIndex(item => item.Address).IsUnique();
-            entity.HasIndex(item => item.IsDefaultStaffSend)
-                .IsUnique()
-                .HasFilter("[IsDefaultStaffSend] = 1");
             // A supplied Graph identity is exclusive to one approved mailbox.
             entity.HasIndex(item => item.MailboxIdentity)
                 .IsUnique()
@@ -70,8 +61,7 @@ internal static class AdministrationPolicyModelConfiguration
             {
                 Id = InitialInstructionsMailboxId,
                 Address = "instructions@collisionengineers.co.uk",
-                AllowInboundIntake = true,
-                AllowSentEvidence = false,
+                AllowIncoming = true,
                 State = ApprovedMailboxState.Approved.ToString(),
                 MailboxGeneration = 1,
                 Version = 1

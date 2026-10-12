@@ -814,6 +814,7 @@ public sealed partial class AssessmentReportDraftWebTests
         var caseId = Guid.NewGuid();
         var generationId = Guid.NewGuid();
         var operationKey = Guid.NewGuid().ToString("N");
+        var fromMailboxId = Guid.NewGuid();
         var send = new RecordingSendReport(StaffMailState.Submitted);
         using var factory = Compose(
             baseFactory,
@@ -837,11 +838,15 @@ public sealed partial class AssessmentReportDraftWebTests
                 ("expectedGenerationVersion", "13"),
                 ("coveringMessage", "Edited by staff.\r\n\r\nKind regards"),
                 ("toRecipients", "reviewed@recipient.example"),
-                ("ccRecipients", "copy@recipient.example")));
+                ("ccRecipients", "copy@recipient.example"),
+                ("fromMailboxId", fromMailboxId.ToString("D"))));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var request = Assert.Single(send.Requests);
         Assert.Equal(caseId, request.CaseId);
+        // With no instruction email to reply to, the From staff chose reaches
+        // the send; Core decides whether it may send.
+        Assert.Equal(fromMailboxId, request.FromMailboxId);
         Assert.Equal(0, request.ExpectedCaseVersion);
         Assert.Equal("held-report-lease", request.LeaseToken);
         Assert.Equal(generationId, request.GenerationId);
@@ -958,6 +963,9 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Contains("data-send-report", form, StringComparison.Ordinal);
         Assert.Contains("name=\"toRecipients\"", form, StringComparison.Ordinal);
         Assert.Contains("name=\"coveringMessage\"", form, StringComparison.Ordinal);
+        // The Case has no instruction email to reply to, so staff choose From.
+        Assert.Contains("name=\"fromMailboxId\"", form, StringComparison.Ordinal);
+        Assert.Contains("data-report-from", form, StringComparison.Ordinal);
         Assert.Contains(
             $">{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendReport}<",
             form,

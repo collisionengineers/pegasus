@@ -339,6 +339,24 @@
                     <input type="hidden" name="expectedGenerationVersion" value="@generation.Version" />
                     <input type="hidden" name="view" value="@Model.ViewRoute" />
                     <span class="lg">@Words.ReviewedRecipients</span>
+                    @* Operator, 12 October 2026: the report is a reply to the
+                       instruction email from the mailbox it arrived in; with
+                       none to reply to, staff choose the Outgoing mailbox. *@
+                    <span class="lbl">From</span>
+                    @if (Model.ReportSenders.Reply is { } reportReply)
+                    {
+                        <div class="fv" data-report-from>@reportReply.Mailbox.Address</div>
+                    }
+                    else
+                    {
+                        <select name="fromMailboxId" aria-label="From" required data-report-from>
+                            <option value=""></option>
+                            @foreach (var mailbox in Model.ReportSenders.Mailboxes)
+                            {
+                                <option value="@mailbox.Id">@mailbox.Address</option>
+                            }
+                        </select>
+                    }
                     @* P21: the addresses this Case already knows, offered by the
                        browser's own picker on every recipient field. *@
                     @if (Model.ReportAddressBook.Count > 0)
@@ -417,6 +435,7 @@
                 @* Reading: the same cells, greyed, with no Send (v36 item Z). *@
                 <div class="recip-form" data-send-report-read>
                     <span class="lg">@Words.ReviewedRecipients</span>
+                    <div class="fc ro"><span class="lbl">From</span><div class="fv @(Model.ReportSenders.Reply is null ? "empty" : null)">@(Model.ReportSenders.Reply?.Mailbox.Address ?? OperatorLabels.CaseWorkspace.AbsentValue)</div></div>
                     <div class="fc ro"><span class="lbl">To</span><div class="fv empty">@OperatorLabels.CaseWorkspace.AbsentValue</div></div>
                     <div class="fc ro"><span class="lbl">Cc</span><div class="fv empty">@OperatorLabels.CaseWorkspace.AbsentValue</div></div>
                     @if (attachable.Length > 0)

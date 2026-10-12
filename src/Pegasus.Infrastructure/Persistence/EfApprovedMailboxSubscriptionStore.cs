@@ -23,7 +23,7 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
                 && item.LifecycleState == active
                 && item.ExpiresAtUtc > nowUtc
                 && item.ApprovedMailbox.State == approved
-                && item.ApprovedMailbox.AllowInboundIntake
+                && item.ApprovedMailbox.AllowIncoming
                 && item.ApprovedMailbox.ActivatedAtUtc != null
                 && item.Generation == item.ApprovedMailbox.MailboxGeneration,
                 cancellationToken);
@@ -54,7 +54,7 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
             .AsNoTracking()
             .Where(mailbox =>
                 mailbox.State == approved
-                && mailbox.AllowInboundIntake
+                && mailbox.AllowIncoming
                 && mailbox.ActivatedAtUtc != null
                 && mailbox.MailboxIdentity != null
                 && mailbox.InboxFolderIdentity != null)
@@ -100,7 +100,7 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
             cancellationToken);
         if (mailbox is null
             || mailbox.State != approved
-            || !mailbox.AllowInboundIntake
+            || !mailbox.AllowIncoming
             || mailbox.ActivatedAtUtc is null
             || mailbox.MailboxGeneration != subscription.Generation
             || !string.Equals(
@@ -161,7 +161,7 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
             cancellationToken);
         if (mailbox is null
             || mailbox.State != approved
-            || !mailbox.AllowInboundIntake
+            || !mailbox.AllowIncoming
             || mailbox.ActivatedAtUtc is null
             || mailbox.MailboxGeneration != expectedGeneration
             || entity?.Generation != expectedGeneration

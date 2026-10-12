@@ -29,7 +29,14 @@ public static class StaffMailStatePolicy
 }
 
 public sealed record ApprovedStaffSendMailbox(
-    Guid Id, string GraphMailboxId, long Generation, long EncodedMessageSizeLimit);
+    Guid Id, string GraphMailboxId, long Generation, long EncodedMessageSizeLimit)
+{
+    /// <summary>
+    /// The one encoded-message ceiling every Outgoing mailbox sends under: 35 MB,
+    /// the operator's ruling of 12 October 2026 in place of a per-mailbox value.
+    /// </summary>
+    public const long OutgoingEncodedMessageSizeLimit = 36_700_160;
+}
 
 public interface IApprovedStaffSendMailboxQueries
 {

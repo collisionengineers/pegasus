@@ -757,7 +757,7 @@ public sealed class PollApprovedInboxTests
             ApprovedMailboxRouteScope routeScope,
             CancellationToken cancellationToken) =>
             Task.FromResult(
-                routeScope == ApprovedMailboxRouteScope.InboundIntake
+                routeScope == ApprovedMailboxRouteScope.Incoming
                 && approvedAddresses.Contains(mailboxAddress));
     }
 
