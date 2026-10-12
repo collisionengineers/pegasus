@@ -1652,12 +1652,12 @@ public sealed class ReevaluateIntake(
 /// <summary>
 /// The one owner of a staff link (Add to an existing case on Upload, Link to
 /// Case on an Unidentified item, the Inbox's link): the association, which
-/// commits here. Filing the linked material on the Case and resolving the
-/// material's Unidentified item resume through intake and custody work: the
-/// link enqueues the receipt's staged work for the Worker, whose replay files
-/// through <see cref="PromoteAssociatedIntakeCaseEvidence"/> and settles the
-/// Unidentified item (FRD-22, FRD-02). The request never touches Box or the
-/// intake assets.
+/// commits here, and the receipt's Unidentified item, which the link resolves
+/// through <see cref="ReconcileUnidentifiedDestinations"/>. Filing the linked
+/// material on the Case continues in the Worker: the link enqueues the
+/// receipt's staged work, whose replay files through
+/// <see cref="PromoteAssociatedIntakeCaseEvidence"/> (FRD-22, FRD-02). The
+/// request never touches Box or the intake assets.
 /// </summary>
 public sealed class LinkIntake(
     IIntakeMutationStore store,
@@ -1665,7 +1665,9 @@ public sealed class LinkIntake(
     TimeProvider timeProvider,
     ICaseStaffNotifier? caseNotifier = null,
     IIntakeWorkStore? workStore = null,
-    IIntakeWorkEnqueuer? workEnqueuer = null) : ILinkIntake
+    IIntakeWorkEnqueuer? workEnqueuer = null,
+    IIntakeReceiptQueries? receiptQueries = null,
+    ReconcileUnidentifiedDestinations? unidentifiedDestinations = null) : ILinkIntake
 {
     public async Task ExecuteAsync(
         LinkIntakeRequest request,
@@ -1700,7 +1702,36 @@ public sealed class LinkIntake(
             Activity.Current?.SetStatus(ActivityStatusCode.Error, "image_pairing_failed");
         }
 
+        await ResolveUnidentifiedAsync(request.ReceiptId, cancellationToken);
         await HandFilingToWorkerAsync(request.ReceiptId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Resolves the receipt's Unidentified item to the Case it is now linked
+    /// to, reading the receipt afresh so the committed link is in hand. The
+    /// link stands whatever happens here, including a conflicting operation
+    /// key; the Worker's replay and the sweep remain the backstop.
+    /// </summary>
+    private async Task ResolveUnidentifiedAsync(Guid receiptId, CancellationToken cancellationToken)
+    {
+        if (receiptQueries is null || unidentifiedDestinations is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (await receiptQueries.GetAsync(receiptId, cancellationToken) is { } receipt)
+            {
+                await unidentifiedDestinations.SynchronizeForReceiptAsync(receipt, cancellationToken);
+                Activity.Current?.SetTag("intake.link_unidentified", "synchronized");
+            }
+        }
+        catch (Exception exception) when (exception is UnidentifiedOperationConflictException
+            || IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            Activity.Current?.SetTag("intake.link_unidentified", "failed");
+        }
     }
 
     /// <summary>

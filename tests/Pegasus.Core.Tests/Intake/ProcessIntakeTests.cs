@@ -559,6 +559,41 @@ public sealed class ProcessIntakeTests
         Assert.Equal(2, artifactStore.StoredHashes.Count);
     }
 
+    /// <summary>
+    /// One receipt's files go into holding custody up to four at once, and a
+    /// file that fails does not stop the others: each runs to its own end
+    /// before the failure is thrown.
+    /// </summary>
+    [Fact]
+    public async Task HoldingCustodyRetainsFourFilesAtOnceAndAFailureLetsTheOthersFinish()
+    {
+        var documents = Enumerable.Range(1, 9)
+            .Select(index => new IntakeAssetCandidate(
+                $"outer message, attachment {index}: document-{index}.pdf",
+                $"document-{index}.pdf",
+                "application/pdf",
+                new byte[] { 0x25, (byte)index },
+                IntakeAssetKind.Attachment,
+                IntakeAssetDisposition.Attachment))
+            .ToArray();
+        var receiptStore = new RecordingStore();
+        var custody = new OverlappingHoldingCustody(ProcessIntake.MaximumConcurrentHoldingRetentions);
+        var sut = CreateSut(
+            new StubReader(Readable() with { Assets = documents }),
+            receiptStore,
+            retainIncomingArtifact: new RetainIncomingArtifact(
+                custody, new FailingLookupHoldingRetentionStore(failingLookup: 2)));
+
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.ExecuteAsync(CreateSource()));
+
+        Assert.Equal(FailingLookupHoldingRetentionStore.FailureMessage, failure.Message);
+        Assert.Equal(ProcessIntake.MaximumConcurrentHoldingRetentions, custody.MaximumInFlight);
+        var held = Assert.Single(receiptStore.Drafts).AssetRecords.Count;
+        Assert.True(held > ProcessIntake.MaximumConcurrentHoldingRetentions);
+        Assert.Equal(held - 1, custody.OperationKeys.Count);
+    }
+
     [Fact]
     public async Task UnconfirmedHoldingCustodyKeepsTheReceiptOnTheExistingRetryPath()
     {
@@ -2222,6 +2257,80 @@ public sealed class ProcessIntakeTests
                 null, null, null, "holding-file", "holding-version",
                 request.Sha256, request.ContentLength, request.MediaType, null, null));
         }
+    }
+
+    /// <summary>
+    /// Holding custody whose first <paramref name="overlap"/> calls wait for one
+    /// another, so the most that ever run at once is observed exactly.
+    /// </summary>
+    private sealed class OverlappingHoldingCustody(int overlap) : ICaseArtifactCustody
+    {
+        private readonly TaskCompletionSource overlapped = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly Lock sync = new();
+        private int inFlight;
+
+        public int MaximumInFlight { get; private set; }
+
+        public System.Collections.Concurrent.ConcurrentBag<string> OperationKeys { get; } = new();
+
+        public async Task<CaseArtifactCustodyResult> RetainAsync(
+            CaseArtifactCustodyRequest request, CancellationToken cancellationToken)
+        {
+            int running;
+            lock (sync)
+            {
+                running = ++inFlight;
+                MaximumInFlight = Math.Max(MaximumInFlight, running);
+            }
+            if (running == overlap)
+            {
+                overlapped.TrySetResult();
+            }
+            try
+            {
+                await Task.WhenAny(overlapped.Task, Task.Delay(TimeSpan.FromSeconds(10), cancellationToken));
+                OperationKeys.Add(request.OperationKey);
+                return new(
+                    CaseArtifactCustodyDisposition.Confirmed,
+                    null, null, null, "holding-file", "holding-version",
+                    request.Sha256, request.ContentLength, request.MediaType, null, null);
+            }
+            finally
+            {
+                lock (sync)
+                {
+                    inFlight--;
+                }
+            }
+        }
+    }
+
+    /// <summary>Every arrival is unoffered, and looking up the nth one fails.</summary>
+    private sealed class FailingLookupHoldingRetentionStore(int failingLookup) : IIncomingArtifactRetentionStore
+    {
+        public const string FailureMessage = "controlled retention lookup failure";
+        private int lookups;
+
+        public Task<RetainedIncomingArtifact?> FindAsync(
+            string operationKey,
+            CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref lookups) == failingLookup)
+            {
+                throw new InvalidOperationException(FailureMessage);
+            }
+            var assetId = Guid.ParseExact(operationKey.Split(':')[2], "N");
+            return Task.FromResult<RetainedIncomingArtifact?>(
+                new(assetId, operationKey, IncomingArtifactCustodyState.Unknown));
+        }
+
+        public Task<bool> TryClaimHandOverAsync(
+            string operationKey,
+            CancellationToken cancellationToken) => Task.FromResult(true);
+
+        public Task RecordAsync(
+            RetainedIncomingArtifact artifact,
+            CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class UnknownHoldingRetentionStore : IIncomingArtifactRetentionStore

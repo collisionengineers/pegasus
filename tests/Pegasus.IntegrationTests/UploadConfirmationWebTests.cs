@@ -240,9 +240,9 @@ public sealed class UploadConfirmationWebTests
     /// <summary>
     /// The same PDF through the generic Upload page: no plate, no principal,
     /// so it becomes an Unidentified item and waits for a destination. Adding
-    /// it to a Case commits the link and hands filing to the Worker, whose
-    /// replay of the receipt's work files the PDF and its photographs on that
-    /// Case and resolves the item; no sweep runs in this test.
+    /// it to a Case commits the link and resolves the item at once, and hands
+    /// filing to the Worker, whose replay of the receipt's work files the PDF
+    /// and its photographs on that Case; no sweep runs in this test.
     /// </summary>
     [Fact]
     public async Task TheWorkerReplayFilesALinkedReceiptsEvidenceAndSettlesItsUnidentifiedItem()
@@ -291,6 +291,16 @@ public sealed class UploadConfirmationWebTests
         await AssertLinkedAsync(factory, receiptId, caseId);
         // The request filed nothing: filing is the Worker's.
         Assert.Empty(await FiledDocumentsAsync(factory, receiptId, caseId));
+        // The Unidentified item was resolved by the Attach itself, before any
+        // Worker replay or sweep.
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var item = await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
+                .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None);
+            Assert.NotNull(item);
+            Assert.Equal(UnidentifiedState.Resolved, item!.State);
+            Assert.Equal(caseId.ToString("N"), item.ResolutionTargetId);
+        }
         await using (var replay = factory.Services.CreateAsyncScope())
         {
             await IntakeWebDriver.ReplayLinkedFilingAsync(replay.ServiceProvider, receiptId);

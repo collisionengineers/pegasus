@@ -953,6 +953,14 @@ public interface IIntakeQuarantineArtifactStore
     Task VerifyAsync(
         IntakeQuarantineArtifact artifact,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The artifact this store already holds under <paramref name="storageKey"/>,
+    /// without reading or writing anything: only the store's own
+    /// content-addressed key for exactly <paramref name="sha256"/> is adopted.
+    /// Null means the key is not one to adopt, and the caller stores the bytes.
+    /// </summary>
+    IntakeQuarantineArtifact? TryAdopt(string storageKey, string sha256, long contentLength) => null;
 }
 
 public interface IIntakeArtifactStore

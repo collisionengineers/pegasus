@@ -2,13 +2,15 @@ using System.Security.Cryptography;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 
 namespace Pegasus.Core.Tests.Intake;
 
 /// <summary>
 /// A staff link (<see cref="LinkIntake"/>) is one owner: the association
-/// commits, and filing the linked material resumes through intake and custody
-/// work: the Worker's replay of the receipt's staged work (FRD-22).
+/// commits and the receipt's Unidentified item is resolved, and filing the
+/// linked material continues in the Worker's replay of the receipt's staged
+/// work (FRD-22).
 /// </summary>
 public sealed class DurableIntakeLinkTests
 {
@@ -44,6 +46,53 @@ public sealed class DurableIntakeLinkTests
         await harness.Link.ExecuteAsync(Request(receipt, caseId));
 
         Assert.Single(harness.MutationStore.Links);
+        Assert.Equal([harness.StagedReceiptId], harness.Enqueuer.StagedReceiptIds);
+    }
+
+    [Fact]
+    public async Task StaffLinkResolvesTheReceiptsUnidentifiedItemToTheCase()
+    {
+        var caseId = Guid.NewGuid();
+        var receipt = LinkedReceipt(Guid.NewGuid(), caseId);
+        var unidentified = new ReconcileUnidentifiedDestinationsTests.Harness();
+        unidentified.Receipts.Receipts[receipt.Id] = receipt;
+        var item = unidentified.AddOpenItem(1, UnidentifiedOrigin.Receipt(receipt.Id));
+        var harness = new Harness(receipt.Id, unidentified: unidentified);
+
+        await harness.Link.ExecuteAsync(Request(receipt, caseId));
+
+        var resolve = Assert.Single(unidentified.Resolve.Requests);
+        Assert.Equal(item.Id, resolve.UnidentifiedItemId);
+        Assert.Equal(UnidentifiedResolutionTargetKind.InstructionCase, resolve.TargetKind);
+        Assert.Equal(caseId.ToString("N"), resolve.TargetId);
+        Assert.Equal(UnidentifiedState.Resolved, Assert.Single(unidentified.Store.Items).State);
+        Assert.Equal([harness.StagedReceiptId], harness.Enqueuer.StagedReceiptIds);
+    }
+
+    /// <summary>
+    /// The link has committed by the time its Unidentified item is resolved,
+    /// so a resolution that fails, a conflicting operation key included, never
+    /// reports the link as failed; filing is still handed to the Worker.
+    /// </summary>
+    [Theory]
+    [InlineData("conflict")]
+    [InlineData("unavailable")]
+    public async Task StaffLinkStandsWhenItsUnidentifiedItemCannotBeResolved(string failure)
+    {
+        var caseId = Guid.NewGuid();
+        var receipt = LinkedReceipt(Guid.NewGuid(), caseId);
+        var unidentified = new ReconcileUnidentifiedDestinationsTests.Harness();
+        unidentified.Receipts.Receipts[receipt.Id] = receipt;
+        unidentified.AddOpenItem(1, UnidentifiedOrigin.Receipt(receipt.Id));
+        unidentified.Resolve.Failure = failure == "conflict"
+            ? new UnidentifiedOperationConflictException()
+            : new IntakeDependencyUnavailableException("The Unidentified store is unavailable.");
+        var harness = new Harness(receipt.Id, unidentified: unidentified);
+
+        await harness.Link.ExecuteAsync(Request(receipt, caseId));
+
+        Assert.Single(harness.MutationStore.Links);
+        Assert.Equal(UnidentifiedState.Open, Assert.Single(unidentified.Store.Items).State);
         Assert.Equal([harness.StagedReceiptId], harness.Enqueuer.StagedReceiptIds);
     }
 
@@ -120,7 +169,10 @@ public sealed class DurableIntakeLinkTests
 
     private sealed class Harness
     {
-        public Harness(Guid workReceiptId, Exception? enqueueFailure = null)
+        public Harness(
+            Guid workReceiptId,
+            Exception? enqueueFailure = null,
+            ReconcileUnidentifiedDestinationsTests.Harness? unidentified = null)
         {
             StagedReceiptId = Guid.NewGuid();
             MutationStore = new RecordingMutationStore();
@@ -130,7 +182,9 @@ public sealed class DurableIntakeLinkTests
                 new NoPairing(),
                 TimeProvider.System,
                 workStore: new WorkStore(workReceiptId, StagedReceiptId),
-                workEnqueuer: Enqueuer);
+                workEnqueuer: Enqueuer,
+                receiptQueries: unidentified?.Receipts,
+                unidentifiedDestinations: unidentified?.Reconciler);
         }
 
         public Guid StagedReceiptId { get; }
