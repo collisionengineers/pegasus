@@ -225,7 +225,7 @@ public static class RepairSpecificationScaling
         // the estimate's own.
         var rate = factor >= 1m
             ? baseRate
-            : Math.Max(Math.Min(floors.LabourRatePerHour, baseRate), Math.Round(baseRate * factor * 2m, MidpointRounding.AwayFromZero) / 2m);
+            : Math.Min(baseRate, Math.Max(Math.Min(floors.LabourRatePerHour, baseRate), Math.Round(baseRate * factor * 2m, MidpointRounding.AwayFromZero) / 2m));
         var details = specification.Details with
         {
             LabourRate = Pence(rate),
