@@ -30,7 +30,7 @@ const v38Model = (() => {
     RemoveAndRefit: { p: 0, q: 0, u: 0, h: 1, ph: 0, m: 0 },
     Paint: { p: 0, q: 0, u: 0, h: 1, ph: 1, m: 1 },
     Blend: { p: 0, q: 0, u: 0, h: 1, ph: 1, m: 1 },
-    Specialist: { p: 0, q: 1, u: 1, h: 1, ph: 0, m: 0 },
+    Specialist: { p: 0, q: 1, u: 1, h: 1, ph: 0, m: 1 },
     Other: { p: 0, q: 0, u: 0, h: 1, ph: 0, m: 0 },
   };
 

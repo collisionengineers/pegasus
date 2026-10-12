@@ -15,10 +15,10 @@
     { id: 'P1', variable: 'cols', title: 'Columns by line type: a cell the type does not price reads as a dash', options: ['today', 'dash'] },
     { id: 'P2', variable: 'cmp', title: 'Compare over versions: From and To side by side, Compare with current, a print sheet', options: ['today', 'side'] },
     { id: 'P3', variable: 'supp', title: 'Supplementary filled after an import, against the version the report used', options: ['today', 'auto'] },
-    { id: 'P4', variable: 'agreed', title: 'The agreed sum drives the spec: the sum previews the scaling, or a button does', options: ['today', 'preview', 'button'] },
-    { id: 'P5', variable: 'rate', title: 'Labour rate as a bar under the grid', options: ['head', 'bar', 'both'] },
+    { id: 'P4', variable: 'agreed', title: 'The agreed sum drives the spec: typing it previews the scaling, and the mismatch chip rescales', options: ['today', 'drives'] },
+    { id: 'P5', variable: 'rate', title: 'Labour rate also as a bar under the grid', options: ['head', 'both', 'bar'] },
   ];
-  const DEFAULTS = { cols: 'dash', cmp: 'side', supp: 'auto', agreed: 'preview', rate: 'bar' };
+  const DEFAULTS = { cols: 'dash', cmp: 'side', supp: 'auto', agreed: 'drives', rate: 'both' };
   const TODAY = { cols: 'today', cmp: 'today', supp: 'today', agreed: 'today', rate: 'head' };
 
   const params = new URLSearchParams(location.search);
@@ -78,7 +78,7 @@
       st.cmpTo = `${spec.id}:working`;
     }
     if (q.scale != null && q.mode === 'edit') st.preview = M.scaleTo(spec.lines, spec.header, M.ENGINEER_VALUE * q.scale / 100, st.floors);
-    if (q.sum > 0 && q.mode === 'edit' && p.agreed === 'preview') st.preview = M.scaleTo(spec.lines, spec.header, q.sum, st.floors);
+    if (q.sum > 0 && q.mode === 'edit' && p.agreed === 'drives') st.preview = M.scaleTo(spec.lines, spec.header, q.sum, st.floors);
     return st;
   }
 
@@ -262,7 +262,7 @@
     }
     if (t.hasAttribute('data-contract-sum')) {
       st.sum = Number(t.value) || 0;
-      if (st.p.agreed === 'preview' && st.sum > 0) st.preview = M.scaleTo(spec.lines, spec.header, st.sum, st.floors);
+      if (st.p.agreed === 'drives' && st.sum > 0) st.preview = M.scaleTo(spec.lines, spec.header, st.sum, st.floors);
       redraw(t); return;
     }
     if (t.hasAttribute('data-supp-of')) { st.suppOf = t.value || null; redraw(t); return; }
@@ -337,11 +337,11 @@
       return;
     }
     const rm = e.target.closest('[data-remove-line]');
-    if (rm) { e.preventDefault(); const i = Number(rm.dataset.removeLine); removed = { i, line: spec.lines[i], st }; spec.lines.splice(i, 1); redraw(e.target); toast('Line removed', true); return; }
+    if (rm) { e.preventDefault(); const i = Number(rm.dataset.removeLine); removed = { i, line: spec.lines[i], st }; spec.lines.splice(i, 1); st.preview = null; redraw(e.target); toast('Line removed', true); return; }
     const undo = e.target.closest('[data-undo-line]');
-    if (undo) { if (removed) { removed.st.specs[removed.st.spec].lines.splice(removed.i, 0, removed.line); removed = null; } undo.closest('.toast').remove(); redraw(document.querySelector('#section-estimate')); return; }
+    if (undo) { if (removed) { removed.st.specs[removed.st.spec].lines.splice(removed.i, 0, removed.line); removed.st.preview = null; removed = null; } undo.closest('.toast').remove(); redraw(document.querySelector('#section-estimate')); return; }
     const add = e.target.closest('[data-estimate-add-line]');
-    if (add) { spec.lines.push({ t: 'Replace', d: '', p: '', q: 1, u: null, h: null, ph: null, m: null, src: 'manual' }); redraw(e.target); const last = document.querySelectorAll('input[name="lineDescription"]'); if (last.length) last[last.length - 2]?.focus(); return; }
+    if (add) { spec.lines.push({ t: 'Replace', d: '', p: '', q: 1, u: null, h: null, ph: null, m: null, src: 'manual' }); st.preview = null; redraw(e.target); const last = document.querySelectorAll('input[name="lineDescription"]'); if (last.length) last[last.length - 2]?.focus(); return; }
     const delAll = e.target.closest('[data-delete-lines-confirm]');
     if (delAll) { const n = spec.lines.length; spec.lines = []; st.preview = null; redraw(e.target); toast(n === 1 ? 'Line removed' : `${n} lines removed`, false); return; }
     const reset = e.target.closest('[data-vat-reset]');
@@ -378,7 +378,7 @@
       <div class="v38-row"><b>Dialog</b><select data-select="dialog"><option value="">(none)</option>${dialogs.map((d) => `<option value="${d}"${d === q.dialog ? ' selected' : ''}>${d}</option>`).join('')}</select></div>
       <div class="v38-findings"><div class="v38-group">Proposals</div>${proposals}</div>
       <div class="v38-seg"><button type="button" data-reset>Reset to Today</button><button type="button" data-hide>Hide strip</button></div>
-      <div class="v38-note">Every choice is also a query string: design, mode, spec, dialog, diff, split, scale, sum, cmpfrom, cmpto, opt=cols:dash,cmp:side,supp:auto,agreed:preview,rate:bar.</div>
+      <div class="v38-note">Every choice is also a query string: design, mode, spec, dialog, diff, split, scale, sum, cmpfrom, cmpto, opt=cols:dash,cmp:side,supp:auto,agreed:drives,rate:both.</div>
     </div>`;
     el.addEventListener('click', (e) => {
       const b = e.target.closest('button');

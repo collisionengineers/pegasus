@@ -23,3 +23,5 @@ The section owns five dialogs. Two change in this round; the others are drawn as
 | Repair Spec versions | Compare with current on each version row |
 
 Documentation impact when the FRD is written: FRD-25 "Engineer acts on a spec" — "Compare reads any two of a Case's specifications line by line" widens to the spec's frozen versions, and the printed sheet is named.
+
+Decided 12 October 2026: the mechanics are the reference file's (`openCompare`, `renderCompare`, `openVersions`); nothing in this dialog is an open item.

@@ -149,10 +149,11 @@
     const sumBox = editing && P.agreed !== 'today'
       ? `<span class="dsc"${mark('P4', true)}><label for="estimate-contract-sum">agreed total sum £</label><input id="estimate-contract-sum" type="number" min="0" step="0.01" inputmode="decimal" value="${sum > 0 ? fixed(sum) : ''}" data-contract-sum${outcomeIsContract ? '' : ' disabled'} /></span>`
       : `<span class="dsc"><span class="lbl">agreed total sum £</span><b class="mono" data-contract-sum-read>${sum > 0 ? money(sum) : ABSENT}</b></span>`;
+    // P4, as the reference draws it: the mismatch chip is the control that rescales the spec to the agreed sum.
     let mismatchChip = '';
     if (mismatch) {
-      mismatchChip = editing && P.agreed === 'button'
-        ? `<button type="button" class="btn btn--small" data-contract-rescale${mark('P4', true)}>${icon('icon-refresh-cw')}<span>Rescale to agreed sum</span></button><span class="status status--amber status--plain" data-contract-mismatch>${mismatchText}</span>`
+      mismatchChip = editing && P.agreed === 'drives'
+        ? `<button type="button" class="status status--amber status--plain v38-chip-button" data-contract-rescale data-contract-mismatch${mark('P4', true)}>${mismatchText} · rescale</button>`
         : `<span class="status status--amber status--plain" data-contract-mismatch>${mismatchText}</span>`;
     }
     const contractBar = `<div class="bar est-contract" data-estimate-contract><span class="bl">Contract repair</span>${editing ? `<label class="choice"><input type="checkbox"${outcomeIsContract ? ' checked' : ''} data-contract-agreed /><span>Contract repair agreed</span></label>` : staticChoice(outcomeIsContract, 'Contract repair agreed')}${sumBox}${mismatchChip}${outcomeIsContract && sum > 0 ? `<div class="fc ro est-contract-sentence"><span class="lbl">Contract repair</span><div class="fv derived" data-contract-sentence>${esc(M.contractSentence(sum))}</div></div>` : ''}</div>`;

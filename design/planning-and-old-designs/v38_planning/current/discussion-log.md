@@ -20,4 +20,12 @@ Those five are the request. The plan approved the same day: fork the v36 tooling
 
 ## 12 October 2026: Stage 1 built
 
-Built the same day: `pegasus_repair_spec_v38.html`, the model, renderer and runtime under `lib/`, the build and check scripts, 37 numbered shots, `RESULT {"fail":[],"okCount":370}`. Items A–J raised in the notes; nothing yet settled.
+Built the same day: `pegasus_repair_spec_v38.html`, the model, renderer and runtime under `lib/`, the build and check scripts, 37 numbered shots. The first draft of the notes lettered ten items (the rate bar's placement, the agreed sum's trigger and its box, Compare's default pair and labels, Supplementary's base and Dismiss, the type map and the dash in edit mode, the folder).
+
+## 12 October 2026: the items withdrawn
+
+The operator:
+
+> things i tell you to do are not issues to be settled.
+
+Nine of the ten restated the request or asked about mechanics the reference file already has. They were withdrawn and the mockup now follows the reference on each: the rate bar is drawn as well as the head cells ("also"); typing the agreed sum rescales and the mismatch chip rescales on press; Compare opens on the last sent version against the working draft with Compare with current and Print comparison sheet; Supplementary fills itself after an import against the last sent version, with Dismiss; a cell the type does not price reads "—" and an imported value in one stays amber. Section 4 of the notes records what was taken from the reference and the three column choices the reference could not make (Part no., Paint h, Other). Item A (the folder) is the one left. Self-check rerun: see the notes' section 7.

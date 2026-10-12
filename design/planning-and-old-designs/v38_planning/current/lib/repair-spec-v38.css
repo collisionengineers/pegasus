@@ -49,8 +49,10 @@ body.v38-strip-hidden .v38-strip{display:none}
 #section-estimate .bar.v38-rate-bar .rate-pair{grid-template-columns:260px 96px}
 #section-estimate .bar.v38-rate-bar .v38-bl-2{margin-left:8px}
 #section-estimate .bar.v38-rate-bar .fv{min-height:30px}
-/* P4 · the agreed sum box in the bar reads like the discount boxes. */
+/* P4 · the agreed sum box in the bar reads like the discount boxes; the mismatch chip is a button. */
 #section-estimate .est-contract .dsc input[data-contract-sum]{width:110px}
+#section-estimate .v38-chip-button{font:inherit;cursor:pointer}
+#section-estimate .v38-chip-button:hover{background:var(--amber);color:#fff}
 
 /* ---- the print sheet (P2) -------------------------------------------------- */
 @media print{

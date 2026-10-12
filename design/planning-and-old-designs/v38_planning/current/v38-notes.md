@@ -11,8 +11,8 @@ The operator's 15 September Case dashboard reference (section 6, Repair specific
 | P1 | Every figure column is a box on every line type: a Repair line offers Part no., Qty and Unit (£); an R&I line offers Material (£); a Replace line offers Paint h. Only Core's anomalies say which figures are off-pattern (amber) | A line type prices only its own columns (section 2, the map). A cell the type does not price reads as one dash in both modes; a value that sits in one (an import's off-pattern amount) keeps its amber box, so nothing is cleared; changing the Type opens and closes the cells | `cols: today, dash` | 18, 21, 14, 30 |
 | P2 | Compare reads two of the Case's specs: one table of the To values for Added, Changed and Removed rows; a version has Restore only; nothing prints | From and To list the selected spec's Working draft and its frozen versions, then the other specs and theirs; opening from More starts at the version the last sent report used against Working; one summary line; one table with the five figure columns per side (Qty, Unit (£), Hours, Material (£), Line £) under a head naming the side and its rate, unchanged rows included, a changed To cell bold, "(was Repair)" after a changed type; Compare with current on every version row; Print comparison sheet prints the dialog alone | `cmp: today, side` | 23, 24, 35, 10, 11 |
 | P3 | With two specs, Supplementary waits: Changes vs is Choose… until the Engineer picks the other spec; the diff and the statement follow the choice | The spec an import has just made (Current) opens with Supplementary filled: Changes vs the version the last sent report used (else the spec it replaced), Reason Supplementary estimate received, Explain unticked, the diff and the statement drawn; Changes vs also lists the sent versions; Dismiss folds the panel while editing | `supp: today, auto` | 18, 31, 05 |
-| P4 | The agreed total sum is read from Decisions; the Target % slider starts at the sum's share; the mismatch chip states "Spec £X above agreed" and does nothing | The sum is a box in the Contract repair bar (the same Case field Decisions holds). `preview`: typing it previews the scaling to that sum exactly as the slider does (amber cells, readout, Preview, Apply). `button`: the chip stays and a Rescale to agreed sum button runs the preview | `agreed: today, preview, button` | 25, 27, 12 |
-| P5 | Labour rate (£/h) and Regional uplift are two of six head cells above the grid | They are a bar directly under the grid, first in the bar stack, as the reference places them; the head keeps Repair spec name, Other costs (£), VAT % and Repairer VAT status. `both` keeps them in the head as well | `rate: head, bar, both` | 18, 14, 28, 29 |
+| P4 | The agreed total sum is read from Decisions; the Target % slider starts at the sum's share; the mismatch chip states "Spec £X above agreed" and does nothing | As the reference: the sum is a box in the Contract repair bar (the same Case field Decisions holds); typing it previews the scaling to that sum exactly as the slider does (amber cells, readout, Preview, Apply); when the spec drifts from the sum again the mismatch chip is the control that rescales ("Spec £X above agreed · rescale") | `agreed: today, drives` | 25, 27, 12 |
+| P5 | Labour rate (£/h) and Regional uplift are two of six head cells above the grid | As asked ("labour rate also below repair spec"): the rate and the uplift are also a bar directly under the grid, first in the bar stack, where the reference places them; the head keeps its six cells. `bar` is drawn for comparison: the bar alone, four head cells | `rate: head, both, bar` | 18, 14, 28, 29 |
 
 ## 2. Live rules the mockup mirrors
 
@@ -21,7 +21,7 @@ The operator's 15 September Case dashboard reference (section 6, Repair specific
 - Compare and the statement: `RepairSpecificationComparison.Compare` and `SupplementaryStatement` (lines matched by description; the four reason leads; "The repair time for … (3.5 h → 4.5 h) has been revised."; "… is no longer required."; "The estimated repair cost has increased from £A to £B.").
 - The contract sentence: `ReportWording.ContractRepairSentence`.
 - Labels: `OperatorLabels.CaseWorkspace.EngineerSections`, `CaseWorkspaceLabels.Estimate`, `.EstimateTotals`, `.EstimateVat`, `.EstimateDiscount`; the Source chip words (`imported · AX`, `amended`, `manual`); the version origins (`Imported from Audatex`, `Report sent`); the ribbon chip `Repairs N% of value` at the 66 and 80 percent tones.
-- P1's map (which columns a type prices): Replace — Part no., Qty, Unit (£), Hours, Material (£); Repair — Hours, Material (£); R&I — Hours; Paint and Blend — Hours, Paint h, Material (£); Specialist — Qty, Unit (£), Hours; Other — Hours. Core's anomaly rules are unchanged: the map decides what is drawn, Core still says what is off-pattern.
+- P1's map (which columns a type prices), the reference's `COLS` map carried to today's seven types: Replace — Part no., Qty, Unit (£), Hours, Material (£); Repair — Hours, Material (£); R&I — Hours; Paint and Blend — Hours, Paint h, Material (£); Specialist — Qty, Unit (£), Hours, Material (£); Other — Hours. Core's anomaly rules are unchanged: the map decides what is drawn, Core still says what is off-pattern.
 - The Undo toast after a removed line is drawn as `case-workspace.js` draws it (`toast--undo`, v28 P16).
 
 ## 3. Frame rules (numbers)
@@ -39,6 +39,8 @@ The operator's 15 September Case dashboard reference (section 6, Repair specific
 - The Case's one Save records the spec (FRD-16); the mockup commits on change and shows "Saved 09:41".
 - The agreed sum is Case data beside the specification and a different sum is a scaling target (FRD-25); P4 makes the target act.
 - The design authority's absent-versus-disabled rule: Remove scaling appears only when scaled; Compare only with two specs.
+- The operator's request settles the shape of each proposal, and the reference file settles its mechanics (operator, 12 October 2026: "things I tell you to do are not issues to be settled"). Taken from the reference without asking: the rate bar is drawn as well as the head cells ("also"); typing the agreed sum rescales and the mismatch chip rescales on click (`crAmount`, `crMis`); Compare defaults to the last sent version against the working grid, with "Compare with current" on each version row and "Print comparison sheet" (`openCompare`, `openVersions`); the Supplementary panel fills itself after an import against the last sent version, else the grid replaced, with Dismiss (`showSupp`, `renderSupp`); a cell the type does not price reads "—" in the editor and an imported value in one stays amber, never cleared (`COLS`, `cellIn`).
+- Carried to today's columns by judgment, since the reference had neither Part no. nor Paint h nor an Other type: Part no. on Replace only; Paint h on Paint and Blend; Other (a Glass's included operation) prices Hours only.
 
 ## 5. Deliberate departures from live
 
@@ -50,20 +52,13 @@ The operator's 15 September Case dashboard reference (section 6, Repair specific
 
 ## 6. Sign-off list
 
-The five proposals are the request. These are the choices inside them, phrased "Confirm, or …".
+The five proposals are the request and their mechanics are the reference file's (section 4); neither is an item. One item remains.
 
-- **A** (P5). The labour rate and the uplift sit in a bar under the grid and leave the head (`rate:bar`). Confirm, or keep them in the head as well (`rate:both`).
-- **B** (P4). Typing the agreed sum previews the scaling at once (`agreed:preview`). Confirm, or preview only on the button (`agreed:button`), and confirm the button's words "Rescale to agreed sum".
-- **C** (P4). The agreed sum is a box in the Contract repair bar as well as the Decisions cell, one Case field in two places. Confirm, or keep it in Decisions only and have the bar's chip rescale.
-- **D** (P2). Compare opened from More starts at the version the last sent report used against the selected spec's Working draft. Confirm, or start at Choose… as today.
-- **E** (P2). "Compare with current" on every version row, and "Print comparison sheet" on the dialog. Confirm the two labels.
-- **F** (P3). The just-imported spec supplements the version the last sent report used, else the spec it replaced. Confirm, or always the replaced spec.
-- **G** (P3). Dismiss folds the filled panel for that spec while editing (the versions keep the history). Confirm, or no Dismiss.
-- **H** (P1). The type map in section 2 (Other prices Hours only; Specialist Qty, Unit (£), Hours; Part no. on Replace only). Confirm, or amend a row.
-- **I** (P1). An unavailable cell reads as a dash in edit mode too, and a value sitting in one keeps its amber box. Confirm, or blank in edit mode.
-- **J**. Keep or remove this folder in the Stage 2 PR.
+- **A**. Keep or remove this folder in the Stage 2 PR.
 
-Stage 2 consequences recorded per item: FRD-25 "Engineer acts on a spec" sentences for Compare over versions (D, E), the automatic supplementary (F, G) and the agreed-sum preview (B, C); `RepairSpecificationComparison.Compare` over snapshots and a Compare-with-current route; the rate control's placement in `_CaseEstimate.cshtml` (A); the editor's column map in the partial and `case-workspace.js`, with hidden inputs keeping the posted arrays aligned as the included-operation rows do (H, I); no Core totals change.
+*12 October 2026: items A–I of the first draft restated the request and were withdrawn the same day (operator: "things I tell you to do are not issues to be settled"); the mockup now follows the reference on each, and section 4 records what was taken from it.*
+
+Stage 2 consequences: FRD-25 "Engineer acts on a spec" sentences for Compare over versions, the automatic supplementary and the agreed-sum preview; `RepairSpecificationComparison.Compare` over snapshots and a Compare-with-current route; the rate bar in `_CaseEstimate.cshtml`; the editor's column map in the partial and `case-workspace.js`, with hidden inputs keeping the posted arrays aligned as the included-operation rows do; no Core totals change.
 
 ## 7. Self-check
 

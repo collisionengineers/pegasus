@@ -12,9 +12,9 @@ marks only itself and switches off on the proposal; P1 draws dashes for the
 cells a type does not price and keeps an off-pattern value amber; P2 draws
 the side-by-side table, Compare with current on every version row and a
 print sheet that prints the dialog alone; P3 fills Supplementary on the
-imported spec and Dismiss folds it; P4 previews the agreed sum (or offers
-the button) and the Target % preview marks the lowered cells; P5 draws the
-rate bar under the grid and takes the rate out of the head; each dialog
+imported spec and Dismiss folds it; P4 previews the agreed sum as it is typed and the mismatch chip rescales,
+and the Target % preview marks the lowered cells; P5 draws the rate bar
+under the grid as well as the head cells; each dialog
 opens by name. Then it writes the numbered screenshots and
 verification.json. This is evidence about the mockup, not the application.
 
@@ -34,7 +34,7 @@ SHOTS = CURRENT / 'v38-shots'
 PAGE = CURRENT / 'pegasus_repair_spec_v38.html'
 WIDTHS = [(1580, 1000), (1440, 900), (760, 1000)]
 DIALOGS = ['versions-dialog', 'compare-estimates-dialog', 'delete-lines-dialog', 'delete-estimate-dialog']
-VARIABLES = {'cols': ['dash'], 'cmp': ['side'], 'supp': ['auto'], 'agreed': ['preview', 'button'], 'rate': ['bar', 'both']}
+VARIABLES = {'cols': ['dash'], 'cmp': ['side'], 'supp': ['auto'], 'agreed': ['drives'], 'rate': ['both', 'bar']}
 IDS = {'cols': 'P1', 'cmp': 'P2', 'supp': 'P3', 'agreed': 'P4', 'rate': 'P5'}
 
 ok, fail = [], []
@@ -128,7 +128,7 @@ def main():
                         if design == 'proposal':
                             check(f'{tag} marks only the proposals on', set(r['changed']) <= set(r['applied']), sorted(set(r['changed']) - set(r['applied'])))
                             check(f'{tag} P1 dashes', r['na'] > 0, r['na'])
-                            check(f'{tag} P5 rate bar, not in head', r['rateBar'] and not r['rateInHead'] and r['headCells'] == 4, (r['rateBar'], r['rateInHead'], r['headCells']))
+                            check(f'{tag} P5 rate bar under the grid and in the head', r['rateBar'] and r['rateInHead'] and r['headCells'] == 6, (r['rateBar'], r['rateInHead'], r['headCells']))
                             if spec == '2':
                                 check(f'{tag} P3 statement on the imported spec', r['stmt'].startswith('Following receipt of a supplementary estimate'), r['stmt'][:40])
                                 check(f'{tag} P3 changes vs the sent version', 'v2' in r['suppOf'] or 'spec-1:v2' in r['suppOf'], r['suppOf'])
@@ -158,7 +158,7 @@ def main():
 
         # P1: the dash count follows the type map; a Replace line keeps its boxes.
         r = load('design=proposal&mode=edit&spec=1')
-        check('P1 spec 1 dashes (14 lines)', r['na'] == 40, r['na'])
+        check('P1 spec 1 dashes (14 lines)', r['na'] == 38, r['na'])
         n_replace_dash = page.evaluate("[...document.querySelectorAll('#section-estimate tr[data-estimate-line]')].filter(tr => tr.querySelector('select').value === 'Replace').reduce((n, tr) => n + tr.querySelectorAll('td.na').length, 0)")
         check('P1 a Replace line dashes only Paint h', n_replace_dash == 4, n_replace_dash)
         n_ri = page.evaluate("[...document.querySelectorAll('#section-estimate tr[data-estimate-line]')].filter(tr => tr.querySelector('select').value === 'RemoveAndRefit').map(tr => tr.querySelectorAll('td.na').length)")
@@ -202,15 +202,19 @@ def main():
         r = page.evaluate(READ)
         check('today Changes vs a spec fills the statement', r['stmt'].startswith('Following'))
 
-        # P4: the agreed sum previews, or the button does.
+        # P4: the agreed sum previews as it is typed; the mismatch chip rescales.
         r = load('design=proposal&mode=edit&spec=2&sum=2750')
-        check('P4 preview: the sum previews the scaling', r['previewed'] > 0 and r['gross'] == '£2,750.00' and r['previewChip'] is True and r['sumBox'], (r['previewed'], r['gross'], r['previewChip']))
-        check('P4 preview: no mismatch while previewed', r['mismatch'] == '', r['mismatch'])
-        r = load('design=proposal&mode=edit&spec=2&sum=2750&opt=agreed:button')
-        check('P4 button: the chip and Rescale to agreed sum, nothing previewed', r['rescale'] and r['mismatch'].startswith('Spec ') and r['previewed'] == 0, (r['rescale'], r['mismatch'], r['previewed']))
+        check('P4 the sum previews the scaling', r['previewed'] > 0 and r['gross'] == '£2,750.00' and r['previewChip'] is True and r['sumBox'], (r['previewed'], r['gross'], r['previewChip']))
+        check('P4 no mismatch while previewed', r['mismatch'] == '', r['mismatch'])
+        page.fill('[data-contract-sum]', '3000'); page.dispatch_event('[data-contract-sum]', 'change'); page.wait_for_timeout(150)
+        r = page.evaluate(READ)
+        check('P4 typing another sum previews to it (within the live 50p tolerance)', r['previewed'] > 0 and abs(float(r['gross'].replace('£', '').replace(',', '')) - 3000) <= 0.5, (r['previewed'], r['gross']))
+        page.click('[data-remove-line="0"]'); page.wait_for_timeout(150)
+        r = page.evaluate(READ)
+        check('P4 an edit after the preview leaves a mismatch chip that rescales', r['rescale'] and r['mismatch'].startswith('Spec ') and r['previewed'] == 0, (r['rescale'], r['mismatch'], r['previewed']))
         page.click('[data-contract-rescale]'); page.wait_for_timeout(150)
         r = page.evaluate(READ)
-        check('P4 button previews on press', r['previewed'] > 0 and r['gross'] == '£2,750.00', (r['previewed'], r['gross']))
+        check('P4 the chip rescales on press (within the live 50p tolerance)', r['previewed'] > 0 and abs(float(r['gross'].replace('£', '').replace(',', '')) - 3000) <= 0.5, (r['previewed'], r['gross']))
         r = load('design=today&mode=edit&spec=2&sum=2750')
         check('today: the sum is read from Decisions, the chip states the mismatch', not r['sumBox'] and not r['rescale'] and r['mismatch'].startswith('Spec ') and r['previewed'] == 0, (r['sumBox'], r['mismatch']))
         # The Target % preview (live behaviour) marks the lowered cells and reads out.
@@ -220,9 +224,9 @@ def main():
         r = page.evaluate(READ)
         check('Apply records the scaled spec and offers Remove scaling', r['previewed'] == 0 and page.locator('[data-estimate-scaled]').count() == 1 and page.locator('[data-scale-remove]').count() == 1)
 
-        # P5: both.
-        r = load('design=proposal&mode=edit&spec=2&opt=rate:both')
-        check('P5 both: head and bar', r['rateInHead'] and r['rateBar'] and r['headCells'] == 6)
+        # P5: the bar alone.
+        r = load('design=proposal&mode=edit&spec=2&opt=rate:bar')
+        check('P5 bar alone: the rate leaves the head', not r['rateInHead'] and r['rateBar'] and r['headCells'] == 4)
         r = load('design=proposal&mode=read&spec=2')
         check('P5 read: the bar reads as values', r['rateBar'] and not r['liveControls'])
 
@@ -268,8 +272,9 @@ def main():
                 shot(f'{design}-versions', f'design={design}&mode=edit&spec=1&dialog=versions-dialog')
                 shot(f'{design}-sum', f'design={design}&mode=edit&spec=2&sum=2750')
                 shot(f'{design}-scale', f'design={design}&mode=edit&spec=2&scale=60')
-            shot('agreed-button', 'design=proposal&mode=edit&spec=2&sum=2750&opt=agreed:button')
-            shot('rate-both', 'design=proposal&mode=edit&spec=2&opt=rate:both')
+            load('design=proposal&mode=edit&spec=2&sum=2750'); page.click('[data-remove-line="0"]'); page.wait_for_timeout(200)
+            n += 1; path = SHOTS / f'{n:02d}-agreed-rescale-chip.png'; page.screenshot(path=str(path)); names.append(path.name)
+            shot('rate-bar-only', 'design=proposal&mode=edit&spec=2&opt=rate:bar')
             shot('rate-head', 'design=proposal&mode=edit&spec=2&opt=rate:head')
             shot('cols-today-on-proposal', 'design=proposal&mode=edit&spec=2&opt=cols:today')
             shot('supp-read', 'design=proposal&mode=read&spec=2')
