@@ -2007,8 +2007,8 @@ public sealed partial class DetailsModel(
                     else if (sourceId != persisted?.ClaimSource?.ClaimSourceId)
                     {
                         claimSourceChanged = true;
-                        var chosen = (await contactDirectory.ListByRoleAsync(actor, ContactRole.ClaimSource, cancellationToken))
-                            .SingleOrDefault(item => item.OrganizationId == sourceId)
+                        var chosen = await contactDirectory.FindActiveByRoleAsync(
+                                actor, ContactRole.ClaimSource, sourceId, cancellationToken)
                             ?? throw new InvalidOperationException("The selected claim source is not an active Claim source record.");
                         claimSource = new CaseWorkspaceClaimSource(
                             chosen.OrganizationId, chosen.Version, chosen.Name,
@@ -2042,8 +2042,8 @@ public sealed partial class DetailsModel(
                 // Case. Without a link the Case keeps the extracted or keyed
                 // text, and the member of staff saving it is its confirmation.
                 var linkedRepairer = overviewSubmitted && repairerDirectoryId is { } directoryId
-                    ? (await contactDirectory.ListByRoleAsync(actor, ContactRole.Repairer, cancellationToken))
-                        .SingleOrDefault(item => item.OrganizationId == directoryId)
+                    ? await contactDirectory.FindActiveByRoleAsync(
+                            actor, ContactRole.Repairer, directoryId, cancellationToken)
                         ?? throw new InvalidOperationException("The selected repairer is not an active directory Repairer.")
                     : null;
                 // An unposted selector is not an unlink: only the rendered
