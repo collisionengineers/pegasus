@@ -42,6 +42,9 @@
         && state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.ReportSent;
     var canReturnToEngineer = mayAct && state == CaseLifecycleState.ReportSent;
     var canArchive = mayAct && isClosed && workflow.Archive is null;
+    // Archive stays listed but greyed with this reason while the Case has an
+    // open task (operator, 6 October 2026).
+    var openTasksCondition = Model.OpenTasksCondition;
     var canUnlinkEvidence = mayActOnCaseData && workflow.ReportSentEvidence is not null
         && state is not CaseLifecycleState.Held && !isClosed;
     // Send chaser is offered on any open Case (operator, 5 October 2026). It
@@ -263,10 +266,22 @@
                 }
                 @if (canArchive)
                 {
-                    <button type="button" class="btn" data-dialog-open="case-archive-dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
-                        <span>@Frame.ArchiveCase</span>
-                    </button>
+                    @if (openTasksCondition is not null)
+                    {
+                        <span class="menu-gated" title="@openTasksCondition" data-open-tasks-condition="@openTasksCondition">
+                            <button type="button" class="btn" disabled aria-disabled="true" data-archive-case>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
+                                <span>@Frame.ArchiveCase</span>
+                            </button>
+                        </span>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn" data-dialog-open="case-archive-dialog">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
+                            <span>@Frame.ArchiveCase</span>
+                        </button>
+                    }
                 }
                 @if (canUnlinkEvidence)
                 {

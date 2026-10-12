@@ -10,7 +10,8 @@ namespace Pegasus.Web.Presentation;
 /// One step of a Case's Next action: its words, the section its link opens,
 /// the blocker it names while the report is not ready, and whether it opens
 /// the Actions menu's Create audit or Assign Engineer dialog, or is Resolve
-/// query, rather than a section.
+/// query, rather than a section, or is the Case's open tasks, which the
+/// Next action lists in its place (operator, 6 October 2026).
 /// </summary>
 public sealed record CaseNextActionStep(
     string Label,
@@ -18,7 +19,8 @@ public sealed record CaseNextActionStep(
     AssessmentReadinessItem? Blocker = null,
     bool OpensCreateAudit = false,
     bool OpensAssignEngineer = false,
-    bool ResolvesQuery = false);
+    bool ResolvesQuery = false,
+    bool ListsOpenTasks = false);
 
 /// <summary>
 /// The one Next action of a Case: the Case page's aside states it and the
@@ -37,8 +39,9 @@ public static class CaseNextAction
     /// at the Report section when that blocker has none, and carries that
     /// blocker. Once the report is stored, an Inspection + Audit Case without
     /// its Audit creates it next, whether or not the report is sent; any
-    /// other Case sends the report, and has no step once a send of it is
-    /// accepted (operator, 12 October 2026).
+    /// other Case sends the report, and once a send of it is accepted its
+    /// step is its open tasks while it has any (operator, 6 October 2026),
+    /// else none (operator, 12 October 2026).
     /// </summary>
     /// <param name="caseType">The Case's type: Create audit follows the stored report of an Inspection + Audit Case.</param>
     /// <param name="works">The Case's works; null reads as the primary work alone.</param>
@@ -46,6 +49,7 @@ public static class CaseNextAction
     /// <param name="reportBlockers">The report readiness items; empty when the report is ready or its readiness was not read.</param>
     /// <param name="blockerSection">The section that clears a blocker on this Case, or null.</param>
     /// <param name="reportSent">Whether a send of the current work's report was accepted: Pegasus's own send record, which the Sent evidence follows.</param>
+    /// <param name="hasOpenTasks">Whether the Case has an open task; read once the report is sent.</param>
     public static CaseNextActionStep Of(
         CaseWorkflowRecord workflow,
         CaseType caseType,
@@ -54,7 +58,8 @@ public static class CaseNextAction
         IReadOnlyList<AssessmentReadinessItem> reportBlockers,
         Func<AssessmentReadinessItem, string?> blockerSection,
         CaseReportGenerationRecord? currentReport,
-        bool reportSent)
+        bool reportSent,
+        bool hasOpenTasks = false)
     {
         ArgumentNullException.ThrowIfNull(workflow);
         ArgumentNullException.ThrowIfNull(reportBlockers);
@@ -70,7 +75,7 @@ public static class CaseNextAction
         return ReportStep(reportBlockers, blockerSection, currentReport)
             ?? AuditStep(workflow, caseType, works)
             ?? (workflow.ReportSentEvidence is not null || reportSent
-                ? new("None", "notes")
+                ? AfterTheSend(hasOpenTasks)
                 : DeliveryStep);
     }
 
@@ -165,6 +170,14 @@ public static class CaseNextAction
 
     private static CaseNextActionStep DeliveryStep =>
         new(CaseWorkspaceLabels.ReportDelivery.SendReport, "report");
+
+    // Once the report is sent, the Case's open tasks are what is left to do;
+    // the Next action lists them, each a link to Tasks (operator, 6 October
+    // 2026). With none, nothing is (operator, 12 October 2026).
+    private static CaseNextActionStep AfterTheSend(bool hasOpenTasks) =>
+        hasOpenTasks
+            ? new(OperatorLabels.WorkCentre.OpenTasks, "tasks", ListsOpenTasks: true)
+            : new("None", "notes");
 
     // What follows the stored report of an Inspection + Audit Case that has
     // no Audit yet: Create audit, offered even without an Engineer, where the

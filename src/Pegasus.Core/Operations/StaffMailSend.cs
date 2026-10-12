@@ -78,7 +78,15 @@ public sealed record StaffMailSendCommand(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     bool ResolvesCaseQueries = false,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    StaffMailSecondReport? SecondReport = null);
+    StaffMailSecondReport? SecondReport = null)
+{
+    /// <summary>
+    /// What a report send records with its operation; null for every other
+    /// purpose, and then left out of the payload hash like the two above.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ReportDispatchRecord? ReportDispatch { get; init; }
+}
 
 /// <summary>
 /// The second report generation one Case report send carries, at the version

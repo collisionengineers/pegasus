@@ -47,6 +47,8 @@ public sealed class WorkCentreStatementCountWebTests
         // no count or read of the Automation actor's changes.
         // Counting each Activity figure in SQL on its own context (10 October 2026)
         // sends two COUNT commands per figure, ten rather than five: 28 to 33.
+        // Open tasks (operator, 6 October 2026) add the one read of the open
+        // Case tasks.
         Assert.True(
             counter.Count == WorkCentreCommands,
             $"A full Work Centre load sent {counter.Count} SQL commands; it is pinned at {WorkCentreCommands}." + Environment.NewLine + counter.Describe());
@@ -57,5 +59,6 @@ public sealed class WorkCentreStatementCountWebTests
     // - 1 (#1198: the password-change redirect reads the account the cookie check read).
     // - 2 (PR 1271: the Completed figure is gone, two COUNT commands fewer; the stage
     //   counts stay one statement, grouped by state and open-query mark).
-    private const int WorkCentreCommands = 26;
+    // + 1 (#1015: the one read of the open Case tasks for the Open tasks rows).
+    private const int WorkCentreCommands = 27;
 }

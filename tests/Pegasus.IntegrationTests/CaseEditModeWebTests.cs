@@ -808,14 +808,14 @@ public sealed class CaseEditModeWebTests
 
 
     [Fact]
-    public async Task HoldingTheEditLeaseDefersOnlyFilesNotesAndQueriesAndKeepsTheSingleEditorComplete()
+    public async Task HoldingTheEditLeaseDefersOnlyFilesNotesTasksAndQueriesAndKeepsTheSingleEditorComplete()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, _ => { });
 
         var html = await workspace.GetWorkspaceAsync();
 
-        Assert.Equal(["files", "notes", "queries"], DeferredSections(html));
+        Assert.Equal(["files", "notes", "tasks", "queries"], DeferredSections(html));
         Assert.Contains("id=\"section-files\"", html, StringComparison.Ordinal);
         Assert.Contains("id=\"section-notes\"", html, StringComparison.Ordinal);
         Assert.Contains("id=\"section-queries\"", html, StringComparison.Ordinal);

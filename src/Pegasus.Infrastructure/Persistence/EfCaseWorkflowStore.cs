@@ -742,10 +742,12 @@ public sealed class EfCaseWorkflowStore(
             }
         }, cancellationToken);
 
-    public Task<CaseWorkflowRecord> LinkReportEvidenceAsync(
+    public async Task<LinkReportEvidenceResult> LinkReportEvidenceAsync(
         LinkReportEvidenceRequest request,
-        CancellationToken cancellationToken) =>
-        MutateAsync(request, "report_evidence_linked", async (context, workflow, now) =>
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<CaseTaskRecord> tasksCreated = [];
+        var linked = await MutateAsync(request, "report_evidence_linked", async (context, workflow, now) =>
         {
             var pastWork = await PastWorkAsync(context, workflow.CaseId, request.Work, cancellationToken);
             var evaluation = await EvaluateReportEvidenceLinkAsync(
@@ -761,7 +763,30 @@ public sealed class EfCaseWorkflowStore(
             }
 
             ApplyReportEvidenceLink(workflow, pastWork, evaluation.Evidence, request.Actor, now);
-        }, cancellationToken);
+        },
+        cancellationToken,
+        afterEvent: async (context, workflow, now) =>
+        {
+            // Report sent creates the after-send tasks the send recorded, when the linked
+            // Sent item is a Pegasus report send. They are a consequence of the recorded
+            // Sent item, which this transaction records.
+            var send = await ReportSentAfterSendTasks.SendOfSentEvidenceAsync(
+                context,
+                workflow.CaseId,
+                request.EvidenceId,
+                cancellationToken);
+            tasksCreated = await ReportSentAfterSendTasks.AddAsync(
+                context,
+                workflow,
+                send,
+                request.EvidenceId,
+                request.OperationKey,
+                request.Actor,
+                now,
+                cancellationToken);
+        });
+        return new(linked, tasksCreated);
+    }
 
     /// <summary>
     /// The work a report action addresses when it is not the Case's current
@@ -1197,7 +1222,8 @@ public sealed class EfCaseWorkflowStore(
         string eventType,
         Func<PegasusDbContext, CaseWorkflowEntity, DateTimeOffset, Task> apply,
         CancellationToken cancellationToken,
-        string? discriminator = null)
+        string? discriminator = null,
+        Func<PegasusDbContext, CaseWorkflowEntity, DateTimeOffset, Task>? afterEvent = null)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
@@ -1278,6 +1304,11 @@ public sealed class EfCaseWorkflowStore(
             now,
             beforeJson,
             afterJson);
+        if (afterEvent is not null)
+        {
+            await afterEvent(context, workflow, now);
+        }
+
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(workflow);
@@ -1427,11 +1458,25 @@ public sealed class EfCaseWorkflowStore(
             now,
             beforeJson,
             afterJson);
+        // Report sent creates the after-send tasks the send recorded. The Worker holds no
+        // lease, and the tasks are a consequence of the Sent item this transaction records.
+        var tasksCreated = await ReportSentAfterSendTasks.AddAsync(
+            context,
+            workflow,
+            request.SendOperationId is { } sendOperationId
+                ? await ReportSentAfterSendTasks.SendAsync(context, workflow.CaseId, sendOperationId, cancellationToken)
+                : null,
+            request.EvidenceId,
+            operationKey,
+            request.Actor,
+            now,
+            cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return linkable.Any(link => link.Work is null)
+        var committed = linkable.Any(link => link.Work is null)
             ? AutoLinkLinked(workflow)
             : AutoLinkLinkedOnPastWork(workflow, request.EvidenceId);
+        return committed with { TasksCreated = tasksCreated };
     }
 
     private static Task<bool> IsGenerationOfCaseAsync(

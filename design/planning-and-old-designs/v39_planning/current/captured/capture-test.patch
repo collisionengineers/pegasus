@@ -1,0 +1,109 @@
+diff --git a/tests/Pegasus.IntegrationTests/CaseTasksWebTests.cs b/tests/Pegasus.IntegrationTests/CaseTasksWebTests.cs
+index 51c7bf68a..9ad103e6a 100644
+--- a/tests/Pegasus.IntegrationTests/CaseTasksWebTests.cs
++++ b/tests/Pegasus.IntegrationTests/CaseTasksWebTests.cs
+@@ -340,6 +340,7 @@ public sealed class CaseTasksWebTests
+ 
+         var html = WebUtility.HtmlDecode(
+             await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=tasks"));
++        PageCapture.Save("tasks-edit", await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=tasks"));
+ 
+         var section = Section(html, "section-tasks-title");
+         Assert.Contains("Send the figures to the garage", section, StringComparison.Ordinal);
+@@ -374,6 +375,7 @@ public sealed class CaseTasksWebTests
+         using var read = await workspace.Client.GetAsync($"/Cases/{store.CaseId:D}/Section?section=tasks");
+         Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+         var fragment = WebUtility.HtmlDecode(await read.Content.ReadAsStringAsync());
++        PageCapture.Save("tasks-fragment-read", await read.Content.ReadAsStringAsync());
+         Assert.Contains("Send the figures to the garage", fragment, StringComparison.Ordinal);
+         Assert.DoesNotContain("handler=CompleteCaseTask", fragment, StringComparison.Ordinal);
+         Assert.DoesNotContain("handler=AssignCaseTask", fragment, StringComparison.Ordinal);
+diff --git a/tests/Pegasus.IntegrationTests/CaseViewsWebTests.cs b/tests/Pegasus.IntegrationTests/CaseViewsWebTests.cs
+index 467001b01..3d8b26888 100644
+--- a/tests/Pegasus.IntegrationTests/CaseViewsWebTests.cs
++++ b/tests/Pegasus.IntegrationTests/CaseViewsWebTests.cs
+@@ -580,6 +580,7 @@ public sealed class CaseViewsWebTests
+         });
+ 
+         var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
++        PageCapture.Save("blocker-next-action", html);
+ 
+         var next = NextAction(html);
+         Assert.Contains($"<span data-next-label>{Frame.MarkCompleted}</span>", next, StringComparison.Ordinal);
+@@ -625,7 +626,9 @@ public sealed class CaseViewsWebTests
+                 services,
+                 new PageFrameWithOpenTasks(store, [new(Guid.NewGuid(), "Return the keys")])));
+ 
+-        var bar = RecordBar(await host.ReadAsync($"/Cases/{store.CaseId:D}"));
++        var archivePage = await host.ReadAsync($"/Cases/{store.CaseId:D}");
++        PageCapture.Save("blocker-archive", archivePage);
++        var bar = RecordBar(archivePage);
+ 
+         Assert.Contains($"<span class=\"menu-gated\" title=\"{condition}\" data-open-tasks-condition=\"{condition}\">", bar, StringComparison.Ordinal);
+         Assert.Contains("disabled aria-disabled=\"true\" data-archive-case>", bar, StringComparison.Ordinal);
+diff --git a/tests/Pegasus.IntegrationTests/OrganizationAdministrationWebTests.cs b/tests/Pegasus.IntegrationTests/OrganizationAdministrationWebTests.cs
+index a4ceafbcb..22bb5e5af 100644
+--- a/tests/Pegasus.IntegrationTests/OrganizationAdministrationWebTests.cs
++++ b/tests/Pegasus.IntegrationTests/OrganizationAdministrationWebTests.cs
+@@ -266,6 +266,13 @@ public sealed partial class OrganizationAdministrationWebTests
+         var ruleCount = $"SELECT COUNT(*) FROM OPENJSON((SELECT ReportSendingRulesJson FROM Principals WHERE Id = '{principalId:D}'), '$.rules');";
+ 
+         var html = await EditContactAsync(client, path);
++        PageCapture.Save("contact-kerr-edit", html);
++        foreach (var code in new[] { "DFD", "MP", "AX", "QDOS", "PCH", "RJS" })
++        {
++            var other = await factory.Database.ScalarAsync<Guid>(
++                $"SELECT OrganizationId FROM Principals WHERE Code = '{code}';");
++            PageCapture.Save($"contact-{code.ToLowerInvariant()}-read", await client.GetStringAsync($"/Administration/Contacts/Edit/{other:D}"));
++        }
+         Assert.True(
+             html.IndexOf("Report generation", StringComparison.Ordinal) < html.IndexOf("Report sending", StringComparison.Ordinal),
+             "The Report sending panel follows Report generation.");
+diff --git a/tests/Pegasus.IntegrationTests/Reports/CaseReportDeliveryWebTests.cs b/tests/Pegasus.IntegrationTests/Reports/CaseReportDeliveryWebTests.cs
+index 6010d7555..65bc28c88 100644
+--- a/tests/Pegasus.IntegrationTests/Reports/CaseReportDeliveryWebTests.cs
++++ b/tests/Pegasus.IntegrationTests/Reports/CaseReportDeliveryWebTests.cs
+@@ -819,6 +819,7 @@ public sealed partial class AssessmentReportDraftWebTests
+         using var client = Client(factory);
+ 
+         var html = WebUtility.HtmlDecode(await EnterEditModeAsync(client, caseId));
++        PageCapture.Save("delivery-rules", await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+ 
+         var form = FormHtml(html, "SendReport");
+         Assert.Contains(
+@@ -917,6 +918,7 @@ public sealed partial class AssessmentReportDraftWebTests
+         using var client = Client(factory);
+ 
+         var html = WebUtility.HtmlDecode(await EnterEditModeAsync(client, caseId));
++        PageCapture.Save("delivery-stop", await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+ 
+         var form = FormHtml(html, "SendReport");
+         Assert.Contains(
+@@ -963,6 +965,7 @@ public sealed partial class AssessmentReportDraftWebTests
+         using var client = Client(factory);
+ 
+         var html = WebUtility.HtmlDecode(await EnterEditModeAsync(client, caseId));
++        PageCapture.Save("delivery-missing-companion", await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+ 
+         var form = FormHtml(html, "SendReport");
+         Assert.Contains("data-report-missing-companion=\"ImagePack\"", form, StringComparison.Ordinal);
+@@ -1138,6 +1141,7 @@ public sealed partial class AssessmentReportDraftWebTests
+         using var client = Client(factory);
+ 
+         var html = await EnterEditModeAsync(client, caseId);
++        PageCapture.Save("delivery-plain", await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+ 
+         var form = FormHtml(html, "SendReport");
+         Assert.Contains("data-send-report", form, StringComparison.Ordinal);
+diff --git a/tests/Pegasus.IntegrationTests/WorkCentreWebTests.cs b/tests/Pegasus.IntegrationTests/WorkCentreWebTests.cs
+index a76b6656c..a43d3a731 100644
+--- a/tests/Pegasus.IntegrationTests/WorkCentreWebTests.cs
++++ b/tests/Pegasus.IntegrationTests/WorkCentreWebTests.cs
+@@ -261,6 +261,7 @@ public sealed class WorkCentreWebTests
+         using var client = Client(host);
+ 
+         var html = await GetOkAsync(client, $"/?selected={caseId:D}");
++        PageCapture.Save("work-centre-tasks-row", html);
+ 
+         Assert.Contains($"data-wc-row=\"{caseId}\" data-wc-row-kind=\"tasks\"", html, StringComparison.Ordinal);
+         Assert.Contains(HtmlEncoder.Default.Encode("Chase the payment (+2 more)"), html, StringComparison.Ordinal);

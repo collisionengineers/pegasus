@@ -238,7 +238,11 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261012120000_SupplementaryOfSnapshot",
                 "20261012120000_WorkerObservesReportSends",
                 "20261012130000_ReportSendCarriesSecondReport",
-                "20261012180000_FlatMailCategory"
+                "20261012180000_FlatMailCategory",
+                "20261012190000_PrincipalReportSendingRules",
+                "20261012191000_ReportDispatchRecord",
+                "20261012192000_GrantWorkerCaseTasksForReportSent",
+                "20261012193000_SentReportInstructionMove"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -455,12 +459,14 @@ public sealed class IntakePersistenceIntegrationTests
             WHERE object_id = OBJECT_ID(N'WorkflowConfigurations')
               AND name IN (N'RequireInstructions', N'RequireImages', N'ChaseIntervalDays')
             """));
-        Assert.Equal(2, await database.ScalarAsync<int>(
+        Assert.Equal(0, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM sys.columns
             WHERE object_id = OBJECT_ID(N'Principals')
               AND name IN (N'IncludeOriginalInstructionSender', N'ReportRecipientAddressesJson')
             """));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'Principals') AND name = N'ReportSendingRulesJson' AND is_nullable = 0"));
         Assert.Equal(0, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM sys.columns

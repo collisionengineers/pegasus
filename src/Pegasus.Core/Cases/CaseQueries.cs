@@ -276,7 +276,9 @@ public sealed record GetCaseSectionQuery(
 /// <summary>
 /// The Case page's first-response frame. It keeps the identity, workflow,
 /// accepted data and report files that the permanently rendered page consumes,
-/// but deliberately excludes deferred section bodies.
+/// but deliberately excludes deferred section bodies. <see cref="OpenTasks"/>
+/// are the Case's open tasks, oldest first, once Report sent is recorded; none
+/// (null or empty) before.
 /// </summary>
 public sealed record CasePageFrame(
     CaseSectionFrame Frame,
@@ -285,7 +287,8 @@ public sealed record CasePageFrame(
     CaseRecordNotes RecordNotes,
     CaseDataProjection Data,
     Guid? CancellationMessageId = null,
-    IReadOnlyList<CaseLinkedTriage>? LinkedTriage = null)
+    IReadOnlyList<CaseLinkedTriage>? LinkedTriage = null,
+    IReadOnlyList<CaseOpenTask>? OpenTasks = null)
 {
     public CaseSearchItem Summary => Frame.Summary;
     public CaseWorkflowRecord Workflow => Frame.Workflow;
@@ -300,6 +303,7 @@ public sealed record CasePageFrame(
 /// cref="LinkedCancellationMessageId"/> is the newest retained message currently
 /// linked to the Case whose current classification is a received cancellation;
 /// the store reads it only while <see cref="CaseCancellationNotice.Applies"/>.
+/// The store reads <see cref="OpenTasks"/> only once Report sent is recorded.
 /// </summary>
 public sealed record CasePageFrameData(
     CaseSectionFrame Frame,
@@ -307,7 +311,8 @@ public sealed record CasePageFrameData(
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
     CaseRecordNotes RecordNotes,
     Guid? LinkedCancellationMessageId = null,
-    IReadOnlyList<CaseLinkedTriage>? LinkedTriage = null)
+    IReadOnlyList<CaseLinkedTriage>? LinkedTriage = null,
+    IReadOnlyList<CaseOpenTask>? OpenTasks = null)
 {
     /// <summary>The oldest open query, read only while the workflow says the Case has one.</summary>
     public CaseOpenQueryRoute? OldestOpenQuery { get; init; }
@@ -363,6 +368,15 @@ public sealed record CaseNotesSection(
 public sealed record CaseQueriesSection(
     CaseSectionFrame Frame,
     IReadOnlyList<CaseQueryItem> Queries);
+
+/// <summary>
+/// The Tasks body source (CASE-20): the Case's tasks, open ones first, and the operator-facing
+/// names of the staff they are assigned to.
+/// </summary>
+public sealed record CaseTasksSection(
+    CaseSectionFrame Frame,
+    IReadOnlyList<CaseTaskRecord> Tasks,
+    IReadOnlyDictionary<Guid, string> AssigneeNames);
 
 /// <summary>
 /// The Files body source. Documents and correspondence belong together because
@@ -628,6 +642,11 @@ public interface IGetCaseQueriesSection
     Task<CaseQueriesSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken);
 }
 
+public interface IGetCaseTasksSection
+{
+    Task<CaseTasksSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken);
+}
+
 public interface IGetCaseFilesSection
 {
     Task<CaseFilesSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken);
@@ -679,7 +698,8 @@ public sealed class GetCasePageFrame(
             frame.RecordNotes,
             data,
             CaseCancellationNotice.Applies(frame.Frame.Workflow) ? frame.LinkedCancellationMessageId : null,
-            frame.LinkedTriage);
+            frame.LinkedTriage,
+            frame.OpenTasks);
     }
 }
 
@@ -794,6 +814,29 @@ public sealed class GetCaseQueriesSection(
         Enum.TryParse<ActorKind>(kind, out var parsed)
             ? ActorDisplayNames.Resolve(parsed, subject, names)
             : ActorDisplayNames.UnknownStaff;
+}
+
+public sealed class GetCaseTasksSection(
+    ICaseQueryStore store,
+    ICaseTaskQueries tasks,
+    IStaffAccountQueries staffAccounts) : IGetCaseTasksSection
+{
+    public async Task<CaseTasksSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
+    {
+        CaseSectionQueries.Validate(query);
+        var frame = query.Frame ?? await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        if (frame is null)
+        {
+            return null;
+        }
+
+        var listed = await tasks.ListAsync(query.CaseId, cancellationToken);
+        var names = await ActorDisplayNames.ResolveStaffNamesAsync(
+            staffAccounts,
+            listed.Where(task => task.AssigneeId is not null).Select(task => task.AssigneeId!.Value),
+            cancellationToken);
+        return new(frame, listed, names);
+    }
 }
 
 public sealed class GetCaseFilesSection(ICaseQueryStore store) : IGetCaseFilesSection

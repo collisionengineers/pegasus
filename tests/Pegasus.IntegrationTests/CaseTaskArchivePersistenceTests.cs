@@ -168,7 +168,7 @@ public sealed class CaseTaskArchivePersistenceTests
                     outcome),
                 default));
 
-        Assert.Contains("open case task", error.Message, StringComparison.Ordinal);
+        Assert.Equal(CaseTaskRules.OpenTasksBlockTerminal, error.Message);
         var retained = await harness.WorkflowStore.GetAsync(harness.TaskCaseId, default);
         Assert.Equal(CaseLifecycleState.Review, retained?.State);
         Assert.Equal(0, retained?.Version);
@@ -198,7 +198,7 @@ public sealed class CaseTaskArchivePersistenceTests
                     lease.Token),
                 default));
 
-        Assert.Contains("open case task", error.Message, StringComparison.Ordinal);
+        Assert.Equal(CaseTaskRules.OpenTasksBlockTerminal, error.Message);
     }
 
     [Fact]

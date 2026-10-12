@@ -25,6 +25,10 @@ internal static class V1FoundationModelConfiguration
             // The Work Centre's Reports sent figure reads sent report e-mails by time.
             e.HasIndex(x => new { x.Purpose, x.State, x.ObservedSentAtUtc });
             e.Property(x => x.ActorKind).HasConversion<string>().HasMaxLength(40);
+            e.HasIndex(x => new { x.Purpose, x.State }).HasFilter("[InstructionMoveState] IS NULL");
+            e.Property(x => x.InstructionMoveState).HasMaxLength(20);
+            e.Property(x => x.InstructionMoveFailureCode).HasMaxLength(100);
+            e.Property(x => x.InstructionMoveAttempts).HasDefaultValue(0);
             e.Property(x => x.ActorSubjectId).HasMaxLength(200); e.Property(x => x.OperationKey).HasMaxLength(100);
             e.Property(x => x.PayloadHash).HasMaxLength(64).IsFixedLength(); e.Property(x => x.CorrelationMarker).HasMaxLength(100);
             e.Property(x => x.ObservedSentImmutableMessageId).HasMaxLength(500);

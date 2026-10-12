@@ -67,7 +67,9 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
     /// Overview and prints it nowhere else (operator, 7 October 2026); the
     /// image pack prints every image in the grid. Full page has no effect on
     /// the Overview. Each image is opened, prepared and let go of before the
-    /// next is opened.
+    /// next is opened. A report generated without vehicle images opens none:
+    /// it has no lead and no image pages, and its image pack still prints
+    /// every image.
     /// </summary>
     private static async Task<PreparedReportImages> PrepareAsync(
         AssessmentReportSnapshot snapshot, CaseReportArtifactKind kind, CancellationToken cancellationToken)
@@ -75,6 +77,10 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
         if (kind == CaseReportArtifactKind.FeeNote)
         {
             return new(null, [], [], ReportResources.Logo());
+        }
+        if (kind == CaseReportArtifactKind.AssessmentReport && !snapshot.IncludeVehicleImages)
+        {
+            return new(null, [], PrepareSignature(snapshot.Signatory), ReportResources.Logo());
         }
         var ordered = snapshot.OrderedPhotos;
         var overview = ordered.FirstOrDefault(photo => photo.Role == CaseAssetReportRole.Overview);

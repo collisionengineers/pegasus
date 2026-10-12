@@ -617,6 +617,13 @@ function Get-MigrationPermissionMatrix {
     # to the primary work once the Audit exists.
     $expected.Add('pegasus_worker_runtime_role|G|INSERT|CaseRepairSpecificationSnapshots')
     $expected.Add('pegasus_worker_runtime_role|G|UPDATE|CaseWorks')
+    # 20261012192000_GrantWorkerCaseTasksForReportSent: the Worker's Sent-evidence
+    # link creates the after-send tasks the send recorded, in the same transaction
+    # as Report sent. It inserts the tasks; it never updates or deletes one.
+    foreach ($permission in @('SELECT', 'INSERT')) {
+        $expected.Add("pegasus_worker_runtime_role|G|$permission|CaseTasks")
+    }
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|CaseTasks')
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier
     # migrations this matrix reads still name them, and SQL Server keeps a
     # table's permission rows across a rename, so the rows read here are the

@@ -266,6 +266,7 @@ public static class DependencyInjection
         services.AddScoped<ICaseChaserRecipientQueries, EfCaseChaserRecipientQueries>();
         services.AddScoped<IPrincipalSalvageMatrixQueries, EfPrincipalSalvageMatrixQueries>();
         services.AddScoped<ICaseReportSendHistoryQueries, EfCaseReportSendHistoryQueries>();
+        services.AddScoped<IFiledEstimateAttachmentQueries, EfFiledEstimateAttachmentQueries>();
         // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
         // hosts) that never compose ASP.NET Identity. The administration and
         // per-user credential surfaces live in AddPegasusStaffIdentity.
@@ -309,6 +310,7 @@ public static class DependencyInjection
         services.AddScoped<IReplacePrincipal, ReplacePrincipal>();
         services.AddScoped<IUpdatePrincipalReportSettings, UpdatePrincipalReportSettings>();
         services.AddScoped<IUpdatePrincipalSalvageMatrix, UpdatePrincipalSalvageMatrix>();
+        services.AddScoped<IUpdatePrincipalReportSending, UpdatePrincipalReportSending>();
         services.AddScoped<EfStandaloneAuditEvidenceStore>();
         services.AddScoped<IRecordAutomaticStandaloneAuditEvidence>(
             provider => provider.GetRequiredService<EfStandaloneAuditEvidenceStore>());
@@ -443,6 +445,7 @@ public static class DependencyInjection
         services.AddScoped<IGetCaseValuationSection, GetCaseValuationSection>();
         services.AddScoped<IGetCaseNotesSection, GetCaseNotesSection>();
         services.AddScoped<IGetCaseQueriesSection, GetCaseQueriesSection>();
+        services.AddScoped<IGetCaseTasksSection, GetCaseTasksSection>();
         services.AddScoped<IGetCaseFilesSection, GetCaseFilesSection>();
         services.AddScoped<IValidateCaseRenderLease, ValidateCaseRenderLease>();
         services.AddScoped<IListCaseReferences, ListCaseReferences>();
@@ -985,6 +988,9 @@ public static class DependencyInjection
             provider.GetRequiredService<TokenCredential>(),
             provider.GetRequiredService<GraphApprovedMailboxOptions>().BaseUri,
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(GraphMailClient))));
+        // The Worker alone may move a retained message: it tidies the instruction a
+        // confirmed report send answered (ADR-0071). Web composes no mover.
+        services.Replace(ServiceDescriptor.Singleton<ISentReportInstructionMover, GraphSentReportInstructionMover>());
         AddStaffMailSending(services);
         services.AddSingleton<GraphMailboxChangeSubscriptions>();
         services.AddSingleton<IApprovedInboxSource, GraphApprovedInboxSource>();
@@ -1017,6 +1023,20 @@ public static class DependencyInjection
             provider.GetRequiredService<DvlaDvsaProductionOptions>(),
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(DvlaDvsaProductionAdapter)),
             provider.GetRequiredService<TimeProvider>()));
+        return services;
+    }
+
+    /// <summary>
+    /// The Worker's tidy of a sent report's answered instruction (ADR-0071). It runs
+    /// in both Worker profiles; the offline profile has the unavailable mover, so
+    /// the use case does nothing there.
+    /// </summary>
+    public static IServiceCollection AddSentReportInstructionTidy(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton<ISentReportInstructionMover, UnavailableSentReportInstructionMover>();
+        services.AddScoped<ISentReportInstructionTidyStore, EfSentReportInstructionTidyStore>();
+        services.AddScoped<TidySentReportInstructions>();
         return services;
     }
 
