@@ -429,7 +429,8 @@ public sealed class MailWorkspaceWebTests
     // 24 before #1179 (the rail no longer counts Awaiting instruction) and #1181 (the Inbox list trims).
     private const int InboxListCommands = 19;
 
-    private const int InboxPreviewCommands = 9;
+    // 9 before #1305 (the preview no longer reads the Outlook folder recommendation).
+    private const int InboxPreviewCommands = 8;
 
     [Fact]
     public async Task ExactMessageCanBeSearchedLinkedUnlinkedAndLinkedToAReplacement()
