@@ -108,10 +108,6 @@ public sealed class CaseChaserRecipientQueriesPersistenceTests
                 SequenceLineageId = lineageId,
                 Code = "CHSR",
                 IsActive = true,
-                // Report-delivery policy only: the chaser reads the sender
-                // whatever this says.
-                IncludeOriginalInstructionSender = false,
-                ReportRecipientAddressesJson = "[]",
                 Version = 0
             });
         await context.SaveChangesAsync();

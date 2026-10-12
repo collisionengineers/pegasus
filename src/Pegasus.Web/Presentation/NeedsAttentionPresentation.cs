@@ -21,6 +21,7 @@ public static class NeedsAttentionPresentation
         NeedsAttentionKind.VehicleImagesPaired,
         NeedsAttentionKind.Unidentified,
         NeedsAttentionKind.Triage,
+        NeedsAttentionKind.OpenTasks,
         NeedsAttentionKind.AiDraft
     ];
 
@@ -41,6 +42,7 @@ public static class NeedsAttentionPresentation
         NeedsAttentionKind.VehicleImagesPaired => "images",
         NeedsAttentionKind.Unidentified => "unidentified",
         NeedsAttentionKind.Triage => "triage",
+        NeedsAttentionKind.OpenTasks => "tasks",
         NeedsAttentionKind.AiDraft => "ai",
         _ => kind.ToString().ToLowerInvariant()
     };
@@ -60,6 +62,7 @@ public static class NeedsAttentionPresentation
         NeedsAttentionKind.AiDraft => Labels.AiDraftAction(item.Source),
         NeedsAttentionKind.ReviewCase => "Review Case",
         NeedsAttentionKind.UnassignedEngineer => Labels.AssignEngineer,
+        NeedsAttentionKind.OpenTasks => Labels.OpenTasks,
         _ => Labels.OpenCase
     };
 
@@ -97,6 +100,7 @@ public static class NeedsAttentionPresentation
         NeedsAttentionKind.Unidentified => OperatorLabels.UnidentifiedReason(item.Reason),
         NeedsAttentionKind.Triage => Labels.TriageTitle(item.Reason),
         NeedsAttentionKind.AiDraft => Labels.AiDraftTitle(item.Title),
+        NeedsAttentionKind.OpenTasks => Labels.OpenTasksTitle(item.Reason, item.MoreCount),
         _ => item.Title
     };
 
@@ -134,7 +138,8 @@ public static class NeedsAttentionPresentation
         var subject = item.Kind switch
         {
             NeedsAttentionKind.HeldDecision => new WorkCentreFact("Claimant", item.Title),
-            NeedsAttentionKind.ReviewCase or NeedsAttentionKind.UnassignedEngineer => new WorkCentreFact("Vehicle", item.Title),
+            NeedsAttentionKind.ReviewCase or NeedsAttentionKind.UnassignedEngineer or NeedsAttentionKind.OpenTasks =>
+                new WorkCentreFact("Vehicle", item.Title),
             NeedsAttentionKind.Unidentified => new WorkCentreFact("Source", item.Title),
             NeedsAttentionKind.Triage => new WorkCentreFact("Registration", item.Title, Mono: true),
             NeedsAttentionKind.VehicleImagesPaired => new WorkCentreFact("Image reference", item.Title, Mono: true),
@@ -144,7 +149,7 @@ public static class NeedsAttentionPresentation
         var second = item.Kind switch
         {
             NeedsAttentionKind.HeldDecision or NeedsAttentionKind.ReviewCase or NeedsAttentionKind.UnassignedEngineer
-                or NeedsAttentionKind.VehicleImagesPaired =>
+                or NeedsAttentionKind.VehicleImagesPaired or NeedsAttentionKind.OpenTasks =>
                 new WorkCentreFact("Principal", item.Detail),
             NeedsAttentionKind.Unidentified => new WorkCentreFact("Sender", item.Detail),
             NeedsAttentionKind.AiDraft => new WorkCentreFact("Instruction", item.Detail),

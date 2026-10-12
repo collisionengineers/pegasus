@@ -29,7 +29,7 @@
 ## Purpose
 
 This document says how the Case record page behaves: its ribbon, edit
-session, Actions menu, ten sections and the Engineer workbench. Lifecycle
+session, Actions menu, twelve sections and the Engineer workbench. Lifecycle
 rules are owned by [FRD-13](frd-13-case-lifecycle-and-workflow.md). Edit
 leases are owned by [FRD-14](frd-14-record-edit-leases.md). Visual and
 component rules are owned by [design](../design/README.md).
@@ -142,12 +142,17 @@ action once the report is stored (operator, 27 September 2026), and it is
 **None** once a send of the report is accepted: the step follows Pegasus's
 own send record, not the Sent poll, while the Case state still moves to
 Report sent when the Sent item is observed (operator, 11 and 12 October
-2026).
+2026). Once Report sent is recorded and the Case has an open task, the
+Case's open tasks are the step in place of None ([Tasks](#tasks); operator,
+6 October 2026).
 On a Report sent Case with an open query the step is **Resolve query**,
 before any report step: when the oldest open query came by e-mail and staff
 mail is available, its control is **Reply**, which opens that message's
 reply composer with Also resolve query ticked; otherwise it is the Actions
 menu's own Resolve query (operator, 11 October 2026).
+Once Report sent is recorded, the Next action also lists the Case's open
+tasks after its step, oldest first, each linking to [Tasks](#tasks)
+(operator, 6 October 2026).
 Once the Case has an Audit, the **Views** card heads the aside
 ([Inspection and Audit views](#inspection-and-audit-views)).
 While a Triage Case is linked to the Case, a **Linked cases** card follows
@@ -214,9 +219,9 @@ a composite's typing included; without script the ribbon's **Save now** is
 the save.
 Pressing a section's Edit enters edit mode in place: the section stays where
 it was on the screen. Selecting a tab also updates the section that Refresh
-submits; after a refresh its active lazy body loads. While editing, Files and
-Notes still load when they come into view, because neither has a field in
-the one Save. Every other section renders with the page.
+submits; after a refresh its active lazy body loads. While editing, Files,
+Notes and Tasks still load when they come into view, because none has a field
+in the one Save. Every other section renders with the page.
 
 Reading and editing show the same fields in the same places (operator, 23
 September 2026): every value is a box, greyed where it cannot be edited and a
@@ -240,7 +245,7 @@ corrections and a return to engineering record a reason.
 **Sections**, in order: **Case details**, **Claim**, **Original report** (an
 Audit Case only), **Inspection details**, **Vehicle** (with **Damage** and
 **Valuation** inside it, each its own foldable panel under the Vehicle link),
-**Repair Spec**, **Decisions**, **Report**, **Files**, **Notes**.
+**Repair Spec**, **Decisions**, **Report**, **Files**, **Notes**, **Tasks**.
 Every section can always be read. The Engineer sections (Damage, Valuation,
 Repair Spec, Decisions, Report) are editable by every enabled staff role in Not
 ready, Review and With Engineer under the normal edit authority, and read-only
@@ -276,8 +281,8 @@ in the Audit view, under the one Case edit lease, and every change saved
 there writes the Inspection's own values, before and after its report is
 sent. Such a save changes nothing of the Case's own: its state, due date,
 completeness and matching are the Audit's. Files and Notes are shared by
-both views. The Inspection view's Report section generates the Inspection
-report, prepares and sends its delivery, and the Actions menu's Mark report
+both views; so is Tasks, which belongs to the Case. The Inspection view's Report section generates the Inspection
+report, sends it, and the Actions menu's Mark report
 sent takes its evidence, all on the Inspection's own work and without
 changing the Case's state (operator, 1 October 2026); a sent Inspection
 report may be generated and sent again when needed (operator, 2 October
@@ -328,7 +333,9 @@ Return to Engineer needs no session. The rules behind each action are in
   Engineer**, in Report sent, when engineering changes are needed. Both
   record a reason.
 - **Archive**, on a closed Case
-  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#archive)).
+  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#archive)). While the Case
+  has an open task it is greyed with the reason "Complete or cancel every
+  open task first." on hover (operator, 6 October 2026).
 - **Place on Hold** (reason and optional Review on date) or **Release Hold**
   (reason).
 - **Correct principal**, which records Created in error and creates the
@@ -821,7 +828,31 @@ the subject; the message body is never history
 chase is scheduled and the lease is held
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)); a
 chaser sent from the Actions menu records its chase here by itself once its
-Sent evidence arrives. There is no Case tasks panel.
+Sent evidence arrives. Case tasks are not here: they have their own section,
+after Notes.
+
+### Tasks
+
+Tasks lists what is still to do on the Case (`CASE-20`), after Notes, as a
+dense table: the task, its assignee, and a state chip (Open, Completed or
+Cancelled), open tasks first. Tasks belong to the Case, so both views of an
+Inspection + Audit Case show the same list. Like Files and Notes the section
+loads when it comes into view and acts through its own posts.
+
+In the edit session an open task offers **Complete**, **Cancel task** and
+**Assign**, a choice of the enabled named staff, and the head of the list has
+an **Add task** field. Each posts under the session's lease with one fixed
+recorded reason, so there is no reason box, and the session carries on. A
+Held or closed Case, and a Case a colleague is editing, show the list
+without these. There is no due date yet.
+
+Tasks also appear here without anyone adding them: when Report sent is
+recorded, the after-send tasks the delivery froze are created as open,
+unassigned tasks
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)).
+An open task stops the Case being archived: once Report sent is recorded the
+Next action lists the open tasks, and Archive is greyed with its reason
+([Case workspace](#case-workspace)).
 
 The workspace keeps the missing-material reason, next chase, last recorded
 outcome and next permitted action together. A Triage Case's due target and
@@ -949,6 +980,29 @@ and states the name the report will be attached under (v28 P23) and the
 covering message it will carry, in an editable box pre-filled from the Case
 report delivery template, before Send report is pressed.
 
+The form also shows what the Principal's report sending rules decided
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules)):
+
+- an "Already sent on 3 Oct 2026 14:02 to a@x, b@y" line when a report of this
+  work has already been sent;
+- on a reply, the From line "From {mailbox} — reply in the instruction's
+  thread"; with no usable instruction email, the Outgoing choice starts on
+  the Principal's Send from;
+- a notice when a rule stops the delivery, with an Override reason box for
+  staff with casework. The box is also offered when only an answer below can
+  decide the Stop;
+- a Yes or No question for each undecided rule condition, each required;
+- To and Cc seeded from the plan, with one line naming what set the Cc and what
+  was removed;
+- the documents to attach, with required companions always attached and
+  marked "(required for this Principal)". A required companion that is not generated
+  says so and withholds Send report, and its Generate is in the More menu. The
+  filed estimates the rules attach, and any warning, appear as hints;
+- the file name, a read-only "After sending" list of what staff still owe, and
+  a Done tick for each hold.
+
+The layout of this form is as built and awaits its design sign-off.
+
 Report-draft generation and preview sit
 on the Report section
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
@@ -980,7 +1034,7 @@ The page offers a transition only where its Core use case permits it for the
 current state and account ([FRD-13](frd-13-case-lifecycle-and-workflow.md)).
 Section editability by state:
 
-| State | Overview, Inspection, Vehicle, Files, Notes | Engineer sections |
+| State | Overview, Inspection, Vehicle, Files, Notes, Tasks | Engineer sections |
 | --- | --- | --- |
 | Not ready, Review, With Engineer, Report sent | Editable under the lease | Editable with `PerformCasework` |
 | Held | Read-only | Read-only |
@@ -1017,7 +1071,7 @@ Inspection's values only.
 
 ## Acceptance evidence
 
-Acceptance covers the ten sections and the `?section=` jump, the Report
+Acceptance covers the twelve sections and the `?section=` jump, the Report
 readiness list in the aside's Report not ready card linking each blocker to its section,
 the read-only rule in Held, the Actions menu per state, the Queries
 section empty and filled, and save as

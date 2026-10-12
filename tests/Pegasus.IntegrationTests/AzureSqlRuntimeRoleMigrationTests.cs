@@ -1010,6 +1010,39 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 """));
     }
 
+    // 20261012192000_GrantWorkerCaseTasksForReportSent: the Worker's Sent-evidence link
+    // creates the after-send tasks the send recorded, in the same transaction as Report
+    // sent. It inserts tasks, never updating or deleting one; Web's task grants are
+    // unchanged. The tests run full-privilege, so only this assertion catches a missing
+    // grant before production refuses the write.
+    [Fact]
+    public async Task LatestMigrationGrantsWorkerCaseTaskInsertForReportSent()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(
+            ["CaseTasks:INSERT", "CaseTasks:SELECT"],
+            (await ReadGrantedPermissionsAsync(database, WorkerRole))
+                .Where(value => value.StartsWith("CaseTasks:", StringComparison.Ordinal))
+                .ToArray());
+        Assert.Equal(
+            ["CaseTasks:INSERT", "CaseTasks:SELECT", "CaseTasks:UPDATE"],
+            (await ReadGrantedPermissionsAsync(database, WebRole))
+                .Where(value => value.StartsWith("CaseTasks:", StringComparison.Ordinal))
+                .ToArray());
+        var deniedDelete = await ReadDeniedDeleteTablesAsync(database, WorkerRole);
+        Assert.Contains("CaseTasks", deniedDelete);
+        // What the same transaction writes was already granted.
+        var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
+        Assert.Contains("CaseWorkflowEvents:INSERT", granted);
+        Assert.Contains("CaseWorkflowEvents:SELECT", granted);
+        Assert.Contains("ActionHistory:INSERT", granted);
+        Assert.Contains("CaseWorkflows:UPDATE", granted);
+    }
+
     [Fact]
     public async Task RetainedMailSearchProjectionUsesExactCallerPermissions()
     {

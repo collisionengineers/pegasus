@@ -10,7 +10,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// What a Case's report has already been sent (v28 P23): the sends that
 /// actually left the approved mailbox, counted from the staff-send operations
 /// that carried one of this work's generations (either report of a send that
-/// carried both), with the report date of the one sent last. A
+/// carried both), with the report date of the one sent last, when it was
+/// observed in the Sent folder and the addresses it went to. A
 /// prepared-but-unsent delivery is not a send. The accepted count also counts
 /// the sends Graph accepted whose Sent item is not yet observed: the Next
 /// action follows it rather than waiting for the Sent poll (operator, 12
@@ -21,6 +22,11 @@ internal sealed class EfCaseReportSendHistoryQueries(
     IDbContextFactory<PegasusDbContext> contextFactory) : ICaseReportSendHistoryQueries
 {
     private static readonly JsonSerializerOptions SnapshotJsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions RecipientsJsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    private sealed record SentRecipients(
+        IReadOnlyList<StaffMailRecipient> To,
+        IReadOnlyList<StaffMailRecipient> Cc);
 
     public async Task<CaseReportSendHistory> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken)
     {
@@ -37,7 +43,7 @@ internal sealed class EfCaseReportSendHistoryQueries(
                 && generation.WorkId == workId
                 && send.Purpose == StaffMailPurpose.CaseReport
                 && (send.State == StaffMailState.Submitted || send.State == StaffMailState.Sent)
-            select new { send.State, send.ObservedSentAtUtc, generation.SnapshotJson };
+            select new { send.State, send.ObservedSentAtUtc, send.RecipientsJson, generation.SnapshotJson };
         var acceptedCount = await accepted.CountAsync(cancellationToken).ConfigureAwait(false);
         if (acceptedCount == 0)
         {
@@ -51,15 +57,21 @@ internal sealed class EfCaseReportSendHistoryQueries(
             return new(0, null, acceptedCount);
         }
 
-        // Only the newest send's snapshot is read: the counts and the last
-        // report date are all the history carries.
-        var latestSnapshotJson = await sent
+        // Only the newest send is read in full: the counts, its report date,
+        // when it was observed and who it went to are all the history carries.
+        var newest = await sent
             .OrderByDescending(row => row.ObservedSentAtUtc)
-            .Select(row => row.SnapshotJson)
+            .Select(row => new { row.SnapshotJson, row.ObservedSentAtUtc, row.RecipientsJson })
             .FirstAsync(cancellationToken)
             .ConfigureAwait(false);
         var latest = JsonSerializer.Deserialize<CaseReportGenerationSnapshot>(
-            latestSnapshotJson, SnapshotJsonOptions);
-        return new(sentCount, latest?.ReportDate, acceptedCount);
+            newest.SnapshotJson, SnapshotJsonOptions);
+        var recipients = JsonSerializer.Deserialize<SentRecipients>(newest.RecipientsJson, RecipientsJsonOptions);
+        return new(
+            sentCount,
+            latest?.ReportDate,
+            acceptedCount,
+            newest.ObservedSentAtUtc,
+            [.. (recipients?.To ?? []).Concat(recipients?.Cc ?? []).Select(recipient => recipient.Address)]);
     }
 }

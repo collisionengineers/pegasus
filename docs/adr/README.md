@@ -69,7 +69,7 @@ never renumbered or reused.
 | [ADR-0049](0049-host-web-on-app-service-code-deploy.md) | Host Pegasus Web on an App Service Web App by code deployment | accepted | — | EXT-08 |
 | [ADR-0050](0050-questpdf-report-renderer.md) | Render reports with QuestPDF inside the application | accepted | — | EXT-08, RPT-01, RPT-02 |
 | [ADR-0051](0051-linked-audit-case-identity-and-custody.md) | Linked Audit Case identity and custody | superseded | ADR-0056 | — |
-| [ADR-0052](0052-dismiss-by-logical-folder.md) | Dismiss a retained message by logical folder; no Flag or Delete | accepted | ADR-0069 (logical folder) | — |
+| [ADR-0052](0052-dismiss-by-logical-folder.md) | Dismiss a retained message by logical folder; no Flag or Delete | accepted | ADR-0069 (logical folder), ADR-0071 (clause 3) | — |
 | [ADR-0053](0053-personal-staff-notification-store.md) | Personal staff notification store | accepted | — | — |
 | [ADR-0054](0054-release-notes-authored-in-the-application.md) | Release notes are authored in the application by an Administrator | accepted | — | — |
 | [ADR-0055](0055-github-issues-as-the-problem-report-sink.md) | GitHub issues as the problem-report sink | accepted | — | — |
@@ -87,6 +87,7 @@ never renumbered or reused.
 | [ADR-0067](0067-report-sent-replaces-completed-and-queries-are-case-records.md) | Report sent replaces Completed, and queries are Case records | accepted | — | CASE-16, CASE-23 |
 | [ADR-0068](0068-incoming-and-outgoing-mailboxes-and-case-mail-replies.md) | Incoming and Outgoing mailboxes, and Case mail replies to its instruction | accepted | — | MAIL-12, MAIL-18 |
 | [ADR-0069](0069-one-flat-mail-category.md) | One flat mail category | accepted | — | MAIL-02, MAIL-21, MAIL-22 |
+| [ADR-0071](0071-move-answered-instruction-to-deleted-items.md) | Move the answered instruction to Deleted Items after a confirmed report send | accepted | — | MAIL-25 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

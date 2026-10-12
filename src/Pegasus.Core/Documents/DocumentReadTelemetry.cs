@@ -49,6 +49,7 @@ public static class DocumentReadTelemetry
         "web.case.fragment.files",
         "web.case.fragment.notes",
         "web.case.fragment.queries",
+        "web.case.fragment.tasks",
         "document.preview",
         "document.preparation.lookup",
         "document.thumbnail.open",
