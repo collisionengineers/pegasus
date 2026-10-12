@@ -247,8 +247,9 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     // - 1 (the rail no longer counts Awaiting instruction, #1179)
     // - 2 (the Case data and the workflow configuration are one command and the AI draft target comes from them, #1176).
     // - 1 (the password-change redirect reads the account the cookie check read, not the database, #1198).
-    // + 2 (the report sending seed's claim sources: the picker reads their rows and last use, #1015).
-    private const int CasePageCommands = 43;
+    // + 1 (the report sending seed's claim sources: the picker reads their rows and last use, #1015;
+    //   measured 42 by CI on the combined PR 1307).
+    private const int CasePageCommands = 42;
 
     // 35 - 3 (the Save reuses the rows the request already holds, #1173)
     // - 1 (one command for the Case data and none for the AI draft target, #1176).
