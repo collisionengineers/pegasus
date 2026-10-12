@@ -5,6 +5,61 @@
 // deployed Content-Security-Policy is `default-src 'self'` with no nonce or
 // hash allowance, so an inline script is silently discarded in Production. The
 // enhancements below therefore ran only in Development until they moved here.
+
+// Helpers shared by the page scripts. site.js loads first on every page that
+// loads another script, so the others read these from window.pegasusUi.
+(function () {
+    'use strict';
+
+    function glyph(name, className) {
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', className);
+        svg.setAttribute('aria-hidden', 'true');
+        var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+        use.setAttribute('href', '#' + name);
+        svg.appendChild(use);
+        return svg;
+    }
+
+    // Makes everything outside the element inert, except siblings matching the
+    // optional spare selector. The returned function undoes it.
+    function inertOutside(element, spare) {
+        var made = [];
+        for (var node = element; node && node !== document.body; node = node.parentElement) {
+            Array.prototype.forEach.call(node.parentElement.children, function (sibling) {
+                if (sibling !== node && !sibling.hasAttribute('inert') && sibling.tagName !== 'SCRIPT'
+                    && !(spare && sibling.matches(spare))) {
+                    sibling.setAttribute('inert', '');
+                    made.push(sibling);
+                }
+            });
+        }
+        return function release() {
+            made.forEach(function (element) { element.removeAttribute('inert'); });
+        };
+    }
+
+    // Only what a browser renders without executing it. Anything else is
+    // left to the link, which saves it -- the server refuses to disposition
+    // it inline either way, so the two agree.
+    function previewKind(value) {
+        var type = String(value || '').split(';')[0].trim().toLowerCase();
+        // SVG is excluded to stay in step with the server's inline rule:
+        // it is an image that executes script when navigated to, and these
+        // triggers are real links. Anything not listed here is left to the
+        // link, which saves it.
+        if (type.indexOf('image/') === 0 && type !== 'image/svg+xml') {
+            return 'image';
+        }
+        if (type === 'application/pdf') {
+            return 'document';
+        }
+        return type === 'video/mp4' || type === 'video/quicktime' ? 'video' : '';
+    }
+
+    window.pegasusUi = { glyph: glyph, inertOutside: inertOutside, previewKind: previewKind };
+})();
+
 (function () {
     'use strict';
 
@@ -140,15 +195,7 @@
         var still = document.documentElement.getAttribute('data-busy-still') || '';
         return still && words ? still + ' ' + words.charAt(0).toLowerCase() + words.slice(1) : '';
     }
-    function glyph(name, className) {
-        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('class', className);
-        svg.setAttribute('aria-hidden', 'true');
-        var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-        use.setAttribute('href', '#' + name);
-        svg.appendChild(use);
-        return svg;
-    }
+    var glyph = window.pegasusUi.glyph;
     function announceBusy(words) {
         if (!busyStatus) {
             busyStatus = document.createElement('span');
@@ -1058,19 +1105,7 @@
     // dialog beneath it open but unresponsive to Escape/Tab until the one on
     // top closes.
     function inertOutside(dialog) {
-        var made = [];
-        for (var node = dialog; node && node !== document.body; node = node.parentElement) {
-            Array.prototype.forEach.call(node.parentElement.children, function (sibling) {
-                if (sibling !== node && !sibling.hasAttribute('inert') && sibling.tagName !== 'SCRIPT'
-                    && !sibling.matches('[data-dialog], dialog')) {
-                    sibling.setAttribute('inert', '');
-                    made.push(sibling);
-                }
-            });
-        }
-        return function release() {
-            made.forEach(function (element) { element.removeAttribute('inert'); });
-        };
+        return window.pegasusUi.inertOutside(dialog, '[data-dialog], dialog');
     }
 
     var dialogOpeners = {};
@@ -1286,23 +1321,7 @@
         var index = 0;
         var invoker = null;
 
-        // Only what a browser renders without executing it. Anything else is
-        // left to the link, which saves it -- the server refuses to disposition
-        // it inline either way, so the two agree.
-        function previewKind(value) {
-            var type = String(value || '').split(';')[0].trim().toLowerCase();
-            // SVG is excluded to stay in step with the server's inline rule:
-            // it is an image that executes script when navigated to, and these
-            // triggers are real links. Anything not listed here is left to the
-            // link, which saves it.
-            if (type.indexOf('image/') === 0 && type !== 'image/svg+xml') {
-                return 'image';
-            }
-            if (type === 'application/pdf') {
-                return 'document';
-            }
-            return type === 'video/mp4' || type === 'video/quicktime' ? 'video' : '';
-        }
+        var previewKind = window.pegasusUi.previewKind;
 
         function focusable() {
             return Array.prototype.filter.call(
@@ -1889,13 +1908,7 @@
         close.className = 'dismiss';
         close.setAttribute('data-dismiss', '');
         close.setAttribute('aria-label', 'Dismiss');
-        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('class', 'icon');
-        svg.setAttribute('aria-hidden', 'true');
-        var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-        use.setAttribute('href', '#icon-x');
-        svg.appendChild(use);
-        close.appendChild(svg);
+        close.appendChild(window.pegasusUi.glyph('icon-x', 'icon'));
         element.appendChild(close);
     }
 

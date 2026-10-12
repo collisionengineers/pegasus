@@ -5,16 +5,8 @@
 (function () {
     'use strict';
 
-    var ICON_PREFIX = '#icon-';
-
     function glyph(id) {
-        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('class', 'icon');
-        svg.setAttribute('aria-hidden', 'true');
-        var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-        use.setAttribute('href', ICON_PREFIX + id);
-        svg.appendChild(use);
-        return svg;
+        return window.pegasusUi.glyph('icon-' + id, 'icon');
     }
 
     function fileIcon(kind) {
