@@ -20,7 +20,8 @@ public sealed class AcceptIntake(
     ICommittedExternalWorkPublisher committedExternalWorkPublisher,
     ITriageCasePairing triageCasePairing,
     IImageIntakeCasePairing? imageIntakeCasePairing = null,
-    IReadOriginalReport? originalReport = null) : IAcceptIntake
+    IReadOriginalReport? originalReport = null,
+    RecordedOriginalReportReading? recordedReading = null) : IAcceptIntake
 {
     public async Task<CaseAcceptanceOutcome> ExecuteAsync(
         AcceptIntakeRequest request,
@@ -75,9 +76,10 @@ public sealed class AcceptIntake(
                 nameof(request));
         }
 
+        var workflowConfiguration = await configuration.GetCurrentAsync(cancellationToken);
         var completenessEvaluation = CaseCompletenessPolicy.EvaluateAcceptanceCommand(
             request.Completeness,
-            await configuration.GetCurrentAsync(cancellationToken));
+            workflowConfiguration);
         var principalInspectionMode = await inspectionModeStore.GetForPrincipalAsync(
                 principalCode,
                 cancellationToken)
@@ -92,6 +94,7 @@ public sealed class AcceptIntake(
             principalCode,
             request.Completeness,
             completenessEvaluation,
+            workflowConfiguration,
             principalInspectionMode,
             request.StandaloneAuditEvidenceId,
             request.AcceptedInspectionDeadline,
@@ -101,8 +104,8 @@ public sealed class AcceptIntake(
             // acceptance transaction opens, so the Case is created with its
             // Original report cells filled (v28 P51) and a slow or unreadable
             // report never holds that transaction or refuses the Case.
-            request.StandaloneAuditEvidenceId is { } evidenceId && originalReport is not null
-                ? await originalReport.ForIntakeAsync(request.ReceiptId, evidenceId, cancellationToken)
+            request.StandaloneAuditEvidenceId is { } evidenceId
+                ? await ReadingAsync(request.ReceiptId, evidenceId, cancellationToken)
                 : null);
 
         var outcome = await acceptanceStore.AcceptAsync(acceptance, cancellationToken);
@@ -115,7 +118,7 @@ public sealed class AcceptIntake(
             // The acceptance transaction also enqueued the automatic vehicle
             // lookup for an unambiguous registration (FRD-06 D34). Publishing
             // it here is what makes DVLA/MOT evidence arrive with the Case
-            // instead of on the next ten-second reconciliation sweep; the
+            // instead of on the next reconciliation sweep; the
             // sweep stays as the recovery path for a lost publication.
             if (outcome.VehicleLookupWorkId is { } vehicleLookupWorkId)
             {
@@ -148,5 +151,26 @@ public sealed class AcceptIntake(
         Activity.Current?.SetTag("triage.pairing_failures", triagePairing.Failures);
         Activity.Current?.SetTag("triage.failure_type", triagePairing.FirstFailure);
         return outcome;
+    }
+
+    /// <summary>
+    /// The reading that seeds a standalone Audit: the one intake recorded of
+    /// the same report, and only when none was recorded the report itself,
+    /// read once (operator, 11 October 2026).
+    /// </summary>
+    private async Task<OriginalReportReading?> ReadingAsync(
+        Guid receiptId,
+        Guid evidenceId,
+        CancellationToken cancellationToken)
+    {
+        if (recordedReading is not null
+            && await recordedReading.FindAsync(receiptId, evidenceId, cancellationToken) is { } recorded)
+        {
+            return recorded;
+        }
+
+        return originalReport is null
+            ? null
+            : await originalReport.ForIntakeAsync(receiptId, evidenceId, cancellationToken);
     }
 }

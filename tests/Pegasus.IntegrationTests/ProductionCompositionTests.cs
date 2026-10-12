@@ -415,9 +415,7 @@ public sealed class ProductionCompositionTests
         var snapshot = services.GetRequiredService<GetOperationsSnapshot>();
 
         Assert.Same(snapshot, services.GetRequiredService<IGetOperationsSnapshot>());
-        Assert.Same(snapshot, services.GetRequiredService<IGetAttentionRows>());
         Assert.Single(services.GetServices<IGetOperationsSnapshot>());
-        Assert.Single(services.GetServices<IGetAttentionRows>());
     }
 
     [Fact]

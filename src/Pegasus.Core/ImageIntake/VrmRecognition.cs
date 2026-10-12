@@ -71,6 +71,31 @@ public static class VrmRecognitionProvisionalBar
     /// normalised VRM across every confident read for the receipt.
     /// </summary>
     public const int RequiredDistinctRegistrations = 1;
+
+    /// <summary>
+    /// The registration a recognition result offers automation: a suggested
+    /// read at or above <see cref="MinimumAutomaticConfidence"/>; otherwise null.
+    /// </summary>
+    public static string? AcceptedRegistration(
+        VrmRecognitionOutcomeKind outcome,
+        string? registration,
+        double? confidence) =>
+        outcome == VrmRecognitionOutcomeKind.Suggested
+            && registration is not null
+            && confidence >= MinimumAutomaticConfidence
+            ? registration
+            : null;
+
+    /// <summary>The distinct accepted registrations across a receipt's recorded reads.</summary>
+    public static string[] DistinctAcceptedRegistrations(IEnumerable<ImageVrmSuggestion> suggestions) =>
+        suggestions
+            .Select(suggestion => AcceptedRegistration(
+                suggestion.Outcome,
+                suggestion.SuggestedRegistration,
+                suggestion.Confidence))
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
 }
 
 /// <summary>
@@ -231,8 +256,6 @@ public interface IVrmSuggestionStore
     Task<IReadOnlyList<ImageVrmSuggestion>> ListForReceiptAsync(
         Guid intakeReceiptId,
         CancellationToken cancellationToken);
-
-    Task<ImageVrmSuggestion?> GetAsync(Guid id, CancellationToken cancellationToken);
 
     Task<ImageVrmSuggestion> SetDispositionAsync(
         ImageVrmSuggestionDispositionRequest request,

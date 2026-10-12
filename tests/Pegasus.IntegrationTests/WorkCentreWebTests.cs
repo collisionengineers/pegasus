@@ -513,7 +513,7 @@ public sealed class WorkCentreWebTests
     }
 
     /// <summary>
-    /// The Activity panel (FRD-15, v32 items C to J): five figures, each today and
+    /// The Activity panel (FRD-15, v32 items C to J): four figures, each today and
     /// this week, in a table under the counts, drawn even when there is no work to
     /// show, one Updated clock on the page, and a failed read that shows the
     /// notice and no figure.
@@ -521,13 +521,13 @@ public sealed class WorkCentreWebTests
     [Fact]
     public async Task TheActivityPanelShowsEveryFigureTodayAndThisWeekAndNeverAZeroWhenItCannotBeRead()
     {
-        using var host = Host(new FakeSnapshot(), activity: new FakeActivity { Counts = new WorkCentreActivityCounts(new(3, 5), new(6, 17), new(3, 11), new(2, 9), new(18, 64)) });
+        using var host = Host(new FakeSnapshot(), activity: new FakeActivity { Counts = new WorkCentreActivityCounts(new(3, 5), new(6, 17), new(3, 11), new(18, 64)) });
         using var client = Client(host);
 
         var html = await GetOkAsync(client, "/");
 
         Assert.Contains("data-wc-refresh-section=\"activity\" data-wc-refresh-state=\"current\"", html, StringComparison.Ordinal);
-        foreach (var (figure, value) in new[] { ("new-cases-today", "3"), ("new-cases-week", "5"), ("sent-today", "6"), ("sent-week", "17"), ("reports-today", "3"), ("reports-week", "11"), ("completed-today", "2"), ("completed-week", "9"), ("emails-today", "18"), ("emails-week", "64") })
+        foreach (var (figure, value) in new[] { ("new-cases-today", "3"), ("new-cases-week", "5"), ("sent-today", "6"), ("sent-week", "17"), ("reports-today", "3"), ("reports-week", "11"), ("emails-today", "18"), ("emails-week", "64") })
         {
             Assert.Contains($"data-figure=\"{figure}\">{value}</td>", html, StringComparison.Ordinal);
         }
@@ -589,6 +589,19 @@ public sealed class WorkCentreWebTests
         // Create Case has one home here: the page header (v30 WE).
         Assert.DoesNotContain(">New case</span>", html, StringComparison.Ordinal);
         Assert.Equal(1, Regex.Count(html, ">Create Case</span>"));
+    }
+
+    [Fact]
+    public async Task TheBrandAndWorkCentreNavLinksRenderUnscopedFromTheServer()
+    {
+        using var host = Host(new FakeSnapshot());
+        using var client = Client(host, StaffRoleNames.User);
+
+        var html = await GetOkAsync(client, "/");
+
+        // A saved Mine scope is added in the browser by site.js, never rendered.
+        Assert.Matches("<a class=\"brand\"[^>]*href=\"/\"[^>]*>", html);
+        Assert.Matches("<a class=\"nav-link\"[^>]*href=\"/\"[^>]*>", html);
     }
 
     private static NeedsAttentionItem Item(
@@ -689,7 +702,7 @@ public sealed class WorkCentreWebTests
 
     private sealed class FakeActivity : IGetWorkCentreActivity
     {
-        public WorkCentreActivityCounts Counts { get; init; } = new(new(0, 0), new(0, 0), new(0, 0), new(0, 0), new(0, 0));
+        public WorkCentreActivityCounts Counts { get; init; } = new(new(0, 0), new(0, 0), new(0, 0), new(0, 0));
 
         public bool Throw { get; init; }
 
@@ -740,7 +753,6 @@ public sealed class WorkCentreWebTests
             return Task.FromResult(new OperationsSnapshot(Now, 0, 0, [], new CaseStageCounts(1, 2, 3, 0), Items)
             {
                 Attention = page,
-                Scope = query.Scope,
                 Metrics = new WorkCentreMetrics(1, 2, 3, 4, 5)
             });
         }
@@ -792,6 +804,9 @@ public sealed class WorkCentreWebTests
 
         public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(Guid subjectId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AiJobRecord>>([]);
+
+        public Task<AiJobRecord?> GetPendingMarketResearchAsync(Guid subjectId, CancellationToken cancellationToken) =>
+            Task.FromResult<AiJobRecord?>(null);
 
         public Task<AiJobCounts> GetCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new AiJobCounts(Open.Count, Recent.Count));

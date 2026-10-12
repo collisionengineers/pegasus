@@ -37,16 +37,13 @@ public sealed class VehicleWorkflowTerminalTests
         Assert.Contains("read-only", requestException.Message, StringComparison.Ordinal);
     }
 
-    [Theory]
-    [InlineData(CaseLifecycleState.PostReportComplete)]
-    [InlineData(CaseLifecycleState.Query)]
-    public async Task CompletedOrQueryRejectsVehicleRequestBeforeLeaseCheck(
-        CaseLifecycleState readOnlyState)
+    [Fact]
+    public async Task HeldRejectsVehicleRequestBeforeLeaseCheck()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(
             configureServices: services =>
                 services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay));
-        var caseId = await SeedCaseAsync(database, readOnlyState);
+        var caseId = await SeedCaseAsync(database, CaseLifecycleState.Held);
         await using var scope = database.CreateAsyncScope();
 
         var requestException = await Assert.ThrowsAnyAsync<InvalidOperationException>(() =>

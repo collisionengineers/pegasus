@@ -31,6 +31,33 @@ public sealed class StreamedGroupedIntakeTests
     }
 
     [Fact]
+    public async Task PublishesEveryCommittedMemberOnlyAfterTheLastIsAdded()
+    {
+        var submission = new RecordingSubmission();
+        var groups = new RecordingGroupStore(submission);
+        var request = new StreamedGroupedIntakeSubmissionRequest(
+            "manual-stream-publish",
+            "staff:test",
+            DateTimeOffset.UtcNow,
+            [
+                new(0, Source("one.jpg", [0x01])),
+                new(1, Source("two.jpg", [0x02])),
+                new(2, Source("three.jpg", [0x03]))
+            ],
+            IntakeSourceChannel.ManualUpload);
+
+        var result = await new SubmitGroupedIntake(submission, groups, TimeProvider.System)
+            .ExecuteStreamedAsync(request);
+
+        Assert.Equal(
+            ["receive", "receive", "receive", "publish", "publish", "publish"],
+            submission.Events);
+        Assert.Equal(
+            result.Members.Select(member => member.StagedReceiptId).Order(),
+            submission.Published.Order());
+    }
+
+    [Fact]
     public async Task RejectsAnOverBudgetStreamedGroupBeforeWritingItsGroup()
     {
         var submission = new RecordingSubmission();
@@ -73,6 +100,10 @@ public sealed class StreamedGroupedIntakeTests
 
         public List<StreamedIntakeSource> Sources { get; } = [];
 
+        public List<string> Events { get; } = [];
+
+        public List<Guid> Published { get; } = [];
+
         public Task<ReceivedIntake> ExecuteAsync(
             IntakeSource source,
             string operationKey,
@@ -84,6 +115,26 @@ public sealed class StreamedGroupedIntakeTests
             string operationKey,
             CancellationToken cancellationToken = default)
         {
+            var received = await ReceiveStreamedAsync(source, operationKey, cancellationToken);
+            await PublishCommittedAsync(received, cancellationToken);
+            return received;
+        }
+
+        public Task PublishCommittedAsync(
+            ReceivedIntake received,
+            CancellationToken cancellationToken = default)
+        {
+            Events.Add("publish");
+            Published.Add(received.StagedReceiptId);
+            return Task.CompletedTask;
+        }
+
+        public async Task<ReceivedIntake> ReceiveStreamedAsync(
+            StreamedIntakeSource source,
+            string operationKey,
+            CancellationToken cancellationToken = default)
+        {
+            Events.Add("receive");
             var receiptId = Guid.NewGuid();
             hashByReceiptId[receiptId] = await ReceiveIntake.StreamHashAsync(source, cancellationToken);
             Sources.Add(source);

@@ -380,22 +380,19 @@ internal sealed class EfIntakeMutationStore(
         };
 
         receipt.Version++;
-        var entry = await PostReportQueryTransitions.EnterAsync(
-            context, receipt, caseWorkflow, occurredAtUtc, cancellationToken);
-        if (entry.Kind != PostReportQueryEntry.None)
+        // FRD-13 "Report sent and queries": a post-report receipt joining a
+        // Report sent Case raises a query, recorded as the Case's own event.
+        var beforeStateJson = CaseQueryLedger.SnapshotState(caseWorkflow);
+        var queryRaised = await CaseQueryLedger.RaiseForMailAsync(
+            context, receipt, caseWorkflow, ActorKind.SystemWorker, request.Actor.Trim(),
+            operationKey, occurredAtUtc, cancellationToken);
+        if (queryRaised)
         {
             CaseMutationGuard.Advance(caseWorkflow);
-            if (entry.Kind == PostReportQueryEntry.EnterQuery)
-            {
-                AddCaseAssociationHistory(
-                    context, caseWorkflow, beforeCaseVersion, requestHash, request.Actor.Trim(),
-                    operationKey, reason, occurredAtUtc, beforeJson, Snapshot(receipt));
-            }
-            else
-            {
-                PostReportQueryTransitions.AddObservedReplyHistory(
-                    context, caseWorkflow, beforeCaseVersion, entry.ObservedReply!, entry.BeforeReplyJson!);
-            }
+            CaseQueryLedger.AddQueryHistory(
+                context, caseWorkflow, beforeCaseVersion, CaseQueryLedger.QueryReceivedEvent,
+                ActorKind.SystemWorker, request.Actor.Trim(), "[]",
+                operationKey, requestHash, reason, occurredAtUtc, beforeStateJson);
         }
         context.IntakeMutationHistory.Add(new IntakeMutationHistoryEntity
         {
@@ -415,9 +412,9 @@ internal sealed class EfIntakeMutationStore(
             ExpectedIntakeVersion = beforeVersion,
             BeforeIntakeVersion = beforeVersion,
             AfterIntakeVersion = receipt.Version,
-            ExpectedCaseVersion = entry.Kind != PostReportQueryEntry.None ? beforeCaseVersion : null,
-            BeforeCaseVersion = entry.Kind != PostReportQueryEntry.None ? beforeCaseVersion : null,
-            AfterCaseVersion = entry.Kind != PostReportQueryEntry.None ? caseWorkflow.Version : null,
+            ExpectedCaseVersion = queryRaised ? beforeCaseVersion : null,
+            BeforeCaseVersion = queryRaised ? beforeCaseVersion : null,
+            AfterCaseVersion = queryRaised ? caseWorkflow.Version : null,
             BeforeJson = beforeJson,
             AfterJson = Snapshot(receipt)
         });
@@ -442,7 +439,7 @@ internal sealed class EfIntakeMutationStore(
             expectedCaseId: null,
             expectedCaseVersion: null,
             editLeaseToken: null,
-            (context, receipt, _, _) =>
+            (context, receipt, _, _, _) =>
             {
                 var correctedDraft = request.CorrectedDraft
                     ?? throw new ArgumentException(
@@ -485,7 +482,7 @@ internal sealed class EfIntakeMutationStore(
             expectedCaseId: null,
             expectedCaseVersion: null,
             editLeaseToken: null,
-            async (context, receipt, _, token) =>
+            async (context, receipt, _, _, token) =>
             {
                 // A first holding hand-over can fail after receipt persistence
                 // but before an evaluation is recorded. The immutable ingress
@@ -542,7 +539,7 @@ internal sealed class EfIntakeMutationStore(
             expectedCaseId: null,
             expectedCaseVersion: null,
             editLeaseToken: null,
-            async (context, receipt, _, token) =>
+            async (context, receipt, _, _, token) =>
             {
                 var last = await EfIntakeOcrOperationStore.FindLastForReceiptAsync(context, receipt.Id, token)
                     ?? throw new InvalidOperationException("This received item has no OCR attempt to retry.");
@@ -575,7 +572,7 @@ internal sealed class EfIntakeMutationStore(
             request.CaseId,
             request.ExpectedCaseVersion,
             request.EditLeaseToken,
-            async (context, receipt, @case, token) =>
+            async (context, receipt, @case, _, token) =>
             {
                 if (@case is null)
                 {
@@ -648,7 +645,7 @@ internal sealed class EfIntakeMutationStore(
             request.CaseId,
             request.ExpectedCaseVersion,
             request.EditLeaseToken,
-            async (context, receipt, @case, token) =>
+            async (context, receipt, @case, acceptedCaseId, token) =>
             {
                 var association = receipt.ManualAssociation;
                 if (association is null
@@ -673,7 +670,7 @@ internal sealed class EfIntakeMutationStore(
                 // cancelled with it. A receipt since relinked to some other
                 // case is not that case's source, and unlinking it leaves that
                 // case alone.
-                if (await AcceptedCaseIdAsync(context, receipt.Id, token) == request.CaseId)
+                if (acceptedCaseId == request.CaseId)
                 {
                     await CancelOnSourceUnlinkAsync(context, @case, occurredAtUtc, token);
                 }
@@ -961,7 +958,7 @@ internal sealed class EfIntakeMutationStore(
         Guid? expectedCaseId,
         long? expectedCaseVersion,
         string? editLeaseToken,
-        Func<PegasusDbContext, IntakeReceiptEntity, CaseEntity?, CancellationToken, Task> mutate,
+        Func<PegasusDbContext, IntakeReceiptEntity, CaseEntity?, Guid?, CancellationToken, Task> mutate,
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken)
     {
@@ -1068,38 +1065,37 @@ internal sealed class EfIntakeMutationStore(
 
         var beforeVersion = receipt.Version;
         var beforeJson = Snapshot(receipt);
-        await mutate(context, receipt, @case, cancellationToken);
+        await mutate(context, receipt, @case, acceptedCaseId, cancellationToken);
         receipt.Version++;
-        var entry = PostReportQueryTransitions.Entry.None;
-        string? withdrawnBeforeJson = null;
+        var queryRaised = false;
+        var queryWithdrawn = false;
+        var beforeStateJson = caseWorkflow is null ? null : CaseQueryLedger.SnapshotState(caseWorkflow);
         if (caseWorkflow is not null)
         {
             if (eventType == "intake_case_linked")
             {
-                entry = await PostReportQueryTransitions.EnterAsync(
-                    context, receipt, caseWorkflow, occurredAtUtc, cancellationToken);
+                queryRaised = await CaseQueryLedger.RaiseForMailAsync(
+                    context, receipt, caseWorkflow, actor.Kind, actor.SubjectId,
+                    operationKey, occurredAtUtc, cancellationToken);
             }
             else if (eventType == "intake_case_link_reversed")
             {
-                withdrawnBeforeJson = await PostReportQueryTransitions.WithdrawAsync(
-                    context, receipt, caseWorkflow, occurredAtUtc, cancellationToken);
+                queryWithdrawn = await CaseQueryLedger.WithdrawForMailAsync(
+                    context, receipt, caseWorkflow, actor.Kind, actor.SubjectId, occurredAtUtc, cancellationToken);
             }
         }
         caseAuthority?.CompleteStaffMutation(context);
         if (caseWorkflow is not null && beforeCaseVersion is not null)
         {
-            if (entry.ObservedReply is not null)
+            if (queryRaised || queryWithdrawn)
             {
-                PostReportQueryTransitions.AddObservedReplyHistory(
-                    context, caseWorkflow, beforeCaseVersion.Value, entry.ObservedReply, entry.BeforeReplyJson!);
-            }
-            else if (withdrawnBeforeJson is not null)
-            {
-                // The unlink that withdraws the query records the withdrawal; the
-                // intake history row still records the unlink itself.
-                PostReportQueryTransitions.AddQueryHistory(
-                    context, caseWorkflow, beforeCaseVersion.Value, PostReportQueryTransitions.QueryWithdrawnEvent,
-                    actor, operationKey, requestHash, reason, occurredAtUtc, withdrawnBeforeJson);
+                // The link that raises the query, or the unlink that withdraws
+                // it, records that; the intake history row still records the
+                // link or unlink itself.
+                CaseQueryLedger.AddQueryHistory(
+                    context, caseWorkflow, beforeCaseVersion.Value,
+                    queryRaised ? CaseQueryLedger.QueryReceivedEvent : CaseQueryLedger.QueryWithdrawnEvent,
+                    actor, operationKey, requestHash, reason, occurredAtUtc, beforeStateJson!);
             }
             else
             {
@@ -1391,54 +1387,6 @@ internal sealed class EfIntakeMutationStore(
 
     private static string RolesJson(ActionActor actor) =>
         JsonSerializer.Serialize(actor.Roles.OrderBy(role => role));
-
-    private static void AddCaseAssociationHistory(
-        PegasusDbContext context,
-        CaseWorkflowEntity workflow,
-        long beforeVersion,
-        string requestHash,
-        string actorSubjectId,
-        string operationKey,
-        string reason,
-        DateTimeOffset occurredAtUtc,
-        string beforeJson,
-        string resultJson)
-    {
-        context.CaseWorkflowEvents.Add(new()
-        {
-            Id = Guid.NewGuid(),
-            CaseId = workflow.CaseId,
-            Workflow = workflow,
-            EventType = "intake_case_linked_automatic",
-            OperationKey = operationKey,
-            RequestHash = requestHash,
-            ActorKind = nameof(ActorKind.SystemWorker),
-            ActorSubjectId = actorSubjectId,
-            ActorRolesJson = "[]",
-            Reason = reason,
-            OccurredAtUtc = occurredAtUtc,
-            BeforeVersion = beforeVersion,
-            AfterVersion = workflow.Version,
-            ResultJson = resultJson
-        });
-        context.ActionHistory.Add(new()
-        {
-            Id = Guid.NewGuid(),
-            AggregateType = "case",
-            AggregateId = workflow.CaseId.ToString("D"),
-            EventKind = "intake_case_linked_automatic",
-            ActorKind = nameof(ActorKind.SystemWorker),
-            ActorSubjectId = actorSubjectId,
-            ActorRolesJson = "[]",
-            OccurredAtUtc = occurredAtUtc,
-            Outcome = "Succeeded",
-            CorrelationId = operationKey,
-            Reason = reason,
-            BeforeJson = beforeJson,
-            AfterJson = resultJson,
-            PolicyVersion = "case-lifecycle-v1"
-        });
-    }
 
     private static string RequestHash(string eventType, AutomaticCaseAssociationRequest request)
         => Hash(JsonSerializer.Serialize(new

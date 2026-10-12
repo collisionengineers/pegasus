@@ -48,26 +48,18 @@ public sealed class WorkCentreActivityPersistenceTests
                 Event(lastWeek.Id, "state_ReportPreparation", WeekStart.AddDays(-1), version: 4),
                 Event(lastWeek.Id, "state_ReportPreparation", DayStart.AddHours(2), version: 5));
 
-            // Reports sent: sent report e-mails as MI-01 counts them (item F).
-            // A sent general e-mail and a failed report send are not reports sent.
+            // Reports sent: a Case's first linked report-Sent evidence, by staff
+            // or by the Worker, once per Case (operator, 11 October 2026): one
+            // today, one earlier this week whose second link today is not a
+            // second report, and one first reported last week whose link this
+            // week counts for nothing. A query is not a report.
             context.AddRange(
-                Mail(StaffMailPurpose.CaseReport, StaffMailState.Sent, DayStart.AddHours(4)),
-                Mail(StaffMailPurpose.CaseReport, StaffMailState.Sent, WeekStart.AddHours(20)),
-                Mail(StaffMailPurpose.CaseReport, StaffMailState.Sent, WeekStart.AddDays(-3)),
-                Mail(StaffMailPurpose.GeneralCorrespondence, StaffMailState.Sent, DayStart.AddHours(4)),
-                Mail(StaffMailPurpose.CaseReport, StaffMailState.Failed, null));
-
-            // Completed: Cases that entered Complete this week, each once
-            // (item H), whether by Complete, by a reply to a post-report query
-            // or by a withdrawn query; a Case that entered three times, once
-            // today, is one Case for the week and one for today; a query
-            // received leaves Complete and is not one; last week is not counted.
-            context.AddRange(
-                Event(today.Id, "case_completed", DayStart.AddHours(6)),
-                Event(thisWeek.Id, "case_query_replied", WeekStart.AddHours(30)),
-                Event(thisWeek.Id, "case_query_withdrawn", WeekStart.AddHours(40), version: 3),
-                Event(thisWeek.Id, "case_query_replied", DayStart.AddHours(10), version: 5),
-                Event(lastWeek.Id, "case_completed", WeekStart.AddDays(-1)),
+                Event(today.Id, "report_evidence_linked", DayStart.AddHours(4), version: 6),
+                Event(today.Id, "report_evidence_linked", DayStart.AddHours(9), version: 7),
+                Event(thisWeek.Id, "report_evidence_auto_linked", WeekStart.AddHours(20), version: 6),
+                Event(thisWeek.Id, "report_evidence_linked", DayStart.AddHours(10), version: 7),
+                Event(lastWeek.Id, "report_evidence_auto_linked", WeekStart.AddDays(-1), version: 6),
+                Event(lastWeek.Id, "report_evidence_linked", DayStart.AddHours(3), version: 7),
                 Event(todayToo.Id, "case_query_received", DayStart.AddHours(7)));
 
             // E-mails received: mailbox receipts; an upload is also a receipt
@@ -90,7 +82,6 @@ public sealed class WorkCentreActivityPersistenceTests
             NewCases: new(Today: 2, ThisWeek: 3),
             SentToEngineer: new(Today: 1, ThisWeek: 2),
             ReportsSent: new(Today: 1, ThisWeek: 2),
-            Completed: new(Today: 2, ThisWeek: 2),
             EmailsReceived: new(Today: 2, ThisWeek: 3)), counts);
     }
 
@@ -104,7 +95,7 @@ public sealed class WorkCentreActivityPersistenceTests
             .GetAsync(DayStart, WeekStart, CancellationToken.None);
 
         var none = new WorkCentreActivityFigure(0, 0);
-        Assert.Equal(new WorkCentreActivityCounts(none, none, none, none, none), counts);
+        Assert.Equal(new WorkCentreActivityCounts(none, none, none, none), counts);
     }
 
     private static CaseEntity Case(Guid id, SeededPrincipalTestData principal, int sequence, DateTimeOffset createdAtUtc) => new()
@@ -129,37 +120,12 @@ public sealed class WorkCentreActivityPersistenceTests
         ConcurrencyToken = Guid.NewGuid()
     };
 
-    private static StaffMailSendOperationEntity Mail(StaffMailPurpose purpose, StaffMailState state, DateTimeOffset? sentAtUtc) => new()
-    {
-        Id = Guid.NewGuid(),
-        ActorSubjectId = Guid.NewGuid().ToString("D"),
-        MailboxId = Guid.NewGuid(),
-        MailboxGeneration = 1,
-        OperationKey = $"send:{Guid.NewGuid():N}",
-        PayloadHash = new string('2', 64),
-        Purpose = purpose,
-        ContextId = Guid.NewGuid(),
-        ContextVersion = 1,
-        ComposeMode = StaffMailComposeMode.New,
-        RecipientsJson = "[]",
-        Subject = "report",
-        Body = "report",
-        AttachmentsJson = "[]",
-        State = state,
-        CorrelationMarker = "test",
-        CreatedAtUtc = sentAtUtc ?? DayStart.AddHours(4),
-        RequestedAtUtc = sentAtUtc ?? DayStart.AddHours(4),
-        ObservedSentAtUtc = sentAtUtc,
-        Version = 1,
-        ConcurrencyToken = Guid.NewGuid()
-    };
-
     private static CaseWorkflowEventEntity Event(Guid caseId, string eventType, DateTimeOffset occurredAtUtc, long version = 2) => new()
     {
         Id = Guid.NewGuid(),
         CaseId = caseId,
         EventType = eventType,
-        OperationKey = $"activity:{caseId:N}:{eventType}:{occurredAtUtc:O}",
+        OperationKey = $"activity:{caseId:N}:{eventType}:{occurredAtUtc:yyyyMMddHHmmss}",
         RequestHash = new string('b', 64),
         ActorKind = "Staff",
         ActorSubjectId = "activity-test",

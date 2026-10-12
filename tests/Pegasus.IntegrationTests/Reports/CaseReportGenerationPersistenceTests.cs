@@ -53,7 +53,7 @@ public sealed class CaseReportGenerationPersistenceTests
                     targetGenerationId: report.Generation!.Id), default);
 
         var generation = Assert.IsType<CaseReportGenerationRecord>(result.Generation);
-        Assert.Contains(StaffRole.User, generation.Snapshot.GeneratedBy.ToActor().Roles);
+        Assert.Contains(StaffRole.User.ToString(), generation.Snapshot.GeneratedBy.Roles);
         Assert.Contains(generation.Artifacts, artifact => artifact.Kind == kind);
     }
 
@@ -279,11 +279,8 @@ public sealed class CaseReportGenerationPersistenceTests
         }
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task WorkflowSignatoryChangesStaleTheReportAndRefuseItsDelivery(
-        bool throughEngineerAssignment)
+    [Fact]
+    public async Task AssigningTheEngineerStalesTheReportAndRefusesItsDelivery()
     {
         await using var harness = await Harness.CreateAsync();
         var generated = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
@@ -291,37 +288,20 @@ public sealed class CaseReportGenerationPersistenceTests
         var generation = generated.Generation!;
         var replacementId = await harness.AddEligibleSignatoryAsync();
         var workflowStore = new EfCaseWorkflowStore(harness.Factory, Harness.Clock);
-        CaseWorkflowRecord changed;
-        if (throughEngineerAssignment)
-        {
-            await harness.MarkReviewReadyAsync();
-            changed = await workflowStore.AssignEngineerAsync(
-                new(
-                    harness.CaseId,
-                    1,
-                    harness.StaffActor,
-                    "assign-report-signatory",
-                    "Assign the replacement Engineer.",
-                    harness.Lease.Token,
-                    replacementId,
-                    new(true, true, "persisted-case-readiness")),
+        await harness.MarkReviewReadyAsync();
+        var changed = await workflowStore.AssignEngineerAsync(
+            new(
+                harness.CaseId,
+                1,
+                harness.StaffActor,
+                "assign-report-signatory",
+                "Assign the replacement Engineer.",
+                harness.Lease.Token,
                 replacementId,
-                CaseLifecycleState.ReportPreparation,
-                default);
-        }
-        else
-        {
-            changed = await workflowStore.SetSignOffEngineerAsync(
-                new(
-                    harness.CaseId,
-                    1,
-                    harness.StaffActor,
-                    "select-report-signatory",
-                    "Select the replacement sign-off Engineer.",
-                    harness.Lease.Token,
-                    replacementId),
-                default);
-        }
+                new(true, true, "persisted-case-readiness")),
+            replacementId,
+            CaseLifecycleState.ReportPreparation,
+            default);
 
         var stale = Assert.Single(await harness.GenerationRowsAsync());
         Assert.Equal(CaseReportGenerationState.Stale, stale.State);
@@ -338,30 +318,57 @@ public sealed class CaseReportGenerationPersistenceTests
             harness.SendReportAsync(generation, changed.Version, lease.Token));
     }
 
-    [Fact]
-    public async Task SelectingTheEffectiveDefaultSignatoryDoesNotStaleTheReport()
+    [Theory]
+    [InlineData("replacement")]
+    [InlineData("effective")]
+    public async Task SavingTheWorkspaceSignOffEngineerStalesTheReportOnlyWhenTheEffectiveSignatoryChanges(
+        string selection)
     {
         await using var harness = await Harness.CreateAsync();
         await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
             .ExecuteAsync(harness.Request(), default);
-        var workflowStore = new EfCaseWorkflowStore(harness.Factory, Harness.Clock);
+        var selectedId = selection == "replacement"
+            ? await harness.AddEligibleSignatoryAsync()
+            : FakeSnapshotSource.SignatoryId;
+        await using (var seed = await harness.Factory.CreateDbContextAsync())
+        {
+            seed.CaseDataSnapshots.Add(new CaseDataSnapshotEntity
+            {
+                WorkId = harness.CaseId,
+                OriginReceivedAtUtc = Harness.StartUtc,
+                CompletenessPolicyKey = "test",
+                CompletenessPolicyVersion = 1,
+                AcceptedAtUtc = Harness.StartUtc
+            });
+            await seed.SaveChangesAsync();
+        }
 
-        await workflowStore.SetSignOffEngineerAsync(
-            new(
+        await new EfCaseWorkspaceStore(harness.Factory, Harness.Clock).SaveAsync(
+            new SaveCaseWorkspaceRequest(
                 harness.CaseId,
                 1,
                 harness.StaffActor,
-                "select-effective-report-signatory",
-                "Select the already effective sign-off Engineer.",
-                harness.Lease.Token,
-                FakeSnapshotSource.SignatoryId),
+                $"save-report-signatory-{selection}",
+                null,
+                harness.Lease.Token)
+            {
+                Report = new(null, selectedId, null)
+            },
             default);
 
         var current = Assert.Single(await harness.GenerationRowsAsync());
-        Assert.Equal(CaseReportGenerationState.Confirmed, current.State);
-        Assert.Equal(
-            0,
-            await harness.ActionHistoryCountAsync(EfCaseReportGenerationStore.StaleEventKind));
+        if (selection == "replacement")
+        {
+            Assert.Equal(CaseReportGenerationState.Stale, current.State);
+            Assert.Equal(CaseReportStaleReasons.SignatoryChanged, await harness.StaleReasonAsync());
+        }
+        else
+        {
+            Assert.Equal(CaseReportGenerationState.Confirmed, current.State);
+            Assert.Equal(
+                0,
+                await harness.ActionHistoryCountAsync(EfCaseReportGenerationStore.StaleEventKind));
+        }
     }
 
     [Theory]

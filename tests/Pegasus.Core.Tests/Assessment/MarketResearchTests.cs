@@ -114,6 +114,9 @@ public sealed class MarketResearchTests
         public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(Guid subjectId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AiJobRecord>>(jobs.Where(job => job.SubjectId == subjectId).ToArray());
 
+        public Task<AiJobRecord?> GetPendingMarketResearchAsync(Guid subjectId, CancellationToken cancellationToken) =>
+            Task.FromResult(MarketResearchPolicy.PendingOf(jobs.Where(job => job.SubjectId == subjectId)));
+
         public Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(int max, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<AiJobCounts> GetCountsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();

@@ -1522,6 +1522,9 @@ public sealed class CaseValuationV26WebTests
         public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(Guid subjectId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AiJobRecord>>(subjectId == caseId && pending is not null ? [pending] : []);
 
+        public Task<AiJobRecord?> GetPendingMarketResearchAsync(Guid subjectId, CancellationToken cancellationToken) =>
+            Task.FromResult(subjectId == caseId ? pending : null);
+
         public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

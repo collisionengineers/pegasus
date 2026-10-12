@@ -254,11 +254,6 @@ public sealed class AssignCaseEngineerTests
             return Task.FromResult(Current);
         }
 
-        public Task<CaseWorkflowRecord> SetSignOffEngineerAsync(
-            SetCaseSignOffEngineerRequest request,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
         public Task<CaseEditLease> ClaimAsync(
             ClaimCaseEditLeaseRequest request,
             CancellationToken cancellationToken) =>
@@ -332,6 +327,16 @@ public sealed class AssignCaseEngineerTests
 
         public Task<CaseWorkflowRecord> ReturnToEngineerAsync(
             ReturnCaseToEngineerRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseWorkflowRecord> RaiseQueryAsync(
+            RaiseCaseQueryRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseWorkflowRecord> ResolveQueriesAsync(
+            ResolveCaseQueriesRequest request,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }

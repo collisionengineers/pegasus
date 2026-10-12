@@ -9,7 +9,7 @@ namespace Pegasus.Core.Tests.Triage;
 public sealed class TriageReplayTests
 {
     [Theory]
-    [InlineData(CaseLifecycleState.PostReport, false, false, true)]
+    [InlineData(CaseLifecycleState.ReportSent, false, false, true)]
     [InlineData(CaseLifecycleState.Review, true, false, false)]
     [InlineData(CaseLifecycleState.Review, false, true, false)]
     [InlineData(CaseLifecycleState.PrincipalCancelled, false, false, false)]
@@ -61,7 +61,7 @@ public sealed class TriageReplayTests
     }
 
     /// <summary>
-    /// The Worker asks for Triage pairing every ten seconds and usually nothing is
+    /// The Worker asks for Triage pairing every minute and usually nothing is
     /// waiting. Such a pass opens no span; a pass with a candidate opens one. A
     /// candidate read that fails opens none and is still counted as a failure.
     /// </summary>
@@ -216,6 +216,30 @@ public sealed class TriageReplayTests
         Assert.Equal(OperationKey(command), changed.OperationKey);
         Assert.Equal(ResultState(command), store.TargetState);
         Assert.Equal(1, store.MutationCount);
+    }
+
+    /// <summary>
+    /// A mutation that needs only the Triage's state reads its record, not the
+    /// findings, evidence, history and files of its detail; a mutation that
+    /// reads the findings still reads the detail.
+    /// </summary>
+    [Theory]
+    [InlineData(ReplayCommand.Complete, 0)]
+    [InlineData(ReplayCommand.Cancel, 0)]
+    [InlineData(ReplayCommand.RecordFinding, 1)]
+    public async Task AMutationReadsTheDetailOnlyWhenItNeedsTheFindings(
+        ReplayCommand command,
+        int expectedDetailReads)
+    {
+        var store = new ReplayStore
+        {
+            Current = CreateDetail(InvalidCurrentState(command))
+        };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => ExecuteAsync(command, store));
+
+        Assert.Equal(1, store.QueryCount);
+        Assert.Equal(expectedDetailReads, store.DetailQueryCount);
     }
 
     /// <summary>
@@ -428,6 +452,7 @@ public sealed class TriageReplayTests
         public int ProbeCount { get; private set; }
 
         public int QueryCount { get; private set; }
+        public int DetailQueryCount { get; private set; }
 
         public int MutationCount { get; private set; }
 
@@ -478,10 +503,18 @@ public sealed class TriageReplayTests
             CancellationToken cancellationToken) =>
             Task.FromResult<TriageOperationReplay?>(null);
 
+        public Task<TriageRecord?> GetRecordAsync(Guid caseId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            QueryCount++;
+            return Task.FromResult(Current?.Record);
+        }
+
         public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             QueryCount++;
+            DetailQueryCount++;
             return Task.FromResult(Current);
         }
 

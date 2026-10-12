@@ -197,6 +197,40 @@ public sealed class GraphMailWebhookTests
             Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
     }
 
+    [Fact]
+    public async Task ABatchLooksEachDistinctSubscriptionUpOnce()
+    {
+        var subscriptionId = Guid.NewGuid();
+        var unknownId = Guid.NewGuid();
+        var enqueuer = new RecordingEnqueuer();
+        var store = new SubscriptionStore(new(Guid.NewGuid(), subscriptionId.ToString("D"),
+            "users/mailbox-id/mailFolders/inbox-id/messages", DateTimeOffset.UtcNow.AddDays(1),
+            ApprovedMailboxSubscriptionLifecycleState.Active, null, null, 3));
+        var context = new DefaultHttpContext();
+        context.Request.ContentType = "application/json";
+        context.Request.Body = new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            value = new[]
+            {
+                NotificationValue(subscriptionId),
+                NotificationValue(unknownId),
+                NotificationValue(subscriptionId),
+                NotificationValue(unknownId)
+            }
+        }, JsonSerializerOptions.Web));
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Graph:ChangeNotificationClientState"] = "integration-client-state",
+            ["Graph:TenantId"] = "858cf5b3-aa0a-47a6-9b40-4851fd0afa94"
+        }).Build();
+
+        await Pegasus.Web.GraphMailWebhook.HandleAsync(
+            context.Request, store, enqueuer, configuration, TimeProvider.System, CancellationToken.None);
+
+        Assert.Equal(2, store.ActiveLookups);
+        Assert.Equal(2, enqueuer.Messages.Count);
+    }
+
     private static WebApplicationFactory<Program> Configure(
         IntakeWebApplicationFactory baseFactory,
         Guid mailboxId,
@@ -292,12 +326,17 @@ public sealed class GraphMailWebhookTests
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ApprovedMailboxSubscription>>([subscription]);
 
+        public int ActiveLookups { get; private set; }
+
         public Task<ApprovedMailboxSubscription?> GetActiveAsync(string subscriptionId,
-            DateTimeOffset nowUtc, CancellationToken cancellationToken) =>
-            Task.FromResult<ApprovedMailboxSubscription?>(
+            DateTimeOffset nowUtc, CancellationToken cancellationToken)
+        {
+            ActiveLookups++;
+            return Task.FromResult<ApprovedMailboxSubscription?>(
                 string.Equals(subscription.SubscriptionId, subscriptionId, StringComparison.Ordinal)
                     ? subscription
                     : null);
+        }
 
         public Task<IReadOnlyList<ApprovedMailboxSubscriptionMaintenanceCandidate>>
             ListMaintenanceCandidatesAsync(DateTimeOffset nowUtc,

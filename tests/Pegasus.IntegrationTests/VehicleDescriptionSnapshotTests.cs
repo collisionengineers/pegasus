@@ -156,6 +156,7 @@ public sealed class VehicleDescriptionSnapshotTests
                 "QDOS",
                 new(true, false),
                 new(false, "vehicle-description-probe", 1),
+                new Pegasus.Core.Workflow.CaseWorkflowConfiguration("vehicle-description-probe", 1),
                 CaseInspectionMode.PhysicalAddress),
             DateTimeOffset.UtcNow);
     }

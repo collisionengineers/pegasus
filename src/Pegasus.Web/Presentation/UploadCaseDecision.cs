@@ -464,7 +464,11 @@ public sealed class UploadCaseDecision(
             for (var index = 0; index < memberReceiptIds.Count; index++)
             {
                 var receiptId = memberReceiptIds[index];
-                var receipt = await getIntake.ExecuteAsync(new(receiptId, actor), cancellationToken);
+                // The first member was read, and its destination resolved,
+                // moments ago above; reading them again would only repeat it.
+                var receipt = index == 0
+                    ? firstReceipt
+                    : await getIntake.ExecuteAsync(new(receiptId, actor), cancellationToken);
                 if (receipt is null)
                 {
                     return PartialFailure(completedPrefix, "A file in this submission is no longer available. Refresh before trying again.");
@@ -487,7 +491,9 @@ public sealed class UploadCaseDecision(
                 {
                     return PartialFailure(completedPrefix, "A file in this submission changed after it was reviewed. Refresh to review it.");
                 }
-                var pendingDestination = await destinations.GetAsync(receipt, targetCaseId, actor, cancellationToken);
+                var pendingDestination = index == 0
+                    ? destination
+                    : await destinations.GetAsync(receipt, targetCaseId, actor, cancellationToken);
                 if (pendingDestination is null || pendingDestination.Version != expectedCaseVersion + completedPrefix)
                 {
                     return PartialFailure(completedPrefix, "A file in this submission can no longer be added to that case. Refresh to review it.");
@@ -580,9 +586,9 @@ public sealed class UploadCaseDecision(
             return new(false, "Nothing from this submission could be added to that case.");
         }
 
-        // Each member's link (LinkIntake) files its evidence and settles the
-        // group-owned Unidentified item once the complete roster reaches one
-        // Case; the worker sweep repeats that safely if a request is cut short.
+        // Each member's link (LinkIntake) commits the association and hands
+        // filing and the group-owned Unidentified settlement to the Worker's
+        // replay of that member's work.
         var message = OperatorLabels.AssociatedWithCase(
             destination?.Reference ?? firstReceipt.CurrentCaseReference,
             byStaffDecision: true);

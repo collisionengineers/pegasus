@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 
 namespace Pegasus.Core.Intake;
@@ -227,10 +228,12 @@ public sealed partial class SblInstructionExtractionPolicy
             .ToArray();
     }
 
-    private static Regex LabelRegex(string label) => new(
-        $@"(?im)^\s*{Regex.Escape(label)}\s*:[ \t]*(?<value>[^\r\n]*)",
+    private static readonly ConcurrentDictionary<string, Regex> LabelRegexes = new(StringComparer.Ordinal);
+
+    private static Regex LabelRegex(string label) => LabelRegexes.GetOrAdd(label, static key => new(
+        $@"(?im)^\s*{Regex.Escape(key)}\s*:[ \t]*(?<value>[^\r\n]*)",
         RegexOptions.CultureInvariant,
-        TimeSpan.FromMilliseconds(100));
+        TimeSpan.FromMilliseconds(100)));
 
     private static IntakeContentFragment Labelled(IntakeContentFragment origin, string label, string value) =>
         origin with { Text = $"{label}: {value}" };

@@ -1,4 +1,5 @@
 using System.Data;
+using System.Linq.Expressions;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -133,17 +134,6 @@ internal sealed class EfRetainedMailboxMessageStore(
         return string.Equals(retainedImmutableMessageId, immutableMessageId, StringComparison.Ordinal);
     }
 
-    public async Task<int> CountAsync(
-        MailWorkspaceScope scope,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(scope);
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        // The same filter pipeline the list reads, so a scope's count is
-        // exactly the number of rows clicking that scope would page through.
-        return await BuildMatches(context, scope).CountAsync(cancellationToken);
-    }
-
     public async Task<IReadOnlyList<int>> CountManyAsync(
         IReadOnlyList<MailWorkspaceScope> scopes,
         CancellationToken cancellationToken)
@@ -193,37 +183,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         var rows = await ordered
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(item => new SummaryRow(
-                item.Id,
-                item.MailboxId ?? UploadedCorrespondence.MailboxId,
-                item.MailboxAddress,
-                item.SenderAddress,
-                item.SenderDisplayName,
-                item.Subject,
-                item.BodyExcerpt,
-                item.ReceivedAtUtc,
-                item.IsRead,
-                item.Attachments.Count,
-                item.ExternalReceiptToken,
-                searchTerm != null
-                    && context.IntakeReceipts.Any(receipt =>
-                        receipt.SourceChannel == "mailbox"
-                        && receipt.ExternalReceiptToken == item.ExternalReceiptToken
-                        && receipt.SearchDocuments.Any(document =>
-                            document.AttachmentFileName == null
-                            && document.Text != null
-                            && document.Text.Contains(searchTerm))),
-                context.RetainedMailFolderMoves
-                    .Where(move => move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded")
-                    .OrderByDescending(move => move.RecordedAtUtc)
-                    .ThenByDescending(move => move.Id)
-                    .Select(move => move.FolderType)
-                    .FirstOrDefault(),
-                item.BodyPlainText == null
-                    ? null
-                    : item.BodyPlainText.Substring(0, 600),
-                null,
-                item.DismissedAtUtc))
+            .Select(SummaryProjection(context, searchTerm))
             .ToListAsync(cancellationToken);
 
         if (searchTerm is not null && rows.Count > 0)
@@ -267,23 +227,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             .OrderByDescending(item => item.ReceivedAtUtc)
             .ThenByDescending(item => item.Id)
             .Take(limit + 1)
-            .Select(item => new SummaryRow(
-                item.Id, item.MailboxId ?? UploadedCorrespondence.MailboxId, item.MailboxAddress, item.SenderAddress,
-                item.SenderDisplayName, item.Subject, item.BodyExcerpt, item.ReceivedAtUtc,
-                item.IsRead, item.Attachments.Count, item.ExternalReceiptToken,
-                searchTerm != null && context.IntakeReceipts.Any(receipt =>
-                    receipt.SourceChannel == "mailbox"
-                    && receipt.ExternalReceiptToken == item.ExternalReceiptToken
-                    && receipt.SearchDocuments.Any(document =>
-                        document.AttachmentFileName == null && document.Text != null
-                        && document.Text.Contains(searchTerm))),
-                context.RetainedMailFolderMoves
-                    .Where(move => move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded")
-                    .OrderByDescending(move => move.RecordedAtUtc).ThenByDescending(move => move.Id)
-                    .Select(move => move.FolderType).FirstOrDefault(),
-                item.BodyPlainText == null ? null : item.BodyPlainText.Substring(0, 600),
-                null,
-                item.DismissedAtUtc))
+            .Select(SummaryProjection(context, searchTerm))
             .ToListAsync(cancellationToken);
         var hasMore = rows.Count > limit;
         var pageHadRows = rows.Count > 0;
@@ -711,7 +655,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             workflow = await context.CaseWorkflows
                 .SingleOrDefaultAsync(item => item.CaseId == linkedCase.CaseId, cancellationToken);
         }
-        var wasPostReport = PostReportQueryTransitions.IsPostReport(receipt);
+        var wasPostReport = CaseQueryLedger.IsPostReport(receipt);
 
         Apply(after, decision);
         decision.Version++;
@@ -739,51 +683,36 @@ internal sealed class EfRetainedMailboxMessageStore(
             CorrectedAtUtc = correctedAtUtc
         });
 
-        // FRD-13 "Completed and Query": a message corrected to Post-report joins
-        // the Case as a query would; one corrected away leaves it as an unlink
-        // would. The same rule and the same lock as the link paths.
-        var queryEntry = PostReportQueryEntry.None;
+        // FRD-13 "Report sent and queries": a message corrected to Post-report
+        // joins the Case as a tagged query; one corrected away withdraws the
+        // query it raised. The same rule and the same lock as the link paths.
+        var queryRaised = false;
         var queryWithdrawn = false;
         if (workflow is not null)
         {
-            var isPostReport = PostReportQueryTransitions.IsPostReport(receipt);
+            var isPostReport = CaseQueryLedger.IsPostReport(receipt);
             var beforeCaseVersion = workflow.Version;
+            var beforeStateJson = CaseQueryLedger.SnapshotState(workflow);
             var operationKey = $"mail-correction:{receipt.Id:N}:v{decision.Version}";
             var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(afterJson)));
             if (isPostReport && !wasPostReport)
             {
-                var beforeStateJson = PostReportQueryTransitions.SnapshotState(workflow);
-                var entry = await PostReportQueryTransitions.EnterAsync(
-                    context, receipt, workflow, correctedAtUtc, cancellationToken);
-                queryEntry = entry.Kind;
-                if (entry.Kind != PostReportQueryEntry.None)
-                {
-                    CaseMutationGuard.Advance(workflow);
-                    if (entry.Kind == PostReportQueryEntry.EnterQuery)
-                    {
-                        PostReportQueryTransitions.AddQueryHistory(
-                            context, workflow, beforeCaseVersion, PostReportQueryTransitions.QueryReceivedEvent,
-                            actor, operationKey, requestHash, reason, correctedAtUtc, beforeStateJson);
-                    }
-                    else
-                    {
-                        PostReportQueryTransitions.AddObservedReplyHistory(
-                            context, workflow, beforeCaseVersion, entry.ObservedReply!, entry.BeforeReplyJson!);
-                    }
-                }
+                queryRaised = await CaseQueryLedger.RaiseForMailAsync(
+                    context, receipt, workflow, actor.Kind, actor.SubjectId,
+                    operationKey, correctedAtUtc, cancellationToken);
             }
             else if (wasPostReport && !isPostReport)
             {
-                var beforeStateJson = await PostReportQueryTransitions.WithdrawAsync(
-                    context, receipt, workflow, correctedAtUtc, cancellationToken);
-                if (beforeStateJson is not null)
-                {
-                    queryWithdrawn = true;
-                    CaseMutationGuard.Advance(workflow);
-                    PostReportQueryTransitions.AddQueryHistory(
-                        context, workflow, beforeCaseVersion, PostReportQueryTransitions.QueryWithdrawnEvent,
-                        actor, operationKey, requestHash, reason, correctedAtUtc, beforeStateJson);
-                }
+                queryWithdrawn = await CaseQueryLedger.WithdrawForMailAsync(
+                    context, receipt, workflow, actor.Kind, actor.SubjectId, correctedAtUtc, cancellationToken);
+            }
+            if (queryRaised || queryWithdrawn)
+            {
+                CaseMutationGuard.Advance(workflow);
+                CaseQueryLedger.AddQueryHistory(
+                    context, workflow, beforeCaseVersion,
+                    queryRaised ? CaseQueryLedger.QueryReceivedEvent : CaseQueryLedger.QueryWithdrawnEvent,
+                    actor, operationKey, requestHash, reason, correctedAtUtc, beforeStateJson);
             }
         }
 
@@ -798,7 +727,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         }
 
         var dossier = (await LoadClassificationAsync(context, messageId, cancellationToken))!;
-        return new(dossier, linkedCase?.CaseId, queryEntry, queryWithdrawn);
+        return new(dossier, linkedCase?.CaseId, queryRaised, queryWithdrawn);
     }
 
     private static async Task<MailClassificationDossier?> LoadClassificationAsync(
@@ -1532,6 +1461,45 @@ internal sealed class EfRetainedMailboxMessageStore(
         IntakeMailClassificationDecisionEntity? Classification,
         string? EffectiveSenderAddress,
         string? BodyHead);
+
+    /// <summary>
+    /// The one list-row projection, shared by the page and cursor lists so the
+    /// two cannot read different columns.
+    /// </summary>
+    private static Expression<Func<RetainedMailboxMessageEntity, SummaryRow>> SummaryProjection(
+        PegasusDbContext context,
+        string? searchTerm) =>
+        item => new SummaryRow(
+            item.Id,
+            item.MailboxId ?? UploadedCorrespondence.MailboxId,
+            item.MailboxAddress,
+            item.SenderAddress,
+            item.SenderDisplayName,
+            item.Subject,
+            item.BodyExcerpt,
+            item.ReceivedAtUtc,
+            item.IsRead,
+            item.Attachments.Count,
+            item.ExternalReceiptToken,
+            searchTerm != null
+                && context.IntakeReceipts.Any(receipt =>
+                    receipt.SourceChannel == "mailbox"
+                    && receipt.ExternalReceiptToken == item.ExternalReceiptToken
+                    && receipt.SearchDocuments.Any(document =>
+                        document.AttachmentFileName == null
+                        && document.Text != null
+                        && document.Text.Contains(searchTerm))),
+            context.RetainedMailFolderMoves
+                .Where(move => move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded")
+                .OrderByDescending(move => move.RecordedAtUtc)
+                .ThenByDescending(move => move.Id)
+                .Select(move => move.FolderType)
+                .FirstOrDefault(),
+            item.BodyPlainText == null
+                ? null
+                : item.BodyPlainText.Substring(0, 600),
+            null,
+            item.DismissedAtUtc);
 
     private sealed record SummaryRow(
         Guid Id,

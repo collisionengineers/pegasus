@@ -58,7 +58,7 @@ internal static class CompoundFileReader
             CompoundFileHeaderReadResult headerResult = CompoundFileHeaderReader.Read(bytes.Span);
             if (!headerResult.IsSuccess)
             {
-                return CompoundFileReadResult.HeaderFailure(headerResult.Error);
+                return CompoundFileReadResult.Failure(CompoundFileReadError.HeaderInvalid);
             }
 
             _header = headerResult.Header!;

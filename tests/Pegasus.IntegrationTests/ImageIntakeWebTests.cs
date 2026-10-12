@@ -357,7 +357,7 @@ public sealed class ImageIntakeWebTests
     }
 
     [Fact]
-    public async Task ConfidentMailboxReadAutoRegistersAndAutoAssociatesTheUnambiguousCase()
+    public async Task ConfidentMailboxReadFilesOnTheUnambiguousCaseWithoutRegistering()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
@@ -382,33 +382,25 @@ public sealed class ImageIntakeWebTests
         var receipt = await services
             .GetRequiredService<IIntakeReceiptQueries>()
             .GetAsync(receiptId, CancellationToken.None);
-        Assert.Equal(IntakeDecision.ImageIntakeRegistered, receipt!.Decision);
-        Assert.Equal(caseId, receipt.CurrentCaseId);
-
-        var detail = await services
+        // The images join the matched Case: no Image intake and no record
+        // folder are made for them (operator, 11 October 2026).
+        Assert.Equal(caseId, receipt!.CurrentCaseId);
+        Assert.NotEqual(IntakeDecision.ImageIntakeRegistered, receipt.Decision);
+        Assert.Null(await services
             .GetRequiredService<IImageIntakeQueries>()
-            .GetByOriginReceiptAsync(receiptId, CancellationToken.None);
-        Assert.Equal("AB12CDE-01", detail!.Record.ImageIntakeReference);
-        Assert.Equal(caseId, detail.AssociatedCaseId);
-        // The reference is allocated by the sequence, not chosen by the fixture.
-        Assert.False(string.IsNullOrWhiteSpace(detail.AssociatedCaseReference));
+            .GetByOriginReceiptAsync(receiptId, CancellationToken.None));
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "ImageIntakes"));
+        await using (var context = await factory.Database.CreateContextAsync())
+        {
+            Assert.False(await context.ExternalWorkItems.AsNoTracking()
+                .AnyAsync(item => item.Kind == ExternalWorkKinds.CreateImageCaseCustody));
+        }
 
         var suggestions = await services
             .GetRequiredService<IVrmSuggestionStore>()
             .ListForReceiptAsync(receiptId, CancellationToken.None);
         var suggestion = Assert.Single(suggestions);
         Assert.Equal(ImageVrmSuggestionDisposition.Confirmed, suggestion.Disposition);
-
-        var associatedImagePage = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{detail.Record.Id:D}");
-        Assert.Contains("AB12CDE-01", associatedImagePage);
-        Assert.Contains(detail.AssociatedCaseReference!, associatedImagePage, StringComparison.Ordinal);
-        // An associated record offers no attach.
-        Assert.DoesNotContain("data-image-action=\"add-to-case\"", associatedImagePage, StringComparison.Ordinal);
-        Assert.Equal("/Cases", BackToCasesHref(associatedImagePage));
-        var casePage = await IntakeWebDriver.GetHtmlAsync(
-            client,
-            $"/Cases/{caseId:D}?section=files");
-        Assert.Contains("AB12CDE-01", casePage);
     }
 
     /// <summary>

@@ -58,8 +58,6 @@ public interface IRepairSpecificationSnapshotStore
     Task<RepairSpecificationSnapshot> FreezeAsync(FreezeRepairSpecificationRequest request, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<RepairSpecificationSnapshot>> ListAsync(Guid caseId, Guid specificationId, CancellationToken cancellationToken);
-
-    Task<RepairSpecificationSnapshot?> GetAsync(Guid caseId, Guid snapshotId, CancellationToken cancellationToken);
 }
 
 /// <summary>The floors scaling never goes below (v28 P34): a labour rate per hour and a share of each price.</summary>

@@ -144,7 +144,6 @@ public sealed class CaseTaskArchivePersistenceTests
 
 
     [Theory]
-    [InlineData(CaseClosureOutcome.PostReportComplete)]
     [InlineData(CaseClosureOutcome.PrincipalCancelled)]
     [InlineData(CaseClosureOutcome.CollisionEngineersRejected)]
     [InlineData(CaseClosureOutcome.CreatedInError)]

@@ -54,6 +54,7 @@ public sealed class EfValuationStore(
         string operationKey,
         ValuationCalculationSelection selection,
         IReadOnlyList<CaseValuationEntity> writtenBySave,
+        CaseValuationEntity? postedGuide,
         bool claimantVatRegistered,
         string? engineerValueBox,
         long? caseMileageInMiles,
@@ -65,11 +66,12 @@ public sealed class EfValuationStore(
         CaseValuationEntity guideEntity;
         if (selection.GuideValuationId != Guid.Empty)
         {
-            var posted = await RequiredGuideAsync(
-                context,
-                workId,
-                selection.GuideValuationId,
-                cancellationToken);
+            var posted = postedGuide
+                ?? await RequiredGuideAsync(
+                    context,
+                    workId,
+                    selection.GuideValuationId,
+                    cancellationToken);
             guideEntity = writtenBySave.LastOrDefault(item => item.Source == posted.Source) ?? posted;
         }
         else
@@ -344,8 +346,10 @@ public sealed class EfValuationStore(
     /// <see cref="AdoptAsync"/> resolves its basis but before the save writes
     /// its fields, so they are written whether or not the calculation itself
     /// is recorded (a figure typed over it is still the Engineer's own).
+    /// The posted card, when one was posted, is returned for
+    /// <see cref="AdoptAsync"/> to reuse rather than read again.
     /// </summary>
-    internal static async Task<IReadOnlyDictionary<string, string?>> ReportValuesAsync(
+    internal static async Task<(IReadOnlyDictionary<string, string?> Values, CaseValuationEntity? PostedGuide)> ReportValuesAsync(
         PegasusDbContext context,
         Guid workId,
         ValuationCalculationSelection selection,
@@ -354,9 +358,10 @@ public sealed class EfValuationStore(
     {
         ValuationSource source;
         CaseValuationEntity? recorded;
+        CaseValuationEntity? postedGuide = null;
         if (selection.GuideValuationId != Guid.Empty)
         {
-            recorded = await RequiredGuideAsync(context, workId, selection.GuideValuationId, cancellationToken);
+            recorded = postedGuide = await RequiredGuideAsync(context, workId, selection.GuideValuationId, cancellationToken);
             source = Map(recorded).Details.Source;
         }
         else
@@ -372,11 +377,11 @@ public sealed class EfValuationStore(
         }
         if (guideEntries.LastOrDefault(entry => entry.Source == source) is { } entry)
         {
-            return ValuationPolicy.ReportValues(entry.RetailValue, entry.TradeValue);
+            return (ValuationPolicy.ReportValues(entry.RetailValue, entry.TradeValue), postedGuide);
         }
         return recorded is null
             ? throw new InvalidOperationException("Enter the retail value on the card you chose to use.")
-            : ValuationPolicy.ReportValues(recorded.RetailValue, recorded.TradeValue);
+            : (ValuationPolicy.ReportValues(recorded.RetailValue, recorded.TradeValue), postedGuide);
     }
 
     private static async Task<CaseValuationEntity> RequiredGuideAsync(

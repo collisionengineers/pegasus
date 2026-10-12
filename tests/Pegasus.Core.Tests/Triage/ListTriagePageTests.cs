@@ -191,6 +191,9 @@ public sealed class ListTriagePageTests
         public Task<int> CountAsync(IReadOnlyCollection<TriageState>? states, CancellationToken cancellationToken) =>
             Task.FromResult(0);
 
+        public Task<TriageRecord?> GetRecordAsync(Guid caseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

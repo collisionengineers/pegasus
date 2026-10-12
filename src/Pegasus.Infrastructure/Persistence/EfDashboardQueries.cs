@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
 
@@ -29,31 +30,27 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
         var review = CaseLifecycleState.Review.ToString();
         var held = CaseLifecycleState.Held.ToString();
         var reportPreparation = CaseLifecycleState.ReportPreparation.ToString();
-        var postReport = CaseLifecycleState.PostReport.ToString();
-        var query = CaseLifecycleState.Query.ToString();
+        var terminal = CaseLifecycleRules.TerminalStateNames();
 
+        // One statement: every open Case by state and open-query mark. Query is
+        // a queue of open Cases with an open query, whatever their state
+        // (operator, 11 October 2026).
         var counts = await context.CaseWorkflows
             .AsNoTracking()
-            .Where(workflow =>
-                workflow.State == notReady
-                || workflow.State == review
-                || workflow.State == held
-                || workflow.State == reportPreparation
-                || workflow.State == postReport
-                || workflow.State == query)
-            .GroupBy(workflow => workflow.State)
-            .Select(group => new { State = group.Key, Count = group.Count() })
+            .Where(workflow => !terminal.Contains(workflow.State))
+            .GroupBy(workflow => new { workflow.State, workflow.HasOpenQuery })
+            .Select(group => new { group.Key.State, group.Key.HasOpenQuery, Count = group.Count() })
             .ToArrayAsync(cancellationToken);
 
         int For(string state) =>
-            counts.SingleOrDefault(item => item.State == state)?.Count ?? 0;
+            counts.Where(item => item.State == state).Sum(item => item.Count);
 
         return new(
             For(notReady),
             For(review),
             For(held),
-            For(reportPreparation) + For(postReport),
-            For(query));
+            For(reportPreparation),
+            counts.Where(item => item.HasOpenQuery).Sum(item => item.Count));
     }
 
     public async Task<int> GetAwaitingInstructionCountAsync(CancellationToken cancellationToken)

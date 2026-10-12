@@ -183,12 +183,13 @@ still apply.
 
 **Staff linking files the material.** A staff link means the material is on
 the Case (operator, 26 September 2026): as the link is made, the source,
-its documents and its selected photographs are filed on the Case, in the
-same request, and the material's Unidentified item is resolved to that
-Case. A staff decision files on any Case or Triage Case in any state; only
-an archived Case never files, and filing waits for a live edit lease and
-retries. A filing the request cannot finish is handed to the Worker, which
-files it on its next pass over the receipt. A destination declared before
+its documents and its selected photographs are filed on the Case, and the
+material's Unidentified item is resolved to that Case. The link commits the
+association; filing resumes through intake and custody work, the Worker's
+replay of the receipt, and the request never touches Box (operator,
+11 October 2026). A staff decision files on any Case or Triage Case in any
+state; only an archived Case never files, and filing waits for a live edit
+lease and retries. A destination declared before
 the upload (Add evidence on a Case page,
 [FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)) is a staff
 decision made first: processing records it as that member of staff's

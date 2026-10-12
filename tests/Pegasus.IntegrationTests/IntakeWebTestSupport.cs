@@ -170,6 +170,8 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             // Core route tests have proved its exact-ID call contract.
             services.RemoveAll<ICommittedIntakeWorkPublisher>();
             services.AddScoped<ICommittedIntakeWorkPublisher, DiscardingCommittedWorkPublisher>();
+            services.RemoveAll<IIntakeWorkEnqueuer>();
+            services.AddScoped<IIntakeWorkEnqueuer, IntakeWebDriver.NoOpIntakeWorkEnqueuer>();
             services.RemoveAll<ICommittedExternalWorkPublisher>();
             services.AddScoped<ICommittedExternalWorkPublisher, DiscardingCommittedWorkPublisher>();
             services.AddSingleton(timeProvider);
@@ -708,6 +710,25 @@ internal static partial class IntakeWebDriver
     }
 
     /// <summary>
+    /// Runs the Worker's replay of a linked receipt's staged work, which a
+    /// staff link enqueues: it files the receipt's evidence on the Case and
+    /// settles its Unidentified item. A receipt with no staged work is left
+    /// alone.
+    /// </summary>
+    internal static async Task ReplayLinkedFilingAsync(
+        IServiceProvider services,
+        Guid receiptId,
+        CancellationToken cancellationToken = default)
+    {
+        var stagedReceiptId = await services.GetRequiredService<IIntakeWorkStore>()
+            .FindStagedReceiptIdForReceiptAsync(receiptId, cancellationToken);
+        if (stagedReceiptId is { } id)
+        {
+            await CreateProcessor(services).ExecuteAsync(id, cancellationToken);
+        }
+    }
+
+    /// <summary>
     /// Runs the Worker's grouped-image reconcile sweep once, standing in for
     /// its timer. A grouped upload's members can drain in an order that
     /// leaves a member's group outcome pending for this sweep (the ordinal-
@@ -766,6 +787,41 @@ internal static partial class IntakeWebDriver
         return (
             status,
             await workStore.GetCompletedEvaluationAsync(stagedReceiptId, cancellationToken));
+    }
+
+    /// <summary>
+    /// A manual image upload whose read matched existing Cases waits
+    /// unregistered for staff. Leaving it undecided records the decline and the
+    /// Worker's replay of the receipt's completed work registers the images.
+    /// </summary>
+    internal static async Task DeclineImageMatchAndReplayAsync(
+        IServiceProvider services,
+        Guid receiptId,
+        CancellationToken cancellationToken = default)
+    {
+        var receipt = await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, cancellationToken)
+            ?? throw new InvalidOperationException("The receipt does not exist.");
+        var group = await services.GetRequiredService<IIntakeSubmissionGroupStore>()
+            .FindForMemberSourceAsync(receipt.SourceIdentity, cancellationToken)
+            ?? throw new InvalidOperationException("The upload has no submission group.");
+        await services.GetRequiredService<IDeclineImageMatch>().ExecuteAsync(
+            group.Id,
+            ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+            cancellationToken);
+        await ReplayCompletedWorkAsync(services, receiptId, cancellationToken);
+    }
+
+    /// <summary>Runs the Worker's replay of a receipt's completed staged work.</summary>
+    internal static async Task ReplayCompletedWorkAsync(
+        IServiceProvider services,
+        Guid receiptId,
+        CancellationToken cancellationToken = default)
+    {
+        var stagedReceiptId = await services.GetRequiredService<IIntakeWorkStore>()
+            .FindStagedReceiptIdForReceiptAsync(receiptId, cancellationToken)
+            ?? throw new InvalidOperationException("The receipt has no staged work.");
+        await CreateProcessor(services).ExecuteAsync(stagedReceiptId, cancellationToken);
     }
 
     private static async Task<int> DispatchNextAsync(

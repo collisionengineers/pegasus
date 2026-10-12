@@ -282,15 +282,6 @@ public static class CustodyCreationOwner
     }
 }
 
-public sealed record CaseCustodyPreparation(
-    Guid CaseId,
-    long CaseVersion,
-    CustodyTargetKind TargetKind,
-    string State,
-    string? SafeFailureReason,
-    int AttemptCount,
-    bool CanRetry);
-
 public sealed record RetryCaseCustodyRequest(
     Guid CaseId,
     long ExpectedCaseVersion,
@@ -386,13 +377,6 @@ public sealed class CustodyRetryPolicyAuthority
 
     public RetryCaseCustodyResult Decide(CustodyRetryDecisionState state) =>
         decide(state);
-}
-
-public interface ICaseCustodyQueries
-{
-    Task<IReadOnlyList<CaseCustodyPreparation>> GetPreparationsAsync(
-        Guid caseId,
-        CancellationToken cancellationToken = default);
 }
 
 public interface ICustodyRecoveryPersistence
@@ -599,12 +583,7 @@ public sealed class DispatchPendingExternalWork(
 
         try
         {
-            await workEnqueuer.EnqueueAsync(claim.WorkItemId, cancellationToken);
-            await workStore.MarkDispatchedAsync(
-                claim.WorkItemId,
-                claim.LeaseToken,
-                timeProvider.GetUtcNow(),
-                cancellationToken);
+            await EnqueueAndMarkDispatchedAsync(claim, cancellationToken);
             activity?.SetTag("custody.publication.outcome", "published");
             activity?.SetStatus(ActivityStatusCode.Ok);
         }
@@ -628,6 +607,18 @@ public sealed class DispatchPendingExternalWork(
 
             activity?.SetStatus(ActivityStatusCode.Error, exception.GetType().Name);
         }
+    }
+
+    private async Task EnqueueAndMarkDispatchedAsync(
+        ExternalWorkDispatchClaim claim,
+        CancellationToken cancellationToken)
+    {
+        await workEnqueuer.EnqueueAsync(claim.WorkItemId, cancellationToken);
+        await workStore.MarkDispatchedAsync(
+            claim.WorkItemId,
+            claim.LeaseToken,
+            timeProvider.GetUtcNow(),
+            cancellationToken);
     }
 
     public Task PublishAsync(Guid workItemId, CancellationToken cancellationToken) =>
@@ -658,12 +649,7 @@ public sealed class DispatchPendingExternalWork(
 
             try
             {
-                await workEnqueuer.EnqueueAsync(claim.WorkItemId, cancellationToken);
-                await workStore.MarkDispatchedAsync(
-                    claim.WorkItemId,
-                    claim.LeaseToken,
-                    timeProvider.GetUtcNow(),
-                    cancellationToken);
+                await EnqueueAndMarkDispatchedAsync(claim, cancellationToken);
             }
             catch
             {

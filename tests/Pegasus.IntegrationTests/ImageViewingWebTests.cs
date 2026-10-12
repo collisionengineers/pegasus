@@ -112,6 +112,12 @@ public sealed class ImageViewingWebTests
             Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
             Guid.NewGuid().ToString("N"));
         var receiptId = IntakeWebDriver.ReceiptId(upload);
+        // The matched Case holds the upload unregistered until staff leave it
+        // undecided.
+        await using (var declineScope = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.DeclineImageMatchAndReplayAsync(declineScope.ServiceProvider, receiptId);
+        }
         // The registered photograph is served from the record's own folder
         // once its custody runs, as the Worker would.
         await ImageIntakeTestData.ProcessImageCaseCustodyAsync(factory);
@@ -264,6 +270,10 @@ public sealed class ImageViewingWebTests
         var upload = await IntakeWebDriver.UploadAndProcessAsync(
             factory, client, "vehicle.png", "image/png", pngBytes, Guid.NewGuid().ToString("N"));
         var receiptId = IntakeWebDriver.ReceiptId(upload);
+        await using (var declineScope = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.DeclineImageMatchAndReplayAsync(declineScope.ServiceProvider, receiptId);
+        }
         await ImageIntakeTestData.ProcessImageCaseCustodyAsync(factory);
 
         await using var scope = factory.Services.CreateAsyncScope();

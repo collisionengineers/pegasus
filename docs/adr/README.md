@@ -84,6 +84,7 @@ never renumbered or reused.
 | [ADR-0064](0064-automation-actor-staff-casework-parity.md) | The Automation Actor has staff casework parity | accepted | — | MCP-01, MCP-02, MCP-06 |
 | [ADR-0065](0065-case-export-replaces-eva-routes.md) | The Case export replaces the EVA routes | accepted | — | CASE-21, CASE-30, EXT-03 |
 | [ADR-0066](0066-cazana-valuation-through-a-key-vault-held-api-key.md) | Cazana valuation through a Key Vault-held API key | accepted | — | EXT-07, EXT-13 |
+| [ADR-0067](0067-report-sent-replaces-completed-and-queries-are-case-records.md) | Report sent replaces Completed, and queries are Case records | accepted | — | CASE-16, CASE-23 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

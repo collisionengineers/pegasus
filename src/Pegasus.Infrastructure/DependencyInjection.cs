@@ -13,7 +13,6 @@ using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Intake.Unidentified;
-using Pegasus.Core.ReferenceData;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Notifications;
@@ -214,7 +213,6 @@ public static class DependencyInjection
         services.AddScoped<IExactEmailResponseEvidenceQueries>(
             provider => provider.GetRequiredService<EfEmailEvidenceStore>());
         services.AddScoped<ISentEvidencePollOutcomeQueries, EfSentEvidencePollOutcomeQueries>();
-        services.AddScoped<IPrincipalReferenceCatalog, EfPrincipalReferenceCatalog>();
         services.AddSingleton<IMailRoutePolicy, PrincipalMailRoutePolicy>();
         services.AddSingleton<IEnumerable<IMailClassificationPolicy>>(provider =>
             provider.GetServices<IInstructionExtractionPolicy>()
@@ -316,14 +314,13 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfStandaloneAuditEvidenceStore>());
         services.AddScoped<IStandaloneAuditEvidenceQueries>(
             provider => provider.GetRequiredService<EfStandaloneAuditEvidenceStore>());
+        services.AddScoped<PrefetchedExternalWork>();
         services.AddScoped<EfExternalWorkStore>();
         services.AddScoped<IExternalWorkStore>(
             provider => provider.GetRequiredService<EfExternalWorkStore>());
         services.AddScoped<IQueuedExternalWorkReader>(
             provider => provider.GetRequiredService<EfExternalWorkStore>());
         services.AddScoped<ICustodyRecoveryPersistence>(
-            provider => provider.GetRequiredService<EfExternalWorkStore>());
-        services.AddScoped<ICaseCustodyQueries>(
             provider => provider.GetRequiredService<EfExternalWorkStore>());
         services.AddScoped<IRetryCaseCustody, RetryCaseCustody>();
         services.AddScoped<EfVehicleWorkflowStore>();
@@ -344,8 +341,6 @@ public static class DependencyInjection
         services.AddScoped<IDashboardQueries, EfDashboardQueries>();
         services.AddScoped<GetOperationsSnapshot>();
         services.AddScoped<IGetOperationsSnapshot>(provider =>
-            provider.GetRequiredService<GetOperationsSnapshot>());
-        services.AddScoped<IGetAttentionRows>(provider =>
             provider.GetRequiredService<GetOperationsSnapshot>());
         services.AddScoped<IRecentCaseQueries, EfRecentCaseQueries>();
         services.AddScoped<IWorkCentreVisitStore, EfWorkCentreVisitStore>();
@@ -430,11 +425,14 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<ICaseKindQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
+        services.AddScoped<ICaseWorkQueries>(
+            provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<ICaseDocumentQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<IAvailableReportSentEvidenceQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<IGetCaseKind, GetCaseKind>();
+        services.AddScoped<IGetCaseHasAuditWork, GetCaseHasAuditWork>();
         services.AddScoped<ISearchCases, SearchCases>();
         services.AddScoped<ISearchCasesByCursor, SearchCasesByCursor>();
         services.AddScoped<IListCaseDocumentsByCursor, ListCaseDocumentsByCursor>();
@@ -445,15 +443,12 @@ public static class DependencyInjection
         services.AddScoped<IGetCaseVehicleSection, GetCaseVehicleSection>();
         services.AddScoped<IGetCaseValuationSection, GetCaseValuationSection>();
         services.AddScoped<IGetCaseNotesSection, GetCaseNotesSection>();
+        services.AddScoped<IGetCaseQueriesSection, GetCaseQueriesSection>();
         services.AddScoped<IGetCaseFilesSection, GetCaseFilesSection>();
         services.AddScoped<IValidateCaseRenderLease, ValidateCaseRenderLease>();
         services.AddScoped<IListCaseReferences, ListCaseReferences>();
         services.AddScoped<ICaseDataQueries, EfCaseDataStore>();
-        services.AddScoped<InspectionAddressChoicesQueries>();
-        services.AddScoped<IInspectionAddressChoicesQueries>(
-            provider => provider.GetRequiredService<InspectionAddressChoicesQueries>());
-        services.AddScoped<IInspectionLocationChoices>(
-            provider => provider.GetRequiredService<InspectionAddressChoicesQueries>());
+        services.AddScoped<IInspectionAddressChoicesQueries, InspectionAddressChoicesQueries>();
         services.AddScoped<ICaseNoteStore, EfCaseNoteStore>();
         services.AddScoped<IAddCaseNote, AddCaseNote>();
         services.AddScoped<ICaseWorkspaceStore, EfCaseWorkspaceStore>();
@@ -515,6 +510,7 @@ public static class DependencyInjection
         services.AddScoped<IGetAssessmentAccess, GetAssessmentAccess>();
         services.AddScoped<IAssessmentWorkspaceSource, EfAssessmentWorkspaceSource>();
         services.AddScoped<IGetAssessmentWorkspace, GetAssessmentWorkspace>();
+        services.AddScoped<IGetAssessmentWorkspaceVersion, GetAssessmentWorkspaceVersion>();
         services.AddScoped<ISaveAssessment, SaveAssessment>();
         services.AddScoped<ISendToAiControl, EfSendToAiControlStore>();
         services.AddScoped<EfAiJobStore>();
@@ -577,6 +573,8 @@ public static class DependencyInjection
         services.AddScoped<ICloseCase, CloseCase>();
         services.AddScoped<IReopenCase, ReopenCase>();
         services.AddScoped<IReturnCaseToEngineer, ReturnCaseToEngineer>();
+        services.AddScoped<IRaiseCaseQuery, RaiseCaseQuery>();
+        services.AddScoped<IResolveCaseQueries, ResolveCaseQueries>();
         services.AddScoped<IArchiveCase, ArchiveCase>();
         services.AddScoped<IRecordManualCaseChase, RecordManualCaseChase>();
 
@@ -676,6 +674,7 @@ public static class DependencyInjection
             // Reads a filed original report for the Audit's Original report
             // cells; acceptance takes it where it is composed (v28 P51).
             services.AddScoped<IReadOriginalReport, ReadOriginalReport>();
+            services.AddScoped<RecordedOriginalReportReading>();
             services.AddScoped<MarkAsOriginalReport>();
             // The intake filer recognises the original report among what it
             // filed on an Audit awaiting one, where this surface is composed.

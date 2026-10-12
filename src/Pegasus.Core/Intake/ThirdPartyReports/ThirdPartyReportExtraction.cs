@@ -121,14 +121,6 @@ public static class ThirdPartyReportFields
         ArgumentException.ThrowIfNullOrWhiteSpace(code);
         return FindingPrefix + code;
     }
-
-    /// <summary>
-    /// Whether a persisted row states a finding rather than a printed value.
-    /// A surface that lists printed values filters on this; one that shows the
-    /// document's contradictions selects on it.
-    /// </summary>
-    public static bool IsFinding(string field) =>
-        field is not null && field.StartsWith(FindingPrefix, StringComparison.Ordinal);
 }
 
 /// <summary>The printed amount roles, as they appear on a persisted source row.</summary>

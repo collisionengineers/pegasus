@@ -156,7 +156,7 @@ public sealed class EfManualCaseCreationStore(
                 MissingMaterialReason = "Details are incomplete",
                 DueBy = request.Data.InspectionDeadline,
                 State = CaseDueWorkState.Scheduled.ToString(),
-                NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now, configuration.ChaseIntervalDays),
+                NextChaseAtUtc = CaseChaseSchedule.NextChaseAt(now, configuration.ChaseIntervalDays),
                 Version = 0
             });
         }
@@ -184,7 +184,7 @@ public sealed class EfManualCaseCreationStore(
         });
 
         // The staff-keyed registration is confirmed above, so the DVLA/MOT
-        // lookup is due now rather than on the Worker's next ten-second
+        // lookup is due now rather than on the Worker's next
         // reconciliation sweep (FRD-06 D34). Enqueued in this transaction so
         // it cannot outlive a rolled-back creation; published by the use case
         // after the commit. Looked-up values remain suggestions.

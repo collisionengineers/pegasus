@@ -220,7 +220,7 @@ public sealed class CaseCustodyWebTests
                     [
                         new(
                             ImageTagVocabulary.ThirdPartyId,
-                            ImageTagVocabulary.ThirdPartyName,
+                            "Third party",
                             ImageTagColour.Amber,
                             IsBuiltIn: true,
                             new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero))
@@ -254,7 +254,7 @@ public sealed class CaseCustodyWebTests
             $"/Cases/{store.CaseId:D}/Documents/{imageOccurrenceId:D}/Download?versionId={imageVersionId:D}&amp;inline=True&amp;size=thumb",
             html,
             StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(ImageTagVocabulary.ThirdPartyName, html, StringComparison.Ordinal);
+        Assert.Contains("Third party", html, StringComparison.Ordinal);
         // One grid, not three: no instruction-photograph gallery, no report
         // cards and no per-intake gallery in this section.
         Assert.Equal(1, Occurrences(html, "data-image-grid>"));

@@ -787,9 +787,6 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ImageVrmSuggestion>>([]);
 
-        public Task<ImageVrmSuggestion?> GetAsync(Guid id, CancellationToken cancellationToken) =>
-            throw new NotSupportedException("Not used by these tests.");
-
         public Task<ImageVrmSuggestion> SetDispositionAsync(
             ImageVrmSuggestionDispositionRequest request,
             CancellationToken cancellationToken) =>
@@ -1079,10 +1076,6 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             RegisterUnidentifiedRequest request,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
-        public Task<UnidentifiedRegisterResult?> ProbeRegisterReplayAsync(
-            RegisterUnidentifiedRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
         public Task<UnidentifiedResolveResult> ResolveAsync(
             ResolveUnidentifiedRequest request,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -1333,6 +1326,9 @@ public sealed class ReconcileUnidentifiedDestinationsTests
 
         public Task<int> CountAsync(IReadOnlyCollection<TriageState>? state, CancellationToken cancellationToken) =>
             Task.FromResult(0);
+
+        public Task<TriageRecord?> GetRecordAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult(TriageCases.TryGetValue(caseId, out var detail) ? detail.Record : null);
 
         public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult(TriageCases.TryGetValue(caseId, out var detail) ? detail : null);

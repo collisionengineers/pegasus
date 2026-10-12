@@ -76,8 +76,14 @@ internal sealed class DvlaDvsaProductionAdapter(
     {
         ArgumentNullException.ThrowIfNull(request);
         var retrievedAtUtc = timeProvider.GetUtcNow();
-        var dvla = await ReadDvlaAsync(request.Registration, cancellationToken);
-        var dvsa = await ReadDvsaAsync(request.Registration, cancellationToken);
+        var dvlaRead = ReadDvlaAsync(request.Registration, cancellationToken);
+        var dvsaRead = ReadDvsaAsync(request.Registration, cancellationToken);
+        // Both reads finish before either result is taken, so a failed DVLA
+        // read never leaves the DVSA read running unobserved; awaiting the
+        // DVLA read first keeps its exception the one that surfaces.
+        await Task.WhenAny(Task.WhenAll(dvlaRead, dvsaRead));
+        var dvla = await dvlaRead;
+        var dvsa = await dvsaRead;
         var identity = Hash($"{dvla.Identity}\n{dvsa.Identity}");
 
         // VES never returns a model, so the DVSA vehicle object is the only

@@ -1811,14 +1811,6 @@ public sealed partial class GlassRepairEstimateGateway(
 
         public long? ContentLength { get; set; }
 
-        public string? BoxFileId { get; set; }
-
-        public string? BoxVersionId { get; set; }
-
-        public string? FailureCode { get; set; }
-
-        public string? PendingContentStorageKey { get; set; }
-
         public static Artifact From(
             CaseArtifactCustodyResult result, string fileName, string mediaType, long contentLength) =>
             new()
@@ -1831,10 +1823,6 @@ public sealed partial class GlassRepairEstimateGateway(
                 OccurrenceId = result.OccurrenceId,
                 Sha256 = result.Sha256,
                 ContentLength = result.ContentLength ?? contentLength,
-                BoxFileId = result.BoxFileId,
-                BoxVersionId = result.BoxVersionId,
-                FailureCode = result.FailureCode,
-                PendingContentStorageKey = result.PendingContentStorageKey,
             };
     }
 }

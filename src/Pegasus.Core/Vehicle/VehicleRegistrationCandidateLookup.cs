@@ -4,11 +4,7 @@ namespace Pegasus.Core.Vehicle;
 
 public enum MachineReadRegistrationSource
 {
-    DocumentOcr,
-    VehicleRecognition,
-    EmbeddedDocumentText,
-    StaffConfirmed,
-    CaseSearch
+    DocumentOcr
 }
 
 public sealed record MachineReadRegistration(
@@ -42,8 +38,6 @@ public sealed partial class VehicleRegistrationCandidateLookup(IVehicleLookupAda
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(reading);
-        if (reading.Source is not (MachineReadRegistrationSource.DocumentOcr or MachineReadRegistrationSource.VehicleRecognition))
-            throw new ArgumentException("Registration alternatives require OCR or vehicle-recognition evidence.", nameof(reading));
         if (string.IsNullOrWhiteSpace(reading.SourceReference))
             throw new ArgumentException("Machine-reading provenance is required.", nameof(reading));
 

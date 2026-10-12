@@ -188,6 +188,13 @@ public sealed record UploadReviewView(
 
     public bool CanDiscard { get; init; }
 
+    /// <summary>
+    /// Leave undecided records that staff declined the matched Cases of image
+    /// material (operator, 11 October 2026), so it registers; otherwise it
+    /// only returns to Upload.
+    /// </summary>
+    public bool LeaveDeclinesImageMatch { get; init; }
+
     public long GroupVersion { get; init; }
 
     public IReadOnlyDictionary<Guid, long> DiscardVersions { get; init; } = new Dictionary<Guid, long>();
@@ -249,7 +256,7 @@ public static class UploadReviewDestinations
                     item.Principal,
                     item.TriageState is { } triageState
                         ? OperatorLabels.TriageState(triageState)
-                        : OperatorLabels.CaseStage(item.State),
+                        : OperatorLabels.CaseStage(item.State, item.HasOpenQuery),
                     target);
         }
         catch (Exception exception) when (exception is not Pegasus.Core.Identity.StaffAuthorizationException

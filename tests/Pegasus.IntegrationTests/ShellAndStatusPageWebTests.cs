@@ -471,9 +471,6 @@ public sealed class ShellAndStatusPageWebTests
         public Task<IReadOnlyList<StaffNotification>> ListAsync(ActionActor actor, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("sensitive store failure");
 
-        public Task<int> CountUnreadAsync(ActionActor actor, CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("sensitive store failure");
-
         public Task<StaffNotification?> OpenAsync(ActionActor actor, Guid notificationId, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("sensitive store failure");
 
@@ -491,9 +488,6 @@ public sealed class ShellAndStatusPageWebTests
 
         public Task<IReadOnlyList<StaffNotification>> ListAsync(ActionActor actor, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<StaffNotification>>(_rows.ToArray());
-
-        public Task<int> CountUnreadAsync(ActionActor actor, CancellationToken cancellationToken) =>
-            Task.FromResult(_rows.Count(row => row.IsUnread));
 
         public Task<StaffNotification?> OpenAsync(ActionActor actor, Guid notificationId, CancellationToken cancellationToken)
         {

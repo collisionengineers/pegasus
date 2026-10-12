@@ -506,7 +506,6 @@ public sealed class DashboardBoundaryTests
             [NeedsAttentionKind.Triage, NeedsAttentionKind.HeldDecision],
             view.NeedsAttention.Select(item => item.Kind).ToArray());
         Assert.Equal("H-MINE", view.NeedsAttention[1].Reference);
-        Assert.Equal(NeedsAttentionScope.Mine, view.Scope);
         Assert.Equal(2, view.Attention.TotalCount);
     }
 
@@ -661,14 +660,11 @@ public sealed class DashboardBoundaryTests
 
         var snapshot = await ExecuteAsync(
             new RecordingDashboardQueries(), NowUtc, searchCases: searchCases, dueWork: dueWork, dismissals: dismissals);
-        var attentionRows = await ExecuteAttentionRowsAsync(
-            new RecordingDashboardQueries(), NowUtc, searchCases: searchCases, dueWork: dueWork, dismissals: dismissals);
 
         Assert.Equal([keptId], snapshot.NeedsAttention.Select(item => item.Id).ToArray());
         Assert.Equal(1, snapshot.Attention.TotalCount);
         Assert.Equal(0, snapshot.Attention.KindCounts[NeedsAttentionKind.CaseChase]);
         Assert.Equal(1, snapshot.Attention.KindCounts[NeedsAttentionKind.ReviewCase]);
-        Assert.Equal([keptId], attentionRows.Select(item => item.Id).ToArray());
         // The metric strip counts the Cases, not the rows.
         Assert.Equal(snapshot.CaseStages.Review, snapshot.Metrics.Review);
     }
@@ -832,27 +828,6 @@ public sealed class DashboardBoundaryTests
         }
     }
 
-    [Theory]
-    [InlineData(GetOperationsSnapshot.MaximumAttentionRows)]
-    [InlineData(GetOperationsSnapshot.MaximumAttentionRows + 1)]
-    public async Task NotificationAttentionRowsStopAtTheShellLimit(int available)
-    {
-        var recorder = new RecordingDashboardQueries();
-        var rows = Enumerable.Range(1, available)
-            .Select(index => NewUnidentified(Guid.NewGuid(), $"U{2000 + index}"))
-            .ToArray();
-
-        var attention = await ExecuteAttentionRowsAsync(
-            recorder,
-            NowUtc,
-            unidentified: new StubUnidentifiedQueue { Rows = rows });
-
-        Assert.Equal(Math.Min(available, GetOperationsSnapshot.MaximumAttentionRows), attention.Count);
-        Assert.Equal(
-            rows.Take(GetOperationsSnapshot.MaximumAttentionRows).Select(row => row.Id),
-            attention.Select(row => row.Id));
-    }
-
     private static async Task<OperationsSnapshot> ExecuteAsync(
         RecordingDashboardQueries recorder,
         DateTimeOffset nowUtc,
@@ -867,28 +842,6 @@ public sealed class DashboardBoundaryTests
         var snapshot = BuildSnapshot(
             recorder, nowUtc, searchCases, unidentified, triage, dueWork, requestStore, workflowConfiguration, dismissals);
         return await snapshot.ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]));
-    }
-
-    /// <summary>
-    /// The notifications menu's own narrow query (<see cref="IGetAttentionRows"/>),
-    /// exercised directly rather than through the full snapshot — the two
-    /// share <c>FetchAttentionInputsAsync</c> but only this interface applies
-    /// <see cref="GetOperationsSnapshot.MaximumAttentionRows"/>.
-    /// </summary>
-    private static async Task<IReadOnlyList<NeedsAttentionItem>> ExecuteAttentionRowsAsync(
-        RecordingDashboardQueries recorder,
-        DateTimeOffset nowUtc,
-        StubSearchCases? searchCases = null,
-        StubUnidentifiedQueue? unidentified = null,
-        StubListTriage? triage = null,
-        StubDueWorkQueries? dueWork = null,
-        StubRequestOperationStore? requestStore = null,
-        CaseWorkflowConfiguration? workflowConfiguration = null,
-        InMemoryWorkCentreDismissals? dismissals = null)
-    {
-        IGetAttentionRows attentionRows = BuildSnapshot(
-            recorder, nowUtc, searchCases, unidentified, triage, dueWork, requestStore, workflowConfiguration, dismissals);
-        return await attentionRows.ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]));
     }
 
     private static GetOperationsSnapshot BuildSnapshot(
@@ -1089,6 +1042,9 @@ public sealed class DashboardBoundaryTests
         public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(Guid subjectId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<AiJobRecord?> GetPendingMarketResearchAsync(Guid subjectId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(int max, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
@@ -1143,9 +1099,6 @@ public sealed class DashboardBoundaryTests
     {
         public IReadOnlyList<CaseDueWork> Due { get; init; } = [];
 
-        public Task<CaseDueWork?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
-            Task.FromResult(Due.FirstOrDefault(work => work.CaseId == caseId));
-
         public Task<IReadOnlyList<CaseDueWork>> GetDueAsync(
             DateTimeOffset asOfUtc,
             int page,
@@ -1193,10 +1146,6 @@ public sealed class DashboardBoundaryTests
             Task.FromResult(Rows.Length);
 
         public Task<UnidentifiedRegisterResult> RegisterAsync(
-            RegisterUnidentifiedRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task<UnidentifiedRegisterResult?> ProbeRegisterReplayAsync(
             RegisterUnidentifiedRequest request,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 

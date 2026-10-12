@@ -44,8 +44,6 @@ public sealed record ManualChaseRecord(
 
 public interface ICaseDueWorkQueries
 {
-    Task<CaseDueWork?> GetAsync(Guid caseId, CancellationToken cancellationToken);
-
     Task<IReadOnlyList<CaseDueWork>> GetDueAsync(
         DateTimeOffset asOfUtc,
         int page,
@@ -96,24 +94,16 @@ public static class CaseChaseSchedule
     public const string PolicyKey = "case-chase-schedule";
     public const string PolicyIdentity = PolicyKey + "/v1";
 
-    public static DateTimeOffset FirstChaseAt(DateTimeOffset enteredNotReadyAtUtc, int intervalDays = 7)
-    {
-        ValidateInterval(intervalDays);
-        var local = LondonCalendar.TimeAt(enteredNotReadyAtUtc);
-        return LondonCalendar.ToUtc(local.Date.AddDays(intervalDays).Add(local.TimeOfDay));
-    }
-
-    public static DateTimeOffset NextChaseAt(DateTimeOffset previousChaseAtUtc, int intervalDays = 7)
-    {
-        ValidateInterval(intervalDays);
-        var local = LondonCalendar.TimeAt(previousChaseAtUtc);
-        return LondonCalendar.ToUtc(local.Date.AddDays(intervalDays).Add(local.TimeOfDay));
-    }
-
-    private static void ValidateInterval(int intervalDays)
+    /// <summary>
+    /// The chase due one interval after <paramref name="fromUtc"/>: when the
+    /// Case entered not-ready, or the previous chase.
+    /// </summary>
+    public static DateTimeOffset NextChaseAt(DateTimeOffset fromUtc, int intervalDays = 7)
     {
         if (intervalDays is < 1 or > 365)
             throw new ArgumentOutOfRangeException(nameof(intervalDays));
+        var local = LondonCalendar.TimeAt(fromUtc);
+        return LondonCalendar.ToUtc(local.Date.AddDays(intervalDays).Add(local.TimeOfDay));
     }
 
     public static TimeSpan RemainingInterval(DateTimeOffset nextChaseAtUtc, DateTimeOffset heldAtUtc)

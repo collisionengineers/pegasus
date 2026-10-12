@@ -355,7 +355,7 @@ public sealed class EngineerActivityReportPersistenceTests
                 new CaseWorkflowEntity
                 {
                     CaseId = caseId,
-                    State = engineerId is null ? "Review" : "PostReport",
+                    State = engineerId is null ? "Review" : "ReportSent",
                     AssignedEngineerId = engineerId,
                     SignOffEngineerId = signatoryId,
                     Version = 1,

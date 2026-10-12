@@ -79,11 +79,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
         var listed = await snapshots.ListAsync(caseId, specification.SpecificationId, CancellationToken.None);
         Assert.Equal([1, 2, 3, 4], listed.Select(version => version.Number));
-        var read = await snapshots.GetAsync(caseId, repriced.Id, CancellationToken.None);
-        Assert.NotNull(read);
+        var read = Assert.Single(listed, version => version.Id == repriced.Id);
         Assert.Equal(repriced.Origin, read.Origin);
         Assert.Equal("Door skin", read.Lines[0].Description);
-        Assert.Null(await snapshots.GetAsync(caseId, Guid.NewGuid(), CancellationToken.None));
     }
 
     [Fact]

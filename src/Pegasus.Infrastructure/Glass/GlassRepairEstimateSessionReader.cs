@@ -59,4 +59,11 @@ public interface IGlassRepairEstimateSessionReader
     /// </summary>
     Task<GlassRepairEstimateSession?> GetOwnAsync(
         Guid sessionId, Guid pegasusUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The state of <see cref="GetOwnAsync"/>'s session alone, for the window's
+    /// poll; null under the same rule.
+    /// </summary>
+    Task<GlassRepairEstimateSessionState?> GetOwnStateAsync(
+        Guid sessionId, Guid pegasusUserId, CancellationToken cancellationToken);
 }

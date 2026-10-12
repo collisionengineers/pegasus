@@ -13,6 +13,17 @@ namespace Pegasus.Infrastructure.Persistence;
 internal sealed class EfAssessmentWorkspaceSource(
     IDbContextFactory<PegasusDbContext> contextFactory) : IAssessmentWorkspaceSource
 {
+    public async Task<long?> GetVersionAsync(
+        Guid caseId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.CaseWorkflows.AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .Select(item => (long?)item.Version)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<AssessmentWorkspace?> GetAsync(
         Guid caseId,
         CaseWorkSelector work,

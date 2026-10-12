@@ -170,11 +170,8 @@ public sealed class CaseAssetPreparationPersistenceTests
         Assert.Equal(0, (await harness.OccurrenceRowAsync(second.OccurrenceId)).PreparationVersion);
     }
 
-    [Theory]
-    [InlineData(CaseLifecycleState.PostReportComplete)]
-    [InlineData(CaseLifecycleState.Query)]
-    public async Task CompletedAndQueryStatesRefuseAssetPreparationSave(
-        CaseLifecycleState state)
+    [Fact]
+    public async Task AHeldCaseRefusesAssetPreparationSave()
     {
         await using var harness = await Harness.CreateAsync();
         var asset = await harness.SeedImageAsync(new string('z', 64));
@@ -196,8 +193,8 @@ public sealed class CaseAssetPreparationPersistenceTests
         Assert.Equal(CaseAssetRotation.Half, initiallyPrepared.Rotation);
         Assert.Equal(preparedCrop, initiallyPrepared.Crop);
 
-        await harness.SetWorkflowStateAsync(state);
-        // Query and completed Cases remain leaseable until archived. This is a
+        await harness.SetWorkflowStateAsync(CaseLifecycleState.Held);
+        // A held Case remains leaseable until archived. This is a
         // valid lease for the exact current version, so the asserted error can
         // only be the Case save's state guard.
         var lease = await harness.AcquireLeaseAsync(caseVersionAfterPreparation);
@@ -207,7 +204,7 @@ public sealed class CaseAssetPreparationPersistenceTests
 
         var save = await Assert.ThrowsAsync<InvalidOperationException>(() => harness.SavePreparationAsync(
             lease,
-            $"save-readonly-{state}",
+            "save-readonly-held",
             [new(
                 asset.OccurrenceId,
                 initiallyPrepared.PreparationVersion,

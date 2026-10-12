@@ -4,14 +4,16 @@
 
 ## Short version
 
-- A Case moves `Not ready` → `Review` → `With Engineer` → `Completed`.
-  `Query` is a return trip from Completed. `Held` is a pause.
+- A Case moves `Not ready` → `Review` → `With Engineer` → `Report sent`.
+  A query is a record on the Case, not a state: a Case with an open query
+  reads `Query`. `Held` is a pause.
 - Not ready becomes Review by itself when every required instruction item
   and image is present. Nobody ticks a "reviewed" box.
 - **Assign Engineer** is the only way from Review to With Engineer. The Case
   export never moves a Case.
-- **Mark report sent** needs a real Sent email item. **Mark completed** can be
-  undone. A Case is never permanently closed.
+- **Mark report sent** needs a real Sent email item and is the last step.
+  There is no Mark completed (operator, 11 October 2026). A Case is never
+  permanently closed.
 - **Close case** records a cancellation or a rejection with a reason.
   **Archive** hides a closed Case from queues. Nothing is ever deleted.
 - **Create audit** adds the Audit to an Inspection + Audit Case in work,
@@ -39,13 +41,14 @@ names never leak into labels.
 | --- | --- |
 | `Not ready` | Something required is still missing. Chasing runs here. |
 | `Review` | Everything required is present. Staff hand the Case to an Engineer. |
-| `With Engineer` | An Engineer is working on it, before or after the report. |
-| `Completed` | The current work is done. Reversible. |
-| `Query` | A query arrived on a Completed Case. Reversible. |
+| `With Engineer` | An Engineer is working on it. |
+| `Report sent` | The report has been sent. The Case's last stage; still editable. |
+| `Query` | An open Case that holds an open query, whatever its state (operator, 11 October 2026). |
 | `Held` | Paused by staff with a reason. |
 
-Pegasus stores With Engineer as two internal states, one before the report
-and one after it. Screens show them as one word.
+Query is not a stored state: it is the stage word every screen, queue and
+filter gives an open Case while a query is open on it
+([Report sent and queries](#report-sent-and-queries)).
 
 A Case can also carry one of four closed dispositions: `Principal cancelled`,
 `Collision Engineers rejected`, `Created in error` and `Source email
@@ -146,20 +149,24 @@ never changes the Case state and records no handoff.
 - **Mark report sent** needs exact retained Sent evidence
   ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence)).
   A generated file, an export, a draft, a queue result or a manual statement
-  is not enough. Report sent moves the Case into its post-report phase,
-  which screens still show as With Engineer. Sent evidence belongs to the
+  is not enough. Report sent moves the Case to Report sent, its last stage.
+  Sent evidence belongs to the
   report it proves: after Create audit, the Case's own Mark report sent takes
   the Audit report's evidence, sent after the Audit was created, while the
   Inspection view's Mark report sent takes the Inspection report's, on the
   Inspection's own work and without changing the Case's state (operator,
   1 October 2026).
-- **Mark completed** records that the current work is complete. It is a
-  reversible work state, not a closure. It needs no Audit.
+- **Log query** records a query that reached the office outside Pegasus's
+  mail: its channel (E-mail, Phone, WhatsApp, Other) and its details. It is
+  offered only on a Report sent Case. **Resolve query** closes every open
+  query on the Case at once; neither asks for a reason
+  ([Report sent and queries](#report-sent-and-queries)).
 - **Create audit** adds the Audit to an Inspection + Audit Case
   ([Create audit](#create-audit)).
 - **Return to Engineer** records a reason and applies the destination gates
   when more engineering changes are needed. It is not needed to receive,
-  attach or answer a query.
+  attach or answer a query. **Return to Review** records a reason from With
+  Engineer or Report sent (operator, 11 October 2026).
 - **A Case save** needs no reason. Its history line names the fields that
   changed, for example "Vehicle registration, Incident date". Reasons are
   required where an action's rule asks for one: holds and releases, closure,
@@ -178,7 +185,7 @@ corrected-Principal replacement action
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
 `Source email unlinked` happens when staff unlink the email that created the
 Case ([FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association)).
-Mark completed is ordinary progress, not a closure.
+Report sent is ordinary progress, not a closure.
 
 A closed disposition locks nothing permanently and deletes no evidence. The
 Case can return to work with a reason through the normal gates.
@@ -191,28 +198,53 @@ results. Nothing is deleted; the Case, its files and its history stay
 viewable. An already-archived Case is refused a second archive. Automatic
 association never links new material to an archived Case.
 
-### Completed and Query
+### Report sent and queries
 
 The Engineer answers queries from the Principal, a third-party insurer or
-the claimant; a dispute is a query. When a query is received for, or attached to, a
-Completed Case, the Case moves to Query. Replying moves it back to Completed.
-Correcting a linked message's classification to a post-report family attaches
-a query in the same way. Correcting it away, or unlinking it, before any reply
-was sent, while no other post-report message is linked, returns the Case to
-Completed. Both transitions are recorded as Case history.
-A draft or an acknowledgement is not a reply. Pegasus keeps the received
-query and the actual reply as Case correspondence. Neither transition erases
-earlier completion or query history. Further engineering edits go through
-Return to Engineer.
+the claimant; a dispute is a query. A query is a record on the Case
+(operator, 11 October 2026). It is raised in three ways:
+
+- a received e-mail classified as post-report that joins a Report sent Case,
+  by automatic association, a staff link or a classification correction
+  (the Correspondence tab's **Tag as query** is that correction in one
+  click, recorded with the reason "Tagged as query"); staff and the
+  Automation Actor both tag this way;
+- **Log query**, from the Actions menu or `pegasus_case_action`, on a Report
+  sent Case: the channel it came by and its details;
+- nothing else yet: no e-mail criteria raise a query by themselves.
+
+A post-report e-mail joining a Case in any other state raises nothing. The
+Case's Engineer is told of a query raised from mail
+([FRD-12](frd-12-operator-experience.md#the-shell)).
+
+While any query is open the Case reads **Query** on every screen, queue and
+filter, in purple, whatever its state; the Queries section lists the open
+queries first and the resolved ones after them; and on a Report sent Case
+the Next action is **Resolve query**
+([FRD-16](frd-16-case-record-workspace.md#queries)). A query stays open
+when the Case leaves Report sent (Return to Engineer, Create audit, Unlink
+report evidence, Hold) and is resolved from wherever the Case then is.
+
+A query is resolved in one of three ways, each closing every open query on
+the Case at once: **Resolve query** from the Actions menu or the Next
+action; the reply composer's **Also resolve query** tick, applied when the
+reply's Sent item is observed ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence));
+or `pegasus_case_action` resolve_query and `pegasus_mail_send` resolveQuery.
+A reply without the tick resolves nothing; a draft or an acknowledgement is
+not a reply. Unlinking a tagged e-mail, or correcting its classification
+away from post-report, withdraws the open query it raised and no other;
+a withdrawn query is not listed. Every raise, withdrawal and resolution is
+Case history, and none erases earlier history. Pegasus keeps the received
+query and the actual reply as Case correspondence. Further engineering
+edits go through Return to Engineer.
 
 ### Create audit
 
 **When it is offered.** Create audit is listed in the Actions menu of every
 Inspection + Audit Case, in every state, in and out of an edit session
 (operator, 1 October 2026); no other Case type lists it. It is live while
-the Case is in work: Not ready, Review, With Engineer before or after the
-report, Completed or Query. Whether the Inspection report has been sent does
-not matter. It is refused, and the item is greyed out with the refusal as
+the Case is in work: Not ready, Review, With Engineer or Report sent.
+Whether the Inspection report has been sent does not matter. It is refused, and the item is greyed out with the refusal as
 its hover text, on a Held Case ("A held case cannot have an audit created
 from it."), a Case with a closed disposition ("A closed case cannot have an
 audit created from it."; Created in error keeps its own refusal), an
@@ -248,8 +280,7 @@ second Audit, and an edit prepared before Create audit is refused as stale.
 
 **After it.** The Audit drives the Case: its state, queues, Actions menu and
 the Audit view's Next action follow the Audit's report, and the Case's report
-generation, approval, Mark report sent and Mark completed act on the Audit
-report. The Inspection's values are edited from the Inspection view, on the
+generation, approval and Mark report sent act on the Audit report. The Inspection's values are edited from the Inspection view, on the
 Inspection's own work and without any effect on the Case's state, due date,
 completeness or matching; its report is generated, sent and marked
 sent from that view, again when needed, and that view's Next action states
@@ -352,11 +383,12 @@ Automation Actor action.
 | Review | With Engineer | Assign Engineer, or the headless start command |
 | Not ready, Review, With Engineer | Held | Place on Hold (reason) |
 | Held | previous state | Release Hold (reason) |
-| With Engineer | Completed | Mark completed |
-| Completed | Query | Query received, attached, or corrected onto a linked message |
-| Query | Completed | Reply sent, or the last post-report message unlinked or corrected away before any reply |
-| Completed, Query | With Engineer | Return to Engineer (reason) |
-| Not ready, Review, With Engineer, Completed, Query | With Engineer before the report | Create audit, once, on an Inspection + Audit Case |
+| With Engineer | Report sent | Mark report sent, or the Worker's automatic link of the report's Sent evidence |
+| Report sent | With Engineer | Return to Engineer (reason), or Unlink report evidence |
+| With Engineer, Report sent | Review | Return to Review (reason) |
+| Not ready, Review, With Engineer, Report sent | With Engineer before the report | Create audit, once, on an Inspection + Audit Case |
+| any open state | same state, query open | A post-report e-mail joining a Report sent Case; Log query on a Report sent Case |
+| any open state, query open | same state, no query open | Resolve query; a reply with Also resolve query reaching Sent; the last tagged e-mail unlinked or corrected away |
 | pre-report states | Principal cancelled, Collision Engineers rejected | Close case (reason) |
 | any open state | Created in error | Corrected-Principal replacement action |
 | any open state | Source email unlinked | Unlink the source email |

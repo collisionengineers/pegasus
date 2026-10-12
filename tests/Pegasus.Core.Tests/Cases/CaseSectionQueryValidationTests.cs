@@ -168,6 +168,9 @@ public sealed class CaseSectionQueryValidationTests
         public Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<CaseHistoryEntry>>([]);
 
+        public Task<IReadOnlyList<CaseQueryItem>> ListCaseQueriesAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<CaseQueryItem>>([]);
+
         public Task<CaseFilesSectionData?> GetFilesSectionAsync(
             Guid caseId,
             bool includeDocuments,

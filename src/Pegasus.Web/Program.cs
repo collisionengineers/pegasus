@@ -789,8 +789,6 @@ builder.Services.AddScoped<ISecurityEventWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIdentityAuditStore>());
 builder.Services.AddScoped<IActionHistoryWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIdentityAuditStore>());
-builder.Services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
-builder.Services.AddScoped<IPrincipalInspectionModeStore, EfPrincipalInspectionModeStore>();
 builder.Services.AddScoped<IInspectionAddressResolutionStore, InspectionAddressResolutionStore>();
 builder.Services.AddScoped<EfIntakeWorkStore>();
 builder.Services.AddScoped<IIntakeWorkStore>(serviceProvider =>
@@ -834,6 +832,7 @@ builder.Services.AddScoped<ReceiveIntake>();
 builder.Services.AddScoped<DiscardIntakeSubmissionGroup>();
 builder.Services.AddScoped<IDiscardIntakeSubmissionGroup>(serviceProvider =>
     serviceProvider.GetRequiredService<DiscardIntakeSubmissionGroup>());
+builder.Services.AddScoped<IDeclineImageMatch, DeclineImageMatch>();
 builder.Services.AddScoped<IIntakeSubmission>(serviceProvider =>
     serviceProvider.GetRequiredService<ReceiveIntake>());
 builder.Services.AddScoped<SubmitGroupedIntake>();

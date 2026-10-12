@@ -200,7 +200,8 @@ public sealed class CaseDataCompletenessPersistenceTests
         return CaseDataSnapshotFactory.Create(accepted, receipt,
             new(receiptId, 1, ActionActor.SystemWorker("system-worker:intake-processing"),
                 "provenance-probe", CaseType.Inspection, "PCH",
-                new(true, false), new(false, "completeness-probe", 1), CaseInspectionMode.PhysicalAddress),
+                new(true, false), new(false, "completeness-probe", 1),
+                new Pegasus.Core.Workflow.CaseWorkflowConfiguration("completeness-probe", 1), CaseInspectionMode.PhysicalAddress),
             DateTimeOffset.UtcNow);
     }
 

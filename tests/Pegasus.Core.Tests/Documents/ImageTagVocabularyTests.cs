@@ -30,7 +30,7 @@ public sealed class ImageTagVocabularyTests
     [Fact]
     public void NormalizeKeyOfADoubleSpacedVariantMatchesTheBuiltInKey()
     {
-        var builtInKey = ImageTagVocabulary.NormalizeKey(ImageTagVocabulary.ThirdPartyName);
+        var builtInKey = ImageTagVocabulary.NormalizeKey("Third party");
         var doubleSpacedKey = ImageTagVocabulary.NormalizeKey("Third  party");
 
         Assert.Equal(builtInKey, doubleSpacedKey);
@@ -39,7 +39,7 @@ public sealed class ImageTagVocabularyTests
     [Fact]
     public void NormalizeKeyOfANonBreakingSpaceVariantMatchesTheBuiltInKey()
     {
-        var builtInKey = ImageTagVocabulary.NormalizeKey(ImageTagVocabulary.ThirdPartyName);
+        var builtInKey = ImageTagVocabulary.NormalizeKey("Third party");
         var nonBreakingSpaceKey = ImageTagVocabulary.NormalizeKey("Third party");
 
         Assert.Equal(builtInKey, nonBreakingSpaceKey);

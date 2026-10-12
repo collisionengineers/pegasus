@@ -71,8 +71,6 @@ public interface IStaffNotificationStore
         DateTimeOffset sinceUtc,
         CancellationToken cancellationToken);
 
-    Task<int> CountUnreadAsync(Guid staffId, DateTimeOffset sinceUtc, CancellationToken cancellationToken);
-
     /// <summary>Marks one of the person's notifications read; a notification that is not theirs is left alone.</summary>
     Task<StaffNotification?> MarkReadAsync(Guid staffId, Guid notificationId, DateTimeOffset readAtUtc, CancellationToken cancellationToken);
 
@@ -225,8 +223,6 @@ public interface IMyStaffNotifications
 {
     Task<IReadOnlyList<StaffNotification>> ListAsync(ActionActor actor, CancellationToken cancellationToken);
 
-    Task<int> CountUnreadAsync(ActionActor actor, CancellationToken cancellationToken);
-
     /// <summary>Marks the notification read and returns it, so the caller can open its route; null when it is not the person's.</summary>
     Task<StaffNotification?> OpenAsync(ActionActor actor, Guid notificationId, CancellationToken cancellationToken);
 
@@ -242,9 +238,6 @@ public sealed class MyStaffNotifications(
 
     public Task<IReadOnlyList<StaffNotification>> ListAsync(ActionActor actor, CancellationToken cancellationToken) =>
         _store.ListAsync(RequireStaff(actor), Since(), cancellationToken);
-
-    public Task<int> CountUnreadAsync(ActionActor actor, CancellationToken cancellationToken) =>
-        _store.CountUnreadAsync(RequireStaff(actor), Since(), cancellationToken);
 
     public Task<StaffNotification?> OpenAsync(ActionActor actor, Guid notificationId, CancellationToken cancellationToken)
     {

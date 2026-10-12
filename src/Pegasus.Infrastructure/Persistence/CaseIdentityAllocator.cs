@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core;
 using Pegasus.Core.Cases;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -13,9 +14,6 @@ namespace Pegasus.Infrastructure.Persistence;
 /// </summary>
 internal static class CaseIdentityAllocator
 {
-    private static readonly TimeZoneInfo LondonTimeZone =
-        TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
-
     public static async Task<AllocatedCaseIdentity> AllocateAsync(
         PegasusDbContext context,
         PrincipalEntity principal,
@@ -23,7 +21,7 @@ internal static class CaseIdentityAllocator
         DateTimeOffset createdAtUtc,
         CancellationToken cancellationToken)
     {
-        var year = TimeZoneInfo.ConvertTime(createdAtUtc, LondonTimeZone).Year;
+        var year = LondonCalendar.DateAt(createdAtUtc).Year;
         var lineageId = principal.SequenceLineageId;
         // UPDLOCK, HOLDLOCK: concurrent creators on one lineage queue here
         // instead of both reading the row shared and deadlocking on the update.

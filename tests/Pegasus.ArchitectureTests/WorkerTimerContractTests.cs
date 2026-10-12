@@ -15,15 +15,15 @@ namespace Pegasus.ArchitectureTests;
 public sealed partial class WorkerTimerContractTests
 {
     /// <summary>
-    /// Every timer's schedule. Nothing here may get slower (roadmap decision N2): the
-    /// staged sweep is 10 seconds, the other timers are one minute, and the due-work
+    /// Every timer's schedule (operator, 11 October 2026): the
+    /// staged sweep and the other timers are one minute, and the due-work
     /// sweep and inbox recovery ride the one-minute recovery timer every fifth minute.
     /// </summary>
     private static readonly Dictionary<string, string> ExpectedSchedules = new(StringComparer.Ordinal)
     {
         ["PendingWorkRecoverySchedule"] = "0 * * * * *",
         ["SentEvidencePollSchedule"] = "0 * * * * *",
-        ["IntakeStagedArtifactReconciliationSchedule"] = "*/10 * * * * *"
+        ["IntakeStagedArtifactReconciliationSchedule"] = "0 * * * * *"
     };
 
     [Fact]
@@ -82,12 +82,12 @@ public sealed partial class WorkerTimerContractTests
     }
 
     /// <summary>
-    /// A timer of one minute or longer writes no monitor blob to storage on each run: a
+    /// A timer without a monitor blob writes nothing to storage on each run: a
     /// missed firing after a restart is not replayed, which these idempotent recovery
-    /// sweeps allow. The 10-second sweep keeps its monitor.
+    /// sweeps allow. The staged-artifact sweep keeps its monitor.
     /// </summary>
     [Fact]
-    public void OnlyTheTenSecondSweepKeepsItsMonitorBlob()
+    public void OnlyTheStagedArtifactSweepKeepsItsMonitorBlob()
     {
         var monitored = WorkerFunctionSet.Declarations()
             .SelectMany(function => function.Method.GetParameters()

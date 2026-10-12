@@ -828,31 +828,41 @@ public sealed class EfCaseReportGenerationStore(
             .ConfigureAwait(false);
         foreach (var generation in current)
         {
-            generation.State = nameof(CaseReportGenerationState.Stale);
-            context.ActionHistory.Add(new ActionHistoryEntity
-            {
-                Id = Guid.NewGuid(),
-                AggregateType = "case",
-                AggregateId = caseId.ToString("D"),
-                EventKind = StaleEventKind,
-                ActorKind = nameof(ActorKind.SystemWorker),
-                ActorSubjectId = PolicyVersion,
-                ActorRolesJson = "[]",
-                OccurredAtUtc = nowUtc,
-                Outcome = "Succeeded",
-                CorrelationId = DeserializeSnapshot(generation).OperationKey,
-                Reason = reasonCode,
-                AfterJson = DocumentActionHistory.Serialize(new
-                {
-                    GenerationId = generation.Id,
-                    generation.SnapshotHash,
-                    ReasonCode = reasonCode,
-                }),
-                PolicyVersion = PolicyVersion,
-            });
+            MarkGenerationStale(context, caseId, generation, reasonCode, nowUtc);
         }
 
         return current.Length;
+    }
+
+    private static void MarkGenerationStale(
+        PegasusDbContext context,
+        Guid caseId,
+        CaseReportGenerationEntity generation,
+        string reasonCode,
+        DateTimeOffset nowUtc)
+    {
+        generation.State = nameof(CaseReportGenerationState.Stale);
+        context.ActionHistory.Add(new ActionHistoryEntity
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = "case",
+            AggregateId = caseId.ToString("D"),
+            EventKind = StaleEventKind,
+            ActorKind = nameof(ActorKind.SystemWorker),
+            ActorSubjectId = PolicyVersion,
+            ActorRolesJson = "[]",
+            OccurredAtUtc = nowUtc,
+            Outcome = "Succeeded",
+            CorrelationId = DeserializeSnapshot(generation).OperationKey,
+            Reason = reasonCode,
+            AfterJson = DocumentActionHistory.Serialize(new
+            {
+                GenerationId = generation.Id,
+                generation.SnapshotHash,
+                ReasonCode = reasonCode,
+            }),
+            PolicyVersion = PolicyVersion,
+        });
     }
 
     /// <summary>
@@ -896,8 +906,9 @@ public sealed class EfCaseReportGenerationStore(
             if (!await SignatoryMatchesAsync(
                     context, DeserializeSnapshot(row.Generation), signatory, signatureHashes, cancellationToken))
             {
-                await MarkWorkStaleAsync(context, row.Generation.CaseId, row.Generation.WorkId,
-                    CaseReportStaleReasons.SignatoryChanged, nowUtc, cancellationToken);
+                // The row is the work's one current generation, already tracked.
+                MarkGenerationStale(context, row.Generation.CaseId, row.Generation,
+                    CaseReportStaleReasons.SignatoryChanged, nowUtc);
             }
         }
     }

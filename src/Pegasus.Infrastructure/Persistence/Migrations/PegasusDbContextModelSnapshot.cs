@@ -586,10 +586,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedAtUtc");
 
-                    b.HasIndex("MarketResearchDocumentOccurrenceId");
-
-                    b.HasIndex("MarketResearchValuationId");
-
                     b.HasIndex("OperationKey")
                         .IsUnique();
 
@@ -2122,6 +2118,88 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("CaseMatchIndex", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseQueryEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Channel")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("ClosedAs")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset?>("ClosedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ClosedByKind")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ClosedBySubjectId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Details")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("IntakeReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("RaisedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("RaisedByKind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("RaisedBySubjectId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("RaisedOperationKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid?>("ResolvedByMailOperationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IntakeReceiptId");
+
+                    b.HasIndex("CaseId", "IntakeReceiptId")
+                        .IsUnique()
+                        .HasFilter("[ClosedAtUtc] IS NULL AND [IntakeReceiptId] IS NOT NULL");
+
+                    b.HasIndex("CaseId", "RaisedAtUtc");
+
+                    b.ToTable("CaseQueries", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CaseQueries_Channel", "[Channel] IS NULL OR [Channel] IN ('Email', 'Phone', 'WhatsApp', 'Other')");
+
+                            t.HasCheckConstraint("CK_CaseQueries_Closure", "([ClosedAs] IS NULL AND [ClosedAtUtc] IS NULL AND [ClosedByKind] IS NULL AND [ClosedBySubjectId] IS NULL AND [ResolvedByMailOperationId] IS NULL) OR ([ClosedAs] IN ('Resolved', 'Withdrawn') AND [ClosedAtUtc] IS NOT NULL AND [ClosedByKind] IS NOT NULL AND [ClosedBySubjectId] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_CaseQueries_Source", "[Source] IN ('Mail', 'Staff')");
+
+                            t.HasCheckConstraint("CK_CaseQueries_SourceShape", "([Source] = 'Mail' AND [IntakeReceiptId] IS NOT NULL AND [Channel] IS NULL AND [Details] IS NULL) OR ([Source] = 'Staff' AND [IntakeReceiptId] IS NULL AND [Channel] IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseRepairSpecificationEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2883,6 +2961,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("nchar(64)")
                         .IsFixedLength();
 
+                    b.Property<bool>("HasOpenQuery")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<DateTimeOffset?>("HeldAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -2921,6 +3004,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("CaseId");
+
+                    b.HasIndex("HasOpenQuery")
+                        .HasFilter("[HasOpenQuery] = 1");
 
                     b.HasIndex("OriginalCaseId")
                         .IsUnique()
@@ -5342,6 +5428,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<int>("ExpectedMemberCount")
                         .HasColumnType("int");
 
+                    b.Property<DateTimeOffset?>("ImageMatchDeclinedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ImageMatchDeclinedByActorSubjectId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<Guid?>("ParentReceiptId")
                         .HasColumnType("uniqueidentifier");
 
@@ -6824,6 +6917,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("RequestedAtUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<bool>("ResolvesCaseQueries")
+                        .HasColumnType("bit");
+
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -8240,6 +8336,22 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("Case");
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseQueryEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseWorkflowEntity", "Workflow")
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Pegasus.Infrastructure.Persistence.IntakeReceiptEntity", null)
+                        .WithMany()
+                        .HasForeignKey("IntakeReceiptId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Workflow");
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseRepairSpecificationEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.CaseWorkEntity", "Work")
@@ -9134,7 +9246,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.VehicleLookupObservationEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.VehicleLookupRequestEntity", "Request")
-                        .WithMany("Observations")
+                        .WithMany()
                         .HasForeignKey("WorkItemId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -9294,11 +9406,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("ResponseEvidenceLinks");
 
                     b.Navigation("SentEmailEvidence");
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.VehicleLookupRequestEntity", b =>
-                {
-                    b.Navigation("Observations");
                 });
 #pragma warning restore 612, 618
         }

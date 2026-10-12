@@ -51,7 +51,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             cancellationToken);
         var receipt = await context.IntakeReceipts
             .Include(item => item.Assets)
-            .Include(item => item.SearchDocuments)
             .Include(item => item.InstructionDraft)
             .Include(item => item.MailRouteDecision)
             .Include(item => item.MailClassificationDecision)
@@ -129,7 +128,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             draft.ProcessedAtUtc);
         ApplyCaseMatchDecision(context, receipt, draft.CaseMatchDecision);
         AppendNewDerivedAssets(context, receipt, draft.AssetRecords);
-        ReplaceSearchDocuments(context, receipt, draft.SearchDocumentRecords);
+        await ReplaceSearchDocumentsAsync(context, receipt, draft.SearchDocumentRecords, cancellationToken);
         receipt.Version++;
 
         context.IntakeReceiptEvents.Add(new()
@@ -627,14 +626,14 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         CancellationToken cancellationToken) =>
         (await context.IntakeAllocationAttempts
             .AsNoTracking()
-            .Where(item => receiptIds.Contains(item.IntakeReceiptId))
-            .OrderByDescending(item => item.AttemptNumber)
+            .Where(item => receiptIds.Contains(item.IntakeReceiptId)
+                && item.AttemptNumber == context.IntakeAllocationAttempts
+                    .Where(other => other.IntakeReceiptId == item.IntakeReceiptId)
+                    .Max(other => other.AttemptNumber))
             .ToListAsync(cancellationToken))
-            .GroupBy(item => item.IntakeReceiptId)
             .ToDictionary(
-                group => group.Key,
-                group => IntakeAllocationState.FromAttempt(
-                    EfIntakeAllocationStore.Map(group.First())));
+                item => item.IntakeReceiptId,
+                item => IntakeAllocationState.FromAttempt(EfIntakeAllocationStore.Map(item)));
 
     private static InstructionDraft MapInstructionDraft(InstructionDraftEntity entity) => new(
         entity.SuggestedPrincipalCode,
@@ -928,13 +927,17 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         receipt.InstructionDraft = entity;
     }
 
-    private static void ReplaceSearchDocuments(
+    private static async Task ReplaceSearchDocumentsAsync(
         PegasusDbContext context,
         IntakeReceiptEntity receipt,
-        IReadOnlyList<IntakeSearchDocument> documents)
+        IReadOnlyList<IntakeSearchDocument> documents,
+        CancellationToken cancellationToken)
     {
-        context.RemoveRange(receipt.SearchDocuments);
-        receipt.SearchDocuments.Clear();
+        // The unique (IntakeReceiptId, Ordinal) index means the old rows must be gone
+        // before the replacements are saved; the receipt's documents are not loaded.
+        await context.IntakeSearchDocuments
+            .Where(item => item.IntakeReceiptId == receipt.Id)
+            .ExecuteDeleteAsync(cancellationToken);
         AddSearchDocuments(receipt, documents);
         // These replacement rows have application-generated keys. They are new
         // dependents of a tracked receipt, so mark them Added explicitly.
@@ -1378,7 +1381,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         _ => throw UnknownEnum(value)
     };
 
-    private static IntakeAssetKind ParseAssetKind(string value) => value switch
+    internal static IntakeAssetKind ParseAssetKind(string value) => value switch
     {
         "source" => IntakeAssetKind.Source,
         "attachment" => IntakeAssetKind.Attachment,
@@ -1396,7 +1399,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         _ => throw UnknownEnum(value)
     };
 
-    private static IntakeAssetDisposition ParseAssetDisposition(string value) => value switch
+    internal static IntakeAssetDisposition ParseAssetDisposition(string value) => value switch
     {
         "source" => IntakeAssetDisposition.Source,
         "attachment" => IntakeAssetDisposition.Attachment,

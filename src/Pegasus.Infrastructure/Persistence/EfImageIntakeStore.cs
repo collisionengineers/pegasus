@@ -1424,12 +1424,38 @@ public sealed class EfImageIntakeStore(
             ? new Dictionary<Guid, int>()
             : (await context.IntakeAssets.AsNoTracking()
                     .Where(asset => allReceiptIds.Contains(asset.IntakeReceiptId))
+                    // Only the columns InstructionEvidenceImages.Select reads.
+                    .Select(asset => new
+                    {
+                        asset.IntakeReceiptId,
+                        asset.Id,
+                        asset.FileName,
+                        asset.MediaType,
+                        asset.Kind,
+                        asset.Disposition,
+                        asset.ContentLength,
+                        asset.ContentHash,
+                        asset.WidthPixels,
+                        asset.HeightPixels
+                    })
                     .ToArrayAsync(cancellationToken))
                 .GroupBy(asset => asset.IntakeReceiptId)
                 .ToDictionary(
                     group => group.Key,
-                    group => InstructionEvidenceImages.Select(
-                        group.Select(EfIntakeReceiptStore.MapAsset)).Count);
+                    group => InstructionEvidenceImages.Select(group.Select(asset => new IntakeAssetRecord(
+                        asset.Id,
+                        string.Empty,
+                        asset.FileName,
+                        asset.MediaType,
+                        EfIntakeReceiptStore.ParseAssetKind(asset.Kind),
+                        EfIntakeReceiptStore.ParseAssetDisposition(asset.Disposition),
+                        asset.ContentLength,
+                        asset.ContentHash,
+                        string.Empty,
+                        null,
+                        null,
+                        asset.WidthPixels,
+                        asset.HeightPixels))).Count);
         var imageCounts = receiptIdsByIntake.ToDictionary(
             pair => pair.Key,
             pair => pair.Value.Sum(receiptId => selectedByReceipt.GetValueOrDefault(receiptId)));
@@ -1919,15 +1945,6 @@ public sealed class EfImageVrmSuggestionStore(
             .ThenBy(item => item.Id)
             .ToArrayAsync(cancellationToken);
         return rows.Select(Map).ToArray();
-    }
-
-    public async Task<ImageVrmSuggestion?> GetAsync(Guid id, CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.ImageVrmSuggestions
-            .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-        return entity is null ? null : Map(entity);
     }
 
     public async Task<ImageVrmSuggestion> SetDispositionAsync(

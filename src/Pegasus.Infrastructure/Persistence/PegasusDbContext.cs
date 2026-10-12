@@ -55,6 +55,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         Set<ApprovedMailboxSubscriptionEntity>();
     internal DbSet<CaseWorkflowEntity> CaseWorkflows => Set<CaseWorkflowEntity>();
     internal DbSet<CaseWorkflowEventEntity> CaseWorkflowEvents => Set<CaseWorkflowEventEntity>();
+    internal DbSet<CaseQueryEntity> CaseQueries => Set<CaseQueryEntity>();
     internal DbSet<CaseEditLeaseOperationEntity> CaseEditLeaseOperations =>
         Set<CaseEditLeaseOperationEntity>();
     internal DbSet<CaseReportApprovalEntity> CaseReportApprovals => Set<CaseReportApprovalEntity>();
@@ -388,6 +389,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.DiscardedByActorSubjectId).HasMaxLength(200);
             entity.Property(item => item.DiscardOperationKey).HasMaxLength(100);
             entity.Property(item => item.DiscardRequestFingerprint).HasMaxLength(64).IsFixedLength();
+            entity.Property(item => item.ImageMatchDeclinedByActorSubjectId).HasMaxLength(200);
             entity.HasIndex(item => new { item.SourceChannel, item.SubmissionToken }).IsUnique();
             entity.HasIndex(item => item.ParentReceiptId)
                 .IsUnique()
@@ -1723,6 +1725,8 @@ internal sealed class IntakeSubmissionGroupEntity
     public string? DiscardedByActorSubjectId { get; set; }
     public string? DiscardOperationKey { get; set; }
     public string? DiscardRequestFingerprint { get; set; }
+    public DateTimeOffset? ImageMatchDeclinedAtUtc { get; set; }
+    public string? ImageMatchDeclinedByActorSubjectId { get; set; }
     public List<IntakeSubmissionGroupMemberEntity> Members { get; set; } = [];
     public List<IntakeSubmissionGroupHistoryEntity> History { get; set; } = [];
 }

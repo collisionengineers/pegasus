@@ -151,7 +151,6 @@ internal static class WordFibParser
 
         WordFibRange clx = ranges[ClxPairIndex];
         fib = new(
-            fibBaseVersion,
             effectiveVersion,
             languageId,
             (flags & 0x0004) != 0,

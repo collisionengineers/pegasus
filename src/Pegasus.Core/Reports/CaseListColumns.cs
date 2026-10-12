@@ -32,6 +32,9 @@ public sealed record CaseListColumn(
 
     /// <summary>The recorded findings the column reads from each work.</summary>
     public IReadOnlyList<string> AssessmentPaths { get; init; } = [];
+
+    /// <summary>True when the column prints a staff member's name, so the download resolves staff names for it.</summary>
+    public bool ShowsStaff { get; init; }
 }
 
 /// <summary>
@@ -51,9 +54,6 @@ public static class CaseListColumns
     /// <summary>The columns ticked when nothing else is chosen: the Case group.</summary>
     public static IReadOnlyList<string> DefaultKeys { get; } =
         [.. All.Where(column => column.Group == CaseListColumnGroup.Case).Select(column => column.Key)];
-
-    public static bool TryGet(string key, out CaseListColumn column) =>
-        ByKey.TryGetValue(key, out column!);
 
     /// <summary>
     /// Chosen keys as columns in catalogue order, each once. At least one is
@@ -114,17 +114,17 @@ public static class CaseListColumns
             with { AssessmentPaths = [AssessmentVocabulary.OriginalReportOutcome, AssessmentVocabulary.Outcome] });
 
         columns.Add(Column("engineer.assigned", "Assigned engineer", WorkbookColumnKind.Text, CaseListColumnGroup.Engineers,
-            (row, _) => row.AssignedEngineer));
+            (row, _) => row.AssignedEngineer) with { ShowsStaff = true });
         columns.Add(Column(SignOffEngineer, "Sign-off engineer", WorkbookColumnKind.Text, CaseListColumnGroup.Engineers,
-            (row, _) => row.SignOffEngineer, CaseListFacts.ReportFigures));
+            (row, _) => row.SignOffEngineer, CaseListFacts.ReportFigures) with { ShowsStaff = true });
         columns.Add(Column("sent_by.inspection", ReportColumnTitles.Inspection("Report sent by"), WorkbookColumnKind.Text,
             CaseListColumnGroup.Engineers,
             (row, _) => CaseListPolicy.Applies(CaseListSide.Inspection, row.Record.Type) ? row.InspectionSentBy : CaseListPolicy.NotApplicable,
-            CaseListFacts.Sends));
+            CaseListFacts.Sends) with { ShowsStaff = true });
         columns.Add(Column("sent_by.audit", ReportColumnTitles.Audit("Report sent by"), WorkbookColumnKind.Text,
             CaseListColumnGroup.Engineers,
             (row, _) => CaseListPolicy.Applies(CaseListSide.Audit, row.Record.Type) ? row.AuditSentBy : CaseListPolicy.NotApplicable,
-            CaseListFacts.Sends));
+            CaseListFacts.Sends) with { ShowsStaff = true });
 
         columns.Add(Claim("claim.number", "Claim number", CaseDataFieldNames.ClaimNumber));
         columns.Add(Claim("claim.claimant_name", "Claimant name", CaseDataFieldNames.ClaimantName));

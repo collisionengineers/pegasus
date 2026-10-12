@@ -73,6 +73,11 @@ public sealed class RecogniseFiledOriginalReport(
             if (recognition is { Outcome: OriginalReportRecognitionOutcome.Recognised, Reading: { } reading })
             {
                 recognised.Add((candidate, reading));
+                if (recognised.Count == 2)
+                {
+                    // Two are already several; the rest need not be read.
+                    break;
+                }
             }
         }
 

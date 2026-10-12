@@ -44,6 +44,7 @@ public sealed partial class DetailsModel(
     IGetCaseValuationSection getCaseValuationSection,
     IGetCaseNotesSection getCaseNotesSection,
     IGetCaseFilesSection getCaseFilesSection,
+    IGetCaseQueriesSection getCaseQueriesSection,
     ICaseDocumentQueries caseDocuments,
     IListCaseReferences listCaseReferences,
     IGetAssessmentAccess getAssessmentAccess,
@@ -101,6 +102,7 @@ public sealed partial class DetailsModel(
     IListAppliedValuations listAppliedValuations,
     ILogger<DetailsModel> logger,
     IGetCaseKind getCaseKind,
+    IGetCaseHasAuditWork getCaseHasAuditWork,
     IValidateCaseRenderLease? validateCaseRenderLease = null,
     IStaffMailSend? staffMailSend = null) : CaseMutationPageModel(logger)
 {
@@ -256,7 +258,8 @@ public sealed partial class DetailsModel(
             ["vehicle"] = "/Pages/Cases/Shared/_CaseVehicle.cshtml",
             ["valuation"] = "/Pages/Cases/Shared/_CaseValuation.cshtml",
             ["files"] = "/Pages/Cases/Shared/_CaseFiles.cshtml",
-            ["notes"] = "/Pages/Cases/Shared/_CaseHistory.cshtml"
+            ["notes"] = "/Pages/Cases/Shared/_CaseHistory.cshtml",
+            ["queries"] = "/Pages/Cases/Shared/_CaseQueries.cshtml"
         };
 
     /// <summary>
@@ -273,7 +276,7 @@ public sealed partial class DetailsModel(
         && !string.Equals(key, SectionLinkKey, StringComparison.Ordinal)
         && !(string.Equals(Section, "vehicle", StringComparison.Ordinal) && IsNestedSection(key))
         && LazySectionViews.ContainsKey(key)
-        && (LeaseToken is null || key is "files" or "notes");
+        && (LeaseToken is null || key is "files" or "notes" or "queries");
 
     /// <summary>
     /// A lease token supplied only for rendering an asynchronously mounted
@@ -351,11 +354,13 @@ public sealed partial class DetailsModel(
     public CaseValuationSection? ValuationSection { get; private set; }
     public CaseNotesSection? NotesSection { get; private set; }
     public CaseFilesSection? FilesSection { get; private set; }
+    public CaseQueriesSection? QueriesSection { get; private set; }
 
     public CaseSectionFrame? SectionFrame => VehicleSection?.Frame
         ?? ValuationSection?.Frame
         ?? NotesSection?.Frame
-        ?? FilesSection?.Frame;
+        ?? FilesSection?.Frame
+        ?? QueriesSection?.Frame;
 
     public CaseWorkflowRecord? CurrentWorkflow => Case?.Workflow ?? SectionFrame?.Workflow;
     public CaseSearchItem? CurrentSummary => Case?.Summary ?? SectionFrame?.Summary;
@@ -603,11 +608,7 @@ public sealed partial class DetailsModel(
             ? value
             : Labels.CaseWorkspace.AbsentValue;
 
-    public bool IsPostReportReadOnly => CurrentWorkflow?.State is
-        CaseLifecycleState.PostReportComplete or CaseLifecycleState.Query;
-
-    public bool CanEditCaseData => !IsPostReportReadOnly
-        && !string.IsNullOrWhiteSpace(RenderLeaseToken)
+    public bool CanEditCaseData => !string.IsNullOrWhiteSpace(RenderLeaseToken)
         && CurrentWorkflow?.Archive is null;
 
     public bool CanEditEngineering => CanEditCaseData && AssessmentCanOpen && !AssessmentIsReadOnly;
@@ -1417,6 +1418,13 @@ public sealed partial class DetailsModel(
                         return FragmentNotFound();
                     }
                     break;
+                case "queries":
+                    QueriesSection = await getCaseQueriesSection.ExecuteAsync(new(id, actor), cancellationToken);
+                    if (QueriesSection is null)
+                    {
+                        return FragmentNotFound();
+                    }
+                    break;
                 case "files":
                     FilesSection = await getCaseFilesSection.ExecuteAsync(new(id, actor), cancellationToken);
                     if (FilesSection is null)
@@ -1542,6 +1550,9 @@ public sealed partial class DetailsModel(
         var notes = rendered.Contains("notes")
             ? reads.Start(token => getCaseNotesSection.ExecuteAsync(query, token))
             : null;
+        var queries = rendered.Contains("queries")
+            ? reads.Start(token => getCaseQueriesSection.ExecuteAsync(query, token))
+            : null;
         // Report Preview is part of the initial Case response even when the
         // heavier Files gallery is deferred.
         var preparations = reads.Start(token => caseAssetPreparationQueries.ListForCaseAsync(id, token));
@@ -1571,6 +1582,11 @@ public sealed partial class DetailsModel(
         {
             NotesSection = await notes
                 ?? throw new InvalidOperationException("The Case notes section is unavailable.");
+        }
+        if (queries is not null)
+        {
+            QueriesSection = await queries
+                ?? throw new InvalidOperationException("The Case queries section is unavailable.");
         }
         AssetPreparations = await preparations;
         if (valuationReads is not null)
@@ -1924,12 +1940,9 @@ public sealed partial class DetailsModel(
                 {
                     throw new InvalidOperationException("Engineering fields are read-only in this Case state.");
                 }
-                if (preparationSubmitted
-                    && (current.Workflow.State is CaseLifecycleState.PostReportComplete
-                            or CaseLifecycleState.Query
-                        || current.Workflow.Archive is not null))
+                if (preparationSubmitted && current.Workflow.Archive is not null)
                 {
-                    throw new InvalidOperationException("The case is read-only once Complete.");
+                    throw new InvalidOperationException("The case is read-only once archived.");
                 }
                 var assessment = (await workspaceRead)?.Assessment;
                 string? Recorded(string path) => assessment?.Field(path)?.Value;
@@ -1995,8 +2008,8 @@ public sealed partial class DetailsModel(
                     else if (sourceId != persisted?.ClaimSource?.ClaimSourceId)
                     {
                         claimSourceChanged = true;
-                        var chosen = (await contactDirectory.ListByRoleAsync(actor, ContactRole.ClaimSource, cancellationToken))
-                            .SingleOrDefault(item => item.OrganizationId == sourceId)
+                        var chosen = await contactDirectory.FindActiveByRoleAsync(
+                                actor, ContactRole.ClaimSource, sourceId, cancellationToken)
                             ?? throw new InvalidOperationException("The selected claim source is not an active Claim source record.");
                         claimSource = new CaseWorkspaceClaimSource(
                             chosen.OrganizationId, chosen.Version, chosen.Name,
@@ -2030,8 +2043,8 @@ public sealed partial class DetailsModel(
                 // Case. Without a link the Case keeps the extracted or keyed
                 // text, and the member of staff saving it is its confirmation.
                 var linkedRepairer = overviewSubmitted && repairerDirectoryId is { } directoryId
-                    ? (await contactDirectory.ListByRoleAsync(actor, ContactRole.Repairer, cancellationToken))
-                        .SingleOrDefault(item => item.OrganizationId == directoryId)
+                    ? await contactDirectory.FindActiveByRoleAsync(
+                            actor, ContactRole.Repairer, directoryId, cancellationToken)
                         ?? throw new InvalidOperationException("The selected repairer is not an active directory Repairer.")
                     : null;
                 // An unposted selector is not an unlink: only the rendered
@@ -2877,7 +2890,7 @@ public sealed partial class DetailsModel(
         // Audit acts on the Inspection's own work whatever the Case's state:
         // the Case's read-only states are the Audit's (operator, 1 October
         // 2026).
-        if (access.IsReadOnly && !await PostedFromInspectionViewAsync(id, actor, cancellationToken))
+        if (access.IsReadOnly && !await PostedFromInspectionViewAsync(id, cancellationToken))
         {
             TempData["CaseError"] = "The case is read-only once Complete.";
             return redirect();
@@ -2898,12 +2911,12 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// Whether a posted command names the Inspection view of a Case that has
-    /// its Audit, read from the Case header; the view alone names nothing on
+    /// its Audit, read from the Case's works; the view alone names nothing on
     /// a Case with one work.
     /// </summary>
-    private async Task<bool> PostedFromInspectionViewAsync(Guid id, ActionActor actor, CancellationToken cancellationToken) =>
+    private async Task<bool> PostedFromInspectionViewAsync(Guid id, CancellationToken cancellationToken) =>
         WorkSelector == CaseWorkSelector.Primary
-        && (await getCaseHeader.ExecuteAsync(new GetCaseHeaderQuery(id, actor), cancellationToken))?.Works is { HasAudit: true };
+        && await getCaseHasAuditWork.ExecuteAsync(id, cancellationToken);
 
     /// <summary>Back to the Report section, in the view the request came from.</summary>
     private RedirectToPageResult RedirectToReport(Guid id) =>

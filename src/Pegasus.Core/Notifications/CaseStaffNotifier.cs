@@ -122,10 +122,10 @@ public sealed class CaseStaffNotifier(
             return null;
         }
 
-        // A cancellation outranks the Query the Case may already be in.
-        var cause = !CaseLifecycleRules.IsClosed(workflow.State) && await IsCancellationAsync(intakeReceiptId, cancellationToken)
+        // A cancellation outranks the query the Case may already hold.
+        var cause = !CaseLifecycleRules.IsTerminal(workflow.State) && await IsCancellationAsync(intakeReceiptId, cancellationToken)
             ? StaffNotificationCause.CancellationReceived
-            : workflow.State == CaseLifecycleState.Query
+            : workflow.HasOpenQuery
                 ? StaffNotificationCause.QueryReceived
                 : StaffNotificationCause.EmailReceived;
         return await _raise.ExecuteAsync(
@@ -146,7 +146,7 @@ public sealed class CaseStaffNotifier(
         CancellationToken cancellationToken)
     {
         var workflow = await _workflows.GetAsync(caseId, cancellationToken);
-        if (workflow?.AssignedEngineerId is null || CaseLifecycleRules.IsClosed(workflow.State))
+        if (workflow?.AssignedEngineerId is null || CaseLifecycleRules.IsTerminal(workflow.State))
         {
             return null;
         }

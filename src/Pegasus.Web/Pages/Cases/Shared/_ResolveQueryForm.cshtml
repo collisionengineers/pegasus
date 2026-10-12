@@ -1,0 +1,28 @@
+@*
+    Resolve query (operator, 11 October 2026): one direct post that closes
+    every open query on the Case. Drawn in the ribbon's Actions menu and, for a
+    staff-logged query, as the Next action's control; both post the same
+    Closure handler under the session's lease or one claimed for the action.
+    No dialog and no reason: the act is the record.
+*@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@using System.Globalization
+@using Pegasus.Web.Presentation
+@using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
+@{
+    var workflow = Model.Case!.Workflow;
+    var leased = !string.IsNullOrWhiteSpace(Model.LeaseToken);
+    var buttonClass = ViewData["ResolveQueryButtonClass"] as string ?? "btn";
+}
+<form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId" asp-page-handler="ResolveQuery" data-resolve-query-form>
+    <input type="hidden" name="id" value="@workflow.CaseId" />
+    <input type="hidden" name="expectedVersion" value="@workflow.Version.ToString(CultureInfo.InvariantCulture)" />
+    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+    @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
+    <input type="hidden" name="view" value="@Model.ViewRoute" />
+    <input type="hidden" name="section" value="@Model.Section" />
+    <button type="submit" class="@buttonClass" data-busy-label="@OperatorLabels.Busy.Resolving" data-resolve-query>
+        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+        <span>@Frame.ResolveQuery</span>
+    </button>
+</form>

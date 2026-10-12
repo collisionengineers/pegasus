@@ -79,13 +79,11 @@ public sealed class AutomaticVehicleLookupTests
             "SELECT COUNT(*) FROM VehicleLookupRequests"));
     }
 
-    [Theory]
-    [InlineData(CaseLifecycleState.PostReportComplete)]
-    [InlineData(CaseLifecycleState.Query)]
-    public async Task SweepEnqueuesLookupsForCompletedAndQueryCases(CaseLifecycleState state)
+    [Fact]
+    public async Task SweepEnqueuesLookupsForReportSentCases()
     {
         await using var database = await CreateDatabaseAsync();
-        var caseId = await SeedCaseAsync(database, state);
+        var caseId = await SeedCaseAsync(database, CaseLifecycleState.ReportSent);
         await SeedRegistrationFieldAsync(database, caseId, "AB12CDE", "fact");
 
         Assert.Equal(1, await SweepAsync(database));
@@ -117,7 +115,7 @@ public sealed class AutomaticVehicleLookupTests
     }
 
     /// <summary>
-    /// The sweep runs every ten seconds. Once a Case has its lookup it costs the
+    /// The sweep runs every minute. Once a Case has its lookup it costs the
     /// sweep nothing: one read that returns no rows, whether the registration was
     /// typed with spaces or hyphens or not.
     /// </summary>
@@ -257,7 +255,7 @@ public sealed class AutomaticVehicleLookupTests
     /// <summary>
     /// WP8: a new Case enqueues its own lookup inside the creation
     /// transaction and publishes it on commit, so DVLA/MOT evidence starts
-    /// arriving with the Case instead of on the next ten-second sweep. The
+    /// arriving with the Case instead of on the next sweep. The
     /// sweep must then find nothing left to do — both paths write the same
     /// (CaseId, Registration) request under the same operation key.
     /// </summary>

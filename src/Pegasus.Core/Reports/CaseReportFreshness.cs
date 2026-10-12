@@ -206,13 +206,6 @@ public static class CaseReportFreshness
             : CaseReportFreshnessDecision.NotStale;
     }
 
-    public static CaseReportFreshnessDecision ClassifyCaseData(
-        CaseEditableData before,
-        CaseEditableData after) =>
-        CaseFactsDiffer(before, after)
-            ? CaseReportFreshnessDecision.Stale(CaseReportStaleReasons.AssessmentFactsChanged)
-            : CaseReportFreshnessDecision.NotStale;
-
     public static CaseReportFreshnessDecision ClassifyImages(
         IReadOnlyList<CaseAssetPreparation> before,
         IReadOnlyList<CaseAssetPreparation> after) =>
