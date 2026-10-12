@@ -410,7 +410,7 @@
                     <span class="lbl">@ReportLabels.From</span>
                     @if (Model.ReportSenders.Reply is { } reportReply)
                     {
-                        <div class="fv" data-report-from>@ReportLabels.FromReply(reportReply.Mailbox.Address)</div>
+                        <div class="fv" data-report-from>@reportReply.Mailbox.Address</div>
                     }
                     else
                     {
