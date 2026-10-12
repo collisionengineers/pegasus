@@ -191,7 +191,7 @@ public sealed class ReportsModel(
         DownloadCaseListAsync(
             input,
             (_, result) => File(
-                Encoding.UTF8.GetBytes(WorkbookSheetCsv.Write(CaseListTables.Build(result, OperatorCaseListLabels.Instance))),
+                CsvBytes(WorkbookSheetCsv.Write(CaseListTables.Build(result, OperatorCaseListLabels.Instance))),
                 "text/csv; charset=utf-8",
                 CaseListFileName(result, "csv")),
             cancellationToken);
@@ -437,9 +437,12 @@ public sealed class ReportsModel(
     {
         if (!await LoadAsync(report, cancellationToken)) return Forbid();
         return !PeriodInvalid && sheet() is { } table
-            ? File(Encoding.UTF8.GetBytes(WorkbookSheetCsv.Write(table)), "text/csv; charset=utf-8", fileName)
+            ? File(CsvBytes(WorkbookSheetCsv.Write(table)), "text/csv; charset=utf-8", fileName)
             : StatusCode(StatusCodes.Status422UnprocessableEntity);
     }
+
+    /// <summary>UTF-8 with its byte-order mark: without it Excel reads the file as Windows-1252 and "·" shows as "Â·".</summary>
+    private static byte[] CsvBytes(string csv) => [.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes(csv)];
 
     /// <summary>The reads a handler asks <see cref="LoadAsync"/> for: the page draws every report, a CSV only its own.</summary>
     [Flags]
