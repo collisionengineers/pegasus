@@ -834,6 +834,7 @@ builder.Services.AddScoped<ReceiveIntake>();
 builder.Services.AddScoped<DiscardIntakeSubmissionGroup>();
 builder.Services.AddScoped<IDiscardIntakeSubmissionGroup>(serviceProvider =>
     serviceProvider.GetRequiredService<DiscardIntakeSubmissionGroup>());
+builder.Services.AddScoped<IDeclineImageMatch, DeclineImageMatch>();
 builder.Services.AddScoped<IIntakeSubmission>(serviceProvider =>
     serviceProvider.GetRequiredService<ReceiveIntake>());
 builder.Services.AddScoped<SubmitGroupedIntake>();

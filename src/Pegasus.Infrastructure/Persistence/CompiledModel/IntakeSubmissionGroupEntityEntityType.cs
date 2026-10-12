@@ -19,7 +19,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.IntakeSubmissionGroupEntity",
                 typeof(IntakeSubmissionGroupEntity),
                 baseEntityType,
-                propertyCount: 13,
+                propertyCount: 15,
                 navigationCount: 2,
                 foreignKeyCount: 1,
                 unnamedIndexCount: 2,
@@ -95,6 +95,23 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 fieldInfo: typeof(IntakeSubmissionGroupEntity).GetField("<ExpectedMemberCount>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             expectedMemberCount.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var imageMatchDeclinedAtUtc = runtimeEntityType.AddProperty(
+                "ImageMatchDeclinedAtUtc",
+                typeof(DateTimeOffset?),
+                propertyInfo: typeof(IntakeSubmissionGroupEntity).GetProperty("ImageMatchDeclinedAtUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(IntakeSubmissionGroupEntity).GetField("<ImageMatchDeclinedAtUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            imageMatchDeclinedAtUtc.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var imageMatchDeclinedByActorSubjectId = runtimeEntityType.AddProperty(
+                "ImageMatchDeclinedByActorSubjectId",
+                typeof(string),
+                propertyInfo: typeof(IntakeSubmissionGroupEntity).GetProperty("ImageMatchDeclinedByActorSubjectId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(IntakeSubmissionGroupEntity).GetField("<ImageMatchDeclinedByActorSubjectId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true,
+                maxLength: 200);
+            imageMatchDeclinedByActorSubjectId.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var parentReceiptId = runtimeEntityType.AddProperty(
                 "ParentReceiptId",

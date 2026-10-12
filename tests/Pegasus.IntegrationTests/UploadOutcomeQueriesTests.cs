@@ -387,6 +387,46 @@ public sealed class UploadOutcomeQueriesTests
         Assert.Null(result.Attach);
     }
 
+    [Fact]
+    public async Task AWaitingImageUploadOffersTheMatchedCases()
+    {
+        var receiptId = Guid.NewGuid();
+        var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
+        var receipt = MakeReceipt(receiptId, IntakeDecision.NeedsSorting, mediaType: "image/jpeg");
+        var caseId = Guid.NewGuid();
+
+        var result = await BuildAsync(
+            status,
+            receipt,
+            submissionGroupId: Guid.NewGuid(),
+            suggestions: [new(caseId, "QDO31001", "AB12CDE", "Smith", CaseLifecycleState.NotReady, 7)]);
+
+        Assert.Equal(UploadOutcomeKind.PossibleMatch, result.Kind);
+        Assert.Equal(caseId, Assert.Single(result.Attach!.SuggestedDestinations).CaseId);
+        Assert.Equal(receiptId, result.Attach.ReceiptId);
+        Assert.Null(result.Record);
+        Assert.Contains("Choose a case destination", result.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ADeclinedImageMatchIsProcessingWithoutAnOffer()
+    {
+        var receiptId = Guid.NewGuid();
+        var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
+        var receipt = MakeReceipt(receiptId, IntakeDecision.NeedsSorting, mediaType: "image/jpeg");
+
+        var result = await BuildAsync(
+            status,
+            receipt,
+            submissionGroupId: Guid.NewGuid(),
+            suggestions: [new(Guid.NewGuid(), "QDO31001", "AB12CDE", "Smith", CaseLifecycleState.NotReady, 7)],
+            declined: true);
+
+        Assert.Equal(UploadOutcomeKind.Working, result.Kind);
+        Assert.Equal("The submission is being processed.", result.Message);
+        Assert.Null(result.Attach);
+    }
+
     private static QueuedIntakeStatus StatusOf(
         QueuedIntakeStatusKind kind,
         Guid? receiptId = null,
@@ -462,13 +502,54 @@ public sealed class UploadOutcomeQueriesTests
         ImageIntakeDetail? imageIntakeDetail = null,
         UnidentifiedItem? unidentifiedByReceipt = null,
         UnidentifiedItem? unidentifiedByGroup = null,
-        IReadOnlyList<IntakeAssociationDestination>? suggestions = null)
+        IReadOnlyList<IntakeAssociationDestination>? suggestions = null,
+        bool declined = false)
     {
         var queries = new UploadOutcomeQueries(
             new FakeImageIntakeQueries(imageIntakeDetail),
             new FakeUnidentifiedStore(unidentifiedByReceipt, unidentifiedByGroup),
-            new FakeDestinations(suggestions));
+            new FakeDestinations(suggestions),
+            new FakeGroups(declined));
         return queries.BuildAsync(status, receipt, submissionGroupId, StaffActor);
+    }
+
+    private sealed class FakeGroups(bool declined) : IIntakeSubmissionGroupStore
+    {
+        private IntakeSubmissionGroup Group(Guid id) => new(
+            id,
+            IntakeSourceChannel.ManualUpload,
+            "token",
+            1,
+            "staff:test",
+            DateTimeOffset.UtcNow,
+            [],
+            ImageMatchDeclined: declined ? new("staff-1", DateTimeOffset.UtcNow) : null);
+
+        public Task<IntakeSubmissionGroup?> GetAsync(Guid groupId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IntakeSubmissionGroup?>(Group(groupId));
+
+        public Task<IntakeSubmissionGroup?> FindForMemberSourceAsync(
+            IntakeSourceIdentity sourceIdentity, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IntakeSubmissionGroup?>(Group(Guid.NewGuid()));
+
+        public Task<IReadOnlyList<Guid>> ListPendingImageGroupReceiptsAsync(
+            int maximumItems, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<IntakeSubmissionGroup?> FindAsync(
+            IntakeSourceChannel channel, string submissionToken, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IntakeSubmissionGroup> GetOrCreateAsync(
+            Guid groupId, IntakeSourceChannel channel, string submissionToken, int expectedMemberCount,
+            string actor, DateTimeOffset receivedAtUtc, Guid? parentReceiptId,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<IntakeSubmissionGroupMember> AddMemberAsync(
+            Guid groupId, int ordinal, ReceivedIntake received, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<IntakeSubmissionGroupMember>> ListMembersAsync(
+            Guid groupId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class FakeDestinations(IReadOnlyList<IntakeAssociationDestination>? suggestions) : IIntakeAssociationDestinationQueries

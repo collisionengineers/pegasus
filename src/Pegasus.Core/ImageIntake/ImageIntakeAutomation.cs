@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.Notifications;
 
 namespace Pegasus.Core.ImageIntake;
 
@@ -20,17 +21,30 @@ namespace Pegasus.Core.ImageIntake;
 /// unchanged Unidentified scope. What the caller does with a pending outcome is
 /// owned by <c>ProcessQueuedIntake.ApplyImageIntakeAutomationAsync</c>.
 /// </param>
+/// <param name="AssociatedCase">
+/// True when the images were filed on an existing Case without registering an
+/// Image intake (operator, 11 October 2026): the caller promotes the receipt's
+/// evidence to that Case.
+/// </param>
+/// <param name="AwaitingStaffDecision">
+/// True when a manual upload matched one or more existing Cases and waits for
+/// staff to choose a destination: nothing is registered, held or made
+/// Unidentified while it waits.
+/// </param>
 public sealed record ImageIntakeAutomationOutcome(
     IntakeReceipt Receipt,
     bool GroupPending = false,
-    RegisterUnidentifiedRequest? UnidentifiedGroup = null);
+    RegisterUnidentifiedRequest? UnidentifiedGroup = null,
+    bool AssociatedCase = false,
+    bool AwaitingStaffDecision = false);
 
 /// <summary>
 /// The post-persistence intake hook for image-only material: scan every
 /// retained image, record every outcome, and — at the provisional bar —
-/// automatically register the Image intake and associate the one unambiguous
-/// eligible Case. Never blocks or fails intake: every failure leaves the
-/// receipt exactly as the pipeline decided it.
+/// automatically file mailed images on the one unambiguous eligible Case, hold
+/// a manual upload that matched Cases for a staff destination, or register the
+/// Image intake (operator, 11 October 2026). Never blocks or fails intake:
+/// every failure leaves the receipt exactly as the pipeline decided it.
 /// </summary>
 public interface IImageIntakeAutomation
 {
@@ -47,9 +61,15 @@ public sealed class ImageIntakeAutomation(
     IImageIntakeCaseCandidates caseCandidates,
     IIntakeReceiptQueries receiptQueries,
     IImageIntakeCasePairing casePairing,
-    IIntakeSubmissionGroupStore? groupStore = null) : IImageIntakeAutomation
+    TimeProvider timeProvider,
+    IAutomaticCaseAssociationStore associationStore,
+    IIntakeSubmissionGroupStore? groupStore = null,
+    ICaseStaffNotifier? caseNotifier = null) : IImageIntakeAutomation
 {
     public const string ActorId = "image-intake-automation";
+    public const string MatchPolicyKey = "image_registration_match";
+    public const int MatchPolicyVersion = 1;
+    private const string SystemActor = "system-worker:" + ActorId;
 
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.ImageIntake");
 
@@ -112,14 +132,7 @@ public sealed class ImageIntakeAutomation(
             return new(receipt, UnidentifiedGroup:
                 BuildTechnicalFailureRegistrationRequest(receipt));
         }
-        var confidentRegistrations = suggestions
-            .Where(suggestion => suggestion.Outcome == VrmRecognitionOutcomeKind.Suggested
-                && suggestion.SuggestedRegistration is not null
-                && suggestion.Confidence
-                    >= VrmRecognitionProvisionalBar.MinimumAutomaticConfidence)
-            .Select(suggestion => suggestion.SuggestedRegistration!)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+        var confidentRegistrations = VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(suggestions);
         activity?.SetTag("image_intake.distinct_confident_registrations", confidentRegistrations.Length);
         if (confidentRegistrations.Length > VrmRecognitionProvisionalBar.RequiredDistinctRegistrations)
         {
@@ -144,7 +157,7 @@ public sealed class ImageIntakeAutomation(
             suggestions,
             activity,
             cancellationToken);
-        return new(updated ?? receipt);
+        return updated ?? new(receipt);
     }
 
     private static RegisterUnidentifiedRequest BuildTechnicalFailureRegistrationRequest(
@@ -278,10 +291,11 @@ public sealed class ImageIntakeAutomation(
         }
 
         var registrationCandidates = recognitions
-            .Where(recognition => recognition.Outcome == VrmRecognitionOutcomeKind.Suggested
-                && recognition.NormalizedRegistration is not null
-                && recognition.Confidence >= VrmRecognitionProvisionalBar.MinimumAutomaticConfidence)
-            .Select(recognition => recognition.NormalizedRegistration!)
+            .Select(recognition => VrmRecognitionProvisionalBar.AcceptedRegistration(
+                recognition.Outcome,
+                recognition.NormalizedRegistration,
+                recognition.Confidence))
+            .OfType<string>()
             .Distinct(StringComparer.Ordinal)
             .ToArray();
         IReadOnlyList<ImageIntakeCaseCandidate> eligibleCases = registrationCandidates.Length == 1
@@ -314,6 +328,24 @@ public sealed class ImageIntakeAutomation(
             // explicit conflicting_vrms outcome (Unidentified scope, unchanged).
             return new(receipt, UnidentifiedGroup:
                 ImageIntakeGroupRoutingPolicy.BuildUnidentifiedRegistrationRequest(group, routing.ReasonCode));
+        }
+
+        if (group.Channel == IntakeSourceChannel.ManualUpload
+            && eligibleCases.Count >= 1
+            && MatchWaitIsOpen(group))
+        {
+            // A usable registration that matches existing Cases registers
+            // nothing while staff decide
+            // (operator, 11 October 2026); once staff have linked a member the
+            // decision is theirs to finish, so it neither waits nor registers.
+            if (receipts.Any(HasStaffAssociation))
+            {
+                activity?.SetTag("image_intake.group_outcome", "staff_started");
+                return new(receipt);
+            }
+
+            activity?.SetTag("image_intake.group_outcome", "awaiting_staff_decision");
+            return new(receipt, AwaitingStaffDecision: true);
         }
 
         // The group is the registration unit: exactly one
@@ -582,12 +614,25 @@ public sealed class ImageIntakeAutomation(
             char.IsAsciiLetterUpper(character) || char.IsAsciiDigit(character));
 
     /// <summary>
+    /// Whether a manual upload's matched Cases are still waiting for staff:
+    /// not declined, and younger than the grouped-image hold window.
+    /// </summary>
+    private bool MatchWaitIsOpen(IntakeSubmissionGroup group) =>
+        group.ImageMatchDeclined is null
+        && timeProvider.GetUtcNow() - group.ReceivedAtUtc < ReconcileGroupedImageIntake.EscapeAfter;
+
+    private static bool HasStaffAssociation(IntakeReceipt receipt) =>
+        receipt.ManualAssociationActorKind == ActorKind.Staff;
+
+    /// <summary>
     /// The legacy single-receipt registration path — a receipt that is not a
     /// member of any submission group. Group members never come through
     /// here: their whole group registers once via
-    /// <see cref="TryRegisterGroupAsync"/>.
+    /// <see cref="TryRegisterGroupAsync"/>. A mailbox image whose confident
+    /// read has one unambiguous Case is filed on that Case without an Image
+    /// intake; a manual upload that matches Cases waits for staff.
     /// </summary>
-    private async Task<IntakeReceipt?> TryRegisterAndAssociateAsync(
+    private async Task<ImageIntakeAutomationOutcome?> TryRegisterAndAssociateAsync(
         IntakeReceipt receipt,
         string read,
         IReadOnlyList<ImageVrmSuggestion> suggestions,
@@ -595,13 +640,6 @@ public sealed class ImageIntakeAutomation(
         CancellationToken cancellationToken)
     {
         var actor = ActionActor.SystemWorker(ActorId);
-        var origin = await originResolver.ResolveOriginAsync(receipt.Id, cancellationToken);
-        if (origin is null)
-        {
-            activity?.SetTag("image_intake.outcome", "origin_unresolved");
-            return null;
-        }
-
         // Candidate selection before registration: the case's
         // instruction-supplied registration is the registered identity,
         // never the incomplete read (operator-directed 2026-08-03).
@@ -609,21 +647,64 @@ public sealed class ImageIntakeAutomation(
             ? await caseCandidates.FindEligibleByRegistrationAsync(read, cancellationToken)
             : [];
         activity?.SetTag("image_intake.case_candidates", candidates.Count);
-        var target = receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload
+        var isManual = receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload;
+        var target = isManual
             ? null
             : SelectAssociationTarget(candidates, read, principalId: null);
-        var registration = target?.ConfirmedRegistration ?? read;
-        var reason = target is not null
-            && !string.Equals(registration, read, StringComparison.Ordinal)
-            ? $"Automatic registration: the confident read {read} matches case {target.CaseReference}'s confirmed registration with one character missing; registered with the confirmed value."
-            : "Automatic registration from a confident vehicle-registration read on the retained image evidence.";
+        if (target is not null)
+        {
+            // The images join the matched Case; no Image intake or Box folder
+            // is made for them (operator, 11 October 2026).
+            var reason = string.Equals(target.ConfirmedRegistration, read, StringComparison.Ordinal)
+                ? $"Automatic association: the confident read {read} matches case {target.CaseReference}'s confirmed registration."
+                : $"Automatic association: the confident read {read} matches case {target.CaseReference}'s confirmed registration with one character missing.";
+            var association = await associationStore.AssociateFromMatchAsync(
+                new(
+                    receipt.Id,
+                    target.CaseId,
+                    MatchPolicyKey,
+                    MatchPolicyVersion,
+                    SystemActor,
+                    $"image-case-association:{receipt.Id:N}",
+                    reason),
+                timeProvider.GetUtcNow(),
+                cancellationToken);
+            if (association == AutomaticCaseAssociationOutcome.Associated && caseNotifier is not null)
+            {
+                await caseNotifier.NotifyMailArrivalAsync(target.CaseId, receipt.Id, null, cancellationToken);
+            }
+
+            await ConfirmUsedSuggestionsAsync(suggestions, target.ConfirmedRegistration, actor, cancellationToken);
+            activity?.SetTag("image_intake.association", "filed_on_case");
+            return new(
+                await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt,
+                AssociatedCase: true);
+        }
+
+        if (isManual && candidates.Count >= 1 && groupStore is not null
+            && await groupStore.FindForMemberSourceAsync(receipt.SourceIdentity, cancellationToken)
+                is { } group
+            && MatchWaitIsOpen(group)
+            && !HasStaffAssociation(receipt))
+        {
+            activity?.SetTag("image_intake.association", "awaiting_staff_decision");
+            return new(receipt, AwaitingStaffDecision: true);
+        }
+
+        var origin = await originResolver.ResolveOriginAsync(receipt.Id, cancellationToken);
+        if (origin is null)
+        {
+            activity?.SetTag("image_intake.outcome", "origin_unresolved");
+            return null;
+        }
+
         var record = await registerImageIntake.ExecuteAsync(
             new(
                 origin,
-                registration,
+                read,
                 actor,
                 $"image-intake-register:{receipt.Id:N}",
-                reason),
+                "Automatic registration from a confident vehicle-registration read on the retained image evidence."),
             cancellationToken);
         activity?.SetTag("image_intake.reference", record.ImageIntakeReference);
         await ConfirmUsedSuggestionsAsync(
@@ -631,12 +712,7 @@ public sealed class ImageIntakeAutomation(
             record.NormalizedVehicleRegistration,
             actor,
             cancellationToken);
-        if (target is not null)
-        {
-            RecordPairingOutcome(activity,
-                await casePairing.PairRegisteredReceiptAsync(receipt.Id, cancellationToken));
-        }
-        else if (receipt.CurrentCaseId is not null)
+        if (receipt.CurrentCaseId is not null)
         {
             activity?.SetTag("image_intake.association", "already_associated");
         }
@@ -647,7 +723,7 @@ public sealed class ImageIntakeAutomation(
                 candidates.Count == 0 ? "no_candidate" : "ambiguous");
         }
 
-        return await receiptQueries.GetAsync(receipt.Id, cancellationToken);
+        return new(await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt);
     }
 
     private async Task ConfirmUsedSuggestionsAsync(

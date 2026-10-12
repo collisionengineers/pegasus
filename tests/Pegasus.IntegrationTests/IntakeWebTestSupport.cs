@@ -789,6 +789,41 @@ internal static partial class IntakeWebDriver
             await workStore.GetCompletedEvaluationAsync(stagedReceiptId, cancellationToken));
     }
 
+    /// <summary>
+    /// A manual image upload whose read matched existing Cases waits
+    /// unregistered for staff. Leaving it undecided records the decline and the
+    /// Worker's replay of the receipt's completed work registers the images.
+    /// </summary>
+    internal static async Task DeclineImageMatchAndReplayAsync(
+        IServiceProvider services,
+        Guid receiptId,
+        CancellationToken cancellationToken = default)
+    {
+        var receipt = await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, cancellationToken)
+            ?? throw new InvalidOperationException("The receipt does not exist.");
+        var group = await services.GetRequiredService<IIntakeSubmissionGroupStore>()
+            .FindForMemberSourceAsync(receipt.SourceIdentity, cancellationToken)
+            ?? throw new InvalidOperationException("The upload has no submission group.");
+        await services.GetRequiredService<IDeclineImageMatch>().ExecuteAsync(
+            group.Id,
+            ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+            cancellationToken);
+        await ReplayCompletedWorkAsync(services, receiptId, cancellationToken);
+    }
+
+    /// <summary>Runs the Worker's replay of a receipt's completed staged work.</summary>
+    internal static async Task ReplayCompletedWorkAsync(
+        IServiceProvider services,
+        Guid receiptId,
+        CancellationToken cancellationToken = default)
+    {
+        var stagedReceiptId = await services.GetRequiredService<IIntakeWorkStore>()
+            .FindStagedReceiptIdForReceiptAsync(receiptId, cancellationToken)
+            ?? throw new InvalidOperationException("The receipt has no staged work.");
+        await CreateProcessor(services).ExecuteAsync(stagedReceiptId, cancellationToken);
+    }
+
     private static async Task<int> DispatchNextAsync(
         IServiceProvider services,
         IIntakeWorkStore workStore,
