@@ -329,10 +329,12 @@ public sealed class EfRepairSpecificationStore(
         }
 
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
+        // An import since the latest scaling is a new grid and ends it (v38 P3).
         var latestScale = await context.CaseRepairSpecificationSnapshots
             .Where(item => item.SpecificationId == request.SpecificationId
                 && (item.Kind == RepairSpecificationSnapshotKind.Scaled.ToString()
-                    || item.Kind == RepairSpecificationSnapshotKind.ScalingRemoved.ToString()))
+                    || item.Kind == RepairSpecificationSnapshotKind.ScalingRemoved.ToString()
+                    || item.Kind == RepairSpecificationSnapshotKind.Imported.ToString()))
             .OrderByDescending(item => item.Number)
             .FirstOrDefaultAsync(cancellationToken);
         if (latestScale is null || latestScale.Kind != RepairSpecificationSnapshotKind.Scaled.ToString())

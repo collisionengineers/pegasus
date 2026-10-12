@@ -762,11 +762,15 @@ public sealed partial class DetailsModel(
     public IReadOnlyDictionary<Guid, IReadOnlyList<RepairSpecificationSnapshot>> EstimateSnapshots { get; private set; } =
         new Dictionary<Guid, IReadOnlyList<RepairSpecificationSnapshot>>();
 
-    /// <summary>Whether the selected specification's latest scaling state is scaled (v28 P34).</summary>
+    /// <summary>
+    /// Whether the selected specification's latest scaling state is scaled
+    /// (v28 P34); an import since the scaling is a new grid and ends it (v38 P3).
+    /// </summary>
     public bool SelectedEstimateIsScaled =>
         SelectedEstimateSnapshots
             .Where(snapshot => snapshot.Kind is RepairSpecificationSnapshotKind.Scaled
-                or RepairSpecificationSnapshotKind.ScalingRemoved)
+                or RepairSpecificationSnapshotKind.ScalingRemoved
+                or RepairSpecificationSnapshotKind.Imported)
             .MaxBy(snapshot => snapshot.Number)?.Kind == RepairSpecificationSnapshotKind.Scaled;
 
     /// <summary>
