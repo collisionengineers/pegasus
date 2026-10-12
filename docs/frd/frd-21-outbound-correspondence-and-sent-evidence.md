@@ -252,6 +252,9 @@ document never moves a Case by itself.
 - Outlook later moves or deletes a confirmed Sent item: the confirmed event
   stays final.
 - A mailbox that fails to poll: other Sent mailboxes carry on.
+- A matched send whose observation fails: the poll records no outcome for the
+  item, so the next poll reads it again and the send does not stay Submitted
+  (QDOS26099, 12 October 2026).
 
 ## Acceptance evidence
 
