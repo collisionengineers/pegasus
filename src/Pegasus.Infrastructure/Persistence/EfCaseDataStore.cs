@@ -697,7 +697,7 @@ internal static class CaseDueWorkScheduler
                 MissingMaterialReason = MissingMaterialReason,
                 DueBy = dueBy,
                 State = nameof(CaseDueWorkState.Scheduled),
-                NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays),
+                NextChaseAtUtc = CaseChaseSchedule.NextChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays),
                 Version = 0
             };
             workflow.DueWork = due;
@@ -717,7 +717,7 @@ internal static class CaseDueWorkScheduler
             return;
         }
         due.State = nameof(CaseDueWorkState.Scheduled);
-        due.NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays);
+        due.NextChaseAtUtc = CaseChaseSchedule.NextChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays);
         due.HeldAtUtc = null;
         due.RemainingChaseIntervalTicks = null;
         due.Version++;
