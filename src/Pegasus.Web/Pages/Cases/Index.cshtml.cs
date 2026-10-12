@@ -149,15 +149,6 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true, Name = "principal")]
     public string? PrincipalFilter { get; set; }
 
-    /// <summary>
-    /// The Not ready queue's Missing filter: <c>instructions</c>, <c>images</c>
-    /// or <c>both</c>, read from each case's recorded completeness facts. The
-    /// options are exclusive — "Instructions" means the instruction is the
-    /// only thing missing — because "Both missing" exists for the remainder.
-    /// </summary>
-    [BindProperty(SupportsGet = true, Name = "missing")]
-    public string? MissingFilter { get; set; }
-
     /// <summary>The Unidentified scope's Show filter: open items (default) or <c>closed</c>.</summary>
     [BindProperty(SupportsGet = true, Name = "show")]
     public string? ShowFilter { get; set; }
@@ -168,8 +159,6 @@ public sealed class IndexModel(
     /// <summary>The row the quick-detail pane is showing; the first row when unset.</summary>
     [BindProperty(SupportsGet = true, Name = "selected")]
     public Guid? SelectedId { get; set; }
-
-    public bool ShowingNotReady => Queue == "not_ready";
 
     public bool ShowingClosed => Queue == "unidentified" && ShowFilter == "closed";
 
@@ -295,8 +284,8 @@ public sealed class IndexModel(
 
     /// <summary>
     /// This page's address with the given overrides. Filters ride along per
-    /// the target scope — the Principal select exists on Case queues, the
-    /// Missing select on Not ready only, Show on Unidentified only — so
+    /// the target scope — the Principal select exists on Case queues, Show on
+    /// Unidentified only — so
     /// switching scope never carries a filter the destination cannot use.
     /// </summary>
     public string Href(string? tab = null, Guid? selected = null, int? page = null, bool keepFilters = true)
@@ -311,10 +300,6 @@ public sealed class IndexModel(
             if (ListsCases(target))
             {
                 values["principal"] = PrincipalFilter;
-            }
-            if (target == "not_ready")
-            {
-                values["missing"] = MissingFilter;
             }
             if (target == "unidentified")
             {
@@ -352,7 +337,6 @@ public sealed class IndexModel(
 
         if (Tabs.All(tab => tab.Key != Queue)
             || CurrentPage > 10_000
-            || MissingFilter is not (null or "" or "instructions" or "images" or "both")
             || ShowFilter is not (null or "" or "open" or "closed"))
         {
             return NotFound();
@@ -360,7 +344,6 @@ public sealed class IndexModel(
 
         CurrentPage = Math.Max(1, CurrentPage);
         PrincipalFilter = EmptyToNull(PrincipalFilter);
-        MissingFilter = ShowingNotReady ? EmptyToNull(MissingFilter) : null;
         ShowFilter = Queue == "unidentified" && ShowFilter == "closed" ? "closed" : null;
 
         try
@@ -516,7 +499,7 @@ public sealed class IndexModel(
     }
 
     /// <summary>
-    /// Formal Not ready Cases, filtered by their recorded completeness facts.
+    /// Formal Not ready Cases.
     /// </summary>
     private async Task<IReadOnlyList<QueueRow>> LoadNotReadyAsync(ActionActor actor, CancellationToken cancellationToken)
     {
@@ -528,22 +511,10 @@ public sealed class IndexModel(
                 PageSize: MergedPageSize),
             cancellationToken);
 
-        // The Missing filter is applied to the read, so what it removes
-        // never reaches the Principal select's options either — a principal
-        // whose every row the filter dropped stays listed (PrincipalOptions)
-        // so the active choice remains visible.
-        var matchingCases = result.Items
-            .Where(item => MissingFilter switch
-            {
-                "instructions" => item.InstructionComplete == false && item.ImagesComplete == true,
-                "images" => item.InstructionComplete == true && item.ImagesComplete == false,
-                "both" => item.InstructionComplete == false && item.ImagesComplete == false,
-                _ => true
-            })
-            .ToArray();
-        Principals = PrincipalOptions(matchingCases);
-        _engineerNames = await EngineerNamesAsync(matchingCases, cancellationToken);
-        return matchingCases.Select(item => CaseRow(item, _engineerNames)).ToArray();
+        var items = result.Items.ToArray();
+        Principals = PrincipalOptions(items);
+        _engineerNames = await EngineerNamesAsync(items, cancellationToken);
+        return items.Select(item => CaseRow(item, _engineerNames)).ToArray();
     }
 
     private async Task<IReadOnlyList<QueueRow>> LoadAwaitingAsync(CancellationToken cancellationToken)
