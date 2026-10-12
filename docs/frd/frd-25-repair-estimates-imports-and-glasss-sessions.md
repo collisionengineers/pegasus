@@ -65,15 +65,27 @@ feeding their own report. Every estimate edit, import, Glass's return and
 Use repair spec acts on the Audit's estimates; the Inspection's stay as its
 report was sent.
 
+**An estimate is imported onto the repair spec in view (v38 P3, operator,
+12 October 2026).** A file a staff member imports from the Repair Spec section
+lands on the spec the section shows; one imported from Files lands on the spec
+in use; with no spec, the import creates one. The spec's lines and source are
+replaced. Its name, labour-rate card, VAT and discounts are kept. The grid the
+import replaces is frozen first as a numbered version, and the import is frozen
+after it; the updated spec is Current. The spec then supplements the version
+the last sent report used, else the grid replaced: its supplementary statement
+is composed from the two with the reason "Supplementary estimate received",
+not yet printed, and the section opens on it (the Supplementary panel above
+the grid, with Dismiss, which clears what the spec supplements; the versions
+keep the history). An Automation (MCP) import creates a spec, as before.
+
 **A Glass's estimate belongs to its repair spec (operator, 6 October 2026).**
 The return that makes a spec records on it the Glass's stock vehicle its
 estimate stands on, with the estimate id and the vehicle facts it was proved
-against. A later return for that vehicle updates the same spec. Its lines and
-source are replaced. Its name, labour-rate card, VAT, discounts and
-supplementary statement are kept. Edits made in Pegasus since the last return
-are overwritten, and nothing is frozen before the update; the updated content
-is frozen as an imported version, as a new import is. The updated spec is
-Current. A spec discarded since is gone, so the return lands as a new spec
+against. A later return for that vehicle updates the same spec, as an import
+onto a spec does: the grid replaced is frozen first, the return is frozen
+after it, the spec supplements the version the last sent report used, and the
+updated spec is Current. Edits made in Pegasus since the last return are
+overwritten. A spec discarded since is gone, so the return lands as a new spec
 that belongs to the same estimate. Create audit copies the tie, so
 the Audit's copy belongs to the same Glass's estimate. A duplicated spec
 belongs to none. A spec made before this rule carries no tie and starts a new
@@ -171,6 +183,16 @@ labour-rate card. With no enabled card, or several, the rate stays blank and
 report readiness asks for it. The staff member can change it. A source
 document's own rate never picks the card.
 
+**The labour rate bar (v38 P5, operator, 12 October 2026).** The rate stands
+in a bar under the grid: one segment per enabled rate card and a Custom ·
+typed segment, all selectable; the "+ 15 % regional uplift" tick with its
+London & Home Counties chip (suggested when a repairer, claimant or storage
+postcode is in scope); and the rate the spec prices at in a box at the right.
+Choosing a card sets the figure; the uplift adds 15 % to a card's rate and
+shows its working beside the box; a typed figure is Custom, marked Manual, and
+turns the uplift off. The spec records the card and its base rate, or the
+typed rate alone.
+
 **Readable text is required.** Estimate PDFs need readable embedded text.
 Unreadable, scan-like or unsupported estimates are refused, with no OCR and
 no partial spec. A staff upload stores the confirmed source through the normal
@@ -181,17 +203,24 @@ again, and any file already confirmed in Case Files imports from there. Source a
 succeeds. Replaying the original operation does not revive its old lease or
 assume another Case-version increment.
 
-**Engineer acts on a spec (v28, ruled 20 September 2026).** Target % of
-value scales a spec down under the Engineer's hand: one factor lowers every
-part price, every materials figure and the labour rate, each to its floor
+**Engineer acts on a spec (v28, ruled 20 September 2026; the reference's
+bars since v38, 12 October 2026).** Target % of value scales a spec down
+under the Engineer's hand: one factor lowers every part price, every
+materials figure and the labour rate the spec prices at, each to its floor
 (£50 an hour and 65 % of price unless the Engineer sets others); hours never
-move. The slider starts at the spec's own share of the Engineer's Value,
-above 100 % where the spec costs more, and goes no higher, so scaling only
-lowers prices; a contract repair's agreed sum below that share is the
-starting target instead (operator, 8 October 2026). Moving the slider previews (P34; operator, 28 September 2026): Core
+move. The scaled rate lands on a whole pound or 50p, never below its floor
+and never above the rate it started from, as a typed figure with no card and
+no uplift (v38 P6). The slider runs from the lowest share of the Engineer's
+Value the floors allow, rounded up to a whole percent, to the spec's own
+share, above 100 % where the spec costs more, and goes no higher, so scaling
+only lowers prices; a contract repair's agreed sum below that share is the
+starting target instead (operator, 8 October 2026). The bar reads the spec's
+total "as estimated", or "scaled from estimate" with the total the last
+scaling started from. Moving the slider previews (P34; operator, 28 September 2026): Core
 scales and totals the spec as the editor holds it, read on the save's own
 terms, the changed cells show its figures in amber and cannot be typed in,
-and the rollup and the readout follow. The readout, previewed and recorded
+and the rollup and the readout follow; Apply and Remove scaling are offered
+while a preview is shown, and Remove scaling drops the preview. The readout, previewed and recorded
 alike, ends `labour at floor` when the labour rate stops at its floor.
 Nothing is recorded until Apply, and any save records the spec as
 edited, not as previewed. Apply waits for a change not yet sent to land
@@ -199,14 +228,22 @@ edited, not as previewed. Apply waits for a change not yet sent to land
 then freezes the saved spec, saves the scaled specification and freezes it
 again as the scaled version; Remove scaling likewise waits and returns the
 spec to the version frozen before. A contract repair's agreed sum is Case data the
-Engineer records beside the specification; recording it sets the outcome to
-Contract repair, and a different sum is a scaling target. Every import,
-scale, removal, restore and sent report freezes a numbered version with how
-it came about; Restore makes a frozen version the spec's content after
-freezing the outgoing one; the version a sent report used is marked. Compare reads any
-two of a Case's specifications line by line; a specification may name the
-one it supplements, with a reason, and the composed supplementary statement
-prints on the report when the Engineer says so. Send to AI proposes only.
+Engineer records beside the specification, in Decisions' cell or in the
+contract bar's own box; recording it sets the outcome to Contract repair,
+typing it previews the scaling to the sum as the slider does, and once the
+spec drifts from the sum again the bar's mismatch chip rescales it on press
+(v38 P4). Every import, scale, removal, restore and sent report freezes a
+numbered version with how it came about, and an import onto a spec freezes
+the grid it replaces first; Restore makes a frozen version the spec's content
+after freezing the outgoing one; the version a sent report used is marked.
+Compare reads any two of a Case's specifications, or any of a spec's frozen
+versions, line by line and side by side, every line listed with its value at
+each side's rate; opened from More it starts at the version the last sent
+report used against the spec's working draft; every version row offers
+Compare with current, and the comparison prints on its own sheet (v38 P2). A
+specification supplements the frozen version an import changed it against,
+with a reason, and the composed supplementary statement prints on the report
+when the Engineer says so (v38 P3). Send to AI proposes only.
 
 **Corrections and projections.** A correction is an edit of the spec, Current
 or not; an imported line keeps the values its source printed beside the

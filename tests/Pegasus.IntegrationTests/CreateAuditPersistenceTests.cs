@@ -576,8 +576,10 @@ public sealed class CreateAuditPersistenceTests
         var draft = Assert.Single(auditSpecifications, item => item.Version == 4);
         Assert.False(earlier.IsCurrent);
         Assert.Equal(nameof(RepairSpecificationState.Draft), earlier.State);
-        Assert.Null(draft.SupplementaryOfSpecificationId);
-        Assert.Equal("additional", draft.SupplementaryReason);
+        // A supplementary names a frozen version, which the Audit does not copy (v38 P3).
+        Assert.Null(draft.SupplementaryOfSnapshotId);
+        Assert.Null(draft.SupplementaryReason);
+        Assert.Null(draft.SupplementaryStatement);
         // The Current choice is copied with the estimates: one Current Draft.
         Assert.True(current.IsCurrent);
         Assert.Equal(nameof(RepairSpecificationState.Draft), current.State);
@@ -1084,7 +1086,7 @@ public sealed class CreateAuditPersistenceTests
             current.Lines.Add(Line(caseId, current.Id, now));
             var discardedId = Guid.NewGuid();
             var draft = Specification(caseId, 4, nameof(RepairSpecificationState.Draft), now);
-            draft.SupplementaryOfSpecificationId = discardedId;
+            draft.SupplementaryOfSnapshotId = discardedId;
             draft.SupplementaryReason = "additional";
             draft.SupplementaryStatement = "Further damage found.";
             context.CaseRepairSpecifications.AddRange(earlier, current, draft);

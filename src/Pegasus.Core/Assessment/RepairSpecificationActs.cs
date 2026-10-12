@@ -4,7 +4,7 @@ using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Assessment;
 
-/// <summary>How a frozen repair specification version came about (v28 P43).</summary>
+/// <summary>How a frozen repair specification version came about (v28 P43; BeforeImport since v38 P3).</summary>
 public enum RepairSpecificationSnapshotKind
 {
     Imported,
@@ -14,6 +14,7 @@ public enum RepairSpecificationSnapshotKind
     BeforeRestore,
     Restored,
     Sent,
+    BeforeImport,
 }
 
 /// <summary>
@@ -34,7 +35,18 @@ public sealed record RepairSpecificationSnapshot(
     IReadOnlyList<CaseEstimateLineRecord> Lines,
     decimal Gross,
     bool SentOnReport,
-    RepairSpecificationSupplementary? Supplementary = null);
+    RepairSpecificationSupplementary? Supplementary = null)
+{
+    /// <summary>
+    /// The frozen version as a specification, so Compare, the Supplementary
+    /// statement and the totals read it as they read a live spec (v38 P2, P3).
+    /// Its source is the version's own record; it carries no document route.
+    /// </summary>
+    public RepairSpecificationVersion AsSpecification() => new(
+        SpecificationId, CaseId, Number, RepairSpecificationState.Draft,
+        new(RepairSpecificationSourceRoute.Manual, null, null, null),
+        Lines, CreatedBy, CreatedAtUtc, Details, Supplementary: Supplementary);
+}
 
 public sealed record FreezeRepairSpecificationRequest(
     Guid CaseId,
@@ -139,6 +151,20 @@ public static class RepairSpecificationScaling
         return Math.Ceiling(gross / engineerValue * 1_000m) / 10m;
     }
 
+    /// <summary>
+    /// The lowest share of the Engineer's Value the floors allow, rounded up
+    /// to a whole percent and never below one: where the slider's range
+    /// begins (v38 P6, the reference's scaleBounds; operator, 12 October 2026).
+    /// </summary>
+    public static decimal FloorPercentOfValue(decimal engineerValue, RepairSpecificationVersion specification, ScalingFloors floors)
+    {
+        if (engineerValue <= 0m)
+        {
+            throw new InvalidOperationException("An Engineer's Value is required before scaling.");
+        }
+        return Math.Max(1m, Math.Ceiling(Range(specification, floors).Floor / engineerValue * 100m));
+    }
+
     public static decimal GrossAt(RepairSpecificationVersion specification, decimal factor, ScalingFloors floors) =>
         EstimateTotals.Compute(Scaled(specification, factor, floors)).Printed.Gross;
 
@@ -175,7 +201,7 @@ public static class RepairSpecificationScaling
         }
         var factor = low;
         var scaled = Scaled(specification, factor, floors);
-        var scaledRate = scaled.Details.BaseHourlyRate;
+        var scaledRate = scaled.Details.HourlyRate;
         return new(
             scaled.Details,
             scaled.Lines.Select(ToInput).ToArray(),
@@ -183,21 +209,32 @@ public static class RepairSpecificationScaling
             decimal.Round(Math.Max(floors.PricePercent / 100m, factor), 6),
             top,
             EstimateTotals.Compute(scaled),
-            scaledRate < specification.Details.BaseHourlyRate && scaledRate <= floors.LabourRatePerHour);
+            scaledRate < specification.Details.HourlyRate && scaledRate <= floors.LabourRatePerHour);
     }
 
     private static RepairSpecificationVersion Scaled(RepairSpecificationVersion specification, decimal factor, ScalingFloors floors)
     {
         var priceFactor = Math.Max(floors.PricePercent / 100m, factor);
-        var baseRate = specification.Details.BaseHourlyRate;
-        var rate = Math.Max(Math.Min(floors.LabourRatePerHour, baseRate), baseRate * factor);
+        // The rate scaling lowers is the one the spec prices at, uplift
+        // included: the scaled spec stands on a typed figure with no card
+        // and no uplift, as the reference lands it on Custom (v38 P5, P6).
+        var baseRate = specification.Details.HourlyRate;
+        // A scaled rate lands on a whole pound or 50p, never below its floor
+        // and never above the rate it started from (the reference's
+        // scaledRate; operator, 12 October 2026). At factor one the rate is
+        // the estimate's own.
+        var rate = factor >= 1m
+            ? baseRate
+            : Math.Min(baseRate, Math.Max(Math.Min(floors.LabourRatePerHour, baseRate), Math.Round(baseRate * factor * 2m, MidpointRounding.AwayFromZero) / 2m));
         var details = specification.Details with
         {
             LabourRate = Pence(rate),
             // Scaling changes the estimate's typed rate. The pre-scale frozen
             // snapshot retains the card evidence; the scaled draft does not
-            // claim that its derived rate came from the card.
+            // claim that its derived rate came from the card, nor that the
+            // uplift still applies on top of it.
             Rate = null,
+            RegionalUplift = false,
         };
         var lines = specification.Lines
             .Select(line => line with
@@ -380,30 +417,71 @@ public static class RepairSpecificationWording
     }
 }
 
-/// <summary>What a repair specification says about the one it supplements (v28 P20).</summary>
+/// <summary>
+/// What a repair specification says about the frozen version it supplements
+/// (v28 P20; v38 P3, operator, 12 October 2026): an estimate imported onto
+/// the spec changes it against the version the last sent report used, else
+/// the grid the import replaced. <see cref="OfSnapshotId"/> names that
+/// version; the statement is composed from the two and printed when the
+/// Engineer says so.
+/// </summary>
 public sealed record RepairSpecificationSupplementary(
-    Guid OfSpecificationId,
+    Guid OfSnapshotId,
     string Reason,
     bool ExplainOnReport,
     string Statement);
 
 /// <summary>
 /// Richer Compare (v28 P19) and the Supplementary statement (P20): two
-/// specifications line by line. A line is the same line when its type
-/// matches and either its part number or the start of its description does.
+/// specifications line by line. A line is the same line when its part number
+/// or the start of its description matches; lines that kept their type pair
+/// first, then a line whose type changed pairs with one left over and says
+/// what its type was (v38 P2). A frozen version compares through
+/// <see cref="RepairSpecificationSnapshot.AsSpecification"/> (v38 P2).
 /// </summary>
 public static class RepairSpecificationComparison
 {
     public sealed record LineChange(CaseEstimateLineRecord From, CaseEstimateLineRecord To, IReadOnlyList<string> ChangedFields);
 
+    /// <summary>
+    /// The lines added, changed and removed between two specifications, and
+    /// the lines both hold unchanged (v38 P2: the side-by-side table lists
+    /// every line), with the totals each side prices at.
+    /// </summary>
     public sealed record Diff(
         IReadOnlyList<CaseEstimateLineRecord> Added,
         IReadOnlyList<LineChange> Changed,
         IReadOnlyList<CaseEstimateLineRecord> Removed,
         decimal GrossFrom,
-        decimal GrossTo)
+        decimal GrossTo,
+        IReadOnlyList<LineChange> Unchanged,
+        decimal RateFrom,
+        decimal RateTo)
     {
         public decimal GrossDelta => GrossTo - GrossFrom;
+    }
+
+    /// <summary>
+    /// One line's value at a rate, as the side-by-side Compare prints it
+    /// (v38 P2): what <see cref="EstimateTotals.Compute"/> prices on that line
+    /// before discounts and VAT — a part's amount by its quantity, the hours
+    /// the type prices at the rate, materials, and an amount a labour line
+    /// carries off-pattern.
+    /// </summary>
+    public static decimal LineValue(CaseEstimateLineRecord line, decimal hourlyRate)
+    {
+        ArgumentNullException.ThrowIfNull(line);
+        var quantity = line.Quantity is { } supplied && supplied > 0 ? supplied : 1;
+        var amount = (line.Price ?? 0m) * quantity;
+        var materials = line.Materials ?? 0m;
+        var operation = EstimateOperations.FromLineType(line.Type);
+        var hours = operation switch
+        {
+            EstimateOperation.Specialist => line.Type == "specialist_wu" ? line.WorkUnits ?? 0m : 0m,
+            EstimateOperation.Paint or EstimateOperation.Blend => (line.WorkUnits ?? 0m) + (line.PaintWorkUnits ?? 0m),
+            _ => line.WorkUnits ?? 0m,
+        };
+        return decimal.Round(amount + hours * hourlyRate + materials, 2, MidpointRounding.AwayFromZero);
     }
 
     public static readonly IReadOnlyList<(string Code, string Label, string Lead)> SupplementaryReasons =
@@ -419,32 +497,102 @@ public static class RepairSpecificationComparison
         ArgumentNullException.ThrowIfNull(from);
         ArgumentNullException.ThrowIfNull(to);
         var fromLines = from.Lines.OrderBy(line => line.Position).ToList();
-        var used = new HashSet<Guid>();
+        var toLines = to.Lines.OrderBy(line => line.Position).ToList();
+        // A frozen version's lines keep the ids they had when frozen, which the
+        // live spec's replaced lines no longer share; a line is matched once.
+        // Lines that kept their type pair first, so a line whose type changed
+        // takes only a line no same-type line claimed (one panel's Replace,
+        // Paint and R&I lines share a description).
+        var used = new HashSet<int>();
+        var matches = new int[toLines.Count];
+        Array.Fill(matches, -1);
+        foreach (var sameType in new[] { true, false })
+        {
+            for (var position = 0; position < toLines.Count; position++)
+            {
+                if (matches[position] >= 0)
+                {
+                    continue;
+                }
+                var line = toLines[position];
+                var index = fromLines.FindIndex(candidate => SameLine(candidate, line, sameType));
+                while (index >= 0 && used.Contains(index))
+                {
+                    index = fromLines.FindIndex(index + 1, candidate => SameLine(candidate, line, sameType));
+                }
+                if (index >= 0)
+                {
+                    used.Add(index);
+                    matches[position] = index;
+                }
+            }
+        }
         var added = new List<CaseEstimateLineRecord>();
         var changed = new List<LineChange>();
-        foreach (var line in to.Lines.OrderBy(line => line.Position))
+        var unchanged = new List<LineChange>();
+        for (var position = 0; position < toLines.Count; position++)
         {
-            var match = fromLines.FirstOrDefault(candidate => !used.Contains(candidate.Id) && SameLine(candidate, line));
-            if (match is null)
+            var line = toLines[position];
+            if (matches[position] < 0)
             {
                 added.Add(line);
                 continue;
             }
-            used.Add(match.Id);
+            var match = fromLines[matches[position]];
             var fields = ChangedFields(match, line);
             if (fields.Count > 0)
             {
                 changed.Add(new(match, line, fields));
             }
+            else
+            {
+                unchanged.Add(new(match, line, []));
+            }
         }
-        var removed = fromLines.Where(line => !used.Contains(line.Id)).ToArray();
+        var removed = fromLines.Where((_, index) => !used.Contains(index)).ToArray();
         return new(
             added, changed, removed,
             EstimateTotals.Compute(from).Printed.Gross,
-            EstimateTotals.Compute(to).Printed.Gross);
+            EstimateTotals.Compute(to).Printed.Gross,
+            unchanged,
+            from.Details.HourlyRate,
+            to.Details.HourlyRate);
     }
 
-    /// <summary>The composed paragraph: the reason's lead, then what was added, revised, no longer required and the movement of the cost.</summary>
+    /// <summary>A frozen version against a live specification (v38 P2, P3).</summary>
+    public static Diff Compare(RepairSpecificationSnapshot from, RepairSpecificationVersion to)
+    {
+        ArgumentNullException.ThrowIfNull(from);
+        return Compare(from.AsSpecification(), to);
+    }
+
+    /// <summary>The longest statement the specification's record holds.</summary>
+    public const int MaximumStatementLength = 4000;
+
+    /// <summary>
+    /// What an import onto a spec supplements (v38 P3): the import against
+    /// the version it is measured from, under the first reason, Explain
+    /// unticked. None when that version held no lines: an import onto an
+    /// empty spec adds to nothing.
+    /// </summary>
+    public static RepairSpecificationSupplementary? ForImport(
+        Guid ofSnapshotId, RepairSpecificationVersion from, RepairSpecificationVersion imported)
+    {
+        ArgumentNullException.ThrowIfNull(from);
+        if (from.Lines.Count == 0)
+        {
+            return null;
+        }
+        var reason = SupplementaryReasons[0].Code;
+        return new(ofSnapshotId, reason, false, SupplementaryStatement(Compare(from, imported), reason));
+    }
+
+    /// <summary>
+    /// The composed paragraph: the reason's lead, then what was added, revised,
+    /// no longer required and the movement of the cost. A change list too long
+    /// for <see cref="MaximumStatementLength"/> is cut short with an ellipsis; the
+    /// movement of the cost always stands.
+    /// </summary>
     public static string SupplementaryStatement(Diff diff, string reasonCode)
     {
         ArgumentNullException.ThrowIfNull(diff);
@@ -453,32 +601,55 @@ public static class RepairSpecificationComparison
         {
             throw new ArgumentException("The supplementary reason is not one of the four.", nameof(reasonCode));
         }
-        var text = reason.Lead + (diff.Added.Count > 0
-            ? " the following additional items are now required: " + string.Join("; ", diff.Added.Select(Name)) + "."
-            : " the repair specification has been revised.");
         var hours = diff.Changed
             .Where(change => change.ChangedFields.Contains("hours") || change.ChangedFields.Contains("paint hours"))
             .ToArray();
+        var shown = Math.Max(diff.Added.Count, Math.Max(hours.Length, diff.Removed.Count));
+        var text = Statement(diff, reason.Lead, hours, shown);
+        while (text.Length > MaximumStatementLength && shown > 0)
+        {
+            shown--;
+            text = Statement(diff, reason.Lead, hours, shown);
+        }
+        return text;
+    }
+
+    private static string Statement(Diff diff, string lead, LineChange[] hours, int shown)
+    {
+        var text = lead + (diff.Added.Count > 0
+            ? " the following additional items are now required: " + Names(diff.Added, shown, Name) + "."
+            : " the repair specification has been revised.");
         if (hours.Length > 0)
         {
-            text += " The repair time for " + string.Join("; ", hours.Select(change =>
-                $"{Name(change.To)} ({Hours(change.From)} h \u2192 {Hours(change.To)} h)")) + " has been revised.";
+            text += " The repair time for " + Names(hours, shown, change =>
+                $"{Name(change.To)} ({Hours(change.From)} h \u2192 {Hours(change.To)} h)") + " has been revised.";
         }
         if (diff.Removed.Count > 0)
         {
-            text += " " + string.Join("; ", diff.Removed.Select(Name)) + (diff.Removed.Count > 1 ? " are" : " is") + " no longer required.";
+            text += " " + Names(diff.Removed, shown, Name) + (diff.Removed.Count > 1 ? " are" : " is") + " no longer required.";
         }
         text += $" The estimated repair cost has {(diff.GrossTo >= diff.GrossFrom ? "increased" : "reduced")} from {RepairSpecificationWording.Money(diff.GrossFrom)} to {RepairSpecificationWording.Money(diff.GrossTo)}.";
         return text;
     }
 
-    private static bool SameLine(CaseEstimateLineRecord a, CaseEstimateLineRecord b)
+    /// <summary>The first <paramref name="shown"/> items, and an ellipsis for any more.</summary>
+    private static string Names<T>(IReadOnlyList<T> items, int shown, Func<T, string> name)
+    {
+        var names = items.Take(shown).Select(name).ToList();
+        if (items.Count > shown)
+        {
+            names.Add("\u2026");
+        }
+        return string.Join("; ", names);
+    }
+
+    private static bool SameLine(CaseEstimateLineRecord a, CaseEstimateLineRecord b, bool sameType)
     {
         if (a.Id != Guid.Empty && a.Id == b.Id)
         {
             return true;
         }
-        if (a.Type != b.Type)
+        if (sameType && a.Type != b.Type)
         {
             return false;
         }
@@ -495,6 +666,8 @@ public static class RepairSpecificationComparison
     private static List<string> ChangedFields(CaseEstimateLineRecord from, CaseEstimateLineRecord to)
     {
         var fields = new List<string>();
+        // In the editor's vocabulary, as an amendment is judged.
+        if (EstimateOperations.FromLineType(from.Type) != EstimateOperations.FromLineType(to.Type)) fields.Add("type");
         if (!string.Equals(from.Description?.Trim(), to.Description?.Trim(), StringComparison.Ordinal)) fields.Add("description");
         if (!string.Equals(from.PartNumber?.Trim(), to.PartNumber?.Trim(), StringComparison.OrdinalIgnoreCase)) fields.Add("part number");
         if ((from.Quantity ?? 1) != (to.Quantity ?? 1)) fields.Add("quantity");

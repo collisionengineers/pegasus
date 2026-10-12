@@ -509,7 +509,12 @@ public sealed partial class DetailsModel(
         && AssessmentCanOpen
         && SelectedEstimate is { IsCurrent: false, State: RepairSpecificationState.Draft };
 
-    public EstimateTotals EditorTotals
+    /// <summary>
+    /// The spec as the editor holds it: what the totals, the scaling range
+    /// and the column map read. A stored line keeps its Specialist kind, as
+    /// the Save carries it, so hours priced by work units stay priced here too.
+    /// </summary>
+    public RepairSpecificationVersion EditorSpecification
     {
         get
         {
@@ -521,8 +526,6 @@ public sealed partial class DetailsModel(
                     VatPercent: EstimatePolicy.DefaultVatPercent);
             var stored = SelectedEstimate?.Lines.ToDictionary(line => line.Id)
                 ?? new Dictionary<Guid, CaseEstimateLineRecord>();
-            // A stored line keeps its Specialist kind, as the Save carries it,
-            // so hours priced by work units stay priced here too.
             string LineType(EstimateEditorLine line)
             {
                 var edited = EstimateOperations.TryParse(line.Operation, out var operation)
@@ -532,7 +535,7 @@ public sealed partial class DetailsModel(
                     ? EstimateOperations.Carry(edited, saved.Type)
                     : edited;
             }
-            return EstimateTotals.Compute(new(
+            return new(
                 SelectedEstimate?.SpecificationId ?? Guid.Empty,
                 SelectedEstimate?.CaseId ?? Guid.Empty,
                 SelectedEstimate?.Version ?? 1,
@@ -563,9 +566,20 @@ public sealed partial class DetailsModel(
                 SelectedEstimate?.CreatedAtUtc ?? DateTimeOffset.UtcNow,
                 details,
                 SelectedEstimate?.IsCurrent ?? false,
-                SelectedEstimate?.AiJobId));
+                SelectedEstimate?.AiJobId);
         }
     }
+
+    public EstimateTotals EditorTotals => EstimateTotals.Compute(EditorSpecification);
+
+    /// <summary>
+    /// Where the Target % of value slider begins (v38 P6): the lowest share
+    /// of the Engineer's Value the default floors allow, or 1 % without one.
+    /// </summary>
+    public decimal ScaleFloorPercent =>
+        EngineerValue is { } value && value > 0m && EditorLines.Any(line => !string.IsNullOrWhiteSpace(line.Description))
+            ? RepairSpecificationScaling.FloorPercentOfValue(value, EditorSpecification, ScalingFloors.Default)
+            : 1m;
 
     /// <summary>
     /// The addresses whose postcode suggests the regional uplift (v28 P17),
@@ -751,24 +765,133 @@ public sealed partial class DetailsModel(
     /// <summary>The selected specification's frozen versions, oldest first (v28 P43).</summary>
     public IReadOnlyList<RepairSpecificationSnapshot> SelectedEstimateSnapshots { get; private set; } = [];
 
-    /// <summary>Whether the selected specification's latest scaling state is scaled (v28 P34).</summary>
+    /// <summary>Every live specification's frozen versions by specification (v38 P2): what Compare's From and To list.</summary>
+    public IReadOnlyDictionary<Guid, IReadOnlyList<RepairSpecificationSnapshot>> EstimateSnapshots { get; private set; } =
+        new Dictionary<Guid, IReadOnlyList<RepairSpecificationSnapshot>>();
+
+    /// <summary>
+    /// Whether the selected specification's latest scaling state is scaled
+    /// (v28 P34); an import since the scaling is a new grid and ends it (v38 P3).
+    /// </summary>
     public bool SelectedEstimateIsScaled =>
         SelectedEstimateSnapshots
             .Where(snapshot => snapshot.Kind is RepairSpecificationSnapshotKind.Scaled
-                or RepairSpecificationSnapshotKind.ScalingRemoved)
+                or RepairSpecificationSnapshotKind.ScalingRemoved
+                or RepairSpecificationSnapshotKind.Imported)
             .MaxBy(snapshot => snapshot.Number)?.Kind == RepairSpecificationSnapshotKind.Scaled;
 
-    /// <summary>The two specifications Compare reads, when the query names both (v28 P19).</summary>
-    public RepairSpecificationVersion? ComparisonFrom { get; private set; }
+    /// <summary>
+    /// The total the latest scaling started from, the version frozen before
+    /// it, for the readout "scaled from estimate" (v38 P6); null unless scaled.
+    /// </summary>
+    public decimal? ScaledFromGross
+    {
+        get
+        {
+            if (!SelectedEstimateIsScaled)
+            {
+                return null;
+            }
+            var scaled = SelectedEstimateSnapshots
+                .Where(snapshot => snapshot.Kind == RepairSpecificationSnapshotKind.Scaled)
+                .MaxBy(snapshot => snapshot.Number);
+            return SelectedEstimateSnapshots
+                .Where(snapshot => snapshot.Kind == RepairSpecificationSnapshotKind.BeforeScaling
+                    && scaled is not null && snapshot.Number < scaled.Number)
+                .MaxBy(snapshot => snapshot.Number)?.Gross;
+        }
+    }
 
-    public RepairSpecificationVersion? ComparisonTo { get; private set; }
+    /// <summary>
+    /// One side Compare can read (v38 P2): a live specification's working
+    /// draft, or one of its frozen versions, keyed as the query names it.
+    /// </summary>
+    public sealed record CompareOption(string Key, string Label, RepairSpecificationVersion Specification, RepairSpecificationSnapshot? Version);
+
+    /// <summary>
+    /// What Compare's From and To offer: the selected spec's working draft and
+    /// its versions newest first, then each other spec and its versions.
+    /// </summary>
+    public IReadOnlyList<CompareOption> ComparisonOptions { get; private set; } = [];
+
+    /// <summary>Compare is offered with two specs, or one spec that has a frozen version (v38 P2).</summary>
+    public bool ComparisonOffered => Estimates.Count >= 2 || SelectedEstimateSnapshots.Count > 0;
+
+    /// <summary>The two sides Compare reads, when the query names both or the dialog opens on its default pair (v28 P19, v38 P2).</summary>
+    public CompareOption? ComparisonFrom { get; private set; }
+
+    public CompareOption? ComparisonTo { get; private set; }
 
     public RepairSpecificationComparison.Diff? Comparison { get; private set; }
 
-    /// <summary>The specification the selected one supplements, and their differences (v28 P20).</summary>
-    public RepairSpecificationVersion? SupplementaryBase { get; private set; }
+    /// <summary>The frozen version the selected spec supplements, and their differences (v28 P20; v38 P3).</summary>
+    public RepairSpecificationSnapshot? SupplementaryBase { get; private set; }
 
     public RepairSpecificationComparison.Diff? SupplementaryDiff { get; private set; }
+
+    /// <summary>The query key for a Compare side: the spec, or the spec and one of its versions.</summary>
+    public static string ComparisonKey(Guid specificationId, Guid? snapshotId) =>
+        snapshotId is { } version ? $"{specificationId:D}:{version:D}" : specificationId.ToString("D");
+
+    private List<CompareOption> BuildComparisonOptions()
+    {
+        var options = new List<CompareOption>();
+        var culture = CultureInfo.GetCultureInfo("en-GB");
+        string Money(decimal value) => "£" + value.ToString("N2", culture);
+        void Add(RepairSpecificationVersion specification, bool own)
+        {
+            var name = own ? Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate.Working : specification.Details.Name;
+            options.Add(new(
+                ComparisonKey(specification.SpecificationId, null),
+                $"{name} · {Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate.Now} · {Money(EstimateTotals.Compute(specification).Printed.Gross)}",
+                specification,
+                null));
+            foreach (var version in EstimateSnapshots.GetValueOrDefault(specification.SpecificationId, []).OrderByDescending(item => item.Number))
+            {
+                var prefix = own ? string.Empty : specification.Details.Name + " · ";
+                var sent = version.SentOnReport ? " · " + Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate.SentOnReport : string.Empty;
+                options.Add(new(
+                    ComparisonKey(specification.SpecificationId, version.Id),
+                    $"{prefix}{Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate.VersionWord(version.Number)} · {Labels.OfficeTime(version.CreatedAtUtc)} · {Money(version.Gross)}{sent}",
+                    version.AsSpecification() with { Details = version.Details },
+                    version));
+            }
+        }
+        if (SelectedEstimate is not null)
+        {
+            Add(SelectedEstimate, own: true);
+        }
+        foreach (var other in Estimates.Where(item => item.SpecificationId != SelectedEstimate?.SpecificationId))
+        {
+            Add(other, own: false);
+        }
+        return options;
+    }
+
+    /// <summary>
+    /// Compare's sides from the query, or the default pair when the dialog
+    /// opens without one: the version the last sent report used against the
+    /// selected spec's working draft (v38 P2); with no sent version, nothing
+    /// is chosen until the Engineer chooses.
+    /// </summary>
+    private void ResolveComparison(string? from, string? to, string? dialog)
+    {
+        if (string.IsNullOrWhiteSpace(from) && string.IsNullOrWhiteSpace(to)
+            && string.Equals(dialog, "compare-estimates", StringComparison.Ordinal)
+            && SelectedEstimate is not null)
+        {
+            var sent = ComparisonOptions
+                .Where(option => option.Version is { SentOnReport: true })
+                .MaxBy(option => option.Version!.CreatedAtUtc);
+            from = sent?.Key;
+            to = sent is null ? null : ComparisonKey(SelectedEstimate.SpecificationId, null);
+        }
+        ComparisonFrom = ComparisonOptions.FirstOrDefault(option => string.Equals(option.Key, from, StringComparison.OrdinalIgnoreCase));
+        ComparisonTo = ComparisonOptions.FirstOrDefault(option => string.Equals(option.Key, to, StringComparison.OrdinalIgnoreCase));
+        Comparison = ComparisonFrom is null || ComparisonTo is null || ComparisonFrom.Key == ComparisonTo.Key
+            ? null
+            : RepairSpecificationComparison.Compare(ComparisonFrom.Specification, ComparisonTo.Specification);
+    }
 
     public string SendOperationKey { get; private set; } = NewOperationKey();
 
@@ -1154,13 +1277,13 @@ public sealed partial class DetailsModel(
         EvaluateEngineerSectionConditions(sendingToAi is not null && await sendingToAi);
         ApplyGlassSession(await glass);
 
-        // What the first reads decided: the selected estimate's snapshots, and
-        // the delivery reads a stored report needs, the viewed work's too.
-        var selectedSpecificationId = SelectedEstimate?.SpecificationId;
+        // What the first reads decided: every spec's frozen versions (v38 P2:
+        // Compare and Supplementary read them), and the delivery reads a
+        // stored report needs, the viewed work's too.
         var generated = CurrentReportGeneration is not null;
-        var snapshots = selectedSpecificationId is { } specificationId
-            ? reads.Start(token => specificationSnapshots.ListAsync(id, specificationId, token))
-            : null;
+        var snapshotReads = Estimates.ToDictionary(
+            item => item.SpecificationId,
+            item => reads.Start(token => specificationSnapshots.ListAsync(id, item.SpecificationId, token)));
         var suggestions = generated
             ? reads.Start(token => reportRecipientSuggestions.GetAsync(id, work, token))
             : null;
@@ -1175,25 +1298,25 @@ public sealed partial class DetailsModel(
             : null;
         await reads.WhenAllAsync();
 
-        if (SelectedEstimate is not null && snapshots is not null)
+        var snapshotsBySpecification = new Dictionary<Guid, IReadOnlyList<RepairSpecificationSnapshot>>();
+        foreach (var (specificationId, read) in snapshotReads)
         {
-            SelectedEstimateSnapshots = await snapshots;
+            snapshotsBySpecification[specificationId] = await read;
+        }
+        EstimateSnapshots = snapshotsBySpecification;
+        if (SelectedEstimate is not null)
+        {
+            SelectedEstimateSnapshots = snapshotsBySpecification.GetValueOrDefault(SelectedEstimate.SpecificationId, []);
             if (SelectedEstimate.Supplementary is { } supplementary)
             {
-                SupplementaryBase = Estimates.FirstOrDefault(item => item.SpecificationId == supplementary.OfSpecificationId);
+                SupplementaryBase = SelectedEstimateSnapshots.FirstOrDefault(item => item.Id == supplementary.OfSnapshotId);
                 SupplementaryDiff = SupplementaryBase is null
                     ? null
                     : RepairSpecificationComparison.Compare(SupplementaryBase, SelectedEstimate);
             }
         }
-        if (Guid.TryParse(Request.Query["from"], out var fromId) && Guid.TryParse(Request.Query["to"], out var toId) && fromId != toId)
-        {
-            ComparisonFrom = Estimates.FirstOrDefault(item => item.SpecificationId == fromId);
-            ComparisonTo = Estimates.FirstOrDefault(item => item.SpecificationId == toId);
-            Comparison = ComparisonFrom is null || ComparisonTo is null
-                ? null
-                : RepairSpecificationComparison.Compare(ComparisonFrom, ComparisonTo);
-        }
+        ComparisonOptions = BuildComparisonOptions();
+        ResolveComparison(Request.Query["from"], Request.Query["to"], dialog);
         DeliveryRecipientSuggestions = suggestions is null ? null : await suggestions;
         ReportAddressBook = DeliveryRecipientSuggestions is { } addressBook
             ? CaseReportDeliveryPolicy.AddressBook(addressBook)
@@ -1209,7 +1332,7 @@ public sealed partial class DetailsModel(
         OpenDialog = dialog switch
         {
             "send-to-claude" when SendToClaudeCondition is null => "send-to-claude",
-            "compare-estimates" when Estimates.Count >= 2 => "compare-estimates",
+            "compare-estimates" when ComparisonOffered => "compare-estimates",
             "versions" when SelectedEstimate is not null => "versions",
             "delete-estimate" when SelectedEstimateIsEditable
                 && SelectedEstimate is { IsCurrent: false } => "delete-estimate",
@@ -3177,10 +3300,11 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// What the editor said about the specification this one supplements
-    /// (v28 P20): the base, the reason and whether the report explains it.
-    /// The statement is composed from the base and the lines as posted, so
-    /// the record and the report say the same thing.
+    /// What the editor said about the frozen version this spec supplements
+    /// (v28 P20; v38 P3): the version the import named, the reason and whether
+    /// the report explains it. Dismiss posts no version, which clears it. The
+    /// statement is composed from the version and the lines as posted, so the
+    /// record and the report say the same thing.
     /// </summary>
     private async Task<RepairSpecificationSupplementary?> ReadSupplementaryAsync(
         Guid caseId,
@@ -3190,7 +3314,7 @@ public sealed partial class DetailsModel(
         EstimateEditorPost editor,
         CancellationToken cancellationToken)
     {
-        if (!Guid.TryParse(Request.Form["supplementaryOf"], out var baseId) || baseId == Guid.Empty)
+        if (existing is null || !Guid.TryParse(Request.Form["supplementaryOf"], out var baseId) || baseId == Guid.Empty)
         {
             return null;
         }
@@ -3199,15 +3323,16 @@ public sealed partial class DetailsModel(
         {
             reason = RepairSpecificationComparison.SupplementaryReasons[0].Code;
         }
-        var baseSpecification = await repairSpecifications.GetVersionAsync(caseId, baseId, cancellationToken);
-        if (baseSpecification is null || baseSpecification.SpecificationId == existing?.SpecificationId)
+        var baseVersion = (await specificationSnapshots.ListAsync(caseId, existing.SpecificationId, cancellationToken))
+            .FirstOrDefault(version => version.Id == baseId);
+        if (baseVersion is null)
         {
             return null;
         }
         // The spec a Save would record: the save's own carry, so a stored
         // Specialist line compares as its own kind and its hours stay priced.
         var diff = RepairSpecificationComparison.Compare(
-            baseSpecification,
+            baseVersion,
             EstimatePolicy.Edited(
                 caseId, actor, existing, details, editor.Lines!, editor.ExistingLineIds, DateTimeOffset.UtcNow));
         var explain = bool.TryParse(Request.Form["supplementaryExplain"].FirstOrDefault(), out var flag) && flag;
@@ -4277,13 +4402,18 @@ public sealed partial class DetailsModel(
     public static string VatCategoryField(EstimateVatCategories category) =>
         "estimateVat" + category;
 
-    /// <summary>Retain once, then use the same source-backed import as MCP and Glass's.</summary>
+    /// <summary>
+    /// Retain once, then use the same source-backed import as MCP and Glass's.
+    /// The import lands on the spec the section shows (v38 P3, operator,
+    /// 12 October 2026); with none, it creates one.
+    /// </summary>
     public async Task<IActionResult> OnPostImportEstimateAsync(
         Guid id,
         long expectedVersion,
         string operationKey,
         string? editLeaseToken,
         IFormFile? estimateFile,
+        Guid? estimateId,
         CancellationToken cancellationToken)
     {
         var (actor, documents, refusal) = await StartEstimateImportAsync(
@@ -4405,12 +4535,17 @@ public sealed partial class DetailsModel(
                 return RedirectToEstimate(id);
             }
 
-            var importedBefore = (await listEstimates.ExecuteAsync(id, WorkSelector, cancellationToken))
+            var live = await listEstimates.ExecuteAsync(id, WorkSelector, cancellationToken);
+            var target = estimateId is { } selected && selected != Guid.Empty
+                ? live.FirstOrDefault(estimate => estimate.SpecificationId == selected)
+                : null;
+            var importedBefore = (target is null ? live : [target])
                 .Any(estimate => string.Equals(
                     estimate.Source.Sha256, source.Version.Sha256, StringComparison.OrdinalIgnoreCase));
             var resultingVersion = checked(importVersion + (importedBefore ? 0 : 1));
             return await ImportRetainedEstimateAsync(new(actor!, id, importVersion, importLeaseToken,
-                source.Occurrence.Id, source.Version.Id, source.Version.Sha256, operationKey, string.Empty) { Work = WorkSelector },
+                source.Occurrence.Id, source.Version.Id, source.Version.Sha256, operationKey, string.Empty)
+                { Work = WorkSelector, EstimateId = target?.SpecificationId },
                 cancellationToken, expectedVersion, resultingVersion);
         }
         catch (StaffAuthorizationException) { return Forbid(); }
@@ -4459,9 +4594,14 @@ public sealed partial class DetailsModel(
         }
         try
         {
+            // From Files there is no spec in view: the import lands on the
+            // spec in use (v38 P3), or creates one when there is none.
+            var current = (await listEstimates.ExecuteAsync(id, WorkSelector, cancellationToken))
+                .FirstOrDefault(estimate => estimate.IsCurrent);
             return await ImportRetainedEstimateAsync(
                 new(actor!, id, expectedVersion, leaseToken!, source.Occurrence.Id, source.Version.Id,
-                    source.Version.Sha256, operationKey, string.Empty) { Work = WorkSelector },
+                    source.Version.Sha256, operationKey, string.Empty)
+                { Work = WorkSelector, EstimateId = current?.SpecificationId },
                 cancellationToken);
         }
         catch (StaffAuthorizationException) { return Forbid(); }

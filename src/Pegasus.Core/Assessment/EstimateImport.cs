@@ -45,10 +45,15 @@ public sealed record ImportRawEstimateRequest(
     public GlassEstimateLink? GlassEstimate { get; init; }
 
     /// <summary>
-    /// The live spec that belongs to <see cref="GlassEstimate"/>, updated in
-    /// place: the same Glass's estimate saved again is the same repair spec
-    /// (operator, 6 October 2026). A spec discarded since is gone, so the
-    /// return lands as a new one.
+    /// The live spec the import lands on, updated in place: the spec the
+    /// section shows when a staff member imports a file (v38 P3, operator,
+    /// 12 October 2026: an estimate is imported onto the existing repair
+    /// spec), or the spec that belongs to <see cref="GlassEstimate"/>, since
+    /// the same Glass's estimate saved again is the same repair spec
+    /// (operator, 6 October 2026). The grid it replaces is frozen first and
+    /// the import is frozen after; the spec then supplements the version the
+    /// last sent report used, else the grid replaced. A spec discarded since
+    /// is gone, so the import lands as a new one. Null creates a spec.
     /// </summary>
     public Guid? EstimateId { get; init; }
 }
@@ -268,7 +273,7 @@ public sealed class ImportRawEstimate(
             throw new EstimateParseRejectedException("The Case does not hold the exact source the import names.");
         }
         var existing = await estimates.ExecuteAsync(request.CaseId, request.Work, cancellationToken);
-        var target = request is { EstimateId: { } targetId, GlassEstimate: not null }
+        var target = request.EstimateId is { } targetId
             ? existing.FirstOrDefault(estimate => estimate.SpecificationId == targetId)
             : null;
         // A spec being updated answers only for its own source: the same
@@ -297,9 +302,10 @@ public sealed class ImportRawEstimate(
         var artifactIdentity = $"estimate-import:{retained.OccurrenceId:D}";
         if (target is not null)
         {
-            // The spec keeps its name, labour-rate card, VAT, discounts and
-            // supplementary statement; the export replaces its lines and
-            // source.
+            // The spec keeps its name, labour-rate card, VAT and discounts;
+            // the import replaces its lines and source. The store freezes the
+            // grid replaced and the import, and records what the import
+            // supplements (v38 P3), so no supplementary is carried here.
             var updated = await store.SaveImportedEstimateAsync(
                 EstimatePolicy.ValidateImportedSave(
                 new(request.CaseId,
@@ -314,7 +320,6 @@ public sealed class ImportRawEstimate(
                         line, index + 1, artifactIdentity, request.DocumentVersionId, sha256))],
                     new(parsed.Route, artifactIdentity, parsed.SourceVersion, sha256))
                 {
-                    Supplementary = target.Supplementary,
                     Work = request.Work,
                     KeepsLease = request.KeepsLease,
                     GlassEstimate = request.GlassEstimate,

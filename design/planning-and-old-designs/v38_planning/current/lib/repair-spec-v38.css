@@ -1,0 +1,103 @@
+/* v38 mockup only: the strip, the widgets and the proposals' own rules.
+   Every proposal rule reuses the live tokens; nothing here is product CSS. */
+
+/* ---- mockup strip ------------------------------------------------------- */
+.v38-strip{position:fixed;left:12px;bottom:12px;z-index:5000;width:340px;max-height:min(70vh,760px);overflow:auto;background:#1f2326;color:#e8eaec;border-radius:6px;box-shadow:0 8px 28px rgba(0,0,0,.4);font:12px/1.4 "Inter Variable",Inter,system-ui,sans-serif}
+.v38-strip summary{cursor:pointer;padding:9px 12px;font-weight:700;list-style:none;display:flex;justify-content:space-between;gap:8px}
+.v38-strip summary::-webkit-details-marker{display:none}
+.v38-strip summary small{font-weight:400;opacity:.7}
+.v38-strip .v38-body{padding:4px 12px 12px;display:grid;gap:8px}
+.v38-strip .v38-row{display:grid;gap:3px}
+.v38-strip .v38-row > b{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;opacity:.65}
+.v38-strip .v38-seg{display:flex;flex-wrap:wrap;gap:4px}
+.v38-strip .v38-seg button{background:#2c3135;color:#e8eaec;border:1px solid #3b4146;border-radius:3px;padding:3px 8px;font:inherit;cursor:pointer}
+.v38-strip .v38-seg button[aria-pressed="true"]{background:#d2343a;border-color:#d2343a;color:#fff}
+.v38-strip select{background:#2c3135;color:#e8eaec;border:1px solid #3b4146;border-radius:3px;padding:3px 6px;font:inherit;width:100%}
+.v38-strip .v38-findings{display:grid;gap:4px;border-top:1px solid #3b4146;padding-top:6px}
+.v38-strip .v38-findings label{display:grid;grid-template-columns:30px 1fr;gap:6px;align-items:start;padding:2px 0}
+.v38-strip .v38-findings label small{opacity:.6}
+.v38-strip .v38-findings .v38-group{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;opacity:.65;margin-top:6px}
+.v38-strip .v38-note{opacity:.7}
+body.v38-strip-hidden .v38-strip{display:none}
+
+/* ---- widgets ------------------------------------------------------------- */
+/* Diff: every region a proposal changed is outlined and labelled. */
+.v38-diff [data-v38-change]{outline:2px dashed var(--red);outline-offset:2px;position:relative}
+.v38-diff [data-v38-change]::before{content:attr(data-v38-change);position:absolute;top:-10px;left:-4px;z-index:9;background:var(--red);color:#fff;font:700 10px/1 "Inter Variable",Inter,sans-serif;padding:3px 5px;border-radius:3px;letter-spacing:.04em;pointer-events:none}
+.v38-diff td[data-v38-change]::before{top:-6px}
+.v38-diff .v38-legend{position:fixed;right:12px;bottom:12px;z-index:5000;background:#1f2326;color:#e8eaec;padding:8px 10px;border-radius:6px;font:11.5px/1.4 "Inter Variable",Inter,sans-serif;max-width:360px;max-height:50vh;overflow:auto}
+.v38-diff .v38-legend b{display:inline-block;min-width:28px;color:#ff8f93}
+/* Split: today and the proposal side by side at half zoom, one scroll. */
+.v38-split #v38-frame{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:#5a6166}
+.v38-split .v38-pane{zoom:.5;background:var(--bg,#f3f4f5);position:relative}
+.v38-split .v38-pane::before{content:attr(data-v38-pane);position:sticky;top:0;z-index:50;display:block;background:#1f2326;color:#fff;font:700 24px/1.2 "Inter Variable",Inter,sans-serif;padding:8px 16px}
+
+/* ---- proposal rules ------------------------------------------------------- */
+/* P1 · a cell the line type does not price: one quiet dash where the box would be. */
+#section-estimate .grid td.na{color:var(--quiet);text-align:right;padding-right:10px;font-family:var(--mono);font-variant-numeric:tabular-nums}
+/* P2 · From and To side by side: a rule between the groups, the group heads centred over their five columns. */
+#section-estimate .v38-cmp th.v38-cmp-group{text-align:center;border-left:1px solid var(--line)}
+#section-estimate .v38-cmp th.v38-cmp-first,#section-estimate .v38-cmp td:nth-child(4),#section-estimate .v38-cmp td:nth-child(9){border-left:1px solid var(--line)}
+#section-estimate .v38-cmp td.diff{font-weight:700}
+.v38-cmp-dialog{width:min(100%,1100px)}
+#section-estimate .v38-version-acts{gap:6px;justify-content:flex-end;flex-wrap:nowrap}
+#section-estimate .v38-version-acts .btn{white-space:nowrap}
+/* P3 · the Supplementary panel at the top of the section, as the reference draws it: the head names the
+   version it changes against with the cost movement and a link to the full comparison; one list line per
+   change with its tag, the words and the line's value; then the Explain tick, the reason and Dismiss. */
+#section-estimate .v38-supp{border-left:3px solid var(--red)}
+#section-estimate .v38-supp>h3{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#section-estimate .v38-supp>h3 .rt{font-weight:400;text-transform:none;letter-spacing:0;font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+#section-estimate .v38-supp>h3 .v38-supp-sum{margin-left:auto;color:var(--muted)}
+#section-estimate .v38-supp>h3 .v38-supp-sum b{color:var(--ink)}
+#section-estimate .v38-supp>h3 .v38-supp-sum a{color:var(--muted);text-decoration:underline dotted}
+#section-estimate .v38-supp-list{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:3px;font-size:12.5px}
+#section-estimate .v38-supp-list li{display:flex;gap:8px;align-items:baseline}
+#section-estimate .v38-supp-tag{font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.06em;min-width:64px}
+#section-estimate .v38-supp-added .v38-supp-tag{color:var(--red)}
+#section-estimate .v38-supp-changed .v38-supp-tag{color:var(--amber)}
+#section-estimate .v38-supp-removed .v38-supp-tag{color:var(--quiet)}
+#section-estimate .v38-supp-removed .v38-supp-desc{color:var(--muted)}
+#section-estimate .v38-supp-num{margin-left:auto;color:var(--muted);font-variant-numeric:tabular-nums}
+#section-estimate .v38-supp-row{align-items:center;gap:12px}
+#section-estimate .v38-supp-row .choice{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;min-height:var(--control)}
+#section-estimate .v38-supp-row .choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
+#section-estimate .v38-supp-row select.fi{width:auto;min-width:260px}
+#section-estimate .v38-supp-row .v38-supp-reason{min-height:0;padding:0;border:0;background:transparent;font-size:12.5px;color:var(--muted)}
+#section-estimate .v38-supp-row [data-supp-dismiss]{margin-left:auto}
+/* P5 \u00b7 the labour rate bar, as the reference draws it: segments for the rate cards and Custom, the uplift tick with
+   its chip, the effective figure at the right with its working. Live tokens only; the chosen segment is ink on white. */
+#section-estimate .bar.v38-rate-bar{flex-wrap:wrap;gap:12px}
+#section-estimate .v38-rseg{display:inline-flex;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+#section-estimate .v38-rseg-btn{appearance:none;border:0;border-right:1px solid var(--line);background:#fff;color:var(--muted);padding:5px 11px;font:inherit;font-size:12px;line-height:1.15;display:flex;flex-direction:column;align-items:flex-start;gap:1px;cursor:pointer;min-height:36px;justify-content:center}
+#section-estimate .v38-rseg-btn:last-child{border-right:0}
+#section-estimate .v38-rseg-btn small{font-family:var(--mono);font-size:10px;color:var(--quiet)}
+#section-estimate .v38-rseg-btn:hover{color:var(--ink)}
+#section-estimate .v38-rseg-btn[aria-pressed="true"],#section-estimate .v38-rseg-btn.is-static[aria-current="true"]{background:var(--ink);color:#fff}
+#section-estimate .v38-rseg-btn[aria-pressed="true"] small,#section-estimate .v38-rseg-btn.is-static[aria-current="true"] small{color:rgba(255,255,255,.7)}
+#section-estimate .v38-rseg-btn.is-static{cursor:default}
+#section-estimate .v38-ratebox{margin-left:auto;gap:6px}
+#section-estimate .v38-ratebox input{width:104px;text-align:right;font-weight:600;padding-right:8px}
+#section-estimate .v38-ratebox input::-webkit-inner-spin-button,#section-estimate .v38-ratebox input::-webkit-outer-spin-button{-webkit-appearance:none;appearance:none;margin:0}
+#section-estimate .v38-ratebox input[type=number]{-moz-appearance:textfield;appearance:textfield}
+#section-estimate .v38-ratebox .gv{min-width:88px;justify-content:flex-end;font-weight:600}
+#section-estimate .v38-ratebox [data-rate-work]:empty{display:none}
+#section-estimate .v38-rate-bar .choice input[disabled]+span{color:var(--quiet)}
+/* P6 \u00b7 the scaling bar as the reference draws it: the floors and Apply on a second row under the slider. */
+#section-estimate .bar.v38-scale{flex-wrap:wrap}
+#section-estimate .v38-scale .v38-scale-row{flex-basis:100%;display:flex;align-items:center;gap:12px;margin-top:4px}
+#section-estimate .v38-scale .v38-scale-row [data-scale-apply]{margin-left:auto}
+#section-estimate .v38-scale [data-scale-remove]{white-space:nowrap}
+/* P4 · the agreed sum box in the bar reads like the discount boxes; the mismatch chip is a button. */
+#section-estimate .est-contract .dsc input[data-contract-sum]{width:110px}
+#section-estimate .v38-chip-button{font:inherit;cursor:pointer}
+#section-estimate .v38-chip-button:hover{background:var(--amber);color:#fff}
+
+/* ---- the print sheet (P2) -------------------------------------------------- */
+@media print{
+  body.v38-printing > *:not(#compare-estimates-dialog){display:none}
+  body.v38-printing #compare-estimates-dialog{position:static;background:none;padding:0;display:block}
+  body.v38-printing #compare-estimates-dialog .dialog{width:100%;max-height:none;overflow:visible;border:0;box-shadow:none}
+  body.v38-printing #compare-estimates-dialog .noprint,body.v38-printing #compare-estimates-dialog .dialog-close{display:none!important}
+  body.v38-printing .v38-strip,body.v38-printing .v38-legend{display:none}
+}

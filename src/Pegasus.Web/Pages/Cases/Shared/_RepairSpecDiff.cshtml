@@ -1,52 +1,121 @@
 @*
-    Two repair specifications line by line (v28 P19): the net difference and
-    the counts, then every added, changed and removed line with the changed
-    cells in bold. Read by the Compare dialog and the Supplementary panel.
+    Two repair specifications line by line (v28 P19; side by side since v38
+    P2, the reference's compare sheet): the summary line, then one table with
+    Change, Type and Description and five figure columns per side — Qty,
+    Unit (£), Hours, Material (£) and Line £ — under a head naming the side
+    and its rate. Added lines have figures on the To side only, Removed on
+    the From side only, a Changed line's changed To cells are bold and a
+    changed type says what it was; unchanged lines follow plain. Read by the
+    Compare dialog; printed alone by Print comparison sheet.
 *@
 @using System.Globalization
 @using Pegasus.Core.Assessment
 @using EstimateLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate
 @using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
-@model Pegasus.Core.Assessment.RepairSpecificationComparison.Diff
+@model Pegasus.Web.Pages.Cases.RepairSpecDiffView
 @{
     var culture = CultureInfo.GetCultureInfo("en-GB");
+    var diff = Model.Diff;
     string Money(decimal value) => "£" + value.ToString("N2", culture);
-    string Number(decimal? value) => value is { } present ? present.ToString("0.0", CultureInfo.InvariantCulture) : "—";
-    string Cell(bool changed) => changed ? "diff" : string.Empty;
+    string Word(string lineType)
+    {
+        try
+        {
+            return Pegasus.Web.Presentation.OperatorLabels.EstimateLineType(lineType);
+        }
+        catch (InvalidOperationException)
+        {
+            return lineType;
+        }
+    }
+    var delta = diff.GrossDelta >= 0 ? "+" + Money(diff.GrossDelta) : "−" + Money(Math.Abs(diff.GrossDelta));
+    var rateNote = diff.RateFrom != diff.RateTo
+        ? $" · {EstimateLabels.Rate.ToLowerInvariant()} {Money(diff.RateFrom)} → {Money(diff.RateTo)}"
+        : string.Empty;
 }
-<p class="mono est-diff-sum" data-estimate-diff-sum>@(Model.GrossDelta >= 0 ? "+" : "−")@Money(Math.Abs(Model.GrossDelta)) @EstimateLabels.Net · @Model.Added.Count @EstimateLabels.Added.ToLowerInvariant() · @Model.Changed.Count @EstimateLabels.Changed.ToLowerInvariant() · @Model.Removed.Count @EstimateLabels.Removed.ToLowerInvariant()</p>
-@if (Model.Added.Count + Model.Changed.Count + Model.Removed.Count > 0)
-{
-    <div class="table-wrap">
-        <table class="table table--compact est-diff" data-estimate-diff-table>
-            <thead>
-                <tr>
-                    <th scope="col">@EstimateLabels.Change</th>
-                    <th scope="col">@EngineerLabels.Type</th>
-                    <th scope="col">@EngineerLabels.Description</th>
-                    <th scope="col">@EstimateLabels.PartNumberShort</th>
-                    <th scope="col" class="num">@EngineerLabels.QuantityShort</th>
-                    <th scope="col" class="num">@EstimateLabels.UnitPounds</th>
-                    <th scope="col" class="num">@EstimateLabels.Hours</th>
-                    <th scope="col" class="num">@EngineerLabels.PaintHoursShort</th>
-                    <th scope="col" class="num">@EngineerLabels.MaterialPounds</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var line in Model.Added)
-                {
-                    <tr class="added"><td>@EstimateLabels.Added</td><td>@Pegasus.Web.Presentation.OperatorLabels.EstimateLineType(line.Type)</td><td>@line.Description</td><td class="mono">@(line.PartNumber ?? "—")</td><td class="num mono">@(line.Quantity ?? 1)</td><td class="num mono">@(line.Price is { } price ? Money(price) : "—")</td><td class="num mono">@Number(line.WorkUnits)</td><td class="num mono">@Number(line.PaintWorkUnits)</td><td class="num mono">@(line.Materials is { } materials ? Money(materials) : "—")</td></tr>
-                }
-                @foreach (var change in Model.Changed)
-                {
-                    var line = change.To;
-                    <tr class="changed"><td>@EstimateLabels.Changed</td><td>@Pegasus.Web.Presentation.OperatorLabels.EstimateLineType(line.Type)</td><td class="@Cell(change.ChangedFields.Contains("description"))">@line.Description</td><td class="mono @Cell(change.ChangedFields.Contains("part number"))">@(line.PartNumber ?? "—")</td><td class="num mono @Cell(change.ChangedFields.Contains("quantity"))">@(line.Quantity ?? 1)</td><td class="num mono @Cell(change.ChangedFields.Contains("unit amount"))">@(line.Price is { } price ? Money(price) : "—")</td><td class="num mono @Cell(change.ChangedFields.Contains("hours"))">@Number(line.WorkUnits)</td><td class="num mono @Cell(change.ChangedFields.Contains("paint hours"))">@Number(line.PaintWorkUnits)</td><td class="num mono @Cell(change.ChangedFields.Contains("materials"))">@(line.Materials is { } materials ? Money(materials) : "—")</td></tr>
-                }
-                @foreach (var line in Model.Removed)
-                {
-                    <tr class="removed"><td>@EstimateLabels.Removed</td><td>@Pegasus.Web.Presentation.OperatorLabels.EstimateLineType(line.Type)</td><td>@line.Description</td><td class="mono">@(line.PartNumber ?? "—")</td><td class="num mono">@(line.Quantity ?? 1)</td><td class="num mono">@(line.Price is { } price ? Money(price) : "—")</td><td class="num mono">@Number(line.WorkUnits)</td><td class="num mono">@Number(line.PaintWorkUnits)</td><td class="num mono">@(line.Materials is { } materials ? Money(materials) : "—")</td></tr>
-                }
-            </tbody>
-        </table>
-    </div>
+@functions {
+    // One side's five cells: blank when the line is not on that side; a
+    // changed To cell in bold.
+    private static void Side(
+        Microsoft.AspNetCore.Html.IHtmlContentBuilder html,
+        CaseEstimateLineRecord? line,
+        IReadOnlyList<string> changed,
+        bool isTo,
+        decimal rate,
+        CultureInfo culture)
+    {
+        string Money(decimal value) => "£" + value.ToString("N2", culture);
+        if (line is null)
+        {
+            html.AppendHtml("<td class=\"num mono\">—</td><td class=\"num mono\">—</td><td class=\"num mono\">—</td><td class=\"num mono\">—</td><td class=\"num mono\">—</td>");
+            return;
+        }
+        string Cell(string field, string text)
+        {
+            var bold = isTo && changed.Contains(field) ? " diff" : string.Empty;
+            return $"<td class=\"num mono{bold}\">{System.Net.WebUtility.HtmlEncode(text)}</td>";
+        }
+        var hours = (line.WorkUnits ?? 0m) + (line.PaintWorkUnits ?? 0m);
+        html.AppendHtml(Cell("quantity", line.Quantity is > 1 ? line.Quantity.Value.ToString(CultureInfo.InvariantCulture) : "—"));
+        html.AppendHtml(Cell("unit amount", line.Price is { } price ? Money(price) : "—"));
+        html.AppendHtml(Cell("hours", hours == 0m ? "—" : hours.ToString("0.0", CultureInfo.InvariantCulture)));
+        html.AppendHtml(Cell("materials", line.Materials is { } materials ? Money(materials) : "—"));
+        html.AppendHtml($"<td class=\"num mono\">{Money(RepairSpecificationComparison.LineValue(line, rate))}</td>");
+    }
 }
+<p class="mono est-diff-sum" data-estimate-diff-sum>@Model.FromName @Money(diff.GrossFrom) → @Model.ToName @Money(diff.GrossTo) · @delta · @diff.Added.Count @EstimateLabels.Added.ToLowerInvariant() · @diff.Changed.Count @EstimateLabels.Changed.ToLowerInvariant() · @diff.Removed.Count @EstimateLabels.Removed.ToLowerInvariant()@rateNote</p>
+<div class="table-wrap">
+    <table class="table table--compact est-diff est-diff--sides" data-estimate-diff-table>
+        <thead>
+            <tr>
+                <th scope="col" rowspan="2">@EstimateLabels.Change</th>
+                <th scope="col" rowspan="2">@EngineerLabels.Type</th>
+                <th scope="col" rowspan="2">@EngineerLabels.Description</th>
+                <th scope="colgroup" colspan="5" class="num side-head">@Model.FromName · @Money(diff.RateFrom)@EstimateLabels.PerHour</th>
+                <th scope="colgroup" colspan="5" class="num side-head">@Model.ToName · @Money(diff.RateTo)@EstimateLabels.PerHour</th>
+            </tr>
+            <tr>
+                <th scope="col" class="num side-first">@EngineerLabels.QuantityShort</th>
+                <th scope="col" class="num">@EstimateLabels.UnitPounds</th>
+                <th scope="col" class="num">@EstimateLabels.Hours</th>
+                <th scope="col" class="num">@EngineerLabels.MaterialPounds</th>
+                <th scope="col" class="num">@EstimateLabels.LineValue</th>
+                <th scope="col" class="num side-first">@EngineerLabels.QuantityShort</th>
+                <th scope="col" class="num">@EstimateLabels.UnitPounds</th>
+                <th scope="col" class="num">@EstimateLabels.Hours</th>
+                <th scope="col" class="num">@EngineerLabels.MaterialPounds</th>
+                <th scope="col" class="num">@EstimateLabels.LineValue</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var line in diff.Added)
+            {
+                var cells = new Microsoft.AspNetCore.Html.HtmlContentBuilder();
+                Side(cells, null, [], false, diff.RateFrom, culture);
+                Side(cells, line, [], true, diff.RateTo, culture);
+                <tr class="added"><td>@EstimateLabels.Added</td><td>@Word(line.Type)</td><td>@line.Description</td>@cells</tr>
+            }
+            @foreach (var change in diff.Changed)
+            {
+                var cells = new Microsoft.AspNetCore.Html.HtmlContentBuilder();
+                Side(cells, change.From, change.ChangedFields, false, diff.RateFrom, culture);
+                Side(cells, change.To, change.ChangedFields, true, diff.RateTo, culture);
+                <tr class="changed"><td>@EstimateLabels.Changed</td><td>@Word(change.To.Type)@if (EstimateOperations.FromLineType(change.From.Type) != EstimateOperations.FromLineType(change.To.Type)) { <span class="muted"> (was @Word(change.From.Type))</span> }</td><td class="@(change.ChangedFields.Contains("description") ? "diff" : null)">@change.To.Description</td>@cells</tr>
+            }
+            @foreach (var line in diff.Removed)
+            {
+                var cells = new Microsoft.AspNetCore.Html.HtmlContentBuilder();
+                Side(cells, line, [], false, diff.RateFrom, culture);
+                Side(cells, null, [], true, diff.RateTo, culture);
+                <tr class="removed"><td>@EstimateLabels.Removed</td><td>@Word(line.Type)</td><td>@line.Description</td>@cells</tr>
+            }
+            @foreach (var same in diff.Unchanged)
+            {
+                var cells = new Microsoft.AspNetCore.Html.HtmlContentBuilder();
+                Side(cells, same.From, [], false, diff.RateFrom, culture);
+                Side(cells, same.To, [], true, diff.RateTo, culture);
+                <tr><td></td><td>@Word(same.To.Type)</td><td>@same.To.Description</td>@cells</tr>
+            }
+        </tbody>
+    </table>
+</div>
