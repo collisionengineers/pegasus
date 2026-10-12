@@ -543,7 +543,8 @@ tbody tr:hover{background:#f3f6f7}
    row (review points 20, 32, 33). */
 .preset-table td{height:48px;padding-top:6px;padding-bottom:6px}
 .preset-table th:nth-child(2),.preset-table td:nth-child(2){width:160px;text-align:right;font-variant-numeric:tabular-nums}
-.preset-table td .cluster{flex-wrap:nowrap}
+.preset-table .preset-actions{width:1%;white-space:nowrap}
+.preset-table .row-actions form{margin:0}
 @media(max-width:540px){.settings-line{align-items:flex-start;flex-direction:column}}
 .unidentified-workspace{align-items:start}
 .unidentified-resolution-panel .panel-body{align-items:flex-start}
@@ -1668,7 +1669,7 @@ th a:hover { text-decoration: underline; }
 }
 .compact-log-filter .button-row { justify-content: flex-start; }
 
-.preset-add-row input, .table-wrap td > input[form] { min-width: 0; width: 100%; height: 32px; padding: 5px var(--sp-2); font-size: var(--t-sm); }
+.table-wrap td > input[form] { min-width: 0; width: 100%; height: 32px; padding: 5px var(--sp-2); font-size: var(--t-sm); }
 
 .unavailable-panel .panel-body { color: var(--muted); }
 .service-health-table td { white-space: normal; }
