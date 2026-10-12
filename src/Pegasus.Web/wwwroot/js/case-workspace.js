@@ -3228,6 +3228,8 @@
         }
         function end() {
             window.clearTimeout(timer);
+            // Cleared too, so Remove scaling posts once no preview stands.
+            timer = null;
             if (inFlight) { inFlight.abort(); inFlight = null; }
             if (shown) {
                 shown.cells.forEach(function (cell) {
