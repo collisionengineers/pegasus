@@ -606,7 +606,10 @@ by the released change and record its result without overclaiming.
 Update `docs/operations.md` with the dated observed artifact, configuration,
 migration and activation evidence. Update `docs/current-architecture.md` only
 when source structure or composition changed; do not repeat operational artifact
-identities there. Link retained attempts and failures from the release record.
+identities there. Link retained attempts and failures from the release record. For a release that
+changes data access or telemetry, snapshot Query Store before and after as the
+[runbook](../../../docs/runbook.md#statement-level-evidence-from-query-store) says
+and name the saved files in the record.
 
 Copy `artifacts/releases/$version` outside the disposable worktree before
 removing it. The release is unfinished until operations records the deployed observation
