@@ -58,7 +58,6 @@ public static class OperatorLabels
         UnidentifiedReasonCode.UnsupportedContent => "Unsupported content",
         UnidentifiedReasonCode.NoUsableIdentification => "No usable identification",
         UnidentifiedReasonCode.ConflictingIdentification => "Conflicting identification",
-        UnidentifiedReasonCode.AmbiguousOwnershipOrDestination => "Ambiguous ownership or destination",
         UnidentifiedReasonCode.TechnicalProcessingFailure => "Technical processing failure",
         _ => Humanise(reason.ToString())
     };
@@ -420,17 +419,6 @@ public static class OperatorLabels
         public const string ProblemReports = "Problem reports";
     }
 
-    /// <summary>
-    /// A received-mail subtype in operator words. Chasing is one category to the
-    /// operator, "Update request" (18 September and 1 October 2026), and its
-    /// slug never appears on the front end.
-    /// </summary>
-    private static string SubtypeWord(string subtype) => subtype switch
-    {
-        "chasing-for-update" => "Update request",
-        _ => HumanizeSlug(subtype)
-    };
-
     /// <summary>Release notes (FRD-12 What's new; FRD-17): the labels, statuses and acknowledgements.</summary>
     public static class ReleaseNotes
     {
@@ -535,13 +523,11 @@ public static class OperatorLabels
         public const string Loading = "Loading…";
         public const string LookingUp = "Looking up…";
         public const string Marking = "Marking…";
-        public const string Moving = "Moving…";
         public const string Opening = "Opening…";
         public const string Pausing = "Pausing…";
         public const string Placing = "Placing on hold…";
         public const string Publishing = "Publishing…";
         public const string Recording = "Recording…";
-        public const string Refreshing = "Refreshing…";
         public const string Refusing = "Refusing…";
         public const string Registering = "Registering…";
         public const string Releasing = "Releasing…";
@@ -1059,28 +1045,6 @@ public static class OperatorLabels
     /// second spelling of the same fact.
     /// </summary>
     public static string ImageChaseState(bool chaseDue) => chaseDue ? "Chase due" : "Not yet due";
-
-    /// <summary>
-    /// The application work view a classified message belongs in, from the
-    /// Core operational-destination policy.
-    /// </summary>
-    /// <remarks>
-    /// The abstention case reuses the exact "Unidentified" wording this page
-    /// already shows for the unmatched Filed-to state
-    /// (<see cref="Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(IntakeDecision)"/>)
-    /// rather than introducing a second operator-visible spelling of the same
-    /// fail-closed state.
-    /// </remarks>
-    public static string MailOperationalDestinationLabel(MailOperationalDestination destination) => destination switch
-    {
-        MailOperationalDestination.ReceivingWork => "Receiving work",
-        MailOperationalDestination.Queries => "Queries",
-        MailOperationalDestination.DetailedClassification => "Detailed classification",
-        MailOperationalDestination.Other => "Other",
-        MailOperationalDestination.Triage => "Triage",
-        MailOperationalDestination.Unidentified => "Unidentified",
-        _ => Humanise(destination.ToString())
-    };
 
     /// <summary>
     /// An estimate line's operation type, in the same words the line-type
@@ -1767,45 +1731,23 @@ public static class OperatorLabels
     }
 
     /// <summary>
-    /// A mail classification in operator words: the settled family label, with
-    /// the subtype appended after a separator dot ("New instruction ·
-    /// Inspection"). Other categories carry the operator's own name verbatim.
+    /// A mail category in operator words (operator, 12 October 2026).
     /// </summary>
-    public static string MailClassification(Pegasus.Core.Intake.MailCategory category)
+    public static string MailClassification(Pegasus.Core.Intake.MailCategory category) => category switch
     {
-        if (category.IsOther)
-        {
-            return category.OtherName!;
-        }
-
-        var family = category.ReceivedFamily is { } received
-            ? received switch
-            {
-                Pegasus.Core.Intake.ReceivedMailFamily.General => "General",
-                Pegasus.Core.Intake.ReceivedMailFamily.Billing => "Billing",
-                Pegasus.Core.Intake.ReceivedMailFamily.NewInstructionReceived => "New instruction",
-                Pegasus.Core.Intake.ReceivedMailFamily.NonClientRelated => "Not client related",
-                Pegasus.Core.Intake.ReceivedMailFamily.InProgressCases => "In-progress case",
-                Pegasus.Core.Intake.ReceivedMailFamily.PostReportEmails => "Post-report",
-                Pegasus.Core.Intake.ReceivedMailFamily.PreInstructionEmails => "Pre-instruction",
-                Pegasus.Core.Intake.ReceivedMailFamily.InternalCc => "Internal CC",
-                _ => throw new ArgumentOutOfRangeException(nameof(category))
-            }
-            : category.SentFamily switch
-            {
-                Pegasus.Core.Intake.SentMailFamily.ReportSent => "Report sent",
-                Pegasus.Core.Intake.SentMailFamily.CaseRejected => "Case rejected",
-                Pegasus.Core.Intake.SentMailFamily.QuerySent => "Query sent",
-                Pegasus.Core.Intake.SentMailFamily.AdditionalImageRequest => "Additional image request",
-                _ => throw new ArgumentOutOfRangeException(nameof(category))
-            };
-        var prefixed = category.Direction == Pegasus.Core.Intake.MailDirection.Sent
-            ? $"Sent · {family}"
-            : family;
-        return category.Subtype is { } subtype
-            ? $"{prefixed} · {SubtypeWord(subtype)}"
-            : prefixed;
-    }
+        Pegasus.Core.Intake.MailCategory.NewInstruction => "New instruction",
+        Pegasus.Core.Intake.MailCategory.TriageRequest => "Triage request",
+        Pegasus.Core.Intake.MailCategory.PreInstruction => "Pre-instruction",
+        Pegasus.Core.Intake.MailCategory.ImagesReceived => "Images received",
+        Pegasus.Core.Intake.MailCategory.CaseUpdate => "Case update",
+        Pegasus.Core.Intake.MailCategory.Cancellation => "Cancellation",
+        Pegasus.Core.Intake.MailCategory.Query => "Query",
+        Pegasus.Core.Intake.MailCategory.Billing => "Billing",
+        Pegasus.Core.Intake.MailCategory.General => "General",
+        Pegasus.Core.Intake.MailCategory.NotClientRelated => "Not client related",
+        Pegasus.Core.Intake.MailCategory.InternalCc => "Internal CC",
+        _ => throw new ArgumentOutOfRangeException(nameof(category))
+    };
 
     /// <summary>
     /// The resolve dialog's destination words. The contract wordings
@@ -1898,12 +1840,6 @@ public static class OperatorLabels
     public static class PrincipalSubmissionApi
     {
         public const string Source = "Principal API";
-    }
-
-    private static string HumanizeSlug(string slug)
-    {
-        var words = slug.Replace('-', ' ').Replace('_', ' ');
-        return words.Length == 0 ? words : char.ToUpperInvariant(words[0]) + words[1..];
     }
 
     /// <summary>
@@ -2036,7 +1972,6 @@ public static class OperatorLabels
         public const string AddCategory = "Add category";
         public const string SaveMailbox = "Save mailbox";
         public const string SaveCategory = "Save category";
-        public const string Refresh = "Refresh";
         public const string ApprovedAddress = "Approved address";
         public const string RouteScope = "Used for";
         public const string DisplayName = "Display name";
@@ -2044,8 +1979,6 @@ public static class OperatorLabels
         public const string NoMailCategories = "No mail categories";
         public const string NotActivated = "Not activated";
         public const string NoSubscription = "None.";
-        public const string Configured = "Configured";
-        public const string NotConfigured = "Not configured";
 
         /// <summary>
         /// Both state vocabularies are the enum names themselves, so they
@@ -2057,9 +1990,6 @@ public static class OperatorLabels
 
         public static string CategoryState(ApprovedOutlookCategoryState state) =>
             Humanise(state.ToString());
-
-        public static string FolderState(bool configured) =>
-            configured ? Configured : NotConfigured;
 
         public static string PollStatus(
             ApprovedMailbox mailbox,
@@ -2762,8 +2692,6 @@ public static class OperatorLabels
     {
         public const string Category = "Category";
         public const string AllCategories = "All categories";
-        public const string DestinationGroup = "Destinations";
-        public const string CategoryGroup = "Categories";
         public const string DismissedScope = "Dismissed";
         public const string Dismiss = "Dismiss";
         public const string Restore = "Restore";

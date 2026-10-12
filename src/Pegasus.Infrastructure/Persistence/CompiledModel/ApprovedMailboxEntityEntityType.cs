@@ -19,7 +19,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 typeof(ApprovedMailboxEntity),
                 baseEntityType,
                 propertyCount: 11,
-                navigationCount: 1,
                 unnamedIndexCount: 2,
                 keyCount: 1);
 

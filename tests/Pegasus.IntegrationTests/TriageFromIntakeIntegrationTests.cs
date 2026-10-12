@@ -299,7 +299,6 @@ public sealed class TriageFromIntakeIntegrationTests
                     IntakeReceiptId = receiptId,
                     Outcome = "unclassified",
                     IsReplyContext = false,
-                    AmbiguousCandidatesJson = "{\"version\":1,\"data\":[]}",
                     PredicatesJson = "{\"version\":1,\"data\":[]}",
                     Reason = "No supported category matched.",
                     PolicyKey = "principal_mail_classification",
@@ -330,7 +329,7 @@ public sealed class TriageFromIntakeIntegrationTests
         {
             ["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client),
             ["ExpectedClassificationVersion"] = "1",
-            ["ClassificationKey"] = "received:PreInstructionEmails:triage-request",
+            ["ClassificationKey"] = "triage-request",
             ["CorrectionReason"] = "The Principal asked for a Triage on the call."
         });
         using var corrected = await client.PostAsync($"/Inbox/{messageId:D}?handler=CorrectClassification", correction);

@@ -149,13 +149,12 @@ public sealed class AutomationMailIngressTests
                 "Classified",
                 classification.GetProperty("current").GetProperty("outcome").GetString());
             Assert.Equal(
-                "ReceivingWork",
-                classification.GetProperty("operationalDestination").GetString());
+                "new-instruction",
+                classification.GetProperty("current").GetProperty("category").GetString());
             Assert.Empty(classification.GetProperty("history").EnumerateArray());
             Assert.Contains(
                 classification.GetProperty("correctionOptions").EnumerateArray(),
-                option => option.GetProperty("value").GetString()
-                    == "received:NewInstructionReceived:inspection");
+                option => option.GetProperty("value").GetString() == "new-instruction");
         }
 
         // An unknown message is a content-safe not-found, recorded as failed.
@@ -196,7 +195,7 @@ public sealed class AutomationMailIngressTests
     }
 
     [Fact]
-    public async Task ClassificationCorrectionCarriesTheCaseTypeAndKeepsToTheMessageDirection()
+    public async Task ClassificationCorrectionCarriesTheCaseType()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
@@ -205,8 +204,7 @@ public sealed class AutomationMailIngressTests
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, AllScopes);
 
-        // The offered options follow the message's direction: an Inbox message
-        // lists no Sent family.
+        // The offered options are every category and Unclassified.
         using (var read = await PostMcpAsync(
             client,
             token,
@@ -217,8 +215,9 @@ public sealed class AutomationMailIngressTests
                 .EnumerateArray()
                 .Select(option => option.GetProperty("value").GetString())
                 .ToArray();
-            Assert.Contains("received:NewInstructionReceived:audit", options);
-            Assert.DoesNotContain("sent:ReportSent", options);
+            Assert.Equal(
+                MailCategories.All.Select(MailCategories.Code).Append("unclassified").ToArray(),
+                options);
         }
 
         // A New instruction correction carries the case type the Worker's
@@ -233,7 +232,7 @@ public sealed class AutomationMailIngressTests
                 {
                     messageId = ids[0],
                     expectedClassificationVersion = 1,
-                    classificationKey = "received:NewInstructionReceived:audit",
+                    classificationKey = "new-instruction",
                     workType = "Audit",
                     reason = "The attached instruction is an Audit.",
                     operationKey = "mcp:mail-correct-work-type"
@@ -244,27 +243,7 @@ public sealed class AutomationMailIngressTests
             Assert.Equal("Audit", structured.GetProperty("current").GetProperty("caseType").GetString());
         }
 
-        // A Sent family is refused on a received message, and a New instruction
-        // without its case type is refused; neither writes.
-        using (var crossed = await PostMcpAsync(
-            client,
-            token,
-            ToolCallPayload(
-                22,
-                "pegasus_mail_correct_classification",
-                new
-                {
-                    messageId = ids[0],
-                    expectedClassificationVersion = 2,
-                    classificationKey = "sent:ReportSent",
-                    reason = "Wrong direction.",
-                    operationKey = "mcp:mail-correct-crossed"
-                })))
-        {
-            using var document = await ReadJsonRpcAsync(crossed);
-            Assert.Contains("received classification", document.RootElement.ToString(), StringComparison.Ordinal);
-        }
-
+        // A New instruction without its case type is refused and writes nothing.
         using (var noWorkType = await PostMcpAsync(
             client,
             token,
@@ -275,7 +254,7 @@ public sealed class AutomationMailIngressTests
                 {
                     messageId = ids[0],
                     expectedClassificationVersion = 2,
-                    classificationKey = "received:NewInstructionReceived:inspection",
+                    classificationKey = "new-instruction",
                     reason = "Missing case type.",
                     operationKey = "mcp:mail-correct-no-work-type"
                 })))
@@ -317,8 +296,8 @@ public sealed class AutomationMailIngressTests
                 {
                     messageId = ids[0],
                     expectedClassificationVersion = 1,
-                    classificationKey = "received:PostReportEmails",
-                    reason = "The message is post-report correspondence, not a new instruction.",
+                    classificationKey = "query",
+                    reason = "The message is a query, not a new instruction.",
                     operationKey
                 })))
         {
@@ -328,14 +307,13 @@ public sealed class AutomationMailIngressTests
                 "automation:pegasus-automation",
                 structured.GetProperty("currentActor").GetString());
             Assert.Equal(
-                "Queries",
-                structured.GetProperty("operationalDestination").GetString());
+                "query",
+                structured.GetProperty("current").GetProperty("category").GetString());
             var history = structured.GetProperty("history").EnumerateArray().ToArray();
             Assert.Single(history);
             Assert.Equal(
-                "new-instruction-received",
-                history[0].GetProperty("before").GetProperty("category")
-                    .GetProperty("name").GetString());
+                "new-instruction",
+                history[0].GetProperty("before").GetProperty("category").GetString());
         }
 
         // A stale expected version is refused with the reload guidance, and
@@ -350,7 +328,7 @@ public sealed class AutomationMailIngressTests
                 {
                     messageId = ids[0],
                     expectedClassificationVersion = 1,
-                    classificationKey = "received:PostReportEmails",
+                    classificationKey = "query",
                     reason = "Retry with a stale version.",
                     operationKey = "mcp:mail-correct-stale"
                 })))
@@ -362,7 +340,7 @@ public sealed class AutomationMailIngressTests
                 StringComparison.OrdinalIgnoreCase);
         }
 
-        // A key outside the canonical options is refused before the command.
+        // A key outside the correction options is refused before the command.
         using (var invalid = await PostMcpAsync(
             client,
             token,
@@ -380,7 +358,7 @@ public sealed class AutomationMailIngressTests
         {
             using var document = await ReadJsonRpcAsync(invalid);
             Assert.Contains(
-                "canonical correction option",
+                "not a correction option",
                 document.RootElement.ToString(),
                 StringComparison.Ordinal);
         }
@@ -396,7 +374,7 @@ public sealed class AutomationMailIngressTests
                 {
                     messageId = ids[1],
                     expectedClassificationVersion = 1,
-                    classificationKey = "received:PostReportEmails",
+                    classificationKey = "query",
                     reason = "No decision exists for this message.",
                     operationKey = "mcp:mail-correct-unclassified"
                 })))
@@ -419,7 +397,7 @@ public sealed class AutomationMailIngressTests
                 {
                     messageId = ids[0],
                     expectedClassificationVersion = 2,
-                    classificationKey = "received:PostReportEmails",
+                    classificationKey = "query",
                     reason = "No operation key.",
                     operationKey = "not-prefixed"
                 })))
@@ -459,9 +437,8 @@ public sealed class AutomationMailIngressTests
             var classification = structured.GetProperty("classification");
             Assert.Equal(2, classification.GetProperty("version").GetInt32());
             Assert.Equal(
-                "post-report-emails",
-                classification.GetProperty("current").GetProperty("category")
-                    .GetProperty("name").GetString());
+                "query",
+                classification.GetProperty("current").GetProperty("category").GetString());
             Assert.Single(classification.GetProperty("history").EnumerateArray());
         }
     }
@@ -469,8 +446,7 @@ public sealed class AutomationMailIngressTests
     /// <summary>
     /// Dismiss and Restore are the staff acts on a message (ADR-0064): the
     /// Automation Actor takes a message out of the incoming scopes and brings
-    /// it back, in its own name, and a move's confirmations are refused on
-    /// them.
+    /// it back, in its own name.
     /// </summary>
     [Fact]
     public async Task TheActorDismissesAndRestoresAMessageInItsOwnName()
@@ -484,20 +460,6 @@ public sealed class AutomationMailIngressTests
         using (var refused = await PostMcpAsync(
             client,
             token,
-            ToolCallPayload(1, "pegasus_mail_action", new
-            {
-                messageId = ids[0],
-                action = "dismiss",
-                reason = "Not ours.",
-                operationKey = "mcp:mail-dismiss-with-reason"
-            })))
-        {
-            Assert.Contains("move_folder", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
-        }
-
-        using (var refused = await PostMcpAsync(
-            client,
-            token,
             ToolCallPayload(2, "pegasus_mail_action", new
             {
                 messageId = ids[0],
@@ -505,7 +467,7 @@ public sealed class AutomationMailIngressTests
                 operationKey = "mcp:mail-unknown-action"
             })))
         {
-            Assert.Contains("move_folder, dismiss or restore", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+            Assert.Contains("dismiss or restore", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
         }
 
         using (var response = await PostMcpAsync(
@@ -651,7 +613,7 @@ public sealed class AutomationMailIngressTests
                 ExtractionPolicyVersion: 1,
                 Assets: [],
                 MailClassificationDecision: MailClassificationResult.Classified(
-                    MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
+                    MailCategory.NewInstruction,
                     [new("attachment.engineer-notification", true, "An attached document contains the generated title.")],
                     "An accepted Inspection instruction was recognised.",
                     "qdos_mail_classification",

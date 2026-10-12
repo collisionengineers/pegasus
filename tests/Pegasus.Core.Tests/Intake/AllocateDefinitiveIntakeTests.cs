@@ -410,7 +410,7 @@ public sealed class AllocateDefinitiveIntakeTests
             [],
             new($"instructions@{principalCode.ToLowerInvariant()}.example", "outer message")),
         MailClassificationDecision: MailClassificationResult.Classified(
-            MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
+            MailCategory.NewInstruction,
             [],
             "Definitive instruction.",
             "test-classifier",

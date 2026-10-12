@@ -303,26 +303,24 @@ function Get-MigrationPermissionMatrix {
         $expected.Add("$role|D|UPDATE|ImageIntakeLifecycleEvents")
         $expected.Add("$role|D|DELETE|ImageIntakeLifecycleEvents")
     }
-    # 20260820100056_ApprovedMailboxLogicalFolderBindings: the existing Web
-    # mailbox-administration transaction reads and replaces the mailbox-owned
-    # binding rows. The Worker has no caller and receives no grant.
-    foreach ($permission in @('SELECT', 'INSERT', 'DELETE')) {
-        $expected.Add("pegasus_web_runtime_role|G|$permission|ApprovedMailboxFolderBindings")
-    }
+    # 20260820100056_ApprovedMailboxLogicalFolderBindings granted the Web role
+    # SELECT/INSERT/DELETE on ApprovedMailboxFolderBindings;
+    # 20261012180000_FlatMailCategory dropped the table, and SQL Server drops a
+    # table's permission rows with it, so the matrix expects nothing. The
+    # migration is named here because it still carries a GRANT, which
+    # Test-AzureDeploymentPlan.ps1 requires this script to account for.
     # 20260820114412_ApprovedOutlookCategoryCatalogue: Web administrators
     # maintain the global allowlist; disable replaces deletion. Worker has no caller.
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|ApprovedOutlookCategories")
     }
     $expected.Add('pegasus_web_runtime_role|D|DELETE|ApprovedOutlookCategories')
-    # 20260820144004_RetainedMailFolderMoves: Web owns the confirmed move
-    # operation and its durable recovery state. Worker has no caller. Both
-    # runtime roles are denied deletion so the operation history is permanent.
-    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
-        $expected.Add("pegasus_web_runtime_role|G|$permission|RetainedMailFolderMoves")
-    }
-    $expected.Add('pegasus_web_runtime_role|D|DELETE|RetainedMailFolderMoves')
-    $expected.Add('pegasus_worker_runtime_role|D|DELETE|RetainedMailFolderMoves')
+    # 20260820144004_RetainedMailFolderMoves granted the Web role
+    # SELECT/INSERT/UPDATE on RetainedMailFolderMoves and denied both roles
+    # DELETE; 20261012180000_FlatMailCategory dropped the table with its
+    # permission rows, so the matrix expects nothing. The migration is named
+    # here because it still carries a GRANT, which Test-AzureDeploymentPlan.ps1
+    # requires this script to account for.
     # 20260821095500_GrantWorkerVehicleLookupRequests: the Worker's
     # automatic vehicle-lookup sweep inserts the request row;
     # the reconciliation baseline held only SELECT. DELETE stays denied

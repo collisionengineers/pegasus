@@ -5,7 +5,7 @@ namespace Pegasus.Core.Lifecycle;
 /// <summary>
 /// The one owner of when a Case gains or loses an open query (FRD-13 "Report
 /// sent and queries", operator 11 October 2026). A query is a record on the
-/// Case, never a state: a post-report e-mail joining a Report sent Case raises
+/// Case, never a state: an e-mail classified as a query joining a Report sent Case raises
 /// one, staff or Automation log one, and every open query resolves together.
 /// The stores apply these answers inside the transaction that links, corrects,
 /// unlinks or sends.
@@ -45,14 +45,14 @@ public static class CaseQueryRules
     /// <summary>
     /// A received message has joined the Case, by automatic match, staff link
     /// or correction: it raises a query when the Case's report is sent, the
-    /// message is currently classified post-report, and that message does not
+    /// message is currently classified as a query, and that message does not
     /// already hold an open query on the Case.
     /// </summary>
-    public static bool RaisesOnMailJoined(CaseLifecycleState state, bool isPostReport, bool alreadyOpenForMessage) =>
-        state == CaseLifecycleState.ReportSent && isPostReport && !alreadyOpenForMessage;
+    public static bool RaisesOnMailJoined(CaseLifecycleState state, bool isQuery, bool alreadyOpenForMessage) =>
+        state == CaseLifecycleState.ReportSent && isQuery && !alreadyOpenForMessage;
 
     /// <summary>
-    /// A message has left the Case or stopped being post-report: the open
+    /// A message has left the Case or stopped being a query: the open
     /// query it raised, if any, is withdrawn. A resolved query stays resolved.
     /// </summary>
     public static bool WithdrawsOnMailLeft(bool openForMessage) => openForMessage;

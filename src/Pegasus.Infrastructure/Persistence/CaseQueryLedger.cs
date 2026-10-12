@@ -1,7 +1,7 @@
-using System.Linq.Expressions;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 
@@ -9,7 +9,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// The one writer of a Case's queries and of the workflow's open-query mark,
-/// applying <see cref="CaseQueryRules"/> for every store: a post-report
+/// applying <see cref="CaseQueryRules"/> for every store: a Query
 /// receipt joining or leaving a Case, a staff-logged query, Resolve query, and
 /// a flagged reply's observed Sent item. Each caller owns its transaction and
 /// holds the Case's workflow row lock; the mail paths return whether anything
@@ -23,19 +23,14 @@ internal static class CaseQueryLedger
     internal const string QueryLoggedEvent = "case_query_logged";
     internal const string QueriesResolvedEvent = "case_queries_resolved";
 
-    /// <summary>A mailbox receipt whose current classification is a received post-report family.</summary>
-    internal static readonly Expression<Func<IntakeReceiptEntity, bool>> IsPostReportReceipt =
-        item => item.SourceChannel == "mailbox"
-            && item.MailClassificationDecision != null
-            && item.MailClassificationDecision.Outcome == "classified"
-            && item.MailClassificationDecision.Direction == "received"
-            && item.MailClassificationDecision.Family == "post-report-emails";
+    private static readonly string QueryCategory = MailCategories.Code(MailCategory.Query);
 
-    internal static bool IsPostReport(IntakeReceiptEntity receipt) =>
-        receipt.SourceChannel == "mailbox" && IsPostReport(receipt.MailClassificationDecision);
+    /// <summary>A mailbox receipt whose current classification is Query.</summary>
+    internal static bool IsQuery(IntakeReceiptEntity receipt) =>
+        receipt.SourceChannel == "mailbox" && IsQuery(receipt.MailClassificationDecision);
 
-    internal static bool IsPostReport(IntakeMailClassificationDecisionEntity? decision) =>
-        decision is { Outcome: "classified", Direction: "received", Family: "post-report-emails" };
+    internal static bool IsQuery(IntakeMailClassificationDecisionEntity? decision) =>
+        decision is { Outcome: "classified" } && decision.Category == QueryCategory;
 
     /// <summary>
     /// A received message has joined the Case (automatic match, staff link or
@@ -53,8 +48,8 @@ internal static class CaseQueryLedger
         CancellationToken cancellationToken)
     {
         var state = Enum.Parse<CaseLifecycleState>(workflow.State);
-        var isPostReport = IsPostReport(receipt);
-        if (!CaseQueryRules.RaisesOnMailJoined(state, isPostReport, alreadyOpenForMessage: false))
+        var isQuery = IsQuery(receipt);
+        if (!CaseQueryRules.RaisesOnMailJoined(state, isQuery, alreadyOpenForMessage: false))
         {
             return false;
         }
@@ -62,7 +57,7 @@ internal static class CaseQueryLedger
             .AnyAsync(item => item.CaseId == workflow.CaseId
                 && item.IntakeReceiptId == receipt.Id
                 && item.ClosedAtUtc == null, cancellationToken);
-        if (!CaseQueryRules.RaisesOnMailJoined(state, isPostReport, alreadyOpen))
+        if (!CaseQueryRules.RaisesOnMailJoined(state, isQuery, alreadyOpen))
         {
             return false;
         }
@@ -84,7 +79,7 @@ internal static class CaseQueryLedger
 
     /// <summary>
     /// A received message has left the Case (unlink) or stopped being
-    /// post-report (correction): withdraws the open query it raised, if any.
+    /// a query (correction): withdraws the open query it raised, if any.
     /// True when a row closed; the mark is recomputed from the remaining rows.
     /// </summary>
     internal static async Task<bool> WithdrawForMailAsync(

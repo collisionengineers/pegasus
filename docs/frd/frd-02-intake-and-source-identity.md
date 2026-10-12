@@ -7,7 +7,7 @@
 - Receiving material is not creating a Case. Pegasus keeps the original
   bytes and their identity first, then works out what the material is.
 - Anything safely kept but not understood becomes one Unidentified item
-  with a permanent `U<n>` reference and one of seven reasons. This document
+  with a permanent `U<n>` reference and one of six reasons. This document
   owns what Unidentified means.
 - Receipt is acknowledged only after the bytes, the receipt and one
   processing-dispatch record have committed. The Worker alone processes it.
@@ -125,7 +125,7 @@ is never accepted where a Case/PO, Audit reference, Image reference, or
 Principal identifier is required. Work that can still be retried does not
 get a reference.
 
-**The seven reasons.** Every item stores exactly one Core-owned reason and
+**The six reasons.** Every item stores exactly one Core-owned reason and
 bounded safe detail:
 
 | Reason | Meaning |
@@ -134,7 +134,6 @@ bounded safe detail:
 | Unsupported | The file kind is not accepted. |
 | No usable identification | Nothing in the material identifies a Case, vehicle, or owner. |
 | Conflicting identification | The material names two different identities, for example two valid registrations in one image group. |
-| Ambiguous ownership or destination | More than one Case or owner could claim it. |
 | Terminal technical processing failure | Processing failed after custody and cannot be retried (`TechnicalProcessingFailure`). |
 | Could not be read (with the file kind) | Unsupported, failed OCR, or a technical failure on the file itself. |
 

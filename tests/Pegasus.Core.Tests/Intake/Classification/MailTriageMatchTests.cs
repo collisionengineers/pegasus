@@ -9,14 +9,14 @@ namespace Pegasus.Core.Tests.Intake.Classification;
 public sealed class MailTriageMatchTests
 {
     private static readonly MailClassificationResult TriageRequest = MailClassificationResult.Classified(
-        MailCategory.Received(ReceivedMailFamily.PreInstructionEmails, MailCategory.TriageRequestSubtype),
+        MailCategory.TriageRequest,
         [new("subject.triage-only", true, "The subject names a Triage.")],
         "Triage request.",
         "principal_mail_classification",
         2);
 
     private static readonly MailClassificationResult Autoreply = MailClassificationResult.Classified(
-        MailCategory.Received(ReceivedMailFamily.General, "autoreply"), [], "Autoreply.", "principal_mail_classification", 2);
+        MailCategory.General, [], "Autoreply.", "principal_mail_classification", 2);
 
     [Fact]
     public void TheAutomaticMatchNamesThePolicyAndItsPredicates()
@@ -27,7 +27,7 @@ public sealed class MailTriageMatchTests
         Assert.Equal(IntakeEvidenceSource.SystemDefault, evidence!.Source);
         Assert.Equal(IntakeEvidenceStrength.Strong, evidence.Strength);
         Assert.Equal(IntakeEvidenceFinding.AcceptedTriageMatch, evidence.Finding);
-        Assert.Equal(MailCategory.TriageRequestSubtype, evidence.Signal);
+        Assert.Equal("triage-request", evidence.Signal);
         Assert.Contains("subject.triage-only", evidence.Detail, StringComparison.Ordinal);
         Assert.Equal("principal_mail_classification", evidence.MatcherKey);
         Assert.Equal(2, evidence.MatcherVersion);
@@ -37,10 +37,7 @@ public sealed class MailTriageMatchTests
     public void AStaffCorrectionIsItsOwnSourceAndAReplyNamesNoMatch()
     {
         var staff = MailTriageMatch.Evidence(TriageRequest, staffCorrected: true);
-        var reply = MailTriageMatch.Evidence(TriageRequest with
-        {
-            Category = MailCategory.Received(ReceivedMailFamily.PreInstructionEmails, MailCategory.TriageRequestSubtype, isReplyContext: true)
-        });
+        var reply = MailTriageMatch.Evidence(TriageRequest with { IsReplyContext = true });
 
         Assert.Equal(IntakeEvidenceSource.StaffCorrection, staff!.Source);
         Assert.Equal(IntakeEvidenceFinding.AcceptedTriageMatch, staff.Finding);

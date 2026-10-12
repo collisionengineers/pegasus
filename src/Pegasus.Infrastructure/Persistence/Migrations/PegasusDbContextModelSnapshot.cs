@@ -865,25 +865,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedMailboxFolderBindingEntity", b =>
-                {
-                    b.Property<Guid>("ApprovedMailboxId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("FolderType")
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<string>("FolderIdentity")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.HasKey("ApprovedMailboxId", "FolderType");
-
-                    b.ToTable("ApprovedMailboxFolderBindings", (string)null);
-                });
-
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedMailboxSubscriptionEntity", b =>
                 {
                     b.Property<Guid>("ApprovedMailboxId")
@@ -4640,11 +4621,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("IntakeReceiptId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("AmbiguousCandidatesJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("CaseType")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Category")
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
@@ -4660,24 +4641,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("Direction")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("Family")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
                     b.Property<bool>("IsReplyContext")
                         .HasColumnType("bit");
-
-                    b.Property<string>("OtherName")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("OtherReasoning")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("Outcome")
                         .IsRequired()
@@ -4708,10 +4673,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("StandaloneAuditReportAssetSourceLabel")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("Subtype")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
 
                     b.Property<int>("Version")
                         .IsConcurrencyToken()
@@ -6368,108 +6329,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("RetainedInstructionAnalyses", (string)null);
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedMailFolderMoveEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Actor")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("ActorRolesJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTimeOffset?>("CompletedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("DestinationFolderId")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<int>("ExpectedClassificationVersion")
-                        .HasColumnType("int");
-
-                    b.Property<int>("ExpectedMailboxVersion")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ExpectedRecommendationPolicyKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("ExpectedRecommendationPolicyVersion")
-                        .HasColumnType("int");
-
-                    b.Property<string>("FailureReason")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("FolderType")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<string>("ImmutableMessageId")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("MailboxId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("OperationKey")
-                        .IsRequired()
-                        .HasMaxLength(36)
-                        .HasColumnType("nvarchar(36)");
-
-                    b.Property<string>("Outcome")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTimeOffset>("RecordedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("RequestHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nchar(64)")
-                        .IsFixedLength();
-
-                    b.Property<Guid>("RetainedMailboxMessageId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("SourceFolderId")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OperationKey")
-                        .IsUnique();
-
-                    b.HasIndex("RetainedMailboxMessageId")
-                        .IsUnique()
-                        .HasFilter("[Outcome] IN ('pending', 'uncertain')");
-
-                    b.HasIndex("RetainedMailboxMessageId", "RecordedAtUtc");
-
-                    b.ToTable("RetainedMailFolderMoves", (string)null);
-                });
-
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedMailboxAttachmentEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8100,17 +7959,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("ApprovedMailbox");
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedMailboxFolderBindingEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.ApprovedMailboxEntity", "ApprovedMailbox")
-                        .WithMany("FolderBindings")
-                        .HasForeignKey("ApprovedMailboxId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("ApprovedMailbox");
-                });
-
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedMailboxSubscriptionEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.ApprovedMailboxEntity", "ApprovedMailbox")
@@ -9062,17 +8910,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedMailFolderMoveEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.RetainedMailboxMessageEntity", "RetainedMailboxMessage")
-                        .WithMany()
-                        .HasForeignKey("RetainedMailboxMessageId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("RetainedMailboxMessage");
-                });
-
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedMailboxAttachmentEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.RetainedMailboxMessageEntity", "RetainedMailboxMessage")
@@ -9255,11 +9092,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreAuthorization", b =>
                 {
                     b.Navigation("Tokens");
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedMailboxEntity", b =>
-                {
-                    b.Navigation("FolderBindings");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseDataSnapshotEntity", b =>
