@@ -170,6 +170,8 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             // Core route tests have proved its exact-ID call contract.
             services.RemoveAll<ICommittedIntakeWorkPublisher>();
             services.AddScoped<ICommittedIntakeWorkPublisher, DiscardingCommittedWorkPublisher>();
+            services.RemoveAll<IIntakeWorkEnqueuer>();
+            services.AddScoped<IIntakeWorkEnqueuer, IntakeWebDriver.NoOpIntakeWorkEnqueuer>();
             services.RemoveAll<ICommittedExternalWorkPublisher>();
             services.AddScoped<ICommittedExternalWorkPublisher, DiscardingCommittedWorkPublisher>();
             services.AddSingleton(timeProvider);
@@ -705,6 +707,25 @@ internal static partial class IntakeWebDriver
     {
         ArgumentNullException.ThrowIfNull(services);
         return ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services);
+    }
+
+    /// <summary>
+    /// Runs the Worker's replay of a linked receipt's staged work, which a
+    /// staff link enqueues: it files the receipt's evidence on the Case and
+    /// settles its Unidentified item. A receipt with no staged work is left
+    /// alone.
+    /// </summary>
+    internal static async Task ReplayLinkedFilingAsync(
+        IServiceProvider services,
+        Guid receiptId,
+        CancellationToken cancellationToken = default)
+    {
+        var stagedReceiptId = await services.GetRequiredService<IIntakeWorkStore>()
+            .FindStagedReceiptIdForReceiptAsync(receiptId, cancellationToken);
+        if (stagedReceiptId is { } id)
+        {
+            await CreateProcessor(services).ExecuteAsync(id, cancellationToken);
+        }
     }
 
     /// <summary>

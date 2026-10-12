@@ -2555,7 +2555,10 @@ public static class OperatorLabels
 
         public static string OpenCase(string reference) => $"Open {reference}";
 
-        public static string AttachedSentence(int count) => $"{Files(count)} added to the confirmed destination.";
+        /// <summary>The declared-upload wording, reused wherever filing resumes after the request.</summary>
+        public const string AppearUnderFiles = "They appear under Files once processed.";
+
+        public static string AttachedSentence(int count) => $"{Files(count)} added to the confirmed destination. {AppearUnderFiles}";
 
         public static string PendingSentence(int count) => $"All {Files(count)} are stored. The outcome will appear here when processing finishes.";
 
@@ -2585,7 +2588,7 @@ public static class OperatorLabels
 
         /// <summary>The Case page's notice after Add evidence: the files are stored and on their way to Files.</summary>
         public static string ReceivedForCase(int count, string reference) =>
-            $"{Files(count)} received for {reference}. They appear under Files once processed.";
+            $"{Files(count)} received for {reference}. {AppearUnderFiles}";
 
         public static string AlreadyReceivedForCase(string reference) => $"Already received for {reference}.";
 
