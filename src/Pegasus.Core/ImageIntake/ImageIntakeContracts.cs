@@ -240,10 +240,8 @@ public sealed record ImageIntakeImage(
     /// The crop and rotation recorded on the image (no tags). It is null only
     /// when no preparation row exists; a cleared crop keeps its row, with
     /// <see cref="PreCaseImagePreparation.IsPrepared"/> false. The batched image
-    /// list sets it from the same query, so a page can tell a prepared image
-    /// from an unprepared one without a read of its own. No caller uses it to
-    /// name the tile route's rendering; the Case Files page reads only
-    /// <see cref="PreCaseImagePreparation.IsPrepared"/>.
+    /// list sets it from the same query, so the Case Files page names each
+    /// tile's rendering, recorded crop included, without a read of its own.
     /// </summary>
     public PreCaseImagePreparation? Preparation { get; init; }
 }

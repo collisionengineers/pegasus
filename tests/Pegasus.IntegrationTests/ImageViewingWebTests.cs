@@ -216,11 +216,11 @@ public sealed class ImageViewingWebTests
             casePage,
             StringComparison.OrdinalIgnoreCase);
 
-        // A photograph with a crop recorded on its record keeps the address it
-        // had before tiles were renderings: the original, so this page still
-        // shows it whole and the browser keeps it as before. (Showing the crop
-        // here is not decided.) An unprepared one, above, is the tile address.
-        await scope.ServiceProvider.GetRequiredService<ISavePreCaseImageCrop>().ExecuteAsync(
+        // A photograph with a crop recorded on its record shows the crop on its
+        // tile, as its other tiles do: the tile address names the recorded
+        // version (operator, 12 October 2026). The link and the download keep
+        // the original.
+        var cropped = await scope.ServiceProvider.GetRequiredService<ISavePreCaseImageCrop>().ExecuteAsync(
             new SavePreCaseImageCropRequest(
                 imageAssetId,
                 ExpectedVersion: 0,
@@ -231,12 +231,14 @@ public sealed class ImageViewingWebTests
         var croppedCasePage = await IntakeWebDriver.GetHtmlAsync(
             client,
             $"/Cases/{caseId:D}?section=files");
-        Assert.Contains($"data-thumb=\"{expectedHref}\"", croppedCasePage, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains($"<img src=\"{expectedHref}\"", croppedCasePage, StringComparison.OrdinalIgnoreCase);
+        var croppedTile = $"{expectedSource}?size=thumb&amp;v={contentHash}&amp;prep={cropped.Version}&amp;renderer={CaseDocumentThumbnails.RendererIdentity}";
+        Assert.NotEqual(0, cropped.Version);
+        Assert.Contains($"data-thumb=\"{croppedTile}\"", croppedCasePage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"<img src=\"{croppedTile}\"", croppedCasePage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"<a href=\"{expectedHref}\"", croppedCasePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains($"data-download-href=\"{expectedHref}\"", croppedCasePage, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(expectedTile, croppedCasePage, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain($"{expectedSource}?size=thumb", croppedCasePage, StringComparison.OrdinalIgnoreCase);
-        // The original's address is kept for a week, as it was before.
+        // The original's address is kept for a week.
         using (var kept = await client.GetAsync(expectedHref))
         {
             Assert.Equal(HttpStatusCode.OK, kept.StatusCode);
