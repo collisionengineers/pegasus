@@ -1129,11 +1129,6 @@ public sealed class PollApprovedInboxTests
             int maximumItems,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task ScheduleReevaluationAsync(
-            Guid stagedReceiptId,
-            DateTimeOffset dueAtUtc,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
-
         public Task<Guid?> FindStagedReceiptIdForReceiptAsync(
             Guid intakeReceiptId,
             CancellationToken cancellationToken) => throw new NotSupportedException();

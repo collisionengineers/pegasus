@@ -524,11 +524,6 @@ public interface IRetainedMailQueries
         int limit,
         CancellationToken cancellationToken);
 
-    /// <summary>How many retained messages the scope holds — the scope list's count wells.</summary>
-    Task<int> CountAsync(
-        MailWorkspaceScope scope,
-        CancellationToken cancellationToken);
-
     Task<IReadOnlyList<int>> CountManyAsync(
         IReadOnlyList<MailWorkspaceScope> scopes,
         CancellationToken cancellationToken);
@@ -597,16 +592,6 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
                 "The requested page size is outside the supported range.");
         }
         return await queries.ListAsync(Normalize(scope), page, pageSize, cancellationToken);
-    }
-
-    public async Task<int> CountAsync(
-        ActionActor actor,
-        MailWorkspaceScope scope,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(scope);
-        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        return await queries.CountAsync(Normalize(scope), cancellationToken);
     }
 
     public async Task<IReadOnlyList<int>> CountManyAsync(

@@ -13,7 +13,7 @@ public sealed class GroupedIntakeTests
         var result = await new SubmitGroupedIntake(
             submission,
             store,
-            TimeProvider.System).ExecuteAsync(Request("batch"));
+            TimeProvider.System).ExecuteStreamedAsync(Request("batch"));
 
         Assert.NotEqual(Guid.Empty, result.Group.Id);
         Assert.Equal(["one.jpg", "two.jpg"], submission.Sources.Select(item => item.FileName));
@@ -29,33 +29,29 @@ public sealed class GroupedIntakeTests
         var store = new FakeGroupStore();
         var request = Request("replay");
         await new SubmitGroupedIntake(submission, store, TimeProvider.System)
-            .ExecuteAsync(request);
+            .ExecuteStreamedAsync(request);
         await new SubmitGroupedIntake(submission, store, TimeProvider.System)
-            .ExecuteAsync(request);
+            .ExecuteStreamedAsync(request);
 
         Assert.Equal(2, submission.Sources.Count);
         Assert.Equal(2, store.Members.Count);
     }
 
     [Fact]
-    public async Task PreservesMailboxChannelAndParentReceiptForEveryChild()
+    public async Task PreservesParentReceiptAndMemberTokensForEveryChild()
     {
         var submission = new FakeSubmission();
         var store = new FakeGroupStore();
         var parentReceiptId = Guid.NewGuid();
-        var request = Request("mail-images") with
-        {
-            Channel = IntakeSourceChannel.Mailbox,
-            ParentReceiptId = parentReceiptId
-        };
+        var request = Request("mail-images") with { ParentReceiptId = parentReceiptId };
 
         var result = await new SubmitGroupedIntake(submission, store, TimeProvider.System)
-            .ExecuteAsync(request);
+            .ExecuteStreamedAsync(request);
 
-        Assert.Equal(IntakeSourceChannel.Mailbox, result.Group.Channel);
+        Assert.Equal(IntakeSourceChannel.ManualUpload, result.Group.Channel);
         Assert.Equal(parentReceiptId, result.Group.ParentReceiptId);
         Assert.All(submission.Sources, source =>
-            Assert.Equal(IntakeSourceChannel.Mailbox, source.SourceIdentity.Channel));
+            Assert.Equal(IntakeSourceChannel.ManualUpload, source.SourceIdentity.Channel));
         Assert.Equal(
             ["mail-images", "mail-images:1"],
             submission.Sources.Select(source => source.SourceIdentity.ExternalReceiptToken));
@@ -68,7 +64,7 @@ public sealed class GroupedIntakeTests
         var store = new FakeGroupStore();
         var request = Request("conflict");
         await new SubmitGroupedIntake(submission, store, TimeProvider.System)
-            .ExecuteAsync(request);
+            .ExecuteStreamedAsync(request);
 
         var changed = request with
         {
@@ -76,7 +72,7 @@ public sealed class GroupedIntakeTests
         };
         await Assert.ThrowsAsync<IntakeSourceIdentityConflictException>(() =>
             new SubmitGroupedIntake(submission, store, TimeProvider.System)
-                .ExecuteAsync(changed));
+                .ExecuteStreamedAsync(changed));
     }
 
     [Theory]
@@ -115,7 +111,7 @@ public sealed class GroupedIntakeTests
         }
     }
 
-    private static GroupedIntakeSubmissionRequest Request(string token) =>
+    private static StreamedGroupedIntakeSubmissionRequest Request(string token) =>
         new(token, "staff:test", DateTimeOffset.UtcNow,
         [
             new(0, Source("one.jpg", [1])),
@@ -123,8 +119,15 @@ public sealed class GroupedIntakeTests
         ],
         IntakeSourceChannel.ManualUpload);
 
-    private static IntakeSource Source(string name, byte[] bytes) =>
-        new(name, "image/jpeg", bytes, DateTimeOffset.UtcNow, "staff:test", new(IntakeSourceChannel.ManualUpload, "form"));
+    private static StreamedIntakeSource Source(string name, byte[] bytes) =>
+        new(
+            name,
+            "image/jpeg",
+            bytes.LongLength,
+            _ => ValueTask.FromResult<Stream>(new MemoryStream(bytes, writable: false)),
+            DateTimeOffset.UtcNow,
+            "staff:test",
+            new(IntakeSourceChannel.ManualUpload, "form"));
 
     private sealed class FakeSubmission : IIntakeSubmission
     {

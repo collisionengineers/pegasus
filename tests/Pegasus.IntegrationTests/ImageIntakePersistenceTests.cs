@@ -247,23 +247,32 @@ public sealed class ImageIntakePersistenceTests
         {
             var submissionServices = submissionScope.ServiceProvider;
             var receivedAtUtc = submissionServices.GetRequiredService<TimeProvider>().GetUtcNow();
-            var submittedGroup = await submissionServices.GetRequiredService<IGroupedIntakeSubmission>()
-                .ExecuteAsync(
-                    new(
-                        submissionToken,
-                        "system-worker:approved-inbox-poller",
-                        receivedAtUtc,
-                        [
-                            new(0, new("overview.png", "image/png", Convert.FromBase64String(TinyPngBase64),
-                                receivedAtUtc, "system-worker:approved-inbox-poller",
-                                new(IntakeSourceChannel.Mailbox, GroupedIntakeMemberToken.Create(submissionToken, 0)))),
-                            new(1, new("close-up.png", "image/png", Convert.FromBase64String(TinyPngBase64),
-                                receivedAtUtc, "system-worker:approved-inbox-poller",
-                                new(IntakeSourceChannel.Mailbox, GroupedIntakeMemberToken.Create(submissionToken, 1))))
-                        ],
-                        IntakeSourceChannel.Mailbox),
+            // A Mailbox-channel group is seeded straight through the group store
+            // and the per-file submission: the grouped-submission use case now
+            // serves manual upload only.
+            var groupStore = submissionServices.GetRequiredService<IIntakeSubmissionGroupStore>();
+            var submission = submissionServices.GetRequiredService<IIntakeSubmission>();
+            var submittedGroup = await groupStore.GetOrCreateAsync(
+                Guid.NewGuid(),
+                IntakeSourceChannel.Mailbox,
+                submissionToken,
+                2,
+                "system-worker:approved-inbox-poller",
+                receivedAtUtc,
+                null,
+                CancellationToken.None);
+            foreach (var (ordinal, fileName) in new[] { (0, "overview.png"), (1, "close-up.png") })
+            {
+                var received = await submission.ExecuteAsync(
+                    new(fileName, "image/png", Convert.FromBase64String(TinyPngBase64),
+                        receivedAtUtc, "system-worker:approved-inbox-poller",
+                        new(IntakeSourceChannel.Mailbox, GroupedIntakeMemberToken.Create(submissionToken, ordinal))),
+                    $"mailbox-image:{submissionToken}:{ordinal}",
                     CancellationToken.None);
-            groupId = submittedGroup.Group.Id;
+                await groupStore.AddMemberAsync(submittedGroup.Id, ordinal, received, CancellationToken.None);
+            }
+
+            groupId = submittedGroup.Id;
         }
 
         Guid[] stagedReceiptIds;

@@ -185,9 +185,9 @@ public sealed class RetainedMailTests
         var queries = new Queries();
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            new ListRetainedMail(queries).CountAsync(
+            new ListRetainedMail(queries).CountManyAsync(
                 ActionActor.Principal(Guid.NewGuid()),
-                new(null, MailFolderScope.Inbox),
+                [new(null, MailFolderScope.Inbox)],
                 CancellationToken.None));
 
         Assert.Empty(queries.CountedScopes);
@@ -198,9 +198,9 @@ public sealed class RetainedMailTests
     {
         var queries = new Queries();
 
-        await new ListRetainedMail(queries).CountAsync(
+        await new ListRetainedMail(queries).CountManyAsync(
             Caseworker(),
-            new(MailboxA, MailFolderScope.Inbox, "  estimate  ", UnreadOnly: true),
+            [new(MailboxA, MailFolderScope.Inbox, "  estimate  ", UnreadOnly: true)],
             CancellationToken.None);
 
         var scope = Assert.Single(queries.CountedScopes);
@@ -210,14 +210,14 @@ public sealed class RetainedMailTests
         Assert.True(scope.UnreadOnly);
         // The count refuses what the list refuses, through the same guards.
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            new ListRetainedMail(queries).CountAsync(
+            new ListRetainedMail(queries).CountManyAsync(
                 Caseworker(),
-                new(null, (MailFolderScope)7),
+                [new(null, (MailFolderScope)7)],
                 CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            new ListRetainedMail(queries).CountAsync(
+            new ListRetainedMail(queries).CountManyAsync(
                 Caseworker(),
-                new(null, MailFolderScope.Inbox, new string('x', 201)),
+                [new(null, MailFolderScope.Inbox, new string('x', 201))],
                 CancellationToken.None));
         Assert.Single(queries.CountedScopes);
     }
@@ -1044,14 +1044,6 @@ public sealed class RetainedMailTests
             int limit,
             CancellationToken cancellationToken) =>
             Task.FromResult(new RetainedMailCursorPage([], false, false));
-
-        public Task<int> CountAsync(
-            MailWorkspaceScope scope,
-            CancellationToken cancellationToken)
-        {
-            CountedScopes.Add(scope);
-            return Task.FromResult(0);
-        }
 
         public Task<IReadOnlyList<int>> CountManyAsync(
             IReadOnlyList<MailWorkspaceScope> scopes,

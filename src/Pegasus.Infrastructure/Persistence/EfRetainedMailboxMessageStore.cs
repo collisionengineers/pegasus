@@ -133,17 +133,6 @@ internal sealed class EfRetainedMailboxMessageStore(
         return string.Equals(retainedImmutableMessageId, immutableMessageId, StringComparison.Ordinal);
     }
 
-    public async Task<int> CountAsync(
-        MailWorkspaceScope scope,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(scope);
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        // The same filter pipeline the list reads, so a scope's count is
-        // exactly the number of rows clicking that scope would page through.
-        return await BuildMatches(context, scope).CountAsync(cancellationToken);
-    }
-
     public async Task<IReadOnlyList<int>> CountManyAsync(
         IReadOnlyList<MailWorkspaceScope> scopes,
         CancellationToken cancellationToken)

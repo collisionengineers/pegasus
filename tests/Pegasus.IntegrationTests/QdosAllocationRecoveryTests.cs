@@ -1320,7 +1320,6 @@ public sealed class QdosAllocationRecoveryTests
         public Task RetryProcessingAsync(Guid workItemId, string leaseToken, DateTimeOffset dueAtUtc, string failureCode, bool terminal, CancellationToken cancellationToken) => inner.RetryProcessingAsync(workItemId, leaseToken, dueAtUtc, failureCode, terminal, cancellationToken);
         public Task MarkPoisonedAsync(Guid stagedReceiptId, DateTimeOffset failedAtUtc, CancellationToken cancellationToken) => inner.MarkPoisonedAsync(stagedReceiptId, failedAtUtc, cancellationToken);
         public Task<int> RecoverInterruptedWorkAsync(DateTimeOffset nowUtc, DateTimeOffset staleDispatchedBeforeUtc, int maximumItems, CancellationToken cancellationToken) => inner.RecoverInterruptedWorkAsync(nowUtc, staleDispatchedBeforeUtc, maximumItems, cancellationToken);
-        public Task ScheduleReevaluationAsync(Guid stagedReceiptId, DateTimeOffset dueAtUtc, CancellationToken cancellationToken) => inner.ScheduleReevaluationAsync(stagedReceiptId, dueAtUtc, cancellationToken);
         public Task<Guid?> FindStagedReceiptIdForReceiptAsync(Guid intakeReceiptId, CancellationToken cancellationToken) => inner.FindStagedReceiptIdForReceiptAsync(intakeReceiptId, cancellationToken);
     }
 

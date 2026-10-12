@@ -529,10 +529,6 @@ public sealed class UploadOutcomeQueriesTests
             RegisterUnidentifiedRequest request, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<UnidentifiedRegisterResult?> ProbeRegisterReplayAsync(
-            RegisterUnidentifiedRequest request, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
         public Task<UnidentifiedResolveResult> ResolveAsync(
             ResolveUnidentifiedRequest request, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();

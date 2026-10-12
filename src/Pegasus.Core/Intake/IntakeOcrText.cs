@@ -124,11 +124,6 @@ public static class IntakeOcrText
         };
     }
 
-    /// <summary>Whether a fragment's locator says its text came from OCR.</summary>
-    public static bool IsOcrLocator(IntakeSourceLocator? locator) =>
-        locator is { Page: not null }
-        && string.Equals(locator.DocumentRole, DocumentRole, StringComparison.Ordinal);
-
     /// <summary>
     /// What the locator's region carries for an OCR page: the provider's lines
     /// and tables, and the hash of the response they came from.
