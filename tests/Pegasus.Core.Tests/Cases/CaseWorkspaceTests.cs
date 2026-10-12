@@ -314,7 +314,7 @@ public sealed class CaseWorkspaceTests
                     null,
                     null,
                     null,
-                    new(original, CaseOdometerUnit.Miles, "odometer", CaseOdometerUnit.Kilometres),
+                    new(original, CaseOdometerUnit.Miles, CaseOdometerUnit.Kilometres),
                     null)
             }));
         Assert.Equal(original, overlaid.VehicleMileage);
@@ -369,7 +369,7 @@ public sealed class CaseWorkspaceTests
                     null,
                     null,
                     null,
-                    new(0, CaseOdometerUnit.Miles, null, null),
+                    new(0, CaseOdometerUnit.Miles, null),
                     null)
             }));
         var normalized = CaseDataPolicy.Normalize(overlaid);

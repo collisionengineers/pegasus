@@ -173,45 +173,17 @@ public sealed class CaseReportFreshnessTests
     [Fact]
     public void ChangedResolvedMileageSourceStalesWithTheAssessmentReason()
     {
-        var before = new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            [AssessmentVocabulary.VehicleMileageSource] = "owner",
-        };
-        var after = new Dictionary<string, string?>(before, StringComparer.Ordinal)
-        {
-            [AssessmentVocabulary.VehicleMileageSource] = "repairer",
-        };
+        var assessment = new Dictionary<string, string?>(StringComparer.Ordinal);
 
+        // A Principal figure staff retyped is Custom: the printed source moves.
         var decision = CaseReportFreshness.ClassifyAssessment(
-            before,
-            after,
-            CaseVehicleMileageSourcePolicy.Owner,
-            CaseVehicleMileageSourcePolicy.Repairer);
+            assessment,
+            assessment,
+            CaseVehicleMileageSourcePolicy.Principal,
+            CaseVehicleMileageSourcePolicy.OnlineData);
 
         Assert.True(decision.IsStale);
         Assert.Equal(CaseReportStaleReasons.AssessmentFactsChanged, decision.ReasonCode);
-    }
-
-    [Fact]
-    public void MileageChoiceDoesNotStaleWhenProvenanceKeepsTheResolvedSourceUnchanged()
-    {
-        var before = new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            [AssessmentVocabulary.VehicleMileageSource] = "owner",
-        };
-        var after = new Dictionary<string, string?>(before, StringComparer.Ordinal)
-        {
-            [AssessmentVocabulary.VehicleMileageSource] = "repairer",
-        };
-
-        var decision = CaseReportFreshness.ClassifyAssessment(
-            before,
-            after,
-            CaseVehicleMileageSourcePolicy.OnlineData,
-            CaseVehicleMileageSourcePolicy.OnlineData);
-
-        Assert.False(decision.IsStale);
-        Assert.Null(decision.ReasonCode);
     }
 
     [Fact]

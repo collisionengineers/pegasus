@@ -129,7 +129,7 @@ gains history of its own (operator, 10 October 2026).
 `pegasus_assessment_update` writes the assessment fields a staff member
 records, and so can change or clear, on the Case: the fields a Case section's
 editor posts and those a section writes through its own typed member (damage
-entries, mileage source, storage per day, recovery charge and report date).
+entries, storage per day, recovery charge and report date).
 Professional findings are among them (operator, 7 October 2026): the
 outcome, roadworthiness (`assessment.legal_status`), the unroadworthy reason,
 the salvage category and value, and the Engineer's Value

@@ -54,7 +54,6 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         "vehicleModel",
         "vehicleYear",
         "vehicleMileage",
-        "vehicleMileageSource",
         "vehicleMileageUnit",
         "accidentCircumstances",
         "incidentDate",

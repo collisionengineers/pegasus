@@ -1782,7 +1782,6 @@ public sealed partial class DetailsModel(
         string? vehicleYear,
         long? vehicleMileage,
         string? vehicleMileageUnit,
-        string? vehicleMileageSource,
         string? accidentCircumstances,
         DateOnly? incidentDate,
         DateOnly? dueBy,
@@ -2060,8 +2059,7 @@ public sealed partial class DetailsModel(
                 var inspectionSubmitted = new[] { nameof(inspectionAddress), nameof(storageLocation), nameof(inspectionDate),
                     nameof(inspectionDeadline), nameof(storagePerDay), nameof(recoveryCharge) }.Any(Posted);
                 var vehicleSubmitted = new[] { nameof(vehicleRegistration), nameof(vehicleMake), nameof(vehicleModel),
-                    nameof(vehicleYear), nameof(vehicleMileage), nameof(vehicleMileageUnit),
-                    nameof(vehicleMileageSource) }.Any(Posted)
+                    nameof(vehicleYear), nameof(vehicleMileage), nameof(vehicleMileageUnit) }.Any(Posted)
                     || assessmentFields.ContainsKey(AssessmentVocabulary.HistoryCheck)
                     || assessmentFields.ContainsKey(AssessmentVocabulary.VehicleCondition)
                     || vehicleIdentityFields.Count > 0;
@@ -2135,8 +2133,6 @@ public sealed partial class DetailsModel(
                             Submitted(nameof(vehicleModel), vehicleModel, Accepted(data.Vehicle.Model)?.Value),
                             new(mileageValue,
                                 originalUnit,
-                                Submitted(nameof(vehicleMileageSource), vehicleMileageSource,
-                                    Recorded(AssessmentVocabulary.VehicleMileageSource)),
                                 persisted?.VehicleMileageDisplayUnit),
                             vehicleIdentityFields.Count > 0 ? vehicleIdentityFields : null,
                             Submitted(nameof(vehicleYear), vehicleYear, Accepted(data.Vehicle.Year)?.Value)),
@@ -4806,16 +4802,6 @@ public sealed partial class DetailsModel(
         if (field == "storagePerDay") return AssessmentValue(AssessmentVocabulary.SettlementStoragePerDay);
         if (field == "recoveryCharge") return AssessmentValue(AssessmentVocabulary.CostRecoveryCharge);
         if (field == "reportDate") return AssessmentValue(AssessmentVocabulary.ReportDate);
-        // The mileage source is a typed assessment path, not a case-data field,
-        // and the retained value reads as the word the select offered, not the
-        // stored code. A code with no word of its own is shown as it stands.
-        if (field == "vehicleMileageSource")
-        {
-            var code = AssessmentEditorValue(AssessmentVocabulary.VehicleMileageSource);
-            return code is not null && CaseVehicleMileageSourcePolicy.StaffChoices.Contains(code)
-                ? Pegasus.Web.Presentation.CaseWorkspaceLabels.Vehicle.MileageSource(code)
-                : code;
-        }
         if (Case?.Data is not { } data)
         {
             return null;
@@ -4878,7 +4864,6 @@ public sealed partial class DetailsModel(
         "vehicleYear" => "Year",
         "vehicleMileage" => "Mileage",
         "vehicleMileageUnit" => "Mileage unit",
-        "vehicleMileageSource" => "Mileage source",
         "accidentCircumstances" => "Accident circumstances",
         "incidentDate" => "Incident date",
         "dueBy" => FrameLabels.Due,
