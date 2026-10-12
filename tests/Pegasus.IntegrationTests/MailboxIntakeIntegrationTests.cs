@@ -307,6 +307,119 @@ public sealed class MailboxIntakeIntegrationTests
     }
 
     [Fact]
+    public async Task ReevaluationLeavesTheSameFinalSearchRows()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var sourceHash = new string('F', 64);
+        var sourceAsset = new IntakeAssetRecord(
+            Guid.NewGuid(), "uploaded source", "search.eml", "message/rfc822",
+            IntakeAssetKind.Source, IntakeAssetDisposition.Source, 1, sourceHash,
+            "search-storage-key", null, null, null, null);
+        IntakeReceiptDraft Draft(IReadOnlyList<IntakeSearchDocument> documents) => new(
+            SourceFileName: "search.eml",
+            MediaType: "message/rfc822",
+            SourceLength: 1,
+            SourceHash: sourceHash,
+            SourceIdentity: new(IntakeSourceChannel.Mailbox, "search-rows-token"),
+            ReceivedAtUtc: RecordedAtUtc,
+            ProcessedAtUtc: RecordedAtUtc,
+            Actor: "system-worker:approved-inbox-poller",
+            Decision: IntakeDecision.NeedsSorting,
+            DecisionReason: "Fixture evaluation.",
+            Evidence: [],
+            Fields: [],
+            InstructionDraft: null,
+            MissingFields: [],
+            FailureCode: null,
+            FailureReason: null,
+            SourceReaderKey: "protocol_reader",
+            SourceReaderVersion: "1",
+            ExtractionPolicyKey: "protocol_policy",
+            ExtractionPolicyVersion: 1,
+            Assets: [sourceAsset],
+            SearchDocuments: documents);
+        IntakeSearchDocument[] first =
+        [
+            new("body", null, "first body text"),
+            new("attachment", "a.pdf", "first attachment text", 0)
+        ];
+        IntakeSearchDocument[] second =
+        [
+            new("body", null, "second body text"),
+            new("attachment", "a.pdf", "second attachment text", 0)
+        ];
+
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>();
+        var stored = await store.StoreAsync(Draft(first), CancellationToken.None);
+        await store.ReplaceEvaluationAsync(Draft(second), CancellationToken.None);
+        await store.ReplaceEvaluationAsync(Draft(second), CancellationToken.None);
+
+        await using var context = await database.CreateContextAsync();
+        var rows = await context.IntakeSearchDocuments
+            .AsNoTracking()
+            .Where(item => item.IntakeReceiptId == stored.Id)
+            .OrderBy(item => item.Ordinal)
+            .ToListAsync();
+        string?[] expectedText = ["second body text", "second attachment text"];
+        Assert.Equal(expectedText, rows.Select(item => item.Text).ToArray());
+        Assert.Equal([0, 1], rows.Select(item => item.Ordinal).ToArray());
+    }
+
+    [Fact]
+    public async Task BatchAllocationStateIsTheHighestAttemptOfEachReceipt()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        IntakeReceiptDraft Draft(string token, string hash) => new(
+            SourceFileName: token + ".eml",
+            MediaType: "message/rfc822",
+            SourceLength: 1,
+            SourceHash: hash,
+            SourceIdentity: new(IntakeSourceChannel.Mailbox, token),
+            ReceivedAtUtc: RecordedAtUtc,
+            ProcessedAtUtc: RecordedAtUtc,
+            Actor: "system-worker:approved-inbox-poller",
+            Decision: IntakeDecision.NeedsSorting,
+            DecisionReason: "Fixture evaluation.",
+            Evidence: [],
+            Fields: [],
+            InstructionDraft: null,
+            MissingFields: [],
+            FailureCode: null,
+            FailureReason: null,
+            SourceReaderKey: "protocol_reader",
+            SourceReaderVersion: "1",
+            ExtractionPolicyKey: "protocol_policy",
+            ExtractionPolicyVersion: 1,
+            Assets: []);
+
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>();
+        var one = await store.StoreAsync(Draft("attempts-one", new string('1', 64)), CancellationToken.None);
+        var two = await store.StoreAsync(Draft("attempts-two", new string('2', 64)), CancellationToken.None);
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            // Inserted out of order so the highest attempt is neither first nor last.
+            foreach (var (receiptId, attempt) in new[] { (one.Id, 2L), (one.Id, 3L), (one.Id, 1L), (two.Id, 1L), (two.Id, 2L) })
+            {
+                var reference = $"QDOS2609{attempt}";
+                await context.Database.ExecuteSqlInterpolatedAsync(
+                    $"INSERT INTO IntakeAllocationAttempts (Id, IntakeReceiptId, AttemptNumber, Kind, Status, ExpectedReceiptVersion, CaseType, PrincipalCode, InstructionComplete, ImagesComplete, ActorKind, ActorSubjectId, ActorRolesJson, OperationKey, CommandHash, Reason, StartedAtUtc, CompletedAtUtc, CaseId, CaseReference) VALUES ({Guid.NewGuid()}, {receiptId}, {attempt}, {"automatic"}, {"succeeded"}, {0L}, {"inspection"}, {"QDOS"}, {true}, {false}, {"Automation"}, {"intake-processing"}, {"[]"}, {Guid.NewGuid().ToString("N")}, {new string('B', 64)}, {"Allocation fixture."}, {RecordedAtUtc}, {RecordedAtUtc}, {Guid.NewGuid()}, {reference})");
+            }
+        }
+
+        var items = (await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+            .ListByCursorAsync(null, null, 100, CancellationToken.None)).Items;
+        Assert.Equal(
+            "QDOS26093",
+            items.Single(item => item.Id == one.Id).AllocationState?.CaseReference);
+        Assert.Equal(
+            "QDOS26092",
+            items.Single(item => item.Id == two.Id).AllocationState?.CaseReference);
+    }
+
+    [Fact]
     public async Task FullVersionedMailClassificationDecisionReloadsWithoutLosingAuditEvidence()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
