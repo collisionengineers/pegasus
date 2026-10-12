@@ -12,9 +12,7 @@ namespace Pegasus.Infrastructure.Custody;
 /// </summary>
 /// <remarks>
 /// A version whose read failed for now is deferred: this process does not
-/// list it again for <see cref="DeferInterval"/>. At most
-/// <see cref="MaximumDeferred"/> versions are remembered; past that the one
-/// deferred longest ago is dropped.
+/// list it again for <see cref="DeferInterval"/> (<see cref="DeferredVersionSet"/>).
 /// </remarks>
 internal sealed class EfEstimateRecognitionCandidates(
     IDbContextFactory<PegasusDbContext> dbContextFactory,
@@ -22,12 +20,7 @@ internal sealed class EfEstimateRecognitionCandidates(
 {
     private static readonly TimeSpan DeferInterval = TimeSpan.FromMinutes(10);
 
-    private const int MaximumDeferred = 500;
-
-    private readonly Lock gate = new();
-
-    /// <summary>Deferred version → when it may be listed again.</summary>
-    private readonly Dictionary<Guid, DateTimeOffset> deferred = [];
+    private readonly DeferredVersionSet deferred = new(timeProvider, DeferInterval);
 
     public async Task<IReadOnlyList<EstimateRecognitionCandidate>> ListAsync(
         int maximumItems,
@@ -35,15 +28,7 @@ internal sealed class EfEstimateRecognitionCandidates(
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         var now = timeProvider.GetUtcNow();
-        HashSet<Guid> skipped;
-        lock (gate)
-        {
-            foreach (var expired in deferred.Where(entry => entry.Value <= now).Select(entry => entry.Key).ToArray())
-            {
-                deferred.Remove(expired);
-            }
-            skipped = [.. deferred.Keys];
-        }
+        var skipped = deferred.Current(now);
 
         // Deferred versions are skipped here rather than sent to SQL: the
         // query asks for enough rows to fill the run past every one of them.
@@ -83,16 +68,5 @@ internal sealed class EfEstimateRecognitionCandidates(
                 cancellationToken);
     }
 
-    public void Defer(Guid versionId)
-    {
-        var until = timeProvider.GetUtcNow() + DeferInterval;
-        lock (gate)
-        {
-            deferred[versionId] = until;
-            if (deferred.Count > MaximumDeferred)
-            {
-                deferred.Remove(deferred.MinBy(entry => entry.Value).Key);
-            }
-        }
-    }
+    public void Defer(Guid versionId) => deferred.Defer(versionId);
 }

@@ -13,10 +13,9 @@ namespace Pegasus.Infrastructure.Custody;
 /// A version whose thumbnail could not be made (a format the renderer does
 /// not decode, or a read that failed for now) is deferred: this process does
 /// not list it again for <see cref="DeferInterval"/>, so it cannot take a
-/// place in every run ahead of newer photographs. A made thumbnail leaves the
-/// candidate set by itself and is not remembered. At most
-/// <see cref="MaximumDeferred"/> versions are remembered; past that the one
-/// deferred longest ago is dropped. A version older than the lifetime is left
+/// place in every run ahead of newer photographs (<see cref="DeferredVersionSet"/>).
+/// A made thumbnail leaves the candidate set by itself and is not remembered.
+/// A version older than the lifetime is left
 /// to its first view, so an expired thumbnail is not made again for nobody.
 /// </remarks>
 internal sealed class EfDocumentThumbnailCandidates(
@@ -25,12 +24,7 @@ internal sealed class EfDocumentThumbnailCandidates(
 {
     private static readonly TimeSpan DeferInterval = TimeSpan.FromDays(1);
 
-    private const int MaximumDeferred = 500;
-
-    private readonly Lock gate = new();
-
-    /// <summary>Deferred version → when it may be listed again.</summary>
-    private readonly Dictionary<Guid, DateTimeOffset> deferred = [];
+    private readonly DeferredVersionSet deferred = new(timeProvider, DeferInterval);
 
     public async Task<IReadOnlyList<DocumentThumbnailCandidate>> ListAsync(
         int maximumItems,
@@ -38,15 +32,7 @@ internal sealed class EfDocumentThumbnailCandidates(
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         var now = timeProvider.GetUtcNow();
-        HashSet<Guid> skipped;
-        lock (gate)
-        {
-            foreach (var expired in deferred.Where(entry => entry.Value <= now).Select(entry => entry.Key).ToArray())
-            {
-                deferred.Remove(expired);
-            }
-            skipped = [.. deferred.Keys];
-        }
+        var skipped = deferred.Current(now);
         var filedAfter = now - DocumentThumbnailCache.PlainIdleLifetime;
         var variant = DocumentThumbnailCache.Variant;
         const long maximumLength = ImageThumbnailRendering.MaximumSourceBytes;
@@ -83,18 +69,7 @@ internal sealed class EfDocumentThumbnailCandidates(
         return [.. rows.Where(row => !skipped.Contains(row.VersionId)).Take(maximumItems)];
     }
 
-    public void Defer(Guid versionId)
-    {
-        var until = timeProvider.GetUtcNow() + DeferInterval;
-        lock (gate)
-        {
-            deferred[versionId] = until;
-            if (deferred.Count > MaximumDeferred)
-            {
-                deferred.Remove(deferred.MinBy(entry => entry.Value).Key);
-            }
-        }
-    }
+    public void Defer(Guid versionId) => deferred.Defer(versionId);
 }
 
 /// <summary>

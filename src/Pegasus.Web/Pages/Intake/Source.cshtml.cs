@@ -32,7 +32,7 @@ public sealed partial class SourceModel(
             return File(
                 DocumentContentCachePublisherExtensions.StreamOf(source.Content),
                 "application/octet-stream",
-                SafeFileName(source.FileName));
+                IntakeDownloadFileName.Safe(source.FileName, "intake-source.bin"));
         }
         catch (StaffAuthorizationException)
         {
@@ -64,24 +64,6 @@ public sealed partial class SourceModel(
         ContentType = "text/plain; charset=utf-8",
         Content = "The retained file is not available until durable storage is confirmed. Refresh this record and try again."
     };
-
-    private static string SafeFileName(string fileName)
-    {
-        var name = Path.GetFileName(fileName);
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return "intake-source.bin";
-        }
-
-        var invalid = Path.GetInvalidFileNameChars();
-        var safe = string.Concat(name.Where(character =>
-            !char.IsControl(character)
-            && character != '"'
-            && character != '\''
-            && character != ';'
-            && !invalid.Contains(character)));
-        return string.IsNullOrWhiteSpace(safe) ? "intake-source.bin" : safe;
-    }
 
     [LoggerMessage(
         EventId = 1204,

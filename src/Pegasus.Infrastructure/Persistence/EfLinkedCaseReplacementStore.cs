@@ -171,7 +171,7 @@ public sealed class EfLinkedCaseReplacementStore(
                 DueBy = original.DueWork?.DueBy ?? original.Case.AcceptedInspectionDeadline,
                 DueBySetByStaff = original.DueWork?.DueBySetByStaff ?? false,
                 State = nameof(CaseDueWorkState.Scheduled),
-                NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays),
+                NextChaseAtUtc = CaseChaseSchedule.NextChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays),
                 Version = 0
             });
         }

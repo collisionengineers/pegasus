@@ -156,7 +156,7 @@ public sealed class EfManualCaseCreationStore(
                 MissingMaterialReason = "Details are incomplete",
                 DueBy = request.Data.InspectionDeadline,
                 State = CaseDueWorkState.Scheduled.ToString(),
-                NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now, configuration.ChaseIntervalDays),
+                NextChaseAtUtc = CaseChaseSchedule.NextChaseAt(now, configuration.ChaseIntervalDays),
                 Version = 0
             });
         }

@@ -56,7 +56,7 @@ public sealed class WorkflowConfigurationPersistenceTests
     public void ConfiguredCalendarIntervalCrossesClockChangeWithoutChangingLocalTime()
     {
         var start = new DateTimeOffset(2026, 3, 28, 10, 30, 0, TimeSpan.Zero);
-        var chase = CaseChaseSchedule.FirstChaseAt(start, 2);
+        var chase = CaseChaseSchedule.NextChaseAt(start, 2);
         Assert.Equal(new DateTimeOffset(2026, 3, 30, 9, 30, 0, TimeSpan.Zero), chase);
         var remaining = CaseChaseSchedule.RemainingInterval(chase, start);
         Assert.Equal(chase, CaseChaseSchedule.ResumeAt(start, remaining));

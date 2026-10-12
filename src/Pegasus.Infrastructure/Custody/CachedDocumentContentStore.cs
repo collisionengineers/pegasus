@@ -111,8 +111,8 @@ internal sealed partial class CachedDocumentContentStore(
     /// takes the process-wide Box gate, so this bounds the cached reads.
     /// </summary>
     private const int MaximumConcurrentBatchReads = 4;
-    private const string CachePrefix = "cache/";
-    private const string HashMetadata = "sha256";
+    internal const string CachePrefix = "cache/";
+    internal const string HashMetadata = "sha256";
 
     /// <summary>
     /// The variant an entry of the durable content itself carries: none.
@@ -206,7 +206,7 @@ internal sealed partial class CachedDocumentContentStore(
         return prepared;
     }
 
-    private static void RequireStaffRight(ActionActor actor) =>
+    internal static void RequireStaffRight(ActionActor actor) =>
         StaffAuthorization.Require(
             actor,
             actor.Kind == ActorKind.SystemWorker
@@ -596,7 +596,7 @@ internal sealed partial class CachedDocumentContentStore(
         ResolvedSource source,
         CancellationToken cancellationToken)
     {
-        var response = await TryDownloadAsync(entry, cancellationToken);
+        var response = await TryDownloadAsync(container, entry, cancellationToken);
         if (response is null)
         {
             return null;
@@ -740,7 +740,7 @@ internal sealed partial class CachedDocumentContentStore(
             {
                 return null;
             }
-            var response = await TryDownloadAsync(entry, cancellationToken);
+            var response = await TryDownloadAsync(container, entry, cancellationToken);
             if (response is null)
             {
                 return null;
@@ -810,7 +810,8 @@ internal sealed partial class CachedDocumentContentStore(
 
     private sealed record AuthorizedVersion(DocumentVersionEntity Version, string? CaseRootRemoteId);
 
-    private async Task<Response<BlobDownloadStreamingResult>?> TryDownloadAsync(
+    internal static async Task<Response<BlobDownloadStreamingResult>?> TryDownloadAsync(
+        BlobContainerClient container,
         DocumentContentCacheEntryEntity entry,
         CancellationToken cancellationToken)
     {
@@ -1007,8 +1008,8 @@ internal sealed partial class CachedDocumentContentStore(
     {
         ArgumentNullException.ThrowIfNull(content);
         content.Position = 0;
-        var actual = Convert.ToHexString(
-            await SHA256.HashDataAsync(content, cancellationToken)).ToLowerInvariant();
+        var actual = Convert.ToHexStringLower(
+            await SHA256.HashDataAsync(content, cancellationToken));
         if (content.Length != filed.Length || !FixedHashEquals(actual, filed.Sha256))
         {
             throw new InvalidDataException(
@@ -1241,7 +1242,7 @@ internal sealed partial class CachedDocumentContentStore(
         long expectedLength,
         string expectedSha256)
     {
-        var actual = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+        var actual = Convert.ToHexStringLower(hash.GetHashAndReset());
         if (length != expectedLength || !FixedHashEquals(actual, expectedSha256))
         {
             throw new InvalidDataException("Logical document content verification failed.");
@@ -1272,7 +1273,7 @@ internal sealed partial class CachedDocumentContentStore(
         {
             throw new InvalidDataException("Logical document length verification failed.");
         }
-        var actual = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+        var actual = Convert.ToHexStringLower(SHA256.HashData(bytes));
         if (!FixedHashEquals(actual, expectedSha256))
         {
             throw new InvalidDataException("Logical document content verification failed.");
@@ -1446,9 +1447,6 @@ internal sealed class DocumentThumbnailCache(
     /// <summary>How long an unused prepared-region rendering is kept.</summary>
     private static readonly TimeSpan PreparedIdleLifetime = TimeSpan.FromHours(24);
 
-    private const string CachePrefix = "cache/";
-    private const string HashMetadata = "sha256";
-
     private static TimeSpan IdleLifetimeOf(string variant) =>
         string.Equals(variant, Variant, StringComparison.Ordinal) ? PlainIdleLifetime : PreparedIdleLifetime;
 
@@ -1468,11 +1466,7 @@ internal sealed class DocumentThumbnailCache(
         CancellationToken cancellationToken)
     {
         using var cacheRead = DocumentReadTelemetry.Start("document.thumbnail.cache.read");
-        StaffAuthorization.Require(
-            actor,
-            actor.Kind == ActorKind.SystemWorker
-                ? StaffAccessRight.ExecuteSystemWork
-                : StaffAccessRight.PerformCasework);
+        CachedDocumentContentStore.RequireStaffRight(actor);
         var now = timeProvider.GetUtcNow();
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var entry = await Query(db, versionId, variant).AsNoTracking()
@@ -1483,34 +1477,29 @@ internal sealed class DocumentThumbnailCache(
         {
             return null;
         }
-        byte[] content;
+        var response = await CachedDocumentContentStore.TryDownloadAsync(container, entry, cancellationToken);
+        if (response is null
+            || entry.VerifiedSize > Array.MaxLength)
+        {
+            return null;
+        }
+        await using var stream = response.Value.Content;
+        var content = new byte[entry.VerifiedSize];
         try
         {
-            var response = await container.GetBlobClient(entry.BlobIdentity)
-                .DownloadStreamingAsync(
-                    new BlobDownloadOptions
-                    {
-                        Conditions = entry.ETag is { Length: > 0 }
-                            ? new BlobRequestConditions { IfMatch = new ETag(entry.ETag) }
-                            : null
-                    },
-                    cancellationToken);
-            await using var stream = response.Value.Content;
-            using var buffer = new MemoryStream();
-            await stream.CopyToAsync(buffer, cancellationToken);
-            content = buffer.ToArray();
+            await stream.ReadExactlyAsync(content, cancellationToken);
+            if (await stream.ReadAsync(new byte[1], cancellationToken) != 0)
+            {
+                return null;
+            }
         }
-        catch (RequestFailedException exception) when (exception.Status is 404 or 412)
+        catch (EndOfStreamException)
         {
             return null;
         }
-        if (content.LongLength != entry.VerifiedSize
-            || !CachedDocumentContentStore.FixedHashEquals(
-                Sha256Hex(content), entry.VerifiedSha256))
-        {
-            return null;
-        }
-        return content;
+        return CachedDocumentContentStore.FixedHashEquals(Sha256Hex(content), entry.VerifiedSha256)
+            ? content
+            : null;
     }
 
     /// <summary>
@@ -1525,7 +1514,7 @@ internal sealed class DocumentThumbnailCache(
     {
         using var cacheWrite = DocumentReadTelemetry.Start("document.thumbnail.cache.write");
         var now = timeProvider.GetUtcNow();
-        var identity = $"{CachePrefix}document-versions/{versionId:D}/{variant}";
+        var identity = $"{CachedDocumentContentStore.CachePrefix}document-versions/{versionId:D}/{variant}";
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var entry = await Query(db, versionId, variant).SingleOrDefaultAsync(cancellationToken);
         if (entry is not null && entry.ReadLeaseExpiresAtUtc > now)
@@ -1542,7 +1531,7 @@ internal sealed class DocumentThumbnailCache(
                 source,
                 new BlobUploadOptions
                 {
-                    Metadata = new Dictionary<string, string> { [HashMetadata] = hash }
+                    Metadata = new Dictionary<string, string> { [CachedDocumentContentStore.HashMetadata] = hash }
                 },
                 cancellationToken);
             var etag = uploaded.Value.ETag.ToString();
@@ -1595,7 +1584,7 @@ internal sealed class DocumentThumbnailCache(
             value.DocumentVersionId == versionId && value.Variant == variant);
 
     private static string Sha256Hex(byte[] content) =>
-        Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+        Convert.ToHexStringLower(SHA256.HashData(content));
 }
 
 /// <summary>
