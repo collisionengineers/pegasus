@@ -873,11 +873,17 @@ or reading; In report is pressed on the tile or in the viewer (operator,
 
 The Repair Spec section (v28 P31: the word "Estimate" stays for an imported
 repairer's document) carries the repair specification set (`EXT-09`): named
-specs with source, the one labour rate — a rate card or a typed figure in
-one control (P33), lifted by the regional uplift (P17, + 15 %, suggested
-when the repairer, claimant or storage postcode is in London or the Home
-Counties) — VAT categories, lines with a Material amount each (P48; the
-Materials total is the column's sum) and totals. There are no repair days
+specs with source, the one labour rate — the rate bar under the grid (v38 P5,
+12 October 2026): a segment per enabled rate card and Custom · typed, the
+"+ 15 % regional uplift" tick (P17, suggested when the repairer, claimant or
+storage postcode is in London or the Home Counties) and the figure the spec
+prices at — VAT categories, lines with a Material amount each (P48; the
+Materials total is the column's sum) and totals. A line's type prices only
+its own columns (v38 P1): a cell the type does not price reads as a dash in
+read and edit mode, a value sitting in one keeps its amber off-pattern box
+and is never cleared, and changing the Type opens and closes the cells. An
+import lands on the spec in view and opens the Supplementary panel above the
+grid ([FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications)). There are no repair days
 and no notes on a spec (P32); a spec is renamed by double-clicking its tab.
 One spec is Current and drives the report. A new spec — typed in, imported
 or returned from Glass's — is Current as soon as it is recorded; **Use repair
@@ -898,15 +904,18 @@ same header cells, the same grid columns and the same contract, discount and
 VAT bars as the editor, each value greyed in its control's place and a line's
 Type in the editor's words; a scaled spec's Target % of value bar stands in
 its place with the Scaled state; the tools (add and delete lines, the Target
-% of value controls, Reset to repairer status) are drawn only while the spec
-edits. The spec has no save of its own: each save records it, and a spec
-left unchanged is not rewritten. Moving the Target % of value slider
+% of value controls, Reset to repairer status, Dismiss) are drawn only while
+the spec edits. The spec has no save of its own: each save records it, and a
+spec left unchanged is not rewritten. Moving the Target % of value slider
 previews the scaled spec in amber cells, the rollup and the readout, and
-records nothing (operator, 28 September 2026). Apply and Remove scaling wait
-for a change not yet sent to land and then scale the saved spec. The More
-menu holds New repair spec (editing, recorded by the next save and starting
-on the one enabled labour-rate card), **Print Repair Spec** for a saved spec
-with lines, and Compare, greyed out until the Case holds two specs (P9).
+records nothing (operator, 28 September 2026); Apply and Remove scaling are
+offered while a preview is shown and the floors stand under the slider (v38
+P6). Apply and Remove scaling wait for a change not yet sent to land and
+then scale the saved spec. The More menu holds New repair spec (editing,
+recorded by the next save and starting on the one enabled labour-rate card),
+**Print Repair Spec** for a saved spec with lines, Versions, and Compare,
+offered once the Case holds two specs or the spec a frozen version (P9; v38
+P2).
 Previewing the document records nothing. The section also
 carries **Send to AI**, which creates an `AI-10` `Estimate` job
 ([AI Job List](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)),

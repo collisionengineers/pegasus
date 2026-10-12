@@ -113,7 +113,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await using (var changed = await harness.Factory.CreateDbContextAsync())
         {
             var row = await changed.CaseRepairSpecifications.SingleAsync(item => item.Id == specification.SpecificationId);
-            row.SupplementaryOfSpecificationId = Guid.NewGuid();
+            row.SupplementaryOfSnapshotId = Guid.NewGuid();
             row.SupplementaryReason = "estimate";
             row.SupplementaryExplainOnReport = true;
             row.SupplementaryStatement = "Later supplementary wording.";

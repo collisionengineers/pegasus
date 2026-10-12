@@ -284,10 +284,9 @@ public sealed class EfCreateAuditStore(
     }
 
     /// <summary>
-    /// Every repair specification with its lines, every column: new ids,
-    /// with the supplementary links re-pointed at the copies.
-    /// A link to a specification no longer on the Case (a discarded one) is
-    /// cleared. Specification snapshots are not copied.
+    /// Every repair specification with its lines, every column: new ids.
+    /// The supplementary is not copied (its base version belongs to the
+    /// source Case). Specification snapshots are not copied.
     /// </summary>
     private static async Task CopySpecificationsAsync(
         PegasusDbContext context,
@@ -301,7 +300,6 @@ public sealed class EfCreateAuditStore(
             .OrderBy(item => item.Version)
             .ToListAsync(cancellationToken);
         var ids = specifications.ToDictionary(item => item.Id, _ => Guid.NewGuid());
-        Guid? Remap(Guid? id) => id is { } value && ids.TryGetValue(value, out var copied) ? copied : (Guid?)null;
 
         foreach (var source in specifications)
         {
@@ -337,10 +335,12 @@ public sealed class EfCreateAuditStore(
                 IsCurrent = source.IsCurrent,
                 AiJobId = source.AiJobId,
                 LastOperationKey = source.LastOperationKey,
-                SupplementaryOfSpecificationId = Remap(source.SupplementaryOfSpecificationId),
-                SupplementaryReason = source.SupplementaryReason,
-                SupplementaryExplainOnReport = source.SupplementaryExplainOnReport,
-                SupplementaryStatement = source.SupplementaryStatement,
+                // A supplementary names a frozen version, and the Audit copies
+                // no versions (FRD-01), so the copy starts with none (v38 P3).
+                SupplementaryOfSnapshotId = null,
+                SupplementaryReason = null,
+                SupplementaryExplainOnReport = false,
+                SupplementaryStatement = null,
                 // The Audit's copy belongs to the same Glass's estimate
                 // (operator, 6 October 2026).
                 GlassVehicleId = source.GlassVehicleId,

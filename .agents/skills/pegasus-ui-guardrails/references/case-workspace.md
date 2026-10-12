@@ -274,10 +274,18 @@ Toolbar and header controls must remain compact and on one line where the existi
 that. Scope width fixes locally; do not make every select full width.
 
 Read and edit are one layout (operator, 23 September 2026): a spec that cannot be changed renders
-the editor's header cells, grid columns and contract, discount and VAT bars, each value greyed in its
+the editor's header cells, grid columns and rate, contract, discount and VAT bars, each value greyed in its
 control's place (`EstimateBody` in `_CaseEstimate.cshtml`). Do not reintroduce a read-mode summary
 line or a separate read table; only tools (add/delete lines, the Target % of value controls, Reset
-to repairer status) are edit-only, and a scaled spec's Target % bar reads with its Scaled state.
+to repairer status, Dismiss) are edit-only, and a scaled spec's Target % bar reads with its Scaled state.
+
+The reference's bars stand since v38 (operator, 12 October 2026) and are not to be redrawn: the
+labour rate bar under the grid (rate-card segments and Custom · typed, the uplift tick and chip,
+the figure at the right); the Target % of value bar (slider from the floor-scaled minimum, Apply and
+Remove scaling only while previewing, floors on the second row); the contract bar's own agreed-sum
+box and its rescale chip; the Supplementary panel above the grid an import opens; the dash cells a
+line type does not price; Compare side by side with Compare with current and the print sheet. Keep
+the rate control in the bar, not the head.
 
 ## Damage
 

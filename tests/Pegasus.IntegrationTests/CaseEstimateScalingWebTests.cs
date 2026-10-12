@@ -165,9 +165,10 @@ public sealed class CaseEstimateScalingWebTests
 
         var afterRemoval = await AssessmentEstimateImportWebTests.EnterEditModeAsync(
             client, caseId, $"?section=estimate&estimate={draft.SpecificationId:D}");
-        // An unscaled spec offers no removal: the control is absent, never
-        // disabled (v36 item Y, 9 October 2026).
-        Assert.DoesNotContain("data-scale-remove", afterRemoval, StringComparison.Ordinal);
+        // An unscaled spec offers no removal: the control stands hidden until a
+        // preview or a scaling gives it something to remove (v38 P6), and the
+        // removal form is absent.
+        Assert.Contains("data-scale-remove hidden=\"hidden\"", afterRemoval, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"remove-scaling-form\"", afterRemoval, StringComparison.Ordinal);
     }
 
@@ -198,10 +199,12 @@ public sealed class CaseEstimateScalingWebTests
         Assert.Contains($"data-scale-preview-url=\"{previewUrl}\"", html, StringComparison.Ordinal);
         Assert.Contains("data-rollup=\"gross\"", html, StringComparison.Ordinal);
         // The slider starts at the spec's own share of value, £744.24 of
-        // £1,000 rounded up, and goes no higher (operator, 8 October 2026).
+        // £1,000 rounded up, and goes no higher (operator, 8 October 2026);
+        // it goes no lower than the floors' share, £483.76 (65 % of the
+        // part, plus VAT) rounded up to 49 % (operator, 12 October 2026).
         Assert.Contains(
-            "<input type=\"range\" min=\"1\" max=\"74.5\" step=\"0.1\" value=\"74.5\"", html, StringComparison.Ordinal);
-        Assert.Contains("min=\"1\" max=\"74.5\" step=\"0.1\" value=\"74.5\" inputmode=\"decimal\"", html, StringComparison.Ordinal);
+            "<input type=\"range\" min=\"49\" max=\"74.5\" step=\"0.1\" value=\"74.5\"", html, StringComparison.Ordinal);
+        Assert.Contains("min=\"49\" max=\"74.5\" step=\"0.1\" value=\"74.5\" inputmode=\"decimal\"", html, StringComparison.Ordinal);
         var draft = store.WorkingEstimate;
 
         async Task<JsonElement> PreviewAsync(string percent, string partPounds = "620.20")

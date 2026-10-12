@@ -1247,16 +1247,19 @@ public sealed class EstimateTests
     }
 
     [Fact]
-    public void OnlyAGlassReturnForItsSpecMayImportIntoAnExistingEstimate()
+    public void ADocumentImportMayNameTheSpecItLandsOn()
     {
         var request = new SaveEstimateRequest(
             CaseId, 4, Engineer, "op-import-named", ImportRawEstimate.ImportReason, Lease,
             Guid.NewGuid(), Details(), [],
             new(RepairSpecificationSourceRoute.AudatexPdf, "estimate-import:first", "v1", ImportSha256));
 
-        var refusal = Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateImportedSave(request));
+        var validated = EstimatePolicy.ValidateImportedSave(request);
 
-        Assert.Contains("creates a new source-backed estimate only", refusal.Message, StringComparison.Ordinal);
+        Assert.Equal(request.EstimateId, validated.EstimateId);
+        var refusal = Assert.Throws<InvalidOperationException>(
+            () => EstimatePolicy.ValidateImportedSave(request with { ExistingLineIds = [] }));
+        Assert.Contains("records a source-backed estimate only", refusal.Message, StringComparison.Ordinal);
     }
 
     [Fact]

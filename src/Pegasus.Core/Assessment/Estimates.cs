@@ -239,6 +239,57 @@ public static class EstimateOperations
             default: operation = default; return false;
         }
     }
+
+    /// <summary>
+    /// The columns a line type prices (v38 P1, operator, 12 October 2026):
+    /// what the editor draws a box for. A Replace line prices a part (its
+    /// number, quantity and unit amount), hours and materials; Repair prices
+    /// hours and materials; R&amp;I hours alone; Paint and Blend hours, paint
+    /// hours and materials; Specialist a quantity, a unit amount, hours and
+    /// materials; Other (an included operation) hours alone. A value sitting
+    /// in a column its type does not price is still kept and still priced as
+    /// <see cref="EstimateTotals.Compute"/> prices it (an off-pattern cell);
+    /// the map decides what is drawn, never what is recorded.
+    /// </summary>
+    public static EstimateLineColumns PricedColumns(EstimateOperation operation) => operation switch
+    {
+        EstimateOperation.Replace => EstimateLineColumns.PartNumber | EstimateLineColumns.Quantity
+            | EstimateLineColumns.UnitAmount | EstimateLineColumns.Hours | EstimateLineColumns.Materials,
+        EstimateOperation.Repair => EstimateLineColumns.Hours | EstimateLineColumns.Materials,
+        EstimateOperation.RemoveAndRefit => EstimateLineColumns.Hours,
+        EstimateOperation.Paint or EstimateOperation.Blend =>
+            EstimateLineColumns.Hours | EstimateLineColumns.PaintHours | EstimateLineColumns.Materials,
+        EstimateOperation.Specialist => EstimateLineColumns.Quantity | EstimateLineColumns.UnitAmount
+            | EstimateLineColumns.Hours | EstimateLineColumns.Materials,
+        EstimateOperation.Other => EstimateLineColumns.Hours,
+        _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+    };
+
+    /// <summary>The columns a recorded line's type prices; a type the mapping does not know prices Hours alone.</summary>
+    public static EstimateLineColumns PricedColumnsOf(string lineType)
+    {
+        try
+        {
+            return PricedColumns(FromLineType(lineType));
+        }
+        catch (InvalidOperationException)
+        {
+            return EstimateLineColumns.Hours;
+        }
+    }
+}
+
+/// <summary>The figure columns of an estimate line the editor can price (v38 P1).</summary>
+[Flags]
+public enum EstimateLineColumns
+{
+    None = 0,
+    PartNumber = 1,
+    Quantity = 2,
+    UnitAmount = 4,
+    Hours = 8,
+    PaintHours = 16,
+    Materials = 32,
 }
 
 /// <summary>
@@ -915,19 +966,20 @@ public static class EstimatePolicy
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
 
     /// <summary>
-    /// A document import is not an AI-draft save; it creates one new
-    /// source-backed estimate. The one import that names an existing estimate
-    /// is a Glass's return for the spec that belongs to its estimate.
+    /// A document import is not an AI-draft save; it records a source-backed
+    /// estimate, either a new one or onto the live spec it names (a Glass's
+    /// return for its spec, or a document import onto the selected spec).
     /// </summary>
     public static SaveEstimateRequest ValidateImportedSave(SaveEstimateRequest request)
     {
         CaseLifecycleRules.ValidateMutation(request);
         RequireImportActor(request.Actor);
-        if ((request.EstimateId is not null && request.GlassEstimate is null)
-            || request.AiJobId is not null || request.ExistingLineIds is not null
+        // An import creates a source-backed spec or lands on a live one
+        // (v38 P3): it never carries editor identities or an AI job.
+        if (request.AiJobId is not null || request.ExistingLineIds is not null
             || !RepairSpecificationPolicy.IsDocumentRoute(request.Source.Route))
         {
-            throw new InvalidOperationException("A retained document import creates a new source-backed estimate only.");
+            throw new InvalidOperationException("A retained document import records a source-backed estimate only.");
         }
         return request with
         {

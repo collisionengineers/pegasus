@@ -548,6 +548,26 @@ public static class CaseWorkspaceLabels
         public const string ExplainOnReport = "Explain the change on the report";
         public const string SupplementaryDamage = "Supplementary damage";
         public const string Choose = "Choose\u2026";
+        // v38 (the reference's words, operator, 12 October 2026).
+        public const string CompareWithCurrent = "Compare with current";
+        public const string PrintComparisonSheet = "Print comparison sheet";
+        public const string FullComparison = "full comparison";
+        public const string Dismiss = "Dismiss";
+        public const string LineValue = "Line \u00a3";
+        public const string Custom = "Custom";
+        public const string Typed = "typed";
+        public const string Manual = "Manual";
+        public const string RegionalUpliftTick = "+ 15 % regional uplift";
+        public const string AsEstimated = "as estimated";
+        public const string ScaledFromEstimate = "scaled from estimate";
+        public const string Rescale = "rescale";
+        public const string PerHour = "/h";
+
+        /// <summary>The Supplementary panel's head: the version the spec changes against (v38 P3).</summary>
+        public static string ChangesVsVersion(int number) => $"{ChangesVs.ToLowerInvariant()} v{number}";
+
+        /// <summary>A Compare side's name: the spec's working draft, or one of its frozen versions.</summary>
+        public static string VersionWord(int number) => $"v{number}";
 
         public static string VersionsCount(int count) => $"{Versions} ({count})";
         public static string SpecAboveAgreed(string gross) => $"Spec {gross} above agreed";
