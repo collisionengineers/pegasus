@@ -204,6 +204,21 @@ public sealed partial class DetailsModel
         (IsInspectionView || !AssessmentIsReadOnly) && ReportDraftNotReady ? ReportDraftReasons : [];
 
     /// <summary>
+    /// The Case's open tasks, oldest first, which the Next action lists once
+    /// Report sent is recorded, each linking to the Tasks section (operator,
+    /// 6 October 2026). The page frame reads none before the send.
+    /// </summary>
+    public IReadOnlyList<Pegasus.Core.Tasks.CaseOpenTask> OpenTasks => Case?.OpenTasks ?? [];
+
+    /// <summary>
+    /// Why Archive is greyed, stated on hover, or null when it is live: the
+    /// Case has an open task (operator, 6 October 2026). Core owns the
+    /// sentence the store's refusal also states.
+    /// </summary>
+    public string? OpenTasksCondition =>
+        OpenTasks.Count > 0 ? Pegasus.Core.Tasks.CaseTaskRules.OpenTasksBlockTerminal : null;
+
+    /// <summary>
     /// The Case requirements the Report not ready card lists beside the
     /// blockers: every one outstanding, in whatever state, since the card is
     /// their one home on the Case page (operator, 8 October 2026); an Audit
@@ -258,7 +273,8 @@ public sealed partial class DetailsModel
                 ReportDraftNotReady ? ReportDraftReasons : [],
                 BlockerSectionKey,
                 CurrentReportGeneration,
-                ReportSendHistory.Accepted);
+                ReportSendHistory.Accepted,
+                OpenTasks.Count > 0);
             return next.Blocker is not null && AssessmentIsReadOnly
                 ? new(CaseWorkspaceLabels.Report.NotReady, "report")
                 : next;

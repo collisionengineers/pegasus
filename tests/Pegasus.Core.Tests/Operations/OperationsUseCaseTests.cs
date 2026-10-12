@@ -51,6 +51,16 @@ public sealed class OperationsUseCaseTests
     }
 
     [Fact]
+    public void OpenTasksHaveAPersonSlotAndAreNotWorkToTake()
+    {
+        Assert.Equal("Unassigned", NeedsAttentionPolicy.OwnerText(NeedsAttentionKind.OpenTasks, null));
+        Assert.Equal("Alex", NeedsAttentionPolicy.OwnerText(NeedsAttentionKind.OpenTasks, "Alex"));
+        Assert.False(NeedsAttentionPolicy.CanTake(
+            NeedsAttentionKind.OpenTasks,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator])));
+    }
+
+    [Fact]
     public void NonHumanActorsCannotTakeUnassignedCaseAndTriageWork()
     {
         Assert.False(NeedsAttentionPolicy.CanTake(

@@ -53,6 +53,7 @@ public sealed class IndexModel(
     IGetIntake getIntake,
     IStaffAccountQueries staffAccounts,
     ICaseWorkflowConfiguration workflowConfiguration,
+    Pegasus.Core.Tasks.ICaseTaskQueries caseTasks,
     TimeProvider timeProvider) : UploadConfirmationPageModel(caseDecision)
 {
     private const int PageSize = 25;
@@ -85,6 +86,8 @@ public sealed class IndexModel(
         staffAccounts ?? throw new ArgumentNullException(nameof(staffAccounts));
     private readonly ICaseWorkflowConfiguration _workflowConfiguration =
         workflowConfiguration ?? throw new ArgumentNullException(nameof(workflowConfiguration));
+    private readonly Pegasus.Core.Tasks.ICaseTaskQueries _caseTasks =
+        caseTasks ?? throw new ArgumentNullException(nameof(caseTasks));
     private readonly TimeProvider _timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
@@ -618,6 +621,11 @@ public sealed class IndexModel(
             currentReport = currentTask.Result;
             reportSent = historyTask.Result.Accepted;
         }
+        // Once Report sent is recorded the Case's open tasks are its step, as
+        // the Case page's aside lists them (operator, 6 October 2026).
+        var hasOpenTasks = basis.Workflow.ReportSentEvidence is not null
+            && (await _caseTasks.ListAsync(caseId, cancellationToken))
+                .Any(task => task.State == Pegasus.Core.Tasks.CaseTaskState.Open);
         var next = CaseNextAction.Of(
             basis.Workflow,
             basis.Summary.CaseType,
@@ -626,7 +634,8 @@ public sealed class IndexModel(
             reportBlockers,
             _ => null,
             currentReport,
-            reportSent);
+            reportSent,
+            hasOpenTasks);
 
         var work = new List<(string Label, string Value)>(3) { ("Current work", next.Label) };
 

@@ -35,6 +35,13 @@ internal sealed class DocumentVersionEntity
 
     /// <summary>Whether the Worker read this version as an estimate; null until it has.</summary>
     public bool? IsRecognisedEstimate { get; set; }
+
+    /// <summary>
+    /// The format a recognised estimate was read in; null until it has been
+    /// read or for a version that is not one, empty when a recognised
+    /// version's format could not be determined.
+    /// </summary>
+    public string? RecognisedEstimateProvider { get; set; }
 }
 
 internal sealed class DocumentOccurrenceEntity

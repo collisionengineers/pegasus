@@ -18,6 +18,12 @@ public sealed record CaseTaskRecord(
     long Version,
     long CaseVersion);
 
+/// <summary>
+/// An open task as the Case's Next action lists it once Report sent is recorded: what it
+/// is, and the task it links to in the Tasks section.
+/// </summary>
+public sealed record CaseOpenTask(Guid Id, string Description);
+
 public sealed class CaseTaskVersionConflictException(
     Guid taskId,
     long expectedVersion,
@@ -181,4 +187,14 @@ public interface ICancelCaseTask
     Task<CaseTaskRecord> ExecuteAsync(
         CancelCaseTaskRequest request,
         CancellationToken cancellationToken);
+}
+
+/// <summary>The recorded reasons for tasks that Pegasus creates rather than staff.</summary>
+public static class CaseTaskReasons
+{
+    /// <summary>
+    /// The reason on a task created when Report sent is recorded, from the after-send list
+    /// the delivery froze from the Principal's sending rules.
+    /// </summary>
+    public const string ReportSent = "Report sent: after-send task from the Principal's sending rules";
 }

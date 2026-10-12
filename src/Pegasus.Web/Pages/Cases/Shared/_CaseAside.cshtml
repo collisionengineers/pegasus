@@ -12,6 +12,7 @@
     var next = Model.NextAction;
     var reportBlockers = Model.ReportNotReadyBlockers;
     var requirements = Model.ReportNotReadyRequirements;
+    var openTasks = Model.OpenTasks;
     var engineerValue = Model.EngineerValue;
     var repairCost = Model.RepairCostIncVat;
     const string ReportNotReadyFold = "case.aside.report";
@@ -46,7 +47,8 @@
    position is gone because the ribbon carries it. Next action is one
    step, beside a stale generation's notice; everything else that stands
    between the Case and its report is the Report not ready card's (v35
-   design 8, operator, 8 October 2026). *@
+   design 8, operator, 8 October 2026). Once Report sent is recorded,
+   Next action also lists the Case's open tasks. *@
 <aside class="workspace-aside" aria-label="Case context" data-case-aside>
     @* Views (v29 option 4): once the Case has its Audit, its two views,
        each named by the reference its report carries; the current one
@@ -226,6 +228,11 @@
                         }
                     </div>
                 }
+                else if (nextRow.ListsOpenTasks)
+                {
+                    @* The Case's open tasks are the step once the report is sent
+                       (operator, 6 October 2026): the list below draws them. *@
+                }
                 else if (nextRow.ResolvesQuery)
                 {
                     @* Resolve query (operator, 11 October 2026): a query that came
@@ -283,6 +290,29 @@
                         <a class="@StepButton" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@nextRow.SectionKey" asp-route-view="@Model.ViewRoute" asp-fragment="section-@nextRow.SectionKey" data-section-jump="@nextRow.SectionKey">@SectionLabel(nextRow.SectionKey)</a>
                     </div>
                 }
+            }
+            @if (openTasks.Count > 0)
+            {
+                @* Once Report sent is recorded the Case's open tasks follow
+                   the step (operator, 6 October 2026), and while any is open
+                   Archive is greyed: one row per open task, oldest first, each
+                   a jump to Tasks, which owns them. *@
+                <div class="sub-panel blockers" data-open-tasks>
+                    <h3>@CaseWorkspaceLabels.Tasks.Title</h3>
+                    <ul class="blocker-list">
+                        @foreach (var task in openTasks)
+                        {
+                            <li class="blocker" data-open-task="@task.Id">
+                                <strong>@task.Description</strong>
+                                <div class="blocker-actions">
+                                    <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
+                                       asp-route-section="tasks" asp-route-view="@Model.ViewRoute" asp-fragment="section-tasks"
+                                       data-section-jump="tasks">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == "tasks").Label</a>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                </div>
             }
         </div>
     </section>

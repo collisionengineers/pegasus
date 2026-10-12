@@ -389,7 +389,14 @@ public sealed class EfCaseQueryStore(
             evidence.Result.AvailableReportSentEvidence,
             related.Result.RecordNotes,
             linkedCancellationMessageId,
-            related.Result.LinkedTriage)
+            related.Result.LinkedTriage,
+            // Once Report sent is recorded the Next action lists the open tasks and
+            // they grey Mark completed and Archive (operator, 6 October 2026); a
+            // Case not yet sent reads none. The three chains have ended, so this
+            // context is free again.
+            frame.Workflow.ReportSentEvidence is not null
+                ? await EfCaseTaskStore.ReadOpenAsync(context, caseId, cancellationToken)
+                : [])
         {
             // The Next action's Resolve query route: read only while the
             // workflow says a query is open.
@@ -1381,7 +1388,8 @@ public sealed class EfCaseQueryStore(
         item.IsCurrent,
         item.IsLogicallyRemoved,
         item.RemovalReason,
-        item.IsRecognisedEstimate);
+        item.IsRecognisedEstimate,
+        item.RecognisedEstimateProvider);
 
     /// <summary>
     /// The keyset-paged sibling of <see cref="ListHistoryAsync"/>:

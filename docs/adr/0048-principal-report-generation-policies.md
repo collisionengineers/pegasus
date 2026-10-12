@@ -17,7 +17,8 @@ Accepted. This record supersedes ADR-0038's manual-only EVA API policy.
 
 Partially superseded by ADR-0065 on 7 October 2026: the report-generation
 policy, the automatic intent and the ZIP and API routes are removed. Only the
-Principal report-recipient settings survive.
+Principal report-recipient settings survived, and the Principal's report
+sending rules replace them (operator, 6 October 2026; see Consequences).
 
 ## Context
 
@@ -64,6 +65,11 @@ export, manual API submission, or automatic API submission at Review — which
 together persist one of the four policy values, alongside the recipient
 settings. The recipient settings only suggest a report's recipients: the
 delivery still requires a staff send action.
+
+The recipient settings are superseded by the Principal's report sending rules
+(operator, 6 October 2026): every Principal has rules, and the original sender
+and fixed addresses are set there
+([FRD-04](../frd/frd-04-parties-accounts-and-access.md#contacts-administration)).
 
 ## Links
 
