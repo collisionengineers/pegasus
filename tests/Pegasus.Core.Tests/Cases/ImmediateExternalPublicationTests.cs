@@ -4,6 +4,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 
@@ -199,6 +200,77 @@ public sealed class ImmediateExternalPublicationTests
         Assert.Null(store.LastRequest!.OriginalReport);
     }
 
+    private const string ReportText = """
+        Mr D Roberton                                        Date:  09/03/2026
+        Gravesend                                            Our Ref:  00077570/PK
+
+                       Engineer Repairable Report
+
+             Vehicle Value: £9,267.00      Repair Cost: £6,143.90 inc VAT     Roadworthy: No
+
+        Phil Kendrick AQP CAE AMIMI
+        Connexus Vehicle Assessors
+        """;
+
+    /// <summary>
+    /// The same document is not read twice (operator, 11 October 2026): the
+    /// reading intake recorded of the report seeds the Audit and the report
+    /// is not read again.
+    /// </summary>
+    [Fact]
+    public async Task AStandaloneAuditIsSeededFromTheReadingIntakeRecordedWithoutReadingTheReportAgain()
+    {
+        var harness = new RecordedReadingHarness();
+        harness.Analyses.Record(harness.Analysis(RecordThirdPartyReportReading.OperationKey(harness.Asset)));
+
+        await harness.AcceptAsync();
+
+        Assert.Empty(harness.Reader.Reads);
+        var seeded = harness.Store.LastRequest!.OriginalReport!;
+        Assert.Equal("Connexus Vehicle Assessors", seeded.Assessor);
+        Assert.Equal("2026-03-09", seeded.ReportDate);
+        Assert.Equal("unroadworthy", seeded.Roadworthiness);
+        Assert.Equal("repairable", seeded.Outcome);
+        Assert.Equal(harness.Asset.ContentHash, seeded.Sha256);
+    }
+
+    [Fact]
+    public async Task AScannedReportIsSeededFromItsOcrRecordingWithoutReadingTheReportAgain()
+    {
+        var harness = new RecordedReadingHarness();
+        var ocrOperationId = Guid.NewGuid();
+        harness.Ocr.CompletedOperationId = ocrOperationId;
+        harness.Analyses.Record(harness.Analysis(RecordThirdPartyReportReading.OcrOperationKey(harness.Asset, ocrOperationId)));
+
+        await harness.AcceptAsync();
+
+        Assert.Empty(harness.Reader.Reads);
+        Assert.Equal("Connexus Vehicle Assessors", harness.Store.LastRequest!.OriginalReport!.Assessor);
+    }
+
+    [Fact]
+    public async Task AStandaloneAuditWithNoRecordedReadingReadsTheReportOnce()
+    {
+        var harness = new RecordedReadingHarness();
+
+        await harness.AcceptAsync();
+
+        Assert.Equal((harness.ReceiptId, harness.EvidenceId), Assert.Single(harness.Reader.Reads));
+        Assert.Same(harness.Reader.Reading, harness.Store.LastRequest!.OriginalReport);
+    }
+
+    [Fact]
+    public async Task AReadingRecordedForOtherBytesIsNotUsed()
+    {
+        var harness = new RecordedReadingHarness();
+        harness.Analyses.Record(harness.Analysis(
+            RecordThirdPartyReportReading.OperationKey(harness.Asset), sha256: new string('b', 64)));
+
+        await harness.AcceptAsync();
+
+        Assert.Single(harness.Reader.Reads);
+    }
+
     [Fact]
     public async Task NonAuditWithOriginalReportEvidenceIsRefused()
     {
@@ -276,6 +348,8 @@ public sealed class ImmediateExternalPublicationTests
 
     private sealed class RecordingReader(OriginalReportReading? reading) : IReadOriginalReport
     {
+        public OriginalReportReading? Reading => reading;
+
         public List<(Guid, Guid)> Reads { get; } = [];
 
         public Task<OriginalReportReading?> ForIntakeAsync(
@@ -292,6 +366,120 @@ public sealed class ImmediateExternalPublicationTests
         public Task<OriginalReportRecognition> RecogniseFiledAssetAsync(
             Guid receiptId, IntakeAssetRecord asset, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class RecordedReadingHarness
+    {
+        public Guid ReceiptId { get; } = Guid.NewGuid();
+        public Guid EvidenceId { get; } = Guid.NewGuid();
+        public IntakeAssetRecord Asset { get; } = new(
+            Guid.NewGuid(), "attachment 2: report.pdf", "report.pdf", "application/pdf",
+            IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment,
+            100, new string('a', 64), "report-key", null, null, null, null);
+        public AcceptanceStore Store { get; } = new(Guid.NewGuid());
+        public RecordingReader Reader { get; } = new(
+            new(new string('a', 64), "Read Again", "2026-01-01", "roadworthy", "total_loss", false));
+        public FakeAnalyses Analyses { get; } = new();
+        public FakeOcr Ocr { get; } = new();
+
+        public Task<CaseAcceptanceOutcome> AcceptAsync() =>
+            new AcceptIntake(
+                Store,
+                new ConfigurationStore(),
+                new InspectionModeStore(),
+                new RecordingPublisher(),
+                new RecordingTriagePairing(),
+                originalReport: Reader,
+                recordedReading: new RecordedOriginalReportReading(
+                    new FakeEvidence(ReceiptId, EvidenceId, Asset.Id),
+                    new FakeReceipts(ReceiptId, Asset),
+                    Analyses,
+                    Ocr))
+                .ExecuteAsync(
+                    AcceptanceRequest() with
+                    {
+                        ReceiptId = ReceiptId,
+                        CaseType = CaseType.Audit,
+                        StandaloneAuditEvidenceId = EvidenceId
+                    },
+                    CancellationToken.None);
+
+        /// <summary>What intake records of the report under <paramref name="operationKey"/>.</summary>
+        public RetainedInstructionAnalysis Analysis(string operationKey, string? sha256 = null)
+        {
+            var read = new IntakeSourceReadResult(
+                IntakeSourceReadStatus.Readable,
+                [new(IntakeEvidenceSource.PdfContent, "report.pdf, page 1", ReportText)],
+                [],
+                [],
+                RequiresOcr: false);
+            var extraction = ThirdPartyReportExtraction.Extract(
+                read,
+                new(ReceiptId, Asset.ContentHash, Occurrence: 0, IntakeAssetId: Asset.Id, SourceLabel: "report.pdf"));
+            return new(
+                Guid.NewGuid(),
+                ReceiptId,
+                Asset.Id,
+                sha256 ?? Asset.ContentHash,
+                operationKey,
+                ThirdPartyReportAnalysis.Outcome(extraction.Selection),
+                1,
+                DateTimeOffset.UnixEpoch,
+                ThirdPartyReportAnalysis.ToCandidates(extraction, "pdf", "1"));
+        }
+    }
+
+    private sealed class FakeAnalyses : IRetainedInstructionAnalysisStore
+    {
+        private readonly Dictionary<string, RetainedInstructionAnalysis> recorded = [];
+
+        public void Record(RetainedInstructionAnalysis analysis) => recorded[analysis.OperationKey] = analysis;
+
+        public Task<(RetainedInstructionAnalysis Analysis, bool IsReplay)> RecordAsync(
+            RetainedInstructionAnalysis analysis, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<RetainedInstructionAnalysis?> FindByOperationKeyAsync(
+            string operationKey, CancellationToken cancellationToken) =>
+            Task.FromResult(recorded.GetValueOrDefault(operationKey));
+    }
+
+    private sealed class FakeEvidence(Guid receiptId, Guid evidenceId, Guid assetId) : IStandaloneAuditEvidenceQueries
+    {
+        public Task<StandaloneAuditEvidence?> GetForReceiptAsync(Guid intakeReceiptId, CancellationToken cancellationToken) =>
+            Task.FromResult<StandaloneAuditEvidence?>(intakeReceiptId == receiptId
+                ? new(evidenceId, receiptId, assetId, AuditAssessment.Repairable, Guid.Empty,
+                    DateTimeOffset.UnixEpoch, "The retained original report states Repairable.", 0, false)
+                : null);
+    }
+
+    private sealed class FakeReceipts(Guid receiptId, IntakeAssetRecord asset) : IIntakeReceiptQueries
+    {
+        public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IntakeAssetRecord?> GetAssetAsync(Guid receipt, Guid assetId, CancellationToken cancellationToken) =>
+            Task.FromResult(receipt == receiptId && assetId == asset.Id ? asset : null);
+    }
+
+    /// <summary>Holds at most one completed OCR operation, found by the source hash.</summary>
+    private sealed class FakeOcr : IIntakeOcrOperationStore
+    {
+        public Guid? CompletedOperationId { get; set; }
+
+        public Task<IntakeOcrOperation?> FindCompletedBySourceAsync(string sourceSha256, CancellationToken cancellationToken) =>
+            Task.FromResult<IntakeOcrOperation?>(CompletedOperationId is { } id
+                ? new(id, Guid.NewGuid(), Guid.NewGuid(), sourceSha256, 100, [1], "ocr-k", IntakeOcrState.Completed, 1)
+                : null);
+
+        public Task<IntakeOcrOperation?> FindAsync(Guid operationId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation?> ResumeRequestedRetryAsync(Guid operationId, long expectedVersion, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation> BeginAsync(Guid operationId, IntakeOcrRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation> RecordSubmitAttemptAsync(Guid operationId, long expectedVersion, DateTimeOffset attemptedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation> RecordSubmittedAsync(Guid operationId, long expectedVersion, string providerOperationId, DateTimeOffset submittedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation> CompleteAsync(Guid operationId, long expectedVersion, IntakeOcrResult result, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation> CompleteAnalysisAsync(Guid operationId, long expectedVersion, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation> RecordOutcomeAsync(Guid operationId, long expectedVersion, IntakeOcrState state, IntakeOcrFailure failure, DateTimeOffset? retryAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class RecordingPublisher : ICommittedExternalWorkPublisher

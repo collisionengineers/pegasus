@@ -673,6 +673,7 @@ public static class DependencyInjection
             // Reads a filed original report for the Audit's Original report
             // cells; acceptance takes it where it is composed (v28 P51).
             services.AddScoped<IReadOriginalReport, ReadOriginalReport>();
+            services.AddScoped<RecordedOriginalReportReading>();
             services.AddScoped<MarkAsOriginalReport>();
             // The intake filer recognises the original report among what it
             // filed on an Audit awaiting one, where this surface is composed.

@@ -395,9 +395,13 @@ the page-wide session (v28 P51, ruled 20 September 2026).
 A filed original report fills them (#840). Pegasus reads the report file
 itself, never the e-mail it arrived in:
 
-- when a standalone Audit is accepted, from the report retained at intake;
-  custody then files that report as the Case's Audit report, and the other
-  attachments as instruction documents;
+- when a standalone Audit is accepted, from the reading intake already
+  recorded of the report retained at intake (the same report content), so the
+  same document is not read twice; only when intake recorded no reading is the
+  retained report read, once (operator, 11 October 2026). A scan's reading is
+  its OCR recording when intake made one. Custody then files that report as
+  the Case's Audit report, and the other attachments as instruction
+  documents;
 - when files reach an open Audit that lists **Original report missing** —
   through Add evidence, through Upload and Add to an existing case, or by
   e-mail, matched or linked by staff — and exactly one of them is a report
