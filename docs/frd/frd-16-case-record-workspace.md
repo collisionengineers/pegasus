@@ -145,7 +145,7 @@ Report sent when the Sent item is observed (operator, 11 and 12 October
 2026). Once Report sent is recorded and the Case has an open task, the
 Case's open tasks are the step in place of None ([Tasks](#tasks); operator,
 6 October 2026).
-On a Report sent Case with an open query the step is **Resolve query**,
+On an open Case with an open query the step is **Resolve query**,
 before any report step: when the oldest open query came by e-mail and staff
 mail is available, its control is **Reply**, which opens that message's
 reply composer with Also resolve query ticked; otherwise it is the Actions
@@ -325,10 +325,14 @@ Return to Engineer needs no session. The rules behind each action are in
   2026). It opens the [Tasks](#tasks) dialog; without script its link draws
   the dialog open.
 - **Mark report sent**, in With Engineer. It confirms detected or linked
-  Sent evidence and moves the Case to Report sent. It never records a manual
-  assertion
+  Sent evidence and moves the Case to Report sent, except on an Inspection +
+  Audit Case with no Audit yet, which stays With Engineer with the
+  Inspection's Sent evidence recorded (operator, 13 October 2026). It never
+  records a manual assertion
   ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence)).
-- **Log query**, in Report sent. Its compact dialog takes the channel
+- **Log query**, in Report sent, or With Engineer while the Inspection
+  report's Sent item is recorded and the Audit is still to come (operator,
+  13 October 2026). Its compact dialog takes the channel
   (E-mail, Phone, WhatsApp, Other) and the details, and no reason
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
 - **Resolve query**, while the Case holds an open query. It posts at once,

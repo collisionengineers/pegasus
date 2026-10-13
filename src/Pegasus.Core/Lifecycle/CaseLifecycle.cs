@@ -371,9 +371,13 @@ public sealed class AutoLinkReportEvidence(IAutoLinkReportEvidenceStore store)
                 || result.Link is not { } link
                 || link.CaseId != request.CaseId
                 || link.EvidenceId != request.EvidenceId
-                // The current work's evidence moves the Case to Report sent; the
-                // Inspection's, once the Audit exists, leaves the state alone.
-                || (link.OfCurrentWork && link.State != CaseLifecycleState.ReportSent)
+                // The current work's evidence moves the Case to Report sent, unless
+                // the send does not end the work (an Inspection + Audit Case with no
+                // Audit yet stays With Engineer); the Inspection's, once the Audit
+                // exists, leaves the state alone.
+                || (link.OfCurrentWork && link.State != (link.EndsTheWork
+                    ? CaseLifecycleState.ReportSent
+                    : CaseLifecycleState.ReportPreparation))
                 || !Enum.IsDefined(link.State)
                 || link.Version < 0)
             {
@@ -570,6 +574,53 @@ public static class CaseLifecycleRules
     /// </summary>
     public static bool IsClosed(CaseLifecycleState state) =>
         state == CaseLifecycleState.ReportSent || IsTerminal(state);
+
+    /// <summary>
+    /// Whether a report's Sent item ends the Case's work (operator, 13 October
+    /// 2026): it does unless the Case is Inspection + Audit and has no Audit yet.
+    /// The Inspection report's send then leaves the Case With Engineer, and only
+    /// the Audit report's send, or a closure, takes it off the Cases page.
+    /// </summary>
+    public static bool SendEndsTheWork(CaseType caseType, bool hasAudit) =>
+        caseType != CaseType.InspectionAndAudit || hasAudit;
+
+    /// <summary>
+    /// <see cref="SendEndsTheWork(CaseType, bool)"/> asked of the Case as read:
+    /// an Inspection + Audit Case has its Audit once it carries the Audit
+    /// reference Create audit gives it.
+    /// </summary>
+    public static bool SendEndsTheWork(CaseWorkflowRecord workflow)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        return SendEndsTheWork(workflow.CaseType, workflow.Identity.AuditReference is not null);
+    }
+
+    /// <summary>
+    /// The Case's report is sent, for queries and the AI Query response: Report
+    /// sent, or With Engineer holding the Inspection report's Sent item while
+    /// the Audit is still to come (operator, 13 October 2026: a query stays
+    /// raisable in that window).
+    /// </summary>
+    public static bool ReportIsSent(
+        CaseLifecycleState state,
+        bool hasSentEvidence,
+        CaseType caseType,
+        bool hasAudit) =>
+        state == CaseLifecycleState.ReportSent
+        || (state == CaseLifecycleState.ReportPreparation
+            && hasSentEvidence
+            && !SendEndsTheWork(caseType, hasAudit));
+
+    /// <summary><see cref="ReportIsSent(CaseLifecycleState, bool, CaseType, bool)"/> asked of the Case as read.</summary>
+    public static bool ReportIsSent(CaseWorkflowRecord workflow)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        return ReportIsSent(
+            workflow.State,
+            workflow.ReportSentEvidence is not null,
+            workflow.CaseType,
+            workflow.Identity.AuditReference is not null);
+    }
 
     /// <summary>
     /// The terminal states as the names they are persisted under, for store

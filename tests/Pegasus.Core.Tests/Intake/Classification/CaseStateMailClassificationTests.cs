@@ -1,5 +1,4 @@
 using Pegasus.Core.Intake;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Intake.Classification;
 
@@ -14,7 +13,7 @@ public sealed class CaseStateMailClassificationTests
     [Fact]
     public void MailJoiningACaseWhoseReportIsSentIsAQuery()
     {
-        var derived = CaseStateMailClassification.Derive(Unclassified, CaseLifecycleState.ReportSent);
+        var derived = CaseStateMailClassification.Derive(Unclassified, reportIsSent: true);
 
         Assert.NotNull(derived);
         Assert.Equal(MailClassificationOutcome.Classified, derived.Outcome);
@@ -23,18 +22,10 @@ public sealed class CaseStateMailClassificationTests
         Assert.Same(Unclassified.Predicates, derived.Predicates);
     }
 
-    [Theory]
-    [InlineData(CaseLifecycleState.NotReady)]
-    [InlineData(CaseLifecycleState.Held)]
-    [InlineData(CaseLifecycleState.Review)]
-    [InlineData(CaseLifecycleState.ReportPreparation)]
-    [InlineData(CaseLifecycleState.PrincipalCancelled)]
-    [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
-    [InlineData(CaseLifecycleState.CreatedInError)]
-    [InlineData(CaseLifecycleState.SourceEmailUnlinked)]
-    public void MailJoiningACaseWhoseReportIsNotSentIsACaseUpdate(CaseLifecycleState state)
+    [Fact]
+    public void MailJoiningACaseWhoseReportIsNotSentIsACaseUpdate()
     {
-        var derived = CaseStateMailClassification.Derive(null, state);
+        var derived = CaseStateMailClassification.Derive(null, reportIsSent: false);
 
         Assert.NotNull(derived);
         Assert.Equal(MailClassificationOutcome.Classified, derived.Outcome);
@@ -47,7 +38,7 @@ public sealed class CaseStateMailClassificationTests
     [Fact]
     public void MailJoiningATriageCaseIsACaseUpdate()
     {
-        var derived = CaseStateMailClassification.Derive(Unclassified, null);
+        var derived = CaseStateMailClassification.Derive(Unclassified, reportIsSent: false);
 
         Assert.NotNull(derived);
         Assert.Equal(MailCategory.CaseUpdate, derived.Category);
@@ -64,6 +55,6 @@ public sealed class CaseStateMailClassificationTests
             PrincipalMailClassificationPolicy.Key,
             PrincipalMailClassificationPolicy.Version);
 
-        Assert.Null(CaseStateMailClassification.Derive(classified, CaseLifecycleState.ReportSent));
+        Assert.Null(CaseStateMailClassification.Derive(classified, reportIsSent: true));
     }
 }

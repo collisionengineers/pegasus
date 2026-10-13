@@ -241,8 +241,13 @@ public static class AiJobPolicy
     public static bool IsEligibleEstimateCaseState(CaseLifecycleState state) =>
         state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.ReportSent;
 
-    public static bool IsEligibleQueryResponseCaseState(CaseLifecycleState state) =>
-        state is CaseLifecycleState.ReportSent;
+    /// <summary>
+    /// A Query response needs the Case's report sent: Report sent, or With
+    /// Engineer holding the Inspection report's Sent item while the Audit is
+    /// still to come (operator, 13 October 2026).
+    /// </summary>
+    public static bool IsEligibleQueryResponse(CaseWorkflowRecord workflow) =>
+        Lifecycle.CaseLifecycleRules.ReportIsSent(workflow);
 
     /// <summary>
     /// FRD-27: a Draft ready Query response or queue pass is completed by hand
@@ -357,7 +362,7 @@ public sealed class CreateAiJob(
         CancellationToken cancellationToken)
     {
         var record = await RequireCaseAsync(command, cancellationToken);
-        if (!AiJobPolicy.IsEligibleQueryResponseCaseState(record.State))
+        if (!AiJobPolicy.IsEligibleQueryResponse(record))
         {
             throw new InvalidOperationException(
                 "A query response job needs a case in post-report work.");
