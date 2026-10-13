@@ -480,6 +480,7 @@ span.blocker-name{cursor:default;text-decoration:none}
 #section-estimate .est-scale{flex-wrap:wrap}
 #section-estimate .est-scale .est-scale-row{flex-basis:100%;display:flex;align-items:center;gap:12px;margin-top:4px}
 #section-estimate .est-scale .est-scale-row [data-scale-read]{min-width:0}
+#section-estimate .est-scale .dsc input[data-scale-percent]{width:84px}
 #section-estimate .est-scale .est-scale-row [data-scale-apply]{margin-left:auto}
 #section-estimate .est-scale [data-scale-remove]{white-space:nowrap}
 
