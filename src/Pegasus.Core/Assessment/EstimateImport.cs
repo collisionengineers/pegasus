@@ -234,7 +234,7 @@ public static class EstimateFormats
 /// hash the caller recorded, then re-hashed here; the format is auto-detected
 /// across the registered parsers, and zero or more than one match fails
 /// closed rather than guessing. The parse lands as one new source-labelled
-/// estimate on the one enabled labour-rate card; a staff import is the
+/// estimate on the Standard labour-rate card; a staff import is the
 /// Case's Current repair spec at once, an Automation import stays a Draft
 /// (<see cref="RepairSpecificationPolicy.BecomesCurrentWhenCreated"/>). The
 /// same Case with the same source hash replays to the live estimate that

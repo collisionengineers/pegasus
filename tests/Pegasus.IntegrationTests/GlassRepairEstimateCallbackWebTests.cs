@@ -450,7 +450,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
     /// <summary>
     /// The whole operator journey: Save &amp; Exit lands the calculation as the
-    /// Case's repair spec in use, priced on the one enabled labour-rate card,
+    /// Case's repair spec in use, priced on the Standard labour-rate card,
     /// keeps both of the provider's documents, completes the session, and puts
     /// the operator back on the Estimate section.
     /// </summary>
@@ -458,7 +458,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
     public async Task TheProvidersReturnLandsTheSpecInUseKeepsBothDocumentsAndCompletesTheSession()
     {
         await using var workspace = await Workspace.CreateAsync(role: StaffRoleNames.User);
-        var card = await workspace.AddRateCardAsync("80", 80m);
+        var card = await workspace.SetStandardRateAsync(80m);
         await workspace.ClaimLeaseAsync();
         var launchVersion = await workspace.CaseVersionAsync();
         var correlation = await workspace.LaunchAndReadCorrelationAsync();
@@ -494,7 +494,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
     public async Task GlassOnTheReturnedSpecReopensItsEstimateAndTheNextReturnUpdatesThatSpec()
     {
         await using var workspace = await Workspace.CreateAsync(role: StaffRoleNames.User);
-        await workspace.AddRateCardAsync("80", 80m);
+        await workspace.SetStandardRateAsync(80m);
         await workspace.ClaimLeaseAsync();
         using (var first = await workspace.ReturnAsync(await workspace.LaunchAndReadCorrelationAsync()))
         {
@@ -543,7 +543,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
     public async Task AnUnreadableExportOffersAFetchAgainThatLandsTheSameEstimate()
     {
         await using var workspace = await Workspace.CreateAsync(role: StaffRoleNames.User);
-        await workspace.AddRateCardAsync("80", 80m);
+        await workspace.SetStandardRateAsync(80m);
         await workspace.ClaimLeaseAsync();
         var correlation = await workspace.LaunchAndReadCorrelationAsync();
         workspace.Mva.Set("GET /ndp_download/", new(
@@ -812,7 +812,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
     public async Task AReturnWhoseLaunchLeaseEndedTakesAFreshLeaseAndLandsTheSpecInUse()
     {
         await using var workspace = await Workspace.CreateAsync();
-        var card = await workspace.AddRateCardAsync("80", 80m);
+        var card = await workspace.SetStandardRateAsync(80m);
         await workspace.ClaimLeaseAsync();
         var correlation = await workspace.LaunchAndReadCorrelationAsync();
         await workspace.FinishEditingAsync();
@@ -1518,17 +1518,17 @@ public sealed class GlassRepairEstimateCallbackWebTests
             return sessions;
         }
 
-        /// <summary>An enabled labour-rate card, as an Administrator records it.</summary>
-        public async Task<LabourRateCard> AddRateCardAsync(string name, decimal hourlyRate)
+        /// <summary>The Standard labour-rate card at a rate, as an Administrator sets it.</summary>
+        public async Task<LabourRateCard> SetStandardRateAsync(decimal hourlyRate)
         {
             await using var scope = factory.Services.CreateAsyncScope();
-            return await scope.ServiceProvider
-                .GetRequiredService<ILabourRateCardStore>()
-                .SaveAsync(
-                    new(Guid.NewGuid(), name, hourlyRate, true, 0,
-                        ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
-                        "Create rate", $"rate-card-{Guid.NewGuid():N}"),
-                    CancellationToken.None);
+            var store = scope.ServiceProvider.GetRequiredService<ILabourRateCardStore>();
+            var standard = LabourRateCardAdministration.ForNewSpecification(await store.ListAsync(CancellationToken.None))!;
+            return await store.SaveAsync(
+                new(standard.Id, hourlyRate, standard.Version,
+                    ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+                    "Set rate", $"rate-card-{Guid.NewGuid():N}"),
+                CancellationToken.None);
         }
 
         public async Task<IReadOnlyList<RepairSpecificationVersion>> EstimatesAsync()

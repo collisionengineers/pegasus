@@ -905,7 +905,7 @@ or reading; In report is pressed on the tile or in the viewer (operator,
 The Repair Spec section (v28 P31: the word "Estimate" stays for an imported
 repairer's document) carries the repair specification set (`EXT-09`): named
 specs with source, the one labour rate — the rate bar under the grid (v38 P5,
-12 October 2026): a segment per enabled rate card and Custom · typed, the
+12 October 2026): Standard, Prestige/Aluminium and Custom · typed, the
 "+ 15 % regional uplift" tick (P17, suggested when the repairer, claimant or
 storage postcode is in London or the Home Counties) and the figure the spec
 prices at — VAT categories, lines with a Material amount each (P48; the
@@ -944,7 +944,7 @@ offered while a preview is shown, and the floors, the readout, Remove scaling
 and Apply stand under the slider, which keeps one length while previewing
 (v38 P6; operator, 13 October 2026). Apply and Remove scaling wait for a change not yet sent to land and
 then scale the saved spec. The More menu holds New repair spec (editing,
-recorded by the next save and starting on the one enabled labour-rate card),
+recorded by the next save and starting on the Standard labour-rate card),
 **Print Repair Spec** for a saved spec with lines, Versions, and Compare,
 offered once the Case holds two specs or the spec a frozen version (P9; v38
 P2).
@@ -1029,7 +1029,7 @@ import that stored file instead of storing another copy.
 
 After the source is confirmed in Case Files, its registered provider parser
 runs immediately. A successful import records the new named spec as the
-Current one, on the one enabled labour-rate card, and displays its lines in
+Current one, on the Standard labour-rate card, and displays its lines in
 the editor. A parser refusal creates no partial spec;
 the confirmed original remains in Case Files so the same source can be retried.
 Only registered parser types are accepted. An ambiguous file is refused, not

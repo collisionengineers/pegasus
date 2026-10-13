@@ -436,17 +436,13 @@ public sealed class EstimateTests
     }
 
     [Fact]
-    public void ANewSpecificationStartsOnTheOneEnabledRateCard()
+    public void ANewSpecificationStartsOnTheStandardRateCard()
     {
-        var enabled = new LabourRateCard(Guid.NewGuid(), "80", 80m, true, 3);
-        var disabled = new LabourRateCard(Guid.NewGuid(), "Old", 60m, false, 1);
-        var another = new LabourRateCard(Guid.NewGuid(), "London", 95m, true, 1);
+        var standard = new LabourRateCard(Guid.NewGuid(), LabourRateCardAdministration.Standard, 80m, 3);
+        var prestige = new LabourRateCard(Guid.NewGuid(), LabourRateCardAdministration.PrestigeAluminium, 95m, 1);
 
-        Assert.Same(enabled, LabourRateCardAdministration.ForNewSpecification([disabled, enabled]));
+        Assert.Same(standard, LabourRateCardAdministration.ForNewSpecification([prestige, standard]));
         Assert.Null(LabourRateCardAdministration.ForNewSpecification([]));
-        Assert.Null(LabourRateCardAdministration.ForNewSpecification([disabled]));
-        // Several enabled cards leave the choice to the staff member.
-        Assert.Null(LabourRateCardAdministration.ForNewSpecification([enabled, another]));
     }
 
     [Theory]
@@ -1081,9 +1077,9 @@ public sealed class EstimateTests
     }
 
     [Fact]
-    public async Task AnImportStartsOnTheOneEnabledRateCardAndNeverOnTheDocumentsRate()
+    public async Task AnImportStartsOnTheStandardRateCardAndNeverOnTheDocumentsRate()
     {
-        var card = new LabourRateCard(Guid.NewGuid(), "80", 80m, true, 4);
+        var card = new LabourRateCard(Guid.NewGuid(), LabourRateCardAdministration.Standard, 80m, 4);
         var save = new FakeSpecificationStore();
         var import = new ImportRawEstimate(
             [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
@@ -1091,7 +1087,7 @@ public sealed class EstimateTests
             new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
             new StubList(),
             save,
-            new StubRateCards(card, new LabourRateCard(Guid.NewGuid(), "Retired", 55m, false, 2)));
+            new StubRateCards(new LabourRateCard(Guid.NewGuid(), LabourRateCardAdministration.PrestigeAluminium, 95m, 2), card));
 
         await import.ExecuteAsync(ImportRequest(), CancellationToken.None);
 
@@ -1100,28 +1096,6 @@ public sealed class EstimateTests
         Assert.Equal(card.Version, saved.SelectedRateCardVersion);
         // The store resolves the card's rate inside its transaction; the
         // request never carries a rate the document printed.
-        Assert.Null(saved.Details.LabourRate);
-    }
-
-    [Fact]
-    public async Task AnImportWithNoSingleEnabledCardLeavesTheRateForTheStaffMember()
-    {
-        var save = new FakeSpecificationStore();
-        var import = new ImportRawEstimate(
-            [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
-            Retained,
-            new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
-            new StubList(),
-            save,
-            new StubRateCards(
-                new LabourRateCard(Guid.NewGuid(), "80", 80m, true, 1),
-                new LabourRateCard(Guid.NewGuid(), "London", 95m, true, 1)));
-
-        await import.ExecuteAsync(ImportRequest(), CancellationToken.None);
-
-        var saved = Assert.Single(save.Saved);
-        Assert.Null(saved.SelectedRateCardId);
-        Assert.Null(saved.SelectedRateCardVersion);
         Assert.Null(saved.Details.LabourRate);
     }
 
