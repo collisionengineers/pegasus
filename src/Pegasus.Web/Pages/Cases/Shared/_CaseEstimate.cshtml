@@ -372,8 +372,10 @@
                    first and scales the saved spec, and Core writes the
                    authoritative result; Remove scaling drops a preview, or
                    returns an applied scaling to the version frozen before.
-                   The floors stand under the slider. A tool, so it is drawn
-                   only while the spec edits. *@
+                   The floors, the readout, Remove scaling and Apply stand
+                   under the slider, so it keeps one length while previewing
+                   (operator, 13 October 2026). A tool, so it is drawn only
+                   while the spec edits. *@
                 <div class="bar est-scale" data-estimate-scale
                      data-scale-preview-url="@(engineerValue is null ? null : Url.Page("/Cases/Details", "PreviewEstimateScale", new { id = caseId }))"
                      data-scale-engineer-value="@targetBase">
@@ -389,13 +391,7 @@
                     else
                     {
                         <input type="range" min="@floorPercentText" max="@specPercentText" step="0.1" value="@suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-range />
-                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Removing" class="btn btn--small" form="remove-scaling-form" data-scale-remove hidden="@(scaled ? null : "hidden")">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                            <span>@EstimateLabels.RemoveScaling</span>
-                        </button>
                         <span class="dsc"><input type="number" name="targetPercent" form="case-estimate-scale-form" min="@floorPercentText" max="@specPercentText" step="0.1" value="@suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)" inputmode="decimal" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-percent /><label>%</label></span>
-                        <span class="mono" data-scale-read data-scale-idle="@scaleIdle" aria-live="polite">@scaleIdle</span>
-                        <span class="status status--navy status--plain" data-scale-preview hidden>@EstimateLabels.ScalePreview</span>
                     }
                     <div class="est-scale-row">
                         <span class="est-floors">@EstimateLabels.Floors
@@ -412,6 +408,12 @@
                         }
                         @if (engineerValue is not null)
                         {
+                            <span class="mono" data-scale-read data-scale-idle="@scaleIdle" aria-live="polite">@scaleIdle</span>
+                            <span class="status status--navy status--plain" data-scale-preview hidden>@EstimateLabels.ScalePreview</span>
+                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Removing" class="btn btn--small" form="remove-scaling-form" data-scale-remove hidden="@(scaled ? null : "hidden")">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                                <span>@EstimateLabels.RemoveScaling</span>
+                            </button>
                             <button type="submit" data-busy-label="@OperatorLabels.Busy.Applying" class="btn btn--small btn--primary" form="case-estimate-scale-form" data-scale-apply hidden><span>@EstimateLabels.Apply</span></button>
                         }
                     </div>
