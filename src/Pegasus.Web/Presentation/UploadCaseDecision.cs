@@ -586,9 +586,9 @@ public sealed class UploadCaseDecision(
             return new(false, "Nothing from this submission could be added to that case.");
         }
 
-        // Each member's link (LinkIntake) commits the association and hands
-        // filing and the group-owned Unidentified settlement to the Worker's
-        // replay of that member's work.
+        // Each member's link (LinkIntake) commits the association, settles the
+        // group-owned Unidentified item once every member is linked, and hands
+        // filing to the Worker's replay of that member's work.
         var message = OperatorLabels.AssociatedWithCase(
             destination?.Reference ?? firstReceipt.CurrentCaseReference,
             byStaffDecision: true);
