@@ -2009,6 +2009,7 @@ public static class OperatorLabels
             Pegasus.Core.Reports.ReportSendingConditionKind.SenderNot => "Sender is not",
             Pegasus.Core.Reports.ReportSendingConditionKind.Outcome => "Outcome",
             Pegasus.Core.Reports.ReportSendingConditionKind.BodyshopMentions => "Bodyshop mentions",
+            Pegasus.Core.Reports.ReportSendingConditionKind.CaseType => "Case type",
             _ => kind.ToString()
         };
 

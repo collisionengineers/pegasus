@@ -1,4 +1,5 @@
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 
@@ -436,6 +437,23 @@ public sealed class ReportDispatchPolicyTests
         Assert.True(ReportDispatchPolicy.Evaluate(0, rule, Facts(rules) with { Outcome = "cash_in_lieu" }, []));
         Assert.False(ReportDispatchPolicy.Evaluate(0, rule, Facts(rules) with { Outcome = "repairable" }, []));
         Assert.Null(ReportDispatchPolicy.Evaluate(0, rule, Facts(rules), []));
+    }
+
+    /// <summary>A Case type rule reads the Case's type: it holds for a named type and not for another.</summary>
+    [Fact]
+    public void ACaseTypeRuleReadsTheCasesType()
+    {
+        var rule = Rule(ReportSendingRuleMatch.All, new(["x@rule.example"], []),
+            new ReportSendingCondition(ReportSendingConditionKind.CaseType, ["Audit", "InspectionAndAudit"]));
+        var rules = Rules() with { Rules = [rule] };
+
+        Assert.True(ReportDispatchPolicy.Evaluate(0, rule, Facts(rules) with { CaseType = CaseType.Audit }, []));
+        Assert.True(ReportDispatchPolicy.Evaluate(0, rule, Facts(rules) with { CaseType = CaseType.InspectionAndAudit }, []));
+        Assert.False(ReportDispatchPolicy.Evaluate(0, rule, Facts(rules) with { CaseType = CaseType.Inspection }, []));
+        Assert.Null(ReportDispatchPolicy.Evaluate(0, rule, Facts(rules), []));
+
+        var plan = ReportDispatchPolicy.Plan(Facts(rules), [], Now);
+        Assert.Equal("Is the Case type Audit or Inspection and audit?", Assert.Single(plan.Undecided).Question);
     }
 
     [Fact]

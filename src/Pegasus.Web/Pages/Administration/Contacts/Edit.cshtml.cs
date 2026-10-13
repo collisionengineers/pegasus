@@ -539,6 +539,7 @@ public sealed class EditModel(
                     ReportSendingConditionKind.ClaimSource => Many($"{field}ClaimSource"),
                     ReportSendingConditionKind.Repairer => Many($"{field}Repairer"),
                     ReportSendingConditionKind.Outcome => Many($"{field}Outcome"),
+                    ReportSendingConditionKind.CaseType => Many($"{field}CaseType"),
                     ReportSendingConditionKind.SenderNot => Split(Text($"{field}Text"), addressSeparators),
                     _ => Split(Text($"{field}Text"), textSeparators)
                 };
@@ -624,6 +625,7 @@ public sealed class EditModel(
             ReportSendingRulesRule.TextRequired => $"{where}: the text is required.",
             ReportSendingRulesRule.UnknownContact => $"{where}: choose a contact from the list.",
             ReportSendingRulesRule.UnknownOutcome => $"{where}: choose an outcome from the list.",
+            ReportSendingRulesRule.UnknownCaseType => $"{where}: choose a case type from the list.",
             ReportSendingRulesRule.EmptyRule => $"{where}: add at least one condition.",
             ReportSendingRulesRule.EmptyCondition => $"{where}: a condition needs a value.",
             ReportSendingRulesRule.EmptyActions => $"{where}: add at least one action.",

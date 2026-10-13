@@ -304,6 +304,9 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Equal(1, Regex.Count(html, "name=\"RuleIndex\""));
         Assert.Contains(">Car 2 Go</option>", html, StringComparison.Ordinal);
         Assert.Contains("<option value=\"BodyshopMentions\">Bodyshop mentions</option>", html, StringComparison.Ordinal);
+        // Case type is the last condition, a choice of the types that send a report (13 October 2026).
+        Assert.Matches(@"<option value=""BodyshopMentions"">Bodyshop mentions</option>\s*<option value=""CaseType"">Case type</option>\s*</select>", html);
+        Assert.Matches(@"<option value=""Inspection"">Inspection</option>\s*<option value=""Audit"">Audit</option>\s*<option value=""InspectionAndAudit"">Inspection and audit</option>", html);
         Assert.Contains("Send is refused; staff may override with a reason.", html, StringComparison.Ordinal);
         // The texts have no length limit.
         var sendingStart = html.IndexOf("data-report-sending-editor", StringComparison.Ordinal);

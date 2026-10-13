@@ -175,7 +175,8 @@ The Principal section of a Contact carries:
   - Rules add Cc or remove Cc, remind, hold or stop when their conditions
     hold. A rule matches All or Any of its conditions. A condition reads the
     Case's Claim Source or Repairer (a Contact of that type), the recorded
-    outcome, who sent the instruction, or words: "Instruction mentions" is
+    outcome, the Case type (Inspection, Audit or Inspection and audit;
+    operator, 13 October 2026), who sent the instruction, or words: "Instruction mentions" is
     searched for in the instruction e-mail and asked only when the Case
     holds no instruction text. Several values in one condition are
     alternatives. "Images from" and "Bodyshop mentions" have no Case fact. A

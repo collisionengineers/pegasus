@@ -2,6 +2,7 @@ using System.Net.Mail;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 
 namespace Pegasus.Core.Reports;
 
@@ -16,6 +17,8 @@ namespace Pegasus.Core.Reports;
 /// asked only when the Case holds no instruction text. <see cref="ImagesFrom"/>
 /// and <see cref="BodyshopMentions"/> have no Case fact of their own, so they
 /// stay undecided until staff answer them on the delivery form.
+/// <see cref="CaseType"/> compares the Case's type (<see cref="Cases.CaseType"/>:
+/// Inspection, Audit or InspectionAndAudit; operator, 13 October 2026).
 /// </remarks>
 public enum ReportSendingConditionKind
 {
@@ -25,7 +28,8 @@ public enum ReportSendingConditionKind
     Mentions,
     SenderNot,
     Outcome,
-    BodyshopMentions
+    BodyshopMentions,
+    CaseType
 }
 
 public enum ReportSendingRuleMatch
@@ -99,6 +103,7 @@ public enum ReportSendingRulesRule
     TextRequired,
     UnknownContact,
     UnknownOutcome,
+    UnknownCaseType,
     EmptyRule,
     EmptyCondition,
     EmptyActions,
@@ -270,6 +275,11 @@ public sealed record PrincipalReportSendingRules(
                     ? value
                     : throw new ReportSendingRulesException(ReportSendingRulesRule.UnknownOutcome, field, index))
                     .Distinct(StringComparer.Ordinal).ToArray(),
+            ReportSendingConditionKind.CaseType =>
+                values.Select(value => CaseTypeValues.Contains(value, StringComparer.Ordinal)
+                    ? value
+                    : throw new ReportSendingRulesException(ReportSendingRulesRule.UnknownCaseType, field, index))
+                    .Distinct(StringComparer.Ordinal).ToArray(),
             ReportSendingConditionKind.SenderNot => AddressList(values, field, index),
             _ => values.Select(value => RequiredText(value, field, index)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
         };
@@ -278,6 +288,10 @@ public sealed record PrincipalReportSendingRules(
 
     private static IReadOnlyList<string> OutcomeCodes =>
         AssessmentVocabulary.Definitions[AssessmentVocabulary.Outcome].Codes!;
+
+    /// <summary>The Case types a rule can name: every type that sends a report, so not Triage.</summary>
+    public static IReadOnlyList<string> CaseTypeValues { get; } =
+        [.. Enum.GetValues<CaseType>().Where(type => type != Cases.CaseType.Triage).Select(type => type.ToString())];
 
     private static string Address(string value, string field, int? ruleIndex = null)
     {
