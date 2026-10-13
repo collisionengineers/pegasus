@@ -846,10 +846,12 @@ loads when the dialog opens, and it acts through its own posts; each returns
 to the record with the dialog open (`?dialog=tasks`), which is also how its
 link opens it without script.
 
-In the edit session an open task offers **Complete**, **Cancel task** and
-**Assign**, a choice of the enabled named staff, and the head of the list has
-an **Add task** field. Each posts under the session's lease with one fixed
-recorded reason, so there is no reason box, and the session carries on. A
+An open task offers **Complete**, **Cancel task** and **Assign**, a choice of
+the enabled named staff, and the head of the list has an **Add task** field,
+in and out of an edit session (operator, 13 October 2026). In a session each
+posts under the session's lease and the session carries on; outside one each
+claims the Case's lease for that one command, as the other Actions-menu
+dialogs do. Each records one fixed reason, so there is no reason box. A
 Held or closed Case, and a Case a colleague is editing, show the list
 without these. There is no due date yet.
 
