@@ -430,7 +430,7 @@ public sealed partial class TriageCaseWebTests
                 caseLease.Version,
                 caseLease.Token,
                 actor,
-                "classify-cancelled-case",
+                "classify-cancelled-case-link",
                 "Staff confirmed this message belongs with the Case."),
             CancellationToken.None);
 
