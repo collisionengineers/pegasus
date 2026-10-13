@@ -9,7 +9,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// Contacts seeded from the SOP evidence (operator, 13 October 2026). The Claim
 /// sources Report Sending SOP v5 names that Pegasus did not have; the Principals
 /// the job sheet's Principals sheet lists that Pegasus did not have, with the
-/// default report sending rules; and each Principal's job-sheet rows (Inbox,
+/// default report sending rules and the address and postcode the contacts file
+/// (reference/workproviders-and-repairers/contacts/contactseva_combined.csv)
+/// holds for them; and each Principal's job-sheet rows (Inbox,
 /// Solicitors Instructions, Images location, Image based or address, Sending
 /// Report) plus the v5 notes and received-via the sheet lacks, appended to its
 /// Notes on every Case. The seed is guarded: it adds no contact whose code or
@@ -39,33 +41,34 @@ public partial class ContactSopSeed : Migration
             WHERE NOT EXISTS (SELECT 1 FROM dbo.Organizations o WHERE o.NormalizedName = UPPER(LTRIM(RTRIM(s.Name))) AND o.Role = N'claim_source');
 
             -- Principals the job sheet lists that Pegasus does not have yet. Same rows a new Principal Contact saves.
-            DECLARE @new TABLE (Code nvarchar(20), Slot char(2), Name nvarchar(300));
-            INSERT @new (Code, Slot, Name) VALUES
-                (N'ABRAHAMS', '21', N'Abrahams Solicitors'),
-                (N'ASLS', '22', N'Affinity Seven Law Solicitors'),
-                (N'ALL', '23', N'Alliance & Cooper'),
-                (N'AS', '24', N'Aman Solicitors Advocates'),
-                (N'AVI', '25', N'Avisons Solicitors'),
-                (N'BAKER', '26', N'Baker Hardman'),
-                (N'CASTLE', '27', N'Castle'),
-                (N'CW', '28', N'Countrywide'),
-                (N'GG', '29', N'Graham Coffey'),
-                (N'LEX', '2a', N'LEX Solicitors'),
-                (N'LPS', '2b', N'LPS Solicitors'),
-                (N'MATT', '2c', N'Matt Rowland Solicitors'),
-                (N'MBH', '2d', N'MBH Solicitors'),
-                (N'RL', '2e', N'Regent Law Ltd'),
-                (N'RELAY', '2f', N'Relay Motor Group'),
-                (N'ROZZII', '30', N'ROZZII/Green Destinations'),
-                (N'STALLION', '31', N'Stallion'),
-                (N'TA', '32', N'Turnams'),
-                (N'WIL', '33', N'Williams & Co'),
-                (N'ZEN', '34', N'Zenith Lawyers');
+            -- Address and Postcode are the contactseva_combined.csv row for the code (ZEN: the ZENITH row, matched by name), as written.
+            DECLARE @new TABLE (Code nvarchar(20), Slot char(2), Name nvarchar(300), Address nvarchar(1000), Postcode nvarchar(20));
+            INSERT @new (Code, Slot, Name, Address, Postcode) VALUES
+                (N'ABRAHAMS', '21', N'Abrahams Solicitors', N'Suite 4 Grove Business Centre' + @crlf + N'Great Horton Road' + @crlf + N'Bradforf', N'BD7 1AH'),
+                (N'ASLS', '22', N'Affinity Seven Law Solicitors', N'C/o Affinity Seven Law' + @crlf + N'140 Drake Street' + @crlf + N'Rochdale', N'OL16 1PS'),
+                (N'ALL', '23', N'Alliance & Cooper', N'C/O Alliance & Cooper Solicitors' + @crlf + N'474 Cheetham Hill Road' + @crlf + N'Manchester', N'M8 9JW'),
+                (N'AS', '24', N'Aman Solicitors Advocates', N'C/o Aman Solicitors' + @crlf + N'37 Alum Rock Road' + @crlf + N'Birmingham', N'B8 1LR'),
+                (N'AVI', '25', N'Avisons Solicitors', N'C/o Avisons Solicitors' + @crlf + N'Fountain House' + @crlf + N'4 South Parade', N'LS1 5QX'),
+                (N'BAKER', '26', N'Baker Hardman', N'C/O Baker Hardman Solicitors' + @crlf + N'1A Fairways Office Park' + @crlf + N'Pittman Way', N'PR2 9LF'),
+                (N'CASTLE', '27', N'Castle', N'C/o Castle Accident Management' + @crlf + N'363 Commercial Road' + @crlf + N'London', N'E12PS'),
+                (N'CW', '28', N'Countrywide', N'C/O Countrywide Vehicle Rentals Ltd' + @crlf + N'11 Dickson Street' + @crlf + N'Liverpool', N'L3 7EB'),
+                (N'GG', '29', N'Graham Coffey', N'C/o Graham Coffey & Co' + @crlf + N'1st Floor, Faulkner House' + @crlf + N'Faulkner Street', N'M1 4DY'),
+                (N'LEX', '2a', N'LEX Solicitors', N'C/O Lex Solicitors' + @crlf + N'6 St Mark''s Street' + @crlf + N'Bolton', N'BL3 6NR'),
+                (N'LPS', '2b', N'LPS Solicitors', N'C/O LPS Solicitors' + @crlf + N'Alpha House' + @crlf + N'2 Coop Place', N'BD5 8JX'),
+                (N'MATT', '2c', N'Matt Rowland Solicitors', N'C/O Matt Rowland Solicitors' + @crlf + N'Spa Road' + @crlf + N'Bolton', N'BL1 4AG'),
+                (N'MBH', '2d', N'MBH Solicitors', N'C/o MBH Solicitors' + @crlf + N'26 Bridgeman Terrace' + @crlf + N'Wigan', N'WN11TD'),
+                (N'RL', '2e', N'Regent Law Ltd', N'C/o Regent Law' + @crlf + N'Suite 19, Freckleton Business Centre' + @crlf + N'Freckleton Street', N'BB2 2AL'),
+                (N'RELAY', '2f', N'Relay Motor Group', N'C/O Relay Motor Group' + @crlf + N'47 Chippenham Road' + @crlf + N'London W9 2AH', NULL),
+                (N'ROZZII', '30', N'ROZZII/Green Destinations', N'C/o ROZZII Ltd' + @crlf + N'386 Park Road' + @crlf + N'Birmingham', N'B185ST'),
+                (N'STALLION', '31', N'Stallion', N'Ace Claims & Bodyworks Ltd', NULL),
+                (N'TA', '32', N'Turnams', N'C/o Turnamms Assessors' + @crlf + N'34 Claredon Road' + @crlf + N'Watford', N'WD17 1JA'),
+                (N'WIL', '33', N'Williams & Co', N'C/o Williams & Co' + @crlf + N'Scott House, 115-117 Bolton Road' + @crlf + N'Wigan', N'WN4 8AD'),
+                (N'ZEN', '34', N'Zenith Lawyers', N'C/O Zenith Lawyers' + @crlf + N'2 Strawberry Bank' + @crlf + N'Blackburn', N'BB2 6AA');
             DELETE n FROM @new n
             WHERE EXISTS (SELECT 1 FROM dbo.Principals p WHERE p.Code = n.Code)
                OR EXISTS (SELECT 1 FROM dbo.Organizations o WHERE o.NormalizedName = UPPER(LTRIM(RTRIM(n.Name))) AND o.Role = N'principal');
-            INSERT dbo.Organizations (Id, Name, Role, Active, Version)
-            SELECT CAST('00000000-0000-4000-8000-00000000d0' + n.Slot AS uniqueidentifier), n.Name, N'principal', 1, 0 FROM @new n;
+            INSERT dbo.Organizations (Id, Name, Address, Postcode, Role, Active, Version)
+            SELECT CAST('00000000-0000-4000-8000-00000000d0' + n.Slot AS uniqueidentifier), n.Name, n.Address, n.Postcode, N'principal', 1, 0 FROM @new n;
             INSERT dbo.PrincipalSequenceLineages (Id, CreatedAtUtc)
             SELECT CAST('00000000-0000-4000-8000-00000000e0' + n.Slot AS uniqueidentifier), @seededAt FROM @new n;
             INSERT dbo.Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, InspectionMode, Version)
