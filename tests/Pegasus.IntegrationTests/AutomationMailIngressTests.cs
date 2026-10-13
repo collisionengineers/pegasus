@@ -444,6 +444,140 @@ public sealed class AutomationMailIngressTests
     }
 
     /// <summary>
+    /// Link to case is the staff act on a message (FRD-20): the Automation
+    /// Actor reads the destinations the dialog offers and links through the
+    /// same Core command, under a lease held for that one command.
+    /// </summary>
+    [Fact]
+    public async Task TheActorLinksAMessageToACaseThroughTheStaffCommand()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var ids = await SeedRetainedAsync(mcpFactory, count: 2);
+        await SeedClassificationAsync(mcpFactory, $"{MailboxId}-1");
+        await SeedClassificationAsync(mcpFactory, $"{MailboxId}-0", sourceHash: 'F');
+        var receiptId = await ReceiptIdAsync(mcpFactory, $"{MailboxId}-1");
+        var caseId = await ImageIntakeTestData.SeedCaseAsync(
+            mcpFactory.Services,
+            await ReceiptIdAsync(mcpFactory, $"{MailboxId}-0"),
+            "MAIL41001",
+            nameof(Pegasus.Core.Workflow.CaseLifecycleState.Review));
+        using var client = mcpFactory.CreateClient();
+
+        var casesOnlyToken = await RequestTokenAsync(client, "automation.cases");
+        using (var denied = await PostMcpAsync(
+            client,
+            casesOnlyToken,
+            ToolCallPayload(30, "pegasus_mail_link_destinations", new { messageId = ids[0] })))
+        {
+            using var document = await ReadJsonRpcAsync(denied);
+            Assert.Contains("automation.mail", document.RootElement.ToString(), StringComparison.Ordinal);
+        }
+
+        var token = await RequestTokenAsync(client, AllScopes);
+        long intakeVersion;
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(31, "pegasus_mail_get", new { messageId = ids[0] })))
+        {
+            var structured = await ReadStructuredContentAsync(response);
+            intakeVersion = structured.GetProperty("intakeVersion").GetInt64();
+            Assert.True(structured.GetProperty("canLinkCase").GetBoolean());
+        }
+
+        long caseVersion;
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(32, "pegasus_mail_link_destinations", new { messageId = ids[0], query = "MAIL41001" })))
+        {
+            var structured = await ReadStructuredContentAsync(response);
+            Assert.Equal(intakeVersion, structured.GetProperty("intakeVersion").GetInt64());
+            var destination = Assert.Single(structured.GetProperty("items").EnumerateArray());
+            Assert.Equal(caseId, destination.GetProperty("caseId").GetGuid());
+            Assert.False(destination.GetProperty("isTriageCase").GetBoolean());
+            caseVersion = destination.GetProperty("version").GetInt64();
+        }
+
+        // A stale intake version is refused with the reload guidance, and
+        // nothing is linked.
+        using (var stale = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(33, "pegasus_mail_link_case", new
+            {
+                messageId = ids[0],
+                caseId,
+                expectedIntakeVersion = intakeVersion + 1,
+                expectedCaseVersion = caseVersion,
+                reason = "The message names this Case.",
+                operationKey = "mcp:mail-link-stale"
+            })))
+        {
+            using var document = await ReadJsonRpcAsync(stale);
+            Assert.True(document.RootElement.GetProperty("result").GetProperty("isError").GetBoolean());
+            Assert.Contains("reload it with pegasus_mail_get", document.RootElement.ToString(), StringComparison.Ordinal);
+        }
+        await AssertLinkedAsync(mcpFactory, receiptId, expectedCaseId: null, expectedHistoryCount: 0);
+
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(34, "pegasus_mail_link_case", new
+            {
+                messageId = ids[0],
+                caseId,
+                expectedIntakeVersion = intakeVersion,
+                expectedCaseVersion = caseVersion,
+                reason = "The message names this Case.",
+                operationKey = "mcp:mail-link-1"
+            })))
+        {
+            var structured = await ReadStructuredContentAsync(response);
+            Assert.Equal(caseId, structured.GetProperty("summary").GetProperty("caseId").GetGuid());
+            Assert.False(structured.GetProperty("canLinkCase").GetBoolean());
+        }
+        await AssertLinkedAsync(mcpFactory, receiptId, caseId, expectedHistoryCount: 1);
+
+        // A linked message is no longer a destination's source; a second link
+        // is refused and changes nothing.
+        using (var again = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(35, "pegasus_mail_link_case", new
+            {
+                messageId = ids[0],
+                caseId,
+                expectedIntakeVersion = intakeVersion + 1,
+                expectedCaseVersion = caseVersion,
+                reason = "Linking again.",
+                operationKey = "mcp:mail-link-2"
+            })))
+        {
+            using var document = await ReadJsonRpcAsync(again);
+            Assert.True(document.RootElement.GetProperty("result").GetProperty("isError").GetBoolean());
+        }
+        await AssertLinkedAsync(mcpFactory, receiptId, caseId, expectedHistoryCount: 1);
+
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE ActorKind = N'Automation'
+              AND EventKind = N'pegasus_mail_link_case'
+              AND Outcome = N'Succeeded'
+              AND CorrelationId = N'mcp:mail-link-1'
+            """));
+        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE ActorKind = N'Automation'
+              AND EventKind = N'pegasus_mail_link_case'
+              AND Outcome = N'Failed'
+            """));
+    }
+
+    /// <summary>
     /// Dismiss and Restore are the staff acts on a message (ADR-0064): the
     /// Automation Actor takes a message out of the incoming scopes and brings
     /// it back, in its own name.
@@ -584,7 +718,8 @@ public sealed class AutomationMailIngressTests
     /// </summary>
     private static async Task SeedClassificationAsync(
         Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> factory,
-        string messageId)
+        string messageId,
+        char sourceHash = 'E')
     {
         await using var scope = factory.Services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>().StoreAsync(
@@ -592,7 +727,7 @@ public sealed class AutomationMailIngressTests
                 SourceFileName: "classified-instruction.eml",
                 MediaType: "message/rfc822",
                 SourceLength: 1,
-                SourceHash: new string('E', 64),
+                SourceHash: new string(sourceHash, 64),
                 SourceIdentity: new(
                     IntakeSourceChannel.Mailbox,
                     MailboxId.Length + ":" + MailboxId + messageId),
@@ -619,5 +754,36 @@ public sealed class AutomationMailIngressTests
                     "qdos_mail_classification",
                     3)),
             CancellationToken.None);
+    }
+
+    private static async Task<Guid> ReceiptIdAsync(
+        Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> factory,
+        string messageId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var externalToken = $"{MailboxId.Length}:{MailboxId}{messageId}";
+        return await context.IntakeReceipts
+            .Where(item => item.SourceChannel == "mailbox" && item.ExternalReceiptToken == externalToken)
+            .Select(item => item.Id)
+            .SingleAsync();
+    }
+
+    private static async Task AssertLinkedAsync(
+        Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> factory,
+        Guid receiptId,
+        Guid? expectedCaseId,
+        int expectedHistoryCount)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var association = await context.IntakeManualAssociations
+            .SingleOrDefaultAsync(item => item.IntakeReceiptId == receiptId && item.IsActive);
+        Assert.Equal(expectedCaseId, association?.CaseId);
+        Assert.Equal(
+            expectedHistoryCount,
+            await context.IntakeMutationHistory.CountAsync(item => item.IntakeReceiptId == receiptId));
     }
 }

@@ -25,6 +25,7 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'PegasusPlatform.ps1')
 $mainBicepPath = Join-Path $repositoryRoot 'infra/main.bicep'
 $platformBicepPath = Join-Path $repositoryRoot 'infra/modules/platform.bicep'
+$classifierBicepPath = Join-Path $repositoryRoot 'infra/modules/classifier.bicep'
 $parametersPath = Join-Path $repositoryRoot 'infra/main.parameters.json'
 $azureYamlPath = Join-Path $repositoryRoot 'azure.yaml'
 $productionSmokePath = Join-Path $repositoryRoot 'scripts/Invoke-ProductionSmoke.ps1'
@@ -95,9 +96,10 @@ function Assert-ExactOrdinalCensus {
 
 $mainBicep = Get-Content -LiteralPath $mainBicepPath -Raw
 $platformBicep = Get-Content -LiteralPath $platformBicepPath -Raw
+$classifierBicep = Get-Content -LiteralPath $classifierBicepPath -Raw
 $parameters = Get-Content -LiteralPath $parametersPath -Raw
 $azureYaml = Get-Content -LiteralPath $azureYamlPath -Raw
-$combined = "$mainBicep`n$platformBicep`n$parameters`n$azureYaml"
+$combined = "$mainBicep`n$platformBicep`n$classifierBicep`n$parameters`n$azureYaml"
 
 # Fail-closed activation: nothing is created or enabled unless the exact
 # approval value is supplied.
@@ -118,6 +120,14 @@ if ($webPlanMatches.Count -ne 1) {
     throw 'The production template must declare exactly one Web App Service plan.'
 }
 $webPlanResource = $webPlanMatches[0].Value
+Assert-Text $mainBicep "param\s+classifierActivation\s+string\s*=\s*'disabled'" 'Base provisioning must leave classifier activation disabled by default.'
+Assert-Text $parameters '"classifierActivation"\s*:\s*\{\s*"value"\s*:\s*"\$\{PEGASUS_CLASSIFIER_ACTIVATION=disabled\}"\s*\}' 'The azd parameter map must default PEGASUS_CLASSIFIER_ACTIVATION to disabled.'
+Assert-Text $classifierBicep "classifierActivationApproved\s*=\s*classifierActivation\s*==\s*'approved'" 'Only the exact approved value may create the classifier Function App.'
+$classifierAppMatches = [regex]::Matches($classifierBicep, "(?ms)^resource classifierApp 'Microsoft\.Web/sites@[^']+' = if \(classifierActivationApproved\) \{.*?^\}")
+if ($classifierAppMatches.Count -ne 1) {
+    throw 'The classifier Function App must be declared exactly once and conditional on approved activation.'
+}
+$classifierAppResource = $classifierAppMatches[0].Value
 
 # Transport and credential security.
 Assert-Text $webAppResource "httpsOnly:\s*true" 'The Web App must be HTTPS only.'
@@ -128,7 +138,17 @@ Assert-Text $parameters 'GRAPH_CHANGE_NOTIFICATION_CLIENT_STATE_SECRET_URI' 'The
 Assert-Text $platformBicep "resource\s+webAppScmBasicAuth[\s\S]*?name:\s*'scm'[\s\S]*?allow:\s*false" 'Kudu basic publishing credentials must stay disabled.'
 Assert-Text $platformBicep "resource\s+webAppFtpBasicAuth[\s\S]*?name:\s*'ftp'[\s\S]*?allow:\s*false" 'FTP basic publishing credentials must stay disabled.'
 Assert-Text $platformBicep "name:\s*'APPLICATIONINSIGHTS_AUTHENTICATION_STRING'" 'Application Insights local authentication must be disabled through managed-identity configuration.'
-Assert-TextAbsent $platformBicep '4633458b-17de-408a-b874-0445c86b69e6' 'Vault-wide Key Vault Secrets User grants are prohibited; exact secret grants occur only after the secret census.'
+Assert-TextAbsent $combined '4633458b-17de-408a-b874-0445c86b69e6' 'Vault-wide Key Vault Secrets User grants are prohibited; exact secret grants occur only after the secret census.'
+Assert-Text $classifierAppResource "httpsOnly:\s*true" 'The classifier Function App must be HTTPS only.'
+Assert-Text $classifierAppResource "ftpsState:\s*'Disabled'" 'The classifier Function App must disable FTPS.'
+Assert-Text $classifierAppResource "minTlsVersion:\s*'1\.2'" 'The classifier Function App must require TLS 1.2.'
+Assert-Text $classifierAppResource "keyVaultReferenceIdentity:\s*classifierIdentity\.id" 'The classifier must resolve Key Vault references through its own identity.'
+Assert-Text $classifierAppResource "name:\s*'APPLICATIONINSIGHTS_AUTHENTICATION_STRING'" 'The classifier must authenticate to Application Insights with its managed identity.'
+Assert-Text $classifierAppResource "PEGASUS_CLIENT_SECRET',\s*value:\s*'@Microsoft\.KeyVault\(SecretUri=\$\{automationMcpClientSecretUri\}\)'" 'The classifier must receive the Automation client secret only through its Key Vault reference.'
+Assert-Text $classifierAppResource "ANTHROPIC_API_KEY',\s*value:\s*'@Microsoft\.KeyVault\(SecretUri=\$\{anthropicApiKeySecretUri\}\)'" 'The classifier must receive the Anthropic API key only through its Key Vault reference.'
+Assert-Text $classifierBicep "resource\s+classifierAppScmBasicAuth[\s\S]*?name:\s*'scm'[\s\S]*?allow:\s*false" 'Classifier Kudu basic publishing credentials must stay disabled.'
+Assert-Text $classifierBicep "resource\s+classifierAppFtpBasicAuth[\s\S]*?name:\s*'ftp'[\s\S]*?allow:\s*false" 'Classifier FTP basic publishing credentials must stay disabled.'
+Assert-Text $classifierBicep "allowSharedKeyAccess:\s*false" 'The classifier storage account must refuse shared-key access.'
 Assert-TextAbsent $platformBicep 'workerAuthenticationRing' 'Worker access to the Web authentication ring is prohibited.'
 Assert-Text $platformBicep "queueDataMessageSenderRole\s*=\s*subscriptionResourceId\('Microsoft.Authorization/roleDefinitions',\s*'c6a89b2d-59bc-44d0-9896-0f6e12d7b80a'\)" 'The Web must use the built-in Storage Queue Data Message Sender role.'
 Assert-Text $platformBicep "resource\s+webIntakeQueueSender[\s\S]*?scope:\s*intakeQueue[\s\S]*?roleDefinitionId:\s*queueDataMessageSenderRole" 'The Web identity must receive sender-only access scoped to intake-work.'
@@ -153,6 +173,7 @@ Assert-TextAbsent $webAppResource "(?i)docker|containerapp|azurecr" 'The Web App
 Assert-TextAbsent $combined "(?i)Microsoft\.App/|Microsoft\.ContainerRegistry/|acrPull|containerRegistry" 'ADR-0049: Container Apps and the container registry have left the template.'
 Assert-Text $azureYaml "host:\s*appservice" 'azure.yaml must select App Service for Web.'
 Assert-TextAbsent $azureYaml "(?s)web:.*?remoteBuild:\s*true.*?worker:" 'The Web service must not request a remote build.'
+Assert-Text $azureYaml "(?s)classifier:.*?remoteBuild:\s*false" 'The classifier is deployed from its release ZIP and must not request a remote build.'
 Assert-Text $webAppResource "name:\s*'SCM_DO_BUILD_DURING_DEPLOYMENT',\s*value:\s*'false'" 'The Web App must never build on the host.'
 # The Web App's SCM_DO_BUILD_DURING_DEPLOYMENT=false is asserted above; any
 # other spelling of a host build, in any deployment file, is prohibited.
@@ -314,6 +335,7 @@ if ($Mode -eq 'PreProvision') {
         'GLASS_VALUATION_USERNAME_SECRET_URI',
         'GLASS_VALUATION_PASSWORD_SECRET_URI',
         'CAZANA_API_KEY_SECRET_URI',
+        'ANTHROPIC_API_KEY_SECRET_URI',
         'AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS',
         'AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS'
     )
@@ -328,7 +350,8 @@ if ($Mode -eq 'PreProvision') {
     foreach ($key in @('GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
         'GLASS_VALUATION_USERNAME_SECRET_URI',
         'GLASS_VALUATION_PASSWORD_SECRET_URI',
-        'CAZANA_API_KEY_SECRET_URI')) {
+        'CAZANA_API_KEY_SECRET_URI',
+        'ANTHROPIC_API_KEY_SECRET_URI')) {
         $secretUri = $null
         if (-not [Uri]::TryCreate([string]$environmentValues[$key], [UriKind]::Absolute, [ref]$secretUri) -or
             $secretUri.Scheme -ne 'https' -or

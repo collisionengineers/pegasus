@@ -30,6 +30,14 @@ flowchart LR
   Infrastructure --> Core
 ```
 
+The mail classifier agent (`src/pegasus-classifier-agent`, TypeScript on its
+own Flex Consumption Function App from `infra/modules/classifier.bicep`) is an
+Automation MCP client, not a composition root. It reaches Pegasus only through
+`/mcp` under `automation.mail` and calls the mail tools as any Automation
+caller does, so Pegasus applies the same checks to its writes. Its three tools
+list, classify and link mail that is Unclassified or has no Case, and leave
+any message staff or an Automation caller has decided.
+
 ## Flows and data ownership
 
 - Contacts uses Organization identities with explicit roles and Principal

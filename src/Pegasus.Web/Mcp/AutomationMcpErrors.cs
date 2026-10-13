@@ -1,7 +1,10 @@
 using System.Security.Cryptography;
 using System.Text;
 using ModelContextProtocol;
+using Pegasus.Core.Address;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Mcp;
@@ -82,6 +85,42 @@ internal static class AutomationMcpErrors
         exception is ArgumentException { ParamName: { } name } argument
             ? argument.Message.Replace($" (Parameter '{name}')", string.Empty, StringComparison.Ordinal)
             : exception.Message;
+
+    /// <summary>
+    /// The intake refusals carry safe, fixed sentences of their own; they are
+    /// not argument or state exceptions, so they are named here rather than
+    /// collapsing to a generic failure. A stale read names the tool that
+    /// reloads the item the caller acted on.
+    /// </summary>
+    public static async Task<TResult> IntakeRefusalsAsync<TResult>(
+        string reloadTool,
+        Func<Task<TResult>> action)
+    {
+        try
+        {
+            return await action();
+        }
+        catch (Exception exception) when (exception is IntakeVersionConflictException
+            or IntakeAllocationConcurrencyException
+            or InspectionAddressResolutionConcurrencyException)
+        {
+            throw new McpException($"The received item changed since it was read; reload it with {reloadTool} and retry.");
+        }
+        catch (Exception exception) when (exception is IntakeOperationConflictException
+            or IntakeAllocationOperationConflictException
+            or CaseAcceptanceOperationConflictException)
+        {
+            throw new McpException("The operation key was already used with different details.");
+        }
+        catch (PrincipalUnavailableException)
+        {
+            throw new McpException("The Principal is unavailable.");
+        }
+        catch (IntakeAssociationConflictException exception)
+        {
+            throw new McpException(exception.Message);
+        }
+    }
 
     /// <summary>
     /// Mutation tools take explicit caller idempotency keys prefixed

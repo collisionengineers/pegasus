@@ -30,6 +30,7 @@ jobs:
       infrastructure: ${{ steps.detect.outputs.infrastructure }}
       localDevelopment: ${{ steps.detect.outputs.localDevelopment }}
       referenceData: ${{ steps.detect.outputs.referenceData }}
+      classifier: ${{ steps.detect.outputs.classifier }}
       heavy: ${{ steps.detect.outputs.heavy }}
     steps:
       - uses: actions/checkout@v7
@@ -83,6 +84,7 @@ jobs:
           "infrastructure=$($flags.Infrastructure.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           "localDevelopment=$($flags.LocalDevelopment.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           "referenceData=$($flags.ReferenceData.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          "classifier=$($flags.Classifier.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
 
           # Whether the unit and SQL lanes run is decided by
           # scripts/Get-CiHeavyLaneDecision.ps1; this step only gathers its
@@ -193,6 +195,31 @@ jobs:
       - name: Validate infrastructure plan locally
         shell: pwsh
         run: ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local
+
+  classifier:
+    # The classifier agent is a Node Functions app; it typechecks and compiles
+    # here and nowhere else. Gated on its own path flag: it costs about a
+    # minute and reads nothing the .NET lanes build.
+    needs: [changes, invariants]
+    if: needs.changes.outputs.classifier == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: src/pegasus-classifier-agent
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/pegasus-classifier-agent/package-lock.json
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
 
   unit:
     # Both projects run whole and unfiltered. Core's Category=Corpus theories
