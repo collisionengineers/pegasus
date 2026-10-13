@@ -120,7 +120,7 @@ public sealed partial class AssessmentReportDraftWebTests
         var lineageId = Guid.NewGuid();
         var principalId = Guid.NewGuid();
         context.AddRange(
-            new OrganizationEntity { Id = organizationId, Name = "Report view/download test", Version = 0 },
+            new OrganizationEntity { Role = "principal", Id = organizationId, Name = "Report view/download test", Version = 0 },
             new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = ViewDownloadFixtureAtUtc },
             new PrincipalEntity
             {

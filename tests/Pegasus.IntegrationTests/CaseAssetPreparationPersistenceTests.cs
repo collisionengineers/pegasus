@@ -546,7 +546,7 @@ public sealed class CaseAssetPreparationPersistenceTests
             var receiptId = Guid.NewGuid();
             var caseId = Guid.NewGuid();
             context.AddRange(
-                new OrganizationEntity { Id = organizationId, Name = $"Asset preparation test {reference}", Version = 0 },
+                new OrganizationEntity { Role = "principal", Id = organizationId, Name = $"Asset preparation test {reference}", Version = 0 },
                 new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = occurredAtUtc },
                 new PrincipalEntity
                 {

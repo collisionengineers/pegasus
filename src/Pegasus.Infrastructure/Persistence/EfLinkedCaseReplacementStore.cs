@@ -158,8 +158,6 @@ public sealed class EfLinkedCaseReplacementStore(
             Version = 0
         };
         context.CaseWorkflows.Add(replacementWorkflow);
-        await CaseGuidance.ApplyCreationAsync(
-            context, replacementWorkflow, null, now, requestHash, cancellationToken);
         if (initialState == CaseInitialState.NotReady)
         {
             context.CaseDueWork.Add(new CaseDueWorkEntity

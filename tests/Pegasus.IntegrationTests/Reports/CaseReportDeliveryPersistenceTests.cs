@@ -959,7 +959,7 @@ public sealed class CaseReportDeliveryPersistenceTests
             var receiptId = Guid.NewGuid();
             var caseId = Guid.NewGuid();
             context.AddRange(
-                new OrganizationEntity { Id = organizationId, Name = "Report delivery test", Version = 0 },
+                new OrganizationEntity { Role = "principal", Id = organizationId, Name = "Report delivery test", Version = 0 },
                 new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = StartUtc },
                 new PrincipalEntity
                 {

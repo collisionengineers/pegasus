@@ -747,7 +747,7 @@ public sealed class CreateAuditPersistenceTests
             var organizationId = Guid.NewGuid();
             var lineageId = Guid.NewGuid();
             await ExecuteSqlAsync(
-                $"INSERT INTO Organizations (Id, Name, Version) VALUES ('{organizationId:D}', N'{code} provider', 0)");
+                $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', '{organizationId:D}', N'{code} provider', 0)");
             await ExecuteSqlAsync(
                 $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ('{lineageId:D}', '2026-01-01 00:00:00 +00:00')");
             await ExecuteSqlAsync(

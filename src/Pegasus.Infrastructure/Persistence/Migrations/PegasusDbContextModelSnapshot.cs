@@ -3074,35 +3074,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Role")
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
+                    b.HasKey("PrincipalId", "OrganizationId");
 
-                    b.HasKey("PrincipalId", "OrganizationId", "Role");
+                    b.HasIndex("OrganizationId");
 
-                    b.HasIndex("OrganizationId", "Role");
-
-                    b.ToTable("ContactPrincipalLinks", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_ContactPrincipalLinks_Role", "[Role] IN ('claim_source', 'repairer', 'storage', 'third_party_engineer')");
-                        });
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ContactRoleEntity", b =>
-                {
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Role")
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.HasKey("OrganizationId", "Role");
-
-                    b.ToTable("ContactRoles", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_ContactRoles_Role", "[Role] IN ('principal', 'claim_source', 'repairer', 'storage', 'third_party_engineer')");
-                        });
+                    b.ToTable("ContactPrincipalLinks", (string)null);
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.DocumentContentCacheEntryEntity", b =>
@@ -5652,15 +5628,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("nvarchar(320)");
 
-                    b.Property<string>("GuidanceTemplate")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<long>("GuidanceTemplateVersion")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasDefaultValue(0L);
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -5681,6 +5648,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<string>("Telephone")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -5693,31 +5665,16 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Name");
 
-                    b.HasIndex("NormalizedName")
+                    b.HasIndex("NormalizedName", "Role")
                         .IsUnique();
 
                     b.ToTable("Organizations", null, t =>
                         {
                             t.HasCheckConstraint("CK_Organizations_Name", "[Name] <> ''");
 
+                            t.HasCheckConstraint("CK_Organizations_Role", "[Role] IN ('principal', 'claim_source', 'repairer', 'storage', 'third_party_engineer')");
+
                             t.HasCheckConstraint("CK_Organizations_Version", "[Version] >= 0");
-                        });
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.OrganizationRoleEntity", b =>
-                {
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Role")
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.HasKey("OrganizationId", "Role");
-
-                    b.ToTable("OrganizationRoles", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_OrganizationRoles_Role", "[Role] IN ('principal', 'instruction_intermediary')");
                         });
                 });
 
@@ -8400,17 +8357,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("Principal");
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ContactRoleEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.OrganizationEntity", "Organization")
-                        .WithMany("ContactRoles")
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Organization");
-                });
-
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.DocumentContentCacheEntryEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.DocumentVersionEntity", null)
@@ -8827,17 +8773,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("StagedReceipt");
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.OrganizationRoleEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.OrganizationEntity", "Organization")
-                        .WithMany("Roles")
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Organization");
-                });
-
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalApiCredentialEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.PrincipalEntity", "Principal")
@@ -9185,13 +9120,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.OrganizationEntity", b =>
                 {
-                    b.Navigation("ContactRoles");
-
                     b.Navigation("PrincipalLinks");
 
                     b.Navigation("Principals");
-
-                    b.Navigation("Roles");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalDomainPackageEntity", b =>

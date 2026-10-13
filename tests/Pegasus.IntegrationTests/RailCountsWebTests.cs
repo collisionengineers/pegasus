@@ -232,7 +232,7 @@ public sealed class RailCountsWebTests
         var now = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {$"Rail counts fixture {reference}"}, {0L})");
+            $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {$"Rail counts fixture {reference}"}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {now})");
         await context.Database.ExecuteSqlInterpolatedAsync(

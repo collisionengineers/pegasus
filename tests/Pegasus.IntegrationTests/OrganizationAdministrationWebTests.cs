@@ -42,7 +42,6 @@ public sealed partial class OrganizationAdministrationWebTests
             ["CreateType"] = "ClaimSource",
             ["OperationKey"] = InputValue(contactsHtml, "OperationKey"),
             ["ContactId"] = InputValue(contactsHtml, "ContactId"),
-            ["ExpectedVersion"] = InputValue(contactsHtml, "ExpectedVersion"),
             ["Name"] = "Web Caller Claim Source"
         };
         using var contactPost = await client.PostAsync(
@@ -53,7 +52,7 @@ public sealed partial class OrganizationAdministrationWebTests
         var contactId = await factory.Database.ScalarAsync<Guid>(
             "SELECT Id FROM Organizations WHERE Name = 'Web Caller Claim Source';");
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM ContactRoles WHERE OrganizationId = '{contactId:D}' AND Role = 'claim_source';"));
+            $"SELECT COUNT(*) FROM Organizations WHERE Id = '{contactId:D}' AND Role = 'claim_source';"));
         var contactEditHtml = await IntakeWebDriver.GetHtmlAsync(
             client,
             $"/Administration/Contacts/Edit/{contactId:D}");
@@ -73,7 +72,6 @@ public sealed partial class OrganizationAdministrationWebTests
             ["CreateType"] = "Principal",
             ["OperationKey"] = InputValue(principalHtml, "OperationKey"),
             ["ContactId"] = InputValue(principalHtml, "ContactId"),
-            ["ExpectedVersion"] = InputValue(principalHtml, "ExpectedVersion"),
             ["Name"] = "pegasustest",
             ["PrincipalCode"] = "WEBP",
             ["PrincipalInspectionMode"] = "PhysicalAddress"

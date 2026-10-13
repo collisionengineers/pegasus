@@ -178,7 +178,7 @@ public sealed class CaseNotePersistenceTests
         var receiptId = Guid.NewGuid();
         var caseId = Guid.NewGuid();
         context.AddRange(
-            new OrganizationEntity { Id = organizationId, Name = "Notes test", Version = 0 },
+            new OrganizationEntity { Role = "principal", Id = organizationId, Name = "Notes test", Version = 0 },
             new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = FixedUtcNow },
             new PrincipalEntity
             {

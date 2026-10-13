@@ -161,13 +161,7 @@ public sealed class EfManualCaseCreationStore(
             });
         }
 
-        await CaseGuidance.ApplyCreationAsync(
-            context,
-            workflow,
-            request.Data.ClaimSourceId,
-            now,
-            fingerprint,
-            cancellationToken);
+        await ClaimSourceChoice.RequireActiveAsync(context, request.Data.ClaimSourceId, cancellationToken);
 
         var custodyWorkId = Guid.NewGuid();
         context.ExternalWorkItems.Add(new()

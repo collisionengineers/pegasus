@@ -74,8 +74,9 @@ and the secret is write-only
 ### Contacts
 
 Contacts is the one directory for Principals, Claim Sources, Repairers,
-Storage and Third Party Engineers. Principal-specific settings are part of
-that Contact record. Report generation carries the Default fee (£) box above
+Storage and Third Party Engineers. Each Contact has one type; its page shows
+the type read-only and only that type's sections. Principal-specific
+settings are part of that Contact record. Report generation carries the Default fee (£) box above
 Save report settings; it has no Report recipients settings (operator, 6
 October 2026). The Report sending panel follows Report generation and is
 shown for a Principal only; every Principal has rules to show. Send from is a list of the Outgoing

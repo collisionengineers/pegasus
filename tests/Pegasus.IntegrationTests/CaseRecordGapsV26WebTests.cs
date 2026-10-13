@@ -62,7 +62,7 @@ public sealed class CaseRecordGapsV26WebTests
         var ports = new RecordGapPorts(store);
         var source = new ContactDirectoryRecord(
             Guid.NewGuid(), "Acme Claims", "A Handler", "claims@acme.example", "0113 000 0000", null, null, true,
-            [ContactRole.ClaimSource], 4, null, null, NotesOnEveryCase: "Quote the Acme reference.");
+            ContactRole.ClaimSource, 4, null, null, NotesOnEveryCase: "Quote the Acme reference.");
         ports.ClaimSources.Add(source);
         using var workspace = await EnterEditModeAsync(store, ports.Register);
 
