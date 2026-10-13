@@ -947,8 +947,8 @@ the spec edits. The spec has no save of its own: each save records it, and a
 spec left unchanged is not rewritten. Moving the Target % of value slider
 previews the scaled spec in amber cells, the rollup and the readout, and
 records nothing (operator, 28 September 2026); Apply and Remove scaling are
-offered while a preview is shown, and the floors, the readout, Remove scaling
-and Apply stand under the slider, which keeps one length while previewing
+offered while a preview is shown, and the floors, the readout, the Preview
+chip, Remove scaling and Apply stand under the slider, which keeps one length while previewing
 (v38 P6; operator, 13 October 2026). Apply and Remove scaling wait for a change not yet sent to land and
 then scale the saved spec. The More menu holds New repair spec (editing,
 recorded by the next save and starting on the Standard labour-rate card),
