@@ -78,7 +78,7 @@ exclusion.
 | CASE-17 | Due-by date extraction and overdue display | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-18 | Configurable whole-calendar-day missing-information chase schedule | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-19 | Hold/release behavior that preserves the chase interval | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
-| CASE-20 | General Case tasks: a Tasks section on the Case record (add, assign, complete, cancel), after-send tasks created from the list the report send recorded when Report sent is recorded, and open tasks listed in Next action after the send and blocking Archive (no due date yet) | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing); [Tasks](frd/frd-16-case-record-workspace.md#tasks) |
+| CASE-20 | General Case tasks: a Tasks dialog from the Case record's Actions menu (add, assign, complete, cancel), after-send tasks created from the list the report send recorded when Report sent is recorded, and open tasks listed in Next action after the send and blocking Archive (no due date yet) | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing); [Tasks](frd/frd-16-case-record-workspace.md#tasks) |
 | CASE-21 | Replay-safe Case export history | [Export case](frd/frd-07-case-export.md#export-case) |
 | CASE-24 | Post-report completion, Principal cancellation, and Collision Engineers rejection outcomes | [Close case](frd/frd-13-case-lifecycle-and-workflow.md#close-case) |
 | CASE-25 | Reasoned return to engineering through normal destination gates | [Actions](frd/frd-13-case-lifecycle-and-workflow.md#actions) |
@@ -101,7 +101,7 @@ exclusion.
 | UI-13 | Accessible keyboard, screen-reader, focus, contrast, and error behavior | [Operator experience](frd/frd-12-operator-experience.md#operator-experience) |
 | UI-16 | Operations Workspace shell: rail, counts, command palette | [Shell and routes](frd/frd-12-operator-experience.md#shell-and-routes) |
 | UI-17 | Case record: one scrolling page of twelve sections, and the Inspection and Audit views | [Case workspace](frd/frd-16-case-record-workspace.md#case-workspace) |
-| UI-18 | Awaiting instruction pre-Case queue | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
+| UI-18 | Unassigned Images pre-Case queue | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
 | UI-19 | Service health is Administration-only | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | ENG-03 | Damage record: zones with severity and note, unrelated damage, diagram | [Damage record](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record) |
 | ENG-04 | Settlement fields with derived equity | [Settlement](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement) |
@@ -151,7 +151,7 @@ exclusion.
 | INT-16 | OCR of every incoming scanned document page, read as a report and, when needed, as an instruction | [Qualified OCR](frd/frd-05-documents-extraction-and-custody.md#qualified-ocr) |
 | INT-28 | Automatic matching of image-led and instruction-led records | [Pairing and merge](frd/frd-19-image-led-intake-and-pairing.md#pairing-and-merge); [Grouped image-intake routing](frd/frd-19-image-led-intake-and-pairing.md#grouped-image-intake-routing) |
 | MAIL-01 | Identify every inbound mailbox item and its mailbox/thread/message identity | [Inbound mailbox identity](frd/frd-08-email-mailbox-and-background-processing.md#inbound-mailbox-identity) |
-| MAIL-02 | What each mail category does; Unclassified mail shows as Unidentified | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
+| MAIL-02 | What each mail category does; Unclassified mail | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
 | MAIL-03 | One shared classification policy across all supported mailboxes | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
 | MAIL-04 | Explainable classification evidence, policy version, correction history, and the work type and Triage match a correction carries | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
 | MAIL-09 | Automatic association of related email and attachments with a case | [Automatic Case association of retained mail](frd/frd-08-email-mailbox-and-background-processing.md#automatic-case-association-of-retained-mail) |

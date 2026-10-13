@@ -296,7 +296,7 @@
                 @* Once Report sent is recorded the Case's open tasks follow
                    the step (operator, 6 October 2026), and while any is open
                    Archive is greyed: one row per open task, oldest first, each
-                   a jump to Tasks, which owns them. *@
+                   opening the Tasks dialog, which owns them. *@
                 <div class="sub-panel blockers" data-open-tasks>
                     <h3>@CaseWorkspaceLabels.Tasks.Title</h3>
                     <ul class="blocker-list">
@@ -306,8 +306,8 @@
                                 <strong>@task.Description</strong>
                                 <div class="blocker-actions">
                                     <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
-                                       asp-route-section="tasks" asp-route-view="@Model.ViewRoute" asp-fragment="section-tasks"
-                                       data-section-jump="tasks">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == "tasks").Label</a>
+                                       asp-route-section="@Model.Section" asp-route-view="@Model.ViewRoute" asp-route-dialog="tasks"
+                                       data-dialog-open="case-tasks-dialog">@CaseWorkspaceLabels.Tasks.Title</a>
                                 </div>
                             </li>
                         }

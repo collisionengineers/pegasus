@@ -9,7 +9,7 @@
   shared sequence, for example `t.QDOS26003`.
 - A Triage Case is created only once its Principal is established and its
   registration is known: by route classification, a Principal API
-  declaration, Open the Triage on an Unidentified item, or Create case.
+  declaration, Open the Triage on its message, or Create case.
 - It moves `Open` → `Awaiting information` → `Finding recorded` →
   `Completed`, or `Cancelled`. Sending a message is never required.
 - Its page is `/Cases/{id}`. It has Case Files with upload, a due target and
@@ -24,8 +24,10 @@ to an instruction Case. Case identity and the shared sequence are owned by
 [FRD-01](frd-01-case-identity-and-lifecycle.md). The Triage queue, the
 Triages metric, Search and the Triage Case page are owned by
 [FRD-15](frd-15-work-centre-queues-and-search.md). An open Triage never gets
-a U-reference; a Triage request whose Principal is not established, or that
-has no registration, is held in Unidentified until both are known
+a U-reference; an e-mailed Triage request whose Principal is not
+established, or that has no registration, is not held in Unidentified: it
+shows in the Inbox's No Case Found scope until staff open the Triage from
+the message
 ([FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference)).
 
 ## Behaviour
@@ -48,10 +50,10 @@ reference.
 **Principal first.** Pegasus establishes the Principal before it classifies
 a request as a Triage, and creates a Triage Case only for an established
 Principal and a known registration. A request whose Principal is not
-established is not a Triage: intake records it as Unidentified, and **Open
-the Triage** is not offered on an item whose receipt has no established
-Principal. A Triage Case takes its receipt's Principal. That Principal is
-fixed with its Case/PO: Triage has no Set principal, and Correct principal
+established is not a Triage: an e-mailed one waits in the Inbox's No Case
+Found scope, and **Open the Triage** is not offered for a receipt with no
+established Principal. A Triage Case takes its receipt's Principal. That
+Principal is fixed with its Case/PO: Triage has no Set principal, and Correct principal
 is not offered on a Triage Case.
 
 **How a Triage starts.** One of four ways:
@@ -60,8 +62,8 @@ is not offered on a Triage Case.
   request;
 - an authenticated Principal declares one over the Principal API;
 - an authorised staff member classifies safely retained, attributable
-  material as Triage with **Open the Triage**, on its Unidentified item or on
-  the message once its classification is corrected to Triage request;
+  material as Triage with **Open the Triage** on the message classified, or
+  corrected to, Triage request;
 - an authorised staff member chooses Triage in **Create case**, giving only
   the Principal and the registration.
 
@@ -76,7 +78,7 @@ available, the actor, time, reason and policy version. Create case records
 the staff actor and the operation; it is the only way to create a Triage
 without source material, and it invents no intake receipt or source. None of
 these invents a Principal. Material whose route or category is not accepted
-stays `Unidentified`; it never becomes a Triage or another Case by fallback.
+never becomes a Triage or another Case by fallback.
 
 **Automatic creation from intake** follows the same rule. When the route
 classification records a received message as a Triage request, Pegasus does
@@ -84,13 +86,14 @@ not treat it as an instruction. The classification decision itself is the
 match evidence, with its policy key and version on the record. With an
 established Principal and a known registration, Pegasus allocates the `t.`
 Case/PO, opens the Triage Case as `Open`, records its origin receipt and
-history, and starts standard Case custody, all in one transaction. No known
-registration registers the material as Unidentified with its reason and
-opens no Triage until a registration is known. A message left Unclassified
+history, and starts standard Case custody, all in one transaction. With no
+known registration no Triage opens and no Unidentified item is made: the
+message shows in the Inbox's No Case Found scope until staff open the
+Triage from it with a registration. A message left Unclassified
 because several categories matched opens no Triage and goes to staff.
 
-**Registration and states.** Without a registration the request stays
-`Unidentified`. With one, the Triage opens as `Open`, may move to
+**Registration and states.** Without a registration no Triage opens. With
+one, the Triage opens as `Open`, may move to
 `Awaiting information`, records an accepted finding as `Finding recorded`,
 and reaches `Completed` when the authorised actor records the outcome.
 Sending a message is not required. An acknowledgement, a request for
@@ -247,9 +250,10 @@ card: its `t.` Case/PO as a link, its state and its current finding
 
 ## Edge cases and fail-closed behaviour
 
-- No established Principal: no Triage opens; the material waits in
-  Unidentified and allocates nothing.
-- No registration: no Triage opens; the material waits in Unidentified.
+- No established Principal: no Triage opens; an e-mailed request waits in
+  the Inbox's No Case Found scope and allocates nothing.
+- No registration: no Triage opens; an e-mailed request waits in No Case
+  Found.
 - Several matching categories: Unclassified, no Triage opens; staff decide.
 - A finding with neither dimension is refused.
 - Automatic linking stops when more than one Case matches, or a Case edit

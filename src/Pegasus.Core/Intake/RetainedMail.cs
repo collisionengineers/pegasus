@@ -32,15 +32,15 @@ public enum MailFolderScope
 /// <paramref name="UnreadOnly"/> is the Unread scope; <paramref name="OldestFirst"/>
 /// is the list's sort toggle (newest first by default). <paramref name="DismissedOnly"/>
 /// is the Dismissed scope: dismissed messages appear there and nowhere else.
-/// <paramref name="Category"/> narrows to one mail category; <paramref name="Unidentified"/>
-/// to the Unidentified scope, mail no classification has decided. They are exclusive.
+/// <paramref name="Category"/> narrows to one mail category; <paramref name="NoCaseFound"/>
+/// to the No Case Found scope, received mail with no linked Case. They are exclusive.
 /// </summary>
 public sealed record MailWorkspaceScope(
     Guid? MailboxId,
     MailFolderScope Folder,
     string? SearchTerm = null,
     MailCategory? Category = null,
-    bool Unidentified = false,
+    bool NoCaseFound = false,
     bool UnreadOnly = false,
     bool OldestFirst = false,
     bool DismissedOnly = false);
@@ -61,7 +61,6 @@ public sealed record RetainedMailSummary(
     Guid Id,
     Guid MailboxId,
     string MailboxAddress,
-    bool MailboxIsPolled,
     string? SenderAddress,
     string? SenderDisplayName,
     string? EffectiveSenderAddress,
@@ -82,9 +81,6 @@ public sealed record RetainedMailSummary(
 
     /// <summary>When the message was dismissed from the incoming scopes; null while it is not.</summary>
     public DateTimeOffset? DismissedAtUtc { get; init; }
-
-    /// <summary>True once the receipt's Unidentified item has resolved; the message has left the Inbox Unidentified scope.</summary>
-    public bool UnidentifiedResolved { get; init; }
 
     /// <summary>
     /// True when <see cref="CaseId"/> is a Triage Case by its own type, whether
@@ -594,10 +590,10 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
                 nameof(scope),
                 "The mail folder scope is not recognized.");
         }
-        if (scope.Category is { } category && (scope.Unidentified || !Enum.IsDefined(category)))
+        if (scope.Category is { } category && (scope.NoCaseFound || !Enum.IsDefined(category)))
         {
             throw new ArgumentException(
-                "Choose either one mail category or the Unidentified scope.",
+                "Choose either one mail category or the No Case Found scope.",
                 nameof(scope));
         }
         var searchTerm = NormalizeSearchTerm(scope.SearchTerm, nameof(scope));

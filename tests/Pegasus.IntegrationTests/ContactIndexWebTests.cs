@@ -32,7 +32,6 @@ public sealed partial class ContactIndexWebTests
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CreateType"] = "ClaimSource",
             ["ContactId"] = InputValue(html, "ContactId"),
-            ["ExpectedVersion"] = InputValue(html, "ExpectedVersion"),
             ["OperationKey"] = InputValue(html, "OperationKey"),
             ["Name"] = "Wizard Claim Source"
         };
@@ -43,7 +42,7 @@ public sealed partial class ContactIndexWebTests
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM Organizations WHERE Name = 'Wizard Claim Source';"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM ContactRoles r JOIN Organizations o ON o.Id = r.OrganizationId WHERE o.Name = 'Wizard Claim Source' AND r.Role = 'claim_source';"));
+            "SELECT COUNT(*) FROM Organizations WHERE Name = 'Wizard Claim Source' AND Role = 'claim_source';"));
     }
 
     /// <summary>
@@ -64,7 +63,6 @@ public sealed partial class ContactIndexWebTests
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CreateType"] = "ClaimSource",
             ["ContactId"] = InputValue(html, "ContactId"),
-            ["ExpectedVersion"] = InputValue(html, "ExpectedVersion"),
             ["OperationKey"] = InputValue(html, "OperationKey"),
             ["Name"] = "Lettered Telephone Contact",
             ["Telephone"] = "01234 56789O"
@@ -75,7 +73,7 @@ public sealed partial class ContactIndexWebTests
 
         Assert.Equal(HttpStatusCode.OK, post.StatusCode);
         var body = await post.Content.ReadAsStringAsync();
-        Assert.Contains("Telephone must be digits.", body, StringComparison.Ordinal);
+        Assert.Contains("Phone must be digits.", body, StringComparison.Ordinal);
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM Organizations WHERE Name = 'Lettered Telephone Contact';"));
     }
@@ -118,8 +116,12 @@ public sealed partial class ContactIndexWebTests
             "SELECT COUNT(*) FROM Organizations WHERE Name = 'Rejected edit contact';"));
     }
 
+    /// <summary>
+    /// A contact has one type, so a possible match is only a link to the
+    /// existing contact; checking for matches never changes it.
+    /// </summary>
     [Fact]
-    public async Task ExistingMatchSelectsTheContactAndAddsOnlyTheSelectedType()
+    public async Task APossibleMatchLinksToTheExistingContact()
     {
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -136,7 +138,7 @@ public sealed partial class ContactIndexWebTests
             null,
             null,
             true,
-            [ContactRole.ClaimSource],
+            ContactRole.ClaimSource,
             null,
             CaseInspectionMode.PhysicalAddress,
             [],
@@ -159,41 +161,121 @@ public sealed partial class ContactIndexWebTests
             new FormUrlEncodedContent(findForm));
         var foundHtml = await found.Content.ReadAsStringAsync();
         found.EnsureSuccessStatusCode();
-        Assert.Contains("Match Contact", foundHtml, StringComparison.Ordinal);
-        Assert.Contains("Use this contact", foundHtml, StringComparison.Ordinal);
+        Assert.Contains("Match Contact · Claim Source", foundHtml, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Administration/Contacts/Edit/{existingId:D}\"", foundHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Use this contact", foundHtml, StringComparison.Ordinal);
+        Assert.Equal("claim_source", await factory.Database.ScalarAsync<string>(
+            $"SELECT Role FROM Organizations WHERE Id = '{existingId:D}';"));
+    }
 
-        var chooseForm = new Dictionary<string, string>
+    /// <summary>
+    /// v40 (operator, 13 October 2026): one panel per type in the fixed order,
+    /// each with its own columns and sorted by name; no Sort, no Type column and
+    /// no lede; a type with no matching contact is absent, and Type narrows the
+    /// list to one panel.
+    /// </summary>
+    [Fact]
+    public async Task TheListIsOnePanelPerTypeWithTheTypesOwnColumns()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using (var scope = factory.Services.CreateAsyncScope())
         {
-            ["__RequestVerificationToken"] = InputValue(foundHtml, "__RequestVerificationToken"),
-            ["CreateType"] = "ThirdPartyEngineer",
-            ["ExistingContactId"] = existingId.ToString("D"),
-            ["OperationKey"] = InputValue(foundHtml, "OperationKey")
-        };
-        using var chosen = await client.PostAsync(
-            "/Administration/Contacts?handler=ChooseExisting",
-            new FormUrlEncodedContent(chooseForm));
-        var chosenHtml = await chosen.Content.ReadAsStringAsync();
-        chosen.EnsureSuccessStatusCode();
-        Assert.Contains("Adding <strong>Third Party Engineer</strong> to Match Contact", chosenHtml, StringComparison.Ordinal);
+            var administration = scope.ServiceProvider.GetRequiredService<IContactDirectoryAdministration>();
+            Task<ContactDirectoryRecord> Save(string name, ContactRole role, string? code = null, string? postcode = null, Guid[]? links = null) =>
+                administration.SaveAsync(new(
+                    Administrator, Guid.NewGuid(), 0, name, null, null, null, null, postcode, true, role, code,
+                    CaseInspectionMode.PhysicalAddress, links ?? [], $"contact-index:{name}"), default);
+            var principal = await Save("Grouped Fixture Principal", ContactRole.Principal, code: "GFP1");
+            await Save("Grouped Fixture Zulu Repairer", ContactRole.Repairer, postcode: "S9 2RQ", links: [principal.OwnPrincipalIds!.Single()]);
+            await Save("Grouped Fixture Alpha Repairer", ContactRole.Repairer);
+            await Save("Grouped Fixture Claims", ContactRole.ClaimSource);
+        }
+        using var client = IntakeWebDriver.CreateClient(factory);
 
-        var saveForm = new Dictionary<string, string>
+        // The cells are compared without the whitespace between tags.
+        var html = Regex.Replace(await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Contacts?search=Grouped%20Fixture"), @">\s+<", "><");
+
+        Assert.DoesNotContain("name=\"Sort\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Principals, claim sources, repairers", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<th>Type</th>", html, StringComparison.Ordinal);
+        var principals = html.IndexOf(">Principals</h2>", StringComparison.Ordinal);
+        var claimSources = html.IndexOf(">Claim Sources</h2>", StringComparison.Ordinal);
+        var repairers = html.IndexOf(">Repairers</h2>", StringComparison.Ordinal);
+        Assert.True(principals > 0 && principals < claimSources && claimSources < repairers, "The panels follow the type order.");
+        Assert.DoesNotContain(">Storage</h2>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Third Party Engineers</h2>", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "<th>Principal code</th><th>Name</th><th>Contact person</th><th>Email</th><th>Phone</th><th>Last case</th><th>Status</th>",
+            html, StringComparison.Ordinal);
+        Assert.Contains(
+            "<th>Name</th><th>Contact person</th><th>Email</th><th>Phone</th><th>Linked principals</th><th>Last case</th><th>Status</th>",
+            html[claimSources..repairers], StringComparison.Ordinal);
+        var repairerPanel = html[repairers..];
+        Assert.Contains(
+            "<th>Name</th><th>Contact person</th><th>Email</th><th>Phone</th><th>Postcode</th><th>Linked principals</th><th>Last case</th><th>Status</th>",
+            repairerPanel, StringComparison.Ordinal);
+        Assert.Contains("<td class=\"mono\">GFP1</td><td>Grouped Fixture Principal</td>", html, StringComparison.Ordinal);
+        Assert.Contains("<td>S9 2RQ</td><td class=\"mono\">GFP1</td>", repairerPanel, StringComparison.Ordinal);
+        Assert.True(
+            repairerPanel.IndexOf("Grouped Fixture Alpha Repairer", StringComparison.Ordinal)
+                < repairerPanel.IndexOf("Grouped Fixture Zulu Repairer", StringComparison.Ordinal),
+            "Each panel is sorted by name.");
+
+        var repairersOnly = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Contacts?search=Grouped%20Fixture&type=Repairer");
+        Assert.Contains(">Repairers</h2>", repairersOnly, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Principals</h2>", repairersOnly, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Claim Sources</h2>", repairersOnly, StringComparison.Ordinal);
+
+        var create = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Contacts?createType=Repairer");
+        Assert.Contains("<label for=\"Telephone\">Phone</label>", create, StringComparison.Ordinal);
+        Assert.DoesNotContain("Enter the details for this", create, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Names are unique per type: the contact's page refuses a second contact
+    /// of the same type and name with the one sentence the list's Add uses. The
+    /// page carries its type as a greyed box and Linked principals as one list.
+    /// </summary>
+    [Fact]
+    public async Task EditRefusesADuplicateNameOfTheSameType()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var secondId = Guid.NewGuid();
+        await using (var scope = factory.Services.CreateAsyncScope())
         {
-            ["__RequestVerificationToken"] = InputValue(chosenHtml, "__RequestVerificationToken"),
-            ["CreateType"] = "ThirdPartyEngineer",
-            ["ContactId"] = InputValue(chosenHtml, "ContactId"),
-            ["ExistingContactId"] = InputValue(chosenHtml, "ExistingContactId"),
-            ["ExpectedVersion"] = InputValue(chosenHtml, "ExpectedVersion"),
-            ["OperationKey"] = InputValue(chosenHtml, "OperationKey"),
-            ["Name"] = "Match Contact",
-            ["ContactPerson"] = "Existing person",
-            ["Email"] = "existing@example.test"
-        };
-        using var saved = await client.PostAsync(
-            "/Administration/Contacts?handler=Create",
-            new FormUrlEncodedContent(saveForm));
-        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
-        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM ContactRoles WHERE OrganizationId = '{existingId:D}' AND Role IN ('claim_source', 'third_party_engineer');"));
+            var administration = scope.ServiceProvider.GetRequiredService<IContactDirectoryAdministration>();
+            foreach (var (id, name) in new[] { (Guid.NewGuid(), "Duplicate Fixture One"), (secondId, "Duplicate Fixture Two") })
+            {
+                await administration.SaveAsync(new(
+                    Administrator, id, 0, name, null, null, null, null, null, true, ContactRole.Storage, null,
+                    CaseInspectionMode.PhysicalAddress, [], $"contact-edit:{name}"), default);
+            }
+        }
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var path = $"/Administration/Contacts/Edit/{secondId:D}";
+        var editor = await IntakeWebDriver.GetHtmlAsync(client, path);
+        Assert.Contains("<input id=\"contact-type\" value=\"Storage\" readonly", editor, StringComparison.Ordinal);
+        Assert.Contains("<label for=\"Telephone\">Phone</label>", editor, StringComparison.Ordinal);
+        Assert.Contains("<div class=\"contact-links\">", editor, StringComparison.Ordinal);
+        Assert.DoesNotContain("class=\"tabs\"", editor, StringComparison.Ordinal);
+        Assert.DoesNotContain("Guidance for new Cases", editor, StringComparison.Ordinal);
+
+        using var refused = await client.PostAsync(
+            $"{path}?handler=Save",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(editor, "__RequestVerificationToken"),
+                ["ContactId"] = secondId.ToString("D"),
+                ["ExpectedVersion"] = InputValue(editor, "ExpectedVersion"),
+                ["OperationKey"] = InputValue(editor, "OperationKey"),
+                ["Name"] = "Duplicate Fixture One",
+                ["Active"] = bool.TrueString
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        Assert.Contains("A contact with that name already exists.", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal("Duplicate Fixture Two", await factory.Database.ScalarAsync<string>(
+            $"SELECT Name FROM Organizations WHERE Id = '{secondId:D}';"));
     }
 
     private static string InputValue(string html, string name)

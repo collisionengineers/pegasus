@@ -1465,7 +1465,7 @@ public static class OperatorLabels
             "reopened" or "open" => "navy",
 
             // Intake and Triage
-            "needs sorting" or "unidentified" => "amber",
+            "needs sorting" or "unidentified" or "no case found" => "amber",
             "blocked intake" or "blocked" => "red",
             "document text required" or "unsupported" => "amber",
             "awaiting information" => "amber",
@@ -1911,10 +1911,39 @@ public static class OperatorLabels
         }
     }
 
+    /// <summary>Administration → Contacts: the one type each contact has.</summary>
+    public static class Contacts
+    {
+        public static string Type(ContactRole role) => role switch
+        {
+            ContactRole.Principal => "Principal",
+            ContactRole.ClaimSource => "Claim Source",
+            ContactRole.Repairer => "Repairer",
+            ContactRole.Storage => "Storage",
+            ContactRole.ThirdPartyEngineer => "Third Party Engineer",
+            _ => role.ToString()
+        };
+
+        /// <summary>The heading of a type's panel on the Contacts list (FRD-17's words).</summary>
+        public static string Plural(ContactRole role) => role switch
+        {
+            ContactRole.Principal => "Principals",
+            ContactRole.ClaimSource => "Claim Sources",
+            ContactRole.Repairer => "Repairers",
+            ContactRole.Storage => "Storage",
+            ContactRole.ThirdPartyEngineer => "Third Party Engineers",
+            _ => role.ToString()
+        };
+    }
+
     /// <summary>A Principal contact's own labels (Administration → Contacts, Principal details) — one list.</summary>
     public static class PrincipalAdministration
     {
         public const string Code = "Principal code";
+        public const string ContactTab = "Contact";
+        public const string ReportGeneration = "Report generation";
+        public const string DefaultInspectionLocation = "Default inspection location";
+        public const string AcceptedIdentities = "Accepted e-mail identities";
         public const string State = "State";
         public const string ReplaceCode = "Replace code";
         public const string PrincipalApi = "Principal API";
@@ -1980,6 +2009,7 @@ public static class OperatorLabels
             Pegasus.Core.Reports.ReportSendingConditionKind.SenderNot => "Sender is not",
             Pegasus.Core.Reports.ReportSendingConditionKind.Outcome => "Outcome",
             Pegasus.Core.Reports.ReportSendingConditionKind.BodyshopMentions => "Bodyshop mentions",
+            Pegasus.Core.Reports.ReportSendingConditionKind.CaseType => "Case type",
             _ => kind.ToString()
         };
 
@@ -2328,7 +2358,6 @@ public static class OperatorLabels
             new("report", "Report", "icon-file"),
             new("files", "Files", "icon-folder"),
             new("notes", "Notes", "icon-history"),
-            new("tasks", "Tasks", "icon-check-square"),
             new("queries", "Queries", "icon-reply")
         ];
 
@@ -2709,6 +2738,7 @@ public static class OperatorLabels
         {
             IntakeLogOutcome.CaseCreated => "Case created",
             IntakeLogOutcome.Unidentified => "Unidentified",
+            IntakeLogOutcome.NoCaseFound => Inbox.NoCaseFound,
             IntakeLogOutcome.Triage => "Triage",
             IntakeLogOutcome.VehicleImages => "Vehicle images",
             IntakeLogOutcome.CouldNotBeRead => "Could not be read",
@@ -2764,6 +2794,9 @@ public static class OperatorLabels
         public const string Category = "Category";
         public const string AllCategories = "All categories";
         public const string DismissedScope = "Dismissed";
+
+        /// <summary>Received mail with no linked Case: its scope and its outcome chip (operator, 13 October 2026).</summary>
+        public const string NoCaseFound = "No Case Found";
         public const string Dismiss = "Dismiss";
         public const string Restore = "Restore";
         public const string DismissedNotice = "Dismissed";

@@ -75,8 +75,8 @@ public sealed class DetailsModel(
         ? $"/Received/{Detail.Record.Origin.ReceiptId:D}/Source"
         : null;
 
-    /// <summary>Add to an existing case: the Cases list's Awaiting instruction attach owns the decision.</summary>
-    public string AddToCaseHref => $"/Cases?tab=awaiting&selected={Detail.Record.Id:D}";
+    /// <summary>Add to an existing case: the Cases list's Unassigned Images attach owns the decision.</summary>
+    public string AddToCaseHref => $"/Cases?tab=unassigned&selected={Detail.Record.Id:D}";
 
     public IReadOnlyList<ImageIntakeLifecycleEvent> History { get; private set; } = [];
 

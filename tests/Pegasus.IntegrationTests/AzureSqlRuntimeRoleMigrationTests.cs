@@ -319,7 +319,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         AppliedValuationSnapshots
         CaseReportGenerations
         ContactPrincipalLinks
-        ContactRoles
         DocumentContentCacheEntries
         EditScopes
         GeneratedCaseArtifacts
@@ -337,7 +336,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         AppliedValuationSnapshots:SELECT,INSERT
         CaseReportGenerations:SELECT,INSERT,UPDATE
         ContactPrincipalLinks:SELECT,INSERT,DELETE
-        ContactRoles:SELECT,INSERT,DELETE
         DocumentContentCacheEntries:SELECT,INSERT,UPDATE
         EditScopes:SELECT,INSERT,UPDATE,DELETE
         GeneratedCaseArtifacts:SELECT,INSERT,UPDATE
@@ -574,7 +572,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 "Cases:INSERT", "Cases:SELECT", "Cases:UPDATE",
                 "ExternalWorkItems:INSERT", "ExternalWorkItems:SELECT", "ExternalWorkItems:UPDATE",
                 "IntakeMutationHistory:INSERT", "IntakeMutationHistory:SELECT",
-                "OrganizationRoles:SELECT", "Organizations:SELECT",
+                "Organizations:SELECT",
                 "PrincipalSequenceLineages:INSERT", "PrincipalSequenceLineages:SELECT",
                 "Principals:SELECT", "Principals:UPDATE",
                 "StandaloneAuditEvidence:INSERT", "StandaloneAuditEvidence:SELECT",
@@ -598,7 +596,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                         N'CaseWorkflows', N'CaseDataSnapshots', N'CaseDataFields',
                         N'CaseDueWork', N'ExternalWorkItems', N'IntakeMutationHistory',
                         N'Principals', N'PrincipalSequenceLineages', N'Organizations',
-                        N'OrganizationRoles', N'WorkflowConfigurations')
+                        N'WorkflowConfigurations')
                   AND permission.class = 1
                   AND permission.minor_id = 0
                   AND permission.[state] = 'G'
@@ -793,7 +791,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         {
             var expectedDeniedTables = role == WorkerRole
                 ? tables.Where(table => table is not ("DocumentContentCacheEntries" or "EditScopes")).ToArray()
-                : tables.Where(table => table is not ("ContactRoles" or "ContactPrincipalLinks" or "EditScopes" or "GlassRepairEstimateSessions" or "UserExternalCredentials")).ToArray();
+                : tables.Where(table => table is not ("ContactPrincipalLinks" or "EditScopes" or "GlassRepairEstimateSessions" or "UserExternalCredentials")).ToArray();
             Assert.Equal(expectedDeniedTables, (await ReadDeniedDeleteTablesAsync(database, role))
                 .Where(tables.Contains)
                 .ToArray());
@@ -1477,7 +1475,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
 
         var contactOrganizationId = Guid.NewGuid();
         await database.ExecuteAsync(
-            $"INSERT INTO [dbo].[Organizations] ([Id], [Name], [Version], [Active]) VALUES ('{contactOrganizationId:D}', N'restricted-role-fixture', 0, 1);");
+            $"INSERT INTO [dbo].[Organizations] ([Id], [Name], [Version], [Active], [Role]) VALUES ('{contactOrganizationId:D}', N'restricted-role-fixture', 0, 1, N'repairer');");
 
         await database.ExecuteAsync(
             $"""
@@ -1492,10 +1490,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             IF @StaffMailLockResult < 0
                 THROW 51000, 'Web runtime could not acquire the staff-mail transaction lock.', 1;
             ROLLBACK TRANSACTION;
-            INSERT INTO [dbo].[ContactRoles] (
-                [OrganizationId], [Role])
-            VALUES (
-                '{contactOrganizationId:D}', N'repairer');
+            INSERT INTO [dbo].[ContactPrincipalLinks] ([PrincipalId], [OrganizationId])
+            SELECT [Id], '{contactOrganizationId:D}' FROM [dbo].[Principals] WHERE [Code] = N'QDOS';
             INSERT INTO dbo.EditScopes (ScopeKind, RecordId, HolderKind, Holder, TokenHash, ExpectedVersion, Generation, ExpiresAtUtc)
             VALUES (N'Contact', '{contactOrganizationId:D}', N'Staff', N'permission-fixture', REPLICATE('a', 64), 0, 1, SYSDATETIMEOFFSET());
             UPDATE dbo.EditScopes SET Generation = 2 WHERE RecordId = '{contactOrganizationId:D}';
@@ -1509,14 +1505,14 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             """);
 
         Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM [dbo].[ContactRoles] WHERE [OrganizationId] = '{contactOrganizationId:D}'"));
+            $"SELECT COUNT(*) FROM [dbo].[ContactPrincipalLinks] WHERE [OrganizationId] = '{contactOrganizationId:D}'"));
 
         await database.ExecuteAsync(
             $"""
             EXECUTE AS USER = N'pegasus_test_web_runtime';
             BEGIN TRY
-                UPDATE [dbo].[ContactRoles] SET [Role] = N'storage' WHERE [OrganizationId] = '{contactOrganizationId:D}';
-                THROW 51000, 'Web runtime unexpectedly updated a Contact role.', 1;
+                UPDATE [dbo].[ContactPrincipalLinks] SET [PrincipalId] = [PrincipalId] WHERE [OrganizationId] = '{contactOrganizationId:D}';
+                THROW 51000, 'Web runtime unexpectedly updated a Principal link.', 1;
             END TRY
             BEGIN CATCH
                 IF ERROR_NUMBER() <> 229 THROW;
@@ -1525,8 +1521,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
 
             EXECUTE AS USER = N'pegasus_test_worker_runtime';
             BEGIN TRY
-                DELETE FROM [dbo].[ContactRoles] WHERE [OrganizationId] = '{contactOrganizationId:D}';
-                THROW 51000, 'Worker runtime unexpectedly deleted a Contact role.', 1;
+                DELETE FROM [dbo].[ContactPrincipalLinks] WHERE [OrganizationId] = '{contactOrganizationId:D}';
+                THROW 51000, 'Worker runtime unexpectedly deleted a Principal link.', 1;
             END TRY
             BEGIN CATCH
                 IF ERROR_NUMBER() <> 229 THROW;

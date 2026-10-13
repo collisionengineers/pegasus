@@ -40,6 +40,41 @@ public sealed class RecordThirdPartyReportReading(
     }
 
     /// <summary>
+    /// The reading already recorded for this very document, or null when none
+    /// was recorded for the same content: a scanned report is read from its
+    /// later OCR recording when the first one had no text to read. Only a
+    /// reading that matched exactly one report signature counts.
+    /// </summary>
+    public static async Task<RetainedInstructionAnalysis?> FindRecordedAsync(
+        IntakeAssetRecord asset,
+        IRetainedInstructionAnalysisStore analyses,
+        IIntakeOcrOperationStore ocrOperations,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(analyses);
+        ArgumentNullException.ThrowIfNull(ocrOperations);
+        var analysis = await analyses.FindByOperationKeyAsync(OperationKey(asset), cancellationToken);
+        if (IsReadingOf(analysis, asset))
+        {
+            return analysis;
+        }
+
+        var ocr = await ocrOperations.FindCompletedBySourceAsync(asset.ContentHash, cancellationToken);
+        analysis = ocr is null
+            ? null
+            : await analyses.FindByOperationKeyAsync(OcrOperationKey(asset, ocr.Id), cancellationToken);
+        return IsReadingOf(analysis, asset) ? analysis : null;
+    }
+
+    // A reading of this very report that matched exactly one report signature;
+    // anything else is not a reading Pegasus can take values from.
+    private static bool IsReadingOf(RetainedInstructionAnalysis? analysis, IntakeAssetRecord asset) =>
+        analysis is { Outcome: RetainedInstructionAnalysisOutcome.Analyzed }
+        && analysis.IntakeAssetId == asset.Id
+        && string.Equals(analysis.SourceSha256, asset.ContentHash, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Reads <paramref name="document"/> — one document's fragments, scanned
     /// pages and images, nothing from the rest of its source — and records the
     /// reading under <paramref name="operationKey"/>. A document that carries

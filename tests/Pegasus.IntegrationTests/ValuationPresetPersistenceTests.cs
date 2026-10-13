@@ -474,7 +474,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 null,
                 null,
                 null,
-                new(42_000, CaseOdometerUnit.Miles, CaseVehicleMileageSourcePolicy.Owner, null),
+                new(42_000, CaseOdometerUnit.Miles, null),
                 new Dictionary<string, string?>(StringComparer.Ordinal)),
             // The Engineer's Value box, as the calculation filled it on the page.
             Valuation = new(

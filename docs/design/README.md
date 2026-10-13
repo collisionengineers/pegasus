@@ -59,7 +59,8 @@ jobs live in the Work Centre and on Administration AI jobs, and Send
 Unidentified to AI is on the Unidentified record. `Triage`, `Unidentified`, `Audit`,
 `Not ready`, `Review` and `Held` keep their settled meanings. Triage is a Case
 type with its own states, reached through the Cases rail;
-Unidentified is a pre-Case record reached through the Cases rail. Neither is
+Unidentified is a pre-Case record reached through the Cases rail's
+Unassigned Images. Neither is
 a Case state.
 
 The common hierarchy of every authenticated page is:
@@ -153,7 +154,7 @@ section links and Refresh. The page always scrolls; there is no Tabs layout
 (operator, 9 October 2026). The section row
 links Case details, Claim, Original report on Audit Cases, Inspection details,
 Vehicle (with Damage and Valuation inside), Repair Spec, Decisions, Report,
-Files, Notes and Tasks. Each is a foldable panel whose head carries its own Edit
+Files and Notes. Each is a foldable panel whose head carries its own Edit
 (entering the one page-wide edit session), one availability label when the
 state does not allow editing, and the fold chevron. The aside holds Figures
 and Next action and folds into a two-up strip above the sections below 1441px.
@@ -198,13 +199,14 @@ Images, Files (Documents and Correspondence) and Notes tabs with the finding
 read-only, Record finding in a dialog and the composer for replies.
 
 The **Actions** menu holds exactly the progressions the state permits — Assign
-Engineer, Export case, Mark report sent, Log query, Resolve query, Return
+Engineer, Export case, Tasks (the Case's task list in a dialog; operator, 13 October
+2026), Mark report sent, Log query, Resolve query, Return
 to Review or Engineer, Archive, Place on Hold or Release Hold, Correct
 principal — and,
 on an Inspection + Audit Case, Create audit in every state: a disabled
 `.btn` inside a `.menu-gated` span whose `title` states Core's refusal on
 hover when it is not permitted (operator, 1 October 2026) — then, after a
-separator and in red, Close case. Export case is
+separator and in red, Close case. Export case and Tasks are
 listed on every standard Case, in and out of an edit session. Damage uses the
 **plan** only: a top-down drawing of the recorded vehicle (car, van or
 motorbike), one yellow comic burst per recorded damage sized and placed by
@@ -595,7 +597,7 @@ sprite: `src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml`.
 | `more` | `more-horizontal` | `C1A4C4920823A69EC2AC52D857C011D4EEF7E4BDE6051F3D8A2665EEAB25BE60` | Overflow menus |
 | `clock` | `clock` | `A6C097EC634E7D5B12F7455B463F77B3B96FD57C00585F8780BFC90A683701CB` | Freshness, due |
 | `alert` | `alert-circle` | `563457371665FE2C918D74439CBD5CCFF0382D39B39691DBB7228EEAC26F6F42` | Error summary, blocked |
-| `warning` | `alert-triangle` | `B90088818042B44505F214F711BB9D79F5751ED6D3E489699D5DC9BF01C2989C` | Warning notice, Unidentified queue |
+| `warning` | `alert-triangle` | `B90088818042B44505F214F711BB9D79F5751ED6D3E489699D5DC9BF01C2989C` | Warning notice |
 | `check` | `check` | `A3E47237FD915A5F988C75EE90F1E85EA2C3E682E7301829C87CA627DB4E4F27` | Save, confirm, checks |
 | `check-circle` | `check-circle` | `D2F9F42C4597323E817B24647215BC97274BCECF121B2FEBA78328976FC43953` | Confirmed completion |
 | `file` | `file` | `E9F859A5D8F33262E1D99A22ECDBBD38C861D10F27E4E64F4FB440B12C9D7E31` | Document rows |
@@ -639,7 +641,7 @@ symbols: the fifty-three above plus these twenty-two.
 | — | `list-checks` | `3F03C3F128C5C21F348860C63561EB430BC7F3FD152F07B5499C4FADE643E13A` | Rail: Cases |
 | — | `arrow-up` | `F434D050FA5820052226CC0B907F1C949DE8163EDCCB3D2C2DEBB1397A11AC22` | Report wording: Move up |
 | — | `arrow-down` | `B9674C6E5CC4B78425D60908D272290AE7BC799A61A8B8842525A7ABECD5AA87` | Report wording: Move down |
-| — | `images` | `3736526CF1887288E9D504986D739ADFE2BF83FA0A5411F37529ECD5E87F0285` | Cases Awaiting instruction; Search vehicle images |
+| — | `images` | `3736526CF1887288E9D504986D739ADFE2BF83FA0A5411F37529ECD5E87F0285` | Cases Unassigned Images; Search vehicle images |
 | — | `unlink` | `FA6C00D4700751303B08AF8A35E90B3CE581A77DA80F428F585130BACB39DAE4` | Unlink a message from its Case; Triage Unlink case |
 | — | `rotate-ccw` | `B734EDCBA8DF037C834EAB8A45DC181625008FEEBD20C4109D8F2486A33C27BE` | Rotate view left (paired with `rotate-cw`) |
 | — | `crop` | `D6D10FFBF5D570C7F3CE47D5BA7C34C1ADA38EABD5C18F26164BB1A64A16A109` | Viewer Crop (Case record and pre-Case records); image tile Crop |
@@ -732,6 +734,13 @@ a warning, and the five hints on the Principal's Report sending panel. Two of
 them named "prepare" when they were approved and were reworded to "send" when
 delivery became one step; they are on the next design sign-off.
 
+A Report sending rule offers its conditions in one order: Claim Source,
+Repairer, Images from, Instruction mentions, Sender is not, Outcome, Bodyshop
+mentions, then Case type (operator, 13 October 2026). Outcome and Case type
+are each a choice of their values; Case type names them as the Cases list
+does: Inspection, Audit, Inspection and audit. A refused rule says "choose a
+case type from the list", as it says "choose an outcome from the list".
+
 The valuation sentence is the operator's own wording (23 September 2026) for Get valuation
 on a source with no working provider, shown in that source's card from the
 start (28 September 2026), with no Get valuation button; "report a
@@ -790,7 +799,10 @@ does not merge.
 - **Filters are dropdowns; tables sort newest first.** Table filtering uses
   labelled `select` controls (auto-submit with a no-script fallback), not
   rows of pill tabs. Tables default to newest first, and column headers are
-  sort links that toggle direction server-side.
+  sort links that toggle direction server-side. The Contacts list is the
+  exception: one panel per type, each sorted by name, with no sort control
+  (operator, 13 October 2026;
+  [FRD-04](../frd/frd-04-parties-accounts-and-access.md#contacts-administration)).
 
 
 
@@ -887,7 +899,7 @@ deleted in wave 5.
 | `panel`, `panel-head`, `panel-body`, `panel-body--compact`, `panel-body--tight` | Bordered section |
 | `notice`, `notice--success`, `notice--warning`, `notice--danger` | Inline notice: label plus value only |
 | `status` and its tone modifiers | State chip ([Colour](README.md#colour)) |
-| `tabs`, `tab` | `tablist` / `tab` with `aria-selected` |
+| `tabs`, `tab` | `tablist` / `tab` with `aria-selected`; where each tab is its own server-rendered address (`?tab=`), a `nav` of links with `aria-current="page"` (Logs, a Principal contact) |
 | `pane-layout`, `pane-layout--2`, `pane-layout--3`, `pane`, `pane-head`, `pane-body`, `pane-scroll` | Multi-pane workspaces |
 | `queue-layout` | The Cases three-pane variant |
 | `scope-list`, `scope-button` | Left-pane scopes with icon well and count |

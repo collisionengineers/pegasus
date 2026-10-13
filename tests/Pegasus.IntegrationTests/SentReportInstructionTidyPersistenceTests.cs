@@ -257,7 +257,7 @@ public sealed class SentReportInstructionTidyPersistenceTests
         var retainedMessageId = Guid.NewGuid();
         await using var db = await database.CreateContextAsync();
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"Instruction tidy test organization"}, {0L})");
+            $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {"Instruction tidy test organization"}, {0L})");
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {SentAtUtc})");
         await db.Database.ExecuteSqlInterpolatedAsync(

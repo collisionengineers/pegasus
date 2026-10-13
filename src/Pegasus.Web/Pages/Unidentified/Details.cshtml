@@ -20,7 +20,7 @@
         <h1>@Model.Item.Reference</h1>
     </div>
     <div class="page-actions">
-        <a class="btn" asp-page="/Cases/Index" asp-route-tab="unidentified" asp-route-show="@(Model.IsOpen ? null : "closed")">
+        <a class="btn" asp-page="/Cases/Index" asp-route-tab="unassigned" asp-route-show="@(Model.IsOpen ? "unidentified" : "closed")">
             <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
             <span>Back to Cases</span>
         </a>

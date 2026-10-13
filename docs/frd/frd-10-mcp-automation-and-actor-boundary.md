@@ -20,8 +20,8 @@
   Cases, received items and their inspection address, direct Case creation,
   Case details and notes, findings, valuation, estimates, the Case's
   lifecycle acts, reports and their approval, report wording, image
-  preparation, the Case's documents, AI jobs, mail correction, dismiss and
-  restore, and Work Centre dismiss. It sends reports to the Principal and e-mail under
+  preparation, the Case's documents, AI jobs, mail correction, linking mail
+  to a Case, dismiss and restore, and Work Centre dismiss. It sends reports to the Principal and e-mail under
   its own `automation.send` scope. It never puts an estimate in use, never
   runs a Glass's session and never touches Glass's credentials.
 - A tool counts as delivered only after a real caller has proved success,
@@ -129,7 +129,7 @@ gains history of its own (operator, 10 October 2026).
 `pegasus_assessment_update` writes the assessment fields a staff member
 records, and so can change or clear, on the Case: the fields a Case section's
 editor posts and those a section writes through its own typed member (damage
-entries, mileage source, storage per day, recovery charge and report date).
+entries, storage per day, recovery charge and report date).
 Professional findings are among them (operator, 7 October 2026): the
 outcome, roadworthiness (`assessment.legal_status`), the unroadworthy reason,
 the salvage category and value, and the Engineer's Value
@@ -372,6 +372,10 @@ replays by its operation key.
 - `pegasus_mail_correct_classification` takes a mail category or
   Unclassified, with a reason, as the staff correction does
   ([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)).
+- `pegasus_mail_link_destinations` lists the Cases and Triage Cases the
+  staff **Link to case** dialog offers, and `pegasus_mail_link_case` links
+  the message through the staff command
+  ([FRD-20](frd-20-mailbox-workspace.md#classification-and-linking-actions)).
 - `pegasus_mail_action` with `dismiss` or `restore` changes the message's
   Pegasus scope only
   ([FRD-20](frd-20-mailbox-workspace.md#dismiss)).
@@ -447,7 +451,7 @@ tranche rule above.
 
 ### Tool inventory
 
-The Actor's whole inventory, 62 tools, by scope. "One-command lease" means
+The Actor's whole inventory, 64 tools, by scope. "One-command lease" means
 the tool takes `expectedVersion` and `operationKey`, accepts an
 `editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
 its one command when none is given.
@@ -489,6 +493,8 @@ its one command when none is given.
 | `automation.assessment` | `pegasus_valuation_get` | Get valuation for one guide source, recording its card as the Valuation section's Save does | one-command lease |
 | `automation.mail` | `pegasus_mail_list`, `pegasus_mail_get` | The retained mail workspace; one message with classification and history | none |
 | `automation.mail` | `pegasus_mail_correct_classification` | Correct a classification to a mail category or Unclassified through the staff command | version and key |
+| `automation.mail` | `pegasus_mail_link_destinations` | The Cases and Triage Cases the message may be linked to, with their versions | none |
+| `automation.mail` | `pegasus_mail_link_case` | Link the message to a Case or Triage Case through the staff command | one-command lease |
 | `automation.mail` | `pegasus_mail_action` | `dismiss` or `restore` in Pegasus | key |
 | `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
 | `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does | one-command lease |

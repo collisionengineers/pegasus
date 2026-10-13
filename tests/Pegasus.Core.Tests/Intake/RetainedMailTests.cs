@@ -223,7 +223,7 @@ public sealed class RetainedMailTests
     }
 
     [Fact]
-    public async Task ListAcceptsEitherOneCategoryOrTheUnidentifiedScope()
+    public async Task ListAcceptsEitherOneCategoryOrTheNoCaseFoundScope()
     {
         var queries = new Queries();
         var list = new ListRetainedMail(queries);
@@ -236,7 +236,7 @@ public sealed class RetainedMailTests
             CancellationToken.None);
         await list.ExecuteAsync(
             Caseworker(),
-            new(null, MailFolderScope.Inbox, Unidentified: true),
+            new(null, MailFolderScope.Inbox, NoCaseFound: true),
             1,
             25,
             CancellationToken.None);
@@ -244,7 +244,7 @@ public sealed class RetainedMailTests
         Assert.Equal(2, queries.Scopes.Count);
         await Assert.ThrowsAsync<ArgumentException>(() => list.ExecuteAsync(
             Caseworker(),
-            new(null, MailFolderScope.Inbox, Category: MailCategory.Query, Unidentified: true),
+            new(null, MailFolderScope.Inbox, Category: MailCategory.Query, NoCaseFound: true),
             1,
             25,
             CancellationToken.None));
@@ -484,7 +484,7 @@ public sealed class RetainedMailTests
                 new(2, result, result, $"staff:{staffId:D}", "Corrected.", NowUtc)
             ]);
         var summary = new RetainedMailSummary(
-            Guid.NewGuid(), MailboxA, "mailbox-a@example.test", true, null, null, null,
+            Guid.NewGuid(), MailboxA, "mailbox-a@example.test", null, null, null,
             null, null, NowUtc, true, 0, null, null, null, null);
         var detail = new RetainedMailDetail(
             summary, [], [], ["reply@example.invalid"], null, [], [], MailFolderScope.Inbox, null, null,
@@ -772,7 +772,7 @@ public sealed class RetainedMailTests
         MailClassificationDossier dossier)
     {
         var summary = new RetainedMailSummary(
-            Guid.NewGuid(), MailboxId(mailboxId), "mailbox@example.test", true, null, null, null,
+            Guid.NewGuid(), MailboxId(mailboxId), "mailbox@example.test", null, null, null,
             null, null, NowUtc, true, 0, null, null, null, null);
         return new(summary, [], [], ["reply@example.invalid"], null, [], [], MailFolderScope.Inbox,
             dossier.Current.Outcome, null, $"immutable-{mailboxId}",

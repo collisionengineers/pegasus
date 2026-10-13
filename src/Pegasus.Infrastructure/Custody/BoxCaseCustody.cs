@@ -881,6 +881,19 @@ internal sealed class BoxContentClient(
     }
 
     /// <summary>
+    /// The exact version an upload has just created, read back without walking
+    /// its ancestry again: the folder was proved before the upload, and Box's
+    /// answer to the upload named that folder as the file's parent.
+    /// </summary>
+    public Task<Stream> OpenCreatedVersionReadAsync(
+        string fileId,
+        string versionId,
+        long maximumLength,
+        CancellationToken cancellationToken) =>
+        DownloadVersionWithoutAncestryAsync(
+            fileId, versionId, maximumLength, contentHash: null, cancellationToken);
+
+    /// <summary>
     /// The managed read: the exact version of a file that sits directly in
     /// <paramref name="expectedParentId"/>. The file is read fresh every time;
     /// the folder's ancestry comes from the read memory when it is still live.

@@ -154,6 +154,24 @@ public sealed partial class FileSystemIntakeArtifactStore(string rootPath)
             cancellationToken);
     }
 
+    /// <summary>
+    /// The content-addressed file for exactly this hash, taken as it is: the
+    /// key names its own content, so storing those bytes again would only
+    /// find them there.
+    /// </summary>
+    public IntakeQuarantineArtifact? TryAdopt(string storageKey, string sha256, long contentLength)
+    {
+        if (contentLength < 0 || sha256 is not { Length: 64 } || !sha256.All(char.IsAsciiHexDigit))
+        {
+            return null;
+        }
+
+        var normalisedHash = sha256.ToUpperInvariant();
+        return string.Equals(storageKey, $"sha256/{normalisedHash[..2]}/{normalisedHash}", StringComparison.Ordinal)
+            ? new IntakeQuarantineArtifact(storageKey, normalisedHash, contentLength)
+            : null;
+    }
+
     public async Task<ReadOnlyMemory<byte>?> ReadAsync(
         string storageKey,
         CancellationToken cancellationToken)

@@ -382,7 +382,7 @@ internal sealed class EfIntakeMutationStore(
         receipt.Version++;
         // FRD-08 case-state classification first, so the query rule reads the
         // category the Case's state gives a message no predicate classified.
-        ApplyCaseStateClassification(context, receipt, caseWorkflow, occurredAtUtc);
+        await ApplyCaseStateClassificationAsync(context, receipt, caseWorkflow, occurredAtUtc, cancellationToken);
         // FRD-13 "Report sent and queries": a post-report receipt joining a
         // Report sent Case raises a query, recorded as the Case's own event.
         var beforeStateJson = CaseQueryLedger.SnapshotState(caseWorkflow);
@@ -875,6 +875,7 @@ internal sealed class EfIntakeMutationStore(
             LastOperationKey = operationKey
         };
         receipt.Version++;
+        await ApplyCaseStateClassificationAsync(context, receipt, caseAuthority.Workflow, occurredAtUtc, cancellationToken);
         caseAuthority.CompleteSystemMutation();
         var afterJson = Snapshot(receipt);
         if (staffGroupOrigin is not null)
@@ -1073,11 +1074,15 @@ internal sealed class EfIntakeMutationStore(
         var queryRaised = false;
         var queryWithdrawn = false;
         var beforeStateJson = caseWorkflow is null ? null : CaseQueryLedger.SnapshotState(caseWorkflow);
+        if (eventType == "intake_case_linked" && caseAuthority is not null)
+        {
+            // A Triage Case has no workflow; its linked message is Case update too.
+            await ApplyCaseStateClassificationAsync(context, receipt, caseWorkflow, occurredAtUtc, cancellationToken);
+        }
         if (caseWorkflow is not null)
         {
             if (eventType == "intake_case_linked")
             {
-                ApplyCaseStateClassification(context, receipt, caseWorkflow, occurredAtUtc);
                 queryRaised = await CaseQueryLedger.RaiseForMailAsync(
                     context, receipt, caseWorkflow, actor.Kind, actor.SubjectId,
                     operationKey, occurredAtUtc, cancellationToken);
@@ -1162,15 +1167,18 @@ internal sealed class EfIntakeMutationStore(
 
     /// <summary>
     /// FRD-08 case-state classification: a retained mail message joining a Case
-    /// with no Principal classification takes its category from the Case's state,
-    /// written as the automated decision before the query rule reads it. A
-    /// corrected decision (version above one) is left alone by the shared apply.
+    /// with no Principal classification takes its category from whether the
+    /// Case's report is sent, written as the automated decision before the query
+    /// rule reads it. A corrected decision (version above one) is left alone by
+    /// the shared apply. A Triage Case has no workflow (<paramref name="workflow"/>
+    /// is null) and its report is never sent.
     /// </summary>
-    private static void ApplyCaseStateClassification(
+    private static async Task ApplyCaseStateClassificationAsync(
         PegasusDbContext context,
         IntakeReceiptEntity receipt,
-        CaseWorkflowEntity workflow,
-        DateTimeOffset occurredAtUtc)
+        CaseWorkflowEntity? workflow,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken)
     {
         if (receipt.SourceChannel != "mailbox")
         {
@@ -1180,7 +1188,9 @@ internal sealed class EfIntakeMutationStore(
             ? EfIntakeReceiptStore.MapMailClassificationDecision(decision)
             : null;
         var derived = CaseStateMailClassification.Derive(
-            current, Enum.Parse<CaseLifecycleState>(workflow.State));
+            current,
+            workflow is not null
+                && await EfCaseWorkflowStore.ReportIsSentAsync(context, workflow, cancellationToken));
         if (derived is not null)
         {
             EfIntakeReceiptStore.ApplyMailClassificationDecision(

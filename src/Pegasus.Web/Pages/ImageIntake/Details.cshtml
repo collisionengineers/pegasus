@@ -25,7 +25,7 @@
     </div>
     <div class="page-actions">
         <a class="btn" asp-page="/Cases/Index"
-           asp-route-tab="@(awaiting ? "awaiting" : null)"
+           asp-route-tab="@(awaiting ? "unassigned" : null)"
            asp-route-selected="@(awaiting ? Model.Detail.Record.Id : null)">
             <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
             <span>Back to Cases</span>
@@ -77,7 +77,7 @@
         }
         @if (awaiting)
         {
-            @* The Cases list's Awaiting instruction attach owns choosing the
+            @* The Cases list's Unassigned Images attach owns choosing the
                Case and the reasoned association; this record enters it. *@
             <a class="btn btn--dark" href="@Model.AddToCaseHref" data-image-action="add-to-case">
                 <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg><span>Add to an existing case</span>

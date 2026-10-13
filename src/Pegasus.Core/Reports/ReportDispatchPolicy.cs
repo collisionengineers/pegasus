@@ -2,6 +2,7 @@ using System.Net.Mail;
 using System.Security.Cryptography;
 using System.Text;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Operations;
 
 namespace Pegasus.Core.Reports;
@@ -68,6 +69,17 @@ public sealed record ReportDispatchFacts(
     /// instruction text. It is read for the plan and never stored with a send.
     /// </summary>
     public string? InstructionText { get; init; }
+
+    /// <summary>The Case's type, which "Case type" conditions compare.</summary>
+    public CaseType? CaseType { get; init; }
+
+    /// <summary>
+    /// The work whose report is being sent: the primary work's is the
+    /// Inspection report and the Audit work's the Audit report. On an
+    /// Inspection + Audit Case "Case type" conditions compare the report
+    /// being sent; a send carrying both reports is the work it is sent from.
+    /// </summary>
+    public CaseWorkKind? ReportWork { get; init; }
 
     /// <summary>The effective sender of the instruction, however the Case holds it.</summary>
     public string? Sender => Instruction?.EffectiveSender ?? OriginalSender;
@@ -433,6 +445,10 @@ public static class ReportDispatchPolicy
         return (new(to, copies), removed);
     }
 
+    /// <summary>A Case type value as staff read it, as the Cases list names it: "Inspection and audit".</summary>
+    public static string CaseTypeWords(string value) =>
+        value == nameof(Cases.CaseType.InspectionAndAudit) ? "Inspection and audit" : value;
+
     /// <summary>The outcome code as staff read it: "total_loss" is "Total loss".</summary>
     public static string? OutcomeWords(string? outcome)
     {
@@ -487,6 +503,7 @@ public static class ReportDispatchPolicy
             ReportSendingConditionKind.Outcome => string.IsNullOrWhiteSpace(facts.Outcome)
                 ? null
                 : Contains(condition.Values, facts.Outcome.Trim()),
+            ReportSendingConditionKind.CaseType => CaseTypeHolds(condition.Values, facts),
             ReportSendingConditionKind.SenderNot => string.IsNullOrWhiteSpace(facts.Sender)
                 ? null
                 : !Contains(condition.Values, facts.Sender!.Trim()),
@@ -503,6 +520,36 @@ public static class ReportDispatchPolicy
             .Where(decision => decision.RuleIndex == ruleIndex && decision.ConditionIndex == conditionIndex)
             .Select(decision => (bool?)decision.Holds)
             .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// A "Case type" condition (operator, 13 October 2026): InspectionAndAudit
+    /// holds for every report of an Inspection + Audit Case, while Inspection
+    /// and Audit hold for the report being sent, which on that Case is the
+    /// work it is sent from. Null when the Case's type, or on an
+    /// Inspection + Audit Case the report's work, is not known.
+    /// </summary>
+    private static bool? CaseTypeHolds(IReadOnlyList<string> values, ReportDispatchFacts facts)
+    {
+        if (facts.CaseType is not { } caseType)
+        {
+            return null;
+        }
+        if (Contains(values, caseType.ToString()))
+        {
+            return true;
+        }
+        if (caseType != Cases.CaseType.InspectionAndAudit)
+        {
+            return false;
+        }
+        return facts.ReportWork is { } work
+            ? Contains(
+                values,
+                CaseWorkPolicy.IsAuditReport(caseType, work)
+                    ? nameof(Cases.CaseType.Audit)
+                    : nameof(Cases.CaseType.Inspection))
+            : null;
     }
 
     private static bool Contains(IReadOnlyList<string> values, string value) =>
@@ -524,6 +571,7 @@ public static class ReportDispatchPolicy
             ReportSendingConditionKind.SenderNot => $"Was the instruction sent by someone other than {Texts()}?",
             ReportSendingConditionKind.ImagesFrom => $"Are the images from {Texts()}?",
             ReportSendingConditionKind.BodyshopMentions => $"Do the bodyshop details mention {Texts()}?",
+            ReportSendingConditionKind.CaseType => $"Is the Case type {string.Join(" or ", values.Select(CaseTypeWords))}?",
             _ => $"Does the instruction mention {string.Join(" or ", values.Select(value => $"\"{value}\""))}?"
         };
     }
@@ -538,6 +586,7 @@ public static class ReportDispatchPolicy
             ReportSendingConditionKind.SenderNot => $"Sender not {string.Join(" or ", condition.Values)}",
             ReportSendingConditionKind.ImagesFrom => $"Images from {string.Join(" or ", condition.Values)}",
             ReportSendingConditionKind.BodyshopMentions => $"Bodyshop mentions {string.Join(" or ", condition.Values)}",
+            ReportSendingConditionKind.CaseType => $"Case type {string.Join(" or ", condition.Values.Select(CaseTypeWords))}",
             _ => $"Mentions {string.Join(" or ", condition.Values)}"
         });
         return $"Rule {index + 1}: {string.Join(", ", parts)}";

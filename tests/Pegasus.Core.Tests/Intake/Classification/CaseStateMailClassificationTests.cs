@@ -1,5 +1,4 @@
 using Pegasus.Core.Intake;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Intake.Classification;
 
@@ -14,7 +13,7 @@ public sealed class CaseStateMailClassificationTests
     [Fact]
     public void MailJoiningACaseWhoseReportIsSentIsAQuery()
     {
-        var derived = CaseStateMailClassification.Derive(Unclassified, CaseLifecycleState.ReportSent);
+        var derived = CaseStateMailClassification.Derive(Unclassified, reportIsSent: true);
 
         Assert.NotNull(derived);
         Assert.Equal(MailClassificationOutcome.Classified, derived.Outcome);
@@ -23,27 +22,28 @@ public sealed class CaseStateMailClassificationTests
         Assert.Same(Unclassified.Predicates, derived.Predicates);
     }
 
-    [Theory]
-    [InlineData(CaseLifecycleState.NotReady)]
-    [InlineData(CaseLifecycleState.Held)]
-    [InlineData(CaseLifecycleState.Review)]
-    [InlineData(CaseLifecycleState.ReportPreparation)]
-    public void MailJoiningACaseStillInProgressIsACaseUpdate(CaseLifecycleState state)
+    [Fact]
+    public void MailJoiningACaseWhoseReportIsNotSentIsACaseUpdate()
     {
-        var derived = CaseStateMailClassification.Derive(null, state);
+        var derived = CaseStateMailClassification.Derive(null, reportIsSent: false);
 
         Assert.NotNull(derived);
+        Assert.Equal(MailClassificationOutcome.Classified, derived.Outcome);
         Assert.Equal(MailCategory.CaseUpdate, derived.Category);
+        Assert.Equal(CaseStateMailClassification.Key, derived.PolicyKey);
+        Assert.Equal("The message joined the linked Case without a category of its own.", derived.Reason);
         Assert.Empty(derived.Predicates);
     }
 
-    [Theory]
-    [InlineData(CaseLifecycleState.PrincipalCancelled)]
-    [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
-    [InlineData(CaseLifecycleState.CreatedInError)]
-    [InlineData(CaseLifecycleState.SourceEmailUnlinked)]
-    public void AClosedCaseDerivesNothing(CaseLifecycleState state) =>
-        Assert.Null(CaseStateMailClassification.Derive(Unclassified, state));
+    [Fact]
+    public void MailJoiningATriageCaseIsACaseUpdate()
+    {
+        var derived = CaseStateMailClassification.Derive(Unclassified, reportIsSent: false);
+
+        Assert.NotNull(derived);
+        Assert.Equal(MailCategory.CaseUpdate, derived.Category);
+        Assert.Same(Unclassified.Predicates, derived.Predicates);
+    }
 
     [Fact]
     public void AClassifiedDecisionIsNeverOverridden()
@@ -55,6 +55,6 @@ public sealed class CaseStateMailClassificationTests
             PrincipalMailClassificationPolicy.Key,
             PrincipalMailClassificationPolicy.Version);
 
-        Assert.Null(CaseStateMailClassification.Derive(classified, CaseLifecycleState.ReportSent));
+        Assert.Null(CaseStateMailClassification.Derive(classified, reportIsSent: true));
     }
 }

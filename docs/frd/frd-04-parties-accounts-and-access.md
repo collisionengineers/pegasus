@@ -4,9 +4,9 @@
 
 ## Short version
 
-- Contacts are external organisations. One organisation can be a Principal,
-  Claim Source, Repairer, Storage provider or Third Party Engineer. Staff
-  accounts are separate.
+- Contacts are external organisations. Each has exactly one type, chosen
+  when it is added and never changed: Principal, Claim Source, Repairer,
+  Storage provider or Third Party Engineer. Staff accounts are separate.
 - Each Case keeps its own copy of the parties it was accepted with. Editing
   the Contacts directory later never changes that copy.
 - Every staff account has exactly one role: Administrator, Engineer or User.
@@ -31,9 +31,10 @@ and what goes into permanent history. Case identity is in
 ### Parties, principals, organisations, accounts, and access
 
 A Principal is the customer role that instructs and pays Collision
-Engineers. One reusable Organisation can also be a Claim Source, Repairer,
-Storage provider or Third Party Engineer. A Principal never links to another
-Principal. Each non-Principal contact role may link to several Principals.
+Engineers. Every Contact has one type: Principal, Claim Source, Repairer,
+Storage provider or Third Party Engineer (operator, 13 October 2026). A
+Principal never links to another Principal. A Contact of any other type may
+link to several Principals.
 Staff accounts are not Contacts.
 
 A repairer, broker, agent, client, legal representative, provider, vehicle
@@ -91,24 +92,31 @@ access.
 
 ### Contacts administration
 
-**Contacts** lists every external organisation with its type, name, contact
-person, email, phone, last Case, and state filters and sorting. A contact has
-an organisation name, contact person, email, phone, address and active
-state. Phone accepts digits, spaces and one optional leading `+` only. UK
+**Contacts** lists the external organisations in one panel per type, in the
+order Principals, Claim Sources, Repairers, Storage, Third Party Engineers,
+each sorted by name; a type with no matching contact is absent. Search runs
+across every panel, and the Type filter narrows the list to one panel. A
+panel's columns follow its type: Principals show Principal code, name,
+contact person, email, phone, last Case and state; Claim Sources and Third
+Party Engineers show name, contact person, email, phone, linked Principals
+(their codes), last Case and state; Repairers and Storage show postcode
+before linked Principals (operator, 13 October 2026). A contact has an
+organisation name, contact person, email, phone, address, postcode and
+active state. Phone accepts digits, spaces and one optional leading `+` only. UK
 numbers are written with a leading `0` and internal spaces. Letters and other
 characters are rejected in the field and on the server.
 
-**Add contact** first asks for the role: Principal, Claim Source, Repairer,
-Storage or Third Party Engineer. It then creates that role on a new identity
-or adds it to an existing identity the operator picks. Matching names are
-suggestions only. Pegasus never merges records by itself.
+**Add contact** first asks for the type: Principal, Claim Source, Repairer,
+Storage or Third Party Engineer. It then creates a new Contact of that type.
+Matching names are suggestions only, each opening the existing Contact.
+Pegasus never merges records by itself, and a Contact's type never changes.
 
-Principal policy lives on the Principal role of its Contact. A Principal code
-is created in the same transaction as that role and stays with the same
+Principal policy lives on its Principal Contact. A Principal code is created
+in the same transaction as that Contact and stays with the same
 Contact through a code replacement
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
-A duplicate organisation name or Principal code fails without leaving an
-orphan identity. The screen's visuals and controls are owned by the
+Names are unique within a type: a second Contact of the same type and name,
+or a duplicate Principal code, fails without leaving an orphan identity. The screen's visuals and controls are owned by the
 [design README](../design/README.md); its layout is in
 [FRD-17](frd-17-administration-workspace.md#contacts).
 
@@ -167,10 +175,15 @@ The Principal section of a Contact carries:
   - Rules add Cc or remove Cc, remind, hold or stop when their conditions
     hold. A rule matches All or Any of its conditions. A condition reads the
     Case's Claim Source or Repairer (a Contact of that type), the recorded
-    outcome, who sent the instruction, or words: "Instruction mentions" is
+    outcome, the Case type (Inspection, Audit or Inspection and audit;
+    operator, 13 October 2026), who sent the instruction, or words: "Instruction mentions" is
     searched for in the instruction e-mail and asked only when the Case
     holds no instruction text. Several values in one condition are
-    alternatives. "Images from" and "Bodyshop mentions" have no Case fact. A
+    alternatives. A Case type of Inspection or Audit matches the report being
+    sent, which on an Inspection + Audit Case is its Inspection or Audit view
+    (a send carrying both reports is the view it is sent from), and Inspection
+    and audit matches either report (operator, 13 October 2026). "Images
+    from" and "Bodyshop mentions" have no Case fact. A
     rule whose fact is not yet known is undecided, and the delivery form
     asks staff at delivery.
 
@@ -333,8 +346,8 @@ authorisation. External customers have no staff account.
 
 ## Edge cases and fail-closed behaviour
 
-- A duplicate organisation name or Principal code is refused and leaves no
-  orphan record.
+- A duplicate organisation name within a type, or a duplicate Principal code,
+  is refused and leaves no orphan record.
 - A phone number with letters or other characters is refused in the field
   and on the server.
 - An account cannot disable or delete itself, and the last enabled

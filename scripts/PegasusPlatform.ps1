@@ -69,9 +69,9 @@ function Test-PegasusArtifactManifest {
 
         .DESCRIPTION
         Checks the schema-3 manifest identity, that exactly the Web ZIP, Worker
-        ZIP and this workstation's migration bundle are present with matching
-        size and SHA-256, that each ZIP has its required root entries, and that
-        a Linux migration bundle is executable. Never shells out (ADR-0049: no
+        ZIP, classifier ZIP and this workstation's migration bundle are present
+        with matching size and SHA-256, that each ZIP has its required root
+        entries, and that a Linux migration bundle is executable. Never shells out (ADR-0049: no
         image tooling is part of the release).
     #>
     param([Parameter(Mandatory)][string] $Path)
@@ -133,8 +133,8 @@ function Test-PegasusArtifactManifest {
     if ($manifest.sourceStatus -ne 'clean') {
         throw 'The release manifest must record a clean source status.'
     }
-    if (-not $manifest.artifacts -or $manifest.artifacts.Count -ne 3) {
-        throw 'The release manifest must contain exactly the Web ZIP, Worker ZIP, and migration bundle.'
+    if (-not $manifest.artifacts -or $manifest.artifacts.Count -ne 4) {
+        throw 'The release manifest must contain exactly the Web ZIP, Worker ZIP, classifier ZIP, and migration bundle.'
     }
 
     $manifestDirectory = Split-Path -Parent $resolvedManifest
@@ -144,7 +144,7 @@ function Test-PegasusArtifactManifest {
         throw "The release manifest must carry $($migrationBundle.RuntimeIdentifier)/$($migrationBundle.Name) for this workstation."
     }
     $migrationBundleName = $migrationBundle.Name
-    $requiredNames = @('web.zip', 'worker.zip', $migrationBundleName)
+    $requiredNames = @('web.zip', 'worker.zip', 'classifier.zip', $migrationBundleName)
     foreach ($name in $requiredNames) {
         $entry = @($manifest.artifacts | Where-Object name -eq $name)
         if ($entry.Count -ne 1) {
@@ -175,6 +175,11 @@ function Test-PegasusArtifactManifest {
     # its runtimeconfig must sit at the zip root.
     Assert-ZipRootFile -ArchivePath (Join-Path $manifestDirectory 'web.zip') -RequiredFile 'Pegasus.Web.dll'
     Assert-ZipRootFile -ArchivePath (Join-Path $manifestDirectory 'web.zip') -RequiredFile 'Pegasus.Web.runtimeconfig.json'
+    # classifier.zip is the Node Functions app with its production node_modules;
+    # the Agent SDK's Linux x64 native binary proves the modules target the host.
+    Assert-ZipRootFile -ArchivePath (Join-Path $manifestDirectory 'classifier.zip') -RequiredFile 'host.json'
+    Assert-ZipRootFile -ArchivePath (Join-Path $manifestDirectory 'classifier.zip') -RequiredFile 'package.json'
+    Assert-ZipRootFile -ArchivePath (Join-Path $manifestDirectory 'classifier.zip') -RequiredFile (Get-PegasusClassifierNativeEntry)
 
     $webPackage = $manifest.PSObject.Properties['webPackage']
     if (
@@ -187,6 +192,12 @@ function Test-PegasusArtifactManifest {
     ) {
         throw 'The release manifest Web package identity is incomplete or invalid.'
     }
+}
+
+function Get-PegasusClassifierNativeEntry {
+    # The Claude Agent SDK runs this Linux x64 executable; the release ZIP marks
+    # it executable and the manifest validator requires it.
+    return 'node_modules/@anthropic-ai/claude-agent-sdk-linux-x64/claude'
 }
 
 function Get-PegasusWorkerDisabledSettingNames {

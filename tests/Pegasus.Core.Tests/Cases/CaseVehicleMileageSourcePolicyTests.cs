@@ -11,64 +11,30 @@ public sealed class CaseVehicleMileageSourcePolicyTests
     [Fact]
     public void NoMileageIsAlwaysToBeConfirmed()
     {
-        Assert.Equal("tbc", CaseVehicleMileageSourcePolicy.Resolve(null, hasMileage: false, null));
+        Assert.Equal("tbc", CaseVehicleMileageSourcePolicy.Resolve(null, hasMileage: false));
         Assert.Equal(
             "tbc",
-            CaseVehicleMileageSourcePolicy.Resolve(
-                CaseDataSourceKind.VehicleLookup,
-                hasMileage: false,
-                "owner"));
+            CaseVehicleMileageSourcePolicy.Resolve(CaseDataSourceKind.VehicleLookup, hasMileage: false));
         Assert.Equal(
             "tbc",
-            CaseVehicleMileageSourcePolicy.Resolve(
-                CaseDataSourceKind.StaffCorrection,
-                hasMileage: false,
-                "repairer"));
+            CaseVehicleMileageSourcePolicy.Resolve(CaseDataSourceKind.StaffCorrection, hasMileage: false));
     }
 
     [Fact]
     public void ALookupMileageIsOnlineData() =>
         Assert.Equal(
             "online_data",
-            CaseVehicleMileageSourcePolicy.Resolve(
-                CaseDataSourceKind.VehicleLookup,
-                hasMileage: true,
-                // The staff pick is ignored: staff did not supply this figure.
-                "repairer"));
+            CaseVehicleMileageSourcePolicy.Resolve(CaseDataSourceKind.VehicleLookup, hasMileage: true));
 
-    [Theory]
-    [InlineData("owner")]
-    [InlineData("repairer")]
-    [InlineData("principal")]
-    public void AStaffMileageKeepsTheStaffChoice(string choice) =>
-        Assert.Equal(
-            choice,
-            CaseVehicleMileageSourcePolicy.Resolve(
-                CaseDataSourceKind.StaffCorrection,
-                hasMileage: true,
-                choice));
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("online_data")]
-    [InlineData("average")]
-    [InlineData("tbc")]
-    [InlineData("Owner")]
-    public void AnUnusableStaffChoiceReadsAsTheOwner(string? choice)
+    [Fact]
+    public void ACustomMileagePrintsAsOnlineData()
     {
-        // online_data, average and tbc are not staff's to pick, and the codes
-        // are matched exactly; anything else falls back to who staff most
-        // often ask.
+        // Staff typed the figure: the Case page reads Custom, and the report
+        // prints the online data sentence (operator, 12 October 2026).
         Assert.Equal(
-            "owner",
-            CaseVehicleMileageSourcePolicy.Resolve(
-                CaseDataSourceKind.StaffCorrection,
-                hasMileage: true,
-                choice));
-        Assert.Equal(
-            "owner",
-            CaseVehicleMileageSourcePolicy.Resolve(null, hasMileage: true, choice));
+            "online_data",
+            CaseVehicleMileageSourcePolicy.Resolve(CaseDataSourceKind.StaffCorrection, hasMileage: true));
+        Assert.Equal("online_data", CaseVehicleMileageSourcePolicy.Resolve(null, hasMileage: true));
     }
 
     [Theory]
@@ -78,9 +44,7 @@ public sealed class CaseVehicleMileageSourcePolicyTests
     [InlineData(CaseDataSourceKind.PrincipalApi)]
     [InlineData(CaseDataSourceKind.PrincipalSetting)]
     public void EveryOtherProvenanceCameThroughThePrincipal(CaseDataSourceKind provenance) =>
-        Assert.Equal(
-            "principal",
-            CaseVehicleMileageSourcePolicy.Resolve(provenance, hasMileage: true, "owner"));
+        Assert.Equal("principal", CaseVehicleMileageSourcePolicy.Resolve(provenance, hasMileage: true));
 
     [Fact]
     public void EveryResolvedCodeIsOneTheReportRenders()
@@ -89,13 +53,12 @@ public sealed class CaseVehicleMileageSourcePolicyTests
         var resolved = Enum.GetValues<CaseDataSourceKind>()
             .SelectMany(provenance => new[]
             {
-                CaseVehicleMileageSourcePolicy.Resolve(provenance, hasMileage: true, null),
-                CaseVehicleMileageSourcePolicy.Resolve(provenance, hasMileage: false, null)
+                CaseVehicleMileageSourcePolicy.Resolve(provenance, hasMileage: true),
+                CaseVehicleMileageSourcePolicy.Resolve(provenance, hasMileage: false)
             })
-            .Append(CaseVehicleMileageSourcePolicy.Resolve(null, hasMileage: true, "repairer"))
+            .Append(CaseVehicleMileageSourcePolicy.Resolve(null, hasMileage: true))
             .Distinct();
 
         Assert.All(resolved, code => Assert.Contains(code, rendered));
-        Assert.Equal(["owner", "repairer", "principal"], CaseVehicleMileageSourcePolicy.StaffChoices);
     }
 }

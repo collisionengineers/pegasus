@@ -9,22 +9,17 @@ namespace Pegasus.Web.Pages.Administration.Contacts;
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class IndexModel(
     IContactDirectoryQueries contacts,
-    IContactDirectoryAdministration administration,
-    IGetPrincipal getPrincipal) : AdministrationPageModel
+    IContactDirectoryAdministration administration) : AdministrationPageModel
 {
     public IReadOnlyList<ContactDirectoryRecord> Contacts { get; private set; } = [];
     public IReadOnlyList<ContactDirectoryRecord> PossibleMatches { get; private set; } = [];
     public IReadOnlyList<PrincipalAdministrationDetails> PrincipalChoices { get; private set; } = [];
-    public ContactDirectoryRecord? ExistingContact { get; private set; }
 
     [BindProperty(SupportsGet = true)] public ContactRole? Type { get; set; }
-    [BindProperty(SupportsGet = true)] public ContactSort Sort { get; set; } = ContactSort.Name;
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
     [BindProperty(SupportsGet = true)] public ContactRole? CreateType { get; set; }
 
     [BindProperty] public Guid ContactId { get; set; }
-    [BindProperty] public Guid? ExistingContactId { get; set; }
-    [BindProperty] public long ExpectedVersion { get; set; }
     [BindProperty] public string OperationKey { get; set; } = NewOperationKey();
     [BindProperty, Required, StringLength(ContactDirectoryPolicy.MaximumNameLength)]
     public string Name { get; set; } = string.Empty;
@@ -44,20 +39,14 @@ public sealed class IndexModel(
     [BindProperty] public Guid[] AssociatedPrincipalIds { get; set; } = [];
 
     public bool CreateDialogOpen => CreateType is not null;
-    public bool EditingExisting => ExistingContactId is not null;
     public bool CanAssociateSelectedType => CreateType is { } role && role != ContactRole.Principal;
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
-        if (!Enum.IsDefined(Sort)) Sort = ContactSort.Name;
         if (CreateType is { } role && !Enum.IsDefined(role)) CreateType = null;
-        if (CreateType is not null)
-        {
-            ContactId = Guid.NewGuid();
-            await PopulateWizardAsync(actor, cancellationToken);
-        }
-        await LoadContactsAsync(actor, cancellationToken);
+        if (CreateType is not null) ContactId = Guid.NewGuid();
+        await LoadAsync(actor, cancellationToken);
         return Page();
     }
 
@@ -66,31 +55,6 @@ public sealed class IndexModel(
         if (!TryGetActor(out var actor)) return Forbid();
         if (!EnsureCreateType()) return await ReturnWizardAsync(actor, cancellationToken);
         PossibleMatches = await contacts.FindPossibleMatchesAsync(actor, Name, cancellationToken);
-        return await ReturnWizardAsync(actor, cancellationToken);
-    }
-
-    public async Task<IActionResult> OnPostChooseExistingAsync(CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (!EnsureCreateType() || ExistingContactId is not { } existingId)
-        {
-            return await ReturnWizardAsync(actor, cancellationToken);
-        }
-
-        var contact = await contacts.GetAsync(actor, existingId, cancellationToken);
-        if (contact is null) return NotFound();
-        if (contact.Roles.Contains(CreateType!.Value))
-        {
-            ModelState.AddModelError(string.Empty, "This contact already has that type.");
-            PossibleMatches = [contact];
-            return await ReturnWizardAsync(actor, cancellationToken);
-        }
-
-        ExistingContact = contact;
-        ContactId = contact.OrganizationId;
-        ExpectedVersion = contact.Version;
-        CopyFrom(contact);
-
         return await ReturnWizardAsync(actor, cancellationToken);
     }
 
@@ -111,10 +75,9 @@ public sealed class IndexModel(
         {
             try
             {
-                var request = await BuildSaveRequestAsync(actor, cancellationToken);
-                await administration.SaveAsync(request, cancellationToken);
+                await administration.SaveAsync(BuildSaveRequest(actor), cancellationToken);
                 TempData["AdministrationStatus"] = "The contact was saved.";
-                return RedirectToPage(new { Search, Type, Sort });
+                return RedirectToPage(new { Search, Type });
             }
             catch (ContactDirectoryException exception)
             {
@@ -126,7 +89,7 @@ public sealed class IndexModel(
                 // other refusal keeps the general notice.
                 if (exception.ParamName == nameof(Telephone))
                 {
-                    ModelState.AddModelError(nameof(Telephone), "Telephone must be digits.");
+                    ModelState.AddModelError(nameof(Telephone), "Phone must be digits.");
                 }
                 else
                 {
@@ -138,87 +101,28 @@ public sealed class IndexModel(
         return await ReturnWizardAsync(actor, cancellationToken);
     }
 
-    private async Task<SaveContactRequest> BuildSaveRequestAsync(
-        ActionActor actor,
-        CancellationToken cancellationToken)
+    private SaveContactRequest BuildSaveRequest(ActionActor actor)
     {
         var selectedRole = CreateType!.Value;
-        if (ExistingContactId is not { } existingId)
-        {
-            var newContactAssociations = AssociationsFor(selectedRole, ContactId);
-            return new(
-                actor,
-                ContactId == Guid.Empty ? Guid.NewGuid() : ContactId,
-                0,
-                Name,
-                ContactPerson,
-                Email,
-                Telephone,
-                Address,
-                Postcode,
-                true,
-                [selectedRole],
-                selectedRole == ContactRole.Principal ? PrincipalCode : null,
-                PrincipalInspectionMode,
-                newContactAssociations,
-                OperationKey);
-        }
-
-        var existing = await contacts.GetAsync(actor, existingId, cancellationToken)
-            ?? throw new ContactDirectoryException(ContactDirectoryError.ContactNotFound);
-        ExistingContact = existing;
-        var associations = AssociationsFor(selectedRole, existing.OrganizationId);
-        var roles = existing.Roles.Append(selectedRole).Distinct().OrderBy(role => role).ToArray();
-        var preservedAssociations = existing.PrincipalAssociations ?? [];
-        var mergedAssociations = preservedAssociations
-            .Concat(associations)
-            .DistinctBy(item => (item.Role, item.PrincipalId))
-            .ToArray();
-        var principalCode = PrincipalCode;
-        var principalInspectionMode = PrincipalInspectionMode;
-        if (selectedRole != ContactRole.Principal && existing.Roles.Contains(ContactRole.Principal))
-        {
-            var principalId = existing.OwnPrincipalIds is { Count: > 0 } ownPrincipalIds
-                ? ownPrincipalIds[0]
-                : Guid.Empty;
-            var principal = principalId == Guid.Empty
-                ? null
-                : await getPrincipal.ExecuteAsync(actor, principalId, cancellationToken);
-            if (principal?.Principal.OrganizationId != existing.OrganizationId)
-            {
-                throw new ContactDirectoryException(ContactDirectoryError.ContactNotFound);
-            }
-            principalCode = principal.Principal.Code;
-            principalInspectionMode = principal.Principal.InspectionMode;
-        }
         return new(
             actor,
-            existing.OrganizationId,
-            ExpectedVersion,
+            ContactId == Guid.Empty ? Guid.NewGuid() : ContactId,
+            0,
             Name,
             ContactPerson,
             Email,
             Telephone,
             Address,
             Postcode,
-            existing.Active,
-            roles,
-            principalCode,
-            principalInspectionMode,
-            mergedAssociations,
-            OperationKey,
-            existing.GuidanceTemplate,
-            existing.GuidanceTemplateVersion);
+            true,
+            selectedRole,
+            selectedRole == ContactRole.Principal ? PrincipalCode : null,
+            PrincipalInspectionMode,
+            selectedRole == ContactRole.Principal
+                ? []
+                : (AssociatedPrincipalIds ?? []).Where(id => id != Guid.Empty).Distinct().ToArray(),
+            OperationKey);
     }
-
-    private ContactPrincipalAssociation[] AssociationsFor(ContactRole role, Guid contactId) =>
-        role == ContactRole.Principal
-            ? []
-            : (AssociatedPrincipalIds ?? [])
-                .Where(id => id != Guid.Empty)
-                .Distinct()
-                .Select(id => new ContactPrincipalAssociation(contactId, role, id))
-                .ToArray();
 
     private bool EnsureCreateType()
     {
@@ -229,53 +133,24 @@ public sealed class IndexModel(
 
     private async Task<IActionResult> ReturnWizardAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        await PopulateWizardAsync(actor, cancellationToken);
-        await LoadContactsAsync(actor, cancellationToken);
+        await LoadAsync(actor, cancellationToken);
         return Page();
     }
 
-    private async Task PopulateWizardAsync(ActionActor actor, CancellationToken cancellationToken)
+    // The Principal choices serve the create dialog and the Linked principals column.
+    private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
         PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, cancellationToken);
-        if (ExistingContactId is { } existingId && ExistingContact is null)
-        {
-            ExistingContact = await contacts.GetAsync(actor, existingId, cancellationToken);
-        }
+        Contacts = await contacts.ListAsync(new(actor, Type, Search), cancellationToken);
     }
 
-    private async Task LoadContactsAsync(ActionActor actor, CancellationToken cancellationToken) =>
-        Contacts = await contacts.ListAsync(new(actor, Type, Sort, Search), cancellationToken);
-
-    private void CopyFrom(ContactDirectoryRecord contact)
-    {
-        Name = contact.Name;
-        ContactPerson = contact.ContactPerson;
-        Email = contact.Email;
-        Telephone = contact.Telephone;
-        Address = contact.Address;
-        Postcode = contact.Postcode;
-        if (CreateType != ContactRole.Principal)
-        {
-            AssociatedPrincipalIds = (contact.PrincipalAssociations ?? [])
-                .Where(item => item.Role == CreateType)
-                .Select(item => item.PrincipalId)
-                .ToArray();
-        }
-    }
-
-    public static string RoleLabel(ContactRole role) => role switch
-    {
-        ContactRole.Principal => "Principal",
-        ContactRole.ClaimSource => "Claim Source",
-        ContactRole.Repairer => "Repairer",
-        ContactRole.Storage => "Storage",
-        ContactRole.ThirdPartyEngineer => "Third Party Engineer",
-        _ => role.ToString()
-    };
+    /// <summary>The codes of the active Principals a contact is linked to, in the choices' order.</summary>
+    public string[] LinkedPrincipalCodes(ContactDirectoryRecord contact) =>
+        [.. PrincipalChoices.Where(choice => contact.LinkedPrincipalIds?.Contains(choice.Principal.Id) == true).Select(choice => choice.Principal.Code)];
 
     private static string ContactErrorMessage(ContactDirectoryError error) => error switch
     {
-        ContactDirectoryError.DuplicateOrganizationName => "A contact with that name already exists. Choose it from the matches instead.",
+        ContactDirectoryError.DuplicateOrganizationName => "A contact with that name already exists.",
         ContactDirectoryError.DuplicatePrincipalCode => "That principal code is already in use.",
         ContactDirectoryError.InvalidPrincipalAssociation => "Check the selected linked principals.",
         ContactDirectoryError.StaleVersion => "This contact changed. Choose it again.",

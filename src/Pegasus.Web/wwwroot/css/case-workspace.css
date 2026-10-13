@@ -473,10 +473,14 @@ span.blocker-name{cursor:default;text-decoration:none}
 #section-estimate .est-rate [data-rate-work]:empty{display:none}
 #section-estimate .est-rate .choice input[disabled]+input+span{color:var(--quiet)}
 
-/* The scaling bar as the reference scales (v38 P6): the floors and Apply on
-   a second row under the slider; Remove scaling never wraps. */
+/* The scaling bar as the reference scales (v38 P6): the slider and its box
+   alone on the first row, so it keeps one length while previewing (operator,
+   13 October 2026); the floors, the readout, Remove scaling and Apply on a
+   second row under it; the readout wraps before Remove scaling does. */
 #section-estimate .est-scale{flex-wrap:wrap}
 #section-estimate .est-scale .est-scale-row{flex-basis:100%;display:flex;align-items:center;gap:12px;margin-top:4px}
+#section-estimate .est-scale .est-scale-row [data-scale-read]{min-width:0}
+#section-estimate .est-scale .dsc input[data-scale-percent]{width:84px}
 #section-estimate .est-scale .est-scale-row [data-scale-apply]{margin-left:auto}
 #section-estimate .est-scale [data-scale-remove]{white-space:nowrap}
 
@@ -736,9 +740,9 @@ body.case-images-window{margin:0;background:var(--surface-2)}
 
 /* ==== notes ==== */
 /* ---- Notes ---------------------------------------------------------------- */
-#section-notes .note-form,#section-tasks .note-form{display:grid;gap:6px}
+#section-notes .note-form,#case-tasks-dialog .note-form{display:grid;gap:6px}
 #section-notes .note-form textarea{min-height:64px;padding:6px 9px;border:1px solid var(--line-strong);border-radius:var(--radius);font-size:13px;resize:vertical}
-#section-notes .note-form .lbl,#section-tasks .note-form .lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
+#section-notes .note-form .lbl,#case-tasks-dialog .note-form .lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
 .notes-timeline{display:grid}
 .notes-timeline .note{display:grid;grid-template-columns:118px 1fr;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px}
 .notes-timeline .note:last-child{border-bottom:0}

@@ -410,7 +410,8 @@ public sealed class OrganizationAdministrationPersistenceTests
     /// foundation handoff froze — and YML (the confirmed HDUK-branded route)
     /// stays a distinct principal role rather than merging with a document
     /// issuer or any other principal. The Report Sending SOP seed adds the
-    /// other 17 SOP Principals, so a fresh database holds 32.
+    /// other 17 SOP Principals and the contact SOP seed the 20 job-sheet
+    /// Principals, so a fresh database holds 52.
     /// </summary>
     [Fact]
     public async Task FreshDatabaseSeedsTheFifteenFrozenPrincipalsOnce()
@@ -445,7 +446,7 @@ public sealed class OrganizationAdministrationPersistenceTests
             .Select(principal => new { principal.Id, principal.Code })
             .ToListAsync();
 
-        Assert.Equal(32, seeded.Count);
+        Assert.Equal(52, seeded.Count);
         foreach (var (code, principalId) in expected)
         {
             var matches = seeded.Where(row => row.Id == principalId).ToArray();

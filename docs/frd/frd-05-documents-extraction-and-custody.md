@@ -173,6 +173,9 @@ on that Case; the holding copies remain as retained intake. The holding
 decision is taken after destination automation; a held source, its
 documents and its selected photographs each carry verified content and
 confirmed file and version IDs.
+One receipt's holding retention is a batch sharing one proof of the holding
+folder, and up to four of its files are retained at once; a Box 429 is waited
+out before that call is tried again (12 October 2026).
 Each intake asset records the Box folder its confirmed copy is in (holding,
 the Case root or the Vehicle images folder), and reads expect exactly that
 folder. Unknown or pending holding custody is unfinished work, not success.
@@ -302,7 +305,9 @@ fence failure on a write into the folder drops the shared read. An upload
 does not look for its name first. Box's answer to the upload must name the
 folder that was read as the file's parent. A name Box already holds comes back as Box's own refusal. Pegasus then
 accepts the file that holds it only when it is a file of the same length, in
-that folder, with the same bytes.
+that folder, with the same bytes. The verify read after a created upload into
+holding downloads that exact version without walking its ancestry again
+(12 October 2026).
 Box does not report a file's type, so the type is not compared. A not-found,
 trashed or outside-root answer to any of these reads drops what was
 remembered. Folder create, rename and delete, and file move and delete, still

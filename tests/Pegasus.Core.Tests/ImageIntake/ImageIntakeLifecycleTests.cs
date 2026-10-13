@@ -192,6 +192,44 @@ public sealed class ImageIntakeLifecycleTests
             ImageIntakeLifecycleRules.IsCaseEligibleForAssociation(state, hasReportSentEvidence));
 
     [Fact]
+    public void AnIncompleteReadNeverEntersImageAutomation()
+    {
+        var photos = PhotoReceipt();
+        var incomplete = photos with
+        {
+            Evidence =
+            [
+                new(
+                    IntakeEvidenceSource.SystemDefault,
+                    IntakeEvidenceStrength.Strong,
+                    IntakeEvidenceFinding.Information,
+                    IntakeEvidenceSignals.IncompleteRead,
+                    "The source was retained, but processing could not be completed safely and requires manual sorting.")
+            ]
+        };
+
+        Assert.True(ImageIntakeLifecycleRules.IsImageAutomationEligible(photos));
+        Assert.False(ImageIntakeLifecycleRules.IsImageAutomationEligible(incomplete));
+    }
+
+    private static IntakeReceipt PhotoReceipt()
+    {
+        var id = Guid.NewGuid();
+        var photoId = Guid.NewGuid();
+        return new(id, "photos.pdf", "application/pdf", 1, new('A', 64),
+            new(IntakeSourceChannel.Mailbox, $"mail-{id:N}"),
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch,
+            IntakeDecision.NeedsSorting, "No usable identification.", [], [], null, [],
+            null, null, false, "pdf-reader", "1", null, null,
+            Assets:
+            [
+                new(photoId, "photos.pdf, page 1, image 1", "page-1-image-1.jpg", "image/jpeg",
+                    IntakeAssetKind.EmbeddedImage, IntakeAssetDisposition.Embedded, 121_652,
+                    photoId.ToString("N").PadRight(64, '0'), $"asset/{photoId:N}", null, null, 547, 650)
+            ]);
+    }
+
+    [Fact]
     public async Task RegisterReplaysCommittedResultWithoutRegistering()
     {
         var committed = new ImageIntakeRecord(Guid.NewGuid(), Origin(), "AB12CDE", "AB12CDE-01");

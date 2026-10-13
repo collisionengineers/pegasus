@@ -757,6 +757,7 @@ resource telemetryDailyCapAlert 'Microsoft.Insights/scheduledQueryRules@2023-12-
 
 output webAppName string = webActivationApproved ? webApp!.name : ''
 output webAppHostName string = webActivationApproved ? webApp!.properties.defaultHostName : ''
+output webPublicOrigin string = webPublicOrigin
 output webPlanName string = webPlan.name
 output webIdentityName string = webIdentity.name
 output webIdentityClientId string = webIdentity.properties.clientId

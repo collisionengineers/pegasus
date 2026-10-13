@@ -270,9 +270,7 @@ internal static class AutomationMcpTestSupport
 
         await using var transaction = await context.Database.BeginTransactionAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"MCP ingress organization"}, {0L})");
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO OrganizationRoles (OrganizationId, Role) VALUES ({organizationId}, {"principal"})");
+            $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {"MCP ingress organization"}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {SeedUtcNow})");
         await context.Database.ExecuteSqlInterpolatedAsync(

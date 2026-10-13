@@ -167,10 +167,12 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
         var save = new SaveEstimate(harness.RepairSpecifications, jobs);
         var snapshots = new EfRepairSpecificationSnapshotStore(harness.Factory, harness.Clock);
-        var rateCard = await new EfLabourRateCardStore(harness.Factory, harness.Clock).SaveAsync(
-            new(Guid.NewGuid(), "Panel and paint", 80m, true, 0,
+        var rateCards = new EfLabourRateCardStore(harness.Factory, harness.Clock);
+        var standard = LabourRateCardAdministration.ForNewSpecification(await rateCards.ListAsync(CancellationToken.None))!;
+        var rateCard = await rateCards.SaveAsync(
+            new(standard.Id, 80m, standard.Version,
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
-                "Create scaling rate card", "spec-scale-rate-create"),
+                "Set scaling rate", "spec-scale-rate-set"),
             CancellationToken.None);
 
         var lease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "spec-scale-lease-1");
@@ -208,7 +210,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     null,
                     null,
                     null,
-                    new(42_000, CaseOdometerUnit.Miles, CaseVehicleMileageSourcePolicy.Owner, null),
+                    new(42_000, CaseOdometerUnit.Miles, null),
                     new Dictionary<string, string?>(StringComparer.Ordinal)),
                 Valuation = new(
                 [

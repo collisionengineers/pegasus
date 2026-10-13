@@ -267,6 +267,88 @@ public sealed class CreateAuditPersistenceTests
     }
 
     /// <summary>
+    /// Operator, 13 October 2026: the Inspection report's Sent item on an
+    /// Inspection + Audit Case with no Audit yet is recorded on the Case, which
+    /// stays With Engineer and still takes a query; Create audit moves that
+    /// evidence to the Inspection, and the Audit report's send is what reaches
+    /// Report sent.
+    /// </summary>
+    [Fact]
+    public async Task TheInspectionReportSentBeforeTheAuditKeepsTheCaseWithEngineerUntilTheAuditReportIsSent()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var now = DateTimeOffset.UtcNow;
+        await harness.ResetToReportPreparationAsync(now.AddHours(-3));
+        var retain = harness.Services.GetRequiredService<IRetainApprovedMailboxReportSentEvidence>();
+        var inspection = await retain.ExecuteAsync(Evidence("inspection-first", now.AddHours(-2), now.AddHours(-1)), default);
+
+        var link = await harness.LinkRequestAsync("link-inspection-first", inspection.EvidenceId);
+        var linked = (await harness.Workflows.LinkReportEvidenceAsync(link, default)).Workflow;
+
+        Assert.Equal(CaseLifecycleState.ReportPreparation, linked.State);
+        Assert.Equal(inspection.EvidenceId, linked.ReportSentEvidence?.EvidenceId);
+        Assert.Equal(CaseType.InspectionAndAudit, linked.CaseType);
+        Assert.True(CaseQueryRules.CanLog(linked));
+
+        await harness.CreateAudit.ExecuteAsync(await harness.RequestAsync("create-audit-after-inspection-send"), default);
+        await using (var context = await harness.ContextAsync())
+        {
+            var primary = await context.CaseWorks.AsNoTracking().SingleAsync(item => item.Id == harness.CaseId);
+            Assert.Equal(inspection.EvidenceId, primary.ReportSentEvidenceId);
+            var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == harness.CaseId);
+            Assert.Equal(nameof(CaseLifecycleState.ReportPreparation), workflow.State);
+            Assert.Null(workflow.ReportSentEvidenceId);
+        }
+
+        var later = DateTimeOffset.UtcNow;
+        var audit = await retain.ExecuteAsync(Evidence("audit-after", later, later), default);
+        var auditLinked = (await harness.Workflows.LinkReportEvidenceAsync(
+            await harness.LinkRequestAsync("link-audit-after", audit.EvidenceId),
+            default)).Workflow;
+
+        Assert.Equal(CaseLifecycleState.ReportSent, auditLinked.State);
+        Assert.Equal(audit.EvidenceId, auditLinked.ReportSentEvidence?.EvidenceId);
+        Assert.False(CaseLifecycleRules.ReportIsSent(linked with { ReportSentEvidence = null }));
+    }
+
+    /// <summary>
+    /// The Worker's automatic link on the same shape: the committed link reads
+    /// With Engineer and says the send did not end the work, and a replay of the
+    /// same operation answers the same.
+    /// </summary>
+    [Fact]
+    public async Task TheWorkersLinkOfTheInspectionReportBeforeTheAuditReadsWithEngineer()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var now = DateTimeOffset.UtcNow;
+        await harness.ResetToReportPreparationAsync(now.AddHours(-3));
+        var evidence = await harness.Services.GetRequiredService<IRetainApprovedMailboxReportSentEvidence>()
+            .ExecuteAsync(Evidence("inspection-auto", now.AddHours(-1), now.AddHours(-1)), default);
+        var autoLink = new AutoLinkReportEvidence(harness.Services.GetRequiredService<IAutoLinkReportEvidenceStore>());
+        var request = new AutoLinkReportEvidenceRequest(
+            harness.CaseId,
+            evidence.EvidenceId,
+            ActionActor.SystemWorker("sent-evidence-poll"),
+            "auto-link-inspection-before-audit",
+            "Exact approved-mailbox Sent evidence");
+
+        var linked = await autoLink.ExecuteAsync(request, default);
+        var replayed = await autoLink.ExecuteAsync(request, default);
+
+        Assert.Equal(AutoLinkReportEvidenceDisposition.Linked, linked.Disposition);
+        Assert.Equal(CaseLifecycleState.ReportPreparation, linked.Link!.State);
+        Assert.True(linked.Link.OfCurrentWork);
+        Assert.False(linked.Link.EndsTheWork);
+        Assert.Equal(AutoLinkReportEvidenceDisposition.Linked, replayed.Disposition);
+        Assert.Equal(CaseLifecycleState.ReportPreparation, replayed.Link!.State);
+        Assert.False(replayed.Link.EndsTheWork);
+        await using var context = await harness.ContextAsync();
+        var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == harness.CaseId);
+        Assert.Equal(nameof(CaseLifecycleState.ReportPreparation), workflow.State);
+        Assert.Equal(evidence.EvidenceId, workflow.ReportSentEvidenceId);
+    }
+
+    /// <summary>
     /// The Inspection report sent after Create audit (operator, 1 October
     /// 2026): its evidence links to the Inspection's own work, the Case's
     /// state stays the Audit's, and the Inspection takes one evidence only.
@@ -747,7 +829,7 @@ public sealed class CreateAuditPersistenceTests
             var organizationId = Guid.NewGuid();
             var lineageId = Guid.NewGuid();
             await ExecuteSqlAsync(
-                $"INSERT INTO Organizations (Id, Name, Version) VALUES ('{organizationId:D}', N'{code} provider', 0)");
+                $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', '{organizationId:D}', N'{code} provider', 0)");
             await ExecuteSqlAsync(
                 $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ('{lineageId:D}', '2026-01-01 00:00:00 +00:00')");
             await ExecuteSqlAsync(
@@ -758,6 +840,21 @@ public sealed class CreateAuditPersistenceTests
         {
             var (version, token) = await ClaimAsync(operationKey);
             return new(CaseId, version, Actor, operationKey, token);
+        }
+
+        /// <summary>
+        /// The seeded Case before its Inspection report was sent: With Engineer,
+        /// no Sent evidence, and the Report preparation event an exact Sent item
+        /// must follow.
+        /// </summary>
+        public async Task ResetToReportPreparationAsync(DateTimeOffset enteredAtUtc)
+        {
+            await ExecuteSqlAsync(
+                $"UPDATE CaseWorkflows SET State = 'ReportPreparation', ReportSentEvidenceId = NULL WHERE CaseId = '{CaseId:D}'");
+            await ExecuteSqlAsync(
+                "INSERT INTO CaseWorkflowEvents (Id, CaseId, EventType, OperationKey, RequestHash, ActorKind, ActorSubjectId, ActorRolesJson, Reason, OccurredAtUtc, BeforeVersion, AfterVersion, ResultJson) VALUES ("
+                + $"'{Guid.NewGuid():D}', '{CaseId:D}', N'state_ReportPreparation', N'seed-report-preparation', N'{new string('0', 64)}', "
+                + $"N'Staff', N'{EngineerId:D}', N'[\"Engineer\"]', NULL, '{enteredAtUtc:O}', 4, 5, NULL)");
         }
 
         public async Task<LinkReportEvidenceRequest> LinkRequestAsync(string operationKey, Guid evidenceId)

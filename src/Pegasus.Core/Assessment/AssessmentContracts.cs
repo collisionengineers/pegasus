@@ -53,7 +53,6 @@ public static class AssessmentVocabulary
     public const string VehicleVin = "vehicle.vin";
     public const string VehicleEngineCc = "vehicle.engine_cc";
     public const string VehicleFuel = "vehicle.fuel";
-    public const string VehicleMileageSource = "vehicle.mileage_source";
     public const string VehicleCondition = "vehicle.condition";
     public const string VehicleTransmission = "vehicle.transmission";
     public const string VehicleColour = "vehicle.colour";
@@ -176,8 +175,6 @@ public static class AssessmentVocabulary
         new(VehicleVin, AssessmentFieldType.Text, 30),
         new(VehicleEngineCc, AssessmentFieldType.WholeNumber, 10),
         new(VehicleFuel, AssessmentFieldType.Text, 40),
-        new(VehicleMileageSource, AssessmentFieldType.Enumerated, 20,
-            Codes: ["online_data", "owner", "repairer", "principal", "average", "tbc"]),
         new(VehicleCondition, AssessmentFieldType.Enumerated, 20,
             Codes: ["poor", "below_average", "average", "good", "excellent"]),
         new(VehicleTransmission, AssessmentFieldType.Enumerated, 20,

@@ -277,8 +277,10 @@ public sealed partial class TriageCaseWebTests
 
     [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
-    public async Task ATriageRequestWhosePrincipalIsNotEstablishedWaitsInUnidentified()
+    public async Task ATriageRequestWhosePrincipalIsNotEstablishedWaitsWithNoCaseAndNoUnidentifiedItem()
     {
+        // Only images become Unidentified (operator, 13 October 2026): the
+        // e-mail waits in the Inbox's No Case Found scope instead.
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -293,8 +295,9 @@ public sealed partial class TriageCaseWebTests
         await using var scope = factory.Services.CreateAsyncScope();
         Assert.Empty(await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
             .ListAsync(null, CancellationToken.None));
-        Assert.NotNull(await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
+        Assert.Null(await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
             .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
+        Assert.Null((await GetReceiptAsync(scope.ServiceProvider, receiptId)).CurrentCaseId);
     }
 
     /// <summary>
@@ -366,6 +369,79 @@ public sealed partial class TriageCaseWebTests
             CaseLifecycleState.PrincipalCancelled,
             Assert.IsType<CaseWorkflowRecord>(await services.GetRequiredService<ICaseWorkflowQueries>()
                 .GetAsync(inspection.CaseId, CancellationToken.None)).State);
+    }
+
+    /// <summary>
+    /// A received message staff link to a Case without a category of its own
+    /// is Case update unless the report is sent — a Triage Case, which has no
+    /// lifecycle state, and a closed Case alike (operator, 13 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task AStaffLinkedUnclassifiedMessageIsACaseUpdateOnATriageCaseAndAClosedCase()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var actor = ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+        var link = services.GetRequiredService<ILinkIntake>();
+
+        var triage = await CreateManualTriageAsync(services, "classify-linked-triage");
+        var triageReceiptId = await TriageQueuesWebTests.StoreMinimalReceiptAsync(
+            services,
+            "classify-to-triage.eml",
+            sourceIdentity: new(IntakeSourceChannel.Mailbox, Guid.NewGuid().ToString("N")));
+        var triageScope = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(EditScopeKind.Triage, triage.CaseId, 0, actor, "classify-linked-triage-edit"),
+            CancellationToken.None);
+        await link.ExecuteAsync(
+            new LinkIntakeRequest(
+                triageReceiptId,
+                triage.CaseId,
+                (await GetReceiptAsync(services, triageReceiptId)).Version,
+                0,
+                triageScope.Token,
+                actor,
+                "classify-linked-triage",
+                "Staff confirmed this message belongs with the Triage."),
+            CancellationToken.None);
+
+        var inspection = await CreateManualInspectionAsync(services, "classify-cancelled-case");
+        await using (var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            await context.CaseWorkflows.Where(item => item.CaseId == inspection.CaseId)
+                .ExecuteUpdateAsync(update => update.SetProperty(
+                    item => item.State, nameof(CaseLifecycleState.PrincipalCancelled)));
+        }
+        var workflow = Assert.IsType<CaseWorkflowRecord>(await services.GetRequiredService<ICaseWorkflowQueries>()
+            .GetAsync(inspection.CaseId, CancellationToken.None));
+        var caseLease = await services.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
+            new ClaimCaseEditLeaseRequest(inspection.CaseId, workflow.Version, actor, "classify-cancelled-case-lease"),
+            CancellationToken.None);
+        var caseReceiptId = await TriageQueuesWebTests.StoreMinimalReceiptAsync(
+            services,
+            "classify-to-cancelled.eml",
+            sourceIdentity: new(IntakeSourceChannel.Mailbox, Guid.NewGuid().ToString("N")));
+        await link.ExecuteAsync(
+            new LinkIntakeRequest(
+                caseReceiptId,
+                inspection.CaseId,
+                (await GetReceiptAsync(services, caseReceiptId)).Version,
+                caseLease.Version,
+                caseLease.Token,
+                actor,
+                "classify-cancelled-case-link",
+                "Staff confirmed this message belongs with the Case."),
+            CancellationToken.None);
+
+        foreach (var receiptId in new[] { triageReceiptId, caseReceiptId })
+        {
+            var decision = Assert.IsType<MailClassificationResult>(
+                (await GetReceiptAsync(services, receiptId)).MailClassificationDecision);
+            Assert.Equal(MailClassificationOutcome.Classified, decision.Outcome);
+            Assert.Equal(MailCategory.CaseUpdate, decision.Category);
+            Assert.Equal(CaseStateMailClassification.Key, decision.PolicyKey);
+        }
     }
 
     /// <summary>

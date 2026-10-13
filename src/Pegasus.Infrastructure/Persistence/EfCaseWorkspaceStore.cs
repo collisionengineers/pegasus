@@ -132,12 +132,10 @@ public sealed class EfCaseWorkspaceStore(
         var beforeCompleteness = Completeness(snapshot);
         var data = CaseDataPolicy.Normalize(
             CaseWorkspacePolicy.Overlay(beforeData, request));
-        var appliedGuidance = await CaseGuidance.ResolveClaimSourceAsync(
-            context,
-            request.CaseId,
-            beforeData,
-            data,
-            cancellationToken);
+        if (data.ClaimSourceId != beforeData.ClaimSourceId)
+        {
+            await ClaimSourceChoice.RequireActiveAsync(context, data.ClaimSourceId, cancellationToken);
+        }
         if (data != beforeData)
         {
             CaseDataFieldWriter.ApplyEditableData(context, snapshot, data, request.Actor, now);
@@ -219,14 +217,12 @@ public sealed class EfCaseWorkspaceStore(
             CaseDataFieldNames.VehicleMileage);
         var beforeMileageSource = CaseVehicleMileageSourcePolicy.Resolve(
             beforeMileageProvenance,
-            beforeMileageField is not null,
-            beforeAssessment.GetValueOrDefault(AssessmentVocabulary.VehicleMileageSource));
+            beforeMileageField is not null);
         var afterMileageSource = CaseVehicleMileageSourcePolicy.Resolve(
             afterMileageField is null
                 ? null
                 : EfCaseDataStore.ParseSourceKind(afterMileageField.SourceKind),
-            afterMileageField is not null,
-            afterAssessment.GetValueOrDefault(AssessmentVocabulary.VehicleMileageSource));
+            afterMileageField is not null);
 
         IReadOnlyList<CaseAssetPreparation>? beforePreparedImages = null;
         IReadOnlyList<CaseAssetPreparation>? preparedImages = null;
@@ -400,7 +396,6 @@ public sealed class EfCaseWorkspaceStore(
                     ? null
                     : new { estimate.Id, estimate.Version, estimate.Name },
                 ImagePreparation = preparedImages,
-                Guidance = appliedGuidance,
                 Valuations = guideEntries?.Recorded,
                 AppliedValuation = adopted
             },
@@ -437,12 +432,6 @@ public sealed class EfCaseWorkspaceStore(
             afterJson,
             $"{CaseWorkspacePolicy.PolicyKey}/v{CaseWorkspacePolicy.PolicyVersion}",
             now);
-        if (appliedGuidance.Count > 0)
-        {
-            context.CaseWorkflowEvents.Local
-                .Single(item => item.CaseId == request.CaseId && item.OperationKey == request.OperationKey)
-                .ResultJson = afterJson;
-        }
         var freshness = CaseReportFreshness.ClassifyWorkspace(
             beforeReportData,
             afterReportData,
@@ -797,109 +786,19 @@ public sealed class EfCaseWorkspaceStore(
 }
 
 /// <summary>
-/// Builds immutable guidance snapshots for the workflow event that is already
-/// recording the mutation. Callers must include the returned values in that
-/// event's result payload; this helper never creates a competing event or
-/// increments a Case version.
+/// A Case's Claim source must be an active Claim Source contact when the Case is
+/// created with it or the choice changes: a form rendered before the record was
+/// deactivated, or an id that is not a Claim Source, fails closed.
 /// </summary>
-internal static class CaseGuidance
+internal static class ClaimSourceChoice
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    public static async Task ApplyCreationAsync(PegasusDbContext context, CaseWorkflowEntity workflow,
-        Guid? claimSourceId, DateTimeOffset now, string requestHash, CancellationToken cancellationToken)
+    public static async Task RequireActiveAsync(
+        PegasusDbContext context, Guid? claimSourceId, CancellationToken cancellationToken)
     {
-        var guidance = ForOrganization("principal_guidance_applied", workflow.Case.Principal.Organization).ToList();
-        if (claimSourceId is { } sourceId)
-        {
-            var source = await context.Organizations.AsNoTracking().SingleOrDefaultAsync(
-                item => item.Id == sourceId && item.Active && item.ContactRoles.Any(role => role.Role == "claim_source"), cancellationToken)
-                ?? throw new InvalidOperationException("The selected Claim Source is unavailable.");
-            guidance.AddRange(ForOrganization("claim_source_guidance_applied", source));
-        }
-        if (guidance.Count == 0) return;
-        context.CaseWorkflowEvents.Add(new()
-        {
-            Id = Guid.NewGuid(), CaseId = workflow.CaseId, Workflow = workflow,
-            EventType = "case_guidance_applied", OperationKey = $"creation-guidance:{workflow.CaseId:N}",
-            RequestHash = requestHash, ActorKind = nameof(ActorKind.Automation), ActorSubjectId = "case-guidance",
-            ActorRolesJson = "[]", Reason = "", OccurredAtUtc = now,
-            BeforeVersion = workflow.Version, AfterVersion = workflow.Version,
-            ResultJson = JsonSerializer.Serialize(new { Guidance = guidance }, JsonOptions)
-        });
-    }
-
-    public static IReadOnlyList<AppliedCaseGuidance> ForOrganization(
-        string eventType,
-        OrganizationEntity organization)
-    {
-        if (string.IsNullOrWhiteSpace(organization.GuidanceTemplate)
-            || organization.GuidanceTemplateVersion < 1)
-        {
-            return [];
-        }
-        return [new(
-            eventType,
-            organization.Id,
-            organization.Name,
-            organization.GuidanceTemplateVersion,
-            organization.GuidanceTemplate,
-            $"{eventType}:{organization.Id:N}:{organization.GuidanceTemplateVersion}")];
-    }
-
-    public static async Task<IReadOnlyList<AppliedCaseGuidance>> ResolveClaimSourceAsync(
-        PegasusDbContext context,
-        Guid caseId,
-        CaseEditableData before,
-        CaseEditableData after,
-        CancellationToken cancellationToken)
-    {
-        if (after.ClaimSourceId is not { } organizationId
-            || (before.ClaimSourceId == organizationId
-                && before.ClaimSourceVersion == after.ClaimSourceVersion))
-        {
-            return [];
-        }
-
-        // A changed claim source must still be an active Claim source record
-        // when the save commits: a form rendered before the record was
-        // deactivated, or an id that never held the role, fails closed.
-        var organization = await context.Organizations
-            .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == organizationId, cancellationToken);
-        if (before.ClaimSourceId != organizationId
-            && (organization is null
-                || !organization.Active
-                || !await context.Organizations.AsNoTracking().AnyAsync(
-                    item => item.Id == organizationId
-                        && item.ContactRoles.Any(role => role.Role == "claim_source"),
-                    cancellationToken)))
+        if (claimSourceId is { } id && !await context.Organizations.AsNoTracking().AnyAsync(
+                item => item.Id == id && item.Active && item.Role == "claim_source", cancellationToken))
         {
             throw new InvalidOperationException("The selected claim source is not an active Claim source record.");
         }
-
-        if (organization is null
-            || string.IsNullOrWhiteSpace(organization.GuidanceTemplate)
-            || organization.GuidanceTemplateVersion < 1)
-        {
-            return [];
-        }
-
-        var applicationIdentity = $"claim_source_guidance_applied:{organization.Id:N}:{organization.GuidanceTemplateVersion}";
-        var alreadyApplied = await context.CaseWorkflowEvents
-            .AsNoTracking()
-            .AnyAsync(
-                item => item.CaseId == caseId
-                    && item.ResultJson != null
-                    && item.ResultJson.Contains(applicationIdentity),
-                cancellationToken);
-        return alreadyApplied ? [] : ForOrganization("claim_source_guidance_applied", organization);
     }
 }
-
-internal sealed record AppliedCaseGuidance(
-    string EventType,
-    Guid OrganizationId,
-    string OrganizationName,
-    long TemplateVersion,
-    string Text,
-    string ApplicationIdentity);

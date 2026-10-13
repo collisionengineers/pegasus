@@ -134,6 +134,9 @@ to a candidate's confirmed registration:
   whose fifth character is a `1` is retried without that character, because
   plate furniture is often read as an inserted `1`. A match found this way
   assumes the confirmed registration is correct.
+- A confident read contained in a longer confident read of the same receipt
+  or group is not a distinct registration
+  ([FRD-19](frd-19-image-led-intake-and-pairing.md#grouped-image-intake-routing)).
 
 **Pairing in reverse.** When a new eligible Case is accepted, it pairs with a
 waiting unpaired Vehicle images record only on exact equality with the
@@ -317,11 +320,12 @@ from where the Case mileage came from; it is not recorded separately.
 | --- | --- |
 | Extracted from the instruction, including a third-party engineer report supplied with it | `principal` |
 | DVSA lookup | `online_data` |
-| Staff-entered, with the staff member's own choice recorded beside it in edit mode | `owner`, `repairer` or `principal` |
+| Staff-entered: the Case page reads Custom, and nothing is picked (operator, 12 October 2026) | `online_data` |
 | No mileage on the Case | `tbc` |
 
-The `average` code is still a renderer sentence, but nothing derives it.
-Staff no longer record a separate mileage-source report field.
+The `owner`, `repairer` and `average` codes are still renderer sentences, but
+nothing derives them. Staff no longer record a separate mileage-source report
+field, and the Case page has no source to pick.
 
 **No MOT history.** Sometimes the latest lookup answers for the Case's current
 registration but DVSA holds no MOT test. It answers either with an empty

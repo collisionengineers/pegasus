@@ -15,58 +15,60 @@ public sealed class ContactDirectoryPersistenceTests
         [StaffRole.Administrator]);
 
     [Fact]
-    public async Task SaveKeepsEachPrincipalAssociationOnItsSelectedRole()
+    public async Task SaveKeepsTheLinkedPrincipalsAndTheOneFixedType()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var firstPrincipal = await SaveAsync(database, NewPrincipal("First principal", "CP01"));
         var secondPrincipal = await SaveAsync(database, NewPrincipal("Second principal", "CP02"));
         var contactId = Guid.NewGuid();
+        Guid[] linked = [.. new[] { firstPrincipal.OwnPrincipalIds!.Single(), secondPrincipal.OwnPrincipalIds!.Single() }.Order()];
 
-        var saved = await SaveAsync(database, new(
+        var request = new SaveContactRequest(
             Administrator,
             contactId,
             0,
-            "Multi-role contact",
+            "Linked repairer",
             null,
             null,
             null,
             "1 Contact Street",
             "AB1 2CD",
             true,
-            [ContactRole.ClaimSource, ContactRole.Repairer],
+            ContactRole.Repairer,
             null,
             CaseInspectionMode.PhysicalAddress,
-            [
-                new(contactId, ContactRole.ClaimSource, firstPrincipal.OwnPrincipalIds!.Single()),
-                new(contactId, ContactRole.Repairer, secondPrincipal.OwnPrincipalIds!.Single())
-            ],
-            Guid.NewGuid().ToString("N")));
+            linked,
+            Guid.NewGuid().ToString("N"));
+        var saved = await SaveAsync(database, request);
 
         Assert.Equal("AB1 2CD", saved.Postcode);
-        Assert.Equal(
-            [
-                new ContactPrincipalAssociation(contactId, ContactRole.ClaimSource, firstPrincipal.OwnPrincipalIds!.Single()),
-                new ContactPrincipalAssociation(contactId, ContactRole.Repairer, secondPrincipal.OwnPrincipalIds!.Single())
-            ],
-            saved.PrincipalAssociations!.OrderBy(item => item.Role).ToArray());
+        Assert.Equal(ContactRole.Repairer, saved.Role);
+        Assert.Equal(linked, saved.LinkedPrincipalIds);
 
         await using var scope = database.CreateAsyncScope();
         var contacts = scope.ServiceProvider.GetRequiredService<IContactDirectoryQueries>();
         var reread = await contacts.GetAsync(Administrator, contactId, CancellationToken.None);
         Assert.NotNull(reread);
-        Assert.Equal(saved.PrincipalAssociations, reread.PrincipalAssociations);
+        Assert.Equal(ContactRole.Repairer, reread.Role);
+        Assert.Equal(linked, reread.LinkedPrincipalIds);
 
         await using var context = await scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
             .CreateDbContextAsync();
-        var links = await context.Set<ContactPrincipalLinkEntity>()
-            .Where(item => item.OrganizationId == contactId)
-            .OrderBy(item => item.Role)
-            .ToArrayAsync();
-        Assert.Collection(
-            links,
-            link => Assert.Equal((firstPrincipal.OwnPrincipalIds!.Single(), "claim_source"), (link.PrincipalId, link.Role)),
-            link => Assert.Equal((secondPrincipal.OwnPrincipalIds!.Single(), "repairer"), (link.PrincipalId, link.Role)));
+        Assert.Equal(
+            linked,
+            (await context.Set<ContactPrincipalLinkEntity>()
+                .Where(item => item.OrganizationId == contactId)
+                .Select(item => item.PrincipalId)
+                .ToArrayAsync()).Order());
+
+        // The type is chosen when the contact is added and never changes.
+        await Assert.ThrowsAsync<ArgumentException>(() => SaveAsync(database, request with
+        {
+            ExpectedVersion = saved.Version,
+            Role = ContactRole.Storage,
+            OperationKey = Guid.NewGuid().ToString("N")
+        }));
     }
 
     [Fact]
@@ -85,13 +87,9 @@ public sealed class ContactDirectoryPersistenceTests
                 {
                     Id = contactId,
                     Name = "Migrated contact",
+                    Role = "claim_source",
                     Active = true,
                     Version = 0
-                });
-                context.Set<ContactRoleEntity>().Add(new()
-                {
-                    OrganizationId = contactId,
-                    Role = "claim_source"
                 });
                 await context.SaveChangesAsync();
             }
@@ -134,27 +132,7 @@ public sealed class ContactDirectoryPersistenceTests
     }
 
     [Fact]
-    public async Task ClearingAndReplacingGuidanceDoesNotReuseItsAppliedVersion()
-    {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
-        var request = NewContact(Guid.NewGuid(), 0) with { GuidanceTemplate = "Initial guidance" };
-        var saved = await SaveAsync(database, request);
-        Assert.Equal(1, saved.GuidanceTemplateVersion);
-        foreach (var template in new string?[] { null, "Replacement guidance" })
-        {
-            var previousVersion = saved.GuidanceTemplateVersion;
-            saved = await SaveAsync(database, request with
-            {
-                ExpectedVersion = saved.Version,
-                GuidanceTemplate = template,
-                OperationKey = Guid.NewGuid().ToString("N")
-            });
-            Assert.Equal(previousVersion + 1, saved.GuidanceTemplateVersion);
-        }
-    }
-
-    [Fact]
-    public async Task ListOrdersEveryModeAndRetainsContactsWithoutCases()
+    public async Task ListOrdersByNameAndRetainsContactsWithoutCases()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         const string fixturePrefix = "List-sort fixture ";
@@ -167,7 +145,7 @@ public sealed class ContactDirectoryPersistenceTests
         var repairer = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with
         {
             Name = fixturePrefix + "Mike repairer",
-            Roles = [ContactRole.Repairer]
+            Role = ContactRole.Repairer
         });
         var receivedAtUtc = new DateTimeOffset(2030, 1, 2, 3, 4, 5, TimeSpan.Zero);
         await using (var scope = database.CreateAsyncScope())
@@ -197,40 +175,25 @@ public sealed class ContactDirectoryPersistenceTests
 
         await using var queryScope = database.CreateAsyncScope();
         var queries = queryScope.ServiceProvider.GetRequiredService<IContactDirectoryQueries>();
-        async Task<IReadOnlyList<ContactDirectoryRecord>> ListAsync(ContactSort sort) =>
-            await queries.ListAsync(new(Administrator, null, sort, fixturePrefix), CancellationToken.None);
-
-        var byName = await ListAsync(ContactSort.Name);
-        var byType = await ListAsync(ContactSort.Type);
-        var byLastCase = await ListAsync(ContactSort.LastCase);
+        var listed = await queries.ListAsync(new(Administrator, null, fixturePrefix), CancellationToken.None);
 
         Assert.Equal(
             [firstPrincipal.OrganizationId, secondPrincipal.OrganizationId, repairer.OrganizationId, claimSource.OrganizationId],
-            byName.Select(item => item.OrganizationId));
-        Assert.Equal(
-            [claimSource.OrganizationId, firstPrincipal.OrganizationId, secondPrincipal.OrganizationId, repairer.OrganizationId],
-            byType.Select(item => item.OrganizationId));
-        Assert.Equal(
-            [firstPrincipal.OrganizationId, secondPrincipal.OrganizationId, repairer.OrganizationId, claimSource.OrganizationId],
-            byLastCase.Select(item => item.OrganizationId));
+            listed.Select(item => item.OrganizationId));
 
-        var latest = Assert.Single(byLastCase, item => item.OrganizationId == firstPrincipal.OrganizationId);
+        var latest = Assert.Single(listed, item => item.OrganizationId == firstPrincipal.OrganizationId);
         Assert.Equal(receivedAtUtc, latest.LastCaseReceivedAtUtc);
         Assert.Equal("CASE-A", latest.LastCaseReference);
+        Assert.Equal("LCD01", latest.PrincipalCode);
         Assert.All(
-            byLastCase.Where(item => item.OrganizationId == claimSource.OrganizationId
+            listed.Where(item => item.OrganizationId == claimSource.OrganizationId
                 || item.OrganizationId == repairer.OrganizationId),
             item =>
             {
                 Assert.Null(item.LastCaseReceivedAtUtc);
                 Assert.Null(item.LastCaseReference);
+                Assert.Null(item.PrincipalCode);
             });
-        foreach (var paged in new[] { byName, byType })
-        {
-            var pagedLatest = Assert.Single(paged, item => item.OrganizationId == firstPrincipal.OrganizationId);
-            Assert.Equal(receivedAtUtc, pagedLatest.LastCaseReceivedAtUtc);
-            Assert.Equal("CASE-A", pagedLatest.LastCaseReference);
-        }
 
         var repairers = await queries.ListByRoleAsync(Administrator, ContactRole.Repairer, CancellationToken.None);
         var listedRepairer = Assert.Single(repairers, item => item.OrganizationId == repairer.OrganizationId);
@@ -249,7 +212,7 @@ public sealed class ContactDirectoryPersistenceTests
         null,
         null,
         true,
-        [ContactRole.Principal],
+        ContactRole.Principal,
         code,
         CaseInspectionMode.PhysicalAddress,
         [],
@@ -286,7 +249,7 @@ public sealed class ContactDirectoryPersistenceTests
         null,
         null,
         true,
-        [ContactRole.ClaimSource],
+        ContactRole.ClaimSource,
         null,
         CaseInspectionMode.PhysicalAddress,
         [],

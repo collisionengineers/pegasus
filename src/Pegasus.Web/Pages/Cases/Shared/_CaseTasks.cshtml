@@ -1,12 +1,14 @@
 @*
-    Tasks (FRD-16, CASE-20): what is still to do on the Case, after Notes. A dense
+    Tasks (FRD-16, CASE-20): what is still to do on the Case, a dialog the
+    Actions menu opens (operator, 13 October 2026), not a section. A dense
     table of the Case's tasks, open ones first; the tasks Report sent creates from
     the Principal's sending rules and the ones staff add read the same. Complete,
-    Cancel, Assign and Add task are offered in the edit session only, each posting
-    under the session's lease with one fixed recorded reason, so there is no reason
-    box. Assign offers the enabled named staff; there is no unassign. The section is
-    fetched like Files and Notes and acts through its own posts with the render
-    lease token. There is no due date yet.
+    Cancel, Assign and Add task are offered in and out of an edit session: in one
+    each posts under the session's lease, outside one each claims the Case's lease
+    for that command, with one fixed recorded reason either way, so there is no
+    reason box. Assign offers the enabled named staff; there is no unassign. Each post
+    returns with ?dialog=tasks, which draws the dialog open, so it works without
+    script as the estimate dialogs do. There is no due date yet.
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Web.Presentation
@@ -18,18 +20,35 @@
     var names = section?.AssigneeNames;
     var assigneeChoices = Model.TaskAssigneeChoices;
     var leaseToken = Model.RenderLeaseToken;
-    var mayChange = Model.CanEditCaseData && !Pegasus.Core.Lifecycle.CaseLifecycleRules.IsTerminal(workflow.State);
+    // Task actions act in and out of an edit session; a Held or closed Case, an
+    // archived one and a Case a colleague is editing show the list without them.
+    var mayChange = !Pegasus.Core.Lifecycle.CaseLifecycleRules.IsTerminal(workflow.State)
+        && workflow.State != Pegasus.Core.Workflow.CaseLifecycleState.Held
+        && workflow.Archive is null
+        && !Model.ColleagueIsEditing;
+    var openOnLoad = Model.OpenDialog == "tasks"
+        ? Html.Raw(" data-dialog-open-on-load=\"true\"")
+        : Html.Raw(" hidden");
+    // Razor renders a data- attribute even when its value is null, so the
+    // lazy marker is written as raw markup only when the body is unread.
+    var lazyBody = section is null
+        ? Html.Raw("data-lazy-tasks=\"\"")
+        : Html.Raw("");
 }
 
-<section class="record-section panel @Model.CollapsedClass("case.tasks") @(Model.IsEditing && !Model.SectionIsEditable("tasks") ? "is-locked" : null)" id="section-tasks" data-section="tasks" data-collapse="case.tasks" aria-labelledby="section-tasks-title">
-    <div class="panel-head">
-        <h2 id="section-tasks-title">@TaskLabels.Title</h2>
-        <div class="panel-actions">
-            <partial name="Cases/Shared/_CaseSectionHeadTools" model='new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "tasks")' />
-        </div>
+<div id="case-tasks-dialog" class="dialog-backdrop" data-dialog="case-tasks-dialog"@openOnLoad>
+<section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="case-tasks-dialog-title">
+    <div class="dialog-head">
+        <h2 id="case-tasks-dialog-title" tabindex="-1">@TaskLabels.Title</h2>
+        <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+            <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+        </button>
     </div>
-    <div class="panel-body stack">
-        @if (mayChange)
+    @* Without the tasks read, the body is fetched as the dialog opens. *@
+    <div class="dialog-body stack" data-case-tasks-body @lazyBody>
+        @if (section is not null)
+        {
+        if (mayChange)
         {
             <form method="post" asp-page="/Cases/Details" asp-page-handler="CreateCaseTask" asp-route-id="@workflow.CaseId"
                   class="note-form" data-case-task-form>
@@ -39,6 +58,7 @@
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                 <input type="hidden" name="editLeaseToken" value="@leaseToken" />
                 <input type="hidden" name="view" value="@Model.ViewRoute" />
+                <input type="hidden" name="section" value="@Model.Section" />
                 <label class="lbl" for="case-task-description">@TaskLabels.NewTask</label>
                 <input id="case-task-description" name="description" required />
                 <div class="button-row">
@@ -50,7 +70,7 @@
             </form>
         }
 
-        @if (tasks.Count == 0)
+        if (tasks.Count == 0)
         {
             <div class="empty">
                 <svg class="icon" aria-hidden="true"><use href="#icon-check-square" /></svg>
@@ -99,6 +119,7 @@
                                                         <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                                                         <input type="hidden" name="editLeaseToken" value="@leaseToken" />
                                                         <input type="hidden" name="view" value="@Model.ViewRoute" />
+                                                        <input type="hidden" name="section" value="@Model.Section" />
                                                         <select name="assigneeId" aria-label="@TaskLabels.Assignee" required>
                                                             <option value="" selected="@(task.AssigneeId is null)"></option>
                                                             @foreach (var choice in assigneeChoices)
@@ -122,6 +143,7 @@
                                                         <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                                                         <input type="hidden" name="editLeaseToken" value="@leaseToken" />
                                                         <input type="hidden" name="view" value="@Model.ViewRoute" />
+                                                        <input type="hidden" name="section" value="@Model.Section" />
                                                         <button type="submit" data-busy-label="@(completing ? OperatorLabels.Busy.Completing : OperatorLabels.Busy.Working)" class="btn btn--small @(completing ? null : "btn--danger")">
                                                             <svg class="icon" aria-hidden="true"><use href="#@(completing ? "icon-check" : "icon-x")" /></svg>
                                                             <span>@(completing ? TaskLabels.Complete : TaskLabels.Cancel)</span>
@@ -138,5 +160,7 @@
                 </table>
             </div>
         }
+        }
     </div>
 </section>
+</div>

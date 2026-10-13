@@ -1582,7 +1582,7 @@ public sealed class StaffMailSendPersistenceTests
         var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var db = await factory.CreateDbContextAsync();
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"Query reply test organization"}, {0L})");
+            $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {"Query reply test organization"}, {0L})");
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {nowUtc})");
         await db.Database.ExecuteSqlInterpolatedAsync(
@@ -1727,7 +1727,7 @@ public sealed class StaffMailSendPersistenceTests
         var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var db = await factory.CreateDbContextAsync();
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"Chaser test organization"}, {0L})");
+            $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {"Chaser test organization"}, {0L})");
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {nowUtc})");
         await db.Database.ExecuteSqlInterpolatedAsync(

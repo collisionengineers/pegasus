@@ -324,12 +324,6 @@
                         {
                             <span class="row-meta">Matched in: @string.Join("; ", item.Matches.Select(Pegasus.Web.Pages.Mail.IndexModel.MatchLabel))</span>
                         }
-                        @if (!item.MailboxIsPolled)
-                        {
-                            <span class="row-top">
-                                <partial name="Shared/_StatusChip" model="@("No longer polled")" />
-                            </span>
-                        }
                         @if (offersReply || offersDismiss)
                         {
                             <div class="inbox-row-actions">

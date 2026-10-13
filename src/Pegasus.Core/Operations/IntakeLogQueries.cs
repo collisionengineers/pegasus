@@ -13,6 +13,9 @@ public enum IntakeLogOutcome
 {
     CaseCreated,
     Unidentified,
+
+    /// <summary>A NeedsSorting receipt with no Unidentified item; for an e-mail, "Unidentified" reads "No Case Found" (operator, 13 October 2026).</summary>
+    NoCaseFound,
     Triage,
     VehicleImages,
     CouldNotBeRead,
@@ -139,7 +142,9 @@ public static class IntakeLogPolicy
     /// read; a processing failure that never produced a decision reads
     /// Processing failed. The two actionable failures read as themselves, each
     /// with its own retry: a retryable failed last allocation reads Allocation
-    /// failed, and a failed last OCR attempt reads OCR failed.
+    /// failed, and a failed last OCR attempt reads OCR failed. A receipt left at
+    /// NeedsSorting reads Unidentified when it has an Unidentified item and No
+    /// Case Found when it has none.
     /// </summary>
     public static IntakeLogOutcome Outcome(
         IntakeDecision decision,
@@ -147,7 +152,8 @@ public static class IntakeLogPolicy
         bool unidentifiedClosed,
         bool processingFailed,
         bool allocationFailed = false,
-        bool ocrFailed = false) =>
+        bool ocrFailed = false,
+        bool unidentifiedRegistered = false) =>
         processingFailed && decision == IntakeDecision.TechnicalFailure
             ? IntakeLogOutcome.ProcessingFailed
             : allocationFailed
@@ -162,7 +168,8 @@ public static class IntakeLogPolicy
                     unidentifiedClosed ? IntakeLogOutcome.Closed : IntakeLogOutcome.CouldNotBeRead,
                 _ when triageOpened => IntakeLogOutcome.Triage,
                 _ when unidentifiedClosed => IntakeLogOutcome.Closed,
-                _ => IntakeLogOutcome.Unidentified
+                _ when unidentifiedRegistered => IntakeLogOutcome.Unidentified,
+                _ => IntakeLogOutcome.NoCaseFound
             };
 
     public static IntakeLogFilter Normalize(IntakeLogFilter filter)

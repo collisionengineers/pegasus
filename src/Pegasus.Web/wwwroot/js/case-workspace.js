@@ -174,6 +174,46 @@
                 }
             });
     }
+    // The Tasks dialog's body is fetched as it opens, as a section's body is
+    // as it approaches (operator, 13 October 2026). A page that drew the
+    // dialog open (?dialog=tasks) drew its body with it.
+    document.addEventListener('click', function (event) {
+        var opener = event.target.closest && event.target.closest('[data-dialog-open="case-tasks-dialog"]');
+        var body = opener ? document.querySelector('[data-case-tasks-body][data-lazy-tasks]') : null;
+        if (!body || body.dataset.lazyState === 'loading') {
+            return;
+        }
+        body.dataset.lazyState = 'loading';
+        var headers = { 'Accept': 'text/html' };
+        var lease = editLeaseToken();
+        if (lease) {
+            headers['X-Pegasus-Edit-Lease'] = lease;
+        }
+        var view = record.getAttribute('data-case-view');
+        fetch(fragmentPath + '?section=tasks' + (view ? '&view=' + encodeURIComponent(view) : ''),
+            { credentials: 'same-origin', headers: headers })
+            .then(function (response) {
+                if (!response.ok || response.redirected) { throw new Error('tasks: ' + response.status); }
+                return response.text();
+            })
+            .then(function (html) {
+                var parsed = document.createElement('div');
+                parsed.innerHTML = html;
+                var next = parsed.querySelector('[data-case-tasks-body]');
+                if (!next || next.hasAttribute('data-lazy-tasks')) { throw new Error('tasks: invalid response'); }
+                if (!body.isConnected) { return; }
+                body.replaceWith(next);
+                bindMounted(next);
+            })
+            .catch(function (error) {
+                if (!body.isConnected) { return; }
+                body.dataset.lazyState = 'failed';
+                body.textContent = 'This section could not be loaded.';
+                if (window.console && window.console.error) {
+                    window.console.error('Case tasks failed to load', error);
+                }
+            });
+    });
     function mountApproaching() {
         var limit = window.innerHeight * 2.5;
         main.querySelectorAll('[data-lazy]').forEach(function (placeholder) {
@@ -677,7 +717,11 @@
         catchUpWanted = false;
         redrawWanted = false;
         submitting = true;
-        fetch(window.location.href, {
+        // A ?dialog= the page was opened with opened its dialog once; a
+        // catch up never opens one again.
+        var current = new URL(window.location.href);
+        current.searchParams.delete('dialog');
+        fetch(current.toString(), {
             credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' }
         }).then(function (response) {
             if (!response.ok || !samePage(response.url || window.location.href)) { throw new Error('catch up: ' + response.status); }
@@ -1039,6 +1083,9 @@
         var request = { method: method, credentials: 'same-origin', redirect: 'follow', headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' } };
         if (method === 'GET') {
             var url = new URL(action, window.location.href);
+            // A dialog the page was opened with (?dialog=tasks) is not carried into
+            // an in-place read, as a catch up drops it; a form that names one sets it.
+            url.searchParams.delete('dialog');
             new URLSearchParams(body).forEach(function (value, key) { url.searchParams.set(key, value); });
             action = url.toString();
             if (form.hasAttribute('data-estimate-compare-form')) {
@@ -1811,9 +1858,39 @@
 // The Inspect-at choice filling the address input, and the hidden
 // `inspectionMode` it drives, are site.js's Inspect-at block, bound per root
 // through window.pegasusMountBinders, so an in-place swap re-binds them. The
-// lookup and the Save are plain forms the frame posts in place. Nothing here
-// adds behaviour: the Vehicle and Inspection sections read and edit with the
-// shared one-geometry cells alone.
+// lookup and the Save are plain forms the frame posts in place. The Vehicle
+// and Inspection sections read and edit with the shared one-geometry cells.
+//
+// The mileage source follows the figure (operator, 12 October 2026): a figure
+// staff typed is Custom. It reads Custom as soon as the box differs from the
+// figure the section opened with, or once a typed figure has been sent; the
+// server renders the same after the save.
+(function () {
+    'use strict';
+
+    function bind(root) {
+        root.querySelectorAll('[data-mileage-source]').forEach(function (cell) {
+            var section = cell.closest('[data-section="vehicle"]');
+            var box = section ? section.querySelector('#edit-mileage') : null;
+            if (!box || box.dataset.mileageSourceBound === 'true') {
+                return;
+            }
+            box.dataset.mileageSourceBound = 'true';
+            var read = cell.querySelector('.fv');
+            box.addEventListener('input', function () {
+                var opened = cell.getAttribute('data-mileage-opened') || '';
+                var unchanged = box.value === opened && box.defaultValue === opened;
+                var word = box.value === '' ? ''
+                    : unchanged ? cell.getAttribute('data-source-word') || ''
+                    : cell.getAttribute('data-custom-word');
+                read.textContent = word || cell.getAttribute('data-absent-word');
+                read.classList.toggle('empty', !word);
+            });
+        });
+    }
+    bind(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+})();
 
 
 // --- damage: damage by area (v28 P5) ---------------------------------------

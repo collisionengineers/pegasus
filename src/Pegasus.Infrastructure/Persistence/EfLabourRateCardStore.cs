@@ -11,9 +11,11 @@ public sealed class EfLabourRateCardStore(
     public async Task<IReadOnlyList<LabourRateCard>> ListAsync(CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await context.LabourRateCards.AsNoTracking().OrderBy(x => x.Label).ThenBy(x => x.Id)
-            .Select(x => new LabourRateCard(x.Id, x.Label, x.PanelRate, x.Active, x.Version))
+        var cards = await context.LabourRateCards.AsNoTracking()
+            .Where(x => LabourRateCardAdministration.Names.Contains(x.Label))
+            .Select(x => new LabourRateCard(x.Id, x.Label, x.PanelRate, x.Version))
             .ToArrayAsync(cancellationToken);
+        return LabourRateCardAdministration.Names.SelectMany(name => cards.Where(card => card.Name == name)).ToArray();
     }
 
     public async Task<LabourRateCard> SaveAsync(SaveLabourRateCardRequest request, CancellationToken cancellationToken)
@@ -27,26 +29,17 @@ public sealed class EfLabourRateCardStore(
         {
             var saved = replay.AfterJson is null ? null : JsonSerializer.Deserialize<LabourRateCard>(replay.AfterJson);
             if (saved is null || saved.Id != request.Id || saved.Version != request.ExpectedVersion + 1
-                || saved.Name != request.Name || saved.HourlyRate != request.HourlyRate || saved.Enabled != request.Enabled
+                || saved.HourlyRate != request.HourlyRate
                 || replay.ActorKind != request.Actor.Kind.ToString() || replay.ActorSubjectId != request.Actor.SubjectId
                 || replay.Reason != request.Reason)
                 throw new LabourRateCardConflictException("This form was already used for another change.");
             return saved;
         }
         var entity = await context.LabourRateCards.SingleOrDefaultAsync(x => x.Id == request.Id, cancellationToken);
-        if ((entity?.Version ?? 0) != request.ExpectedVersion)
+        if (entity is null || entity.Version != request.ExpectedVersion)
             throw new LabourRateCardConflictException("The labour-rate card changed. Reload it before saving.");
-        if (await context.LabourRateCards.AnyAsync(x => x.Id != request.Id && x.Label == request.Name, cancellationToken))
-            throw new ArgumentException("A labour-rate card already has that name.");
-        var before = entity is null ? null : Map(entity);
-        if (entity is null)
-        {
-            entity = new LabourRateCardEntity { Id = request.Id, Label = request.Name, UpdatedBy = request.Actor.SubjectId };
-            context.LabourRateCards.Add(entity);
-        }
-        entity.Label = request.Name;
+        var before = Map(entity);
         entity.PanelRate = request.HourlyRate;
-        entity.Active = request.Enabled;
         entity.Version++;
         entity.ConcurrencyToken = Guid.NewGuid();
         entity.UpdatedBy = request.Actor.SubjectId;
@@ -58,8 +51,8 @@ public sealed class EfLabourRateCardStore(
             EventKind = "labour_rate_card_saved", ActorKind = request.Actor.Kind.ToString(),
             ActorSubjectId = request.Actor.SubjectId, ActorRolesJson = JsonSerializer.Serialize(request.Actor.Roles),
             OccurredAtUtc = entity.UpdatedAtUtc, Outcome = "succeeded", CorrelationId = request.OperationKey,
-            Reason = request.Reason, BeforeJson = before is null ? null : JsonSerializer.Serialize(before),
-            AfterJson = JsonSerializer.Serialize(after), PolicyVersion = "labour-rate-card/v1"
+            Reason = request.Reason, BeforeJson = JsonSerializer.Serialize(before),
+            AfterJson = JsonSerializer.Serialize(after), PolicyVersion = "labour-rate-card/v2"
         });
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -67,5 +60,5 @@ public sealed class EfLabourRateCardStore(
     }
 
     private static LabourRateCard Map(LabourRateCardEntity entity) =>
-        new(entity.Id, entity.Label, entity.PanelRate, entity.Active, entity.Version);
+        new(entity.Id, entity.Label, entity.PanelRate, entity.Version);
 }

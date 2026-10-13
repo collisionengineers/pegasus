@@ -6,9 +6,10 @@
 
 - Receiving material is not creating a Case. Pegasus keeps the original
   bytes and their identity first, then works out what the material is.
-- Anything safely kept but not understood becomes one Unidentified item
-  with a permanent `U<n>` reference and one of six reasons. This document
-  owns what Unidentified means.
+- Only images become Unidentified: image material safely kept but not
+  placed becomes one Unidentified item with a permanent `U<n>` reference and
+  one of six reasons. An e-mail with no Case waits in the Inbox's No Case
+  Found scope. This document owns what Unidentified means.
 - Receipt is acknowledged only after the bytes, the receipt and one
   processing-dispatch record have committed. The Worker alone processes it.
 - The gates before a Case exists, and matching, are in
@@ -21,7 +22,7 @@
 ## Purpose
 
 This document says how Pegasus receives material, proves it was received,
-processes it once, and holds what it cannot place as Unidentified. It serves
+processes it once, and holds images it cannot place as Unidentified. It serves
 the PRD outcomes for durable intake and no invented identity. The gates
 before a Case is created, matching and association are owned by
 [FRD-22](frd-22-pre-case-gates-matching-and-association.md). Case fields,
@@ -108,13 +109,28 @@ reason.
 
 ### Unidentified destination and reference
 
-Unidentified is the one place for material that Pegasus has safely kept but
-cannot place. It is the pre-Case outcome for every route: email, Principal
-and intermediary routes, manual upload, image groups, and Triage requests.
+Unidentified is the one place for images that Pegasus has safely kept but
+cannot place (operator, 13 October 2026,
+[ADR-0072](../adr/0072-only-images-become-unidentified-and-no-case-found-mail.md)).
 There is no separate "blocked" outcome anywhere.
 
-**What becomes Unidentified.** Retained material whose identity, meaning,
-owner, or destination cannot be established becomes one `UnidentifiedItem`.
+**What becomes Unidentified.** Only images: image-only material from any
+channel (mailbox photographs, uploaded images, image groups), or an uploaded
+image file that could not be read. Such material whose identity, meaning,
+owner, or destination cannot be established becomes one `UnidentifiedItem`
+(`ProcessIntake.BecomesUnidentified`). E-mails and documents that are not
+image-only material (photographs with no instruction fields) get no
+Unidentified item or U-reference:
+
+- an e-mail with no Case waits in the Inbox's No Case Found scope
+  ([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)), and is
+  refused by Dismiss;
+- a manual-upload document that cannot become a Case reports Could not
+  become a case on its upload, and is refused by its upload
+  ([FRD-18](frd-18-manual-upload.md#upload-confirmation-surface));
+- non-image material from other channels (the Principal API, Automation)
+  that cannot be placed gets no item.
+
 One item covers one source occurrence or one inseparable submission group.
 Group membership is permanent: the group gets one `U<n>` reference, and each
 member keeps its own filename, receipt identity, custody, and chronology.
@@ -137,19 +153,19 @@ bounded safe detail:
 | Terminal technical processing failure | Processing failed after custody and cannot be retried (`TechnicalProcessingFailure`). |
 | Could not be read (with the file kind) | Unsupported, failed OCR, or a technical failure on the file itself. |
 
-**Per route.** Unidentified mail keeps its classification record and links
-to the same item rather than a second queue row. The Inbox Unidentified
-scope lists retained mail whose item is still open; the message leaves that
-scope when the item resolves. A Principal or intermediary route reaches
-Unidentified only when the material is kept but no unique owner or
-destination can be shown; a reasoned policy refusal is an Unidentified item
+**Per route.** Mailbox photographs that become Unidentified keep their
+message's classification record and link to the same item rather than a
+second queue row. A Principal or intermediary route reaches Unidentified
+only with image material that is kept but whose unique owner or destination
+cannot be shown; a reasoned refusal of an image is an Unidentified item
 closed with that reason. Triage is separate: a Triage Case follows the
 Triage states and never gets a U-reference just because it is waiting for
 information. The Principal is identified before a request is classified as
-a Triage, and a Triage Case is created only for an established Principal. A
-Triage request whose Principal is not established, or that has no
-registration yet, is held in Unidentified; opening the Triage from the item
-once both are known resolves that item. Grouped vehicle images are judged
+a Triage, and a Triage Case is created only for an established Principal. An
+e-mailed Triage request whose Principal is not established, or that has no
+registration yet, is not held in Unidentified: it shows in the Inbox's No
+Case Found scope, and staff open the Triage from the message once both are
+known ([FRD-03](frd-03-triage.md)). Grouped vehicle images are judged
 as one group: one usable registration follows the Case or Image-initiated
 route, no usable registration is one Unidentified item with every file, and
 two different valid registrations are the Conflicting identification reason.
@@ -261,8 +277,9 @@ may share a name, because the receipt is the identity.
 
 The receipt's history is in Administration › Logs › **Intake log**,
 Administrators only. One row per received file shows source, item, outcome
-(Case created, Linked to Case, Vehicle images, Triage, Unidentified, Could
-not be read, Closed, Processing failed, Allocation failed, OCR failed), what
+(Case created, Linked to Case, Vehicle images, Triage, Unidentified, No Case
+Found, Could not be read, Closed, Processing failed, Allocation failed, OCR
+failed), what
 it became, and its attempt counts. A row drawer shows the retained original
 and the processing evidence: decision, failure, registration readings,
 suggested fields, decision evidence, and allocation attempts. The head-line
@@ -290,8 +307,8 @@ as **Create case** does, through `pegasus_intake_action`
 
 A retained message's attachments each state their own outcome in operator
 words: Case created, Linked to Case, Vehicle images, Triage, Unidentified,
-Could not be read (with its reason and Unidentified item), or Processing
-failed. The message's outcome is not repeated on every attachment.
+Could not be read (with its reason and its Unidentified item where one
+exists), or Processing failed. The message's outcome is not repeated on every attachment.
 
 Box custody follows Case/PO allocation and never precedes it; the custody
 rules, including what happens when Box filing fails, are owned by
@@ -317,8 +334,9 @@ rules, including what happens when Box filing fails, are owned by
   the same evaluation identity; no second Case is allocated.
 - Publication of the work identifier fails: the commit stands and recovery
   picks the work up within one minute.
-- A file that cannot be read: Unidentified, reason Could not be read, with
-  the file kind, so it still ages and falls due.
+- An image file that cannot be read: Unidentified, reason Could not be
+  read, with the file kind, so it still ages and falls due. Any other file
+  that cannot be read gets no Unidentified item.
 - No operation may reuse a U-reference, a Case/PO, or an occurrence identity.
 
 ## Acceptance evidence
@@ -351,4 +369,6 @@ and live evidence are separate tiers
 - Technical constraints:
   [ADR-0044](../adr/0044-mail-occurrence-and-business-identity.md) (mail
   identity), [ADR-0029](../adr/0029-image-initiated-case-projection.md)
-  (Image-initiated projection).
+  (Image-initiated projection),
+  [ADR-0072](../adr/0072-only-images-become-unidentified-and-no-case-found-mail.md)
+  (only images become Unidentified).

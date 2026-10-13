@@ -22,8 +22,11 @@ intermediaries: the Principal API contract, the accepted email routes, the
 QDOS Triage tells, and the rule that routes must not overlap. It serves the
 PRD outcomes for safe, attributable intake from every accepted Principal.
 
-A route reaches Unidentified only when material is kept but no unique owner
-or destination can be shown; a reasoned refusal is a closed Unidentified item
+A route reaches Unidentified only with image material that is kept but whose
+unique owner or destination cannot be shown; a reasoned refusal of it is a
+closed Unidentified item. An e-mail with no Case waits in the Inbox's No
+Case Found scope and is refused by Dismiss; other non-image material gets
+no item
 ([FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference)).
 A technical failure that can be retried stays in processing.
 
@@ -239,8 +242,8 @@ key. Reads and Case-index writes share one normalisation.
    present on both sides, contradicts it. Exactly one survivor is an
    automatic association. Zero is no match, and an instruction proceeds to
    the normal creation gates. Several survivors fail closed as the recorded
-   Ambiguous outcome, forcing `Unidentified` with the competing candidates
-   visible. A `Created in error` survivor redirects to its linked
+   Ambiguous outcome with the competing candidates visible: the e-mail
+   waits in No Case Found, and image material becomes `Unidentified`. A `Created in error` survivor redirects to its linked
    replacement Case and is never associated itself. `NoKeys` stays distinct
    from `NoMatch`. There is no numeric confidence score, threshold or
    display anywhere.
@@ -313,8 +316,8 @@ permission to guess.
 | --- | --- |
 | Principal API submission | `Received`, `Processing`, `Complete`, `Failed`; a replay returns the same receipt |
 | Principal credential | active, paused (read-only on its own receipts), revoked (refused everywhere) |
-| Automatic association | one survivor associates; zero proceeds to creation; several is the Ambiguous outcome and goes to Unidentified |
-| Route outcome | allocated Case, Triage opened, Unidentified with a reason, or retryable processing failure |
+| Automatic association | one survivor associates; zero proceeds to creation; several is the Ambiguous outcome (No Case Found for an e-mail, Unidentified for image material; for non-image Principal API or Automation material it is recorded in the Intake log only, operator, 13 October 2026) |
+| Route outcome | allocated Case, Triage opened, No Case Found (an e-mail), Unidentified with a reason (image material), or retryable processing failure |
 
 ## Edge cases and fail-closed behaviour
 
