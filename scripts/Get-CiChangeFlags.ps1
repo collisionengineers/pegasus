@@ -23,8 +23,10 @@ $ChangedPath = @($ChangedPath | Where-Object { $_ -notmatch $noLanePattern })
 # infra/modules/platform.bicep, Core and integration tests read reference/ data
 # and the scripts/*.sql resets, and Pegasus.Infrastructure embeds the brand logo
 # the report renderer draws, and .gitattributes fixes the checked-out bytes of
-# the reference data and embedded resources those tests read.
-$buildPattern = '^(src|tests)/|^Pegasus\.slnx$|\.csproj$|\.props$|\.targets$|packages\.lock\.json$|^global\.json$|^nuget\.config$|^\.gitattributes$|^infra/|^reference/|^docs/design/brand/logos/|^scripts/[^/]+\.sql$|^scripts/test-shard-durations\.json$|^scripts/(Invoke-TestShard|Update-TestShardDurations|Test-(MainBranchHistory|TestShard)|Get-CiChangeFlags|Get-CiHeavyLaneDecision)\.ps1$|^\.github/workflows/ci\.yml$|^\.github/actions/'
+# the reference data and embedded resources those tests read. The classifier
+# agent under src/ is a Node project no .NET build or test reads; it has its
+# own lane.
+$buildPattern = '^(src/(?!pegasus-classifier-agent/)|tests/)|^Pegasus\.slnx$|\.csproj$|\.props$|\.targets$|packages\.lock\.json$|^global\.json$|^nuget\.config$|^\.gitattributes$|^infra/|^reference/|^docs/design/brand/logos/|^scripts/[^/]+\.sql$|^scripts/test-shard-durations\.json$|^scripts/(Invoke-TestShard|Update-TestShardDurations|Test-(MainBranchHistory|TestShard)|Get-CiChangeFlags|Get-CiHeavyLaneDecision)\.ps1$|^\.github/workflows/ci\.yml$|^\.github/actions/'
 # PegasusPlatform.ps1 carries the release manifest validator and the Worker
 # census the release scripts share, so it routes to the infrastructure lane.
 $infrastructurePattern = '^infra/|^azure\.yaml$|^src/Pegasus\.Infrastructure/Persistence/Migrations/|^scripts/(Get-CiChangeFlags|Get-CiHeavyLaneDecision|Test-CiChangeFlags|Test-AzureDeploymentPlan|Test-ReleaseValidation|Test-MigrationGrants|Invoke-ProductionSmoke|Build-ReleaseArtifacts|Invoke-ProductionAdministratorBootstrap|Invoke-AzureDatabaseBootstrap|PegasusPlatform)\.ps1$|^\.github/workflows/ci\.yml$'
@@ -35,6 +37,8 @@ $localDevelopmentPattern = '^scripts/(PegasusPlatform|Test-PegasusPlatform|Clear
 # The principal-identification corpus generator and its tests share one
 # scripts-owned component; its PowerShell wrapper is the only other caller.
 $referenceDataPattern = '^scripts/reference_data/|^scripts/Build-PrincipalIdentificationCorpus\.ps1$'
+# The classifier agent's typecheck and build read its own folder alone.
+$classifierPattern = '^src/pegasus-classifier-agent/|^\.github/workflows/ci\.yml$'
 
 function Test-AnyPath {
     param(
@@ -52,4 +56,5 @@ function Test-AnyPath {
     Infrastructure = $ForceAll -or (Test-AnyPath -Path $ChangedPath -Pattern $infrastructurePattern)
     LocalDevelopment = $ForceAll -or (Test-AnyPath -Path $ChangedPath -Pattern $localDevelopmentPattern)
     ReferenceData = $ForceAll -or (Test-AnyPath -Path $ChangedPath -Pattern $referenceDataPattern)
+    Classifier = $ForceAll -or (Test-AnyPath -Path $ChangedPath -Pattern $classifierPattern)
 }

@@ -11,3 +11,8 @@ services:
     host: function
     language: csharp
     remoteBuild: true
+  classifier:
+    project: ./src/pegasus-classifier-agent
+    host: function
+    language: ts
+    remoteBuild: false

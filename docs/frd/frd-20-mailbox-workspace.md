@@ -156,7 +156,8 @@ to or from Query on a linked Case follows
 Case linking starts with a deliberate Case search, then shows the target
 summary, asks for a reason and needs explicit confirmation. Linking may
 happen while classification is still unresolved, when the link evidence on
-its own is enough.
+its own is enough. The Automation Actor links through the same command
+(`pegasus_mail_link_case`).
 
 The message record shows its current Case association even while its
 classification is Unclassified. Classification, Case association and custody

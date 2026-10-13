@@ -712,6 +712,8 @@ The approved release operator supplies these deployment inputs:
 | `GLASS_VALUATION_USERNAME_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-valuation-username`, the Glass's valuation account name ([ADR-0060](adr/0060-glass-valuation-account-and-valuation-report.md)). No default. |
 | `GLASS_VALUATION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-valuation-password`, that account's password. No default. |
 | `CAZANA_API_KEY_SECRET_URI` | Exact versioned Key Vault secret URI of `cazana-api-key`, the Cazana API key ([ADR-0066](adr/0066-cazana-valuation-through-a-key-vault-held-api-key.md)). No default. |
+| `ANTHROPIC_API_KEY_SECRET_URI` | Exact versioned Key Vault secret URI of the Anthropic API key the classifier agent uses. The classifier identity reads it, and the Automation MCP client secret, through grants at each secret's scope. No default. |
+| `PEGASUS_CLASSIFIER_ACTIVATION` | `approved` creates the classifier Function App (`infra/modules/classifier.bicep`); anything else leaves it absent. Defaults to `disabled`. |
 
 Bicep supplies the configured vault origin and indexed certificate URI settings
 to the Web App, and derives `Glass__CallbackBaseUri` from the Web App's own
