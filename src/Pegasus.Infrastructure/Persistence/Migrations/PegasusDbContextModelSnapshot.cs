@@ -5631,15 +5631,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("nvarchar(320)");
 
-                    b.Property<string>("GuidanceTemplate")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<long>("GuidanceTemplateVersion")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasDefaultValue(0L);
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -5677,7 +5668,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Name");
 
-                    b.HasIndex("NormalizedName")
+                    b.HasIndex("NormalizedName", "Role")
                         .IsUnique();
 
                     b.ToTable("Organizations", null, t =>

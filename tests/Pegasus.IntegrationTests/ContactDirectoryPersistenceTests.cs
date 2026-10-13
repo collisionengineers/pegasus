@@ -57,11 +57,10 @@ public sealed class ContactDirectoryPersistenceTests
             .CreateDbContextAsync();
         Assert.Equal(
             linked,
-            await context.Set<ContactPrincipalLinkEntity>()
+            (await context.Set<ContactPrincipalLinkEntity>()
                 .Where(item => item.OrganizationId == contactId)
                 .Select(item => item.PrincipalId)
-                .OrderBy(item => item)
-                .ToArrayAsync());
+                .ToArrayAsync()).Order());
 
         // The type is chosen when the contact is added and never changes.
         await Assert.ThrowsAsync<ArgumentException>(() => SaveAsync(database, request with
@@ -130,26 +129,6 @@ public sealed class ContactDirectoryPersistenceTests
             .Where(item => item.OrganizationId == request.OrganizationId && item.SuccessorId == null)
             .Select(item => item.IsActive)
             .SingleAsync());
-    }
-
-    [Fact]
-    public async Task ClearingAndReplacingGuidanceDoesNotReuseItsAppliedVersion()
-    {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
-        var request = NewContact(Guid.NewGuid(), 0) with { GuidanceTemplate = "Initial guidance" };
-        var saved = await SaveAsync(database, request);
-        Assert.Equal(1, saved.GuidanceTemplateVersion);
-        foreach (var template in new string?[] { null, "Replacement guidance" })
-        {
-            var previousVersion = saved.GuidanceTemplateVersion;
-            saved = await SaveAsync(database, request with
-            {
-                ExpectedVersion = saved.Version,
-                GuidanceTemplate = template,
-                OperationKey = Guid.NewGuid().ToString("N")
-            });
-            Assert.Equal(previousVersion + 1, saved.GuidanceTemplateVersion);
-        }
     }
 
     [Fact]

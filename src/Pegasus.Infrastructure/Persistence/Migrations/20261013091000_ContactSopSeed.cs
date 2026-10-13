@@ -36,7 +36,7 @@ public partial class ContactSopSeed : Migration
                 ('0a', N'Swinton');
             INSERT dbo.Organizations (Id, Name, Role, Active, Version)
             SELECT CAST('00000000-0000-4000-8000-00000000f0' + s.Slot AS uniqueidentifier), s.Name, N'claim_source', 1, 0 FROM @src s
-            WHERE NOT EXISTS (SELECT 1 FROM dbo.Organizations o WHERE o.NormalizedName = UPPER(LTRIM(RTRIM(s.Name))));
+            WHERE NOT EXISTS (SELECT 1 FROM dbo.Organizations o WHERE o.NormalizedName = UPPER(LTRIM(RTRIM(s.Name))) AND o.Role = N'claim_source');
 
             -- Principals the job sheet lists that Pegasus does not have yet. Same rows a new Principal Contact saves.
             DECLARE @new TABLE (Code nvarchar(20), Slot char(2), Name nvarchar(300));
@@ -63,7 +63,7 @@ public partial class ContactSopSeed : Migration
                 (N'ZEN', '34', N'Zenith Lawyers');
             DELETE n FROM @new n
             WHERE EXISTS (SELECT 1 FROM dbo.Principals p WHERE p.Code = n.Code)
-               OR EXISTS (SELECT 1 FROM dbo.Organizations o WHERE o.NormalizedName = UPPER(LTRIM(RTRIM(n.Name))));
+               OR EXISTS (SELECT 1 FROM dbo.Organizations o WHERE o.NormalizedName = UPPER(LTRIM(RTRIM(n.Name))) AND o.Role = N'principal');
             INSERT dbo.Organizations (Id, Name, Role, Active, Version)
             SELECT CAST('00000000-0000-4000-8000-00000000d0' + n.Slot AS uniqueidentifier), n.Name, N'principal', 1, 0 FROM @new n;
             INSERT dbo.PrincipalSequenceLineages (Id, CreatedAtUtc)

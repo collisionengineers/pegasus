@@ -149,8 +149,7 @@ public sealed class EfContactDirectoryAdministration(
         {
             command = SaveKind, request.OrganizationId, request.ExpectedVersion, request.Name, request.ContactPerson,
             request.Email, request.Telephone, request.Address, request.Postcode, request.Active, request.Role, request.PrincipalCode,
-            request.PrincipalInspectionMode, request.LinkedPrincipalIds, request.GuidanceTemplate, request.GuidanceTemplateVersion,
-            request.NotesOnEveryCase
+            request.PrincipalInspectionMode, request.LinkedPrincipalIds, request.NotesOnEveryCase
         });
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
@@ -172,7 +171,8 @@ public sealed class EfContactDirectoryAdministration(
         {
             if (request.ExpectedVersion != 0) throw new ContactDirectoryException(ContactDirectoryError.StaleVersion);
             var normalizedName = request.Name.ToUpperInvariant();
-            if (await context.Organizations.AnyAsync(item => item.NormalizedName == normalizedName, cancellationToken))
+            var roleCode = ToCode(request.Role);
+            if (await context.Organizations.AnyAsync(item => item.NormalizedName == normalizedName && item.Role == roleCode, cancellationToken))
                 throw new ContactDirectoryException(ContactDirectoryError.DuplicateOrganizationName);
             entity = new OrganizationEntity { Id = request.OrganizationId, Name = request.Name, Role = ToCode(request.Role), Version = 0 };
             context.Organizations.Add(entity);
@@ -187,19 +187,12 @@ public sealed class EfContactDirectoryAdministration(
             throw new ContactDirectoryException(ContactDirectoryError.StaleVersion);
         }
         var before = creating ? null : ToRecord(entity!);
-        var guidanceChanged = entity!.GuidanceTemplate != request.GuidanceTemplate;
-        var changed = entity.Name != request.Name || entity.ContactPerson != request.ContactPerson || entity.Email != request.Email
+        var changed = entity!.Name != request.Name || entity.ContactPerson != request.ContactPerson || entity.Email != request.Email
             || entity.Telephone != request.Telephone || entity.Address != request.Address || entity.Postcode != request.Postcode || entity.Active != request.Active
-            || guidanceChanged
             || entity.NotesOnEveryCase != request.NotesOnEveryCase;
         entity.Name = request.Name; entity.ContactPerson = request.ContactPerson; entity.Email = request.Email;
         entity.Telephone = request.Telephone; entity.Address = request.Address; entity.Postcode = request.Postcode; entity.Active = request.Active;
         entity.NotesOnEveryCase = request.NotesOnEveryCase;
-        if (guidanceChanged)
-        {
-            entity.GuidanceTemplate = request.GuidanceTemplate;
-            entity.GuidanceTemplateVersion = checked(entity.GuidanceTemplateVersion + 1);
-        }
 
         var isPrincipal = request.Role == ContactRole.Principal;
         if (isPrincipal && entity.Principals.Count == 0)
@@ -341,8 +334,6 @@ public sealed class EfContactDirectoryAdministration(
             latestCase?.Reference,
             links,
             entity.Principals.Select(item => item.Id).Order().ToArray(),
-            entity.GuidanceTemplate,
-            entity.GuidanceTemplateVersion,
             entity.NotesOnEveryCase);
     }
 

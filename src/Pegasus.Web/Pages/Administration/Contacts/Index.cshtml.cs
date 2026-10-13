@@ -152,7 +152,7 @@ public sealed class IndexModel(
 
     private static string ContactErrorMessage(ContactDirectoryError error) => error switch
     {
-        ContactDirectoryError.DuplicateOrganizationName => "A contact with that name already exists. Choose it from the matches instead.",
+        ContactDirectoryError.DuplicateOrganizationName => "A contact with that name already exists.",
         ContactDirectoryError.DuplicatePrincipalCode => "That principal code is already in use.",
         ContactDirectoryError.InvalidPrincipalAssociation => "Check the selected linked principals.",
         ContactDirectoryError.StaleVersion => "This contact changed. Choose it again.",

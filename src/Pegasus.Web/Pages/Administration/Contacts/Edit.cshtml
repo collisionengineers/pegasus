@@ -15,7 +15,7 @@
         <div class="panel-head"><div><h2 id="contact-title">@Model.Contact!.Name</h2><p class="panel-title-meta">@OperatorLabels.Contacts.Type(contactRole)</p></div><partial name="Shared/_StatusChip" model="@(Model.Contact.Active ? "Active" : "Disabled")" /></div>
         <form method="post" asp-page-handler="Save" asp-route-id="@Model.ContactId" class="panel-body stack contact-editor">
             <div asp-validation-summary="ModelOnly" class="validation-summary" role="alert"></div>
-            <input asp-for="ContactId" type="hidden" /><input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input asp-for="GuidanceTemplateVersion" type="hidden" /><input asp-for="OperationKey" type="hidden" />
+            <input asp-for="ContactId" type="hidden" /><input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input asp-for="OperationKey" type="hidden" />
             <fieldset class="stack">
             <div class="form-grid form-grid--2">
                 <div class="field field-wide"><label class="req" asp-for="Name">Organisation name</label><input asp-for="Name" autocomplete="organization" /><span asp-validation-for="Name"></span></div>
@@ -34,9 +34,7 @@
             }
             @if (contactRole is ContactRole.Principal or ContactRole.ClaimSource)
             {
-            <section class="contact-section" aria-labelledby="case-guidance-title">
-                <h3 id="case-guidance-title">Case guidance</h3>
-                <div class="field"><label asp-for="GuidanceTemplate">Guidance for new Cases</label><textarea asp-for="GuidanceTemplate" rows="4"></textarea><span asp-validation-for="GuidanceTemplate"></span></div>
+            <section class="contact-section">
                 @* Record notes (13 September): stored once on the organisation, shown read-only on every Case of this Principal or from this Claim source. *@
                 <div class="field" data-notes-on-every-case><label asp-for="NotesOnEveryCase">Notes on every Case</label><textarea asp-for="NotesOnEveryCase" rows="4" maxlength="@ContactDirectoryPolicy.MaximumNotesOnEveryCaseLength"></textarea><span asp-validation-for="NotesOnEveryCase"></span></div>
             </section>

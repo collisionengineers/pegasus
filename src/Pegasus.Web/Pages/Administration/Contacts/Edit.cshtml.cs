@@ -50,8 +50,6 @@ public sealed class EditModel(
     [BindProperty, StringLength(ContactDirectoryPolicy.MaximumTelephoneLength)] public string? Telephone { get; set; }
     [BindProperty, StringLength(ContactDirectoryPolicy.MaximumAddressLength)] public string? Address { get; set; }
     [BindProperty, StringLength(ContactDirectoryPolicy.MaximumPostcodeLength)] public string? Postcode { get; set; }
-    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumGuidanceTemplateLength)] public string? GuidanceTemplate { get; set; }
-    [BindProperty] public long GuidanceTemplateVersion { get; set; }
     [BindProperty, StringLength(ContactDirectoryPolicy.MaximumNotesOnEveryCaseLength)] public string? NotesOnEveryCase { get; set; }
     [BindProperty] public bool Active { get; set; } = true;
     [BindProperty, StringLength(20)] public string? PrincipalCode { get; set; }
@@ -118,7 +116,7 @@ public sealed class EditModel(
             try
             {
                 var isPrincipal = Contact.Role == ContactRole.Principal;
-                await administration.SaveAsync(new(actor, ContactId, ExpectedVersion, Name, ContactPerson, Email, Telephone, Address, Postcode, Active, Contact.Role, isPrincipal ? PrincipalCode : null, PrincipalInspectionMode, isPrincipal ? [] : LinkedPrincipalIds, OperationKey, Posted(nameof(GuidanceTemplate)) ? GuidanceTemplate : Contact.GuidanceTemplate, GuidanceTemplateVersion,
+                await administration.SaveAsync(new(actor, ContactId, ExpectedVersion, Name, ContactPerson, Email, Telephone, Address, Postcode, Active, Contact.Role, isPrincipal ? PrincipalCode : null, PrincipalInspectionMode, isPrincipal ? [] : LinkedPrincipalIds, OperationKey,
                     Posted(nameof(NotesOnEveryCase)) ? NotesOnEveryCase : Contact.NotesOnEveryCase), cancellationToken);
                 TempData["AdministrationStatus"] = "The contact was saved.";
                 return RedirectToPage("Index");
@@ -549,7 +547,7 @@ public sealed class EditModel(
 
     private void CopyFrom(ContactDirectoryRecord contact)
     {
-        Name = contact.Name; ContactPerson = contact.ContactPerson; Email = contact.Email; Telephone = contact.Telephone; Address = contact.Address; Postcode = contact.Postcode; GuidanceTemplate = contact.GuidanceTemplate; GuidanceTemplateVersion = contact.GuidanceTemplateVersion; NotesOnEveryCase = contact.NotesOnEveryCase; Active = contact.Active; LinkedPrincipalIds = (contact.LinkedPrincipalIds ?? []).ToArray();
+        Name = contact.Name; ContactPerson = contact.ContactPerson; Email = contact.Email; Telephone = contact.Telephone; Address = contact.Address; Postcode = contact.Postcode; NotesOnEveryCase = contact.NotesOnEveryCase; Active = contact.Active; LinkedPrincipalIds = (contact.LinkedPrincipalIds ?? []).ToArray();
     }
 
     private bool TargetsContact(Guid id) => id != Guid.Empty && ContactId == id;

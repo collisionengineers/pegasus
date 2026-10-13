@@ -183,7 +183,6 @@ public sealed partial class OrganizationDirectoryWebTests
                 ["__RequestVerificationToken"] = InputValue(editor, "__RequestVerificationToken"),
                 ["ContactId"] = InputValue(editor, "ContactId"),
                 ["ExpectedVersion"] = InputValue(editor, "ExpectedVersion"),
-                ["GuidanceTemplateVersion"] = InputValue(editor, "GuidanceTemplateVersion"),
                 ["OperationKey"] = InputValue(editor, "OperationKey"),
                 ["Name"] = InputValue(editor, "Name"),
                 ["PrincipalCode"] = InputValue(editor, "PrincipalCode"),
