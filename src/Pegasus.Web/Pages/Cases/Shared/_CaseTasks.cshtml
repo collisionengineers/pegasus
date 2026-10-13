@@ -23,6 +23,11 @@
     var openOnLoad = Model.OpenDialog == "tasks"
         ? Html.Raw(" data-dialog-open-on-load=\"true\"")
         : Html.Raw(" hidden");
+    // Razor renders a data- attribute even when its value is null, so the
+    // lazy marker is written as raw markup only when the body is unread.
+    var lazyBody = section is null
+        ? Html.Raw(" data-lazy-tasks=\"\"")
+        : Html.Raw("");
 }
 
 <div id="case-tasks-dialog" class="dialog-backdrop" data-dialog="case-tasks-dialog"@openOnLoad>
@@ -34,7 +39,7 @@
         </button>
     </div>
     @* Without the tasks read, the body is fetched as the dialog opens. *@
-    <div class="dialog-body stack" data-case-tasks-body data-lazy-tasks="@(section is null ? "" : null)">
+    <div class="dialog-body stack" data-case-tasks-body@lazyBody>
         @if (section is not null)
         {
         if (mayChange)
