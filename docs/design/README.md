@@ -733,6 +733,13 @@ a warning, and the five hints on the Principal's Report sending panel. Two of
 them named "prepare" when they were approved and were reworded to "send" when
 delivery became one step; they are on the next design sign-off.
 
+A Report sending rule offers its conditions in one order: Claim Source,
+Repairer, Images from, Instruction mentions, Sender is not, Outcome, Bodyshop
+mentions, then Case type (operator, 13 October 2026). Outcome and Case type
+are each a choice of their values; Case type names them as the Cases list
+does: Inspection, Audit, Inspection and audit. A refused rule says "choose a
+case type from the list", as it says "choose an outcome from the list".
+
 The valuation sentence is the operator's own wording (23 September 2026) for Get valuation
 on a source with no working provider, shown in that source's card from the
 start (28 September 2026), with no Get valuation button; "report a
