@@ -198,6 +198,25 @@ public sealed class CaseReportDeliveryPersistenceTests
     }
 
     /// <summary>
+    /// The facts carry the work whose report is being sent, which a Case
+    /// type rule compares (operator, 13 October 2026): the Inspection report
+    /// before the Audit exists, then the Audit report on the current work and
+    /// the Inspection report on its own.
+    /// </summary>
+    [Fact]
+    public async Task TheDispatchFactsCarryTheWorkWhoseReportIsBeingSent()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        Assert.Equal(CaseWorkKind.Primary, (await harness.FactsAsync())!.ReportWork);
+
+        await CaseReportGenerationPersistenceTests.GiveAuditAsync(harness.Factory, harness.CaseId, StartUtc);
+
+        Assert.Equal(CaseWorkKind.Audit, (await harness.FactsAsync())!.ReportWork);
+        Assert.Equal(CaseWorkKind.Primary, (await harness.FactsAsync(CaseWorkSelector.Primary))!.ReportWork);
+    }
+
+    /// <summary>
     /// A Case opened from an uploaded file holds no retained instruction: the
     /// facts carry the Principal's rules and the route decision's effective
     /// sender, and nothing to reply to.

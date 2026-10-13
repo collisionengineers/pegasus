@@ -179,7 +179,11 @@ The Principal section of a Contact carries:
     operator, 13 October 2026), who sent the instruction, or words: "Instruction mentions" is
     searched for in the instruction e-mail and asked only when the Case
     holds no instruction text. Several values in one condition are
-    alternatives. "Images from" and "Bodyshop mentions" have no Case fact. A
+    alternatives. A Case type of Inspection or Audit matches the report being
+    sent, which on an Inspection + Audit Case is its Inspection or Audit view
+    (a send carrying both reports is the view it is sent from), and Inspection
+    and audit matches either report (operator, 13 October 2026). "Images
+    from" and "Bodyshop mentions" have no Case fact. A
     rule whose fact is not yet known is undecided, and the delivery form
     asks staff at delivery.
 

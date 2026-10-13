@@ -19,6 +19,9 @@ namespace Pegasus.Core.Reports;
 /// stay undecided until staff answer them on the delivery form.
 /// <see cref="CaseType"/> compares the Case's type (<see cref="Cases.CaseType"/>:
 /// Inspection, Audit or InspectionAndAudit; operator, 13 October 2026).
+/// Inspection and Audit name the report being sent, so on an Inspection +
+/// Audit Case they match its Inspection and its Audit report; InspectionAndAudit
+/// matches either (<see cref="ReportDispatchFacts.ReportWork"/>).
 /// </remarks>
 public enum ReportSendingConditionKind
 {
