@@ -712,7 +712,7 @@ public sealed class GetOperationsSnapshot(
             {
                 OwnerStaffId = owner,
                 MoreCount = tasks.Length - 1,
-                Route = StaffNotificationPolicy.CaseRoute(first.CaseId, "tasks"),
+                Route = StaffNotificationPolicy.CaseTasksRoute(first.CaseId),
                 RecordRoute = StaffNotificationPolicy.CaseRoute(first.CaseId),
                 QualifiedAtUtc = tasks[^1].CreatedAtUtc
             });

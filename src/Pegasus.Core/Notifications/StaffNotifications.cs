@@ -124,6 +124,9 @@ public static class StaffNotificationPolicy
     public static string CaseRoute(Guid caseId, string? section = null) =>
         section is null ? $"/Cases/{caseId:D}" : $"/Cases/{caseId:D}?section={section}";
 
+    /// <summary>The Case with its Tasks dialog drawn open (operator, 13 October 2026).</summary>
+    public static string CaseTasksRoute(Guid caseId) => $"/Cases/{caseId:D}?dialog=tasks";
+
     public static string MessageRoute(Guid retainedMessageId) => $"/Inbox/{retainedMessageId:D}";
 
     public static string UnidentifiedRoute(Guid unidentifiedId) => $"/Unidentified/{unidentifiedId:D}";

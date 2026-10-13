@@ -365,6 +365,9 @@
     </div>
 }
 
+@* Tasks, the Actions menu's dialog on every standard Case (operator, 13 October 2026). *@
+<partial name="Cases/Shared/_CaseTasks" model="Model" />
+
 @if (Model.CanCreateAudit)
 {
     @* Create audit (v29 P5): the Case, the Audit reference it gains and the

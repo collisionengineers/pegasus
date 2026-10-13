@@ -78,7 +78,7 @@ exclusion.
 | CASE-17 | Due-by date extraction and overdue display | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-18 | Configurable whole-calendar-day missing-information chase schedule | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-19 | Hold/release behavior that preserves the chase interval | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
-| CASE-20 | General Case tasks: a Tasks section on the Case record (add, assign, complete, cancel), after-send tasks created from the list the report send recorded when Report sent is recorded, and open tasks listed in Next action after the send and blocking Archive (no due date yet) | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing); [Tasks](frd/frd-16-case-record-workspace.md#tasks) |
+| CASE-20 | General Case tasks: a Tasks dialog from the Case record's Actions menu (add, assign, complete, cancel), after-send tasks created from the list the report send recorded when Report sent is recorded, and open tasks listed in Next action after the send and blocking Archive (no due date yet) | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing); [Tasks](frd/frd-16-case-record-workspace.md#tasks) |
 | CASE-21 | Replay-safe Case export history | [Export case](frd/frd-07-case-export.md#export-case) |
 | CASE-24 | Post-report completion, Principal cancellation, and Collision Engineers rejection outcomes | [Close case](frd/frd-13-case-lifecycle-and-workflow.md#close-case) |
 | CASE-25 | Reasoned return to engineering through normal destination gates | [Actions](frd/frd-13-case-lifecycle-and-workflow.md#actions) |

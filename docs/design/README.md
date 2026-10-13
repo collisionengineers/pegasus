@@ -153,7 +153,7 @@ section links and Refresh. The page always scrolls; there is no Tabs layout
 (operator, 9 October 2026). The section row
 links Case details, Claim, Original report on Audit Cases, Inspection details,
 Vehicle (with Damage and Valuation inside), Repair Spec, Decisions, Report,
-Files, Notes and Tasks. Each is a foldable panel whose head carries its own Edit
+Files and Notes. Each is a foldable panel whose head carries its own Edit
 (entering the one page-wide edit session), one availability label when the
 state does not allow editing, and the fold chevron. The aside holds Figures
 and Next action and folds into a two-up strip above the sections below 1441px.
@@ -198,13 +198,14 @@ Images, Files (Documents and Correspondence) and Notes tabs with the finding
 read-only, Record finding in a dialog and the composer for replies.
 
 The **Actions** menu holds exactly the progressions the state permits — Assign
-Engineer, Export case, Mark report sent, Log query, Resolve query, Return
+Engineer, Export case, Tasks (the Case's task list in a dialog; operator, 13 October
+2026), Mark report sent, Log query, Resolve query, Return
 to Review or Engineer, Archive, Place on Hold or Release Hold, Correct
 principal — and,
 on an Inspection + Audit Case, Create audit in every state: a disabled
 `.btn` inside a `.menu-gated` span whose `title` states Core's refusal on
 hover when it is not permitted (operator, 1 October 2026) — then, after a
-separator and in red, Close case. Export case is
+separator and in red, Close case. Export case and Tasks are
 listed on every standard Case, in and out of an edit session. Damage uses the
 **plan** only: a top-down drawing of the recorded vehicle (car, van or
 motorbike), one yellow comic burst per recorded damage sized and placed by

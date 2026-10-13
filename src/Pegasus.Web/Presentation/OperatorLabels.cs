@@ -2328,7 +2328,6 @@ public static class OperatorLabels
             new("report", "Report", "icon-file"),
             new("files", "Files", "icon-folder"),
             new("notes", "Notes", "icon-history"),
-            new("tasks", "Tasks", "icon-check-square"),
             new("queries", "Queries", "icon-reply")
         ];
 

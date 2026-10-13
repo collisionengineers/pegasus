@@ -266,14 +266,16 @@ public sealed partial class DetailsModel(
             ["valuation"] = "/Pages/Cases/Shared/_CaseValuation.cshtml",
             ["files"] = "/Pages/Cases/Shared/_CaseFiles.cshtml",
             ["notes"] = "/Pages/Cases/Shared/_CaseHistory.cshtml",
-            ["tasks"] = "/Pages/Cases/Shared/_CaseTasks.cshtml",
             ["queries"] = "/Pages/Cases/Shared/_CaseQueries.cshtml"
         };
+
+    /// <summary>The Tasks dialog, whose body the fragment route also serves.</summary>
+    private const string TasksView = "/Pages/Cases/Shared/_CaseTasks.cshtml";
 
     /// <summary>
     /// Whether <paramref name="key"/> is fetched rather than rendered with the
     /// first response. The addressed section is always rendered, so
-    /// <c>?section=</c> works over plain HTTP. Files, Notes, Tasks and Queries
+    /// <c>?section=</c> works over plain HTTP. Files, Notes and Queries
     /// have no fields in the record's single Save form, so they remain deferred
     /// while editing without replacing entered values elsewhere; their bodies
     /// act through their own posts with the render lease token.
@@ -284,7 +286,7 @@ public sealed partial class DetailsModel(
         && !string.Equals(key, SectionLinkKey, StringComparison.Ordinal)
         && !(string.Equals(Section, "vehicle", StringComparison.Ordinal) && IsNestedSection(key))
         && LazySectionViews.ContainsKey(key)
-        && (LeaseToken is null || key is "files" or "notes" or "tasks" or "queries");
+        && (LeaseToken is null || key is "files" or "notes" or "queries");
 
     /// <summary>
     /// A lease token supplied only for rendering an asynchronously mounted
@@ -1142,14 +1144,18 @@ public sealed partial class DetailsModel(
             // four at a time and each on its own database context, and sets the
             // page's state only once all of them have finished. The phases stay
             // in order because each uses what the one before it read.
+            // The Actions menu's Tasks opens here without script, and a task
+            // action returns here: the page draws the Tasks dialog open.
+            var tasksOpen = string.Equals(dialog, "tasks", StringComparison.Ordinal);
             using (DocumentReadTelemetry.Start("web.case.direct-sections"))
             {
-                await LoadDirectSectionsAsync(id, actor, workspace, work, cancellationToken);
+                await LoadDirectSectionsAsync(id, actor, workspace, work, tasksOpen, cancellationToken);
             }
             using (DocumentReadTelemetry.Start("web.case.engineer-sections"))
             {
                 await LoadEngineerSectionsAsync(id, actor, workspace, work, estimate, dialog, cancellationToken);
             }
+            OpenDialog ??= tasksOpen ? "tasks" : null;
             using (DocumentReadTelemetry.Start("web.case.extras"))
             {
                 await LoadExtrasAsync(id, actor, cancellationToken);
@@ -1554,8 +1560,11 @@ public sealed partial class DetailsModel(
             return FragmentNotFound();
         }
 
-        var key = NormalizeSection(section);
-        if (!LazySectionViews.TryGetValue(key, out var view))
+        // The Tasks dialog's body is fetched here as the dialog opens; it is
+        // not a section, so the section vocabulary does not name it.
+        var key = string.Equals(section, "tasks", StringComparison.Ordinal) ? "tasks" : NormalizeSection(section);
+        var view = key == "tasks" ? TasksView : LazySectionViews.GetValueOrDefault(key);
+        if (view is null)
         {
             return FragmentNotFound();
         }
@@ -1645,7 +1654,7 @@ public sealed partial class DetailsModel(
             {
                 await LoadValuationSectionAsync(id, actor, cancellationToken);
             }
-            if (key == "tasks" && TasksReadAssignees)
+            if (key == "tasks" && CanEditCaseData)
             {
                 TaskAssigneeChoices = await caseEngineerChoices.GetAsync(actor, cancellationToken);
             }
@@ -1713,6 +1722,7 @@ public sealed partial class DetailsModel(
         ActionActor actor,
         AssessmentWorkspace? workspace,
         CaseWorkSelector work,
+        bool readsTasks,
         CancellationToken cancellationToken)
     {
         var query = new GetCaseSectionQuery(
@@ -1738,12 +1748,14 @@ public sealed partial class DetailsModel(
         var notes = rendered.Contains("notes")
             ? reads.Start(token => getCaseNotesSection.ExecuteAsync(query, token))
             : null;
-        var tasks = rendered.Contains("tasks")
+        // The Tasks dialog's body is drawn with the page only when the page
+        // draws the dialog open; otherwise it is fetched as the dialog opens.
+        var tasks = readsTasks
             ? reads.Start(token => getCaseTasksSection.ExecuteAsync(query, token))
             : null;
         // An open task's Assign offers the enabled staff only while the Tasks
         // body is rendered here and can be changed.
-        var taskAssignees = rendered.Contains("tasks") && CanEditCaseData
+        var taskAssignees = readsTasks && CanEditCaseData
             ? reads.Start(token => caseEngineerChoices.GetAsync(actor, token))
             : null;
         var queries = rendered.Contains("queries")

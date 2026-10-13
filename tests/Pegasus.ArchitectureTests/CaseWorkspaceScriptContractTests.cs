@@ -24,6 +24,24 @@ public sealed class CaseWorkspaceScriptContractTests
     }
 
     /// <summary>
+    /// Tasks is the Actions menu's dialog (operator, 13 October 2026): its body is
+    /// fetched from the section fragment route as it opens, and a page opened with
+    /// <c>?dialog=tasks</c> does not open the dialog again at every catch up.
+    /// </summary>
+    [Fact]
+    public void TheTasksDialogLoadsItsBodyAsItOpensAndACatchUpOpensNoDialog()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        Assert.Contains("event.target.closest('[data-dialog-open=\"case-tasks-dialog\"]')", script, StringComparison.Ordinal);
+        Assert.Contains("fetch(fragmentPath + '?section=tasks'", script, StringComparison.Ordinal);
+        var catchUp = FunctionBody(script, "function catchUp(options) {", "    ");
+        Assert.Contains("current.searchParams.delete('dialog');", catchUp, StringComparison.Ordinal);
+        Assert.Contains("fetch(current.toString(), {", catchUp, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The viewer scrolls itself into view when it opens (operator, 30 September
     /// 2026). Every way in, a tile, a preview or a card's crop, shows the viewer
     /// through <c>show</c>, so that one place holds the scroll and nothing calls

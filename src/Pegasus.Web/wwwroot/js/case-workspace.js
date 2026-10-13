@@ -174,6 +174,46 @@
                 }
             });
     }
+    // The Tasks dialog's body is fetched as it opens, as a section's body is
+    // as it approaches (operator, 13 October 2026). A page that drew the
+    // dialog open (?dialog=tasks) drew its body with it.
+    document.addEventListener('click', function (event) {
+        var opener = event.target.closest && event.target.closest('[data-dialog-open="case-tasks-dialog"]');
+        var body = opener ? document.querySelector('[data-case-tasks-body][data-lazy-tasks]') : null;
+        if (!body || body.dataset.lazyState === 'loading') {
+            return;
+        }
+        body.dataset.lazyState = 'loading';
+        var headers = { 'Accept': 'text/html' };
+        var lease = editLeaseToken();
+        if (lease) {
+            headers['X-Pegasus-Edit-Lease'] = lease;
+        }
+        var view = record.getAttribute('data-case-view');
+        fetch(fragmentPath + '?section=tasks' + (view ? '&view=' + encodeURIComponent(view) : ''),
+            { credentials: 'same-origin', headers: headers })
+            .then(function (response) {
+                if (!response.ok || response.redirected) { throw new Error('tasks: ' + response.status); }
+                return response.text();
+            })
+            .then(function (html) {
+                var parsed = document.createElement('div');
+                parsed.innerHTML = html;
+                var next = parsed.querySelector('[data-case-tasks-body]');
+                if (!next || next.hasAttribute('data-lazy-tasks')) { throw new Error('tasks: invalid response'); }
+                if (!body.isConnected) { return; }
+                body.replaceWith(next);
+                bindMounted(next);
+            })
+            .catch(function (error) {
+                if (!body.isConnected) { return; }
+                body.dataset.lazyState = 'failed';
+                body.textContent = 'This section could not be loaded.';
+                if (window.console && window.console.error) {
+                    window.console.error('Case tasks failed to load', error);
+                }
+            });
+    });
     function mountApproaching() {
         var limit = window.innerHeight * 2.5;
         main.querySelectorAll('[data-lazy]').forEach(function (placeholder) {
@@ -677,7 +717,11 @@
         catchUpWanted = false;
         redrawWanted = false;
         submitting = true;
-        fetch(window.location.href, {
+        // A ?dialog= the page was opened with opened its dialog once; a
+        // catch up never opens one again.
+        var current = new URL(window.location.href);
+        current.searchParams.delete('dialog');
+        fetch(current.toString(), {
             credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' }
         }).then(function (response) {
             if (!response.ok || !samePage(response.url || window.location.href)) { throw new Error('catch up: ' + response.status); }
