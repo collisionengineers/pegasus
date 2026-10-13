@@ -100,13 +100,7 @@ public static class ImageIntakeGroupRoutingPolicy
                 "group_recognition_failure");
         }
 
-        var registrations = readable
-            .Where(member => member.Outcome == VrmRecognitionOutcomeKind.Suggested
-                && member.NormalizedRegistration is not null
-                && member.Confidence >= VrmRecognitionProvisionalBar.MinimumAutomaticConfidence)
-            .Select(member => member.NormalizedRegistration!)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+        var registrations = VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(readable);
 
         if (registrations.Length == 1 && eligibleCaseCount == 1)
         {

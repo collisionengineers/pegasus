@@ -1,5 +1,6 @@
 using System.Net;
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
@@ -313,6 +314,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         cancellationToken.ThrowIfCancellationRequested();
         using var document = PdfDocument.Open(DocumentContentCachePublisherExtensions.ArrayOf(bytes));
         var pages = new List<PdfPageResult>();
+        var chargedImageObjects = new HashSet<string>(StringComparer.Ordinal);
         for (var pageNumber = 1; pageNumber <= document.NumberOfPages; pageNumber++)
         {
             limits.ThrowIfProcessingDeadlineExceeded();
@@ -323,21 +325,28 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             limits.ThrowIfProcessingDeadlineExceeded();
             limits.AddTextCharacters(text.Length);
             var readableCharacters = text.Count(character => !char.IsWhiteSpace(character));
-            IPdfImage[] images;
-            try
+            // Once an image budget is spent no further image is extracted,
+            // but every page's text is still read.
+            IPdfImage[] images = [];
+            if (!limits.ImagesStopped)
             {
-                images = page.GetImages().Take(limits.RemainingImageObjects + 1).ToArray();
-            }
-            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-            {
-                images = [];
-                result.Issues.Add(new(
-                    "pdf-image-read-failure",
-                    $"{sourceLabel}, page {page.Number} contains an image stream that could not be read.",
-                    IntakeEvidenceSource.ImageContent));
-            }
+                try
+                {
+                    images = page.GetImages().Take(limits.RemainingImageObjects + 1).ToArray();
+                }
+                catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+                {
+                    result.Issues.Add(new(
+                        "pdf-image-read-failure",
+                        $"{sourceLabel}, page {page.Number} contains an image stream that could not be read.",
+                        IntakeEvidenceSource.ImageContent));
+                }
 
-            limits.AddImageObjects(images.Length);
+                if (!limits.TryAddImageObjects(images.Length, sourceLabel, result))
+                {
+                    images = [];
+                }
+            }
 
             var hasDominantRaster = images.Any(image => Coverage(
                 image.BoundingBox, page.CropBox.GetVisibleBounds(page.Rotation)) >= ScannedPageImageCoverage);
@@ -361,7 +370,19 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 limits.ThrowIfProcessingDeadlineExceeded();
                 cancellationToken.ThrowIfCancellationRequested();
                 imageNumber++;
-                limits.AddImageSamplePixels(image.WidthInSamples, image.HeightInSamples);
+                // Each distinct image object is charged once, when it is first
+                // reached and before it is decoded: a letterhead placed on
+                // every page costs its pixels once.
+                if (chargedImageObjects.Add(ImageObjectKey(image))
+                    && !limits.TryAddImageSamplePixels(
+                        image.WidthInSamples,
+                        image.HeightInSamples,
+                        sourceLabel,
+                        result))
+                {
+                    break;
+                }
+
                 var extracted = false;
                 ReadOnlyMemory<byte> imageBytes = default;
                 var mediaType = string.Empty;
@@ -393,7 +414,10 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                     continue;
                 }
 
-                limits.AddExtractedImageBytes(imageBytes.Length);
+                if (!limits.TryAddExtractedImageBytes(imageBytes.Length, sourceLabel, result))
+                {
+                    break;
+                }
 
                 result.Assets.Add(new(
                     $"{sourceLabel}, page {page.Number}, image {imageNumber}",
@@ -423,6 +447,15 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
 
         return new(pages, ExtractPdfFormFields(document, sourceLabel, result));
     }
+
+    /// <summary>
+    /// One image object within a PDF: its encoded bytes and sample
+    /// dimensions, so every placement of the same object shares a key.
+    /// </summary>
+    private static string ImageObjectKey(IPdfImage image) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"{Convert.ToHexString(SHA256.HashData(image.RawMemory.Span))}:{image.WidthInSamples}x{image.HeightInSamples}");
 
     /// <summary>
     /// Reads the dominant raster of a full-page-raster page and says what the
@@ -1491,6 +1524,9 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
 
         public int RemainingImageObjects => MaximumPdfImageObjects - imageObjects;
 
+        /// <summary>An image budget is spent: no further image is extracted from this intake.</summary>
+        public bool ImagesStopped { get; private set; }
+
         public void ThrowIfProcessingDeadlineExceeded()
         {
             var now = timeProvider.GetTimestamp();
@@ -1518,38 +1554,61 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             extractedTextCharacters += count;
         }
 
-        public void AddImageObjects(int count)
+        public bool TryAddImageObjects(int count, string sourceLabel, ReadAccumulator result)
         {
             if (count > MaximumPdfImageObjects - imageObjects)
             {
-                throw new PdfLimitExceededException(
-                    "contains more than 512 discrete image objects.");
+                StopImages(result, sourceLabel, "contains more than 512 discrete image objects.");
+                return false;
             }
 
             imageObjects += count;
+            return true;
         }
 
-        public void AddImageSamplePixels(int width, int height)
+        public bool TryAddImageSamplePixels(int width, int height, string sourceLabel, ReadAccumulator result)
         {
             var count = (long)width * height;
             if (count > MaximumPdfImageSamplePixels - imageSamplePixels)
             {
-                throw new PdfLimitExceededException(
-                    "expands beyond the safe decoded-image pixel limit.");
+                StopImages(result, sourceLabel, "expands beyond the safe decoded-image pixel limit.");
+                return false;
             }
 
             imageSamplePixels += count;
+            return true;
         }
 
-        public void AddExtractedImageBytes(int count)
+        public bool TryAddExtractedImageBytes(int count, string sourceLabel, ReadAccumulator result)
         {
             if (count > MaximumPdfExtractedImageBytes - extractedImageBytes)
             {
-                throw new PdfLimitExceededException(
-                    "expands beyond the safe extracted-image processing limit.");
+                StopImages(result, sourceLabel, "expands beyond the safe extracted-image processing limit.");
+                return false;
             }
 
             extractedImageBytes += count;
+            return true;
+        }
+
+        /// <summary>
+        /// An image budget stops image extraction only. The text of every
+        /// page is still read, and the intake is incomplete, so it never
+        /// enters image automation (ADR-0005 item 11).
+        /// </summary>
+        private void StopImages(ReadAccumulator result, string sourceLabel, string message)
+        {
+            result.IsIncomplete = true;
+            if (ImagesStopped)
+            {
+                return;
+            }
+
+            ImagesStopped = true;
+            result.Issues.Add(new(
+                "intake_limit_exceeded",
+                $"{sourceLabel} {message}",
+                IntakeEvidenceSource.PdfContent));
         }
     }
 

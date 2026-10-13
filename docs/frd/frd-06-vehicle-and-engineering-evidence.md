@@ -134,6 +134,9 @@ to a candidate's confirmed registration:
   whose fifth character is a `1` is retried without that character, because
   plate furniture is often read as an inserted `1`. A match found this way
   assumes the confirmed registration is correct.
+- A confident read contained in a longer confident read of the same receipt
+  or group is not a distinct registration
+  ([FRD-19](frd-19-image-led-intake-and-pairing.md#grouped-image-intake-routing)).
 
 **Pairing in reverse.** When a new eligible Case is accepted, it pairs with a
 waiting unpaired Vehicle images record only on exact equality with the

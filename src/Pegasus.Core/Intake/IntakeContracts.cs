@@ -201,6 +201,12 @@ public static class IntakeEvidenceSignals
         "conflicting-instruction-selection";
 
     /// <summary>
+    /// The reader could not complete the source within its safe limits. An
+    /// incomplete read never enters image automation (ADR-0005 item 11).
+    /// </summary>
+    public const string IncompleteRead = "incomplete-read";
+
+    /// <summary>
     /// The member of staff who uploaded the file declared its Case before the
     /// upload (Add evidence on a Case page, FRD-18): no identification ran.
     /// </summary>

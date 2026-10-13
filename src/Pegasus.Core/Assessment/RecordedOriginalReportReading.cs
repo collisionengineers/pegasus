@@ -56,22 +56,14 @@ public sealed class RecordedOriginalReportReading(
             return null;
         }
 
-        var analysis = await analyses.FindByOperationKeyAsync(
-            RecordThirdPartyReportReading.OperationKey(asset), cancellationToken);
-        if (!IsReadingOf(analysis, asset))
+        var analysis = await RecordThirdPartyReportReading.FindRecordedAsync(
+            asset, analyses, ocrOperations, cancellationToken);
+        if (analysis is null)
         {
-            var ocr = await ocrOperations.FindCompletedBySourceAsync(asset.ContentHash, cancellationToken);
-            analysis = ocr is null
-                ? null
-                : await analyses.FindByOperationKeyAsync(
-                    RecordThirdPartyReportReading.OcrOperationKey(asset, ocr.Id), cancellationToken);
-            if (!IsReadingOf(analysis, asset))
-            {
-                return null;
-            }
+            return null;
         }
 
-        var rows = analysis!.Candidates;
+        var rows = analysis.Candidates;
         return OriginalReportPrefillPolicy.Read(
             asset.ContentHash.ToLowerInvariant(),
             Usable(First(rows, ThirdPartyReportFields.Issuer)),
@@ -80,13 +72,6 @@ public sealed class RecordedOriginalReportReading(
             Printed(First(rows, ThirdPartyReportFields.Outcome)),
             Printed(First(rows, ThirdPartyReportFields.Repairability)));
     }
-
-    // A reading of this very report that matched exactly one report signature;
-    // anything else is not a reading Pegasus can seed the cells from.
-    private static bool IsReadingOf(RetainedInstructionAnalysis? analysis, IntakeAssetRecord asset) =>
-        analysis is { Outcome: RetainedInstructionAnalysisOutcome.Analyzed }
-        && analysis.IntakeAssetId == asset.Id
-        && string.Equals(analysis.SourceSha256, asset.ContentHash, StringComparison.OrdinalIgnoreCase);
 
     private static RetainedInstructionCandidate? First(
         IReadOnlyList<RetainedInstructionCandidate> rows,
