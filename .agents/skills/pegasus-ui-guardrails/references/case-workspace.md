@@ -291,8 +291,10 @@ to repairer status, Dismiss) are edit-only, and a scaled spec's Target % bar rea
 
 The reference's bars stand since v38 (operator, 12 October 2026) and are not to be redrawn: the
 labour rate bar under the grid (rate-card segments and Custom · typed, the uplift tick and chip,
-the figure at the right); the Target % of value bar (slider from the floor-scaled minimum, Apply and
-Remove scaling only while previewing, floors on the second row); the contract bar's own agreed-sum
+the figure at the right); the Target % of value bar (its first row holds only the label, the Scaled
+state, the slider from the floor-scaled minimum and the % box, so the slider keeps one length while
+previewing; the readout, the Preview chip, Remove scaling, the floors and Apply are on the second
+row, with Apply and Remove scaling only while previewing; operator, 13 October 2026); the contract bar's own agreed-sum
 box and its rescale chip; the Supplementary panel above the grid an import opens; the dash cells a
 line type does not price; Compare side by side with Compare with current and the print sheet. Keep
 the rate control in the bar, not the head.
