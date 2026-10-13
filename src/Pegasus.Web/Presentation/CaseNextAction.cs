@@ -68,7 +68,10 @@ public static class CaseNextAction
         {
             return early;
         }
-        if (workflow.State == CaseLifecycleState.ReportSent && workflow.HasOpenQuery)
+        // An open query is the next concern of any open Case (the Query stage,
+        // operator 11 October 2026), including one With Engineer that holds the
+        // Inspection report's Sent item while its Audit is still to come.
+        if (CaseQueryRules.IsQueryStage(workflow.State, workflow.HasOpenQuery))
         {
             return new(CaseWorkspaceLabels.Frame.ResolveQuery, "queries", ResolvesQuery: true);
         }
@@ -109,7 +112,7 @@ public static class CaseNextAction
     {
         ArgumentNullException.ThrowIfNull(workflow);
         return BeforeTheReport(workflow, null) is null
-            && !(workflow.State == CaseLifecycleState.ReportSent && workflow.HasOpenQuery);
+            && !CaseQueryRules.IsQueryStage(workflow.State, workflow.HasOpenQuery);
     }
 
     // The steps the Case takes before the report is its next concern.

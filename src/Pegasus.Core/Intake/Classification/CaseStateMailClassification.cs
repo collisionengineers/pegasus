@@ -4,8 +4,11 @@ namespace Pegasus.Core.Intake;
 
 /// <summary>
 /// FRD-08: a retained received message that joins a Case, and that no Principal
-/// predicate classified, takes its category from the Case's own lifecycle state:
-/// Query once the report is sent, otherwise Case update — whatever else the
+/// predicate classified, takes its category from the Case's own lifecycle:
+/// Query once the report is sent
+/// (<see cref="Lifecycle.CaseLifecycleRules.ReportIsSent(CaseWorkflowRecord)"/>:
+/// Report sent, or With Engineer holding the Inspection report's Sent item
+/// while the Audit is still to come), otherwise Case update — whatever else the
 /// Case's state, and for a Triage Case, which has no lifecycle state
 /// (operator, 13 October 2026: a linked message without a category of its own
 /// is Case update). The Principal's case-match policy found the Case, so this
@@ -20,18 +23,18 @@ public static class CaseStateMailClassification
     public const int Version = 1;
     public const string Actor = "system-worker:case-state-classification";
 
-    /// <param name="state">The linked Case's state; null for a Triage Case.</param>
+    /// <param name="reportIsSent">Whether the linked Case's report is sent; false for a Triage Case.</param>
     /// <returns>The derived decision, or null to leave the current one alone.</returns>
     public static MailClassificationResult? Derive(
         MailClassificationResult? current,
-        CaseLifecycleState? state)
+        bool reportIsSent)
     {
         if (current is { Outcome: not MailClassificationOutcome.Unclassified })
         {
             return null;
         }
 
-        return state == CaseLifecycleState.ReportSent
+        return reportIsSent
             ? MailClassificationResult.Classified(
                 MailCategory.Query,
                 current?.Predicates ?? [],

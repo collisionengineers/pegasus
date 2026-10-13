@@ -762,7 +762,13 @@ public sealed class EfCaseWorkflowStore(
                 throw new InvalidOperationException(evaluation.Message);
             }
 
-            ApplyReportEvidenceLink(workflow, pastWork, evaluation.Evidence, request.Actor, now);
+            ApplyReportEvidenceLink(
+                workflow,
+                pastWork,
+                evaluation.Evidence,
+                request.Actor,
+                now,
+                await SendEndsTheWorkAsync(context, workflow, cancellationToken));
         },
         cancellationToken,
         afterEvent: async (context, workflow, now) =>
@@ -974,15 +980,14 @@ public sealed class EfCaseWorkflowStore(
         }, cancellationToken);
 
     public Task<CaseWorkflowRecord> RaiseQueryAsync(RaiseCaseQueryRequest request, CancellationToken cancellationToken) =>
-        MutateAsync(request, CaseQueryLedger.QueryLoggedEvent, (context, workflow, now) =>
+        MutateAsync(request, CaseQueryLedger.QueryLoggedEvent, async (context, workflow, now) =>
         {
             // Re-checked under the lock: a query is logged only once the report is sent.
-            if (workflow.State != nameof(CaseLifecycleState.ReportSent))
+            if (!await ReportIsSentAsync(context, workflow, cancellationToken))
             {
                 throw new InvalidOperationException("A query can be logged only once the report is sent.");
             }
             CaseQueryLedger.RaiseForStaff(context, workflow, request, now);
-            return Task.CompletedTask;
         }, cancellationToken);
 
     public Task<CaseWorkflowRecord> ResolveQueriesAsync(ResolveCaseQueriesRequest request, CancellationToken cancellationToken) =>
@@ -1356,11 +1361,15 @@ public sealed class EfCaseWorkflowStore(
                 .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken);
             if (replay.EventType == "report_evidence_auto_linked" && replayWorkflow is not null)
             {
-                if (replayWorkflow.State == nameof(CaseLifecycleState.ReportSent)
+                // The current work's evidence as it was linked: Report sent, or
+                // With Engineer where the send did not end the work.
+                if (replayWorkflow.State is nameof(CaseLifecycleState.ReportSent) or nameof(CaseLifecycleState.ReportPreparation)
                     && replayWorkflow.ReportSentEvidenceId == request.EvidenceId
                     && replayWorkflow.ReportSentEvidence?.CaseId == request.CaseId)
                 {
-                    return AutoLinkLinked(replayWorkflow);
+                    return AutoLinkLinked(
+                        replayWorkflow,
+                        endsTheWork: replayWorkflow.State == nameof(CaseLifecycleState.ReportSent));
                 }
 
                 // The Inspection report's evidence, linked on its own work
@@ -1439,9 +1448,10 @@ public sealed class EfCaseWorkflowStore(
 
         var beforeJson = JsonSerializer.Serialize(HistoryValue(workflow));
         var beforeVersion = workflow.Version;
+        var endsTheWork = await SendEndsTheWorkAsync(context, workflow, cancellationToken);
         foreach (var (target, evidence) in linkable)
         {
-            ApplyReportEvidenceLink(workflow, target, evidence, request.Actor, now);
+            ApplyReportEvidenceLink(workflow, target, evidence, request.Actor, now, endsTheWork);
         }
         CaseMutationGuard.Advance(workflow);
         var afterJson = JsonSerializer.Serialize(HistoryValue(workflow));
@@ -1474,7 +1484,7 @@ public sealed class EfCaseWorkflowStore(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         var committed = linkable.Any(link => link.Work is null)
-            ? AutoLinkLinked(workflow)
+            ? AutoLinkLinked(workflow, endsTheWork)
             : AutoLinkLinkedOnPastWork(workflow, request.EvidenceId);
         return committed with { TasksCreated = tasksCreated };
     }
@@ -1622,7 +1632,8 @@ public sealed class EfCaseWorkflowStore(
         CaseWorkEntity? pastWork,
         CaseReportSentEvidenceEntity evidence,
         ActionActor actor,
-        DateTimeOffset linkedAtUtc)
+        DateTimeOffset linkedAtUtc,
+        bool endsTheWork)
     {
         evidence.CaseId = workflow.CaseId;
         evidence.LinkedAtUtc = linkedAtUtc;
@@ -1640,9 +1651,56 @@ public sealed class EfCaseWorkflowStore(
 
         workflow.ReportSentEvidenceId = evidence.Id;
         workflow.ReportSentEvidence = evidence;
+        if (!endsTheWork)
+        {
+            // The Inspection report's send on an Inspection + Audit Case with
+            // no Audit yet: the Case stays With Engineer until the Audit's
+            // report is sent or the Case is closed (operator, 13 October 2026).
+            return;
+        }
+
         workflow.State = nameof(CaseLifecycleState.ReportSent);
         workflow.StateEnteredAtUtc = linkedAtUtc;
     }
+
+    /// <summary>
+    /// Whether a report's Sent item ends this Case's work: the Core rule asked
+    /// of the Case's type and whether its Audit exists (the Audit reference
+    /// Create audit gives an Inspection + Audit Case).
+    /// </summary>
+    internal static async Task<bool> SendEndsTheWorkAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        CancellationToken cancellationToken)
+    {
+        var caseEntity = await CaseOfAsync(context, workflow, cancellationToken);
+        return CaseLifecycleRules.SendEndsTheWork(
+            CaseTypeCodes.Parse(caseEntity.Type),
+            caseEntity.AuditReference is not null);
+    }
+
+    /// <summary>The Case's report is sent: the Core rule asked of the workflow row.</summary>
+    internal static async Task<bool> ReportIsSentAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        CancellationToken cancellationToken)
+    {
+        var caseEntity = await CaseOfAsync(context, workflow, cancellationToken);
+        return CaseLifecycleRules.ReportIsSent(
+            Enum.Parse<CaseLifecycleState>(workflow.State),
+            workflow.ReportSentEvidenceId is not null,
+            CaseTypeCodes.Parse(caseEntity.Type),
+            caseEntity.AuditReference is not null);
+    }
+
+    private static async Task<CaseEntity> CaseOfAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        CancellationToken cancellationToken) =>
+        workflow.Case
+        ?? await context.Cases
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == workflow.CaseId, cancellationToken);
 
     /// <summary>The committed link of a past work's evidence: the Case's state as it stands, unchanged.</summary>
     private static AutoLinkReportEvidenceResult AutoLinkLinkedOnPastWork(CaseWorkflowEntity workflow, Guid evidenceId) =>
@@ -1656,9 +1714,14 @@ public sealed class EfCaseWorkflowStore(
                 OfCurrentWork: false),
             null);
 
-    private static AutoLinkReportEvidenceResult AutoLinkLinked(CaseWorkflowEntity workflow)
+    /// <summary>
+    /// The committed link of the current work's evidence: Report sent when the
+    /// send ended the work, With Engineer when it did not.
+    /// </summary>
+    private static AutoLinkReportEvidenceResult AutoLinkLinked(CaseWorkflowEntity workflow, bool endsTheWork)
     {
-        if (workflow.State != nameof(CaseLifecycleState.ReportSent)
+        var state = endsTheWork ? CaseLifecycleState.ReportSent : CaseLifecycleState.ReportPreparation;
+        if (workflow.State != state.ToString()
             || workflow.ReportSentEvidenceId is not { } evidenceId
             || workflow.ReportSentEvidence is not { } evidence
             || evidence.Id != evidenceId
@@ -1673,8 +1736,9 @@ public sealed class EfCaseWorkflowStore(
             new(
                 workflow.CaseId,
                 evidenceId,
-                CaseLifecycleState.ReportSent,
-                workflow.Version),
+                state,
+                workflow.Version,
+                EndsTheWork: endsTheWork),
             null);
     }
 
@@ -1683,6 +1747,7 @@ public sealed class EfCaseWorkflowStore(
         bool tracking)
     {
         var query = context.CaseWorkflows
+            .Include(item => item.Case)
             .Include(item => item.ReportApproval)
             .Include(item => item.ReportSentEvidence);
         return tracking ? query : query.AsNoTracking();
@@ -2065,6 +2130,7 @@ public sealed class EfCaseWorkflowStore(
     {
         Archive = MapArchive(entity),
         SignOffEngineerId = entity.SignOffEngineerId,
+        CaseType = CaseTypeCodes.Parse(entity.Case.Type),
         HeldAtUtc = entity.HeldAtUtc,
         HoldReviewOn = entity.HoldReviewOn,
         StateEnteredAtUtc = entity.StateEnteredAtUtc,

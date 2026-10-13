@@ -1603,7 +1603,7 @@ public sealed class MessageModel(
             {
                 QueryResponseCondition = OperatorLabels.QueryResponseJobs.CaseUnavailable;
             }
-            else if (!AiJobPolicy.IsEligibleQueryResponseCaseState(CurrentCase.Workflow.State))
+            else if (!AiJobPolicy.IsEligibleQueryResponse(CurrentCase.Workflow))
             {
                 QueryResponseCondition = OperatorLabels.QueryResponseJobs.AvailableInPostReportWork;
             }
