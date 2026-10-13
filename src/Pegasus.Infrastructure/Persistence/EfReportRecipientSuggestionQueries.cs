@@ -9,7 +9,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>
 /// Reads the report dispatch facts of a Case: the Principal and its report
 /// sending rules, the retained instruction e-mail and the mailbox holding it,
-/// the Case's Claim Source, Repairer, type and outcome, and the filed estimates.
+/// the Case's Claim Source, Repairer, type and outcome, the work whose report
+/// is being sent, and the filed estimates.
 /// </summary>
 public sealed class EfReportRecipientSuggestionQueries(
     IDbContextFactory<PegasusDbContext> contextFactory) : IReportRecipientSuggestionQueries
@@ -156,6 +157,7 @@ public sealed class EfReportRecipientSuggestionQueries(
         {
             OriginalSender = row.EffectiveSender,
             CaseType = CaseTypeCodes.Parse(row.Type),
+            ReportWork = workKind,
             InstructionText = instructionText,
             FiledEstimates = await EfFiledEstimateAttachmentQueries.ReadAsync(context, caseId, cancellationToken),
             ContactNames = names

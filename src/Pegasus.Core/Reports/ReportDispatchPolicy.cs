@@ -73,6 +73,14 @@ public sealed record ReportDispatchFacts(
     /// <summary>The Case's type, which "Case type" conditions compare.</summary>
     public CaseType? CaseType { get; init; }
 
+    /// <summary>
+    /// The work whose report is being sent: the primary work's is the
+    /// Inspection report and the Audit work's the Audit report. On an
+    /// Inspection + Audit Case "Case type" conditions compare the report
+    /// being sent; a send carrying both reports is the work it is sent from.
+    /// </summary>
+    public CaseWorkKind? ReportWork { get; init; }
+
     /// <summary>The effective sender of the instruction, however the Case holds it.</summary>
     public string? Sender => Instruction?.EffectiveSender ?? OriginalSender;
 
@@ -495,9 +503,7 @@ public static class ReportDispatchPolicy
             ReportSendingConditionKind.Outcome => string.IsNullOrWhiteSpace(facts.Outcome)
                 ? null
                 : Contains(condition.Values, facts.Outcome.Trim()),
-            ReportSendingConditionKind.CaseType => facts.CaseType is { } caseType
-                ? Contains(condition.Values, caseType.ToString())
-                : null,
+            ReportSendingConditionKind.CaseType => CaseTypeHolds(condition.Values, facts),
             ReportSendingConditionKind.SenderNot => string.IsNullOrWhiteSpace(facts.Sender)
                 ? null
                 : !Contains(condition.Values, facts.Sender!.Trim()),
@@ -514,6 +520,36 @@ public static class ReportDispatchPolicy
             .Where(decision => decision.RuleIndex == ruleIndex && decision.ConditionIndex == conditionIndex)
             .Select(decision => (bool?)decision.Holds)
             .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// A "Case type" condition (operator, 13 October 2026): InspectionAndAudit
+    /// holds for every report of an Inspection + Audit Case, while Inspection
+    /// and Audit hold for the report being sent, which on that Case is the
+    /// work it is sent from. Null when the Case's type, or on an
+    /// Inspection + Audit Case the report's work, is not known.
+    /// </summary>
+    private static bool? CaseTypeHolds(IReadOnlyList<string> values, ReportDispatchFacts facts)
+    {
+        if (facts.CaseType is not { } caseType)
+        {
+            return null;
+        }
+        if (Contains(values, caseType.ToString()))
+        {
+            return true;
+        }
+        if (caseType != Cases.CaseType.InspectionAndAudit)
+        {
+            return false;
+        }
+        return facts.ReportWork is { } work
+            ? Contains(
+                values,
+                CaseWorkPolicy.IsAuditReport(caseType, work)
+                    ? nameof(Cases.CaseType.Audit)
+                    : nameof(Cases.CaseType.Inspection))
+            : null;
     }
 
     private static bool Contains(IReadOnlyList<string> values, string value) =>

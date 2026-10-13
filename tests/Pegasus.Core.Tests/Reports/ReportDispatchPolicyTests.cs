@@ -456,6 +456,52 @@ public sealed class ReportDispatchPolicyTests
         Assert.Equal("Is the Case type Audit or Inspection and audit?", Assert.Single(plan.Undecided).Question);
     }
 
+    /// <summary>
+    /// Inspection and Audit name the report being sent, so an Inspection +
+    /// Audit Case matches Inspection for its Inspection report and Audit for
+    /// its Audit report, while InspectionAndAudit matches either (operator,
+    /// 13 October 2026).
+    /// </summary>
+    [Fact]
+    public void ACaseTypeRuleNamesTheReportBeingSentOnAnInspectionAndAuditCase()
+    {
+        static bool? Holds(string value, CaseType? caseType, CaseWorkKind? reportWork)
+        {
+            var rule = Rule(ReportSendingRuleMatch.All, new(["x@rule.example"], []),
+                new ReportSendingCondition(ReportSendingConditionKind.CaseType, [value]));
+            return ReportDispatchPolicy.Evaluate(
+                0, rule, Facts(Rules() with { Rules = [rule] }) with { CaseType = caseType, ReportWork = reportWork }, []);
+        }
+
+        // The Inspection report of an Inspection + Audit Case.
+        Assert.True(Holds("Inspection", CaseType.InspectionAndAudit, CaseWorkKind.Primary));
+        Assert.True(Holds("InspectionAndAudit", CaseType.InspectionAndAudit, CaseWorkKind.Primary));
+        Assert.False(Holds("Audit", CaseType.InspectionAndAudit, CaseWorkKind.Primary));
+
+        // Its Audit report.
+        Assert.True(Holds("Audit", CaseType.InspectionAndAudit, CaseWorkKind.Audit));
+        Assert.True(Holds("InspectionAndAudit", CaseType.InspectionAndAudit, CaseWorkKind.Audit));
+        Assert.False(Holds("Inspection", CaseType.InspectionAndAudit, CaseWorkKind.Audit));
+
+        // A Case of one type has only that type's report.
+        Assert.True(Holds("Inspection", CaseType.Inspection, CaseWorkKind.Primary));
+        Assert.False(Holds("Audit", CaseType.Inspection, CaseWorkKind.Primary));
+        Assert.False(Holds("InspectionAndAudit", CaseType.Inspection, CaseWorkKind.Primary));
+        Assert.True(Holds("Audit", CaseType.Audit, CaseWorkKind.Primary));
+        Assert.False(Holds("Inspection", CaseType.Audit, CaseWorkKind.Primary));
+
+        // Triage sends no report, so no type a rule can name holds for it.
+        Assert.False(Holds("Inspection", CaseType.Triage, CaseWorkKind.Primary));
+        Assert.False(Holds("InspectionAndAudit", CaseType.Triage, CaseWorkKind.Primary));
+
+        // Without the report's work an Inspection + Audit Case answers only
+        // for its own type; Inspection and Audit are left to staff.
+        Assert.True(Holds("InspectionAndAudit", CaseType.InspectionAndAudit, null));
+        Assert.Null(Holds("Inspection", CaseType.InspectionAndAudit, null));
+        Assert.Null(Holds("Audit", CaseType.InspectionAndAudit, null));
+        Assert.Null(Holds("Inspection", null, CaseWorkKind.Primary));
+    }
+
     [Fact]
     public void SenderNotReadsTheEffectiveSenderHoweverTheCaseHoldsIt()
     {
