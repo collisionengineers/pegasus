@@ -1,0 +1,187 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>v40 self-check</title></head><body>
+<!-- Self-check for pegasus_contacts_v40.html: loads each state, dialog, variable and
+     query preset in a 1580x1000 iframe and asserts what it must show. Prints
+     RESULT {"fail":[],"okCount":N}. Open with file access allowed. -->
+<iframe id="f" style="width:1580px;height:1000px"></iframe>
+<pre id="out">PENDING</pre>
+<script>
+const log = [], ok = [];
+const f = document.getElementById('f');
+function check(name, cond) { (cond ? ok : log).push((cond ? 'OK ' : 'FAIL ') + name); }
+localStorage.removeItem('v40.opts');
+const $ = (d, s) => d.querySelector(s), $$ = (d, s) => Array.from(d.querySelectorAll(s));
+const vis = el => !!el && !el.closest('[hidden]') && el.getClientRects().length > 0;
+const text = d => d.querySelector('.content').innerText;
+const groups = d => $$(d, '[data-v40-group]').filter(g => !g.hidden).map(g => g.getAttribute('data-v40-group'));
+const heads = (d, t) => $$(d, `[data-v40-group="${t}"] thead th`).map(th => th.textContent.trim()).filter(t => t && t !== 'Open');
+const STATES = ['list', 'list-live', 'principal', 'principal-saved', 'principal-refused', 'principal-inactive', 'principal-live', 'claim-source', 'repairer', 'storage', 'tpe'];
+const OTHER = { 'claim-source': 'Claim Source', repairer: 'Repairer', storage: 'Storage', tpe: 'Third Party Engineer' };
+
+const CASES = [];
+for (const s of STATES) CASES.push([`state=${s}`, (w, d) => {
+  check(`${s}: renders`, !!$(d, '.admin-layout') && !!$(d, 'h1'));
+  check(`${s}: Contacts current in the Administration nav`, !!$(d, '.admin-nav a[aria-current="page"]'));
+  check(`${s}: strip shows the state`, $(d, '#mock-state').value === s);
+}]);
+
+CASES.push(['state=list', (w, d) => {
+  check('list: five type panels in FRD-17 order', groups(d).join() === 'Principal,ClaimSource,Repairer,Storage,ThirdPartyEngineer');
+  check('list: panel headings', $$(d, '[data-v40-group] h2').map(h => h.textContent).join() === 'Principals,Claim Sources,Repairers,Storage,Third Party Engineers');
+  check('list: Principal columns', heads(d, 'Principal').join() === 'Principal code,Name,Contact person,Email,Phone,Last case,Status');
+  check('list: Claim Source columns', heads(d, 'ClaimSource').join() === 'Name,Contact person,Email,Phone,Linked principals,Last case,Status');
+  check('list: Repairer columns', heads(d, 'Repairer').join() === 'Name,Contact person,Email,Phone,Postcode,Linked principals,Last case,Status');
+  check('list: Storage columns', heads(d, 'Storage').join() === 'Name,Contact person,Email,Phone,Postcode,Linked principals,Last case,Status');
+  check('list: Third Party Engineer columns', heads(d, 'ThirdPartyEngineer').join() === 'Name,Contact person,Email,Phone,Linked principals,Last case,Status');
+  check('list: no Type column anywhere', !$$(d, '[data-v40-group] th').some(th => th.textContent === 'Type'));
+  check('list: no lede under Contacts', !$(d, '#contacts-title + .panel-title-meta'));
+  check('list: Sort has Name and Last case only', $$(d, '#Sort option').map(o => o.textContent).join() === 'Name,Last case');
+  check('list: Type keeps All types', !!$(d, '#Type option[value=""]'));
+  check('list: one Add contact', $$(d, '[data-dialog-open="contact-type-dialog"]').length === 1);
+  check('list: every row has Open', $$(d, 'tr[data-v40-row]').every(r => r.querySelector('a.btn')));
+  check('list: inactive principal shows Disabled', /Example Claims Ltd[\s\S]*Disabled/.test($(d, '[data-v40-group="Principal"]').innerText));
+  const s = $(d, '#Search'); s.value = 'riverside'; w.__mock.filter();
+  check('list: search crosses types', groups(d).join() === 'Repairer,Storage');
+  s.value = 'zzzz'; w.__mock.filter();
+  check('list: no match shows the empty line', groups(d).length === 0 && vis($(d, '[data-v40-empty]')) && /No contacts found\./.test(text(d)));
+  s.value = ''; $(d, '#Type').value = 'Storage'; w.__mock.filter();
+  check('list: Type narrows to one panel', groups(d).join() === 'Storage');
+  $(d, '#Type').value = ''; $(d, '#Sort').value = 'LastCase'; w.__mock.filter();
+  check('list: Last case sorts newest first', $$(d, '[data-v40-group="Principal"] tbody tr')[0].dataset.name === 'qdos');
+}]);
+CASES.push(['state=list&type=Repairer', (w, d) => check('preset type: Repairer panel only', groups(d).join() === 'Repairer')]);
+CASES.push(['state=list&q=riverside', (w, d) => check('preset q: two matches across types', w.__mockShown === 2)]);
+CASES.push(['state=list&sort=LastCase', (w, d) => check('preset sort', $(d, '#Sort').value === 'LastCase')]);
+CASES.push(['state=list&opt=list:single', (w, d) => {
+  check('single: no All types', !$(d, '#Type option[value=""]'));
+  check('single: starts at Principal, one panel', groups(d).join() === 'Principal');
+  check('single: strip variable reads single', $(d, '#mock-vars select[data-var=list]').value === 'single');
+}]);
+CASES.push(['state=list-live', (w, d) => {
+  check('live list: one table with Type column', $$(d, 'th').some(th => th.textContent === 'Type') && $$(d, 'table').length === 1);
+  check('live list: lede present', /Principals, claim sources, repairers, storage and third party engineers\./.test(text(d)));
+  check('live list: Sort has Type', $$(d, '#Sort option').some(o => o.textContent === 'Type'));
+}]);
+CASES.push(['state=list&dialog=type', (w, d) => {
+  const dlg = $(d, '[data-dialog="contact-type-dialog"]');
+  check('dialog type: open', vis(dlg));
+  check('dialog type: five types', $$(d, '[data-dialog="contact-type-dialog"] .contact-kind').map(a => a.textContent).join() === 'Principal,Claim Source,Repairer,Storage,Third Party Engineer');
+}]);
+for (const [t, l] of [['Principal', 'Principal'], ['ClaimSource', 'Claim Source'], ['Repairer', 'Repairer'], ['Storage', 'Storage'], ['ThirdPartyEngineer', 'Third Party Engineer']]) {
+  CASES.push([`state=list&dialog=create&create=${t}`, (w, d) => {
+    const dlg = $(d, `[data-dialog="contact-create-${t}"]`);
+    check(`dialog New ${l}: open`, vis(dlg));
+    check(`dialog New ${l}: title`, $(dlg, 'h2').textContent === `New ${l}`);
+    check(`dialog New ${l}: no "add more types" sentence`, !/more types|Existing types/.test(dlg.innerText));
+    check(`dialog New ${l}: Save ${l}`, $(dlg, '.btn--primary').textContent === `Save ${l}`);
+    check(`dialog New ${l}: type-specific fields`, t === 'Principal' ? !!$(dlg, '#PrincipalCode') && !$(dlg, '#AssociatedPrincipalIds') : !!$(dlg, '#AssociatedPrincipalIds') && !$(dlg, '#PrincipalCode'));
+  }]);
+}
+CASES.push(['state=list&dialog=matches&create=Repairer', (w, d) => {
+  const dlg = $(d, '[data-dialog="contact-create-Repairer"]');
+  check('matches: two found, each Open', $$(dlg, '[data-v40-match] .panel-body a.btn').filter(a => a.textContent === 'Open').length === 2);
+  check('matches: no Use this contact', !/Use this contact/.test(dlg.innerText));
+  check('matches: names the other type', /Riverside Recovery & Storage · Storage/.test(dlg.innerText));
+}]);
+CASES.push(['state=list&dialog=matches&create=Repairer&opt=match:none', (w, d) => {
+  const dlg = $(d, '[data-dialog="contact-create-Repairer"]');
+  check('match none: no Check existing contacts', !/Check existing contacts|Possible existing contacts/.test(dlg.innerText));
+}]);
+
+const PANELS = ['Report generation', 'Report sending', 'Salvage matrix', 'Default inspection location', 'Principal API'];
+CASES.push(['state=principal', (w, d) => {
+  const h2 = $$(d, '.admin-layout > .stack > section.panel > .panel-head h2').map(h => h.textContent.trim());
+  check('principal: panel order (FRD-17)', h2.slice(1).join() === PANELS.join());
+  check('principal: no Principal settings panel', !h2.includes('Principal settings'));
+  check('principal: no type checkboxes', !$(d, 'input[name=Roles]') && !/Contact types/.test(text(d)));
+  check('principal: no "several contact types" sentence', !/several contact types/.test(text(d)));
+  check('principal: Type read-only, Principal', $(d, '#ContactType').readOnly && $(d, '#ContactType').value === 'Principal');
+  check('principal: code read-only', $(d, '#PrincipalCode').readOnly && $(d, '#PrincipalCode').value === 'DFD');
+  check('principal: inspection mode read-only', $(d, '#PrincipalInspectionMode').readOnly);
+  check('principal: accepted identities in the form', $(d, '#AcceptedIdentities').value === 'dfd-solicitors.co.uk');
+  check('principal: Case guidance with both fields', !!$(d, '#GuidanceTemplate') && !!$(d, '#NotesOnEveryCase'));
+  check('principal: no Linked principals', !$(d, '[data-v40-links]'));
+  const n = $(d, '#NotesOnEveryCase');
+  check('principal: notes about 1,300 characters', n.value.length > 1200 && n.value.length < 1500);
+  check('principal: notes shown whole (no inner scroll)', n.scrollHeight <= n.clientHeight + 4);
+  check('principal: Report generation has Default fee and Save report settings', /Default fee \(£\)/.test($(d, '[aria-labelledby=principal-report-title]').innerText) && /Save report settings/.test($(d, '[aria-labelledby=principal-report-title]').innerText));
+  check('principal: no EVA', !/EVA/.test(text(d)));
+  check('principal: Report sending rules editor', !!$(d, '[data-report-sending-editor] [data-rs-rules]'));
+  check('principal: condition kinds in v39 U order', $$(d, '[data-rs-kind]')[0] && Array.from($$(d, '[data-rs-kind]')[0].options).map(o => o.textContent).join() === 'No condition,Claim Source,Repairer,Images from,Instruction mentions,Sender is not,Outcome,Bodyshop mentions');
+  check('principal: one spare rule row', $$(d, '[data-rs-rule]').length >= 2);
+  check('principal: Replace code danger button', !!$(d, '[data-dialog-open="replace-principal"].btn--danger'));
+  check('principal: one Save per panel', ['contact-title', ...['report', 'sending', 'salvage', 'location'].map(x => `principal-${x}-title`)].every(id => $$(d, `[aria-labelledby=${id}] button[type=submit].btn--primary`).length === 1));
+  check('principal: no tabs in stack layout', !$(d, '.contact-tabs'));
+}]);
+CASES.push(['state=principal&opt=notes:rows', (w, d) => {
+  const n = $(d, '#NotesOnEveryCase');
+  check('notes rows: four rows, scrolls inside', !n.hasAttribute('data-notes-fit') && n.scrollHeight > n.clientHeight + 20);
+}]);
+CASES.push(['state=principal&opt=layout:tabs', (w, d) => {
+  const tabs = $$(d, '.contact-tabs .tab').map(t => t.textContent);
+  check('tabs: six tabs, Contact first, FRD-17 order', tabs.join() === ['Contact', ...PANELS].join());
+  check('tabs: one panel shown', $$(d, '.admin-layout > .stack > section.panel').filter(p => !p.hidden).length === 1);
+  check('tabs: Contact selected', $(d, '.contact-tabs .tab[aria-selected=true]').textContent === 'Contact');
+  $$(d, '.contact-tabs .tab')[2].click();
+  check('tabs: click shows Report sending', vis($(d, '[aria-labelledby=principal-sending-title] [data-report-sending-editor]')) && !vis($(d, '#Name')));
+  check('tabs: Replace code stays below', vis($(d, '[data-dialog-open="replace-principal"]')));
+}]);
+CASES.push(['state=principal&opt=layout:tabs&tab=Salvage%20matrix', (w, d) => check('preset tab', $(d, '.contact-tabs .tab[aria-selected=true]').textContent === 'Salvage matrix')]);
+CASES.push(['state=principal-saved', (w, d) => {
+  const n = $(d, '[data-v40-saved]');
+  check('saved: notice inside Report sending', !!n && !!n.closest('[aria-labelledby=principal-sending-title]'));
+  check('saved: no notice at the top of the page', !$(d, '.admin-layout > .stack > .notice'));
+  const r = $(d, '[aria-labelledby=principal-sending-title]').getBoundingClientRect();
+  check('saved: page lands on the panel', r.top < 200 && r.top > -20);
+}]);
+CASES.push(['state=principal-saved&opt=layout:tabs', (w, d) => check('saved tabs: Report sending tab selected', $(d, '.contact-tabs .tab[aria-selected=true]').textContent === 'Report sending')]);
+CASES.push(['state=principal-refused', (w, d) => {
+  const v = $(d, '[data-v40-refused]');
+  check('refused: message in the Salvage matrix panel', !!v && !!v.closest('[aria-labelledby=principal-salvage-title]') && /Cat S: From must not be more than To\./.test(v.textContent));
+  check('refused: typed row kept', $$(d, '[data-salvage-bands=S] input[type=number]')[0].value === '5000.00');
+}]);
+CASES.push(['state=principal-inactive', (w, d) => {
+  check('inactive: Disabled chip', /Disabled/.test($(d, '[aria-labelledby=contact-title] .status').textContent));
+  check('inactive: successor line', /This principal is inactive\. Change the settings on its successor\./.test(text(d)));
+  check('inactive: no Principal panels', !$(d, '[data-report-sending-editor]') && !$(d, '[data-salvage-matrix-editor]'));
+}]);
+CASES.push(['state=principal-live', (w, d) => {
+  check('live edit: type checkboxes', $$(d, 'input[name=Roles]').length === 5);
+  check('live edit: Principal settings panel', /Principal settings/.test(text(d)));
+}]);
+for (const [s, l] of Object.entries(OTHER)) CASES.push([`state=${s}`, (w, d) => {
+  check(`${s}: Type reads ${l}`, $(d, '#ContactType').readOnly && $(d, '#ContactType').value === l);
+  check(`${s}: no Principal panels`, !$(d, '[data-report-sending-editor]') && !$(d, '#PrincipalCode'));
+  check(`${s}: Linked principals, no role subheading`, !!$(d, '[data-v40-links]') && !$(d, '[data-principal-associations]'));
+  check(`${s}: links grid`, !!$(d, '.contact-links--grid'));
+  check(`${s}: Case guidance only for Claim Source`, (s === 'claim-source') === !!$(d, '#NotesOnEveryCase'));
+  check(`${s}: one Save contact`, $$(d, '.admin-layout button[type=submit].btn--primary').length === 1);
+}]);
+CASES.push(['state=repairer&opt=links:list', (w, d) => check('links list: one column', !$(d, '.contact-links--grid'))]);
+
+let i = 0;
+function next() {
+  if (i >= CASES.length) {
+    document.getElementById('out').textContent = 'RESULT ' + JSON.stringify({ fail: log, okCount: ok.length });
+    return;
+  }
+  const [query, run] = CASES[i++];
+  localStorage.removeItem('v40.opts');
+  f.onload = () => {
+    const w = f.contentWindow, d = f.contentDocument;
+    const errors = [];
+    w.addEventListener('error', e => errors.push(e.message));
+    const wait = (n) => {
+      if (w.__mockReady || n > 100) {
+        setTimeout(() => {
+          try { run(w, d); } catch (e) { log.push('EXC ' + query + ': ' + e.message); }
+          check(`${query}: no script error`, errors.length === 0);
+          next();
+        }, 150);
+      } else setTimeout(() => wait(n + 1), 50);
+    };
+    wait(0);
+  };
+  f.src = 'pegasus_contacts_v40.html?' + query + '&strip=0';
+}
+next();
+</script></body></html>

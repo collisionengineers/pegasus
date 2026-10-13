@@ -1,0 +1,458 @@
+{
+  "checkedAtUtc": "2026-10-13T09:28:45.329069+00:00",
+  "selfcheck": {
+    "fail": [],
+    "okCount": 193
+  },
+  "result": {
+    "fail": [],
+    "okCount": 262
+  },
+  "shots": [
+    {
+      "shot": "01-list-1580.png",
+      "query": "state=list",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "01-list-full.png",
+      "query": "state=list",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "01-list-1440.png",
+      "query": "state=list",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "01-list-760.png",
+      "query": "state=list",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "02-list-live-1580.png",
+      "query": "state=list-live",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "02-list-live-full.png",
+      "query": "state=list-live",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "02-list-live-1440.png",
+      "query": "state=list-live",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "02-list-live-760.png",
+      "query": "state=list-live",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "03-list-single-1580.png",
+      "query": "state=list&opt=list:single",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "03-list-single-full.png",
+      "query": "state=list&opt=list:single",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "03-list-single-1440.png",
+      "query": "state=list&opt=list:single",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "03-list-single-760.png",
+      "query": "state=list&opt=list:single",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "04-list-search-1580.png",
+      "query": "state=list&q=riverside",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "04-list-search-full.png",
+      "query": "state=list&q=riverside",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "04-list-search-1440.png",
+      "query": "state=list&q=riverside",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "04-list-search-760.png",
+      "query": "state=list&q=riverside",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "05-list-empty-1580.png",
+      "query": "state=list&q=zzzz",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "05-list-empty-full.png",
+      "query": "state=list&q=zzzz",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "05-list-empty-1440.png",
+      "query": "state=list&q=zzzz",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "05-list-empty-760.png",
+      "query": "state=list&q=zzzz",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "06-dialog-type-1580.png",
+      "query": "state=list&dialog=type",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "06-dialog-type-1440.png",
+      "query": "state=list&dialog=type",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "06-dialog-type-760.png",
+      "query": "state=list&dialog=type",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "07-dialog-new-principal-1580.png",
+      "query": "state=list&dialog=create&create=Principal",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "07-dialog-new-principal-1440.png",
+      "query": "state=list&dialog=create&create=Principal",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "07-dialog-new-principal-760.png",
+      "query": "state=list&dialog=create&create=Principal",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "08-dialog-matches-1580.png",
+      "query": "state=list&dialog=matches&create=Repairer",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "08-dialog-matches-1440.png",
+      "query": "state=list&dialog=matches&create=Repairer",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "08-dialog-matches-760.png",
+      "query": "state=list&dialog=matches&create=Repairer",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "09-principal-1580.png",
+      "query": "state=principal",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "09-principal-full.png",
+      "query": "state=principal",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "09-principal-1440.png",
+      "query": "state=principal",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "09-principal-760.png",
+      "query": "state=principal",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "10-principal-notes-1580.png",
+      "query": "state=principal",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "10-principal-notes-full.png",
+      "query": "state=principal",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "10-principal-notes-1440.png",
+      "query": "state=principal",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "10-principal-notes-760.png",
+      "query": "state=principal",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "11-principal-notes-rows-1580.png",
+      "query": "state=principal&opt=notes:rows",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "11-principal-notes-rows-full.png",
+      "query": "state=principal&opt=notes:rows",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "11-principal-notes-rows-1440.png",
+      "query": "state=principal&opt=notes:rows",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "11-principal-notes-rows-760.png",
+      "query": "state=principal&opt=notes:rows",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "12-principal-tabs-1580.png",
+      "query": "state=principal&opt=layout:tabs",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "12-principal-tabs-full.png",
+      "query": "state=principal&opt=layout:tabs",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "12-principal-tabs-1440.png",
+      "query": "state=principal&opt=layout:tabs",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "12-principal-tabs-760.png",
+      "query": "state=principal&opt=layout:tabs",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "13-principal-tabs-sending-1580.png",
+      "query": "state=principal&opt=layout:tabs&tab=Report%20sending",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "13-principal-tabs-sending-full.png",
+      "query": "state=principal&opt=layout:tabs&tab=Report%20sending",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "13-principal-tabs-sending-1440.png",
+      "query": "state=principal&opt=layout:tabs&tab=Report%20sending",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "13-principal-tabs-sending-760.png",
+      "query": "state=principal&opt=layout:tabs&tab=Report%20sending",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "14-principal-sending-1580.png",
+      "query": "state=principal",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "14-principal-sending-full.png",
+      "query": "state=principal",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "14-principal-sending-1440.png",
+      "query": "state=principal",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "14-principal-sending-760.png",
+      "query": "state=principal",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "15-principal-saved-1580.png",
+      "query": "state=principal-saved",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "15-principal-saved-full.png",
+      "query": "state=principal-saved",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "15-principal-saved-1440.png",
+      "query": "state=principal-saved",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "15-principal-saved-760.png",
+      "query": "state=principal-saved",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "16-principal-refused-1580.png",
+      "query": "state=principal-refused",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "16-principal-refused-full.png",
+      "query": "state=principal-refused",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "16-principal-refused-1440.png",
+      "query": "state=principal-refused",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "16-principal-refused-760.png",
+      "query": "state=principal-refused",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "17-principal-inactive-1580.png",
+      "query": "state=principal-inactive",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "17-principal-inactive-full.png",
+      "query": "state=principal-inactive",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "17-principal-inactive-1440.png",
+      "query": "state=principal-inactive",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "17-principal-inactive-760.png",
+      "query": "state=principal-inactive",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "18-principal-live-1580.png",
+      "query": "state=principal-live",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "18-principal-live-full.png",
+      "query": "state=principal-live",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "18-principal-live-1440.png",
+      "query": "state=principal-live",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "18-principal-live-760.png",
+      "query": "state=principal-live",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "19-claim-source-1580.png",
+      "query": "state=claim-source",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "19-claim-source-full.png",
+      "query": "state=claim-source",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "19-claim-source-1440.png",
+      "query": "state=claim-source",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "19-claim-source-760.png",
+      "query": "state=claim-source",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "20-repairer-1580.png",
+      "query": "state=repairer",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "20-repairer-full.png",
+      "query": "state=repairer",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "20-repairer-1440.png",
+      "query": "state=repairer",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "20-repairer-760.png",
+      "query": "state=repairer",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "21-repairer-links-list-1580.png",
+      "query": "state=repairer&opt=links:list",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "21-repairer-links-list-full.png",
+      "query": "state=repairer&opt=links:list",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "21-repairer-links-list-1440.png",
+      "query": "state=repairer&opt=links:list",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "21-repairer-links-list-760.png",
+      "query": "state=repairer&opt=links:list",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "22-storage-1580.png",
+      "query": "state=storage",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "22-storage-full.png",
+      "query": "state=storage",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "22-storage-1440.png",
+      "query": "state=storage",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "22-storage-760.png",
+      "query": "state=storage",
+      "viewport": "760x1000"
+    },
+    {
+      "shot": "23-tpe-1580.png",
+      "query": "state=tpe",
+      "viewport": "1580x1000"
+    },
+    {
+      "shot": "23-tpe-full.png",
+      "query": "state=tpe",
+      "viewport": "1580 whole page"
+    },
+    {
+      "shot": "23-tpe-1440.png",
+      "query": "state=tpe",
+      "viewport": "1440x900"
+    },
+    {
+      "shot": "23-tpe-760.png",
+      "query": "state=tpe",
+      "viewport": "760x1000"
+    }
+  ]
+}
