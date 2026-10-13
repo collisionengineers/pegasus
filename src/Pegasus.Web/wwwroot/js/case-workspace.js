@@ -1083,6 +1083,9 @@
         var request = { method: method, credentials: 'same-origin', redirect: 'follow', headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' } };
         if (method === 'GET') {
             var url = new URL(action, window.location.href);
+            // A dialog the page was opened with (?dialog=tasks) is not carried into
+            // an in-place read, as a catch up drops it; a form that names one sets it.
+            url.searchParams.delete('dialog');
             new URLSearchParams(body).forEach(function (value, key) { url.searchParams.set(key, value); });
             action = url.toString();
             if (form.hasAttribute('data-estimate-compare-form')) {
