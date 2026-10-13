@@ -54,8 +54,9 @@ item; any other e-mail never does
 ([FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference))
 and is refused by Dismiss. A message whose processing left it for sorting
 (`NeedsSorting`) reads **No Case Found** in its outcome chip. Mail views link
-to the same Unidentified item of photographs that arrived by e-mail; they
-never create a second queue row.
+to the same Unidentified item of photographs that arrived by e-mail. A
+photo-only e-mail with no Case is listed in No Case Found and in Unassigned
+Images › Unidentified until it is linked.
 
 Each row shows sender, subject and a short excerpt of the body. The subject
 opens the message. Clicking elsewhere on a row selects it. The selected row

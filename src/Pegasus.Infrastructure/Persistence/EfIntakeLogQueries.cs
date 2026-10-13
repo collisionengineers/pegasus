@@ -338,5 +338,6 @@ internal sealed class EfIntakeLogQueries(
                         ? EfIntakeAllocationStore.ParseRecoveryDisposition(disposition)
                         : null).CanRetry,
             ocrFailed: IntakeOcrRetryPolicy.CanRetry(
-                candidate.LastOcrState is { } state ? Enum.Parse<IntakeOcrState>(state) : null));
+                candidate.LastOcrState is { } state ? Enum.Parse<IntakeOcrState>(state) : null),
+            unidentifiedRegistered: candidate.Unidentified is not null);
 }

@@ -316,7 +316,7 @@ permission to guess.
 | --- | --- |
 | Principal API submission | `Received`, `Processing`, `Complete`, `Failed`; a replay returns the same receipt |
 | Principal credential | active, paused (read-only on its own receipts), revoked (refused everywhere) |
-| Automatic association | one survivor associates; zero proceeds to creation; several is the Ambiguous outcome and goes to staff (No Case Found for an e-mail, Unidentified for image material) |
+| Automatic association | one survivor associates; zero proceeds to creation; several is the Ambiguous outcome (No Case Found for an e-mail, Unidentified for image material; for non-image Principal API or Automation material it is recorded in the Intake log only, operator, 13 October 2026) |
 | Route outcome | allocated Case, Triage opened, No Case Found (an e-mail), Unidentified with a reason (image material), or retryable processing failure |
 
 ## Edge cases and fail-closed behaviour

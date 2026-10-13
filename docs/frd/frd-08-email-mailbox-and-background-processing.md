@@ -11,7 +11,8 @@
   Unclassified. Sent items carry no category.
 - A received message linked to no Case waits in the Inbox's No Case Found
   scope ([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)).
-  An e-mail never becomes an Unidentified item.
+  An e-mail becomes an Unidentified item only when it is image-only material
+  (photographs with no instruction fields).
 - Every decision and every correction stays in history. Sending is the only
   mailbox write.
 - The Worker alone reads mailboxes. Which mailboxes it reads, when each one

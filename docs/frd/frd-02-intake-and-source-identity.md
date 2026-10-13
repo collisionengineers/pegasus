@@ -118,8 +118,9 @@ There is no separate "blocked" outcome anywhere.
 channel (mailbox photographs, uploaded images, image groups), or an uploaded
 image file that could not be read. Such material whose identity, meaning,
 owner, or destination cannot be established becomes one `UnidentifiedItem`
-(`ProcessIntake.BecomesUnidentified`). E-mails and documents never get an
-Unidentified item or a U-reference:
+(`ProcessIntake.BecomesUnidentified`). E-mails and documents that are not
+image-only material (photographs with no instruction fields) get no
+Unidentified item or U-reference:
 
 - an e-mail with no Case waits in the Inbox's No Case Found scope
   ([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)), and is
@@ -276,8 +277,9 @@ may share a name, because the receipt is the identity.
 
 The receipt's history is in Administration › Logs › **Intake log**,
 Administrators only. One row per received file shows source, item, outcome
-(Case created, Linked to Case, Vehicle images, Triage, Unidentified, Could
-not be read, Closed, Processing failed, Allocation failed, OCR failed), what
+(Case created, Linked to Case, Vehicle images, Triage, Unidentified, No Case
+Found, Could not be read, Closed, Processing failed, Allocation failed, OCR
+failed), what
 it became, and its attempt counts. A row drawer shows the retained original
 and the processing evidence: decision, failure, registration readings,
 suggested fields, decision evidence, and allocation attempts. The head-line

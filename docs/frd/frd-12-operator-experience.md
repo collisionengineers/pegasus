@@ -67,8 +67,9 @@ width, a long Case/PO, Image reference or U-reference moves to a labelled
 second line instead of overlapping the received timestamp. Inbox and Intake
 log rows always show received date above received time, and show the precise
 processing outcome (`Case created`, `Vehicle images`, `Linked to Case`,
-`Unidentified`, `Could not be read` or `Closed`; an Inbox message with no
-Case reads `No Case Found`), never a generic `New`. One
+`Unidentified`, `Could not be read` or `Closed`; a `NeedsSorting` message with
+no Case reads `No Case Found`; other outcomes read their own word), never a
+generic `New`. One
 action or state has one icon across Pegasus. No decorative or generated
 replacement icon is used.
 
