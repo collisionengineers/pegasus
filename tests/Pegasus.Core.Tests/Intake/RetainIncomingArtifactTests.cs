@@ -99,6 +99,24 @@ public sealed class RetainIncomingArtifactTests
         Assert.Single(store.Recorded);
     }
 
+    /// <summary>
+    /// A batch of retentions is custody's own document batch, open for exactly
+    /// as long as the batch, so retentions into one folder share its proof.
+    /// </summary>
+    [Fact]
+    public void ABatchOfRetentionsIsCustodysDocumentBatch()
+    {
+        var custody = new BatchingCustody();
+        var command = new RetainIncomingArtifact(custody, new RecordingStore());
+
+        using (command.BeginBatch())
+        {
+            Assert.Equal(1, custody.OpenBatches);
+        }
+
+        Assert.Equal(0, custody.OpenBatches);
+    }
+
     [Fact]
     public async Task AConfirmedReplayReturnsTheSameDocumentWithoutOfferingTheBytesAgain()
     {
@@ -762,6 +780,27 @@ public sealed class RetainIncomingArtifactTests
             Calls++;
             Requests.Add(request);
             return Task.FromResult(result);
+        }
+    }
+
+    private sealed class BatchingCustody : ICaseArtifactCustody
+    {
+        public int OpenBatches { get; private set; }
+
+        public Task<CaseArtifactCustodyResult> RetainAsync(
+            CaseArtifactCustodyRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public IDisposable BeginDocumentBatch()
+        {
+            OpenBatches++;
+            return new Batch(this);
+        }
+
+        private sealed class Batch(BatchingCustody custody) : IDisposable
+        {
+            public void Dispose() => custody.OpenBatches--;
         }
     }
 
