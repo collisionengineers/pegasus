@@ -194,7 +194,8 @@ still apply.
 the Case (operator, 26 September 2026): as the link is made, the source,
 its documents and its selected photographs are filed on the Case, and the
 material's Unidentified item is resolved to that Case. The link commits the
-association and resolves the receipt's Unidentified item (12 October 2026);
+association and resolves the receipt's Unidentified item, where the material
+has one (12 October 2026);
 filing then continues in the Worker's replay of the receipt, and the request
 never touches Box (operator, 11 October 2026). A staff decision files on any Case or Triage Case in any
 state; only an archived Case never files, and filing waits for a live edit
