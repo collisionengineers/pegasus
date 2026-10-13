@@ -55,48 +55,9 @@ public sealed class EfContactDirectoryAdministration(
         var contacts = context.Organizations.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(prefix)) contacts = contacts.Where(item => item.Name.StartsWith(prefix));
         if (role is not null) contacts = contacts.Where(item => item.Role == role);
-        var rows = contacts.Select(contact => new ContactListRow
-        {
-            OrganizationId = contact.Id,
-            Name = contact.Name,
-            Role = contact.Role
-        });
-        if (query.Sort == ContactSort.LastCase)
-        {
-            // The order depends on the latest Case, so the aggregate must run before paging.
-            var withLatest = from row in rows
-                             join latest in LatestCaseRows(context) on row.OrganizationId equals latest.OrganizationId into latestGroup
-                             from latest in latestGroup.DefaultIfEmpty()
-                             select new ContactListRow
-                             {
-                                 OrganizationId = row.OrganizationId,
-                                 Name = row.Name,
-                                 Role = row.Role,
-                                 ReceivedAtUtc = (DateTimeOffset?)latest.ReceivedAtUtc,
-                                 Reference = latest.Reference
-                             };
-            var selected = await withLatest.OrderByDescending(item => item.ReceivedAtUtc.HasValue)
-                .ThenByDescending(item => item.ReceivedAtUtc).ThenBy(item => item.Reference)
-                .ThenBy(item => item.Name).ThenBy(item => item.OrganizationId)
-                .Take(limit).ToArrayAsync(cancellationToken);
-            return await LoadRecordsAsync(
-                context,
-                selected.Select(item => item.OrganizationId).ToArray(),
-                selected.Where(item => item.ReceivedAtUtc.HasValue && item.Reference is not null)
-                    .ToDictionary(item => item.OrganizationId,
-                        item => new LatestCaseRow
-                        {
-                            OrganizationId = item.OrganizationId,
-                            ReceivedAtUtc = item.ReceivedAtUtc!.Value,
-                            Reference = item.Reference!
-                        }),
-                cancellationToken);
-        }
-
-        var ordered = query.Sort == ContactSort.Type
-            ? rows.OrderBy(item => item.Role).ThenBy(item => item.Name).ThenBy(item => item.OrganizationId)
-            : rows.OrderBy(item => item.Name).ThenBy(item => item.OrganizationId);
-        var pageIds = await ordered.Take(limit).Select(item => item.OrganizationId).ToArrayAsync(cancellationToken);
+        // Each panel of the list is ordered by name (operator, 13 October 2026).
+        var ordered = contacts.OrderBy(item => item.Name).ThenBy(item => item.Id).Select(item => item.Id);
+        var pageIds = await ordered.Take(limit).ToArrayAsync(cancellationToken);
         var pageLatest = pageIds.Length == 0
             ? new Dictionary<Guid, LatestCaseRow>()
             : await LatestCaseRows(context)
@@ -334,7 +295,9 @@ public sealed class EfContactDirectoryAdministration(
             latestCase?.Reference,
             links,
             entity.Principals.Select(item => item.Id).Order().ToArray(),
-            entity.NotesOnEveryCase);
+            entity.NotesOnEveryCase,
+            entity.Principals.OrderByDescending(item => item.IsActive).ThenBy(item => item.Code, StringComparer.Ordinal)
+                .Select(item => item.Code).FirstOrDefault());
     }
 
     private sealed class LatestCaseRow
@@ -342,15 +305,6 @@ public sealed class EfContactDirectoryAdministration(
         public Guid OrganizationId { get; init; }
         public DateTimeOffset ReceivedAtUtc { get; init; }
         public string Reference { get; init; } = string.Empty;
-    }
-
-    private sealed class ContactListRow
-    {
-        public Guid OrganizationId { get; init; }
-        public string Name { get; init; } = string.Empty;
-        public string Role { get; init; } = string.Empty;
-        public DateTimeOffset? ReceivedAtUtc { get; init; }
-        public string? Reference { get; init; }
     }
 
     private static PrincipalAdministrationDetails ToPrincipalChoice(PrincipalEntity item) => new(item.Organization.Name, new(item.Id, item.OrganizationId, item.Code, item.SequenceLineageId, item.PredecessorId, item.SuccessorId, item.IsActive, item.Version, 0, PrincipalInspectionModePolicy.Parse(item.InspectionMode), EfOrganizationAdministration.ReadReportSending(item.ReportSendingRulesJson)));

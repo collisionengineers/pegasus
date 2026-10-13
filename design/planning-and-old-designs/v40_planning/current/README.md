@@ -26,4 +26,4 @@ The previous renders sit in their own rounds: v39's Report sending captures (`..
 
 ## Status
 
-Awaiting the operator's sign-off on every lettered item, A to T, in [v40-notes.md](v40-notes.md#6-sign-off-list). No item is settled. Stage 2 has not started and waits on the domain-model PR that gives a contact one type.
+Approved. The operator settled every lettered item, A to T, on 13 October 2026 ([v40-notes.md](v40-notes.md#6-sign-off-list)), and Stage 2 implemented them the same day ([section 10](v40-notes.md#10-stage-2-13-october-2026)); `capture-stage2-v40.py` and `stage2-shots/` are its conformance evidence. The folder is kept as historical reference, as v37's is. Current behaviour is owned by FRD-04 *Contacts administration* and FRD-17 *Contacts*.

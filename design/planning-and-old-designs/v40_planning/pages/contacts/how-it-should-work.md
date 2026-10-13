@@ -1,6 +1,6 @@
 # Contacts — how it should work
 
-Proposed on 13 October 2026, not yet decided. Each line beginning "Open:" names its lettered item in [v40-notes.md](../../current/v40-notes.md#6-sign-off-list).
+Proposed on 13 October 2026 and settled the same day. Each line beginning "Open:" names its lettered item, whose outcome is in [v40-notes.md](../../current/v40-notes.md#6-sign-off-list).
 
 The operator ruled on 13 October 2026 that every contact has exactly one type, chosen when it is created, and that the list is organised by type, with columns that fit each type and only fields that already exist.
 

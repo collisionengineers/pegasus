@@ -22,8 +22,9 @@ public sealed partial class OrganizationDirectoryWebTests
             client, factory, "Directory Web Caller Provider", "DIRW");
 
         var settingsPath = $"/Administration/Contacts/Edit/{contactId:D}";
-        var settingsHtml = await GetContactSettingsAsync(client, settingsPath);
-        Assert.Contains("Report settings", settingsHtml, StringComparison.Ordinal);
+        var settingsHtml = await GetContactSettingsAsync(client, $"{settingsPath}?tab=default-inspection-location");
+        Assert.Contains(">Report generation</a>", settingsHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Report settings", settingsHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("ReportGenerationPolicy", settingsHtml, StringComparison.Ordinal);
 
         var locationForm = new Dictionary<string, string>
@@ -49,7 +50,16 @@ public sealed partial class OrganizationDirectoryWebTests
             await factory.Database.ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM Principals WHERE Id = '{principalId:D}' AND DefaultInspectionAddress = '1 Directory Way, DW1 2EF' AND DefaultInspectionLocationLabel = 'Directory Web Caller Yard';"));
 
-        var settingsAfterLocationHtml = await GetContactSettingsAsync(client, settingsPath);
+        // The save comes back to its panel, with the notice inside it.
+        Assert.Equal($"{settingsPath}?tab=default-inspection-location", locationPost.Headers.Location?.OriginalString);
+        var locationSavedHtml = await GetContactSettingsAsync(client, locationPost.Headers.Location!.OriginalString);
+        var notice = locationSavedHtml.IndexOf("The principal&#x27;s default inspection location was updated.", StringComparison.Ordinal);
+        Assert.True(
+            notice > locationSavedHtml.IndexOf("id=\"principal-location-title\"", StringComparison.Ordinal)
+                && notice < locationSavedHtml.IndexOf("name=\"LocationLabel\"", StringComparison.Ordinal),
+            "The notice must show at the top of the Default inspection location panel.");
+
+        var settingsAfterLocationHtml = await GetContactSettingsAsync(client, $"{settingsPath}?tab=report-generation");
         var reportSettingsForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(settingsAfterLocationHtml, "__RequestVerificationToken"),
@@ -76,7 +86,7 @@ public sealed partial class OrganizationDirectoryWebTests
         var indexHtml = await indexGet.Content.ReadAsStringAsync();
         indexGet.EnsureSuccessStatusCode();
         Assert.Contains("Directory Web Caller Provider", indexHtml, StringComparison.Ordinal);
-        using var settingsAfterReportSettingsGet = await client.GetAsync(settingsPath);
+        using var settingsAfterReportSettingsGet = await client.GetAsync($"{settingsPath}?tab=default-inspection-location");
         settingsAfterReportSettingsGet.EnsureSuccessStatusCode();
         Assert.Contains("Directory Web Caller Yard", await settingsAfterReportSettingsGet.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
@@ -89,7 +99,7 @@ public sealed partial class OrganizationDirectoryWebTests
         var (principalId, contactId) = await CreatePrincipalContactAsync(
             client, factory, "Stale contact version provider", "STALEW");
         var settingsPath = $"/Administration/Contacts/Edit/{contactId:D}";
-        var settingsHtml = await GetContactSettingsAsync(client, settingsPath);
+        var settingsHtml = await GetContactSettingsAsync(client, $"{settingsPath}?tab=report-generation");
         var feeBefore = await factory.Database.ScalarAsync<decimal>(
             $"SELECT DefaultFee FROM Principals WHERE Id = '{principalId:D}';");
 
@@ -109,10 +119,15 @@ public sealed partial class OrganizationDirectoryWebTests
             new FormUrlEncodedContent(reportSettingsForm));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains(
-            "This contact changed. Reload it before making further changes.",
-            await response.Content.ReadAsStringAsync(),
-            StringComparison.Ordinal);
+        var refusedHtml = await response.Content.ReadAsStringAsync();
+        var refusal = refusedHtml.IndexOf("This contact changed. Reload it before making further changes.", StringComparison.Ordinal);
+        var panel = refusedHtml.IndexOf("id=\"principal-report-title\"", StringComparison.Ordinal);
+        // The refusal shows at the top of the Report generation panel, which stays open.
+        Assert.True(
+            panel >= 0 && refusal > panel
+                && refusal < refusedHtml.IndexOf("name=\"DefaultFee\"", StringComparison.Ordinal),
+            "The refusal must show at the top of the Report generation panel.");
+        Assert.Contains("value=\"250.00\"", refusedHtml, StringComparison.Ordinal);
         Assert.Equal(
             feeBefore,
             await factory.Database.ScalarAsync<decimal>(
@@ -137,12 +152,15 @@ public sealed partial class OrganizationDirectoryWebTests
             "SELECT Id FROM Principals WHERE Code = 'QDOS';");
         var contactId = await factory.Database.ScalarAsync<Guid>(
             "SELECT OrganizationId FROM Principals WHERE Id = '" + principalId + "';");
-        using var response = await client.GetAsync($"/Administration/Contacts/Edit/{contactId:D}");
-
-        response.EnsureSuccessStatusCode();
-        var html = await response.Content.ReadAsStringAsync();
+        var locationHtml = await GetContactSettingsAsync(
+            client, $"/Administration/Contacts/Edit/{contactId:D}?tab=default-inspection-location");
         Assert.Matches(
             """<input\b(?=[^>]*name="LocationIsImageBasedAssessment")(?=[^>]*checked="checked")[^>]*>""",
+            locationHtml);
+        var html = await GetContactSettingsAsync(client, $"/Administration/Contacts/Edit/{contactId:D}");
+        // Accepted e-mail identities is a greyed box in the contact form.
+        Assert.Matches(
+            """<input id="principal-accepted-identities" value="[^"]+" readonly[^>]*>""",
             html);
         foreach (var domain in Pegasus.Core.Intake.PrincipalMailRoutePolicy.AcceptedIdentities["QDOS"])
         {
@@ -152,7 +170,8 @@ public sealed partial class OrganizationDirectoryWebTests
 
     /// <summary>
     /// Record notes (Contacts, 13 September): a Principal (and a Claim source) carries
-    /// one "Notes on every Case" text, edited on its contact with the Case guidance.
+    /// one "Notes on every Case" text, edited on its contact. Type, Principal code and
+    /// Inspection mode are greyed read-only boxes there (operator, 13 October 2026).
     /// </summary>
     [Fact]
     public async Task APrincipalContactEditsItsNotesOnEveryCase()
@@ -172,6 +191,10 @@ public sealed partial class OrganizationDirectoryWebTests
             editor);
         // A Principal contact never links to a principal.
         Assert.DoesNotContain("linked-principals-title", editor, StringComparison.Ordinal);
+        Assert.Matches("""<input id="contact-type" value="Principal" readonly""", editor);
+        Assert.Matches("""<input(?=[^>]*name="PrincipalCode")(?=[^>]*value="QDOS")(?=[^>]*readonly)[^>]*>""", editor);
+        Assert.Matches("""<input id="principal-inspection-mode" value="[^"]+" readonly""", editor);
+        Assert.DoesNotContain("Guidance for new Cases", editor, StringComparison.Ordinal);
 
         // Save posts only the contact form: the Replace dialog's fields are absent.
         var inspectionMode = await factory.Database.ScalarAsync<string>(

@@ -132,7 +132,7 @@ public sealed class ContactDirectoryPersistenceTests
     }
 
     [Fact]
-    public async Task ListOrdersEveryModeAndRetainsContactsWithoutCases()
+    public async Task ListOrdersByNameAndRetainsContactsWithoutCases()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         const string fixturePrefix = "List-sort fixture ";
@@ -175,40 +175,25 @@ public sealed class ContactDirectoryPersistenceTests
 
         await using var queryScope = database.CreateAsyncScope();
         var queries = queryScope.ServiceProvider.GetRequiredService<IContactDirectoryQueries>();
-        async Task<IReadOnlyList<ContactDirectoryRecord>> ListAsync(ContactSort sort) =>
-            await queries.ListAsync(new(Administrator, null, sort, fixturePrefix), CancellationToken.None);
-
-        var byName = await ListAsync(ContactSort.Name);
-        var byType = await ListAsync(ContactSort.Type);
-        var byLastCase = await ListAsync(ContactSort.LastCase);
+        var listed = await queries.ListAsync(new(Administrator, null, fixturePrefix), CancellationToken.None);
 
         Assert.Equal(
             [firstPrincipal.OrganizationId, secondPrincipal.OrganizationId, repairer.OrganizationId, claimSource.OrganizationId],
-            byName.Select(item => item.OrganizationId));
-        Assert.Equal(
-            [claimSource.OrganizationId, firstPrincipal.OrganizationId, secondPrincipal.OrganizationId, repairer.OrganizationId],
-            byType.Select(item => item.OrganizationId));
-        Assert.Equal(
-            [firstPrincipal.OrganizationId, secondPrincipal.OrganizationId, repairer.OrganizationId, claimSource.OrganizationId],
-            byLastCase.Select(item => item.OrganizationId));
+            listed.Select(item => item.OrganizationId));
 
-        var latest = Assert.Single(byLastCase, item => item.OrganizationId == firstPrincipal.OrganizationId);
+        var latest = Assert.Single(listed, item => item.OrganizationId == firstPrincipal.OrganizationId);
         Assert.Equal(receivedAtUtc, latest.LastCaseReceivedAtUtc);
         Assert.Equal("CASE-A", latest.LastCaseReference);
+        Assert.Equal("LCD01", latest.PrincipalCode);
         Assert.All(
-            byLastCase.Where(item => item.OrganizationId == claimSource.OrganizationId
+            listed.Where(item => item.OrganizationId == claimSource.OrganizationId
                 || item.OrganizationId == repairer.OrganizationId),
             item =>
             {
                 Assert.Null(item.LastCaseReceivedAtUtc);
                 Assert.Null(item.LastCaseReference);
+                Assert.Null(item.PrincipalCode);
             });
-        foreach (var paged in new[] { byName, byType })
-        {
-            var pagedLatest = Assert.Single(paged, item => item.OrganizationId == firstPrincipal.OrganizationId);
-            Assert.Equal(receivedAtUtc, pagedLatest.LastCaseReceivedAtUtc);
-            Assert.Equal("CASE-A", pagedLatest.LastCaseReference);
-        }
 
         var repairers = await queries.ListByRoleAsync(Administrator, ContactRole.Repairer, CancellationToken.None);
         var listedRepairer = Assert.Single(repairers, item => item.OrganizationId == repairer.OrganizationId);

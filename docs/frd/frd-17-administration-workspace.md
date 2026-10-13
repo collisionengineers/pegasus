@@ -75,7 +75,22 @@ and the secret is write-only
 
 Contacts is the one directory for Principals, Claim Sources, Repairers,
 Storage and Third Party Engineers. Each Contact has one type; its page shows
-the type read-only and only that type's sections. Principal-specific
+the type read-only and only that type's sections. The list is one panel per
+type, with no lede, no Sort control and no Type column; its order, columns and
+filters are in
+[FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration). The
+contact form shows Type, and for a Principal its Principal code, Inspection
+mode and Accepted e-mail identities, as greyed read-only boxes; Replace code
+stays the only route to a new code. Notes on every Case grows to fit its
+text. Linked principals is one list in three columns. The label is Phone in
+the New dialog, on the contact and in the list. Save contact returns to the
+Contacts list. An active Principal's page is tabs: Contact, Report
+generation, Report sending, Salvage matrix, Default inspection location and
+Principal API, each its own address (`?tab=`) so the tabs work without
+script, with Replace code below them. There is no Principal settings panel.
+A panel's save returns to its tab with its notice inside the panel; a refused
+save shows its message at the top of that panel and keeps what was typed
+(operator, 13 October 2026). Principal-specific
 settings are part of that Contact record. Report generation carries the Default fee (£) box above
 Save report settings; it has no Report recipients settings (operator, 6
 October 2026). The Report sending panel follows Report generation and is
@@ -86,7 +101,9 @@ six Attach choices are ticks; Hold and the First and Re-send attachment
 names are text, with no length limit. Rules are repeated rows, each with
 Match (All or Any condition), three condition lines (a kind, then a Contact
 list, the four outcomes, or text for Images from, Instruction mentions,
-Bodyshop mentions and Sender is not), and the actions Cc add, Cc remove,
+Bodyshop mentions and Sender is not; the kinds, in order, are Claim Source,
+Repairer, Images from, Instruction mentions, Sender is not, Outcome and
+Bodyshop mentions), and the actions Cc add, Cc remove,
 Remind, Hold and Stop. A Remove rule button per row, one spare blank row, an Add rule button,
 and one Save report sending. The Salvage matrix panel follows it: one
 table per salvage category, with From (£), To (£) and Percentage paid (%)

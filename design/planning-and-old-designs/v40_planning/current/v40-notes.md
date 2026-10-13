@@ -1,6 +1,6 @@
 # v40 notes: Contacts
 
-Stage 1 of the round the operator asked for on 13 October 2026: the Contacts list (`/Administration/Contacts`) and a contact's page (`/Administration/Contacts/Edit/{id}`), "organised better" now that every contact has exactly one type. The mockup is `pegasus_contacts_v40.html`. Nothing here is accepted; section 6 lists what the operator must settle before Stage 2 starts.
+Stage 1 of the round the operator asked for on 13 October 2026: the Contacts list (`/Administration/Contacts`) and a contact's page (`/Administration/Contacts/Edit/{id}`), "organised better" now that every contact has exactly one type. The mockup is `pegasus_contacts_v40.html`. The operator settled every lettered item on 13 October 2026 (section 6) and approved the round; Stage 2 implemented it the same day (section 10).
 
 ## 0. The brief and the rulings it rests on
 
@@ -83,7 +83,25 @@ The mockup is the live shell. The numbers are the live ones: 48px utility bar, t
 
 ## 6. Sign-off list
 
-Each item is "Confirm, or …". None is taken without the operator.
+Each item was "Confirm, or …". **Outcome, operator, 13 October 2026:** every item is settled; the outcome follows each item's letter below, and the round is approved.
+
+- **A.** Confirmed: one panel per type; search across every panel; Type narrows to one panel; a type with no match is absent.
+- **B.** Confirmed as drawn: the columns listed in B, "Principal code" as the heading, no Type column.
+- **C.** Choice: "by name". Each panel is sorted by Name; the Sort control and the Last-case and Type sort modes go (`ContactSort` deleted). Last case stays a column.
+- **D.** Confirmed: the lede goes.
+- **E, F.** Confirmed (already done by PR #1314).
+- **G.** Choice: names are unique per type (PR #1314). The refusal reads "A contact with that name already exists." on both Add and Edit.
+- **H, I, J, K.** Confirmed: Type, Principal code and Inspection mode are greyed read-only boxes; the Principal settings panel goes; Accepted e-mail identities is a greyed box in the contact form; refusal summaries move to each panel.
+- **L.** Choice: "tabs", as shots 12 and 13 show, with Replace code below the tabs and the heading "Report generation". The tabs work without script (server-rendered, `?tab=`).
+- **M.** Confirmed: Notes on every Case grows to fit its text.
+- **N.** Confirmed: a Principal panel's save returns to its tab with its notice inside the panel; a refused save shows its message at the top of that panel and keeps what was typed.
+- **O.** Confirmed: Save contact returns to the Contacts list.
+- **P.** Confirmed: Linked principals is one list in three columns.
+- **Q.** Confirmed: Stage 2 fixes the short Phone box and the fieldset border, and uses "Phone" in the New dialog, on the contact and in the list.
+- **R.** Choice: remove Guidance for new Cases (done by PR #1314). No Stage 2 markup brings it back, and FRD-04 does not name it.
+- **S, T.** Confirmed: Report sending keeps the full edit form; the condition kinds, in order: Claim Source, Repairer, Images from, Instruction mentions, Sender is not, Outcome, Bodyshop mentions.
+
+The items as offered:
 
 Contacts list (shots 01–05):
 
@@ -129,9 +147,9 @@ Report sending, carried from v39 (shot 14):
 - Posts do nothing. Filtering and sorting happen in the page, in place of the server's. The saved and refused states are drawn rather than produced by a post.
 - Shots scrolled to a panel show a strip of page background above the utility bar. This comes from capturing a scrolled page and is not part of the design.
 
-## 9. Stage 2 plan (not started)
+## 9. Stage 2 plan (as offered)
 
-Stage 2 starts only once every item above is settled. It depends on the domain-model PR that gives a contact one type.
+Stage 2 started once every item above was settled. It stacks on the domain-model PR (#1314) that gives a contact one type.
 
 - `Pages/Administration/Contacts/Index.cshtml(.cs)`: grouped panels (or single type), per-type columns, Sort without Type, the create dialog without the add-a-type route, matches with Open.
 - `Pages/Administration/Contacts/Edit.cshtml(.cs)`: the read-only Type, code and inspection mode; the Principal settings panel removed; "Report generation"; per-panel status and refusal with a return to the panel; Linked principals for one type.
@@ -139,3 +157,20 @@ Stage 2 starts only once every item above is settled. It depends on the domain-m
 - `wwwroot/css/site.css`: `contact-links--grid` and the fitted notes box, scoped next to the Contacts block; the Q fixes.
 - FRD-04 *Contacts administration* and FRD-17 *Contacts*: one type, the list's organisation and columns, Guidance for new Cases (R), the panel behaviour (N).
 - Web tests that assert the Contacts markup; conformance screenshots against `v40-shots/` at 1580, 1440 and 760.
+
+## 10. Stage 2 (13 October 2026)
+
+Branch `task/v40-contacts-stage2`, stacked on PR #1314 (one type per contact) and PR #1315 (this round).
+
+| Item | Where it landed |
+| --- | --- |
+| A, B, D | `Pages/Administration/Contacts/Index.cshtml(.cs)`: one panel per type in `ContactRole` order, the per-type columns, no lede; `OperatorLabels.Contacts.Plural`; `ContactDirectoryRecord.PrincipalCode` for the code column, the active Principal choices for the Linked principals codes |
+| C | `ContactSort` and its query modes deleted (`Core/Cases/ContactDirectory.cs`, `EfContactDirectoryAdministration.ListAsync` orders by name) |
+| E, G, Q | The New dialog loses its last sentence and says Phone; both pages refuse a duplicate with "A contact with that name already exists." and a lettered phone with "Phone must be digits."; `site.css` adds `input[type="tel"]` to the text-input rule and drops the contact form's fieldset border |
+| H, I, J, K, P | `Edit.cshtml`: Type, Principal code, Inspection mode and Accepted e-mail identities as greyed read-only boxes; no Principal settings panel; `.contact-links` three-column grid |
+| L, N | `Edit.cshtml(.cs)`: server-rendered `nav.tabs` links (`?tab=`), one panel rendered per tab, each handler returning to its tab with the notice and the refusal at the top of the panel, typed values kept; a refused Replace code shows beside Replace code |
+| M | `contacts-edit.js` fits Notes on every Case to its text; without script it keeps four rows |
+| O, R, S, T | Unchanged from PR #1314 and dev, checked on the routed page |
+| Docs | FRD-04 *Contacts administration*, FRD-17 *Contacts*, `docs/design/README.md` (the Contacts sort exception and link tabs) |
+
+`capture-stage2-v40.py` shot the routed pages from a scratch Kestrel host over the integration-test database (the seeded Principals plus the Riverside, Accident Specialists, Eastfield and Pennine fixtures and the long DFD note) into `stage2-shots/`, numbered as `v40-shots/`, at 1580, 1440 and 760, and checked the promised behaviours on the routed page: `RESULT {"ok": 77, "fail": []}` (`stage2-shots/verification.json`). Shots 02, 08, 10, 11, 14, 17, 18 and 21 are not repeated: they show today's page, the unchosen alternatives or a state the fixtures did not hold.

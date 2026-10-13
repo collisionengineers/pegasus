@@ -1,6 +1,6 @@
 # Add contact — how it should work
 
-Proposed on 13 October 2026, not yet decided.
+Proposed on 13 October 2026 and settled the same day ([v40-notes.md](../../../../current/v40-notes.md#6-sign-off-list)).
 
 ## The action
 
