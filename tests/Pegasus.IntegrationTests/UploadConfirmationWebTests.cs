@@ -1095,6 +1095,16 @@ public sealed class UploadConfirmationWebTests
                 }
             }
             Assert.Equal(interruptAfterFirstMember ? 1 : 2, linked);
+            if (!interruptAfterFirstMember)
+            {
+                // The last member's link settled the group-owned item itself,
+                // before any Worker replay or sweep.
+                var settled = await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
+                    .GetByOriginAsync(UnidentifiedOrigin.SubmissionGroup(groupId), CancellationToken.None);
+                Assert.NotNull(settled);
+                Assert.Equal(UnidentifiedState.Resolved, settled!.State);
+                Assert.Equal(caseId.ToString("N"), settled.ResolutionTargetId);
+            }
         }
 
         // Replay the original HTTP form after every member is complete.  The

@@ -1704,7 +1704,11 @@ public sealed class LinkIntake(
             Activity.Current?.SetStatus(ActivityStatusCode.Error, "image_pairing_failed");
         }
 
-        await ResolveUnidentifiedAsync(request.ReceiptId, cancellationToken);
+        if (request.SettleUnidentified)
+        {
+            await ResolveUnidentifiedAsync(request.ReceiptId, cancellationToken);
+        }
+
         await HandFilingToWorkerAsync(request.ReceiptId, cancellationToken);
     }
 

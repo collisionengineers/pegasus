@@ -70,6 +70,30 @@ public sealed class DurableIntakeLinkTests
     }
 
     /// <summary>
+    /// A submission group's members are linked one by one and the group, not
+    /// the member, owns the Unidentified item: a link that leaves settling to
+    /// its caller commits and hands filing to the Worker but synchronises
+    /// nothing.
+    /// </summary>
+    [Fact]
+    public async Task StaffLinkThatLeavesSettlingToTheCallerDoesNotSynchronizeTheUnidentifiedItem()
+    {
+        var caseId = Guid.NewGuid();
+        var receipt = LinkedReceipt(Guid.NewGuid(), caseId);
+        var unidentified = new ReconcileUnidentifiedDestinationsTests.Harness();
+        unidentified.Receipts.Receipts[receipt.Id] = receipt;
+        unidentified.AddOpenItem(1, UnidentifiedOrigin.Receipt(receipt.Id));
+        var harness = new Harness(receipt.Id, unidentified: unidentified);
+
+        await harness.Link.ExecuteAsync(Request(receipt, caseId) with { SettleUnidentified = false });
+
+        Assert.Single(harness.MutationStore.Links);
+        Assert.Empty(unidentified.Resolve.Requests);
+        Assert.Equal(UnidentifiedState.Open, Assert.Single(unidentified.Store.Items).State);
+        Assert.Equal([harness.StagedReceiptId], harness.Enqueuer.StagedReceiptIds);
+    }
+
+    /// <summary>
     /// The link has committed by the time its Unidentified item is resolved,
     /// so a resolution that fails, a conflicting operation key included, never
     /// reports the link as failed; filing is still handed to the Worker.
