@@ -1568,6 +1568,7 @@ public sealed class EfCaseQueryStore(
             entity.Version)
         {
             SignOffEngineerId = entity.SignOffEngineerId,
+            CaseType = CaseTypeCodes.Parse(entity.Case.Type),
             HasOpenQuery = entity.HasOpenQuery
         };
         if (entity.ArchivedAtUtc is null)

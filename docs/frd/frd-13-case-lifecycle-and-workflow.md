@@ -12,8 +12,10 @@
 - **Assign Engineer** is the only way from Review to With Engineer. The Case
   export never moves a Case.
 - **Mark report sent** needs a real Sent email item and is the last step.
-  There is no Mark completed (operator, 11 October 2026). A Case is never
-  permanently closed.
+  There is no Mark completed (operator, 11 October 2026). On an Inspection +
+  Audit Case the Inspection report's send is not the last step: the Case
+  stays With Engineer until the Audit report is sent or the Case is closed
+  (operator, 13 October 2026). A Case is never permanently closed.
 - **Close case** records a cancellation or a rejection with a reason.
   **Archive** hides a closed Case from queues. Nothing is ever deleted.
 - **Create audit** adds the Audit to an Inspection + Audit Case in work,
@@ -149,7 +151,11 @@ never changes the Case state and records no handoff.
 - **Mark report sent** needs exact retained Sent evidence
   ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence)).
   A generated file, an export, a draft, a queue result or a manual statement
-  is not enough. Report sent moves the Case to Report sent, its last stage.
+  is not enough. Report sent moves the Case to Report sent, its last stage,
+  unless the Case is Inspection + Audit with no Audit yet: the Inspection
+  report's Sent evidence is then recorded on the Case, which stays With
+  Engineer until the Audit report is sent or the Case is closed, and a query
+  can still be raised and logged in that window (operator, 13 October 2026).
   Sent evidence belongs to the
   report it proves: after Create audit, the Case's own Mark report sent takes
   the Audit report's evidence, sent after the Audit was created, while the
@@ -412,7 +418,7 @@ Automation Actor action.
 | Review | With Engineer | Assign Engineer, or the headless start command |
 | Not ready, Review, With Engineer | Held | Place on Hold (reason) |
 | Held | previous state | Release Hold (reason) |
-| With Engineer | Report sent | Mark report sent, or the Worker's automatic link of the report's Sent evidence |
+| With Engineer | Report sent | Mark report sent, or the Worker's automatic link of the report's Sent evidence; an Inspection + Audit Case with no Audit yet stays With Engineer with the Inspection's Sent evidence recorded (operator, 13 October 2026) |
 | Report sent | With Engineer | Return to Engineer (reason), or Unlink report evidence |
 | With Engineer, Report sent | Review | Return to Review (reason) |
 | Not ready, Review, With Engineer, Report sent | With Engineer before the report | Create audit, once, on an Inspection + Audit Case |

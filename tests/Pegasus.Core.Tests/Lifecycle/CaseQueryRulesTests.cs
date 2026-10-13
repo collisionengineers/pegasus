@@ -1,3 +1,5 @@
+using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 
@@ -13,22 +15,19 @@ public sealed class CaseQueryRulesTests
     private static readonly Guid CaseId = Guid.NewGuid();
 
     [Theory]
-    [InlineData("report-sent-query", CaseLifecycleState.ReportSent, true, false, true)]
-    [InlineData("report-sent-already-open", CaseLifecycleState.ReportSent, true, true, false)]
-    [InlineData("report-sent-ordinary-mail", CaseLifecycleState.ReportSent, false, false, false)]
-    [InlineData("with-engineer", CaseLifecycleState.ReportPreparation, true, false, false)]
-    [InlineData("review", CaseLifecycleState.Review, true, false, false)]
-    [InlineData("held", CaseLifecycleState.Held, true, false, false)]
-    [InlineData("cancelled", CaseLifecycleState.PrincipalCancelled, true, false, false)]
-    public void AQueryMessageRaisesAQueryOnlyOnAReportSentCase(
+    [InlineData("report-sent-query", true, true, false, true)]
+    [InlineData("report-sent-already-open", true, true, true, false)]
+    [InlineData("report-sent-ordinary-mail", true, false, false, false)]
+    [InlineData("report-not-sent", false, true, false, false)]
+    public void AQueryMessageRaisesAQueryOnlyOnceTheReportIsSent(
         string name,
-        CaseLifecycleState state,
+        bool reportIsSent,
         bool isQuery,
         bool alreadyOpenForMessage,
         bool expected)
     {
         Assert.NotEmpty(name);
-        Assert.Equal(expected, CaseQueryRules.RaisesOnMailJoined(state, isQuery, alreadyOpenForMessage));
+        Assert.Equal(expected, CaseQueryRules.RaisesOnMailJoined(reportIsSent, isQuery, alreadyOpenForMessage));
     }
 
     [Theory]
@@ -69,6 +68,50 @@ public sealed class CaseQueryRulesTests
         Assert.NotEmpty(name);
         Assert.Equal(expected, CaseQueryRules.CanLog(Workflow(state, hasOpenQuery: false, archived)));
     }
+
+    /// <summary>
+    /// Operator, 13 October 2026: between the Inspection report's send and Create
+    /// audit an Inspection + Audit Case stays With Engineer, and a query can still
+    /// be logged there. With Engineer with Sent evidence on any other Case (after
+    /// Return to Engineer) is not that window.
+    /// </summary>
+    [Theory]
+    [InlineData("inspection-audit-no-audit", CaseType.InspectionAndAudit, false, true)]
+    [InlineData("inspection-audit-with-audit", CaseType.InspectionAndAudit, true, false)]
+    [InlineData("inspection", CaseType.Inspection, false, false)]
+    public void AQueryIsLoggedWithEngineerWhileTheInspectionReportIsSentAndTheAuditIsStillToCome(
+        string name,
+        CaseType caseType,
+        bool hasAudit,
+        bool expected)
+    {
+        Assert.NotEmpty(name);
+        var workflow = Workflow(CaseLifecycleState.ReportPreparation, hasOpenQuery: false) with
+        {
+            CaseType = caseType,
+            Identity = new(CaseId, "QDOS", 2026, 1, "QDOS260001", hasAudit ? "a.QDOS260001" : null),
+            ReportSentEvidence = SentEvidence()
+        };
+
+        Assert.Equal(expected, CaseQueryRules.CanLog(workflow));
+    }
+
+    private static ApprovedMailboxReportSentEvidence SentEvidence() => new(
+        Guid.Parse("3e4f5a6b-7c8d-4e9f-a0b1-c2d3e4f5a6b7"),
+        "reports@example.test",
+        "sent-items",
+        "item-1",
+        "<message-1@example.test>",
+        "conversation-1",
+        "chain-1",
+        "occurrence-1",
+        new string('a', 64),
+        new string('b', 64),
+        new DateTimeOffset(2026, 10, 12, 9, 0, 0, TimeSpan.Zero),
+        new DateTimeOffset(2026, 10, 12, 9, 5, 0, TimeSpan.Zero),
+        ActionActor.SystemWorker("poller"),
+        new DateTimeOffset(2026, 10, 12, 9, 5, 0, TimeSpan.Zero),
+        ActionActor.SystemWorker("poller"));
 
     [Theory]
     [InlineData("open", true, false, true)]
