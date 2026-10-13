@@ -56,7 +56,9 @@ it, and a message linked to a closed or Triage Case kept no category.
    non-mailbox file whose media kind is an image. Both registration points
    apply it: `IsUnidentifiedEligible` in the processing hook and the queued
    caller's deferred registration in `ProcessQueuedIntake`. An e-mail with no
-   Case is not registered and is refused by Dismiss; a manual-upload document
+   Case is registered only when it is image-only material (photographs with
+   no instruction fields); any other is not registered and is refused by
+   Dismiss; a manual-upload document
    that cannot become a Case keeps its upload outcome and is refused by its
    upload; non-image material from the Principal API or Automation that
    cannot be placed gets no item. An emailed Triage request without a

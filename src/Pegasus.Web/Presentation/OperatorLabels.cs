@@ -2738,6 +2738,7 @@ public static class OperatorLabels
         {
             IntakeLogOutcome.CaseCreated => "Case created",
             IntakeLogOutcome.Unidentified => "Unidentified",
+            IntakeLogOutcome.NoCaseFound => Inbox.NoCaseFound,
             IntakeLogOutcome.Triage => "Triage",
             IntakeLogOutcome.VehicleImages => "Vehicle images",
             IntakeLogOutcome.CouldNotBeRead => "Could not be read",

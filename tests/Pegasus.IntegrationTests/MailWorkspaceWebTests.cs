@@ -428,7 +428,8 @@ public sealed class MailWorkspaceWebTests
     private const int InboxMessageCommands = 22;
 
     // 24 before #1179 (the rail no longer counts Awaiting instruction) and #1181 (the Inbox list trims).
-    private const int InboxListCommands = 19;
+    // 19 before #1319 (the list's rows no longer look up the polled mailbox or the resolved item).
+    private const int InboxListCommands = 17;
 
     // 9 before #1305 (the preview no longer reads the Outlook folder recommendation).
     private const int InboxPreviewCommands = 8;

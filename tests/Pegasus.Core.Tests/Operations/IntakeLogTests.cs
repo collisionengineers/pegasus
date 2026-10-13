@@ -9,7 +9,7 @@ public sealed class IntakeLogTests
     [Theory]
     [InlineData(IntakeDecision.CaseCreated, false, false, false, IntakeLogOutcome.CaseCreated)]
     [InlineData(IntakeDecision.ImageIntakeRegistered, false, false, false, IntakeLogOutcome.VehicleImages)]
-    [InlineData(IntakeDecision.NeedsSorting, false, false, false, IntakeLogOutcome.Unidentified)]
+    [InlineData(IntakeDecision.NeedsSorting, false, false, false, IntakeLogOutcome.NoCaseFound)]
     [InlineData(IntakeDecision.NeedsSorting, true, false, false, IntakeLogOutcome.Triage)]
     [InlineData(IntakeDecision.NeedsSorting, false, true, false, IntakeLogOutcome.Closed)]
     [InlineData(IntakeDecision.Unsupported, false, false, false, IntakeLogOutcome.CouldNotBeRead)]
@@ -20,6 +20,20 @@ public sealed class IntakeLogTests
     public void TheOutcomeReadsInOperatorWords(
         IntakeDecision decision, bool triageOpened, bool unidentifiedClosed, bool processingFailed, IntakeLogOutcome expected) =>
         Assert.Equal(expected, IntakeLogPolicy.Outcome(decision, triageOpened, unidentifiedClosed, processingFailed));
+
+    [Theory]
+    [InlineData(true, IntakeLogOutcome.Unidentified)]
+    [InlineData(false, IntakeLogOutcome.NoCaseFound)]
+    public void ANeedsSortingReceiptReadsUnidentifiedOnlyWhenItHasAnUnidentifiedItem(
+        bool unidentifiedRegistered, IntakeLogOutcome expected) =>
+        Assert.Equal(
+            expected,
+            IntakeLogPolicy.Outcome(
+                IntakeDecision.NeedsSorting,
+                triageOpened: false,
+                unidentifiedClosed: false,
+                processingFailed: false,
+                unidentifiedRegistered: unidentifiedRegistered));
 
     [Theory]
     [InlineData(IntakeDecision.CaseCreated, false, true, false, IntakeLogOutcome.AllocationFailed)]
@@ -39,6 +53,7 @@ public sealed class IntakeLogTests
     [InlineData(IntakeLogOutcome.ProcessingFailed, true)]
     [InlineData(IntakeLogOutcome.CouldNotBeRead, false)]
     [InlineData(IntakeLogOutcome.Unidentified, false)]
+    [InlineData(IntakeLogOutcome.NoCaseFound, false)]
     [InlineData(IntakeLogOutcome.Closed, false)]
     [InlineData(IntakeLogOutcome.CaseCreated, false)]
     [InlineData(IntakeLogOutcome.Triage, false)]
