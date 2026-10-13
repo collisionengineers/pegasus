@@ -194,7 +194,9 @@ The word “intake” never appears in operator-facing text (operator decision
 
 
 **Report sent**:
-The Case's last stage, entered when the report's Sent evidence is linked;
+The Case's last stage, entered when the report's Sent evidence is linked,
+except that an Inspection + Audit Case with no Audit yet stays With Engineer
+when its Inspection report's evidence is linked (operator, 13 October 2026);
 still editable, and never a closure. There is no Completed state and no Mark
 completed (operator, 11 October 2026;
 [FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).

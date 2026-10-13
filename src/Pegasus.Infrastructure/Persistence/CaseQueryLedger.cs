@@ -47,9 +47,13 @@ internal static class CaseQueryLedger
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken)
     {
-        var state = Enum.Parse<CaseLifecycleState>(workflow.State);
         var isQuery = IsQuery(receipt);
-        if (!CaseQueryRules.RaisesOnMailJoined(state, isQuery, alreadyOpenForMessage: false))
+        if (!isQuery)
+        {
+            return false;
+        }
+        var reportIsSent = await EfCaseWorkflowStore.ReportIsSentAsync(context, workflow, cancellationToken);
+        if (!CaseQueryRules.RaisesOnMailJoined(reportIsSent, isQuery, alreadyOpenForMessage: false))
         {
             return false;
         }
@@ -57,7 +61,7 @@ internal static class CaseQueryLedger
             .AnyAsync(item => item.CaseId == workflow.CaseId
                 && item.IntakeReceiptId == receipt.Id
                 && item.ClosedAtUtc == null, cancellationToken);
-        if (!CaseQueryRules.RaisesOnMailJoined(state, isQuery, alreadyOpen))
+        if (!CaseQueryRules.RaisesOnMailJoined(reportIsSent, isQuery, alreadyOpen))
         {
             return false;
         }
