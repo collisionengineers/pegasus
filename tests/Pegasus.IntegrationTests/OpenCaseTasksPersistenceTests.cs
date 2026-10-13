@@ -70,7 +70,7 @@ public sealed class OpenCaseTasksPersistenceTests
         Assert.Equal(assigneeId, twoTasks.OwnerStaffId);
         Assert.Null(twoTasks.Due);
         Assert.Equal(NeedsAttentionPriority.Normal, twoTasks.Priority);
-        Assert.Equal($"/Cases/{twoTasksCaseId:D}?section=tasks", twoTasks.Route);
+        Assert.Equal($"/Cases/{twoTasksCaseId:D}?dialog=tasks", twoTasks.Route);
         // Without an assignee, the row belongs to the staff member who created the task.
         Assert.Equal(creatorId, Assert.Single(rows, row => row.Id == oneTaskCaseId).OwnerStaffId);
 

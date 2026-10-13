@@ -161,8 +161,8 @@ title, its facts (reference, subject, principal or sender or instruction,
 owner, due, received) and a next action that does the action. Choosing the
 open task again closes it; nothing opens by itself. Assign Engineer opens the
 assignment dialog on the Work Centre. Review Case opens the Case, and so
-does Open Case on a Vehicle images paired item. Open tasks opens the Case at
-its Tasks section. Open Triage opens the Triage Case page. An AI draft offers
+does Open Case on a Vehicle images paired item. Open tasks opens the Case with
+its Tasks dialog open. Open Triage opens the Triage Case page. An AI draft offers
 its per-kind action. The open row
 repeats no Dismiss; the row's own control is the one.
 

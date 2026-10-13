@@ -209,7 +209,7 @@ public sealed class DashboardBoundaryTests
             Assert.Equal(NeedsAttentionKind.OpenTasks, row.Kind);
             Assert.Null(row.Due);
             Assert.Equal(NeedsAttentionPriority.Normal, row.Priority);
-            Assert.Equal($"/Cases/{row.Id:D}?section=tasks", row.Route);
+            Assert.Equal($"/Cases/{row.Id:D}?dialog=tasks", row.Route);
             Assert.Equal($"/Cases/{row.Id:D}", row.RecordRoute);
             Assert.Equal("Ford Focus KP68 ABC", row.Title);
             Assert.Equal("QDOS", row.Detail);

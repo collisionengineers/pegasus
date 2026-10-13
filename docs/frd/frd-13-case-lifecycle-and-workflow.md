@@ -354,7 +354,8 @@ text always looks different from sent, delivered, answered or completed work.
 
 **General Case tasks (`CASE-20`).** A Case task has a description, an
 optional assignee and the states Open, Completed and Cancelled. Staff add,
-complete, cancel and assign tasks in the Tasks section of the Case record, in
+complete, cancel and assign tasks in the Case record's Tasks dialog, opened
+from its Actions menu, in
 the edit session and under its lease
 ([FRD-16](frd-16-case-record-workspace.md#tasks)). A Case with an open task
 cannot be archived until each task is completed or cancelled. Once Report
