@@ -34,7 +34,11 @@ A Principal is the customer role that instructs and pays Collision
 Engineers. Every Contact has one type: Principal, Claim Source, Repairer,
 Storage provider or Third Party Engineer (operator, 13 October 2026). A
 Principal never links to another Principal. A Contact of any other type may
-link to several Principals.
+link to several Principals; the links are directory information shown on
+the Contacts list and the Contact's page, and they do not narrow a Case's
+Claim Source or Repairer choices (operator, 13 October 2026). A Storage or
+Third Party Engineer Contact is directory information only: no Case field,
+report or reader uses one today.
 Staff accounts are not Contacts.
 
 A repairer, broker, agent, client, legal representative, provider, vehicle
@@ -115,6 +119,15 @@ Principal policy lives on its Principal Contact. A Principal code is created
 in the same transaction as that Contact and stays with the same
 Contact through a code replacement
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
+That Contact is where a Principal exists: every route that allocates a Case
+requires its active Principal row and fails closed without one. Which
+Principals have an accepted e-mail route, and how each one's instruction is
+read, is released code
+([FRD-09](frd-09-principal-and-intermediary-routes.md#principal-and-intermediary-routes)),
+not directory data; a Principal with no route is a normal state whose
+instructions arrive by upload, Triage or the Principal API (operator, 13
+October 2026). Recognition of documents and mail stays entirely in code; the
+directory records who a party is, never how Pegasus recognises it.
 Names are unique within a type: a second Contact of the same type and name,
 or a duplicate Principal code, fails without leaving an orphan identity. The screen's visuals and controls are owned by the
 [design README](../design/README.md); its layout is in
@@ -122,9 +135,12 @@ or a duplicate Principal code, fails without leaving an orphan identity. The scr
 
 The Principal section of a Contact carries:
 
-- the accepted route email domains, read-only once activated, read from the
-  Principal route policy in
+- the accepted e-mail identities, read-only, read from the Principal route
+  policy in
   [FRD-09](frd-09-principal-and-intermediary-routes.md#principal-and-intermediary-routes);
+  a Principal with none shows "No accepted e-mail route. Instructions arrive
+  by upload, Triage or the Principal API." in the same box (operator, 13
+  October 2026);
 - the default inspection location, Image Based Assessment or a physical
   address, saved on the click;
 - the report recipients

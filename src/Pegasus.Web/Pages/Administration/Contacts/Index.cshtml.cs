@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Administration.Contacts;
 
@@ -81,7 +82,7 @@ public sealed class IndexModel(
             }
             catch (ContactDirectoryException exception)
             {
-                ModelState.AddModelError(string.Empty, ContactErrorMessage(exception.Error));
+                ModelState.AddModelError(string.Empty, OperatorLabels.Contacts.ErrorMessage(exception.Error));
             }
             catch (ArgumentException exception)
             {
@@ -147,14 +148,4 @@ public sealed class IndexModel(
     /// <summary>The codes of the active Principals a contact is linked to, in the choices' order.</summary>
     public string[] LinkedPrincipalCodes(ContactDirectoryRecord contact) =>
         [.. PrincipalChoices.Where(choice => contact.LinkedPrincipalIds?.Contains(choice.Principal.Id) == true).Select(choice => choice.Principal.Code)];
-
-    private static string ContactErrorMessage(ContactDirectoryError error) => error switch
-    {
-        ContactDirectoryError.DuplicateOrganizationName => "A contact with that name already exists.",
-        ContactDirectoryError.DuplicatePrincipalCode => "That principal code is already in use.",
-        ContactDirectoryError.InvalidPrincipalAssociation => "Check the selected linked principals.",
-        ContactDirectoryError.StaleVersion => "This contact changed. Choose it again.",
-        ContactDirectoryError.OperationConflict => "This form was already used for a different change.",
-        _ => "The contact could not be saved."
-    };
 }

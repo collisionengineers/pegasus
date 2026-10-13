@@ -13,7 +13,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
     public partial class PegasusDbContextModel
     {
         private PegasusDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("7a4756b3-f876-4f33-9474-ddd3c37dfa11"), entityTypeCount: 122)
+            : base(skipDetectChanges: false, modelId: new Guid("361af3ae-0791-496b-908a-542f52b32907"), entityTypeCount: 119)
         {
         }
 
@@ -109,10 +109,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             var organizationEntity = OrganizationEntityEntityType.Create(this);
             var pegasusIdentityUser = PegasusIdentityUserEntityType.Create(this);
             var principalApiCredentialEntity = PrincipalApiCredentialEntityEntityType.Create(this);
-            var principalDomainEvidenceEntity = PrincipalDomainEvidenceEntityEntityType.Create(this);
-            var principalDomainPackageEntity = PrincipalDomainPackageEntityEntityType.Create(this);
             var principalEntity = PrincipalEntityEntityType.Create(this);
-            var principalReferenceEntity = PrincipalReferenceEntityEntityType.Create(this);
             var principalSequenceLineageEntity = PrincipalSequenceLineageEntityEntityType.Create(this);
             var principalSubmissionEntity = PrincipalSubmissionEntityEntityType.Create(this);
             var problemReportEntity = ProblemReportEntityEntityType.Create(this);
@@ -248,12 +245,10 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             IntakeSubmissionGroupMemberEntityEntityType.CreateForeignKey2(intakeSubmissionGroupMemberEntity, intakeStagedReceiptEntity);
             IntakeWorkItemEntityEntityType.CreateForeignKey1(intakeWorkItemEntity, intakeStagedReceiptEntity);
             PrincipalApiCredentialEntityEntityType.CreateForeignKey1(principalApiCredentialEntity, principalEntity);
-            PrincipalDomainEvidenceEntityEntityType.CreateForeignKey1(principalDomainEvidenceEntity, principalReferenceEntity);
             PrincipalEntityEntityType.CreateForeignKey1(principalEntity, organizationEntity);
             PrincipalEntityEntityType.CreateForeignKey2(principalEntity, principalEntity);
             PrincipalEntityEntityType.CreateForeignKey3(principalEntity, principalSequenceLineageEntity);
             PrincipalEntityEntityType.CreateForeignKey4(principalEntity, principalEntity);
-            PrincipalReferenceEntityEntityType.CreateForeignKey1(principalReferenceEntity, principalDomainPackageEntity);
             PrincipalSubmissionEntityEntityType.CreateForeignKey1(principalSubmissionEntity, principalEntity);
             ReleaseNoteAcknowledgementEntityEntityType.CreateForeignKey1(releaseNoteAcknowledgementEntity, releaseNoteEntity);
             RetainedInstructionAnalysisEntityEntityType.CreateForeignKey1(retainedInstructionAnalysisEntity, intakeAssetEntity);
@@ -368,10 +363,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             OrganizationEntityEntityType.CreateAnnotations(organizationEntity);
             PegasusIdentityUserEntityType.CreateAnnotations(pegasusIdentityUser);
             PrincipalApiCredentialEntityEntityType.CreateAnnotations(principalApiCredentialEntity);
-            PrincipalDomainEvidenceEntityEntityType.CreateAnnotations(principalDomainEvidenceEntity);
-            PrincipalDomainPackageEntityEntityType.CreateAnnotations(principalDomainPackageEntity);
             PrincipalEntityEntityType.CreateAnnotations(principalEntity);
-            PrincipalReferenceEntityEntityType.CreateAnnotations(principalReferenceEntity);
             PrincipalSequenceLineageEntityEntityType.CreateAnnotations(principalSequenceLineageEntity);
             PrincipalSubmissionEntityEntityType.CreateAnnotations(principalSubmissionEntity);
             ProblemReportEntityEntityType.CreateAnnotations(problemReportEntity);

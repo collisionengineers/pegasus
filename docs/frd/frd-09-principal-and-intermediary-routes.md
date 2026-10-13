@@ -34,7 +34,8 @@ A technical failure that can be retried stays in processing.
 
 Principal identity, intermediary identity, route identity and Principal or
 domain-suffix association are four separate facts. The versioned
-Principal/domain package is evidence and configuration input. Its presence
+Principal/domain package is evidence under `reference/` only; the database
+snapshot of it was dropped (operator, 13 October 2026). Its presence
 does not switch on a route, choose a Principal or define an API client.
 
 Direct-Principal and intermediary policies may differ, but both call the same
