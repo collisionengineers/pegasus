@@ -11,6 +11,9 @@
 //   attempts     runs in which a write to the message failed, at that
 //                fingerprint
 
+import { TableClient } from "@azure/data-tables";
+import { ManagedIdentityCredential } from "@azure/identity";
+
 export type ReviewedOutcome = "reviewed" | "failed" | "retrying";
 
 export interface ReviewedRecord {
