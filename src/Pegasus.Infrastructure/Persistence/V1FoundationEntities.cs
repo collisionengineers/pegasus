@@ -127,7 +127,6 @@ internal sealed class LabourRateCardEntity : IApplicationManagedConcurrencyToken
     public Guid Id { get; set; }
     public required string Label { get; set; }
     public decimal PanelRate { get; set; }
-    public bool Active { get; set; }
     public long Version { get; set; }
     public required string UpdatedBy { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }

@@ -13,7 +13,7 @@
 - A Glass's estimate belongs to its repair spec. **Glass's** on that spec
   reopens the same estimate, and its saved return updates that spec. On any
   other spec it starts a new estimate.
-- An imported spec takes the one enabled Pegasus labour-rate card. AI and
+- An imported spec takes the Standard labour-rate card. AI and
   automation material stays a Draft until a staff member presses
   **Use repair spec**.
 - An import is keyed by Case plus source hash. The same hash replays the same
@@ -178,13 +178,12 @@ export and the calculation PDF land the same spec:
   net. It changes no line and no total.
 
 **Labour rate on a new spec.** A new repair spec — imported, returned from
-Glass's, or started with **New repair spec** — takes the one enabled Pegasus
-labour-rate card. With no enabled card, or several, the rate stays blank and
-report readiness asks for it. The staff member can change it. A source
-document's own rate never picks the card.
+Glass's, or started with **New repair spec** — takes the Standard
+labour-rate card (operator, 13 October 2026). The staff member can change it.
+A source document's own rate never picks the card.
 
 **The labour rate bar (v38 P5, operator, 12 October 2026).** The rate stands
-in a bar under the grid: one segment per enabled rate card and a Custom ·
+in a bar under the grid: Standard, then Prestige/Aluminium, and a Custom ·
 typed segment, all selectable; the "+ 15 % regional uplift" tick with its
 London & Home Counties chip (suggested when a repairer, claimant or storage
 postcode is in scope); and the rate the spec prices at in a box at the right.
