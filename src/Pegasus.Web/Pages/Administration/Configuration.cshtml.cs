@@ -17,7 +17,6 @@ public sealed class ConfigurationModel(
     public CaseWorkflowConfiguration Configuration { get; private set; } = null!;
     public IReadOnlyList<LabourRateCard> RateCards { get; private set; } = [];
     public bool AutomationComposed { get; private set; }
-    public bool AddCardOpen { get; private set; }
     public bool CardPostFailed { get; private set; }
     public string HourlyRateInput { get; private set; } = string.Empty;
 
@@ -35,9 +34,7 @@ public sealed class ConfigurationModel(
     [BindProperty] public Guid CardId { get; set; }
     [BindProperty] public long CardExpectedVersion { get; set; }
     [BindProperty] public string CardOperationKey { get; set; } = NewOperationKey();
-    [BindProperty] public string? CardName { get; set; } = string.Empty;
     [BindProperty] public decimal HourlyRate { get; set; }
-    [BindProperty] public bool Enabled { get; set; } = true;
     [BindProperty] public string? Reason { get; set; }
 
     /// <summary>One workflow setting: its posted field, label, range, the saved value and the value the form carries.</summary>
@@ -131,24 +128,6 @@ public sealed class ConfigurationModel(
         return Page();
     }
 
-    public async Task<IActionResult> OnPostNewCardAsync(CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        ModelState.Remove(nameof(WorkflowOperationKey));
-        ModelState.Remove(nameof(CardOperationKey));
-        await LoadAsync(actor, initializeWorkflowSettings: true, cancellationToken);
-        AddCardOpen = true;
-        CardId = Guid.NewGuid();
-        CardExpectedVersion = 0;
-        CardOperationKey = NewOperationKey();
-        CardName = string.Empty;
-        HourlyRate = 0;
-        HourlyRateInput = string.Empty;
-        Enabled = true;
-        Reason = null;
-        return Page();
-    }
-
     public async Task<IActionResult> OnPostSaveCardAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
@@ -169,9 +148,7 @@ public sealed class ConfigurationModel(
             {
                 await rateCards.SaveAsync(new(
                     CardId,
-                    CardName ?? string.Empty,
                     HourlyRate,
-                    Enabled,
                     CardExpectedVersion,
                     actor,
                     Reason,
@@ -191,7 +168,6 @@ public sealed class ConfigurationModel(
 
         CardPostFailed = true;
         await LoadAsync(actor, initializeWorkflowSettings: true, cancellationToken);
-        AddCardOpen = !RateCards.Any(card => card.Id == CardId);
         return Page();
     }
 

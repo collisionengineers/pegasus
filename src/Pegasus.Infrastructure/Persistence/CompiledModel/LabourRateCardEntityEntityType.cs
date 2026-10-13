@@ -18,7 +18,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.LabourRateCardEntity",
                 typeof(LabourRateCardEntity),
                 baseEntityType,
-                propertyCount: 8,
+                propertyCount: 7,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -30,14 +30,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 afterSaveBehavior: PropertySaveBehavior.Throw,
                 sentinel: new Guid("00000000-0000-0000-0000-000000000000"));
             id.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
-            var active = runtimeEntityType.AddProperty(
-                "Active",
-                typeof(bool),
-                propertyInfo: typeof(LabourRateCardEntity).GetProperty("Active", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(LabourRateCardEntity).GetField("<Active>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                sentinel: false);
-            active.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var concurrencyToken = runtimeEntityType.AddProperty(
                 "ConcurrencyToken",

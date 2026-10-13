@@ -111,10 +111,11 @@ the field and the server. The directory rules are owned by
   Unidentified target (default 0, due by the midnight after receipt), Triage
   target (1), Held decision target (7), Review target (1) and AI draft
   target (1);
-- labour-rate-card administration: the global versioned cards (name,
-  panel-and-paint hourly rate, enabled state) that every estimate version
-  selects from. Disabling a card blocks future selection without changing
-  history ([FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications)).
+- labour-rate-card administration: the two built-in global versioned cards,
+  Standard and Prestige/Aluminium (operator, 13 October 2026), that every
+  estimate version selects from. Their names are fixed and there are no other
+  cards; the Administrator changes only each panel-and-paint hourly rate. A
+  change never alters the rate a repair spec recorded ([FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications)).
 
 The six settings and labour-rate-card rows are editable on load. Validation
 names the setting and allowed range when a value is refused. There are no

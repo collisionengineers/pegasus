@@ -49,10 +49,10 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        // Production's one enabled card; a retired one is never chosen.
-        var card = new LabourRateCard(Guid.NewGuid(), "80", 80m, true, 3);
+        // A new spec starts on Standard, never on Prestige/Aluminium.
+        var card = new LabourRateCard(Guid.NewGuid(), LabourRateCardAdministration.Standard, 80m, 3);
+        store.RateCards.Add(new LabourRateCard(Guid.NewGuid(), LabourRateCardAdministration.PrestigeAluminium, 95m, 1));
         store.RateCards.Add(card);
-        store.RateCards.Add(new LabourRateCard(Guid.NewGuid(), "Retired", 55m, false, 1));
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory, StaffRole.User);
@@ -104,7 +104,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(6, estimate.Lines!.Count);
         Assert.Equal(620.20m, estimate.Lines.Single(line => line.Description == "FRONT BUMPER" && line.Type == "new_part").Price);
         // Edit Case, drop an Audatex, done: the import is the repair spec in
-        // use, priced on the one enabled card, never on the document's rate.
+        // use, priced on the Standard card, never on the document's rate.
         Assert.Equal(card.Id, estimate.SelectedRateCardId);
         Assert.Equal(card.Version, estimate.SelectedRateCardVersion);
         var landed = Assert.IsType<RepairSpecificationVersion>(store.InUse);
@@ -991,7 +991,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     /// <summary>
     /// An estimate the Case already holds — an Audatex report that arrived by
     /// email — imports from its Case Files row through the same import as a
-    /// drop: it is the repair spec in use on the one enabled card, and no
+    /// drop: it is the repair spec in use on the Standard card, and no
     /// second copy of the file is stored (operator, 25 September 2026).
     /// </summary>
     [Fact]
@@ -999,7 +999,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        var card = new LabourRateCard(Guid.NewGuid(), "80", 80m, true, 3);
+        var card = new LabourRateCard(Guid.NewGuid(), LabourRateCardAdministration.Standard, 80m, 3);
         store.RateCards.Add(card);
         var emailed = store.SeedCaseFile(
             "Audatex report.pdf", "application/pdf", AudatexEstimateFixture.Build(), recognisedEstimate: true);
@@ -1055,7 +1055,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        store.RateCards.Add(new LabourRateCard(Guid.NewGuid(), "80", 80m, true, 1));
+        store.RateCards.Add(new LabourRateCard(Guid.NewGuid(), LabourRateCardAdministration.Standard, 80m, 1));
         var generated = store.SeedCaseFile(
             "QDOS-2026-00042 report.pdf", "application/pdf", AudatexEstimateFixture.Build(),
             DocumentSource.Generated, DocumentSemanticRole.EngineerReport);
@@ -2666,7 +2666,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             // A chosen card prices the estimate, as the real store resolves it
             // inside its transaction.
             if (request.SelectedRateCardId is { } cardId
-                && RateCards.SingleOrDefault(card => card.Id == cardId) is { Enabled: true } card
+                && RateCards.SingleOrDefault(card => card.Id == cardId) is { } card
                 && card.Version == request.SelectedRateCardVersion)
             {
                 request = request with

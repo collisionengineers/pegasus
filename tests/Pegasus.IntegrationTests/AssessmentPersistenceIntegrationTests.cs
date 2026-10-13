@@ -1180,9 +1180,10 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
         var rateCardAdministrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var rateCards = new EfLabourRateCardStore(harness.Factory, harness.Clock);
+        var standard = LabourRateCardAdministration.ForNewSpecification(await rateCards.ListAsync(CancellationToken.None))!;
         var rateCard = await rateCards.SaveAsync(
-            new(Guid.NewGuid(), "Panel and paint", 52.50m, true, 0, rateCardAdministrator,
-                "Create rate", "estimate-canonical-rate-create"),
+            new(standard.Id, 52.50m, standard.Version, rateCardAdministrator,
+                "Set rate", "estimate-canonical-rate-set"),
             CancellationToken.None);
         var documentVersionId = Guid.NewGuid();
         var documentSha = new string('c', 64);
@@ -1248,12 +1249,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 ExistingLineIds: read.Lines.Select(line => (Guid?)line.Id).ToArray()),
             CancellationToken.None));
 
-        var retiredRateCard = await rateCards.SaveAsync(
-            new(rateCard.Id, rateCard.Name, 80m, false, rateCard.Version, rateCardAdministrator,
-                "Retire and revise rate", "estimate-canonical-rate-retire"),
+        var revisedRateCard = await rateCards.SaveAsync(
+            new(rateCard.Id, 80m, rateCard.Version, rateCardAdministrator,
+                "Revise rate", "estimate-canonical-rate-revise"),
             CancellationToken.None);
-        Assert.False(retiredRateCard.Enabled);
-        Assert.Equal(80m, retiredRateCard.HourlyRate);
+        Assert.Equal(80m, revisedRateCard.HourlyRate);
 
         var resaved = await save.ExecuteAsync(
             new(caseId, editLease.Version, engineer, "estimate-canonical-edit",

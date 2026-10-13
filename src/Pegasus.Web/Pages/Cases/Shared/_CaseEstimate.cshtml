@@ -60,7 +60,6 @@
     var rateCard = details?.Rate is { RateCardId: { } rateCardId, RateCardVersion: { } rateCardVersion }
         ? Model.LabourRateCards.FirstOrDefault(card => card.Id == rateCardId && card.Version == rateCardVersion)
         : null;
-    var enabledCards = Model.LabourRateCards.Where(card => card.Enabled).ToArray();
 
     string Money(decimal value) => "£" + value.ToString("N2", culture);
     string MoneyOrAbsent(decimal? value) => value is { } present ? Money(present) : OperatorLabels.CaseWorkspace.AbsentValue;
@@ -516,7 +515,7 @@
     }
 
     // The labour rate bar under the grid, as the reference draws it (v38 P5;
-    // v28 P33, P17): one segment per enabled rate card and Custom · typed,
+    // v28 P33, P17): Standard, Prestige/Aluminium and Custom · typed,
     // all selectable; the regional uplift tick with its chip; the rate the
     // spec prices at in the box at the right, with its working when the
     // uplift is on and Manual when the figure was typed. The segments post
@@ -540,7 +539,7 @@
             @if (editable)
             {
                 <div class="rseg" role="radiogroup" aria-label="@EstimateLabels.LabourRateCard" data-rate-cards>
-                    @foreach (var card in enabledCards)
+                    @foreach (var card in Model.LabourRateCards)
                     {
                         var cardKey = $"{card.Id:D}:{card.Version}";
                         <label class="rseg-btn"><input type="radio" name="selectedRateCard" form="case-edit-form" value="@cardKey" data-rate="@card.HourlyRate.ToString("0.##", CultureInfo.InvariantCulture)" checked="@(selectedKey == cardKey ? "checked" : null)" /><span>@card.Name</span><small>@Money(card.HourlyRate)@EstimateLabels.PerHour</small></label>
@@ -560,7 +559,7 @@
             else
             {
                 <div class="rseg" data-rate-cards>
-                    @foreach (var card in enabledCards)
+                    @foreach (var card in Model.LabourRateCards)
                     {
                         <span class="rseg-btn is-static" aria-current="@(rateCard?.Id == card.Id && rateCard?.Version == card.Version ? "true" : "false")"><span>@card.Name</span><small>@Money(card.HourlyRate)@EstimateLabels.PerHour</small></span>
                     }

@@ -42,46 +42,26 @@
             </form>
         </section>
         <section class="panel" aria-labelledby="rates-title">
-            <div class="panel-head">
-                <h2 id="rates-title">Labour-rate cards</h2>
-                <form method="post" asp-page-handler="NewCard"><button class="btn" type="submit" data-busy-label="@OperatorLabels.Busy.Adding">Add rate card</button></form>
-            </div>
+            <div class="panel-head"><h2 id="rates-title">Labour-rate cards</h2></div>
             <div class="table-wrap no-border"><table>
                 <caption class="sr-only">Labour-rate cards</caption>
-                <thead><tr><th scope="col">Name</th><th scope="col">Panel and paint (£/hour)</th><th scope="col">Enabled</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+                <thead><tr><th scope="col">Name</th><th scope="col">Panel and paint (£/hour)</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
                 <tbody>
                 @foreach (var card in Model.RateCards)
                 {
                     var formId = "rate-card-" + card.Id.ToString("N");
                     var showingPostedValues = Model.CardPostFailed && Model.CardId == card.Id;
-                    var rowName = showingPostedValues ? Model.CardName : card.Name;
                     var rowHourlyRate = showingPostedValues ? Model.HourlyRateInput : card.HourlyRate.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                    var rowEnabled = showingPostedValues ? Model.Enabled : card.Enabled;
                     var rowVersion = showingPostedValues ? Model.CardExpectedVersion : card.Version;
                     var rowOperationKey = showingPostedValues ? Model.CardOperationKey : ConfigurationModel.NewOperationKey();
                     <tr>
-                        <td><input form="@formId" name="CardName" value="@rowName" aria-label="Rate card name" maxlength="200" required /></td>
-                        <td><input form="@formId" name="HourlyRate" type="number" min="0" max="999999" step="0.01" value="@rowHourlyRate" aria-label="Panel and paint hourly rate" required /></td>
-                        <td><select form="@formId" name="Enabled" aria-label="Rate card enabled"><option value="true" selected="@rowEnabled">Yes</option><option value="false" selected="@(!rowEnabled)">No</option></select></td>
+                        <td>@card.Name</td>
+                        <td><input form="@formId" name="HourlyRate" type="number" min="0" max="999999" step="0.01" value="@rowHourlyRate" aria-label="@card.Name panel and paint hourly rate" required /></td>
                         <td><form id="@formId" method="post" asp-page-handler="SaveCard">
                             <input type="hidden" name="CardId" value="@card.Id" />
                             <input type="hidden" name="CardExpectedVersion" value="@rowVersion" />
                             <input type="hidden" name="CardOperationKey" value="@rowOperationKey" />
                             <div class="button-row"><button type="reset" class="btn btn--small">Reset</button><button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button></div>
-                        </form></td>
-                    </tr>
-                }
-                @if (Model.AddCardOpen || (Model.CardPostFailed && !Model.RateCards.Any(card => card.Id == Model.CardId)))
-                {
-                    <tr>
-                        <td><input form="rate-card-add" name="CardName" value="@Model.CardName" aria-label="Rate card name" maxlength="200" required /></td>
-                        <td><input form="rate-card-add" name="HourlyRate" type="number" min="0" max="999999" step="0.01" value="@Model.HourlyRateInput" aria-label="Panel and paint hourly rate" required /></td>
-                        <td><select form="rate-card-add" name="Enabled" aria-label="Rate card enabled"><option value="true" selected="@Model.Enabled">Yes</option><option value="false" selected="@(!Model.Enabled)">No</option></select></td>
-                        <td><form id="rate-card-add" method="post" asp-page-handler="SaveCard">
-                            <input type="hidden" name="CardId" value="@Model.CardId" />
-                            <input type="hidden" name="CardExpectedVersion" value="@Model.CardExpectedVersion" />
-                            <input type="hidden" name="CardOperationKey" value="@Model.CardOperationKey" />
-                            <div class="button-row"><button type="reset" class="btn btn--small">Reset</button><button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button><a class="btn btn--small" asp-page="/Administration/Configuration">Cancel</a></div>
                         </form></td>
                     </tr>
                 }
