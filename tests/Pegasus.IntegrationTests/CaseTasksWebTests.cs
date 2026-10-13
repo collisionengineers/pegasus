@@ -393,7 +393,7 @@ public sealed class CaseTasksWebTests
         Assert.Contains("dialog=tasks", opener.Value, StringComparison.Ordinal);
 
         // Drawn closed, the dialog's body is fetched as it opens.
-        Assert.Contains("data-case-tasks-body data-lazy-tasks=\"\"></div>", closed, StringComparison.Ordinal);
+        Assert.Matches("data-case-tasks-body data-lazy-tasks=\"\">\\s*</div>", closed);
         Assert.DoesNotContain("Send the figures to the garage", closed, StringComparison.Ordinal);
 
         // The body's fragment answers (its read phase is allow-listed) and reads without the
