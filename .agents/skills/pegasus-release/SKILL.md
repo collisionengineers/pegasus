@@ -35,6 +35,7 @@ affected operation.
 | Web plan | `pegasus-prod-web-plan-252ow37gij` (Linux, B1) |
 | Web public origin | `https://pegasus-prod-web-252ow37gij.azurewebsites.net/` |
 | Worker | `pegasus-prod-worker-252ow37gij` |
+| Classifier | `pegasus-prod-classifier-252ow37gij` (exists only with `PEGASUS_CLASSIFIER_ACTIVATION=approved`) |
 | Key Vault | `pegasusprodkv252ow37g` |
 | SQL | `pegasus-prod-sql-252ow37gij` / `pegasus` |
 | App Insights | `pegasus-prod-appi-252ow37gij` |
@@ -61,6 +62,7 @@ $webApp = 'pegasus-prod-web-252ow37gij'
 $webPlan = 'pegasus-prod-web-plan-252ow37gij'
 $webOrigin = 'https://pegasus-prod-web-252ow37gij.azurewebsites.net/'
 $workerApp = 'pegasus-prod-worker-252ow37gij'
+$classifierApp = 'pegasus-prod-classifier-252ow37gij'
 $version = '0.1.0-alpha.1'
 ```
 
@@ -183,8 +185,10 @@ $webPackageSha256 = @($manifest.artifacts | Where-Object name -eq 'web.zip')[0].
 
 The manifest must use schema 3. Its `migrationRuntimeIdentifier` and
 `migrationBundleName` must match the workstation: `win-x64`/`efbundle.exe` on
-Windows or `linux-x64`/`efbundle` on Linux. The three artifacts are `web.zip`,
-`worker.zip` and that migration bundle. `web.zip` is a framework-dependent,
+Windows or `linux-x64`/`efbundle` on Linux. The four artifacts are `web.zip`,
+`worker.zip`, `classifier.zip` and that migration bundle. `classifier.zip` is
+the Node 22 classifier agent with production dependencies installed for Linux
+x64 whatever the workstation; the build needs Node 22 and npm. `web.zip` is a framework-dependent,
 ReadyToRun Linux x64 publish for the platform `DOTNETCORE|10.0` stack with
 `Pegasus.Web.dll` at its root; `worker.zip` targets Linux x64 and carries
 `.azurefunctions/`. Build and migrate on the same workstation platform; do not
@@ -253,6 +257,23 @@ function Wait-PegasusExpectedWebSite {
   finally {
     $client.Dispose()
   }
+}
+```
+
+The classifier Function App exists only when its activation is approved. Every
+deployment route deploys `classifier.zip` to it when it exists, after the
+Worker:
+
+```powershell
+function Publish-PegasusClassifierIfPresent {
+  $classifierNames = @(az functionapp list --subscription $subscriptionId `
+    --resource-group $resourceGroup --query "[?name=='$classifierApp'].name" --output tsv)
+  if ($LASTEXITCODE -ne 0) { throw 'Unable to read whether the classifier Function App exists.' }
+  if ($classifierNames -cnotcontains $classifierApp) { return }
+  az functionapp deployment source config-zip --subscription $subscriptionId `
+    --resource-group $resourceGroup --name $classifierApp `
+    --src "./artifacts/releases/$version/classifier.zip"
+  if ($LASTEXITCODE -ne 0) { throw 'Classifier deployment failed.' }
 }
 ```
 
@@ -466,6 +487,7 @@ az functionapp deployment source config-zip --subscription $subscriptionId `
   --resource-group $resourceGroup --name $workerApp `
   --src "./artifacts/releases/$version/worker.zip"
 if ($LASTEXITCODE -ne 0) { throw 'Normal-route Worker deployment failed.' }
+Publish-PegasusClassifierIfPresent
 pwsh ./scripts/Invoke-ProductionSmoke.ps1 `
   -BaseUri $webOrigin `
   -ExpectedSourceRevision $releaseSha -ExpectedVersion $version `
@@ -580,6 +602,7 @@ for ($attempt = 1; $attempt -le 12; $attempt++) {
   Start-Sleep -Seconds 5
 }
 if (-not $workerRunning) { throw 'Worker did not read back as Running.' }
+Publish-PegasusClassifierIfPresent
 pwsh ./scripts/Invoke-ProductionSmoke.ps1 `
   -BaseUri $webOrigin `
   -ExpectedSourceRevision $releaseSha -ExpectedVersion $version `

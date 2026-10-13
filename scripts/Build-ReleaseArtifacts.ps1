@@ -54,6 +54,40 @@ function Test-PegasusReadyToRunImage {
     finally { $stream.Dispose() }
 }
 
+# Flex runs the classifier on Linux and the Agent SDK spawns its native binary,
+# so the ZIP records Unix modes itself: a ZIP made on Windows carries none.
+function New-PegasusClassifierArchive {
+    param(
+        [Parameter(Mandatory)][string] $Source,
+        [Parameter(Mandatory)][string] $Archive
+    )
+    $fileMode = [Convert]::ToInt32('81A40000', 16)        # regular file, 0644
+    $executableMode = [Convert]::ToInt32('81ED0000', 16)  # regular file, 0755
+    $nativeEntry = Get-PegasusClassifierNativeEntry
+    $root = [IO.Path]::GetFullPath($Source).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+    $zip = [IO.Compression.ZipFile]::Open($Archive, [IO.Compression.ZipArchiveMode]::Create)
+    try {
+        $hasNative = $false
+        foreach ($file in [IO.Directory]::EnumerateFiles($root, '*', [IO.SearchOption]::AllDirectories)) {
+            $name = $file.Substring($root.Length).Replace('\', '/')
+            if ($name -match '(^|/)node_modules/\.bin/') { continue }
+            $entry = [IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                $zip, $file, $name, [IO.Compression.CompressionLevel]::Optimal)
+            if ($name -ceq $nativeEntry) {
+                $hasNative = $true
+                $entry.ExternalAttributes = $executableMode
+            }
+            else {
+                $entry.ExternalAttributes = $fileMode
+            }
+        }
+        if (-not $hasNative) {
+            throw "The classifier package is missing $nativeEntry; its dependencies were not installed for Linux x64."
+        }
+    }
+    finally { $zip.Dispose() }
+}
+
 Push-Location $repositoryRoot
 try {
     $head = (git rev-parse HEAD).Trim()
@@ -77,6 +111,8 @@ try {
     $stagingRoot = Join-Path $releaseRoot '.staging'
     $webPublish = Join-Path $stagingRoot 'web'
     $workerPublish = Join-Path $stagingRoot 'worker'
+    $classifierSource = Join-Path $repositoryRoot 'src/pegasus-classifier-agent'
+    $classifierPublish = Join-Path $stagingRoot 'classifier'
 
     $buildProperties = @(
         "-p:Version=$Version",
@@ -124,6 +160,31 @@ try {
     & dotnet ef migrations bundle --self-contained -r $migrationRuntimeIdentifier --project ./src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj --startup-project ./src/Pegasus.Web/Pegasus.Web.csproj --configuration Release -o (Join-Path $releaseRoot $migrationBundleName) --force
     if ($LASTEXITCODE -ne 0) { throw 'EF migration bundle creation failed.' }
 
+    # The classifier compiles with its development dependencies, then ships
+    # dist/ beside production dependencies installed for the Linux x64 glibc
+    # Flex host whatever the workstation, so the Agent SDK's native binary is
+    # the one the host runs. Install scripts stay off: they would run for the
+    # workstation, not the host.
+    Push-Location $classifierSource
+    try {
+        & npm ci --no-audit --no-fund
+        if ($LASTEXITCODE -ne 0) { throw 'Classifier dependency install failed.' }
+        & npm run build
+        if ($LASTEXITCODE -ne 0) { throw 'Classifier build failed.' }
+    }
+    finally { Pop-Location }
+    New-Item -ItemType Directory -Path $classifierPublish | Out-Null
+    foreach ($classifierFile in @('host.json', 'package.json', 'package-lock.json')) {
+        Copy-Item -LiteralPath (Join-Path $classifierSource $classifierFile) -Destination $classifierPublish
+    }
+    Copy-Item -LiteralPath (Join-Path $classifierSource 'dist') -Destination $classifierPublish -Recurse
+    Push-Location $classifierPublish
+    try {
+        & npm ci --omit=dev --os=linux --cpu=x64 --libc=glibc --ignore-scripts --no-audit --no-fund
+        if ($LASTEXITCODE -ne 0) { throw 'Classifier Linux x64 production dependency install failed.' }
+    }
+    finally { Pop-Location }
+
     [IO.Compression.ZipFile]::CreateFromDirectory(
         $webPublish,
         (Join-Path $releaseRoot 'web.zip'),
@@ -134,12 +195,13 @@ try {
         (Join-Path $releaseRoot 'worker.zip'),
         [IO.Compression.CompressionLevel]::Optimal,
         $false)
+    New-PegasusClassifierArchive -Source $classifierPublish -Archive (Join-Path $releaseRoot 'classifier.zip')
 
     $migrationIdentity = Get-ChildItem ./src/Pegasus.Infrastructure/Persistence/Migrations -Filter '*.cs' |
         Where-Object { $_.Name -notmatch '\.Designer\.cs$|ModelSnapshot\.cs$' } |
         Sort-Object Name |
         Select-Object -Last 1 -ExpandProperty BaseName
-    $artifacts = @('web.zip', 'worker.zip', $migrationBundleName) | ForEach-Object {
+    $artifacts = @('web.zip', 'worker.zip', 'classifier.zip', $migrationBundleName) | ForEach-Object {
         $path = Join-Path $releaseRoot $_
         $file = Get-Item -LiteralPath $path
         [ordered]@{
@@ -149,6 +211,8 @@ try {
         }
     }
     $sdk = dotnet --version
+    $nodeVersion = (node --version).Trim()
+    $npmVersion = (npm --version).Trim()
     $azVersion = (az version | ConvertFrom-Json).'azure-cli'
     $azdVersion = ((azd version) -split ' ')[2]
     $manifest = [ordered]@{
@@ -157,7 +221,7 @@ try {
         sourceRevision = $SourceRevision
         sourceStatus = 'clean'
         createdAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
-        tools = [ordered]@{ dotnetSdk = $sdk.Trim(); azureCli = $azVersion; azureDeveloperCli = $azdVersion }
+        tools = [ordered]@{ dotnetSdk = $sdk.Trim(); node = $nodeVersion; npm = $npmVersion; azureCli = $azVersion; azureDeveloperCli = $azdVersion }
         migrationIdentity = $migrationIdentity
         webPackage = [ordered]@{
             name = 'web.zip'
