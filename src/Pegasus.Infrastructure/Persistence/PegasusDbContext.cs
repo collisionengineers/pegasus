@@ -133,12 +133,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
 
 
 
-    internal DbSet<PrincipalDomainPackageEntity> PrincipalDomainPackages => Set<PrincipalDomainPackageEntity>();
-
-    internal DbSet<PrincipalReferenceEntity> PrincipalReferences => Set<PrincipalReferenceEntity>();
-
-    internal DbSet<PrincipalDomainEvidenceEntity> PrincipalDomainEvidence => Set<PrincipalDomainEvidenceEntity>();
-
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         EnsurePrimaryWorks();
@@ -1096,47 +1090,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
-        builder.Entity<PrincipalDomainPackageEntity>(entity =>
-        {
-            entity.ToTable("PrincipalDomainPackages", table =>
-            {
-                table.HasCheckConstraint("CK_PrincipalDomainPackages_SchemaVersion", "[SchemaVersion] > 0");
-                table.HasCheckConstraint("CK_PrincipalDomainPackages_SourceRowCount", "[SourceRowCount] > 0");
-            });
-            entity.HasKey(item => item.Version);
-            entity.Property(item => item.Version).HasMaxLength(64).IsRequired();
-            entity.Property(item => item.PackageSha256).HasMaxLength(64).IsRequired();
-            entity.Property(item => item.SourcePath).HasMaxLength(512).IsRequired();
-            entity.Property(item => item.SourceContentSha256).HasMaxLength(64).IsRequired();
-            entity.Property(item => item.SourceSheet).HasMaxLength(31).IsRequired();
-            entity.HasMany(item => item.Principals)
-                .WithOne(item => item.Package)
-                .HasForeignKey(item => item.Version)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-
-        builder.Entity<PrincipalReferenceEntity>(entity =>
-        {
-            entity.ToTable("PrincipalReferences", table =>
-                table.HasCheckConstraint("CK_PrincipalReferences_SourceRow", "[SourceRow] > 0"));
-            entity.HasKey(item => new { item.Version, item.Code });
-            entity.Property(item => item.Version).HasMaxLength(64).IsRequired();
-            entity.Property(item => item.Code).HasMaxLength(20).IsRequired();
-            entity.HasMany(item => item.DomainEvidence)
-                .WithOne(item => item.Principal)
-                .HasForeignKey(item => new { item.Version, item.Code })
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-
-        builder.Entity<PrincipalDomainEvidenceEntity>(entity =>
-        {
-            entity.ToTable("PrincipalDomainEvidence");
-            entity.HasKey(item => new { item.Version, item.Code, item.DomainSuffix });
-            entity.Property(item => item.Version).HasMaxLength(64).IsRequired();
-            entity.Property(item => item.Code).HasMaxLength(20).IsRequired();
-            entity.Property(item => item.DomainSuffix).HasMaxLength(254).IsRequired();
-            entity.HasIndex(item => new { item.Version, item.DomainSuffix });
-        });
         CaseWorkflowModelConfiguration.Configure(builder);
         CaseDueChaserModelConfiguration.Configure(builder);
         StaffNotificationModelConfiguration.Configure(builder);
@@ -1757,33 +1710,4 @@ internal sealed class IntakeEvaluationEntity
     public Guid ProcessedReceiptId { get; set; }
     public int Revision { get; set; }
     public DateTimeOffset EvaluatedAtUtc { get; set; }
-}
-
-internal sealed class PrincipalDomainPackageEntity
-{
-    public required string Version { get; set; }
-    public int SchemaVersion { get; set; }
-    public required string PackageSha256 { get; set; }
-    public required string SourcePath { get; set; }
-    public required string SourceContentSha256 { get; set; }
-    public required string SourceSheet { get; set; }
-    public int SourceRowCount { get; set; }
-    public List<PrincipalReferenceEntity> Principals { get; set; } = [];
-}
-
-internal sealed class PrincipalReferenceEntity
-{
-    public required string Version { get; set; }
-    public required string Code { get; set; }
-    public int SourceRow { get; set; }
-    public PrincipalDomainPackageEntity Package { get; set; } = null!;
-    public List<PrincipalDomainEvidenceEntity> DomainEvidence { get; set; } = [];
-}
-
-internal sealed class PrincipalDomainEvidenceEntity
-{
-    public required string Version { get; set; }
-    public required string Code { get; set; }
-    public required string DomainSuffix { get; set; }
-    public PrincipalReferenceEntity Principal { get; set; } = null!;
 }

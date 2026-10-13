@@ -91,7 +91,9 @@ public sealed class PrincipalVocabularyMigrationTests
         var packageHash = await database.ScalarAsync<string>(
             "SELECT PackageSha256 FROM ProviderDomainPackages WHERE Version = 'provider-domains-v1'");
 
-        await context.Database.MigrateAsync();
+        // Pinned to the rename: 20261013100000_DropPrincipalDomainReference later
+        // drops the three renamed tables.
+        await context.Database.MigrateAsync(VocabularyMigration);
 
         // The package identity is hash-pinned, so the migration keeps it as is.
         Assert.Equal(
@@ -232,14 +234,14 @@ public sealed class PrincipalVocabularyMigrationTests
         Assert.Equal(0, await GrantCountAsync(database, WorkerRole, "PrincipalSubmissions", "INSERT"));
         Assert.Equal(0, await GrantCountAsync(database, WorkerRole, "PrincipalSubmissions", "DELETE"));
 
+        // The renamed domain reference tables were dropped by
+        // 20261013100000_DropPrincipalDomainReference, and their grants with them.
         foreach (var table in new[] { "PrincipalDomainEvidence", "PrincipalDomainPackages", "PrincipalReferences" })
         {
-            // Only the Worker reads the domain reference catalog.
-            Assert.Equal(0, await GrantCountAsync(database, WebRole, table, "SELECT"));
-            Assert.Equal(1, await GrantCountAsync(database, WorkerRole, table, "SELECT"));
+            Assert.Equal(0, await TableCountAsync(database, table));
             foreach (var role in new[] { WebRole, WorkerRole })
             {
-                foreach (var permission in new[] { "INSERT", "UPDATE", "DELETE" })
+                foreach (var permission in new[] { "SELECT", "INSERT", "UPDATE", "DELETE" })
                 {
                     Assert.Equal(0, await GrantCountAsync(database, role, table, permission));
                 }

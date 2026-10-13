@@ -415,7 +415,11 @@ which the Decisions section no longer repeats.
 On an Audit Case only: who wrote the original report (the assessors Core's
 third-party report profiles know are offered, any other is typed), its date,
 its roadworthiness and its repairable status. They are Case data, edited in
-the page-wide session (v28 P51, ruled 20 September 2026).
+the page-wide session (v28 P51, ruled 20 September 2026). The engineers
+whose reports Pegasus can read, their printed names and the layouts it
+recognises are those profiles, released as code with corpus evidence; a new
+firm is a code change, and no Contacts entry adds, renames or links one
+(operator, 13 October 2026).
 
 A filed original report fills them (#840). Pegasus reads the report file
 itself, never the e-mail it arrived in:

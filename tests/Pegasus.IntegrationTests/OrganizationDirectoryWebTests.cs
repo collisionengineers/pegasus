@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http;
 using System.Text.RegularExpressions;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -166,6 +167,26 @@ public sealed partial class OrganizationDirectoryWebTests
         {
             Assert.Contains(domain, html, StringComparison.Ordinal);
         }
+    }
+
+    /// <summary>
+    /// A Principal with no accepted e-mail route is a normal state (18 of 33 at
+    /// 13 October 2026); its box says so rather than standing empty.
+    /// </summary>
+    [Fact]
+    public async Task APrincipalWithNoAcceptedRouteSaysSo()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        Assert.False(Pegasus.Core.Intake.PrincipalMailRoutePolicy.AcceptedIdentities.ContainsKey("AMS"));
+        var contactId = await factory.Database.ScalarAsync<Guid>(
+            "SELECT OrganizationId FROM Principals WHERE Code = 'AMS';");
+        var html = await GetContactSettingsAsync(client, $"/Administration/Contacts/Edit/{contactId:D}");
+
+        Assert.Matches(
+            $"""<input id="principal-accepted-identities" value="{Regex.Escape(OperatorLabels.PrincipalAdministration.NoAcceptedRoute)}" readonly[^>]*>""",
+            html);
     }
 
     /// <summary>

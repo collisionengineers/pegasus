@@ -1934,6 +1934,17 @@ public static class OperatorLabels
             ContactRole.ThirdPartyEngineer => "Third Party Engineers",
             _ => role.ToString()
         };
+
+        /// <summary>A refused contact save, worded once for the list's New dialog and the contact page.</summary>
+        public static string ErrorMessage(ContactDirectoryError error) => error switch
+        {
+            ContactDirectoryError.DuplicateOrganizationName => "A contact with that name already exists.",
+            ContactDirectoryError.DuplicatePrincipalCode => "That principal code already exists.",
+            ContactDirectoryError.InvalidPrincipalAssociation => "Check the selected linked principals.",
+            ContactDirectoryError.StaleVersion => "The contact changed after you opened it. Reload it and try again.",
+            ContactDirectoryError.OperationConflict => "This form was already used for a different change.",
+            _ => "The contact could not be saved."
+        };
     }
 
     /// <summary>A Principal contact's own labels (Administration → Contacts, Principal details) — one list.</summary>
@@ -1944,6 +1955,8 @@ public static class OperatorLabels
         public const string ReportGeneration = "Report generation";
         public const string DefaultInspectionLocation = "Default inspection location";
         public const string AcceptedIdentities = "Accepted e-mail identities";
+        /// <summary>A Principal with no accepted route (operator, 13 October 2026).</summary>
+        public const string NoAcceptedRoute = "No accepted e-mail route. Instructions arrive by upload, Triage or the Principal API.";
         public const string State = "State";
         public const string ReplaceCode = "Replace code";
         public const string PrincipalApi = "Principal API";

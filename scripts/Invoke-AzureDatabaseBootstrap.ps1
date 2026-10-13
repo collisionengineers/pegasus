@@ -63,7 +63,8 @@ function Get-MigrationPermissionMatrix {
         '20260929090000_RetireUnusedTables.cs',
         '20261006150000_DropCaseReportDeliveryIntents.cs',
         '20261007184000_RemoveEva.cs',
-        '20261013090000_ContactSingleType.cs'
+        '20261013090000_ContactSingleType.cs',
+        '20261013100000_DropPrincipalDomainReference.cs'
     ) | ForEach-Object {
         $terminalSource = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $migrationPath) $_)
         [regex]::Matches($terminalSource, 'DropTable\(\s*name:\s*"(?<table>[A-Za-z0-9]+)"') |
@@ -628,7 +629,9 @@ function Get-MigrationPermissionMatrix {
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier
     # migrations this matrix reads still name them, and SQL Server keeps a
     # table's permission rows across a rename, so the rows read here are the
-    # same grants under the new names.
+    # same grants under the new names. A renamed table a later migration
+    # dropped (20261013100000_DropPrincipalDomainReference) leaves the matrix
+    # here, under its new name.
     $renamedTables = @{
         ProviderSubmissions = 'PrincipalSubmissions'
         ProviderDomainPackages = 'PrincipalDomainPackages'
@@ -638,6 +641,7 @@ function Get-MigrationPermissionMatrix {
     $renamed = foreach ($row in $expected) {
         $parts = $row.Split('|')
         if ($renamedTables.ContainsKey($parts[3])) { $parts[3] = $renamedTables[$parts[3]] }
+        if ($parts[3] -in $removedTables) { continue }
         $parts -join '|'
     }
     return @($renamed | Sort-Object -Unique)
