@@ -216,7 +216,7 @@ internal sealed class IntakeActionMcpTools(
             "pegasus_intake_action",
             Resource(receiptId),
             key,
-            () => AutomationMcpErrors.ExecuteAsync(() => IntakeRefusalsAsync(async () =>
+            () => AutomationMcpErrors.ExecuteAsync(() => AutomationMcpErrors.IntakeRefusalsAsync("pegasus_intake_get", async () =>
             {
                 var parsed = action?.Trim() switch
                 {
@@ -369,7 +369,7 @@ internal sealed class IntakeActionMcpTools(
             "pegasus_case_create",
             principalCode?.Trim() ?? "invalid",
             key,
-            () => AutomationMcpErrors.ExecuteAsync(() => IntakeRefusalsAsync(async () =>
+            () => AutomationMcpErrors.ExecuteAsync(() => AutomationMcpErrors.IntakeRefusalsAsync("pegasus_intake_get", async () =>
             {
                 var type = Enum.TryParse<CaseType>(caseType?.Trim(), ignoreCase: true, out var parsedType)
                     && Enum.IsDefined(parsedType)
@@ -625,35 +625,6 @@ internal sealed class IntakeActionMcpTools(
             null,
             null,
             null);
-
-    /// <summary>
-    /// The intake refusals carry safe, fixed sentences of their own; they are
-    /// not argument or state exceptions, so they are named here rather than
-    /// collapsing to a generic failure.
-    /// </summary>
-    private static async Task<TResult> IntakeRefusalsAsync<TResult>(Func<Task<TResult>> action)
-    {
-        try
-        {
-            return await action();
-        }
-        catch (Exception exception) when (exception is IntakeVersionConflictException
-            or IntakeAllocationConcurrencyException
-            or InspectionAddressResolutionConcurrencyException)
-        {
-            throw new McpException("The received item changed since it was read; reload it with pegasus_intake_get and retry.");
-        }
-        catch (Exception exception) when (exception is IntakeOperationConflictException
-            or IntakeAllocationOperationConflictException
-            or CaseAcceptanceOperationConflictException)
-        {
-            throw new McpException("The operation key was already used with different details.");
-        }
-        catch (PrincipalUnavailableException)
-        {
-            throw new McpException("The Principal is unavailable.");
-        }
-    }
 
     private static string RequirePrincipalCode(string? principalCode)
     {

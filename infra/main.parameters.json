@@ -26,6 +26,9 @@
     "workerActivation": {
       "value": "${PEGASUS_WORKER_ACTIVATION=disabled}"
     },
+    "classifierActivation": {
+      "value": "${PEGASUS_CLASSIFIER_ACTIVATION=disabled}"
+    },
     "alertEmailAddress": {
       "value": "${PEGASUS_ALERT_EMAIL}"
     },
@@ -94,6 +97,9 @@
     },
     "dvsaScope": {
       "value": "${DVSA_SCOPE}"
+    },
+    "anthropicApiKeySecretUri": {
+      "value": "${ANTHROPIC_API_KEY_SECRET_URI}"
     }
   }
 }

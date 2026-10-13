@@ -4,7 +4,7 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$classifier = Join-Path $PSScriptRoot 'Get-CiChangeFlags.ps1'
+$flagScript = Join-Path $PSScriptRoot 'Get-CiChangeFlags.ps1'
 
 function Assert-Flags {
     param(
@@ -15,7 +15,8 @@ function Assert-Flags {
         # A case that does not name a lane asserts that lane stays off, so a
         # pattern that widens accidentally fails here rather than buying runners.
         [bool] $LocalDevelopment = $false,
-        [bool] $ReferenceData = $false
+        [bool] $ReferenceData = $false,
+        [bool] $Classifier = $false
     )
 
     $expected = [ordered]@{
@@ -23,9 +24,10 @@ function Assert-Flags {
         Infrastructure = $Infrastructure
         LocalDevelopment = $LocalDevelopment
         ReferenceData = $ReferenceData
+        Classifier = $Classifier
     }
 
-    $actual = & $classifier -ChangedPath $ChangedPath
+    $actual = & $flagScript -ChangedPath $ChangedPath
     foreach ($lane in $expected.Keys) {
         if ($actual.$lane -ne $expected[$lane]) {
             $wanted = ($expected.Keys | ForEach-Object { "$_=$($expected[$_])" }) -join ' '
@@ -47,10 +49,15 @@ Assert-Flags -Case 'deployment validator release-artifact dependency' -ChangedPa
 Assert-Flags -Case 'migration source' -ChangedPath 'src/Pegasus.Infrastructure/Persistence/Migrations/20260906_Example.cs' -Build $true -Infrastructure $true
 Assert-Flags -Case 'classification code' -ChangedPath 'scripts/Get-CiChangeFlags.ps1' -Build $true -Infrastructure $true
 Assert-Flags -Case 'shard assignment tests' -ChangedPath 'scripts/Test-TestShard.ps1' -Build $true -Infrastructure $false
-Assert-Flags -Case 'workflow definition' -ChangedPath '.github/workflows/ci.yml' -Build $true -Infrastructure $true
+Assert-Flags -Case 'workflow definition' -ChangedPath '.github/workflows/ci.yml' -Build $true -Infrastructure $true -Classifier $true
 Assert-Flags -Case 'UI-only source' -ChangedPath 'src/Pegasus.Web/Pages/Index.cshtml' -Build $true -Infrastructure $false
 Assert-Flags -Case 'documentation only' -ChangedPath 'docs/index.md' -Build $false -Infrastructure $false
 Assert-Flags -Case 'empty diff' -ChangedPath @() -Build $false -Infrastructure $false
+
+# The classifier agent is a Node project: its lane alone, never the .NET build.
+Assert-Flags -Case 'classifier agent source' -ChangedPath 'src/pegasus-classifier-agent/src/functions/classify.ts' -Build $false -Infrastructure $false -Classifier $true
+Assert-Flags -Case 'classifier agent lock file' -ChangedPath 'src/pegasus-classifier-agent/package-lock.json' -Build $false -Infrastructure $false -Classifier $true
+Assert-Flags -Case 'classifier beside a build input' -ChangedPath @('src/pegasus-classifier-agent/host.json', 'src/Pegasus.Web/Program.cs') -Build $true -Infrastructure $false -Classifier $true
 
 # The LocalDB lifecycle classifier contract: its own tests turn the lane on
 # without implying a release-script change.
@@ -88,8 +95,8 @@ Assert-Flags -Case 'prerequisite doctor' -ChangedPath 'scripts/Invoke-Doctor.ps1
 Assert-Flags -Case 'standalone local tool project' -ChangedPath 'scripts/jev-mail-eval/Pegasus.JevMailEvaluation.csproj' -Build $false -Infrastructure $false
 Assert-Flags -Case 'no-lane path beside a build input' -ChangedPath @('scripts/Invoke-LocalDevelopment.ps1', 'src/Pegasus.Worker/local.settings.example.json') -Build $true -Infrastructure $false
 
-$forced = & $classifier -ChangedPath 'docs/index.md' -ForceAll
-foreach ($lane in 'Build', 'Infrastructure', 'LocalDevelopment', 'ReferenceData') {
+$forced = & $flagScript -ChangedPath 'docs/index.md' -ForceAll
+foreach ($lane in 'Build', 'Infrastructure', 'LocalDevelopment', 'ReferenceData', 'Classifier') {
     if (-not $forced.$lane) {
         throw "ForceAll must enable every conditional lane when a reliable diff is unavailable; $lane stayed off."
     }

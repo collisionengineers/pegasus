@@ -57,6 +57,8 @@ public sealed class AutomationMcpIngressTests
         "pegasus_mail_get",
         "pegasus_mail_correct_classification",
         "pegasus_mail_action",
+        "pegasus_mail_link_destinations",
+        "pegasus_mail_link_case",
         "pegasus_unidentified_list",
         "pegasus_unidentified_get",
         "pegasus_unidentified_resolve",

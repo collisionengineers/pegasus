@@ -68,25 +68,33 @@ try {
 
     $webArchiveSource = Join-Path $fixtureRoot 'web-archive'
     $workerArchiveSource = Join-Path $fixtureRoot 'worker-archive'
+    $classifierArchiveSource = Join-Path $fixtureRoot 'classifier-archive'
     $missingRootSource = Join-Path $fixtureRoot 'missing-root-archive'
     $nestedWebSource = Join-Path $fixtureRoot 'nested-web-archive'
     New-Item -ItemType Directory -Path $webArchiveSource -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $workerArchiveSource '.azurefunctions') -Force | Out-Null
+    $classifierNativePath = Join-Path $classifierArchiveSource (Get-PegasusClassifierNativeEntry)
+    New-Item -ItemType Directory -Path (Split-Path -Parent $classifierNativePath) -Force | Out-Null
     New-Item -ItemType Directory -Path $missingRootSource -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $nestedWebSource 'web') -Force | Out-Null
     Set-Content -LiteralPath (Join-Path $webArchiveSource 'Pegasus.Web.dll') -Value 'fixture' -Encoding utf8NoBOM
     Set-Content -LiteralPath (Join-Path $webArchiveSource 'Pegasus.Web.runtimeconfig.json') -Value '{}' -Encoding utf8NoBOM
     Set-Content -LiteralPath (Join-Path $workerArchiveSource '.azurefunctions/fixture.txt') -Value 'fixture' -Encoding utf8NoBOM
+    Set-Content -LiteralPath (Join-Path $classifierArchiveSource 'host.json') -Value '{}' -Encoding utf8NoBOM
+    Set-Content -LiteralPath (Join-Path $classifierArchiveSource 'package.json') -Value '{}' -Encoding utf8NoBOM
+    Set-Content -LiteralPath $classifierNativePath -Value 'fixture' -Encoding utf8NoBOM
     Set-Content -LiteralPath (Join-Path $missingRootSource 'fixture.txt') -Value 'fixture' -Encoding utf8NoBOM
     # A publish zipped one directory too high: the files exist but not at the root.
     Set-Content -LiteralPath (Join-Path $nestedWebSource 'web/Pegasus.Web.dll') -Value 'fixture' -Encoding utf8NoBOM
     Set-Content -LiteralPath (Join-Path $nestedWebSource 'web/Pegasus.Web.runtimeconfig.json') -Value '{}' -Encoding utf8NoBOM
     $webZipPath = Join-Path $fixtureRoot 'web.zip'
     $workerZipPath = Join-Path $fixtureRoot 'worker.zip'
+    $classifierZipPath = Join-Path $fixtureRoot 'classifier.zip'
     New-ZipFixture -Source $webArchiveSource -Archive $webZipPath
     New-ZipFixture -Source $workerArchiveSource -Archive $workerZipPath
+    New-ZipFixture -Source $classifierArchiveSource -Archive $classifierZipPath
     Set-Content -LiteralPath (Join-Path $fixtureRoot $nativeBundle.Name) -Value 'artifact contract fixture' -Encoding utf8NoBOM
-    $artifacts = @('web.zip', 'worker.zip', $nativeBundle.Name) | ForEach-Object {
+    $artifacts = @('web.zip', 'worker.zip', 'classifier.zip', $nativeBundle.Name) | ForEach-Object {
         $path = Join-Path $fixtureRoot $_
         @{ name = $_; sizeBytes = (Get-Item -LiteralPath $path).Length;
             sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash }
@@ -152,8 +160,16 @@ try {
     Assert-Manifest -ExpectedError 'Web package identity is incomplete or invalid'
     $manifest.webPackage.readyToRun = $true
     $manifest.artifacts = @($manifest.artifacts) + @(@{ name = 'web-image.tar.gz'; sizeBytes = 1; sha256 = 'c' * 64 })
-    Assert-Manifest -ExpectedError 'exactly the Web ZIP, Worker ZIP, and migration bundle'
-    $manifest.artifacts = @($manifest.artifacts | Select-Object -First 3)
+    Assert-Manifest -ExpectedError 'exactly the Web ZIP, Worker ZIP, classifier ZIP, and migration bundle'
+    $manifest.artifacts = @($manifest.artifacts | Select-Object -First 4)
+    # A classifier ZIP whose node_modules were installed for the workstation, not Linux x64.
+    Remove-Item -LiteralPath $classifierNativePath
+    New-ZipFixture -Source $classifierArchiveSource -Archive $classifierZipPath
+    Set-ArtifactIdentity -Index 2 -Path $classifierZipPath
+    Assert-Manifest -ExpectedError "classifier.zip must contain $(Get-PegasusClassifierNativeEntry) at its root"
+    Set-Content -LiteralPath $classifierNativePath -Value 'fixture' -Encoding utf8NoBOM
+    New-ZipFixture -Source $classifierArchiveSource -Archive $classifierZipPath
+    Set-ArtifactIdentity -Index 2 -Path $classifierZipPath
     foreach ($wrongName in @('../efbundle', 'wrong.exe')) {
         $manifest.migrationBundleName = $wrongName
         Assert-Manifest -ExpectedError 'for this workstation'
