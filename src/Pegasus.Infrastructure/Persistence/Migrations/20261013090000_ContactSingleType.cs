@@ -13,7 +13,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// links with it. The RJS rules that named ACSP and CS as Claim sources match the
 /// v5 SOP's own text for them instead. <c>ContactRoles</c> and the unused legacy
 /// <c>OrganizationRoles</c> are dropped, and a Principal link no longer carries a
-/// role. Destructive and forward-only: it refuses to run while any contact holds
+/// role. A name is now unique within one type rather than across the directory.
+/// Destructive and forward-only: it refuses to run while any contact holds
 /// two non-Principal types or no type, or while report sending rules still name a
 /// contact by a type it loses, so the operator chooses first.
 /// </summary>
@@ -88,6 +89,12 @@ public partial class ContactSingleType : Migration
         migrationBuilder.AddCheckConstraint(
             name: "CK_Organizations_Role", table: "Organizations",
             sql: "[Role] IN ('principal', 'claim_source', 'repairer', 'storage', 'third_party_engineer')");
+        // A name is unique within one type: a Repairer and a Storage contact may share it.
+        migrationBuilder.DropIndex(name: "IX_Organizations_NormalizedName", table: "Organizations");
+        // Raw SQL: EF would add an IS NOT NULL filter, which SQL Server refuses on the
+        // computed NormalizedName (20260729187000_OrganizationPrincipalAdministration does the same).
+        migrationBuilder.Sql(
+            "CREATE UNIQUE INDEX [IX_Organizations_NormalizedName_Role] ON [dbo].[Organizations] ([NormalizedName], [Role]);");
 
         migrationBuilder.DropPrimaryKey(name: "PK_ContactPrincipalLinks", table: "ContactPrincipalLinks");
         migrationBuilder.DropIndex(name: "IX_ContactPrincipalLinks_OrganizationId_Role", table: "ContactPrincipalLinks");

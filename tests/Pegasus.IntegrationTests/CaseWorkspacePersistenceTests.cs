@@ -234,47 +234,6 @@ public sealed class CaseWorkspacePersistenceTests
     }
 
     [Fact]
-    public async Task ClaimSourceGuidanceIsAnImmutableTimelineSnapshotAppliedOncePerTemplate()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var sourceId = Guid.NewGuid();
-        await using (var context = await harness.Factory.CreateDbContextAsync())
-        {
-            context.Organizations.Add(new()
-            {
-                Id = sourceId, Name = "Guidance source", Version = 1, Active = true,
-                GuidanceTemplate = "Contact the repairer before finalising.", GuidanceTemplateVersion = 1,
-                Role = "claim_source"
-            });
-            await context.SaveChangesAsync();
-        }
-        var overview = Overview("Jane Example") with { ClaimSource = new(sourceId, 1, "Guidance source", null, null, null) };
-        for (var index = 0; index < 3; index++)
-        {
-            var current = await harness.GetRequiredDataAsync();
-            var lease = await harness.AcquireLeaseAsync(current.Version, harness.StaffActor, $"guidance-edit-{index}");
-            await harness.WorkspaceStore.SaveAsync(Request(harness, current.Version, lease.Token, $"guidance-save-{index}") with
-            {
-                Overview = index == 1 ? overview with { ClaimSource = null } : overview
-            }, default);
-        }
-        await using (var context = await harness.Factory.CreateDbContextAsync())
-        {
-            var source = await context.Organizations.SingleAsync(item => item.Id == sourceId);
-            source.GuidanceTemplate = "Replacement template must not rewrite history.";
-            source.GuidanceTemplateVersion = 2;
-            await context.SaveChangesAsync();
-        }
-        var history = await new EfCaseQueryStore(harness.Factory, harness.TimeProvider)
-            .ListHistoryByCursorAsync(harness.CaseId, null, null, 20, default);
-        var guidance = Assert.Single(history.SelectMany(entry => entry.Guidance));
-        Assert.Equal("Contact the repairer before finalising.", guidance.Text);
-        Assert.Equal("claim_source_guidance_applied", guidance.EventType);
-        Assert.Equal(1, guidance.TemplateVersion);
-        Assert.Equal(history.Count, history.Select(entry => entry.EntryId).Distinct().Count());
-    }
-
-    [Fact]
     public async Task ImageCropAndDamageCommitTogetherAndAStaleImageRollsBackBoth()
     {
         await using var harness = await Harness.CreateAsync();

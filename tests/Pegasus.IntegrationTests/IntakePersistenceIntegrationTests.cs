@@ -244,7 +244,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261012192000_GrantWorkerCaseTasksForReportSent",
                 "20261012193000_SentReportInstructionMove",
                 "20261013090000_ContactSingleType",
-                "20261013091000_ContactSopSeed"
+                "20261013091000_ContactSopSeed",
+                "20261013092000_RemoveContactGuidance"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -454,13 +455,13 @@ public sealed class IntakePersistenceIntegrationTests
                 N'EngineerNotes',
                 N'OrganizationDirectoryEntries')
             """));
-        Assert.Equal(8, await database.ScalarAsync<int>(
+        Assert.Equal(6, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM sys.columns
             WHERE object_id = OBJECT_ID(N'Organizations')
               AND name IN (
                   N'ContactPerson', N'Email', N'Telephone', N'Address',
-                  N'Active', N'GuidanceTemplate', N'GuidanceTemplateVersion', N'Postcode')
+                  N'Active', N'Postcode')
             """));
         Assert.Equal(3, await database.ScalarAsync<int>(
             """

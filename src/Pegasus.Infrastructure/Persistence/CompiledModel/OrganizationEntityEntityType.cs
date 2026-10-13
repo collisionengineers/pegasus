@@ -18,7 +18,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.OrganizationEntity",
                 typeof(OrganizationEntity),
                 baseEntityType,
-                propertyCount: 14,
+                propertyCount: 12,
                 navigationCount: 2,
                 unnamedIndexCount: 2,
                 keyCount: 1);
@@ -69,25 +69,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 nullable: true,
                 maxLength: 320);
             email.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
-            var guidanceTemplate = runtimeEntityType.AddProperty(
-                "GuidanceTemplate",
-                typeof(string),
-                propertyInfo: typeof(OrganizationEntity).GetProperty("GuidanceTemplate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(OrganizationEntity).GetField("<GuidanceTemplate>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                nullable: true,
-                maxLength: 4000);
-            guidanceTemplate.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
-            var guidanceTemplateVersion = runtimeEntityType.AddProperty(
-                "GuidanceTemplateVersion",
-                typeof(long),
-                propertyInfo: typeof(OrganizationEntity).GetProperty("GuidanceTemplateVersion", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(OrganizationEntity).GetField("<GuidanceTemplateVersion>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                valueGenerated: ValueGenerated.OnAdd,
-                sentinel: 0L);
-            guidanceTemplateVersion.AddAnnotation("Relational:DefaultValue", 0L);
-            guidanceTemplateVersion.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var name = runtimeEntityType.AddProperty(
                 "Name",
@@ -162,7 +143,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 new[] { name });
 
             var index0 = runtimeEntityType.AddIndex(
-                new[] { normalizedName },
+                new[] { normalizedName, role },
                 unique: true);
             index0.AddAnnotation("Relational:Filter", null);
 

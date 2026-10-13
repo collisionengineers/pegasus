@@ -478,7 +478,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
                 .HasComputedColumnSql("UPPER(LTRIM(RTRIM([Name])))", stored: true);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => item.Name);
-            entity.HasIndex(item => item.NormalizedName)
+            // A name is unique within one contact type (operator, 13 October 2026).
+            entity.HasIndex(item => new { item.NormalizedName, item.Role })
                 .IsUnique()
                 .HasFilter(null);
         });
@@ -1180,8 +1181,6 @@ internal sealed class OrganizationEntity
     public string? Telephone { get; set; }
     public string? Address { get; set; }
     public string? Postcode { get; set; }
-    public string? GuidanceTemplate { get; set; }
-    public long GuidanceTemplateVersion { get; set; }
     // "Notes on every Case": read live onto every Case of this Principal or from this Claim source.
     public string? NotesOnEveryCase { get; set; }
     public bool Active { get; set; } = true;

@@ -2512,8 +2512,6 @@ public sealed class CaseWorkflowPersistenceTests
         {
             var principal = await context.Principals.Include(item => item.Organization)
                 .SingleAsync(item => item.Code == "QDOS");
-            principal.Organization.GuidanceTemplate = "Contact the repairer before finalising.";
-            principal.Organization.GuidanceTemplateVersion = 1;
             principal.DefaultFee = 195.00m;
             context.CaseSequences.Add(new CaseSequenceEntity
             {
@@ -2646,23 +2644,6 @@ public sealed class CaseWorkflowPersistenceTests
         var replacementIndexRow = await harness.FindMatchIndexRowAsync(allocated.Identity.CaseId);
         Assert.Equal("QDOS", replacementIndexRow?.PrincipalCode);
 
-        await using (var context = await harness.Factory.CreateDbContextAsync())
-        {
-            var principal = await context.Principals.Include(item => item.Organization)
-                .SingleAsync(item => item.Code == "QDOS");
-            principal.Organization.GuidanceTemplate = "Updated guidance for future Cases.";
-            principal.Organization.GuidanceTemplateVersion = 2;
-            await context.SaveChangesAsync();
-        }
-        var history = await harness.QueryStore.ListHistoryByCursorAsync(
-            allocated.Identity.CaseId, null, null, 20, default);
-        var guidance = Assert.Single(history.SelectMany(entry => entry.Guidance));
-        Assert.Equal("principal_guidance_applied", guidance.EventType);
-        Assert.Equal("Contact the repairer before finalising.", guidance.Text);
-        Assert.Equal(1, guidance.TemplateVersion);
-        var originalHistory = await harness.QueryStore.ListHistoryByCursorAsync(
-            harness.CaseId, null, null, 20, default);
-        Assert.Empty(originalHistory.SelectMany(entry => entry.Guidance));
     }
 
     [Fact]
