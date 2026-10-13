@@ -32,8 +32,12 @@ $preserve = @(
 # Preserved only where the schema has it: 20260924180000_CaseWorksAndTriageCases
 # drops TriageSequences (a Triage Case takes its reference from CaseSequences);
 # 20260927002303_EmailTemplates adds EmailTemplates; 20261013090000_ContactSingleType
-# drops ContactRoles and OrganizationRoles.
-$optionalPreserve = @('TriageSequences', 'EmailTemplates', 'ContactRoles', 'OrganizationRoles')
+# drops ContactRoles and OrganizationRoles; 20261013100000_DropPrincipalDomainReference
+# drops the three PrincipalDomain reference tables.
+$optionalPreserve = @(
+    'TriageSequences', 'EmailTemplates', 'ContactRoles', 'OrganizationRoles',
+    'PrincipalDomainEvidence', 'PrincipalDomainPackages', 'PrincipalReferences'
+)
 
 Write-Output "=== Blob inventory: $storageAccount/$container ==="
 $blobsJson = az storage blob list --account-name $storageAccount --container-name $container --auth-mode login --output json

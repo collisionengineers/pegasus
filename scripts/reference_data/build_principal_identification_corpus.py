@@ -287,7 +287,7 @@ QDOS_EXTRACTION_LABELS = (
 
 TRACKED_PEGASUS_SOURCES = (
     ("initial-domain-observations", "reference/workproviders-and-repairers/initial.xlsx", "spreadsheet", "raw-bytes"),
-    ("approved-provider-domain-package", "src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v1.json", "reference-package", "raw-bytes"),
+    ("approved-provider-domain-package", "reference/workproviders-and-repairers/principal-domains.v1.json", "reference-package", "raw-bytes"),
     ("provider-case-export", "reference/workproviders-and-repairers/providers.xlsx", "spreadsheet", "raw-bytes"),
     ("reviewed-provider-workbook", "reference/workproviders-and-repairers/providers-worked-on.xlsx", "spreadsheet", "raw-bytes"),
     ("operator-job-sheet", "reference/workproviders-and-repairers/backup_of_ce_job_sheet_260429.xlsm", "office-document", "raw-bytes"),
@@ -1224,7 +1224,7 @@ def build_package(repository_root: Path, collision_root: Path, corpus_root: Path
             json.loads(
                 (
                     repository_root
-                    / "src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v1.json"
+                    / "reference/workproviders-and-repairers/principal-domains.v1.json"
                 ).read_text(encoding="utf-8")
             )["providers"]
         ),

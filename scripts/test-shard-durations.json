@@ -151,7 +151,6 @@
   "Pegasus.IntegrationTests.PrincipalApiCaseDataSnapshotPersistenceTests": 12.54,
   "Pegasus.IntegrationTests.PrincipalApiSubmissionTests": 148.86,
   "Pegasus.IntegrationTests.PrincipalCredentialPersistenceTests": 7.34,
-  "Pegasus.IntegrationTests.PrincipalDomainReferenceIntegrationTests": 35.99,
   "Pegasus.IntegrationTests.PrincipalInspectionModeAcceptanceTests": 35.87,
   "Pegasus.IntegrationTests.PrincipalInspectionModeMigrationTests": 6.52,
   "Pegasus.IntegrationTests.PrincipalReportSendingRulesMigrationTests": 32.75,

@@ -247,7 +247,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261013090000_ContactSingleType",
                 "20261013090000_LabourRateBuiltInCards",
                 "20261013091000_ContactSopSeed",
-                "20261013092000_RemoveContactGuidance"
+                "20261013092000_RemoveContactGuidance",
+                "20261013100000_DropPrincipalDomainReference"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -317,15 +318,9 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'InstructionDrafts'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'IntakeReceiptEvents'"));
-        Assert.Equal(1, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name = N'PrincipalDomainPackages'"));
-        Assert.Equal(1, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name = N'PrincipalReferences'"));
-        Assert.Equal(1, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name = N'PrincipalDomainEvidence'"));
-        Assert.Equal(1, await database.ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalDomainPackages"));
-        Assert.Equal(11, await database.ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalReferences"));
-        Assert.Equal(16, await database.ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalDomainEvidence"));
+        // 20261013100000_DropPrincipalDomainReference: the seeded domain snapshot is gone.
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'PrincipalDomainPackages', N'PrincipalReferences', N'PrincipalDomainEvidence')"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'Cases'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
