@@ -1923,12 +1923,27 @@ public static class OperatorLabels
             ContactRole.ThirdPartyEngineer => "Third Party Engineer",
             _ => role.ToString()
         };
+
+        /// <summary>The heading of a type's panel on the Contacts list (FRD-17's words).</summary>
+        public static string Plural(ContactRole role) => role switch
+        {
+            ContactRole.Principal => "Principals",
+            ContactRole.ClaimSource => "Claim Sources",
+            ContactRole.Repairer => "Repairers",
+            ContactRole.Storage => "Storage",
+            ContactRole.ThirdPartyEngineer => "Third Party Engineers",
+            _ => role.ToString()
+        };
     }
 
     /// <summary>A Principal contact's own labels (Administration → Contacts, Principal details) — one list.</summary>
     public static class PrincipalAdministration
     {
         public const string Code = "Principal code";
+        public const string ContactTab = "Contact";
+        public const string ReportGeneration = "Report generation";
+        public const string DefaultInspectionLocation = "Default inspection location";
+        public const string AcceptedIdentities = "Accepted e-mail identities";
         public const string State = "State";
         public const string ReplaceCode = "Replace code";
         public const string PrincipalApi = "Principal API";

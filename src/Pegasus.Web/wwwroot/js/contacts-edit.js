@@ -114,6 +114,20 @@
         });
     }
 
+    // Notes on every Case grows to its text, so every line shows without
+    // scrolling inside the box; without script it keeps its four rows.
+    document.querySelectorAll('[data-notes-on-every-case] textarea').forEach(function (area) {
+        area.setAttribute('data-notes-fit', '');
+        var fit = function () {
+            area.style.height = 'auto';
+            area.style.height = (area.scrollHeight + 2) + 'px';
+        };
+        area.addEventListener('input', fit);
+        window.addEventListener('resize', fit);
+        fit();
+        if (document.fonts) { document.fonts.ready.then(fit); }
+    });
+
     var imageBased = document.getElementById('LocationIsImageBasedAssessment');
     if (!imageBased) {
         return;

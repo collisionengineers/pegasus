@@ -791,7 +791,10 @@ does not merge.
 - **Filters are dropdowns; tables sort newest first.** Table filtering uses
   labelled `select` controls (auto-submit with a no-script fallback), not
   rows of pill tabs. Tables default to newest first, and column headers are
-  sort links that toggle direction server-side.
+  sort links that toggle direction server-side. The Contacts list is the
+  exception: one panel per type, each sorted by name, with no sort control
+  (operator, 13 October 2026;
+  [FRD-04](../frd/frd-04-parties-accounts-and-access.md#contacts-administration)).
 
 
 
@@ -888,7 +891,7 @@ deleted in wave 5.
 | `panel`, `panel-head`, `panel-body`, `panel-body--compact`, `panel-body--tight` | Bordered section |
 | `notice`, `notice--success`, `notice--warning`, `notice--danger` | Inline notice: label plus value only |
 | `status` and its tone modifiers | State chip ([Colour](README.md#colour)) |
-| `tabs`, `tab` | `tablist` / `tab` with `aria-selected` |
+| `tabs`, `tab` | `tablist` / `tab` with `aria-selected`; where each tab is its own server-rendered address (`?tab=`), a `nav` of links with `aria-current="page"` (Logs, a Principal contact) |
 | `pane-layout`, `pane-layout--2`, `pane-layout--3`, `pane`, `pane-head`, `pane-body`, `pane-scroll` | Multi-pane workspaces |
 | `queue-layout` | The Cases three-pane variant |
 | `scope-list`, `scope-button` | Left-pane scopes with icon well and count |
