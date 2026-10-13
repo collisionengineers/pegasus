@@ -3,7 +3,7 @@ id: ADR-0069
 status: accepted
 date: 2026-10-12
 supersedes: [ADR-0036, ADR-0052, ADR-0064]
-superseded_by: []
+superseded_by: [ADR-0072]
 related_capabilities: [MAIL-02, MAIL-21, MAIL-22, UI-14]
 related_frd: [FRD-02, FRD-08, FRD-10, FRD-13, FRD-17, FRD-20]
 tags: [mailbox, classification, inbox]
@@ -33,6 +33,14 @@ This record replaces, in part:
 It supersedes the "simplify mail classification" decision in open PR 1126,
 whose ADR-0067 of 8 October 2026 never merged and whose number collides with
 the merged ADR-0067.
+
+[ADR-0072](0072-only-images-become-unidentified-and-no-case-found-mail.md)
+(13 October 2026) supersedes the consequence that the Inbox scope rail is
+All incoming, Unidentified, Sent Items and Dismissed: it is All incoming,
+No Case Found, Sent Items and Dismissed, and the Category list ends in No
+Case Found. It also supersedes decision 2's use of Unidentified as the name
+for mail no classification has decided; such mail is Unclassified, and
+Unidentified is still not a category. The rest of this decision stands.
 
 ## Context
 

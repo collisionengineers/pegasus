@@ -59,7 +59,8 @@ jobs live in the Work Centre and on Administration AI jobs, and Send
 Unidentified to AI is on the Unidentified record. `Triage`, `Unidentified`, `Audit`,
 `Not ready`, `Review` and `Held` keep their settled meanings. Triage is a Case
 type with its own states, reached through the Cases rail;
-Unidentified is a pre-Case record reached through the Cases rail. Neither is
+Unidentified is a pre-Case record reached through the Cases rail's
+Unassigned Images. Neither is
 a Case state.
 
 The common hierarchy of every authenticated page is:
@@ -595,7 +596,7 @@ sprite: `src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml`.
 | `more` | `more-horizontal` | `C1A4C4920823A69EC2AC52D857C011D4EEF7E4BDE6051F3D8A2665EEAB25BE60` | Overflow menus |
 | `clock` | `clock` | `A6C097EC634E7D5B12F7455B463F77B3B96FD57C00585F8780BFC90A683701CB` | Freshness, due |
 | `alert` | `alert-circle` | `563457371665FE2C918D74439CBD5CCFF0382D39B39691DBB7228EEAC26F6F42` | Error summary, blocked |
-| `warning` | `alert-triangle` | `B90088818042B44505F214F711BB9D79F5751ED6D3E489699D5DC9BF01C2989C` | Warning notice, Unidentified queue |
+| `warning` | `alert-triangle` | `B90088818042B44505F214F711BB9D79F5751ED6D3E489699D5DC9BF01C2989C` | Warning notice |
 | `check` | `check` | `A3E47237FD915A5F988C75EE90F1E85EA2C3E682E7301829C87CA627DB4E4F27` | Save, confirm, checks |
 | `check-circle` | `check-circle` | `D2F9F42C4597323E817B24647215BC97274BCECF121B2FEBA78328976FC43953` | Confirmed completion |
 | `file` | `file` | `E9F859A5D8F33262E1D99A22ECDBBD38C861D10F27E4E64F4FB440B12C9D7E31` | Document rows |
@@ -639,7 +640,7 @@ symbols: the fifty-three above plus these twenty-two.
 | — | `list-checks` | `3F03C3F128C5C21F348860C63561EB430BC7F3FD152F07B5499C4FADE643E13A` | Rail: Cases |
 | — | `arrow-up` | `F434D050FA5820052226CC0B907F1C949DE8163EDCCB3D2C2DEBB1397A11AC22` | Report wording: Move up |
 | — | `arrow-down` | `B9674C6E5CC4B78425D60908D272290AE7BC799A61A8B8842525A7ABECD5AA87` | Report wording: Move down |
-| — | `images` | `3736526CF1887288E9D504986D739ADFE2BF83FA0A5411F37529ECD5E87F0285` | Cases Awaiting instruction; Search vehicle images |
+| — | `images` | `3736526CF1887288E9D504986D739ADFE2BF83FA0A5411F37529ECD5E87F0285` | Cases Unassigned Images; Search vehicle images |
 | — | `unlink` | `FA6C00D4700751303B08AF8A35E90B3CE581A77DA80F428F585130BACB39DAE4` | Unlink a message from its Case; Triage Unlink case |
 | — | `rotate-ccw` | `B734EDCBA8DF037C834EAB8A45DC181625008FEEBD20C4109D8F2486A33C27BE` | Rotate view left (paired with `rotate-cw`) |
 | — | `crop` | `D6D10FFBF5D570C7F3CE47D5BA7C34C1ADA38EABD5C18F26164BB1A64A16A109` | Viewer Crop (Case record and pre-Case records); image tile Crop |

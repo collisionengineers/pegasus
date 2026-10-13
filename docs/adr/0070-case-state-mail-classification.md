@@ -3,7 +3,7 @@ id: ADR-0070
 status: accepted
 date: 2026-10-08
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0072]
 related_capabilities: [MAIL-02, MAIL-03, MAIL-04, MAIL-09, MAIL-21]
 related_frd: [frd-08, frd-13, frd-26]
 tags: [mail, classification, lifecycle]
@@ -18,6 +18,14 @@ category of [ADR-0069](0069-one-flat-mail-category.md) on 12 October 2026.
 [FRD-08](../frd/frd-08-email-mailbox-and-background-processing.md) owns the
 rule's wording; [FRD-13](../frd/frd-13-case-lifecycle-and-workflow.md) owns
 the Case query it feeds.
+
+[ADR-0072](0072-only-images-become-unidentified-and-no-case-found-mail.md)
+(13 October 2026) supersedes decision 2's closed-Case arm and its silence on
+a Triage Case: every state but Report sent, a closed Case and a Triage Case
+included, now gives Case update. It widens decision 3 to the staff link to a
+Triage Case and to image intake's automatic link, and it supersedes the
+consequence about the Inbox Unidentified scope, which is now No Case Found.
+Decisions 1 and 4 and the other consequences stand.
 
 ## Context
 

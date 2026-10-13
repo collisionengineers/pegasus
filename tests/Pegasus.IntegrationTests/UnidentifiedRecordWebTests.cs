@@ -31,6 +31,8 @@ public sealed class UnidentifiedRecordWebTests
         Assert.DoesNotContain("data-record-kind", html, StringComparison.Ordinal);
         Assert.Contains("data-unidentified-state=\"open\"", html, StringComparison.Ordinal);
         Assert.Contains("data-unidentified-action=\"close\"", html, StringComparison.Ordinal);
+        // Back to Cases opens Unassigned Images on its open Unidentified items.
+        Assert.Contains("href=\"/Cases?tab=unassigned&amp;show=unidentified\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain($"href=\"/Received/{receiptId:D}/Source\"", html, StringComparison.Ordinal);
         Assert.Contains("data-unidentified-source-unavailable", html, StringComparison.Ordinal);
         Assert.DoesNotContain("View file", html, StringComparison.Ordinal);
@@ -55,12 +57,13 @@ public sealed class UnidentifiedRecordWebTests
         var record = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
         Assert.Contains("data-unidentified-state=\"closed\"", record, StringComparison.Ordinal);
         Assert.Contains("data-unidentified-action=\"reopen\"", record, StringComparison.Ordinal);
+        Assert.Contains("href=\"/Cases?tab=unassigned&amp;show=closed\"", record, StringComparison.Ordinal);
         Assert.Contains(reason, WebUtility.HtmlDecode(record), StringComparison.Ordinal);
         Assert.DoesNotContain("data-unidentified-action=\"close\"", record, StringComparison.Ordinal);
 
-        var open = await IntakeWebDriver.GetHtmlAsync(client, "/Cases?tab=unidentified");
+        var open = await IntakeWebDriver.GetHtmlAsync(client, "/Cases?tab=unassigned&show=unidentified");
         Assert.DoesNotContain($">{reference}</a>", open, StringComparison.Ordinal);
-        var closedList = await IntakeWebDriver.GetHtmlAsync(client, "/Cases?tab=unidentified&show=closed");
+        var closedList = await IntakeWebDriver.GetHtmlAsync(client, "/Cases?tab=unassigned&show=closed");
         Assert.Contains($">{reference}</a>", closedList, StringComparison.Ordinal);
         Assert.Contains($"Closed · {reason}", WebUtility.HtmlDecode(closedList), StringComparison.Ordinal);
 
@@ -72,7 +75,7 @@ public sealed class UnidentifiedRecordWebTests
         });
         Assert.Equal(HttpStatusCode.Redirect, reopened.StatusCode);
 
-        var back = await IntakeWebDriver.GetHtmlAsync(client, "/Cases?tab=unidentified");
+        var back = await IntakeWebDriver.GetHtmlAsync(client, "/Cases?tab=unassigned&show=unidentified");
         Assert.Contains($">{reference}</a>", back, StringComparison.Ordinal);
         // The reopen begins a new occurrence, so a Work Centre dismissal before it no longer hides the row.
         await using var scope = factory.Services.CreateAsyncScope();

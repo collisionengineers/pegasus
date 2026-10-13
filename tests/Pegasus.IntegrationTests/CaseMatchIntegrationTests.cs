@@ -321,6 +321,42 @@ public sealed class CaseMatchIntegrationTests
         Assert.Equal(CaseStateMailClassification.Key, decision.PolicyKey);
     }
 
+    /// <summary>
+    /// A closed Case is no exception (operator, 13 October 2026): a message
+    /// joining it without a category of its own is a Case update, and raises no query.
+    /// </summary>
+    [Fact]
+    public async Task AutomaticAssociationToAClosedCaseClassifiesUnclassifiedMailAsACaseUpdate()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("case-match-accept-state-closed");
+        var receiptId = await harness.SeedAdditionalReceiptAsync("state-classified-closed");
+        await harness.SetWorkflowStateAsync(outcome.Identity.CaseId, CaseLifecycleState.PrincipalCancelled);
+
+        var result = await new EfIntakeMutationStore(harness.Factory).AssociateFromMatchAsync(
+            new(
+                receiptId,
+                outcome.Identity.CaseId,
+                "principal_case_match",
+                1,
+                "system-worker:intake-processing",
+                "case-match-association:state-closed",
+                "Automatic association from the recorded case-match decision."),
+            StartUtc,
+            CancellationToken.None);
+
+        Assert.Equal(AutomaticCaseAssociationOutcome.Associated, result);
+        await using var verify = await harness.Factory.CreateDbContextAsync();
+        var workflow = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == outcome.Identity.CaseId);
+        Assert.Equal(nameof(CaseLifecycleState.PrincipalCancelled), workflow.State);
+        Assert.False(workflow.HasOpenQuery);
+        var decision = await verify.Set<IntakeMailClassificationDecisionEntity>()
+            .SingleAsync(item => item.IntakeReceiptId == receiptId);
+        Assert.Equal("classified", decision.Outcome);
+        Assert.Equal("case-update", decision.Category);
+        Assert.Equal(CaseStateMailClassification.Key, decision.PolicyKey);
+    }
+
     [Fact]
     public async Task AutomaticAssociationNeverOverridesAClassifiedDecision()
     {

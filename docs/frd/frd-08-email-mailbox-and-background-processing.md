@@ -8,7 +8,10 @@
   conversation and content hash as separate facts. Mailbox plus Message-ID
   is what makes a message unique.
 - Every received message gets one of eleven mail categories, or is left
-  Unclassified and shown as Unidentified. Sent items carry no category.
+  Unclassified. Sent items carry no category.
+- A received message linked to no Case waits in the Inbox's No Case Found
+  scope ([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)).
+  An e-mail never becomes an Unidentified item.
 - Every decision and every correction stays in history. Sending is the only
   mailbox write.
 - The Worker alone reads mailboxes. Which mailboxes it reads, when each one
@@ -19,7 +22,7 @@
 - Interrupted intake work is resumed by the reconcile sweep within a minute
   (operator, 11 October 2026).
 
-What Unidentified means, and when mail goes there, is defined in
+What Unidentified means, and which material goes there, is defined in
 [FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference).
 
 ## Purpose
@@ -82,8 +85,8 @@ they do not loosen this rule.
 ### Mail categories and correction
 
 Every retained received message has one mail category from the table below.
-A message no classification has decided is Unclassified and shows as
-Unidentified; Unidentified is not a category. Sent items carry no category.
+A message no classification has decided is Unclassified; Unidentified is not
+a category. Sent items carry no category.
 This section is the only owner of the list (operator, 12 October 2026,
 [ADR-0069](../adr/0069-one-flat-mail-category.md)). The decision dossier in
 git history (`docs/history/plans/mailbox-categorisation-and-email-matching/`)
@@ -103,7 +106,7 @@ later corrections.
 | Category | Positive criteria and exclusions | Method | What it does |
 | --- | --- | --- | --- |
 | New instruction | Accepted Principal Audit, diminution or Inspection instruction evidence; initial work from a client with no accepted route; website-origin evidence meeting the accepted independent fingerprints. A body keyword or quoted old instruction is not enough | route predicate or staff | Carries a work type: Inspection, Audit, or Inspection and Audit. Offers **Create case**; automatic case allocation goes by the work type |
-| Triage request | Accepted Triage request; a missing VRM stays Unidentified under FRD-03 | route predicate or staff | No automatic case: opens the Triage workflow on its accepted Triage match evidence ([FRD-03](frd-03-triage.md)) and defers Unidentified registration |
+| Triage request | Accepted Triage request; with a missing VRM it waits in No Case Found under FRD-03 | route predicate or staff | No automatic case: opens the Triage workflow on its accepted Triage match evidence ([FRD-03](frd-03-triage.md)); it gets no Unidentified item |
 | Pre-instruction | Known pre-formal handling request, excluding Triage | staff | Label |
 | Images received | Images before a formal instruction, excluding an accepted instruction | attachment or route evidence or staff | Offers staff **Register images** for image-only material with no Case and no Triage ([FRD-19](frd-19-image-led-intake-and-pairing.md)) |
 | Case update | Update on ongoing work, excluding a new instruction or a post-report challenge; a client or Principal asking for progress on ongoing work; other ongoing correspondence once the more specific categories are excluded | route predicate, the state of the linked Case, or staff | Label |
@@ -127,13 +130,16 @@ classification policy, is recorded Unclassified under the
 correct it and the workspace lists it; nothing is left without a decision.
 
 **Case-state classification** (`case_state_mail_classification` v1,
-operator 8 October 2026, [ADR-0070](../adr/0070-case-state-mail-classification.md)).
-When a received mail message joins a Case, by automatic association or by a
-staff link, and its decision is still Unclassified, the Case's lifecycle
-state classifies it: a Case in Report sent makes it Query; a Case still in
-progress (Not ready, Held, Review or With Engineer) makes it Case update; a
-closed Case classifies nothing. The Principal's own case-match keys found
-the Case, so this is per-Principal evidence without a per-Principal
+operator 8 and 13 October 2026,
+[ADR-0070](../adr/0070-case-state-mail-classification.md),
+[ADR-0072](../adr/0072-only-images-become-unidentified-and-no-case-found-mail.md)).
+When a received mail message joins a Case, by automatic association, by
+image intake linking its photographs to a Case, or by a staff link, and its
+decision is still Unclassified, the Case's lifecycle state classifies it: a
+Case in Report sent makes it Query; a Case in any other state, a closed Case
+included, and a Triage Case make it Case update: a linked message without a
+category of its own is Case update. The Principal's own case-match keys
+found the Case, so this is per-Principal evidence without a per-Principal
 predicate. A classified decision, including a staff correction, is never
 overridden. The decision is written in the same transaction as the link,
 before the query rule in
@@ -228,7 +234,7 @@ received query and the actual reply are retained as Case correspondence.
 
 | Thing | States |
 | --- | --- |
-| A retained message | Processing (sender not yet established); classified into one mail category, or Unclassified and shown as Unidentified; Case-associated or not |
+| A retained message | Processing (sender not yet established); classified into one mail category, or Unclassified; Case-associated or not |
 
 Case states are owned by
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels). Approved

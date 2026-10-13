@@ -90,10 +90,10 @@ public sealed class ImageIntakeWebTests
         var imageIntakePage = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{detail!.Record.Id:D}");
         Assert.Contains("AB12CDE-01", imageIntakePage);
         Assert.Contains("awaiting definitive instruction", imageIntakePage);
-        Assert.Equal($"/Cases?tab=awaiting&selected={detail.Record.Id:D}", BackToCasesHref(imageIntakePage));
+        Assert.Equal($"/Cases?tab=unassigned&selected={detail.Record.Id:D}", BackToCasesHref(imageIntakePage));
         // The attach decision lives on the Cases list; the original file opens
         // through the kept source route.
-        Assert.Contains($"href=\"/Cases?tab=awaiting&amp;selected={detail.Record.Id:D}\" data-image-action=\"add-to-case\"", imageIntakePage, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases?tab=unassigned&amp;selected={detail.Record.Id:D}\" data-image-action=\"add-to-case\"", imageIntakePage, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Received/{receiptId:D}/Source\"", imageIntakePage, StringComparison.Ordinal);
         Assert.DoesNotContain("View received item", imageIntakePage, StringComparison.Ordinal);
         Assert.DoesNotContain("Open in Box", imageIntakePage, StringComparison.Ordinal);

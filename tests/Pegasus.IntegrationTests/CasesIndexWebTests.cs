@@ -48,7 +48,7 @@ public sealed class CasesIndexWebTests
         Assert.NotNull(image);
 
         using var response = await client.GetAsync(
-            $"/Cases?tab=awaiting&selected={image!.Record.Id:D}");
+            $"/Cases?tab=unassigned&selected={image!.Record.Id:D}");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -130,7 +130,7 @@ public sealed class CasesIndexWebTests
         var image = await scope.ServiceProvider.GetRequiredService<IImageIntakeQueries>()
             .GetByOriginReceiptAsync(receiptId, CancellationToken.None);
         Assert.NotNull(image);
-        using var page = await client.GetAsync($"/Cases?tab=awaiting&selected={image!.Record.Id:D}");
+        using var page = await client.GetAsync($"/Cases?tab=unassigned&selected={image!.Record.Id:D}");
         var html = await page.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, page.StatusCode);

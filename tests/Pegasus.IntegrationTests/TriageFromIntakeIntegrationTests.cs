@@ -12,8 +12,9 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// The operator's Stage 0 rule, end to end through the real intake pipeline —
 /// no stub extraction policy, no injected evidence. A QDOS Triage request opens
-/// a Triage when a vehicle registration is known and waits in Unidentified when
-/// it is not; neither outcome allocates a formal Case/PO.
+/// a Triage when a vehicle registration is known and, when it is not, waits in
+/// the Inbox's No Case Found scope — an e-mail never becomes an Unidentified
+/// item (operator, 13 October 2026); neither outcome allocates a formal Case/PO.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class TriageFromIntakeIntegrationTests
@@ -193,10 +194,11 @@ public sealed class TriageFromIntakeIntegrationTests
 
     [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
-    public async Task ATriageRequestWithNoRegistrationWaitsInUnidentifiedAndOpensNoTriage()
+    public async Task ATriageRequestWithNoRegistrationWaitsWithNoCaseAndOpensNoTriage()
     {
-        // The operator's other branch, verbatim: "keep it as Unidentified …
-        // until a vehicle registration is known, then open the Triage".
+        // The operator's other branch: keep it "until a vehicle registration
+        // is known, then open the Triage". Only images become Unidentified
+        // (operator, 13 October 2026), so the e-mail waits with no Case.
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         var email = IntakeTestEvidence.CreateEmail(
@@ -216,10 +218,11 @@ public sealed class TriageFromIntakeIntegrationTests
             await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
                 .ListAsync(null, CancellationToken.None));
 
-        var item = Assert.IsType<UnidentifiedItem>(
+        Assert.True(ProcessIntake.IsTriageRequest(receipt));
+        Assert.Null(receipt.CurrentCaseId);
+        Assert.Null(
             await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
                 .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
-        Assert.Equal(UnidentifiedState.Open, item.State);
     }
 
     [Fact]
@@ -236,80 +239,9 @@ public sealed class TriageFromIntakeIntegrationTests
 
         var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
 
-        Guid messageId;
+        var messageId = await RetainAsThePollWouldAsync(factory, receiptId, "corrected-to-triage", "Further to our call");
         await using (var lookup = factory.Services.CreateAsyncScope())
         {
-            var contextFactory = lookup.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-            await using var context = await contextFactory.CreateDbContextAsync();
-            var token = await context.IntakeReceipts.Where(item => item.Id == receiptId).Select(item => item.ExternalReceiptToken).SingleAsync();
-            // Processing here does not run the mailbox poll, which is what retains
-            // the message record staff open; retain it as the poll would.
-            var retained = await context.RetainedMailboxMessages
-                .Where(item => item.ExternalReceiptToken == token)
-                .Select(item => (Guid?)item.Id)
-                .SingleOrDefaultAsync();
-            if (retained is null)
-            {
-                var now = DateTimeOffset.UtcNow;
-                var approvedMailboxId = await TestMailboxId.EnsureApprovedAsync(
-                    context, "corrected-triage-mailbox", "intake@example.test", now.AddDays(-1));
-                if (!await context.ApprovedInboxPollStates.AnyAsync(item => item.ApprovedMailboxId == approvedMailboxId))
-                {
-                    context.ApprovedInboxPollStates.Add(new()
-                    {
-                        ApprovedMailboxId = approvedMailboxId,
-                        MailboxAddress = "intake@example.test",
-                        ScopeFingerprint = new string('A', 64),
-                        ActivatedAtUtc = now.AddDays(-1),
-                        DueAtUtc = now,
-                        LastCompletedAtUtc = now.AddMinutes(-1)
-                    });
-                }
-                var message = new RetainedMailboxMessageEntity
-                {
-                    Id = Guid.NewGuid(),
-                    MailboxId = approvedMailboxId,
-                    MailboxAddress = "intake@example.test",
-                    FolderScope = "inbox",
-                    FolderIdentity = "inbox",
-                    ImmutableMessageId = $"corrected-to-triage-{receiptId:N}",
-                    ExternalReceiptToken = token,
-                    SenderAddress = "instructions@qdosassist.co.uk",
-                    SenderDisplayName = "Synthetic sender",
-                    ToAddressesJson = "[]",
-                    CcAddressesJson = "[]",
-                    Subject = "Further to our call",
-                    SourceLength = 1,
-                    SourceSha256 = new string('A', 64),
-                    ReceivedAtUtc = now,
-                    RetainedAtUtc = now
-                };
-                context.RetainedMailboxMessages.Add(message);
-                await context.SaveChangesAsync();
-                retained = message.Id;
-            }
-            messageId = retained.Value;
-            // The route read nothing in this message, so processing recorded no
-            // classification. The record staff correct is the abstention the
-            // classifier would have recorded for it.
-            if (!await context.IntakeMailClassificationDecisions.AnyAsync(item => item.IntakeReceiptId == receiptId))
-            {
-                context.IntakeMailClassificationDecisions.Add(new IntakeMailClassificationDecisionEntity
-                {
-                    IntakeReceiptId = receiptId,
-                    Outcome = "unclassified",
-                    IsReplyContext = false,
-                    PredicatesJson = "{\"version\":1,\"data\":[]}",
-                    Reason = "No supported category matched.",
-                    PolicyKey = "principal_mail_classification",
-                    PolicyVersion = 2,
-                    DecidedByActor = "system-worker:intake-processing",
-                    DecidedAtUtc = DateTimeOffset.UtcNow,
-                    Version = 1,
-                    ConcurrencyToken = Guid.NewGuid()
-                });
-                await context.SaveChangesAsync();
-            }
             Assert.Empty(await lookup.ServiceProvider.GetRequiredService<ITriageQueries>().ListAsync(null, CancellationToken.None));
         }
 
@@ -373,12 +305,12 @@ public sealed class TriageFromIntakeIntegrationTests
 
     [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
-    public async Task StaffSupplyingTheRegistrationOpensTheTriageAndClosesTheUnidentifiedItem()
+    public async Task StaffSupplyingTheRegistrationOnTheMessageOpensTheTriage()
     {
         // The rest of the operator's sentence: a Triage request that never
-        // carried a readable registration waits in Unidentified "until a
-        // vehicle registration is known, then open the Triage" — and the only
-        // thing that can know it here is a member of staff.
+        // carried a readable registration waits "until a vehicle registration
+        // is known, then open the Triage" — and the only thing that can know
+        // it here is a member of staff, on the message itself.
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         var email = IntakeTestEvidence.CreateEmail(
@@ -386,6 +318,7 @@ public sealed class TriageFromIntakeIntegrationTests
             "Triage Only Request\r\n\r\nPlease find attached our client's images.");
 
         var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
+        var messageId = await RetainAsThePollWouldAsync(factory, receiptId, "registration-supplied", "Triage Only Request");
 
         // Stranded exactly as the branch above leaves it.
         await using (var before = factory.Services.CreateAsyncScope())
@@ -393,23 +326,11 @@ public sealed class TriageFromIntakeIntegrationTests
             Assert.Empty(
                 await before.ServiceProvider.GetRequiredService<ITriageQueries>()
                     .ListAsync(null, CancellationToken.None));
-            var open = Assert.IsType<UnidentifiedItem>(
-                await before.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
-                    .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
-            Assert.Equal(UnidentifiedState.Open, open.State);
         }
 
-        // The action is offered on the Unidentified record (received file D2).
-        Guid unidentifiedId;
-        await using (var lookup = factory.Services.CreateAsyncScope())
-        {
-            unidentifiedId = Assert.IsType<UnidentifiedItem>(
-                await lookup.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
-                    .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None)).Id;
-        }
-        var offered = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{unidentifiedId:D}");
+        var offered = await IntakeWebDriver.GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        Assert.Contains("data-offered-action=\"OpenTriage\"", offered, StringComparison.Ordinal);
         Assert.Contains("handler=OpenTriage", offered, StringComparison.Ordinal);
-        Assert.Contains("Open the Triage", offered, StringComparison.Ordinal);
 
         // Typed the way a person types it: lower case, with the separator.
         using var form = new FormUrlEncodedContent(new Dictionary<string, string>
@@ -418,7 +339,7 @@ public sealed class TriageFromIntakeIntegrationTests
             ["vehicleRegistration"] = "vn64 wng",
             ["operationKey"] = Guid.NewGuid().ToString("N")
         });
-        using var opened = await client.PostAsync($"/Unidentified/{unidentifiedId:D}?handler=OpenTriage", form);
+        using var opened = await client.PostAsync($"/Inbox/{messageId:D}?handler=OpenTriage", form);
         Assert.Equal(HttpStatusCode.Redirect, opened.StatusCode);
 
         await using var after = factory.Services.CreateAsyncScope();
@@ -432,25 +353,95 @@ public sealed class TriageFromIntakeIntegrationTests
         Assert.Equal(receiptId, detail.Record.Origin?.ReceiptId);
         Assert.Equal("VN64WNG", detail.Record.NormalizedVehicleRegistration);
         Assert.Equal(TriageState.Open, detail.Record.State);
-
-        // The Unidentified item is stale the moment the Triage exists, and the
-        // resolution names the destination permanently.
-        var unidentifiedStore = after.ServiceProvider.GetRequiredService<IUnidentifiedStore>();
-        var resolved = Assert.IsType<UnidentifiedItem>(
-            await unidentifiedStore.GetByOriginAsync(
-                UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
-        Assert.Equal(UnidentifiedState.Resolved, resolved.State);
-        Assert.Equal(UnidentifiedResolutionTargetKind.Triage, resolved.ResolutionTargetKind);
-        Assert.Equal(triage.CaseId.ToString("N"), resolved.ResolutionTargetId);
-        Assert.Equal("VN64WNG", resolved.ResolutionTargetReference);
-        Assert.Contains(
-            await unidentifiedStore.HistoryAsync(resolved.Id, CancellationToken.None),
-            entry => entry.NewState == UnidentifiedState.Resolved
-                && entry.TargetKind == UnidentifiedResolutionTargetKind.Triage);
+        Assert.Null(
+            await after.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
+                .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
 
         // The receipt now has its destination, so the action is not offered a
         // second time and no second Triage can be opened from the screen.
-        var settled = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{unidentifiedId:D}");
+        var settled = await IntakeWebDriver.GetHtmlAsync(client, $"/Inbox/{messageId:D}");
         Assert.DoesNotContain("handler=OpenTriage", settled, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Processing here does not run the mailbox poll, which is what retains
+    /// the message record staff open; retain it as the poll would.
+    /// </summary>
+    private static async Task<Guid> RetainAsThePollWouldAsync(
+        IntakeWebApplicationFactory factory,
+        Guid receiptId,
+        string key,
+        string subject)
+    {
+        await using var lookup = factory.Services.CreateAsyncScope();
+        var contextFactory = lookup.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var token = await context.IntakeReceipts.Where(item => item.Id == receiptId).Select(item => item.ExternalReceiptToken).SingleAsync();
+        var retained = await context.RetainedMailboxMessages
+            .Where(item => item.ExternalReceiptToken == token)
+            .Select(item => (Guid?)item.Id)
+            .SingleOrDefaultAsync();
+        if (retained is null)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var approvedMailboxId = await TestMailboxId.EnsureApprovedAsync(
+                context, $"{key}-mailbox", "intake@example.test", now.AddDays(-1));
+            if (!await context.ApprovedInboxPollStates.AnyAsync(item => item.ApprovedMailboxId == approvedMailboxId))
+            {
+                context.ApprovedInboxPollStates.Add(new()
+                {
+                    ApprovedMailboxId = approvedMailboxId,
+                    MailboxAddress = "intake@example.test",
+                    ScopeFingerprint = new string('A', 64),
+                    ActivatedAtUtc = now.AddDays(-1),
+                    DueAtUtc = now,
+                    LastCompletedAtUtc = now.AddMinutes(-1)
+                });
+            }
+            var message = new RetainedMailboxMessageEntity
+            {
+                Id = Guid.NewGuid(),
+                MailboxId = approvedMailboxId,
+                MailboxAddress = "intake@example.test",
+                FolderScope = "inbox",
+                FolderIdentity = "inbox",
+                ImmutableMessageId = $"{key}-{receiptId:N}",
+                ExternalReceiptToken = token,
+                SenderAddress = "instructions@qdosassist.co.uk",
+                SenderDisplayName = "Synthetic sender",
+                ToAddressesJson = "[]",
+                CcAddressesJson = "[]",
+                Subject = subject,
+                SourceLength = 1,
+                SourceSha256 = new string('A', 64),
+                ReceivedAtUtc = now,
+                RetainedAtUtc = now
+            };
+            context.RetainedMailboxMessages.Add(message);
+            await context.SaveChangesAsync();
+            retained = message.Id;
+        }
+        // Where the route read nothing in the message, processing recorded no
+        // classification. The record staff correct is the abstention the
+        // classifier would have recorded for it.
+        if (!await context.IntakeMailClassificationDecisions.AnyAsync(item => item.IntakeReceiptId == receiptId))
+        {
+            context.IntakeMailClassificationDecisions.Add(new IntakeMailClassificationDecisionEntity
+            {
+                IntakeReceiptId = receiptId,
+                Outcome = "unclassified",
+                IsReplyContext = false,
+                PredicatesJson = "{\"version\":1,\"data\":[]}",
+                Reason = "No supported category matched.",
+                PolicyKey = "principal_mail_classification",
+                PolicyVersion = 2,
+                DecidedByActor = "system-worker:intake-processing",
+                DecidedAtUtc = DateTimeOffset.UtcNow,
+                Version = 1,
+                ConcurrencyToken = Guid.NewGuid()
+            });
+            await context.SaveChangesAsync();
+        }
+        return retained.Value;
     }
 }

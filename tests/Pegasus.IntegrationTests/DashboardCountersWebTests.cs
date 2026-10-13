@@ -22,10 +22,15 @@ public sealed class DashboardCountersWebTests
         var html = await response.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        foreach (var key in new[] { "not_ready", "review", "held", "unidentified", "triage" })
+        foreach (var key in new[] { "not_ready", "review", "held", "triage" })
         {
             Assert.Contains($"data-value=\"{key}\" href=\"/Cases?tab={key}\"", html);
         }
+        // The Unidentified metric opens Unassigned Images on its Unidentified items.
+        Assert.Contains(
+            "data-value=\"unidentified\" href=\"/Cases?tab=unassigned&amp;show=unidentified\"",
+            html,
+            StringComparison.Ordinal);
 
         Assert.Equal(5, Regex.Count(html, "class=\"metric\" data-value="));
         Assert.DoesNotContain("data-value=\"blocked\"", html, StringComparison.Ordinal);

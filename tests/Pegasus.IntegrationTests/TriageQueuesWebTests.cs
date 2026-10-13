@@ -89,9 +89,10 @@ public sealed class TriageQueuesWebTests
     }
 
     /// <summary>
-    /// Not ready and Awaiting instruction are separate row lists.
-    /// Each rail count must equal its own row count, and the Work Centre's
-    /// Not ready metric must equal the Not ready row count.
+    /// Not ready and Unassigned Images are separate row lists. Not ready's
+    /// rail count equals its row count; Unassigned Images' adds the open
+    /// Unidentified items to its identified rows. The Work Centre's Not ready
+    /// metric must equal the Not ready row count.
     /// </summary>
     [Fact]
     public async Task NotReadyAndAwaitingRailCountsMatchTheirRows()
@@ -157,23 +158,22 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(1, Regex.Count(notReadyHtml, "data-cases-row=\""));
         Assert.Equal(1, railCount);
 
-        using var awaiting = await client.GetAsync("/Cases?tab=awaiting");
+        using var awaiting = await client.GetAsync("/Cases?tab=unassigned");
         var awaitingHtml = await awaiting.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, awaiting.StatusCode);
         Assert.DoesNotContain(instructionCaseReference, awaitingHtml, StringComparison.Ordinal);
         Assert.Contains(imageIntake.ImageIntakeReference, awaitingHtml, StringComparison.Ordinal);
         Assert.Equal(1, Regex.Count(awaitingHtml, "data-cases-row=\""));
-        var awaitingCount = Regex.Match(
-            awaitingHtml,
-            "scope-button[\\s\\S]*?<span>Awaiting instruction</span>\\s*<span>(\\d+)</span>");
-        Assert.True(awaitingCount.Success, "Awaiting instruction rail scope markup not found.");
-        Assert.Equal(1, int.Parse(awaitingCount.Groups[1].Value, CultureInfo.InvariantCulture));
+        // Unassigned Images counts the identified image records awaiting an
+        // instruction and the open Unidentified items behind its Show filter
+        // (operator, 13 October 2026).
+        Assert.Equal(1 + openUnidentifiedCount, QueueCount(awaitingHtml, "Unassigned Images"));
         var shellCount = Regex.Match(
             notReadyHtml,
             "<span>Cases</span>\\s*<span class=\"nav-count\" aria-label=\"(\\d+) outstanding\"");
         Assert.True(shellCount.Success, "Cases shell count markup not found.");
-        // Awaiting instruction has its own tab but remains pre-Case work. The
-        // shell count includes only the FRD's Case and exception queues.
+        // Unassigned Images' awaiting records remain pre-Case work. The shell
+        // count includes only the FRD's Case and exception queues.
         Assert.Equal(
             expectedShellCount,
             int.Parse(shellCount.Groups[1].Value, CultureInfo.InvariantCulture));
@@ -261,7 +261,7 @@ public sealed class TriageQueuesWebTests
         Assert.Contains(queryReference, queryHtml, StringComparison.Ordinal);
         Assert.DoesNotContain(sentReference, queryHtml, StringComparison.Ordinal);
         Assert.Contains("<span class=\"status status--purple\">Query</span>", queryHtml, StringComparison.Ordinal);
-        Assert.Equal(1, QueueCount(queryHtml, "Query"));
+        Assert.Equal(1, QueueCount(queryHtml, "Queries"));
         Assert.Equal(expectedShellCount, ShellCasesCount(queryHtml));
 
         // Issue 1046: a finished Case has no queue. The rail offers none, the
@@ -393,24 +393,24 @@ public sealed class TriageQueuesWebTests
             "No further action is required.",
             Assert.Single(await unidentified.ListClosedQueueAsync(null, 100, CancellationToken.None)).ResolutionReason);
 
-        using var openResponse = await client.GetAsync("/Cases?tab=unidentified");
+        using var openResponse = await client.GetAsync("/Cases?tab=unassigned&show=unidentified");
         var openHtml = await openResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, openResponse.StatusCode);
         // Match the row's detail link, not the bare reference: a short reference
         // such as "U1" can occur inside an antiforgery token.
         Assert.Contains($"href=\"/Unidentified/{open.Item.Id:D}\"", openHtml, StringComparison.Ordinal);
         Assert.DoesNotContain($"href=\"/Unidentified/{closed.Item.Id:D}\"", openHtml, StringComparison.Ordinal);
-        Assert.Equal(1, QueueCount(openHtml, "Unidentified"));
+        Assert.Equal(1, QueueCount(openHtml, "Unassigned Images"));
         Assert.Equal(2, ShellCasesCount(openHtml));
 
-        using var closedResponse = await client.GetAsync("/Cases?tab=unidentified&show=closed");
+        using var closedResponse = await client.GetAsync("/Cases?tab=unassigned&show=closed");
         var closedHtml = await closedResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, closedResponse.StatusCode);
         Assert.Contains($"href=\"/Unidentified/{closed.Item.Id:D}\"", closedHtml, StringComparison.Ordinal);
         Assert.DoesNotContain($"href=\"/Unidentified/{open.Item.Id:D}\"", closedHtml, StringComparison.Ordinal);
         // The outcome is read from the closed row itself.
         Assert.Contains("Closed &#xB7; No further action is required.", closedHtml, StringComparison.Ordinal);
-        Assert.Equal(1, QueueCount(closedHtml, "Unidentified"));
+        Assert.Equal(1, QueueCount(closedHtml, "Unassigned Images"));
         Assert.Equal(2, ShellCasesCount(closedHtml));
     }
 
@@ -435,7 +435,7 @@ public sealed class TriageQueuesWebTests
 
         var imageIntake = await RegisterImageIntakeAsync(factory, client, services, "CD34EFG");
 
-        using var response = await client.GetAsync("/Cases?tab=awaiting");
+        using var response = await client.GetAsync("/Cases?tab=unassigned");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -547,7 +547,27 @@ public sealed class TriageQueuesWebTests
         using var response = await client.GetAsync("/Unidentified");
 
         Assert.Equal(HttpStatusCode.MovedPermanently, response.StatusCode);
-        Assert.Equal("/Cases?tab=unidentified", response.Headers.Location?.OriginalString);
+        Assert.Equal("/Cases?tab=unassigned&show=unidentified", response.Headers.Location?.OriginalString);
+    }
+
+    /// <summary>
+    /// Unassigned Images replaced the Awaiting instruction and Unidentified
+    /// queues (operator, 13 October 2026): their keys are not addresses, and
+    /// the Show filter belongs to Unassigned Images alone.
+    /// </summary>
+    [Theory]
+    [InlineData("awaiting", "/Cases?tab=awaiting")]
+    [InlineData("unidentified", "/Cases?tab=unidentified")]
+    [InlineData("show-open", "/Cases?tab=unassigned&show=open")]
+    public async Task RetiredQueueAddressesAreNotFound(string name, string address)
+    {
+        Assert.NotEmpty(name);
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync(address);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
@@ -595,7 +615,7 @@ public sealed class TriageQueuesWebTests
                 receivedAt),
             CancellationToken.None);
 
-        using var response = await client.GetAsync("/Cases?tab=unidentified");
+        using var response = await client.GetAsync("/Cases?tab=unassigned&show=unidentified");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -675,7 +695,7 @@ public sealed class TriageQueuesWebTests
         Assert.True(closed.Item.IsClosed);
         Assert.Equal(registered.Item.Reference, closed.Item.Reference);
 
-        using var response = await client.GetAsync("/Cases?tab=unidentified");
+        using var response = await client.GetAsync("/Cases?tab=unassigned&show=unidentified");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -685,17 +705,14 @@ public sealed class TriageQueuesWebTests
         Assert.DoesNotMatch($">\\s*{Regex.Escape(registered.Item.Reference)}\\s*<", html);
         Assert.DoesNotContain("Open received item", html, StringComparison.Ordinal);
 
-        // Zero open Unidentified items: the scope count reads zero.
-        var countMatch = Regex.Match(
-            html,
-            "scope-button[\\s\\S]*?<span>Unidentified</span>\\s*<span>(\\d+)</span>");
-        Assert.True(countMatch.Success, "Unidentified rail scope markup not found.");
-        Assert.Equal(0, int.Parse(countMatch.Groups[1].Value, CultureInfo.InvariantCulture));
+        // Zero open Unidentified items and no awaiting records: the Unassigned
+        // Images count reads zero.
+        Assert.Equal(0, QueueCount(html, "Unassigned Images"));
     }
 
     /// <summary>The Cases rail, top to bottom, as one continuous list (issue 1046).</summary>
     private static readonly string[] RailOrder =
-        ["Not ready", "Review", "With Engineer", "Query", "Triage", "Awaiting instruction", "Held", "Unidentified"];
+        ["Not ready", "Unassigned Images", "Review", "With Engineer", "Queries", "Triage", "Held"];
 
     /// <summary>
     /// Not ready is one row list across both case origins, with
@@ -742,7 +759,7 @@ public sealed class TriageQueuesWebTests
         Assert.DoesNotContain("queue-exception", html, StringComparison.Ordinal);
         Assert.Contains("name=\"principal\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"missing\"", html, StringComparison.Ordinal);
-        using var awaiting = await client.GetAsync("/Cases?tab=awaiting");
+        using var awaiting = await client.GetAsync("/Cases?tab=unassigned");
         var awaitingHtml = await awaiting.Content.ReadAsStringAsync();
         Assert.Contains(imageIntake.ImageIntakeReference, awaitingHtml, StringComparison.Ordinal);
         Assert.DoesNotContain(instructionCaseReference, awaitingHtml, StringComparison.Ordinal);
@@ -760,7 +777,7 @@ public sealed class TriageQueuesWebTests
         var selected = await RegisterImageIntakeAsync(factory, client, services, "GH67JKL");
         _ = await RegisterImageIntakeAsync(factory, client, services, "MN89PQR");
 
-        using var response = await client.GetAsync($"/Cases?tab=awaiting&selected={selected.Id:D}");
+        using var response = await client.GetAsync($"/Cases?tab=unassigned&selected={selected.Id:D}");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -779,7 +796,7 @@ public sealed class TriageQueuesWebTests
         await using var scope = factory.Services.CreateAsyncScope();
         _ = await RegisterImageIntakeAsync(factory, client, scope.ServiceProvider, "QR12STU");
 
-        using var response = await client.GetAsync($"/Cases?tab=awaiting&selected={Guid.NewGuid():D}");
+        using var response = await client.GetAsync($"/Cases?tab=unassigned&selected={Guid.NewGuid():D}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -831,7 +848,7 @@ public sealed class TriageQueuesWebTests
         var reference = await CaseReferenceAsync(services, caseId);
         var imageIntake = await RegisterImageIntakeAsync(factory, client, services, "ST12UVX");
 
-        using var surface = await client.GetAsync($"/Cases?tab=awaiting&selected={imageIntake.Id:D}");
+        using var surface = await client.GetAsync($"/Cases?tab=unassigned&selected={imageIntake.Id:D}");
         var surfaceHtml = await surface.Content.ReadAsStringAsync();
         var form = (InputValue(surfaceHtml, "operationId"), InputValue(surfaceHtml, "receiptVersion"));
 
@@ -914,14 +931,15 @@ public sealed class TriageQueuesWebTests
                 $"INSERT INTO IntakeManualAssociations (IntakeReceiptId, CaseId, IsActive, Version, LinkedAtUtc, ActorKind, ActorSubjectId, ActorRolesJson, Reason, LastOperationKey) VALUES ({imageIntake.Origin.ReceiptId}, {caseId}, {true}, {0L}, {DateTimeOffset.UtcNow}, {"Staff"}, {Guid.NewGuid().ToString("D")}, {"[]"}, {"Linked before image merge synchronisation"}, {$"attach-linked:{Guid.NewGuid():N}"})");
         }
 
-        using var response = await client.GetAsync("/Cases?tab=awaiting");
+        using var response = await client.GetAsync("/Cases?tab=unassigned");
         var html = await response.Content.ReadAsStringAsync();
         Assert.DoesNotContain(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
-        var count = Regex.Match(
-            html,
-            "scope-button[\\s\\S]*?<span>Awaiting instruction</span>\\s*<span>(\\d+)</span>");
-        Assert.True(count.Success);
-        Assert.Equal(Regex.Count(html, "data-cases-row=\""), int.Parse(count.Groups[1].Value, CultureInfo.InvariantCulture));
+        // The rail count is the identified rows plus the open Unidentified items.
+        var openUnidentifiedCount = await services.GetRequiredService<IUnidentifiedStore>()
+            .CountOpenAsync(CancellationToken.None);
+        Assert.Equal(
+            Regex.Count(html, "data-cases-row=\"") + openUnidentifiedCount,
+            QueueCount(html, "Unassigned Images"));
     }
 
     /// <summary>
@@ -1066,7 +1084,7 @@ public sealed class TriageQueuesWebTests
         Guid selectedId)
     {
         counter.Reset();
-        using var response = await client.GetAsync($"/Cases?tab=awaiting&selected={selectedId:D}");
+        using var response = await client.GetAsync($"/Cases?tab=unassigned&selected={selectedId:D}");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return counter.ExecutedReaderCommands;
     }
@@ -1365,7 +1383,7 @@ public sealed class TriageQueuesWebTests
         }
         else
         {
-            using var surface = await client.GetAsync($"/Cases?tab=awaiting&selected={id:D}");
+            using var surface = await client.GetAsync($"/Cases?tab=unassigned&selected={id:D}");
             Assert.Equal(HttpStatusCode.OK, surface.StatusCode);
             var surfaceHtml = await surface.Content.ReadAsStringAsync();
             receiptVersion = InputValue(surfaceHtml, "receiptVersion");

@@ -16,7 +16,9 @@
   must confirm the destination, even when exactly one Case matches. The
   declared destination of Add evidence is that confirmation, made first.
 - Confirming a destination files the material on the Case in the same
-  request and resolves its Unidentified item.
+  request and resolves its Unidentified item where it has one. Only images
+  become Unidentified; a document that cannot become a Case is refused by
+  its upload.
 - Cancel changes nothing, except for images that matched an existing Case:
   leaving those undecided registers them as an Image-initiated Case
   (operator, 11 October 2026). The material stays kept and honestly labelled.
@@ -83,8 +85,10 @@ upload rather than chosen after it:
   for {reference}." The files are in Files within seconds; while the Case
   is being edited, filing waits for the editor and retries.
 - Only when the declared Case is gone or archived by the time processing
-  runs does the file stay unlinked: it is then held and becomes an
-  Unidentified item, from which staff link it by hand.
+  runs does the file stay unlinked: an image is then held and becomes an
+  Unidentified item, from which staff link it by hand. Only images become
+  Unidentified
+  ([FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference)).
 
 The review surface still exists for a declared upload (from the Intake
 log): it never offers a decision, and reports **Added to Case** once the
@@ -157,22 +161,27 @@ The decision table, judged against the current retained material:
    A Case created after the registration pairs with it automatically under
    the same FRD-19 rules. Once merged, the surface reports the destination
    Case instead.
-3. **A manual non-image file that could become a Case.** Staff must either
+3. **A manual non-image file that could become a Case**, including one left
+   for sorting or needing document text (**Choose a case destination**).
+   Staff must either
    confirm one existing Case or open the extracted new-Case proposal.
    A unique match is one suggestion, not a selection. The proposal is
    editable. Reject or cancel changes nothing and leaves the source
    unallocated. Accepting runs the existing allocation path and may allocate
    the Case/PO.
-4. **Cannot become a Case** (could not be read, unsupported, or a technical
-   failure) or **the file failed to process.** Reported plainly with its
-   Unidentified item where one exists, and Open file. No offer is made,
-   because none is genuine.
+4. **Could not become a case** (could not be read, unsupported, or a
+   technical failure) or **the file failed to process.** Reported plainly
+   with its Unidentified item where one exists, and Open file. No offer is
+   made, because none is genuine. A document reaching this row gets no
+   Unidentified item: it is refused by its upload (operator, 13 October
+   2026).
 
 One upload is one submission group with one decision. Each member shows its
 own read status. A member that could not be read says so beside its file
-name and never vetoes the decision for the members that could be read. When
-no file could be read, the upload becomes one Unidentified item with the
-reason Could not be read.
+name and never vetoes the decision for the members that could be read. An
+image file that could not be read becomes an Unidentified item with the
+reason Could not be read; a document that could not be read reports Could
+not become a case.
 
 Where the decision is genuinely open (rows 2 and 3) the surface carries it:
 
@@ -293,7 +302,7 @@ right part carries the upload's one decision and nothing else:
 - A file that could not be read is marked on its row and in the filmstrip
   and disclosed beside the decision; its original still travels with the
   upload. When no file could be read, the decision reports it and opens the
-  Unidentified item.
+  Unidentified item where one exists, which only an image has.
 - **Added to Case** names the confirmed destination (reference,
   registration, claimant, Principal, stage) with **Open <reference>**;
   **Upload discarded** states that the material is retained.

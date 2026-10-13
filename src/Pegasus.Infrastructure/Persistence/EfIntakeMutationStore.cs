@@ -875,6 +875,7 @@ internal sealed class EfIntakeMutationStore(
             LastOperationKey = operationKey
         };
         receipt.Version++;
+        ApplyCaseStateClassification(context, receipt, caseAuthority.Workflow, occurredAtUtc);
         caseAuthority.CompleteSystemMutation();
         var afterJson = Snapshot(receipt);
         if (staffGroupOrigin is not null)
@@ -1073,11 +1074,15 @@ internal sealed class EfIntakeMutationStore(
         var queryRaised = false;
         var queryWithdrawn = false;
         var beforeStateJson = caseWorkflow is null ? null : CaseQueryLedger.SnapshotState(caseWorkflow);
+        if (eventType == "intake_case_linked" && caseAuthority is not null)
+        {
+            // A Triage Case has no workflow; its linked message is Case update too.
+            ApplyCaseStateClassification(context, receipt, caseWorkflow, occurredAtUtc);
+        }
         if (caseWorkflow is not null)
         {
             if (eventType == "intake_case_linked")
             {
-                ApplyCaseStateClassification(context, receipt, caseWorkflow, occurredAtUtc);
                 queryRaised = await CaseQueryLedger.RaiseForMailAsync(
                     context, receipt, caseWorkflow, actor.Kind, actor.SubjectId,
                     operationKey, occurredAtUtc, cancellationToken);
@@ -1165,11 +1170,12 @@ internal sealed class EfIntakeMutationStore(
     /// with no Principal classification takes its category from the Case's state,
     /// written as the automated decision before the query rule reads it. A
     /// corrected decision (version above one) is left alone by the shared apply.
+    /// A Triage Case has no workflow (<paramref name="workflow"/> is null).
     /// </summary>
     private static void ApplyCaseStateClassification(
         PegasusDbContext context,
         IntakeReceiptEntity receipt,
-        CaseWorkflowEntity workflow,
+        CaseWorkflowEntity? workflow,
         DateTimeOffset occurredAtUtc)
     {
         if (receipt.SourceChannel != "mailbox")
@@ -1180,7 +1186,7 @@ internal sealed class EfIntakeMutationStore(
             ? EfIntakeReceiptStore.MapMailClassificationDecision(decision)
             : null;
         var derived = CaseStateMailClassification.Derive(
-            current, Enum.Parse<CaseLifecycleState>(workflow.State));
+            current, workflow is null ? null : Enum.Parse<CaseLifecycleState>(workflow.State));
         if (derived is not null)
         {
             EfIntakeReceiptStore.ApplyMailClassificationDecision(
