@@ -16,7 +16,6 @@ public sealed class IndexModel(
     public IReadOnlyList<PrincipalAdministrationDetails> PrincipalChoices { get; private set; } = [];
 
     [BindProperty(SupportsGet = true)] public ContactRole? Type { get; set; }
-    [BindProperty(SupportsGet = true)] public ContactSort Sort { get; set; } = ContactSort.Name;
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
     [BindProperty(SupportsGet = true)] public ContactRole? CreateType { get; set; }
 
@@ -45,14 +44,9 @@ public sealed class IndexModel(
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
-        if (!Enum.IsDefined(Sort)) Sort = ContactSort.Name;
         if (CreateType is { } role && !Enum.IsDefined(role)) CreateType = null;
-        if (CreateType is not null)
-        {
-            ContactId = Guid.NewGuid();
-            await PopulateWizardAsync(actor, cancellationToken);
-        }
-        await LoadContactsAsync(actor, cancellationToken);
+        if (CreateType is not null) ContactId = Guid.NewGuid();
+        await LoadAsync(actor, cancellationToken);
         return Page();
     }
 
@@ -83,7 +77,7 @@ public sealed class IndexModel(
             {
                 await administration.SaveAsync(BuildSaveRequest(actor), cancellationToken);
                 TempData["AdministrationStatus"] = "The contact was saved.";
-                return RedirectToPage(new { Search, Type, Sort });
+                return RedirectToPage(new { Search, Type });
             }
             catch (ContactDirectoryException exception)
             {
@@ -95,7 +89,7 @@ public sealed class IndexModel(
                 // other refusal keeps the general notice.
                 if (exception.ParamName == nameof(Telephone))
                 {
-                    ModelState.AddModelError(nameof(Telephone), "Telephone must be digits.");
+                    ModelState.AddModelError(nameof(Telephone), "Phone must be digits.");
                 }
                 else
                 {
@@ -139,16 +133,20 @@ public sealed class IndexModel(
 
     private async Task<IActionResult> ReturnWizardAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        await PopulateWizardAsync(actor, cancellationToken);
-        await LoadContactsAsync(actor, cancellationToken);
+        await LoadAsync(actor, cancellationToken);
         return Page();
     }
 
-    private async Task PopulateWizardAsync(ActionActor actor, CancellationToken cancellationToken) =>
+    // The Principal choices serve the create dialog and the Linked principals column.
+    private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
         PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, cancellationToken);
+        Contacts = await contacts.ListAsync(new(actor, Type, Search), cancellationToken);
+    }
 
-    private async Task LoadContactsAsync(ActionActor actor, CancellationToken cancellationToken) =>
-        Contacts = await contacts.ListAsync(new(actor, Type, Sort, Search), cancellationToken);
+    /// <summary>The codes of the active Principals a contact is linked to, in the choices' order.</summary>
+    public string[] LinkedPrincipalCodes(ContactDirectoryRecord contact) =>
+        [.. PrincipalChoices.Where(choice => contact.LinkedPrincipalIds?.Contains(choice.Principal.Id) == true).Select(choice => choice.Principal.Code)];
 
     private static string ContactErrorMessage(ContactDirectoryError error) => error switch
     {

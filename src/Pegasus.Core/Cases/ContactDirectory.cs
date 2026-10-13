@@ -14,13 +14,6 @@ public enum ContactRole
     ThirdPartyEngineer
 }
 
-public enum ContactSort
-{
-    Name,
-    Type,
-    LastCase
-}
-
 public sealed record ContactDirectoryRecord(
     Guid OrganizationId,
     string Name,
@@ -36,12 +29,12 @@ public sealed record ContactDirectoryRecord(
     string? LastCaseReference,
     IReadOnlyList<Guid>? LinkedPrincipalIds = null,
     IReadOnlyList<Guid>? OwnPrincipalIds = null,
-    string? NotesOnEveryCase = null);
+    string? NotesOnEveryCase = null,
+    string? PrincipalCode = null);
 
 public sealed record ContactDirectoryQuery(
     ActionActor Actor,
     ContactRole? Role,
-    ContactSort Sort,
     string? Search = null,
     int Limit = 200);
 

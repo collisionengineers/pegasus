@@ -15,3 +15,11 @@ No .NET build was run, because another lane owns the build on this host. The she
 The self-check passed with 262 checks and no console error. Points that needed a choice were drawn plainly and listed rather than decided: per-type columns (B), what a possible match does now (F), the duplicate-name sentence and name uniqueness (G), the Type box (H), the read-only code and inspection mode (I, J), folding Principal settings (K), tabs (L), the fitted notes box (M), where a save lands (N, O), the links grid (P), three live defects (Q) and Guidance for new Cases (R). v39 T and U are carried as S and T.
 
 Open: every lettered item in `v40-notes.md` section 6.
+
+## 13 October 2026: the rulings and approval
+
+The operator settled every item and asked for Stage 2. A, B, D to F, H to K and M to T were confirmed. C: each panel sorted by name, with no Sort control. G: names unique per type, refused with "A contact with that name already exists." on Add and Edit. L: tabs, working without script, with Replace code below them and the heading "Report generation". R: Guidance for new Cases removed. The outcomes are in [v40-notes.md](v40-notes.md#6-sign-off-list).
+
+## 13 October 2026: Stage 2
+
+Implemented on `task/v40-contacts-stage2`, stacked on PRs #1314 and #1315; see [v40-notes.md](v40-notes.md#10-stage-2-13-october-2026). The routed pages were shot into `stage2-shots/` and checked: 77 checks, none failing.
