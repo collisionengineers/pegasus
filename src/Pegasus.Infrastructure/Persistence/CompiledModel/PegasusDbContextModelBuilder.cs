@@ -13,7 +13,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
     public partial class PegasusDbContextModel
     {
         private PegasusDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("dbed43ae-a70b-4c91-9cc7-d2db5619db62"), entityTypeCount: 124)
+            : base(skipDetectChanges: false, modelId: new Guid("840302d2-a0be-4924-af5d-b3cd35a8a857"), entityTypeCount: 122)
         {
         }
 
@@ -67,7 +67,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             var caseWorkflowEntity = CaseWorkflowEntityEntityType.Create(this);
             var caseWorkflowEventEntity = CaseWorkflowEventEntityEntityType.Create(this);
             var contactPrincipalLinkEntity = ContactPrincipalLinkEntityEntityType.Create(this);
-            var contactRoleEntity = ContactRoleEntityEntityType.Create(this);
             var documentContentCacheEntryEntity = DocumentContentCacheEntryEntityEntityType.Create(this);
             var documentOccurrenceEntity = DocumentOccurrenceEntityEntityType.Create(this);
             var documentOccurrenceTagEntity = DocumentOccurrenceTagEntityEntityType.Create(this);
@@ -108,7 +107,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             var labourRateCardEntity = LabourRateCardEntityEntityType.Create(this);
             var organizationAdministrationOperationEntity = OrganizationAdministrationOperationEntityEntityType.Create(this);
             var organizationEntity = OrganizationEntityEntityType.Create(this);
-            var organizationRoleEntity = OrganizationRoleEntityEntityType.Create(this);
             var pegasusIdentityUser = PegasusIdentityUserEntityType.Create(this);
             var principalApiCredentialEntity = PrincipalApiCredentialEntityEntityType.Create(this);
             var principalDomainEvidenceEntity = PrincipalDomainEvidenceEntityEntityType.Create(this);
@@ -201,7 +199,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             CaseWorkflowEventEntityEntityType.CreateForeignKey1(caseWorkflowEventEntity, caseWorkflowEntity);
             ContactPrincipalLinkEntityEntityType.CreateForeignKey1(contactPrincipalLinkEntity, organizationEntity);
             ContactPrincipalLinkEntityEntityType.CreateForeignKey2(contactPrincipalLinkEntity, principalEntity);
-            ContactRoleEntityEntityType.CreateForeignKey1(contactRoleEntity, organizationEntity);
             DocumentContentCacheEntryEntityEntityType.CreateForeignKey1(documentContentCacheEntryEntity, documentVersionEntity);
             DocumentContentCacheEntryEntityEntityType.CreateForeignKey2(documentContentCacheEntryEntity, intakeAssetEntity);
             DocumentOccurrenceEntityEntityType.CreateForeignKey1(documentOccurrenceEntity, caseEntity);
@@ -250,7 +247,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             IntakeSubmissionGroupMemberEntityEntityType.CreateForeignKey1(intakeSubmissionGroupMemberEntity, intakeSubmissionGroupEntity);
             IntakeSubmissionGroupMemberEntityEntityType.CreateForeignKey2(intakeSubmissionGroupMemberEntity, intakeStagedReceiptEntity);
             IntakeWorkItemEntityEntityType.CreateForeignKey1(intakeWorkItemEntity, intakeStagedReceiptEntity);
-            OrganizationRoleEntityEntityType.CreateForeignKey1(organizationRoleEntity, organizationEntity);
             PrincipalApiCredentialEntityEntityType.CreateForeignKey1(principalApiCredentialEntity, principalEntity);
             PrincipalDomainEvidenceEntityEntityType.CreateForeignKey1(principalDomainEvidenceEntity, principalReferenceEntity);
             PrincipalEntityEntityType.CreateForeignKey1(principalEntity, organizationEntity);
@@ -330,7 +326,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             CaseWorkflowEntityEntityType.CreateAnnotations(caseWorkflowEntity);
             CaseWorkflowEventEntityEntityType.CreateAnnotations(caseWorkflowEventEntity);
             ContactPrincipalLinkEntityEntityType.CreateAnnotations(contactPrincipalLinkEntity);
-            ContactRoleEntityEntityType.CreateAnnotations(contactRoleEntity);
             DocumentContentCacheEntryEntityEntityType.CreateAnnotations(documentContentCacheEntryEntity);
             DocumentOccurrenceEntityEntityType.CreateAnnotations(documentOccurrenceEntity);
             DocumentOccurrenceTagEntityEntityType.CreateAnnotations(documentOccurrenceTagEntity);
@@ -371,7 +366,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             LabourRateCardEntityEntityType.CreateAnnotations(labourRateCardEntity);
             OrganizationAdministrationOperationEntityEntityType.CreateAnnotations(organizationAdministrationOperationEntity);
             OrganizationEntityEntityType.CreateAnnotations(organizationEntity);
-            OrganizationRoleEntityEntityType.CreateAnnotations(organizationRoleEntity);
             PegasusIdentityUserEntityType.CreateAnnotations(pegasusIdentityUser);
             PrincipalApiCredentialEntityEntityType.CreateAnnotations(principalApiCredentialEntity);
             PrincipalDomainEvidenceEntityEntityType.CreateAnnotations(principalDomainEvidenceEntity);

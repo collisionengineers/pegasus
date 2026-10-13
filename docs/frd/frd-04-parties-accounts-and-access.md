@@ -4,9 +4,9 @@
 
 ## Short version
 
-- Contacts are external organisations. One organisation can be a Principal,
-  Claim Source, Repairer, Storage provider or Third Party Engineer. Staff
-  accounts are separate.
+- Contacts are external organisations. Each has exactly one type, chosen
+  when it is added and never changed: Principal, Claim Source, Repairer,
+  Storage provider or Third Party Engineer. Staff accounts are separate.
 - Each Case keeps its own copy of the parties it was accepted with. Editing
   the Contacts directory later never changes that copy.
 - Every staff account has exactly one role: Administrator, Engineer or User.
@@ -31,9 +31,10 @@ and what goes into permanent history. Case identity is in
 ### Parties, principals, organisations, accounts, and access
 
 A Principal is the customer role that instructs and pays Collision
-Engineers. One reusable Organisation can also be a Claim Source, Repairer,
-Storage provider or Third Party Engineer. A Principal never links to another
-Principal. Each non-Principal contact role may link to several Principals.
+Engineers. Every Contact has one type: Principal, Claim Source, Repairer,
+Storage provider or Third Party Engineer (operator, 13 October 2026). A
+Principal never links to another Principal. A Contact of any other type may
+link to several Principals.
 Staff accounts are not Contacts.
 
 A repairer, broker, agent, client, legal representative, provider, vehicle
@@ -98,13 +99,13 @@ state. Phone accepts digits, spaces and one optional leading `+` only. UK
 numbers are written with a leading `0` and internal spaces. Letters and other
 characters are rejected in the field and on the server.
 
-**Add contact** first asks for the role: Principal, Claim Source, Repairer,
-Storage or Third Party Engineer. It then creates that role on a new identity
-or adds it to an existing identity the operator picks. Matching names are
-suggestions only. Pegasus never merges records by itself.
+**Add contact** first asks for the type: Principal, Claim Source, Repairer,
+Storage or Third Party Engineer. It then creates a new Contact of that type.
+Matching names are suggestions only, each opening the existing Contact.
+Pegasus never merges records by itself, and a Contact's type never changes.
 
-Principal policy lives on the Principal role of its Contact. A Principal code
-is created in the same transaction as that role and stays with the same
+Principal policy lives on its Principal Contact. A Principal code is created
+in the same transaction as that Contact and stays with the same
 Contact through a code replacement
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
 A duplicate organisation name or Principal code fails without leaving an

@@ -1008,7 +1008,7 @@ public sealed partial class CaseCreateWebTests
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"Hand-keyed provider"}, {0L})");
+            $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {"Hand-keyed provider"}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {RecordedAtUtc})");
         await context.Database.ExecuteSqlInterpolatedAsync(
@@ -1037,7 +1037,7 @@ public sealed partial class CaseCreateWebTests
                 null,
                 null,
                 true,
-                [ContactRole.ClaimSource],
+                ContactRole.ClaimSource,
                 null,
                 CaseInspectionMode.PhysicalAddress,
                 [],

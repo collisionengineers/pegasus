@@ -1911,6 +1911,20 @@ public static class OperatorLabels
         }
     }
 
+    /// <summary>Administration → Contacts: the one type each contact has.</summary>
+    public static class Contacts
+    {
+        public static string Type(ContactRole role) => role switch
+        {
+            ContactRole.Principal => "Principal",
+            ContactRole.ClaimSource => "Claim Source",
+            ContactRole.Repairer => "Repairer",
+            ContactRole.Storage => "Storage",
+            ContactRole.ThirdPartyEngineer => "Third Party Engineer",
+            _ => role.ToString()
+        };
+    }
+
     /// <summary>A Principal contact's own labels (Administration → Contacts, Principal details) — one list.</summary>
     public static class PrincipalAdministration
     {

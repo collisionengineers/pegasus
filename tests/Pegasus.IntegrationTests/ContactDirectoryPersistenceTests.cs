@@ -15,58 +15,61 @@ public sealed class ContactDirectoryPersistenceTests
         [StaffRole.Administrator]);
 
     [Fact]
-    public async Task SaveKeepsEachPrincipalAssociationOnItsSelectedRole()
+    public async Task SaveKeepsTheLinkedPrincipalsAndTheOneFixedType()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var firstPrincipal = await SaveAsync(database, NewPrincipal("First principal", "CP01"));
         var secondPrincipal = await SaveAsync(database, NewPrincipal("Second principal", "CP02"));
         var contactId = Guid.NewGuid();
+        Guid[] linked = [.. new[] { firstPrincipal.OwnPrincipalIds!.Single(), secondPrincipal.OwnPrincipalIds!.Single() }.Order()];
 
-        var saved = await SaveAsync(database, new(
+        var request = new SaveContactRequest(
             Administrator,
             contactId,
             0,
-            "Multi-role contact",
+            "Linked repairer",
             null,
             null,
             null,
             "1 Contact Street",
             "AB1 2CD",
             true,
-            [ContactRole.ClaimSource, ContactRole.Repairer],
+            ContactRole.Repairer,
             null,
             CaseInspectionMode.PhysicalAddress,
-            [
-                new(contactId, ContactRole.ClaimSource, firstPrincipal.OwnPrincipalIds!.Single()),
-                new(contactId, ContactRole.Repairer, secondPrincipal.OwnPrincipalIds!.Single())
-            ],
-            Guid.NewGuid().ToString("N")));
+            linked,
+            Guid.NewGuid().ToString("N"));
+        var saved = await SaveAsync(database, request);
 
         Assert.Equal("AB1 2CD", saved.Postcode);
-        Assert.Equal(
-            [
-                new ContactPrincipalAssociation(contactId, ContactRole.ClaimSource, firstPrincipal.OwnPrincipalIds!.Single()),
-                new ContactPrincipalAssociation(contactId, ContactRole.Repairer, secondPrincipal.OwnPrincipalIds!.Single())
-            ],
-            saved.PrincipalAssociations!.OrderBy(item => item.Role).ToArray());
+        Assert.Equal(ContactRole.Repairer, saved.Role);
+        Assert.Equal(linked, saved.LinkedPrincipalIds);
 
         await using var scope = database.CreateAsyncScope();
         var contacts = scope.ServiceProvider.GetRequiredService<IContactDirectoryQueries>();
         var reread = await contacts.GetAsync(Administrator, contactId, CancellationToken.None);
         Assert.NotNull(reread);
-        Assert.Equal(saved.PrincipalAssociations, reread.PrincipalAssociations);
+        Assert.Equal(ContactRole.Repairer, reread.Role);
+        Assert.Equal(linked, reread.LinkedPrincipalIds);
 
         await using var context = await scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
             .CreateDbContextAsync();
-        var links = await context.Set<ContactPrincipalLinkEntity>()
-            .Where(item => item.OrganizationId == contactId)
-            .OrderBy(item => item.Role)
-            .ToArrayAsync();
-        Assert.Collection(
-            links,
-            link => Assert.Equal((firstPrincipal.OwnPrincipalIds!.Single(), "claim_source"), (link.PrincipalId, link.Role)),
-            link => Assert.Equal((secondPrincipal.OwnPrincipalIds!.Single(), "repairer"), (link.PrincipalId, link.Role)));
+        Assert.Equal(
+            linked,
+            await context.Set<ContactPrincipalLinkEntity>()
+                .Where(item => item.OrganizationId == contactId)
+                .Select(item => item.PrincipalId)
+                .OrderBy(item => item)
+                .ToArrayAsync());
+
+        // The type is chosen when the contact is added and never changes.
+        await Assert.ThrowsAsync<ArgumentException>(() => SaveAsync(database, request with
+        {
+            ExpectedVersion = saved.Version,
+            Role = ContactRole.Storage,
+            OperationKey = Guid.NewGuid().ToString("N")
+        }));
     }
 
     [Fact]
@@ -85,13 +88,9 @@ public sealed class ContactDirectoryPersistenceTests
                 {
                     Id = contactId,
                     Name = "Migrated contact",
+                    Role = "claim_source",
                     Active = true,
                     Version = 0
-                });
-                context.Set<ContactRoleEntity>().Add(new()
-                {
-                    OrganizationId = contactId,
-                    Role = "claim_source"
                 });
                 await context.SaveChangesAsync();
             }
@@ -167,7 +166,7 @@ public sealed class ContactDirectoryPersistenceTests
         var repairer = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with
         {
             Name = fixturePrefix + "Mike repairer",
-            Roles = [ContactRole.Repairer]
+            Role = ContactRole.Repairer
         });
         var receivedAtUtc = new DateTimeOffset(2030, 1, 2, 3, 4, 5, TimeSpan.Zero);
         await using (var scope = database.CreateAsyncScope())
@@ -249,7 +248,7 @@ public sealed class ContactDirectoryPersistenceTests
         null,
         null,
         true,
-        [ContactRole.Principal],
+        ContactRole.Principal,
         code,
         CaseInspectionMode.PhysicalAddress,
         [],
@@ -286,7 +285,7 @@ public sealed class ContactDirectoryPersistenceTests
         null,
         null,
         true,
-        [ContactRole.ClaimSource],
+        ContactRole.ClaimSource,
         null,
         CaseInspectionMode.PhysicalAddress,
         [],

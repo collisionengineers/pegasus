@@ -3589,7 +3589,7 @@ public sealed class CaseWorkflowPersistenceTests
                 mailbox.SentFolderIdentity = ApprovedSentFolderIdentity;
                 mailbox.Version = 2;
                 await context.Database.ExecuteSqlInterpolatedAsync(
-                    $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"Workflow test organization"}, {0L})");
+                    $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {"Workflow test organization"}, {0L})");
                 await context.Database.ExecuteSqlInterpolatedAsync(
                     $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({tstLineageId}, {StartUtc})");
                 await context.Database.ExecuteSqlInterpolatedAsync(

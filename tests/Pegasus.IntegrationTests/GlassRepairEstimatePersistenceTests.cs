@@ -1219,7 +1219,7 @@ public sealed class GlassRepairEstimatePersistenceTests
             var receiptId = Guid.NewGuid();
             var caseId = Guid.NewGuid();
             context.AddRange(
-                new OrganizationEntity { Id = organizationId, Name = $"Glass's session test {reference}", Version = 0 },
+                new OrganizationEntity { Role = "principal", Id = organizationId, Name = $"Glass's session test {reference}", Version = 0 },
                 new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = occurredAtUtc },
                 new PrincipalEntity
                 {

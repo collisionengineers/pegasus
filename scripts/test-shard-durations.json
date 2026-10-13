@@ -145,7 +145,6 @@
   "Pegasus.IntegrationTests.OperationsPersistenceTests": 14.82,
   "Pegasus.IntegrationTests.OrganizationAdministrationPersistenceTests": 24.12,
   "Pegasus.IntegrationTests.OrganizationAdministrationWebTests": 65.9,
-  "Pegasus.IntegrationTests.OrganizationDirectoryPersistenceTests": 50.73,
   "Pegasus.IntegrationTests.OrganizationDirectoryWebTests": 47.68,
   "Pegasus.IntegrationTests.OriginalReportPrefillAcceptanceTests": 22.38,
   "Pegasus.IntegrationTests.PreCaseImagePreparationWebTests": 23.86,

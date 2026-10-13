@@ -114,52 +114,6 @@
         });
     }
 
-    var contactEditor = document.querySelector('[data-contact-editor]');
-    if (contactEditor) {
-        var roleInputs = contactEditor.querySelectorAll('[data-contact-role]');
-        var principalFields = contactEditor.querySelector('[data-principal-fields]');
-        var caseGuidance = contactEditor.querySelector('[data-case-guidance]');
-        var linkedPrincipals = contactEditor.querySelector('[data-linked-principals]');
-
-        var hasRole = function (role) {
-            var input = contactEditor.querySelector('[data-contact-role="' + role + '"]');
-            return input && input.checked;
-        };
-
-        var toggleContactFields = function () {
-            var isPrincipal = hasRole('Principal');
-            var showsGuidance = isPrincipal || hasRole('ClaimSource');
-
-            if (principalFields) {
-                principalFields.hidden = !isPrincipal;
-                principalFields.querySelectorAll('[data-principal-field-input]').forEach(function (input) {
-                    input.disabled = !isPrincipal;
-                });
-            }
-
-            if (caseGuidance) {
-                caseGuidance.hidden = !showsGuidance;
-            }
-
-            contactEditor.querySelectorAll('[data-principal-associations]').forEach(function (section) {
-                var isSelected = hasRole(section.getAttribute('data-principal-associations'));
-                section.hidden = !isSelected;
-                section.querySelectorAll('[data-principal-association-input]').forEach(function (input) {
-                    input.disabled = !isSelected;
-                });
-            });
-
-            if (linkedPrincipals) {
-                linkedPrincipals.hidden = !linkedPrincipals.querySelector('[data-principal-associations]:not([hidden])');
-            }
-        };
-
-        roleInputs.forEach(function (input) {
-            input.addEventListener('change', toggleContactFields);
-        });
-        toggleContactFields();
-    }
-
     var imageBased = document.getElementById('LocationIsImageBasedAssessment');
     if (!imageBased) {
         return;

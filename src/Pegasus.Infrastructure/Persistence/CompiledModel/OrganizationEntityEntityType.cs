@@ -18,8 +18,8 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.OrganizationEntity",
                 typeof(OrganizationEntity),
                 baseEntityType,
-                propertyCount: 13,
-                navigationCount: 4,
+                propertyCount: 14,
+                navigationCount: 2,
                 unnamedIndexCount: 2,
                 keyCount: 1);
 
@@ -127,6 +127,14 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 nullable: true,
                 maxLength: 20);
             postcode.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var role = runtimeEntityType.AddProperty(
+                "Role",
+                typeof(string),
+                propertyInfo: typeof(OrganizationEntity).GetProperty("Role", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(OrganizationEntity).GetField("<Role>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                maxLength: 40);
+            role.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var telephone = runtimeEntityType.AddProperty(
                 "Telephone",

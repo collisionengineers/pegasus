@@ -54,10 +54,9 @@ public sealed class EditModel(
     [BindProperty] public long GuidanceTemplateVersion { get; set; }
     [BindProperty, StringLength(ContactDirectoryPolicy.MaximumNotesOnEveryCaseLength)] public string? NotesOnEveryCase { get; set; }
     [BindProperty] public bool Active { get; set; } = true;
-    [BindProperty] public ContactRole[] Roles { get; set; } = [];
     [BindProperty, StringLength(20)] public string? PrincipalCode { get; set; }
     [BindProperty] public CaseInspectionMode PrincipalInspectionMode { get; set; } = CaseInspectionMode.PhysicalAddress;
-    [BindProperty] public string[] PrincipalAssociationKeys { get; set; } = [];
+    [BindProperty] public Guid[] LinkedPrincipalIds { get; set; } = [];
     [BindProperty] public string OperationKey { get; set; } = NewOperationKey();
 
     [BindProperty] public long PrincipalExpectedVersion { get; set; }
@@ -118,8 +117,8 @@ public sealed class EditModel(
         {
             try
             {
-                var associations = ParsePrincipalAssociations();
-                await administration.SaveAsync(new(actor, ContactId, ExpectedVersion, Name, ContactPerson, Email, Telephone, Address, Postcode, Active, Roles, PrincipalCode, PrincipalInspectionMode, associations, OperationKey, GuidanceTemplate, GuidanceTemplateVersion,
+                var isPrincipal = Contact.Role == ContactRole.Principal;
+                await administration.SaveAsync(new(actor, ContactId, ExpectedVersion, Name, ContactPerson, Email, Telephone, Address, Postcode, Active, Contact.Role, isPrincipal ? PrincipalCode : null, PrincipalInspectionMode, isPrincipal ? [] : LinkedPrincipalIds, OperationKey, Posted(nameof(GuidanceTemplate)) ? GuidanceTemplate : Contact.GuidanceTemplate, GuidanceTemplateVersion,
                     Posted(nameof(NotesOnEveryCase)) ? NotesOnEveryCase : Contact.NotesOnEveryCase), cancellationToken);
                 TempData["AdministrationStatus"] = "The contact was saved.";
                 return RedirectToPage("Index");
@@ -550,25 +549,12 @@ public sealed class EditModel(
 
     private void CopyFrom(ContactDirectoryRecord contact)
     {
-        Name = contact.Name; ContactPerson = contact.ContactPerson; Email = contact.Email; Telephone = contact.Telephone; Address = contact.Address; Postcode = contact.Postcode; GuidanceTemplate = contact.GuidanceTemplate; GuidanceTemplateVersion = contact.GuidanceTemplateVersion; NotesOnEveryCase = contact.NotesOnEveryCase; Active = contact.Active; Roles = contact.Roles.ToArray(); PrincipalAssociationKeys = (contact.PrincipalAssociations ?? []).Select(association => $"{association.Role}:{association.PrincipalId:D}").ToArray();
+        Name = contact.Name; ContactPerson = contact.ContactPerson; Email = contact.Email; Telephone = contact.Telephone; Address = contact.Address; Postcode = contact.Postcode; GuidanceTemplate = contact.GuidanceTemplate; GuidanceTemplateVersion = contact.GuidanceTemplateVersion; NotesOnEveryCase = contact.NotesOnEveryCase; Active = contact.Active; LinkedPrincipalIds = (contact.LinkedPrincipalIds ?? []).ToArray();
     }
-
-    private ContactPrincipalAssociation[] ParsePrincipalAssociations() =>
-        PrincipalAssociationKeys.Select(key =>
-        {
-            var parts = key.Split(':');
-            if (parts.Length != 2 || !Enum.TryParse<ContactRole>(parts[0], out var role)
-                || role == ContactRole.Principal || !Guid.TryParse(parts[1], out var principalId))
-            {
-                throw new ArgumentException("Select valid role-specific principal links.");
-            }
-            return new ContactPrincipalAssociation(ContactId, role, principalId);
-        }).ToArray();
 
     private bool TargetsContact(Guid id) => id != Guid.Empty && ContactId == id;
 
-    public static string RoleLabel(ContactRole role) => role switch { ContactRole.Principal => "Principal", ContactRole.ClaimSource => "Claim Source", ContactRole.Repairer => "Repairer", ContactRole.Storage => "Storage", ContactRole.ThirdPartyEngineer => "Third Party Engineer", _ => role.ToString() };
-    private static string ContactErrorMessage(ContactDirectoryError error) => error switch { ContactDirectoryError.DuplicateOrganizationName => "A contact with that organisation name already exists. Select it before adding a role.", ContactDirectoryError.DuplicatePrincipalCode => "That principal code already exists.", ContactDirectoryError.InvalidPrincipalAssociation => "A contact cannot link to itself as a principal, and only non-principal types can link to principals.", ContactDirectoryError.StaleVersion => "The contact changed after you opened it. Reload it and try again.", _ => "The contact could not be saved." };
+    private static string ContactErrorMessage(ContactDirectoryError error) => error switch { ContactDirectoryError.DuplicateOrganizationName => "A contact with that organisation name already exists.", ContactDirectoryError.DuplicatePrincipalCode => "That principal code already exists.", ContactDirectoryError.InvalidPrincipalAssociation => "A contact cannot link to itself as a principal, and only non-principal types can link to principals.", ContactDirectoryError.StaleVersion => "The contact changed after you opened it. Reload it and try again.", _ => "The contact could not be saved." };
     private static string SalvageMatrixErrorMessage(SalvageMatrixException exception)
     {
         var category = OperatorLabels.PrincipalAdministration.SalvageCategory(exception.Category);

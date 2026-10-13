@@ -33,7 +33,6 @@ public sealed class IntakeWebNegativeTests
         "IntakeWorkItems",
         "IntakeEvaluations",
         "Organizations",
-        "OrganizationRoles",
         "PrincipalSequenceLineages",
         "Principals",
         "CaseSequences",
