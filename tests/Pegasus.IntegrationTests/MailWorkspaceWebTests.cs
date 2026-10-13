@@ -432,7 +432,8 @@ public sealed class MailWorkspaceWebTests
     private const int InboxListCommands = 17;
 
     // 9 before #1305 (the preview no longer reads the Outlook folder recommendation).
-    private const int InboxPreviewCommands = 8;
+    // 8 before #1319 (the preview's row no longer looks up the polled mailbox or the resolved item).
+    private const int InboxPreviewCommands = 6;
 
     [Fact]
     public async Task ExactMessageCanBeSearchedLinkedUnlinkedAndLinkedToAReplacement()

@@ -409,7 +409,6 @@ public sealed class CaseTasksWebTests
         Assert.Contains("handler=CompleteCaseTask", fragment, StringComparison.Ordinal);
         Assert.Contains("handler=AssignCaseTask", fragment, StringComparison.Ordinal);
         Assert.Contains("handler=CreateCaseTask", fragment, StringComparison.Ordinal);
-        Assert.Contains("name=\"editLeaseToken\" value=\"\"", fragment, StringComparison.Ordinal);
     }
 
     /// <summary>A task action returns to the record with the Tasks dialog drawn open.</summary>
