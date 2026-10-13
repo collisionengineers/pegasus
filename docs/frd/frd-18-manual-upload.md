@@ -177,7 +177,10 @@ reason Could not be read.
 Where the decision is genuinely open (rows 2 and 3) the surface carries it:
 
 - **Add to an existing case.** The retained match candidates are shown first,
-  including a sole candidate. Typed, receipt-scoped search adds every Case and
+  including a sole candidate. When the uploaded file is a recognised
+  third-party report, the Cases its registration and claim reference match
+  in the case-match index are offered among them (operator, 12 October
+  2026); staff still confirm. Typed, receipt-scoped search adds every Case and
   every Triage Case, in any state, showing reference, registration, claimant,
   and stage, never an internal identifier. Staff linking is not limited by the
   Case's state; automatic association keeps its own rules

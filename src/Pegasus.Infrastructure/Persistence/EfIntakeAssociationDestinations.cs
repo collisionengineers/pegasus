@@ -3,6 +3,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -20,7 +21,8 @@ public sealed class EfIntakeAssociationDestinations(
     IImageIntakeQueries imageIntakeQueries,
     IImageIntakeCaseCandidates imageIntakeCaseCandidates,
     IIntakeSubmissionGroupStore submissionGroups,
-    IVrmSuggestionStore vrmSuggestions) : IIntakeAssociationDestinationQueries
+    IVrmSuggestionStore vrmSuggestions,
+    ThirdPartyReportCaseSuggestions reportSuggestions) : IIntakeAssociationDestinationQueries
 {
     private const int SearchLimit = 8;
     // The broad Case search is only an input set. Continue through its pages
@@ -71,6 +73,9 @@ public sealed class EfIntakeAssociationDestinations(
                 registration, cancellationToken);
             candidateIds.AddRange(imageCandidates.Select(candidate => candidate.CaseId));
         }
+        // A manually uploaded third-party report offers the Cases its printed
+        // registration and claim reference match (operator, 12 October 2026).
+        candidateIds.AddRange(await reportSuggestions.FindAsync(receipt, cancellationToken));
         if (candidateIds.Count == 0)
         {
             return [];

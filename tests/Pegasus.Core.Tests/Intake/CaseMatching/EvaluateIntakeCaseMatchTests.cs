@@ -427,6 +427,54 @@ public sealed class EvaluateIntakeCaseMatchTests
         Assert.Equal(CaseA, result.MatchedCaseId);
     }
 
+    /// <summary>
+    /// A recognised third-party report's registration and claim reference
+    /// (operator, 12 October 2026): every Principal normalizes them in its own
+    /// grammar, the shared eliminator runs once per Principal, and every
+    /// surviving Case is a suggestion.
+    /// </summary>
+    [Fact]
+    public async Task SurvivingCasesAreGatheredAcrossEveryPrincipalInItsOwnGrammar()
+    {
+        var qdos = new StubPolicy(Keys())
+        {
+            DerivedKeys = new("48913/1", "AK24UYD", null, null, null)
+        };
+        var other = new StubPolicy(Keys())
+        {
+            Principal = "OTHER",
+            DerivedKeys = new("JF/48913/1", "AK24UYD", null, null, null)
+        };
+        var sut = new EvaluateIntakeCaseMatch(
+            [qdos, other],
+            new PrincipalScopedQueries(
+            [
+                Candidate(CaseA, claim: "48913/1", vrm: "AK24UYD"),
+                // The same vehicle under another claim is eliminated.
+                Candidate(CaseB, claim: "99999/1", vrm: "AK24UYD"),
+                Candidate(CaseC, vrm: "AK24UYD") with { PrincipalCode = "OTHER" }
+            ]));
+        var sourceData = new CaseMatchSourceData("JF/48913/1", "AK24UYD", null, null);
+
+        var cases = await sut.FindSurvivingCasesAsync(sourceData, CancellationToken.None);
+
+        Assert.Equal(new[] { CaseA, CaseC }, cases);
+        Assert.Equal(sourceData, qdos.ObservedSourceData);
+        Assert.Equal(sourceData, other.ObservedSourceData);
+    }
+
+    [Fact]
+    public async Task SurvivingCasesAreNoneWhenNoPrincipalDerivesAKey()
+    {
+        var sut = new EvaluateIntakeCaseMatch(
+            [new StubPolicy(Keys())],
+            new PrincipalScopedQueries([Candidate(CaseA, vrm: "AK24UYD")]));
+
+        Assert.Empty(await sut.FindSurvivingCasesAsync(
+            new(null, null, null, null),
+            CancellationToken.None));
+    }
+
     private static Task<CaseMatchEvaluationResult?> Execute(
         CaseMatchKeys keys,
         IReadOnlyList<CaseMatchCandidate> candidates,
@@ -494,6 +542,22 @@ public sealed class EvaluateIntakeCaseMatchTests
             ObservedSourceData = caseData;
             return DerivedKeys;
         }
+    }
+
+    private sealed class PrincipalScopedQueries(IReadOnlyList<CaseMatchCandidate> candidates)
+        : ICaseMatchCandidateQueries
+    {
+        public Task<IReadOnlyList<CaseMatchCandidate>> FindByAnyKeyAsync(
+            string principalCode,
+            CaseMatchKeys keys,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<CaseMatchCandidate>>(
+                [.. candidates.Where(item => item.PrincipalCode == principalCode)]);
+
+        public Task<CaseMatchCandidate?> FindByCaseIdAsync(
+            Guid caseId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(candidates.FirstOrDefault(item => item.CaseId == caseId));
     }
 
     private sealed class StubQueries(

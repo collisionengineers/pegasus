@@ -219,6 +219,7 @@ public static class DependencyInjection
                 .ToArray());
         services.AddScoped<ICaseMatchCandidateQueries, EfCaseMatchIndex>();
         services.AddScoped<EvaluateIntakeCaseMatch>();
+        services.AddScoped<ThirdPartyReportCaseSuggestions>();
         services.AddSingleton<QdosInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy>(provider =>
             provider.GetRequiredService<QdosInstructionExtractionPolicy>());

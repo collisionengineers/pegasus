@@ -364,6 +364,56 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
+    public async Task IncompleteReadWithPhotographsRegistersUnidentifiedWithoutDeferringToImageAutomation()
+    {
+        // An incomplete read never enters image automation (ADR-0005 item 11,
+        // operator, 12 October 2026), so this hook registers it itself.
+        var photograph = new IntakeAssetCandidate(
+            "incomplete.pdf, page 1, image 1",
+            "page-1-image-1.jpg",
+            "image/jpeg",
+            new byte[121_652],
+            IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded,
+            PageNumber: 1,
+            WidthPixels: 547,
+            HeightPixels: 650);
+        var readResult = Readable(
+            transportEvidence: [],
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "incomplete.pdf, page 1",
+                    "Supplementary Report")
+            ]) with
+        {
+            Assets = [photograph],
+            IsIncomplete = true
+        };
+        var store = new RecordingStore();
+        var registerUnidentified = new RecordingRegisterUnidentified();
+        var sut = CreateSut(new StubReader(readResult), store, registerUnidentified: registerUnidentified);
+        var source = CreateSource() with
+        {
+            SourceIdentity = new(IntakeSourceChannel.ManualUpload, "incomplete-read")
+        };
+
+        var receipt = await sut.ExecuteRetainedAsync(source, "retained/incomplete.pdf");
+
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        var signal = Assert.Single(receipt.Evidence, item =>
+            item.Signal == IntakeEvidenceSignals.IncompleteRead);
+        Assert.Equal(IntakeEvidenceSource.SystemDefault, signal.Source);
+        Assert.Equal(receipt.DecisionReason, signal.Detail);
+        Assert.True(ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt));
+        Assert.False(ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt));
+        Assert.False(ProcessIntake.IsDeferredForAutomation(receipt));
+        var request = Assert.Single(registerUnidentified.Requests);
+        Assert.Equal(UnidentifiedOrigin.Receipt(receipt.Id), request.Origin);
+    }
+
+    [Fact]
     public async Task SenderlessScannedDocumentRetainsOcrRequiredWithoutEstablishingQdos()
     {
         var readResult = Readable(
@@ -430,7 +480,7 @@ public sealed class ProcessIntakeTests
         Assert.Equal(IntakeDecision.NeedsSorting, draft.Decision);
         Assert.Null(draft.InstructionDraft);
         Assert.Null(draft.ExtractionPolicyKey);
-        Assert.Empty(draft.Evidence);
+        Assert.Equal(IntakeEvidenceSignals.IncompleteRead, Assert.Single(draft.Evidence).Signal);
         Assert.Collection(
             assets,
             source =>
