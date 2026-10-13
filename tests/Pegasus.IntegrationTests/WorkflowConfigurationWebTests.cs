@@ -23,7 +23,10 @@ public sealed partial class WorkflowConfigurationWebTests
         Assert.Contains("name=\"WorkflowExpectedVersion\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"ChaseIntervalDays\"", html, StringComparison.Ordinal);
         Assert.Contains("handler=SaveWorkflow", html, StringComparison.Ordinal);
-        Assert.Contains("handler=NewCard", html, StringComparison.Ordinal);
+        // The two built-in cards, Standard first, with no way to add another.
+        Assert.DoesNotContain("handler=NewCard", html, StringComparison.Ordinal);
+        Assert.True(html.IndexOf("<td>Standard</td>", StringComparison.Ordinal) is > 0 and var standard
+            && standard < html.IndexOf("<td>Prestige/Aluminium</td>", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -88,34 +91,26 @@ public sealed partial class WorkflowConfigurationWebTests
     }
 
     [Fact]
-    public async Task RateCardCanBeAddedAndSavedWithoutOpeningAnEditScope()
+    public async Task RateCardRateCanBeSavedWithoutOpeningAnEditScope()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         var html = await GetPageAsync(client);
-        using var opened = await client.PostAsync(Route + "?handler=NewCard", new FormUrlEncodedContent(
-            new Dictionary<string, string> { ["__RequestVerificationToken"] = Field(html, "__RequestVerificationToken") }));
-        Assert.Equal(HttpStatusCode.OK, opened.StatusCode);
-        var openedHtml = await opened.Content.ReadAsStringAsync();
-        Assert.DoesNotContain("WorkflowOperationKey field is required", openedHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("CardOperationKey field is required", openedHtml, StringComparison.Ordinal);
-        var addForm = Regex.Match(openedHtml, "<form id=\"rate-card-add\"[^>]*>[\\s\\S]*?</form>").Value;
-        Assert.NotEmpty(addForm);
+        var standardForm = Regex.Match(html, "<form id=\"rate-card-[0-9a-f]{32}\"[^>]*>[\\s\\S]*?</form>").Value;
+        Assert.NotEmpty(standardForm);
         var fields = new Dictionary<string, string>
         {
-            ["CardId"] = Field(addForm, "CardId"),
-            ["CardExpectedVersion"] = Field(addForm, "CardExpectedVersion"),
-            ["CardOperationKey"] = Field(addForm, "CardOperationKey"),
-            ["__RequestVerificationToken"] = Field(addForm, "__RequestVerificationToken"),
-            ["CardName"] = "New integration rate",
-            ["HourlyRate"] = "92.50",
-            ["Enabled"] = "true"
+            ["CardId"] = Field(standardForm, "CardId"),
+            ["CardExpectedVersion"] = Field(standardForm, "CardExpectedVersion"),
+            ["CardOperationKey"] = Field(standardForm, "CardOperationKey"),
+            ["__RequestVerificationToken"] = Field(standardForm, "__RequestVerificationToken"),
+            ["HourlyRate"] = "92.50"
         };
         using var saved = await client.PostAsync(Route + "?handler=SaveCard", new FormUrlEncodedContent(fields));
         Assert.True(
             saved.StatusCode == HttpStatusCode.Redirect,
             $"Expected a redirect but got {saved.StatusCode}. {await ValidationMessagesAsync(saved)}");
-        Assert.Contains("New integration rate", await GetPageAsync(client), StringComparison.Ordinal);
+        Assert.Contains("value=\"92.50\"", await GetPageAsync(client), StringComparison.Ordinal);
     }
 
     private static async Task<string> ValidationMessagesAsync(HttpResponseMessage response)

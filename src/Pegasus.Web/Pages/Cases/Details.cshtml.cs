@@ -1451,7 +1451,7 @@ public sealed partial class DetailsModel(
         if (string.Equals(estimate, "new", StringComparison.OrdinalIgnoreCase))
         {
             EditingNewEstimate = true;
-            // A new spec starts on the one enabled labour-rate card (FRD-25).
+            // A new spec starts on the Standard labour-rate card (FRD-25).
             var card = LabourRateCardAdministration.ForNewSpecification(LabourRateCards);
             EditorDetails = new EstimateDetails(
                 Name: Labels.CaseWorkspace.EngineerSections.NewEstimate,
