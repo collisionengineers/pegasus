@@ -144,7 +144,7 @@ public sealed class EditModel(
                 TempData["AdministrationStatus"] = "The contact was saved.";
                 return RedirectToPage("Index");
             }
-            catch (ContactDirectoryException exception) { ModelState.AddModelError(string.Empty, ContactErrorMessage(exception.Error)); }
+            catch (ContactDirectoryException exception) { ModelState.AddModelError(string.Empty, OperatorLabels.Contacts.ErrorMessage(exception.Error)); }
             catch (ArgumentException exception)
             {
                 // A named field error is shown against its own control; every
@@ -588,7 +588,6 @@ public sealed class EditModel(
 
     private bool TargetsContact(Guid id) => id != Guid.Empty && ContactId == id;
 
-    private static string ContactErrorMessage(ContactDirectoryError error) => error switch { ContactDirectoryError.DuplicateOrganizationName => "A contact with that name already exists.", ContactDirectoryError.DuplicatePrincipalCode => "That principal code already exists.", ContactDirectoryError.InvalidPrincipalAssociation => "A contact cannot link to itself as a principal, and only non-principal types can link to principals.", ContactDirectoryError.StaleVersion => "The contact changed after you opened it. Reload it and try again.", _ => "The contact could not be saved." };
     private static string SalvageMatrixErrorMessage(SalvageMatrixException exception)
     {
         var category = OperatorLabels.PrincipalAdministration.SalvageCategory(exception.Category);

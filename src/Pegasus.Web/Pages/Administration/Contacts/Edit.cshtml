@@ -53,7 +53,7 @@
                 @if (isPrincipal)
                 {
                     <div class="field"><label for="principal-inspection-mode">Inspection mode</label><input id="principal-inspection-mode" value="@OperatorLabels.InspectionMode(Model.PrincipalInspectionMode)" readonly /></div>
-                    <div class="field"><label for="principal-accepted-identities">@OperatorLabels.PrincipalAdministration.AcceptedIdentities</label><input id="principal-accepted-identities" value="@string.Join(", ", Model.AcceptedIdentities)" readonly /></div>
+                    <div class="field"><label for="principal-accepted-identities">@OperatorLabels.PrincipalAdministration.AcceptedIdentities</label><input id="principal-accepted-identities" value="@(Model.AcceptedIdentities.Count > 0 ? string.Join(", ", Model.AcceptedIdentities) : OperatorLabels.PrincipalAdministration.NoAcceptedRoute)" readonly /></div>
                 }
             </div>
             @if (contactRole is ContactRole.Principal or ContactRole.ClaimSource)

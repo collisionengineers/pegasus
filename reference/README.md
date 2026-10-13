@@ -20,8 +20,11 @@ authority.
   and job spreadsheets; no automatic import. Its versioned
   `principal-identification-corpus.v1.json` is a reviewed, hash-bound crosswalk
   and criteria dossier over those sources, immutable local mail, and the
-  read-only CollisionSpike evidence. The JSON is not loaded by runtime code;
-  accepted behaviour remains explicit in versioned Core policies.
+  read-only CollisionSpike evidence; `principal-domains.v1.json` is the July
+  2026 approved-domain package it cites, kept as evidence only since the
+  database snapshot of it was dropped (13 October 2026). Neither JSON is
+  loaded by runtime code; accepted behaviour remains explicit in versioned
+  Core policies.
 - `rendererref1/` — supplied report samples, design notes, logo, and signature
   sources. Its logo and three signature files are byte-identical to the four
   same-named governed assets under `docs/design/brand/`. Both placements remain:

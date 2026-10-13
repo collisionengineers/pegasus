@@ -5847,69 +5847,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalDomainEvidenceEntity", b =>
-                {
-                    b.Property<string>("Version")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<string>("Code")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("DomainSuffix")
-                        .HasMaxLength(254)
-                        .HasColumnType("nvarchar(254)");
-
-                    b.HasKey("Version", "Code", "DomainSuffix");
-
-                    b.HasIndex("Version", "DomainSuffix");
-
-                    b.ToTable("PrincipalDomainEvidence", (string)null);
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalDomainPackageEntity", b =>
-                {
-                    b.Property<string>("Version")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<string>("PackageSha256")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<int>("SchemaVersion")
-                        .HasColumnType("int");
-
-                    b.Property<string>("SourceContentSha256")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<string>("SourcePath")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
-
-                    b.Property<int>("SourceRowCount")
-                        .HasColumnType("int");
-
-                    b.Property<string>("SourceSheet")
-                        .IsRequired()
-                        .HasMaxLength(31)
-                        .HasColumnType("nvarchar(31)");
-
-                    b.HasKey("Version");
-
-                    b.ToTable("PrincipalDomainPackages", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_PrincipalDomainPackages_SchemaVersion", "[SchemaVersion] > 0");
-
-                            t.HasCheckConstraint("CK_PrincipalDomainPackages_SourceRowCount", "[SourceRowCount] > 0");
-                        });
-                });
-
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6011,27 +5948,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_Principals_InspectionMode", "[InspectionMode] IN ('physical_address', 'image_based_assessment')");
 
                             t.HasCheckConstraint("CK_Principals_Version", "[Version] >= 0");
-                        });
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalReferenceEntity", b =>
-                {
-                    b.Property<string>("Version")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<string>("Code")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<int>("SourceRow")
-                        .HasColumnType("int");
-
-                    b.HasKey("Version", "Code");
-
-                    b.ToTable("PrincipalReferences", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_PrincipalReferences_SourceRow", "[SourceRow] > 0");
                         });
                 });
 
@@ -8784,17 +8700,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("Principal");
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalDomainEvidenceEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.PrincipalReferenceEntity", "Principal")
-                        .WithMany("DomainEvidence")
-                        .HasForeignKey("Version", "Code")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Principal");
-                });
-
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.OrganizationEntity", "Organization")
@@ -8826,17 +8731,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("SequenceLineage");
 
                     b.Navigation("Successor");
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalReferenceEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.PrincipalDomainPackageEntity", "Package")
-                        .WithMany("Principals")
-                        .HasForeignKey("Version")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Package");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalSubmissionEntity", b =>
@@ -9125,21 +9019,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("Principals");
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalDomainPackageEntity", b =>
-                {
-                    b.Navigation("Principals");
-                });
-
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalEntity", b =>
                 {
                     b.Navigation("Cases");
 
                     b.Navigation("ContactLinks");
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalReferenceEntity", b =>
-                {
-                    b.Navigation("DomainEvidence");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalSequenceLineageEntity", b =>
