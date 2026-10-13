@@ -4,7 +4,7 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$classifier = Join-Path $PSScriptRoot 'Get-CiChangeFlags.ps1'
+$flagScript = Join-Path $PSScriptRoot 'Get-CiChangeFlags.ps1'
 
 function Assert-Flags {
     param(
@@ -27,7 +27,7 @@ function Assert-Flags {
         Classifier = $Classifier
     }
 
-    $actual = & $classifier -ChangedPath $ChangedPath
+    $actual = & $flagScript -ChangedPath $ChangedPath
     foreach ($lane in $expected.Keys) {
         if ($actual.$lane -ne $expected[$lane]) {
             $wanted = ($expected.Keys | ForEach-Object { "$_=$($expected[$_])" }) -join ' '
@@ -95,7 +95,7 @@ Assert-Flags -Case 'prerequisite doctor' -ChangedPath 'scripts/Invoke-Doctor.ps1
 Assert-Flags -Case 'standalone local tool project' -ChangedPath 'scripts/jev-mail-eval/Pegasus.JevMailEvaluation.csproj' -Build $false -Infrastructure $false
 Assert-Flags -Case 'no-lane path beside a build input' -ChangedPath @('scripts/Invoke-LocalDevelopment.ps1', 'src/Pegasus.Worker/local.settings.example.json') -Build $true -Infrastructure $false
 
-$forced = & $classifier -ChangedPath 'docs/index.md' -ForceAll
+$forced = & $flagScript -ChangedPath 'docs/index.md' -ForceAll
 foreach ($lane in 'Build', 'Infrastructure', 'LocalDevelopment', 'ReferenceData', 'Classifier') {
     if (-not $forced.$lane) {
         throw "ForceAll must enable every conditional lane when a reliable diff is unavailable; $lane stayed off."
