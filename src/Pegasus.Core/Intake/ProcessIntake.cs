@@ -563,19 +563,26 @@ public sealed class ProcessIntake(
     /// caller (<c>ProcessQueuedIntake</c>) registers it as Unidentified itself
     /// once that automation runs and confirms no confident registration was
     /// made, so that material is never silently dropped from both queues.
-    ///
-    /// A Triage request is deferred for exactly the same reason and by the
-    /// same caller: the operator's rule holds it in Unidentified only "until a
-    /// vehicle registration is known, then open the Triage", and Triage
-    /// creation runs after this hook. Registering here would give every Triage
-    /// request an Unidentified item it is about to stop deserving.
     /// </summary>
     internal static bool IsUnidentifiedEligible(IntakeReceipt receipt) =>
         receipt.Decision is IntakeDecision.NeedsSorting
             or IntakeDecision.Unsupported
             or IntakeDecision.OcrRequired
             or IntakeDecision.TechnicalFailure
+        && BecomesUnidentified(receipt)
         && !IsDeferredForAutomation(receipt);
+
+    /// <summary>
+    /// Only images become Unidentified (operator, 13 October 2026): image-only
+    /// material from any channel, or an uploaded image file that could not be
+    /// read. An e-mail with no Case waits in the Inbox's No Case Found scope,
+    /// and a document that cannot be placed is refused by its upload; neither
+    /// gets a U-reference.
+    /// </summary>
+    internal static bool BecomesUnidentified(IntakeReceipt receipt) =>
+        ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)
+        || UnidentifiedMediaKindPolicy.Classify(receipt.SourceIdentity.Channel, receipt.MediaType)
+            == UnidentifiedMediaKind.Image;
 
     /// <summary>
     /// Which receipts this hook leaves for the queued caller to register.

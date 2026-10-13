@@ -12,7 +12,6 @@ using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
-using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Email;
@@ -30,7 +29,7 @@ public sealed class MailWorkspaceWebTests
 {
     private static readonly DateTimeOffset NowUtc = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
     private static readonly string[] CategoryFilterValues =
-        ["", .. MailCategories.All.Select(MailCategories.Code), "unidentified"];
+        ["", .. MailCategories.All.Select(MailCategories.Code), "no_case_found"];
     private static readonly string[] CorrectionValues =
         ["", .. MailCategories.All.Select(MailCategories.Code), "unclassified"];
 
@@ -221,7 +220,7 @@ public sealed class MailWorkspaceWebTests
         // preview a row, then open and return from the full message —
         // carrying the exact same query string a real navigation would.
         // "queue" has no "all" sentinel: TryParseQueue accepts only a
-        // category code (e.g. "new-instruction") or "unidentified", and
+        // category code (e.g. "new-instruction") or "no_case_found", and
         // treats anything else — "all" included — as invalid,
         // returning NotFound. The unfiltered scope is the absent parameter,
         // not a literal "all"; a real queue key exercises the same
@@ -1234,6 +1233,23 @@ public sealed class MailWorkspaceWebTests
         }
     }
 
+    [Fact]
+    public async Task AMessageThatFoundNoCaseReadsNoCaseFoundInAmber()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var messageId = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreOutcomeReceiptAsync(factory, FirstMailboxId, FirstMailboxId + "-0", IntakeDecision.NeedsSorting);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Inbox?selected={messageId:D}");
+
+        var row = MailRow(html, messageId);
+        Assert.Contains(">No Case Found<", row, StringComparison.Ordinal);
+        Assert.Contains("class=\"status status--amber\"", row, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Unidentified<", row, StringComparison.Ordinal);
+        Assert.DoesNotContain("No longer polled", html, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// The list's scope rail (Inbox, 13 September): one count per scope, no Unread
     /// scope and a Dismissed scope last, the sort toggle as a server-side flip, and
@@ -1256,7 +1272,7 @@ public sealed class MailWorkspaceWebTests
         Assert.DoesNotContain(">Receiving work</span>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Case updates</span>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Pre-instructions</span>", html, StringComparison.Ordinal);
-        Assert.Contains(">Unidentified</span>", html, StringComparison.Ordinal);
+        Assert.Contains(">No Case Found</span>", html, StringComparison.Ordinal);
         Assert.Contains(">Sent Items</span>", html, StringComparison.Ordinal);
         Assert.Contains(">Dismissed</span>", html, StringComparison.Ordinal);
         Assert.Equal(4, CountOccurrences(html, "class=\"scope-button\""));
@@ -1672,6 +1688,14 @@ public sealed class MailWorkspaceWebTests
                 $"{FirstMailboxId}-{index}",
                 classifications[index]);
         }
+        // Message 0 stands linked to a Case, so No Case Found leaves it out.
+        var linkedReceiptId = await ReceiptIdAsync(factory, FirstMailboxId, $"{FirstMailboxId}-0");
+        var linkedCaseId = await ImageIntakeTestData.SeedCaseAsync(
+            factory.Services,
+            linkedReceiptId,
+            "MAIL-VIEWS-LINK",
+            nameof(CaseLifecycleState.Review));
+        await MailboxIntakeTestData.LinkReceiptAsync(factory.Services, linkedReceiptId, linkedCaseId);
         using var client = CreateClient(factory);
 
         var receiving = await GetHtmlAsync(client, "/Inbox?queue=new-instruction");
@@ -1679,7 +1703,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("<label for=\"queue-filter\">Category</label>", receiving, StringComparison.Ordinal);
         Assert.Contains(">All categories</option>", receiving, StringComparison.Ordinal);
         Assert.DoesNotContain(">Queue</label>", receiving, StringComparison.Ordinal);
-        // One flat list: All categories, every category in order, then Unidentified.
+        // One flat list: All categories, every category in order, then No Case Found.
         Assert.DoesNotContain("<optgroup", receiving, StringComparison.Ordinal);
         var categorySelect = Between(receiving, "<select id=\"queue-filter\"", "</select>");
         Assert.Equal(
@@ -1688,7 +1712,7 @@ public sealed class MailWorkspaceWebTests
                 .Select(match => match.Groups["value"].Value)
                 .ToArray());
         Assert.Contains(">Not client related</option>", categorySelect, StringComparison.Ordinal);
-        Assert.Contains(">Unidentified</option>", categorySelect, StringComparison.Ordinal);
+        Assert.Contains(">No Case Found</option>", categorySelect, StringComparison.Ordinal);
         Assert.DoesNotContain("Current view:", receiving, StringComparison.Ordinal);
         Assert.DoesNotContain("class=\"field-hint\"", receiving, StringComparison.Ordinal);
         // One selected option per filter-bar select: mailbox, folder, queue.
@@ -1701,7 +1725,7 @@ public sealed class MailWorkspaceWebTests
         {
             ("query", "Message 1 from instructions", "Message 0 from instructions"),
             ("billing", "Message 2 from instructions", "Message 1 from instructions"),
-            ("unidentified", "Message 3 from instructions", "Message 4 from instructions"),
+            ("no_case_found", "Message 3 from instructions", "Message 0 from instructions"),
             ("triage-request", "Message 4 from instructions", "Message 3 from instructions"),
             ("general", "Message 5 from instructions", "Message 0 from instructions")
         })
@@ -1709,6 +1733,13 @@ public sealed class MailWorkspaceWebTests
             var html = await GetHtmlAsync(client, $"/Inbox?queue={Uri.EscapeDataString(key)}");
             Assert.Contains(included, html, StringComparison.Ordinal);
             Assert.DoesNotContain(excluded, html, StringComparison.Ordinal);
+        }
+        // No Case Found reads the link, not the category: every unlinked
+        // message is there, classified or not.
+        var noCaseFound = await GetHtmlAsync(client, "/Inbox?queue=no_case_found");
+        foreach (var unlinked in new[] { 1, 2, 4, 5 })
+        {
+            Assert.Contains($"Message {unlinked} from instructions", noCaseFound, StringComparison.Ordinal);
         }
 
         var detail = await GetHtmlAsync(
@@ -2030,7 +2061,7 @@ public sealed class MailWorkspaceWebTests
             $"<a href=\"/Cases/{caseId:D}\">MAIL-DESTINATION</a>",
             linked,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("<strong>Unidentified</strong>", linked, StringComparison.Ordinal);
+        Assert.DoesNotContain("<strong>No Case Found</strong>", linked, StringComparison.Ordinal);
 
         var previewPage = await GetHtmlAsync(viewer, $"/Inbox?selected={linkedMessageId:D}");
         var linkedRowStart = previewPage.IndexOf(
@@ -2041,7 +2072,7 @@ public sealed class MailWorkspaceWebTests
         Assert.True(linkedRowEnd > linkedRowStart, "The linked message row was not complete.");
         var linkedRow = previewPage[linkedRowStart..linkedRowEnd];
         Assert.Contains("Case update", linkedRow, StringComparison.Ordinal);
-        Assert.DoesNotContain("Unidentified", linkedRow, StringComparison.Ordinal);
+        Assert.DoesNotContain("No Case Found", linkedRow, StringComparison.Ordinal);
 
         var preview = Between(previewPage, "<aside id=\"mail-quick-preview\"", "</aside>");
         Assert.Contains("data-mail-preview-classification>Case update</dd>", preview, StringComparison.Ordinal);
@@ -2051,7 +2082,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains($"href=\"/Cases/{caseId:D}\"", preview, StringComparison.Ordinal);
         Assert.Contains("<span>Open Case</span>", preview, StringComparison.Ordinal);
         Assert.DoesNotContain("Open Triage", preview, StringComparison.Ordinal);
-        Assert.DoesNotContain("Unidentified", preview, StringComparison.Ordinal);
+        Assert.DoesNotContain("No Case Found", preview, StringComparison.Ordinal);
 
         var unlinked = await GetHtmlAsync(viewer, $"/Inbox/{unlinkedMessageId:D}");
         Assert.Contains("<strong>Unclassified</strong>", unlinked, StringComparison.Ordinal);
@@ -2260,69 +2291,48 @@ public sealed class MailWorkspaceWebTests
 
         var other = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}?queue=query");
         var own = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}?queue=new-instruction");
-        var unidentified = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}?queue=unidentified");
+        // No Case Found reads the link, not the category: the classified but
+        // unlinked instruction is in it.
+        var noCaseFound = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}?queue=no_case_found");
 
         Assert.Contains("This message is no longer in the view you opened it from.", other, StringComparison.Ordinal);
         Assert.DoesNotContain("This message is no longer in the view you opened it from.", own, StringComparison.Ordinal);
-        Assert.Contains("This message is no longer in the view you opened it from.", unidentified, StringComparison.Ordinal);
+        Assert.DoesNotContain("This message is no longer in the view you opened it from.", noCaseFound, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task ResolvedUnidentifiedMessageIsOutsideTheUnidentifiedViewWhileOpenMessageRemains()
+    public async Task ALinkedOrUnreceiptedMessageIsOutsideTheNoCaseFoundViewWhileAnUnlinkedMessageRemains()
     {
         using var factory = new IntakeWebApplicationFactory();
-        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 3);
         await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
         await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
-        var resolvedMessageId = await MessageIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var linkedMessageId = await MessageIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
         var openMessageId = await MessageIdAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
-        var resolvedReceiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
-        var openReceiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
-
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            var services = scope.ServiceProvider;
-            var register = services.GetRequiredService<IRegisterUnidentified>();
-            var resolvedItem = (await register.ExecuteAsync(
-                new(
-                    UnidentifiedOrigin.Receipt(resolvedReceiptId),
-                    UnidentifiedReasonCode.NoUsableIdentification,
-                    "test detail",
-                    ActionActor.SystemWorker("test-worker"),
-                    $"unidentified-test:{Guid.NewGuid():N}",
-                    NowUtc))).Item;
-            await register.ExecuteAsync(
-                new(
-                    UnidentifiedOrigin.Receipt(openReceiptId),
-                    UnidentifiedReasonCode.NoUsableIdentification,
-                    "test detail",
-                    ActionActor.SystemWorker("test-worker"),
-                    $"unidentified-test:{Guid.NewGuid():N}",
-                    NowUtc));
-            await services.GetRequiredService<IUnidentifiedStore>().ResolveAsync(
-                new(
-                    resolvedItem.Id,
-                    resolvedItem.Version,
-                    ActionActor.Automation("test-worker"),
-                    $"unidentified-resolve-test:{Guid.NewGuid():N}",
-                    "resolved",
-                    UnidentifiedResolutionTargetKind.ExternalReference,
-                    "target-1",
-                    null,
-                    NowUtc.AddMinutes(1)));
-        }
+        var unreceiptedMessageId = await MessageIdAsync(factory, FirstMailboxId, FirstMailboxId + "-2");
+        var linkedReceiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var caseId = await ImageIntakeTestData.SeedCaseAsync(
+            factory.Services, linkedReceiptId, "MAIL-NO-CASE-FOUND", nameof(CaseLifecycleState.Review));
+        await MailboxIntakeTestData.LinkReceiptAsync(factory.Services, linkedReceiptId, caseId);
 
         using var client = IntakeWebDriver.CreateClient(factory);
-        var resolved = await GetHtmlAsync(
+        var linked = await GetHtmlAsync(
             client,
-            $"/Inbox/{resolvedMessageId:D}?queue=unidentified");
+            $"/Inbox/{linkedMessageId:D}?queue=no_case_found");
+        var unreceipted = await GetHtmlAsync(
+            client,
+            $"/Inbox/{unreceiptedMessageId:D}?queue=no_case_found");
         var open = await GetHtmlAsync(
             client,
-            $"/Inbox/{openMessageId:D}?queue=unidentified");
+            $"/Inbox/{openMessageId:D}?queue=no_case_found");
 
         Assert.Contains(
             "This message is no longer in the view you opened it from.",
-            resolved,
+            linked,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "This message is no longer in the view you opened it from.",
+            unreceipted,
             StringComparison.Ordinal);
         Assert.DoesNotContain(
             "This message is no longer in the view you opened it from.",

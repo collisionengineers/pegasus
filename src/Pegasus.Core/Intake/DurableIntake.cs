@@ -1170,9 +1170,11 @@ public sealed class ProcessQueuedIntake(
 
         // A receipt that already has its Case — a declared destination the
         // link above recorded — is never registered: it was deferred to this
-        // caller precisely so the link could be tried first.
+        // caller precisely so the link could be tried first. Only images
+        // become Unidentified; anything else waits where it arrived.
         if (registerUnidentified is not null
             && ProcessIntake.IsDeferredForAutomation(receipt)
+            && ProcessIntake.BecomesUnidentified(receipt)
             && receipt.CurrentCaseId is null
             && !(ProcessIntake.IsTriageRequest(receipt)
                 && triage is not TriageCreationOutcome.NotQualifying))

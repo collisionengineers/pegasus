@@ -246,20 +246,32 @@ public sealed class ProcessIntakeTests
         Assert.Empty(registerUnidentified.Requests);
     }
 
-    [Fact]
-    public async Task FinalAttemptTransientReaderFailureIsTerminalAndAllocatesUnidentified()
+    [Theory]
+    [InlineData("mail", IntakeSourceChannel.Mailbox, "application/pdf", "selected.pdf")]
+    [InlineData("upload-pdf", IntakeSourceChannel.ManualUpload, "application/pdf", "scan.pdf")]
+    public async Task FinalAttemptTransientReaderFailureIsTerminalAndAllocatesNoUnidentifiedForNonImageMaterial(
+        string name,
+        IntakeSourceChannel channel,
+        string mediaType,
+        string fileName)
     {
         // Once the queued caller has no retry left, the same transient reader
         // fault must still resolve to a terminal technical-failure receipt so
-        // custody is not silently stranded, and that terminal outcome is what
-        // registers the Unidentified reference.
+        // custody is not silently stranded. Only images become Unidentified
+        // (operator, 13 October 2026): an e-mail waits in the Inbox's No Case
+        // Found scope and a document is refused by its upload.
         var reader = new StubReader((_, _) => throw new TimeoutException("transient reader outage"));
         var store = new RecordingStore();
         var registerUnidentified = new RecordingRegisterUnidentified();
         var sut = CreateSut(reader, store, registerUnidentified: registerUnidentified);
 
         var result = await sut.ExecuteRetainedAsync(
-            CreateSource(),
+            CreateSource() with
+            {
+                FileName = fileName,
+                MediaType = mediaType,
+                SourceIdentity = new(channel, $"transient-{name}")
+            },
             "retained-storage-key",
             replaceExisting: false,
             isFinalAttempt: true);
@@ -267,11 +279,36 @@ public sealed class ProcessIntakeTests
         Assert.Equal(IntakeDecision.TechnicalFailure, result.Decision);
         var draft = Assert.Single(store.Drafts);
         Assert.Equal(IntakeDecision.TechnicalFailure, draft.Decision);
-        // Received file Q3: a file processing could not read is one outcome to the
-        // person, Could not be read, and the item says what kind of file it was.
+        Assert.Empty(registerUnidentified.Requests);
+    }
+
+    [Fact]
+    public async Task FinalAttemptTransientReaderFailureOnAnUploadedImageAllocatesUnidentified()
+    {
+        // The image twin: an uploaded image file that could not be read still
+        // becomes an Unidentified item. Received file Q3: a file processing
+        // could not read is one outcome to the person, Could not be read, and
+        // the item says what kind of file it was.
+        var reader = new StubReader((_, _) => throw new TimeoutException("transient reader outage"));
+        var store = new RecordingStore();
+        var registerUnidentified = new RecordingRegisterUnidentified();
+        var sut = CreateSut(reader, store, registerUnidentified: registerUnidentified);
+
+        var result = await sut.ExecuteRetainedAsync(
+            CreateSource() with
+            {
+                FileName = "IMG_1.jpg",
+                MediaType = "image/jpeg",
+                SourceIdentity = new(IntakeSourceChannel.ManualUpload, "transient-upload-image")
+            },
+            "retained-storage-key",
+            replaceExisting: false,
+            isFinalAttempt: true);
+
+        Assert.Equal(IntakeDecision.TechnicalFailure, result.Decision);
         var request = Assert.Single(registerUnidentified.Requests);
         Assert.Equal(UnidentifiedReasonCode.CouldNotBeRead, request.ReasonCode);
-        Assert.Equal("PDF", request.FileKind);
+        Assert.Equal("Image", request.FileKind);
     }
 
     [Theory]
@@ -1242,10 +1279,13 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
-    public async Task AmbiguousCaseMatchRegistersUnidentifiedWithConflictingIdentification()
+    public async Task AmbiguousCaseMatchOnAnEmailRegistersNoUnidentifiedButKeepsItsConflictingReason()
     {
-        // Competing candidate cases is a specific, evidenced reason; it must
-        // not collapse into the generic NoUsableIdentification fallback.
+        // An e-mail no longer becomes an Unidentified item (operator, 13
+        // October 2026): it waits in the Inbox's No Case Found scope. The
+        // reason mapping still serves image material: competing candidate
+        // cases is a specific, evidenced reason; it must not collapse into the
+        // generic NoUsableIdentification fallback.
         var caseA = Guid.NewGuid();
         var caseB = Guid.NewGuid();
         var readResult = Readable(
@@ -1287,10 +1327,15 @@ public sealed class ProcessIntakeTests
             SourceIdentity = new(IntakeSourceChannel.Mailbox, "mailbox-ambiguous-match-2")
         };
 
-        await sut.ExecuteAsync(source);
+        var result = await sut.ExecuteAsync(source);
 
-        var request = Assert.Single(registerUnidentified.Requests);
-        Assert.Equal(UnidentifiedReasonCode.ConflictingIdentification, request.ReasonCode);
+        Assert.Equal(IntakeDecision.NeedsSorting, result.Decision);
+        Assert.Empty(registerUnidentified.Requests);
+        var receipt = RecordingStore.RecordFrom(Assert.Single(store.Drafts));
+        Assert.False(ProcessIntake.IsUnidentifiedEligible(receipt));
+        Assert.Equal(
+            UnidentifiedReasonCode.ConflictingIdentification,
+            ProcessIntake.BuildUnidentifiedRegistrationRequest(receipt).ReasonCode);
     }
 
     [Fact]

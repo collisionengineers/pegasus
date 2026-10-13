@@ -19,12 +19,16 @@ public sealed class MailboxPhotoReceiptTests
         Assert.True(ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt));
         Assert.Equal(photo.Id, Assert.Single(InstructionEvidenceImages.Select(receipt.AssetRecords)).Id);
         Assert.True(ProcessIntake.IsDeferredForAutomation(receipt));
+        Assert.True(ProcessIntake.BecomesUnidentified(receipt));
         Assert.False(ProcessIntake.IsUnidentifiedEligible(receipt));
     }
 
     [Fact]
-    public void SignatureAndBannerWithoutPhotographsDoNotDeferUnidentified()
+    public void SignatureAndBannerWithoutPhotographsAreAnEMailThatNeverBecomesUnidentified()
     {
+        // Only images become Unidentified (operator, 13 October 2026): a
+        // message with no selected photograph is an e-mail, which waits in the
+        // Inbox's No Case Found scope instead.
         var receipt = Receipt([
             Asset("photos.pdf", "application/pdf", IntakeAssetKind.Attachment),
             Asset("signature.png", "image/png", IntakeAssetKind.InlineImage),
@@ -33,7 +37,9 @@ public sealed class MailboxPhotoReceiptTests
 
         Assert.False(ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt));
         Assert.Empty(InstructionEvidenceImages.Select(receipt.AssetRecords));
-        Assert.True(ProcessIntake.IsUnidentifiedEligible(receipt));
+        Assert.False(ProcessIntake.IsDeferredForAutomation(receipt));
+        Assert.False(ProcessIntake.BecomesUnidentified(receipt));
+        Assert.False(ProcessIntake.IsUnidentifiedEligible(receipt));
     }
 
     [Fact]
@@ -89,6 +95,7 @@ public sealed class MailboxPhotoReceiptTests
         };
 
         Assert.False(ProcessIntake.IsDeferredForAutomation(receipt));
+        Assert.True(ProcessIntake.BecomesUnidentified(receipt));
         Assert.True(ProcessIntake.IsUnidentifiedEligible(receipt));
     }
 

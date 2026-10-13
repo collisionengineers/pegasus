@@ -51,8 +51,8 @@ and other links to `/` still load Office first and then move to Mine (operator,
 
 **Metrics.** Five counts in one strip, label and figure on one line, in this
 order: Not ready, Review, Held, Unidentified and Triages. Each is an exact
-link to its Cases tab (`/Cases?tab=…`) and counts everything regardless of
-paging. Triages counts the Triage Cases that are Open, Awaiting information or
+link to its Cases tab (`/Cases?tab=…`; Unidentified opens Unassigned Images
+showing Unidentified) and counts everything regardless of paging. Triages counts the Triage Cases that are Open, Awaiting information or
 Finding recorded; Completed and Cancelled are not counted. A failed read shows
 no figure and the section's unavailable notice, never `0`.
 
@@ -220,8 +220,9 @@ Actor dismisses a record the same way with `pegasus_work_centre_dismiss`
 
 `/Cases` is one page. Its rail is one continuous list with no heading, group
 labels or dividers (operator, issue 1046, 6 October 2026). Each queue carries
-its own count, in this order: Not ready, Review, With Engineer, Query, Triage,
-Awaiting instruction, Held, Unidentified. Every queue button looks the same.
+its own count, in this order: Not ready, Unassigned Images, Review, With
+Engineer, Queries, Triage, Held (operator, 13 October 2026). Every queue
+button looks the same. There is no separate Unidentified queue.
 
 `?tab=` selects the queue. Not ready contains only formal instructed Cases.
 Triage lists the Triage Cases still being worked: Open, Awaiting information
@@ -229,11 +230,17 @@ and Finding recorded, the same states the Triages metric counts, and its
 count is theirs. A Completed or Cancelled Triage Case leaves the queue and is
 found through Search by its `t.` Case/PO or registration (operator, issue
 1044, 7 October 2026). Triage Cases never appear in the Case queues.
-A vehicle-images record still awaiting an instruction is listed under
-Awaiting instruction, never in a Case queue
-([FRD-19](frd-19-image-led-intake-and-pairing.md#image-initiated-case-projection)).
-Query lists every open Case that holds an open query, whatever its state
-(operator, 11 October 2026). Report sent has no queue; a Report sent Case is
+Unassigned Images (`?tab=unassigned`) has a Show choice: **Identified**, the
+default, lists the vehicle-images records still awaiting an instruction,
+never shown in a Case queue
+([FRD-19](frd-19-image-led-intake-and-pairing.md#image-initiated-case-projection));
+**Unidentified** (`&show=unidentified`) lists the open Unidentified items;
+**Closed items** (`&show=closed`) lists the closed ones. Its count is the
+identified records plus the open Unidentified items.
+Queries lists every open Case that holds an open query, whatever its state
+(operator, 11 October 2026); the tab and its list heading read Queries,
+while a Case's stage chip and Search's State filter still read Query.
+Report sent has no queue; a Report sent Case is
 found through Search's State filter, whose Report sent choice finds those
 with no open query and whose Query choice finds every Case with one.
 Cancellation, rejection and Created in error are recorded dispositions, not
@@ -248,14 +255,14 @@ Each queue keeps its own row shape:
   is live (the same column appears on Search results). An Inspection + Audit
   Case is one row, showing its Inspection's claimant, Principal and
   registration, whether or not it has an Audit;
-- an Awaiting-instruction row: Image reference, registration, file count and
-  custody;
+- an Unassigned Images Identified row: Image reference, registration, file
+  count and custody;
 - a Triage row: `t.` Case/PO, registration, Principal and assignee;
 - an Unidentified row: the U-reference, kind, a handle the operator will
   recognise (the original filename, or the e-mail subject and sender, never
   an internal identifier), received date and time, and the canonical reason.
 
-Awaiting-instruction rows select their quick detail. Every other row links
+Identified rows select their quick detail. Every other row links
 straight to its full detail. Selecting a row shows a quick detail. For a
 Case that is its origin, compact workflow position, outstanding requirements
 and current work, with Open full Case. Current work is the Case's Next action,
@@ -265,14 +272,16 @@ the Engineer and the due. A Case's due is one instant everywhere it shows, on
 the list, the quick detail and Search: its Case chase due instant from the
 table above, dated by the day it falls due (operator, 28 September 2026). For other
 kinds it is the definition list and the open action, with Add to an existing
-case on an Awaiting-instruction record. A Triage row's open action, **Open
+case on an Identified record. A Triage row's open action, **Open
 Triage**, opens the Triage Case page at `/Cases/{id}`.
 
 Unidentified media kind (`Images` or `E-mails`) is derived from the retained
-receipt's source channel and content type, not stored separately. The
-Unidentified tab shows **Open items** or, through its Show choice, **Closed
-items**, each closed row reading "Closed · reason". It lists Unidentified
-items only. There is no blocked row.
+receipt's source channel and content type, not stored separately. Only
+images become Unidentified items
+([FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference));
+`E-mails` is the kind of photographs that arrived by e-mail. Unassigned
+Images' Unidentified and Closed items choices list Unidentified items only,
+each closed row reading "Closed · reason". There is no blocked row.
 
 ### Pre-Case records
 
@@ -464,7 +473,7 @@ required.
 
 The Activity figures are defined under [Work Centre](#work-centre). The
 Unidentified count is the exact count of open Unidentified items and links to
-that queue. `Due by` and overdue or chaser work stay a separate operational
+Unassigned Images showing Unidentified (`/Cases?tab=unassigned&show=unidentified`). `Due by` and overdue or chaser work stay a separate operational
 view from the Activity figures.
 
 ## States and transitions
