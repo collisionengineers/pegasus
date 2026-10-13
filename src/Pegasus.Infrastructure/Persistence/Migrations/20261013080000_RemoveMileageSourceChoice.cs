@@ -13,7 +13,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// forward-only; the table's own constraint and grants are unchanged.
 /// </summary>
 [DbContext(typeof(PegasusDbContext))]
-[Migration("20261012120000_RemoveMileageSourceChoice")]
+[Migration("20261013080000_RemoveMileageSourceChoice")]
 public partial class RemoveMileageSourceChoice : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
