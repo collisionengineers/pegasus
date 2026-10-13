@@ -4,6 +4,29 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Intake data wipe — 13 October 2026
+
+- Approved ordinary intake wipe (13 October 2026): Worker
+  `pegasus-prod-worker-252ow37gij` stopped for the maintenance window and
+  read back `Stopped` at 08:07:58Z, then resumed and read back `Running` at
+  08:10:09Z after verification; the Web App stayed Running. The approved dry
+  run and the fresh dry run immediately before the execute both found 633
+  blobs (264,094,357 bytes) in `pegcustody252ow37gij/transient-intake` and
+  1,761 rows across 86 non-preserved tables in SQL `pegasus` on
+  `pegasus-prod-sql-252ow37gij` (2 Cases, 146 documents, 24 retained mails,
+  10 Unidentified items); the batch reported 1,765 affected rows, 4 beyond
+  the inventoried deletes, from the mail-boundary update on the preserved
+  poll rows. The committed mail cutoff is
+  `2026-10-13T08:08:25.1495389+00:00`; 39 effective tables and 933 preserved
+  rows remain. `CaseSequences`/`ImageIntakeSequences`/`UnidentifiedSequences`
+  were unchanged at 102/12/1. `ValuationPresets` 4/4, `EmailTemplates` 3/3
+  and built-in image tags 4/4 before/after. The wiped rows included the one
+  `PrincipalApiCredentials` row; that table is not on the preserve list.
+  `authentication-ring`, `box-links`, `pegtrans252ow37gij`, Outlook and Box
+  were untouched. No `-ResetTestEstate` was used. Post-run script
+  verification reported zero blobs remaining and zero wiped tables holding
+  rows.
+
 ## Release 103 — 12 October 2026 (deployment live)
 
 Release 103 deployed [PR 1307](https://github.com/collisionengineers/pegasus/pull/1307), which combined twelve PRs into `dev`: the Case Files tile shows an unmerged photo's recorded crop (#1296); the Valuation preset row actions tidied (#1297); CSV downloads carry a UTF-8 BOM (#1298); the Tractable capture PDF's vehicle identity and photographs (#1299); the Worker can observe a report send and the Sent poll retries a failed observation (#1300); the Not ready queue loses the Missing dropdown (#1301); Create audit follows the stored report and one e-mail carries both reports (#1303); Incoming/Outgoing mailboxes, with reports and chasers replying to the instruction e-mail (#1304); one flat mail category (#1305); the QDOS Version 3 notice predicates and case-state mail classification, remapped to Case update and Query under the flat category (#1126, ADR-0070); the v38 Repair Spec round with its eight review fixes (#1302); and Report dispatch: sending rules on every Principal, one-step delivery by the rules, Case tasks and the sent-instruction tidy (#1015, ADR-0071, its design round renumbered v39).
@@ -23,6 +46,27 @@ The route was the destructive App Service route: the old Worker and Web were sto
 | PR states | PR 1307 and eleven constituent PRs read Merged with their heads in `dev`; #1305 (stacked on #1304) is Closed with the ancestry proof in its comment. #969 (from #1296) and #1260 (from #1299) were closed at landing with the merge SHA; #1200 had been closed earlier that day as resolved by #1015, with a correction that the retired-handler stubs on the Tasks page stay as the fail-closed guard. |
 | Still owed | Live proofs of the changes themselves on a real Case: a report send by the rules (recipients, holds, a Stop override, the "{REG} Report" subject of a new message), the after-send tasks and the open-task step, the sent-instruction tidy against Exchange, a combined send of both reports as a reply, a filed-estimate attachment, the Incoming/Outgoing mailbox settings and Reply, the flat Inbox category list and Tag as query, the V3 QDOS notices and the case-state classification on an arriving query, the Repair Spec v38 bars and Compare in a browser, the Tractable PDF through intake. Operations before a live report send from engineers@, info@ or desk@: those mailboxes admitted in Mail settings as Incoming + Outgoing (the Exchange grant above is done); the seeded SOP addresses are real third-party addresses, so a test send reaches them unless staff edit To/Cc. Operator decisions left open in PR 1307's body: #1015's v39 sign-off list A–Z and its eight resolution choices (Send from only preselects the From picker; the MCP send is refused where the rules need staff; the Archive-only gate cannot show, item X), #1302's three design points, #1305's two wording points; issue #1216 is untouched. The Query Store after snapshot. The Release 81 to 102 proofs remain owed. |
 | Evidence | Exact artifacts retained at ignored `artifacts/releases/release-103-5d972247`; the build, predeploy, containment, migration, deploy and smoke drivers and their logs at `artifacts/releases/release-103-driver`. |
+
+## Intake data wipe — 12 October 2026
+
+- Approved ordinary intake wipe: Worker `pegasus-prod-worker-252ow37gij`
+  stopped for the maintenance window and read back `Stopped` at 11:37:31Z,
+  then resumed and read back `Running` at 11:39:55Z; the Web App stayed
+  Running. The approved dry run and the fresh dry run immediately before
+  the execute both found 269 blobs (120,478,983 bytes) in
+  `pegcustody252ow37gij/transient-intake` and 1,636 rows across 87
+  non-preserved tables in SQL `pegasus` on `pegasus-prod-sql-252ow37gij`
+  (3 Cases, 101 documents, 5 retained mails); the batch reported 1,637
+  affected rows including the mail-boundary update. The committed mail
+  cutoff is `2026-10-12T11:38:40.0622280+00:00`; 40 effective tables and
+  816 preserved rows remain.
+  `CaseSequences`/`ImageIntakeSequences`/`UnidentifiedSequences` were
+  unchanged at 101/12/1. `ValuationPresets` 4/4, `EmailTemplates` 3/3 and
+  built-in image tags 4/4. `CaseListPresets` was on the preserve list
+  (39/39 found, nothing missing). `authentication-ring`, `box-links`,
+  `pegtrans252ow37gij`, Outlook and Box were untouched. No
+  `-ResetTestEstate` was used. Post-run script verification reported zero
+  blobs remaining and zero wiped tables holding rows.
 
 ## Release 102 — 12 October 2026 (deployment live)
 
@@ -210,7 +254,7 @@ The route was the normal App Service route with the migration identity unchanged
 | Production smoke | Passed at 21:35:39Z. The Worker activation smoke passed as `approved-live-worker`. Active Web package `20261008212859.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed: last completed poll `2026-10-08T21:35:03Z`; the active Graph subscription expires `2026-10-12T13:50:00Z`. |
 | Wipe | None. |
 | PR states | PRs 1118, 1119, 1120 and 1125 read Merged when PR 1128 landed. No GitHub issue was linked to any of them. |
-| Still owed | Live proofs of the changes themselves:<br>• PR 1118: the Case ribbon's Registration cell and its chip row on a real Case above 1100 px, including a total-loss Case in edit mode.<br>• PR 1120: the Work Centre Activity panel shows all ten figures.<br>• PR 1125: the next wipe dry run reads `CaseListPresets` on the preserve list.<br>The Release 81 to 94 proofs remain owed. |
+| Still owed | Live proofs of the changes themselves:<br>• PR 1118: the Case ribbon's Registration cell and its chip row on a real Case above 1100 px, including a total-loss Case in edit mode.<br>• PR 1120: the Work Centre Activity panel shows all ten figures.<br>The Release 81 to 94 proofs remain owed. PR 1125's preserve-list proof landed in the 12 October wipe. |
 | Evidence | Exact artifacts retained at ignored `artifacts/releases/release-95-9e85b82f`; the build and deploy drivers and their logs at `artifacts/releases/release-95-driver`; the combination's audit and PR body at `../pegasus-worktrees/merge-1118-1125-audit.md` and `merge-1118-1125-pr-body.md`. |
 
 ## Release 94 — 8 October 2026 (deployment live)
