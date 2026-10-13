@@ -93,7 +93,6 @@ Preserve this order:
 8. Report
 9. Files
 10. Notes
-11. Tasks
 
 Each section is the owner of its domain. Do not duplicate its full content elsewhere.
 
@@ -113,12 +112,13 @@ Important ownership decisions:
 - Report owns generation/preview/finality controls, report wording, report date, commentary and the Fee pane. Its head keeps the one **Not ready** label; the blocker list is the aside's Report not ready card (below).
 - Files owns Case images, documents, crop/tag/viewer tools, upload requests and correspondence/file surfaces. A document row may offer **Import as repair spec**, which runs Repair Spec's own import on that file (operator, 25 September 2026).
 - Notes owns the single Case timeline, notes and chase recording.
-- Tasks owns the Case's tasks (CASE-20, operator, 5 October 2026): a dense table (task,
-  assignee, state chip) with Complete, Cancel task, Assign (a select of the enabled named
-  staff, operator, 6 October 2026) and Add task in the edit session under the lease, each with
-  one fixed recorded reason and so no reason box. It loads like Files and Notes and acts
-  through its own posts. Once Report sent is recorded the aside's Next action lists the open
-  tasks, each linking here; do not add task actions to Report.
+- Tasks is not a section (operator, 13 October 2026): the Case's tasks (CASE-20) are the
+  Actions menu's Tasks dialog, a dense table (task, assignee, state chip) with Complete,
+  Cancel task, Assign (a select of the enabled named staff, operator, 6 October 2026) and Add
+  task in the edit session under the lease, each with one fixed recorded reason and so no
+  reason box. Its body loads when the dialog opens, like Files and Notes, and it acts through
+  its own posts, which return with `?dialog=tasks`. Once Report sent is recorded the aside's Next action lists the
+  open tasks, each opening the dialog; do not add task actions to Report.
 
 Case images are not repeated under Damage. A Report image-selection/preview strip may summarize the
 same evidence only where Report needs that decision.
@@ -167,6 +167,8 @@ offered while a colleague holds it. Typical entries include:
 - Assign Engineer;
 - Export case, on every standard Case in every state: a direct download form, no dialog,
   no lease, no reason;
+- Tasks, on every standard Case in every state: a link that opens the Tasks dialog
+  (`data-dialog-open`, and `?dialog=tasks` without script);
 - Mark report sent;
 - Log query, on a Report sent Case (a compact dialog: channel and details, no reason), and
   Resolve query while a query is open (a direct post, no dialog, no reason; operator, 11 October
@@ -333,7 +335,7 @@ ready.
 Next action is one step (operator, 8 October 2026): the first outstanding Case requirement, else
 the state's step, else the report's first blocker, drawn in full with one full-width control. Do not
 list anything else in it, except that once Report sent is recorded the Case's open tasks are the
-step (in place of None) or follow it, in the blocker style, each linking to Tasks (operator, 6 October 2026). Everything outstanding is the **Report not ready** card below, folded
+step (in place of None) or follow it, in the blocker style, each opening the Tasks dialog (operator, 6 and 13 October 2026). Everything outstanding is the **Report not ready** card below, folded
 until opened and remembered per browser (`data-collapse-folded`): the Case requirements (in any state), then every
 report blocker under its section's name, the requirement as its link to the section that owns the
 fact rather than repeating it. A stale generation's warning notice sits at the top of Next action;
