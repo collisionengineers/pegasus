@@ -1465,7 +1465,7 @@ public static class OperatorLabels
             "reopened" or "open" => "navy",
 
             // Intake and Triage
-            "needs sorting" or "unidentified" => "amber",
+            "needs sorting" or "unidentified" or "no case found" => "amber",
             "blocked intake" or "blocked" => "red",
             "document text required" or "unsupported" => "amber",
             "awaiting information" => "amber",
@@ -2793,6 +2793,9 @@ public static class OperatorLabels
         public const string Category = "Category";
         public const string AllCategories = "All categories";
         public const string DismissedScope = "Dismissed";
+
+        /// <summary>Received mail with no linked Case: its scope and its outcome chip (operator, 13 October 2026).</summary>
+        public const string NoCaseFound = "No Case Found";
         public const string Dismiss = "Dismiss";
         public const string Restore = "Restore";
         public const string DismissedNotice = "Dismissed";

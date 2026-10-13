@@ -74,11 +74,11 @@ the Triage may link to ([FRD-03](docs/frd/frd-03-triage.md)).
 _Avoid_: pre-Case Triage record, T-reference
 
 **Unidentified**:
-Safely retained material or an inseparable submission group that has not become a Case (Triage included) or Image intake: its identity, meaning, ownership or destination cannot be established, or it could not be read. It receives an immutable U-reference and a reason under FRD-02; material that could not be read carries the reason Could not be read with its file kind. Readable material that must not become a Case is closed with a reason, and a closed item can be reopened. It is distinct from Triage, a missing Audit original report, Image Intake and a formal Case in Not ready. It is not a mail category.
+Safely retained image material or an inseparable image submission group that has not become a Case (Triage included) or Image intake: its identity, meaning, ownership or destination cannot be established, or the uploaded image file could not be read. Only images become Unidentified: image-only material from any channel, or an uploaded image file that could not be read; an e-mail with no Case waits in the Inbox's No Case Found scope, and a manual-upload document that cannot become a Case is refused by its upload (operator, 13 October 2026). It receives an immutable U-reference and a reason under FRD-02; an image that could not be read carries the reason Could not be read with its file kind. Readable image material that must not become a Case is closed with a reason, and a closed item can be reopened. Cases lists items under Unassigned Images. It is distinct from Triage, a missing Audit original report, Image Intake and a formal Case in Not ready. It is not a mail category.
 _Avoid_: Triage, Blocked, Blocked intake
 
 **Mail category**:
-The one category a retained received message has, from eleven: New instruction, Triage request, Pre-instruction, Images received, Case update, Cancellation, Query, Billing, General, Not client related and Internal CC ([FRD-08](docs/frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)). A message no classification has decided is Unclassified and shows as Unidentified. Sent items carry no category.
+The one category a retained received message has, from eleven: New instruction, Triage request, Pre-instruction, Images received, Case update, Cancellation, Query, Billing, General, Not client related and Internal CC ([FRD-08](docs/frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)). A message no classification has decided is Unclassified. Sent items carry no category.
 _Avoid_: family, subtype, destination, Other, Ambiguous
 
 **Held**:

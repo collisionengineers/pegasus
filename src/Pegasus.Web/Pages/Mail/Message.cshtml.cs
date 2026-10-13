@@ -115,7 +115,7 @@ public sealed class MessageModel(
 
     private MailCategory? CategoryFilter { get; set; }
 
-    private bool UnidentifiedFilter { get; set; }
+    private bool NoCaseFoundFilter { get; set; }
 
     [BindProperty(SupportsGet = true, Name = "section")]
     public string? Section { get; set; }
@@ -2040,7 +2040,7 @@ public sealed class MessageModel(
                 QueueFilter,
                 out var normalized,
                 out var category,
-                out var unidentified))
+                out var noCaseFound))
         {
             return false;
         }
@@ -2050,7 +2050,7 @@ public sealed class MessageModel(
         }
         QueueFilter = normalized;
         CategoryFilter = category;
-        UnidentifiedFilter = unidentified;
+        NoCaseFoundFilter = noCaseFound;
         return true;
     }
 
@@ -2058,17 +2058,12 @@ public sealed class MessageModel(
         MailClassificationDossier? dossier,
         RetainedMailSummary summary)
     {
-        if (CategoryFilter is null && !UnidentifiedFilter)
+        if (NoCaseFoundFilter)
         {
-            return true;
+            return summary.IntakeReceiptId is not null && summary.CaseId is null;
         }
-        if (dossier is null)
-        {
-            return false;
-        }
-        return UnidentifiedFilter
-            ? !dossier.Current.IsClassified && !summary.UnidentifiedResolved
-            : dossier.Current.Is(CategoryFilter!.Value);
+        return CategoryFilter is not { } category
+            || dossier?.Current.Is(category) == true;
     }
 
     private bool TryCategory(out MailCategory? category) =>
@@ -2120,8 +2115,8 @@ public sealed class MessageModel(
         { AllocationState.Status: IntakeAllocationProjectionStatus.Pending } => "Creating case",
         { AllocationState.Status: IntakeAllocationProjectionStatus.FailedRecoverable
             or IntakeAllocationProjectionStatus.FailedBlocked } => "Case not created",
-        // A Triage request shares the NeedsSorting decision with unidentified
-        // material, because both are pre-case, but they are not the same thing
+        // A Triage request shares the NeedsSorting decision with mail that
+        // found no Case, because both are pre-case, but they are not the same thing
         // and this column must not call one the other: the operator reported
         // this defect from this screen, which labelled a Triage request as
         // though a case were coming. The word is the Triage destination's
@@ -2133,7 +2128,7 @@ public sealed class MessageModel(
     private static string OutcomeLabel(IntakeDecision? decision) => decision switch
     {
         IntakeDecision.CaseCreated => "Ready for case allocation",
-        IntakeDecision.NeedsSorting => "Unidentified",
+        IntakeDecision.NeedsSorting => OperatorLabels.Inbox.NoCaseFound,
         IntakeDecision.OcrRequired => "Document text required",
         IntakeDecision.TechnicalFailure => "Technical failure",
         IntakeDecision.Unsupported => "Unsupported",

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Infrastructure.Persistence;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
@@ -26,12 +27,13 @@ public sealed class AutomationIntakeParityIngressTests
             BaseAddress = new Uri("https://localhost:7139")
         });
         using var client = mcpFactory.CreateClient();
-        _ = await IntakeWebDriver.UploadAndProcessAsync(
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
             mcpFactory,
             intakeClient,
             "unplaced.pdf",
             "application/pdf",
             IntakeTestEvidence.CreatePdf("Unplaced source text for the Unidentified queue."));
+        await HoldAsUnidentifiedAsync(mcpFactory.Services, upload);
 
         var token = await RequestTokenAsync(client, "automation.intake");
         using var listResponse = await PostMcpAsync(client, token,
@@ -76,12 +78,13 @@ public sealed class AutomationIntakeParityIngressTests
         });
         using var client = mcpFactory.CreateClient();
         var content = Encoding.UTF8.GetBytes(new string('x', 2 * 1024));
-        _ = await IntakeWebDriver.UploadAndProcessAsync(
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
             mcpFactory,
             intakeClient,
             "oversized-corrupt.pdf",
             "application/pdf",
             content);
+        await HoldAsUnidentifiedAsync(mcpFactory.Services, upload);
 
         var token = await RequestTokenAsync(client, "automation.intake");
         using var listResponse = await PostMcpAsync(client, token,
@@ -525,4 +528,21 @@ public sealed class AutomationIntakeParityIngressTests
             && linked.ValueKind == JsonValueKind.String
             ? linked.GetGuid()
             : null;
+
+    /// <summary>
+    /// Only images become Unidentified through intake (operator, 13 October
+    /// 2026), so an uploaded PDF is held here directly, through the same
+    /// registration request intake builds: these tests are about how the
+    /// automation surface reads and downloads an item's PDF source.
+    /// </summary>
+    private static async Task HoldAsUnidentifiedAsync(IServiceProvider services, UploadResult upload)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var receipt = Assert.IsType<IntakeReceipt>(await scope.ServiceProvider
+            .GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(IntakeWebDriver.ReceiptId(upload), CancellationToken.None));
+        await scope.ServiceProvider.GetRequiredService<IRegisterUnidentified>().ExecuteAsync(
+            ProcessIntake.BuildUnidentifiedRegistrationRequest(receipt),
+            CancellationToken.None);
+    }
 }

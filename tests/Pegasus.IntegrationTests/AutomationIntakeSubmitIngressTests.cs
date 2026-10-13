@@ -19,14 +19,16 @@ public sealed class AutomationIntakeSubmitIngressTests
         using var mcpFactory = WithAutomationMcp(factory);
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, "automation.intake");
-        var content = "not a PDF"u8.ToArray();
+        // Only images become Unidentified (operator, 13 October 2026): an
+        // image that cannot be read is held there for a staff decision.
+        var content = "not a JPEG"u8.ToArray();
         const string receiptToken = "network-drive:scan-0001";
 
         Guid stagedReceiptId;
         using (var response = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_intake_submit", new
         {
-            fileName = "scan-0001.pdf",
-            mediaType = "application/pdf",
+            fileName = "scan-0001.jpg",
+            mediaType = "image/jpeg",
             contentBase64 = Convert.ToBase64String(content),
             externalReceiptToken = receiptToken,
             operationKey = "mcp:intake-submit-1"
@@ -41,8 +43,8 @@ public sealed class AutomationIntakeSubmitIngressTests
         // The same token with the same bytes is the same submission.
         using (var response = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_intake_submit", new
         {
-            fileName = "scan-0001.pdf",
-            mediaType = "application/pdf",
+            fileName = "scan-0001.jpg",
+            mediaType = "image/jpeg",
             contentBase64 = Convert.ToBase64String(content),
             externalReceiptToken = receiptToken,
             operationKey = "mcp:intake-submit-2"
@@ -54,8 +56,8 @@ public sealed class AutomationIntakeSubmitIngressTests
         // Different bytes under the same token fail closed.
         using (var response = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_intake_submit", new
         {
-            fileName = "scan-0001.pdf",
-            mediaType = "application/pdf",
+            fileName = "scan-0001.jpg",
+            mediaType = "image/jpeg",
             contentBase64 = Convert.ToBase64String("different bytes"u8.ToArray()),
             externalReceiptToken = receiptToken,
             operationKey = "mcp:intake-submit-3"

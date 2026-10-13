@@ -67,7 +67,8 @@ width, a long Case/PO, Image reference or U-reference moves to a labelled
 second line instead of overlapping the received timestamp. Inbox and Intake
 log rows always show received date above received time, and show the precise
 processing outcome (`Case created`, `Vehicle images`, `Linked to Case`,
-`Unidentified`, `Could not be read` or `Closed`), never a generic `New`. One
+`Unidentified`, `Could not be read` or `Closed`; an Inbox message with no
+Case reads `No Case Found`), never a generic `New`. One
 action or state has one icon across Pegasus. No decorative or generated
 replacement icon is used.
 
@@ -88,8 +89,8 @@ bar and the page content.
 **The rail** carries, in order, **Work Centre** (`/`), **Inbox** (`/Inbox`),
 **Upload** (`/Upload`), **Cases** (`/Cases`), **Search** (`/Search`) and, for administrators only,
 **Administration** (`/Administration`). Inbox and Cases carry a
-count. The Cases count is the sum of Not ready, Review, With Engineer, Query,
-Held, Triage and Unidentified. A count is a page-queried figure: an absent
+count. The Cases count is the sum of Not ready, Review, With Engineer,
+Queries, Held, Triage and the open Unidentified items. A count is a page-queried figure: an absent
 count renders nothing, never `0`. The current route is marked by more than
 colour. The rail foot shows the freshness line and the signed-in account
 (name, role, and an account dialog with session start, idle lock and sign
@@ -178,7 +179,7 @@ raise failed; an Administrator retries it from
 | `/` | Work Centre ([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)) | Dashboard |
 | `/Inbox`, `/Inbox/{id}` | Retained mail list and message ([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)) | — |
 | `/Upload` | Staff upload ([FRD-18](frd-18-manual-upload.md#staff-upload-page)) | — |
-| `/Cases` | Queues as one continuous rail: Case queues, Triage, Awaiting instruction, Held and Unidentified ([FRD-15](frd-15-work-centre-queues-and-search.md#cases-queues-and-filters)) | Queues; the Triage list |
+| `/Cases` | Queues as one continuous rail: Not ready, Unassigned Images (identified image records and Unidentified items), the other Case queues, Triage and Held ([FRD-15](frd-15-work-centre-queues-and-search.md#cases-queues-and-filters)) | Queues; the Triage list |
 | `/Cases/{id}` | Case record with section navigation; `?section=` jumps; once the Case has an Audit, `?view=inspection` or `?view=audit` chooses the view, the Audit view by default ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). A Triage Case renders as the Triage Case page ([FRD-15](frd-15-work-centre-queues-and-search.md#the-triage-case-page)) | Case workspace side-nav sections; the Assessment page; the Triage record page |
 | `/ReleaseNotes` | Published release notes, newest first; **Got it** posts here | — |
 | `/ProblemReports` | **Send** on Report a problem posts here; it has no page of its own | — |
@@ -193,14 +194,15 @@ actions are on the Intake log, and its outcome is stated on
 its message, its upload and the record it became
 ([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions)).
 
-`/Unidentified` is a permanent redirect to `/Cases?tab=unidentified`, kept
+`/Unidentified` is a permanent redirect to
+`/Cases?tab=unassigned&show=unidentified`, kept
 for existing links and bookmarks. `/Triage` and `/Triage/{id}` are removed
 and answer Not found, with no redirect. The Case record's tasks, vehicle,
 workflow, closure and Case export routes answer Not found for a Triage
 Case. Custody and document download stay open for it. The
 `/VehicleImages` list route is removed. The vehicle-images detail page remains
 and is reached from
-Awaiting-instruction rows, the Case Files section and upload outcomes. There
+Unassigned Images rows, the Case Files section and upload outcomes. There
 is no separate top-level Unidentified, Organisations, Staff accounts, Roles
 or Automation Activity entry. The Engineer workbench is a set of sections on
 the Case record, not a page of its own.

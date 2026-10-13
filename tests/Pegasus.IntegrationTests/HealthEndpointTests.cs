@@ -137,7 +137,7 @@ public sealed class HealthEndpointTests : IClassFixture<IntakeWebApplicationFact
         Assert.Contains("Work Centre", html, StringComparison.Ordinal);
         Assert.Contains("href=\"/Cases/Create\"", html, StringComparison.Ordinal);
         Assert.Contains("data-value=\"not_ready\" href=\"/Cases?tab=not_ready\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-value=\"unidentified\" href=\"/Cases?tab=unidentified\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-value=\"unidentified\" href=\"/Cases?tab=unassigned&amp;show=unidentified\"", html, StringComparison.Ordinal);
         Assert.Contains("Unidentified", html, StringComparison.Ordinal);
     }
 }
