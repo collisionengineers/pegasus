@@ -886,7 +886,7 @@ public sealed class VehicleLookupGapFillTests
 
     /// <summary>
     /// The fill runs on the Worker, whose least-privilege role must be able to
-    /// read the confirmed mileage source (report freshness) and write the derived
+    /// read the lookup's recorded facts (report freshness) and write the derived
     /// Vehicle type and the lookup's own facts. LocalDB tests otherwise run as
     /// dbo and never see a missing grant; Release 54 shipped exactly that gap.
     /// </summary>

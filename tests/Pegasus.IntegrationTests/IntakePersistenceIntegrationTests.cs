@@ -235,6 +235,7 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261011140000_ImageMatchDecline",
                 "20261011191701_ReportSentAndCaseQueries",
                 "20261012120000_MailboxIncomingOutgoing",
+                "20261012120000_RemoveMileageSourceChoice",
                 "20261012120000_SupplementaryOfSnapshot",
                 "20261012120000_WorkerObservesReportSends",
                 "20261012130000_ReportSendCarriesSecondReport",

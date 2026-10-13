@@ -111,14 +111,6 @@ public sealed class EfCaseAssessmentStore(
             .ToListAsync(cancellationToken);
         var beforeAssessment = fields.ToDictionary(
             item => item.FieldPath, item => (string?)item.Value, StringComparer.Ordinal);
-        var mileageField = CaseDataFieldValues.CurrentField(
-            await context.CaseDataFields.AsNoTracking()
-                .Where(item => item.WorkId == workId)
-                .ToArrayAsync(cancellationToken),
-            CaseDataFieldNames.VehicleMileage);
-        CaseDataSourceKind? mileageProvenance = mileageField is null
-            ? null
-            : EfCaseDataStore.ParseSourceKind(mileageField.SourceKind);
         var (fieldsToWrite, merged) = AssessmentWriteSet.Build(request.Fields, fields);
         var (beforeFields, afterFields) = AssessmentWriteSet.Apply(
             context,
@@ -154,17 +146,7 @@ public sealed class EfCaseAssessmentStore(
             item => item.Key,
             item => (string?)item.Value,
             StringComparer.Ordinal);
-        var freshness = CaseReportFreshness.ClassifyAssessment(
-            beforeAssessment,
-            afterAssessment,
-            CaseVehicleMileageSourcePolicy.Resolve(
-                mileageProvenance,
-                mileageField is not null,
-                beforeAssessment.GetValueOrDefault(AssessmentVocabulary.VehicleMileageSource)),
-            CaseVehicleMileageSourcePolicy.Resolve(
-                mileageProvenance,
-                mileageField is not null,
-                afterAssessment.GetValueOrDefault(AssessmentVocabulary.VehicleMileageSource)));
+        var freshness = CaseReportFreshness.ClassifyAssessment(beforeAssessment, afterAssessment);
         if (freshness.IsStale)
         {
             await EfCaseReportGenerationStore.MarkStaleAsync(
@@ -280,12 +262,11 @@ public sealed class EfCaseAssessmentStore(
                 item.PaintWorkUnits,
                 item.Quantity))
             .ToArray(),
-        MapCaseOwned(workflow.Case, caseDataFields, fields, originReceivedAtUtc));
+        MapCaseOwned(workflow.Case, caseDataFields, originReceivedAtUtc));
 
     private static AssessmentCaseOwnedData MapCaseOwned(
         CaseEntity caseEntity,
         IReadOnlyList<CaseDataFieldEntity> caseDataFields,
-        IReadOnlyList<CaseAssessmentFieldEntity> assessmentFields,
         DateTimeOffset? originReceivedAtUtc)
     {
         string? Current(string fieldName) => CaseDataFieldValues.Current(caseDataFields, fieldName);
@@ -305,17 +286,13 @@ public sealed class EfCaseAssessmentStore(
         };
         // The report's mileage-source sentence is derived from where the case's
         // mileage came from, so it is read off the winning mileage row's own
-        // provenance. The recorded assessment value is only the staff pick
-        // between the people who could have told them.
+        // provenance.
         var mileageField = CaseDataFieldValues.CurrentField(
             caseDataFields,
             CaseDataFieldNames.VehicleMileage);
         var mileageSource = CaseVehicleMileageSourcePolicy.Resolve(
             mileageField is null ? null : EfCaseDataStore.ParseSourceKind(mileageField.SourceKind),
-            mileageField is not null,
-            assessmentFields
-                .SingleOrDefault(item => item.FieldPath == AssessmentVocabulary.VehicleMileageSource)
-                ?.Value);
+            mileageField is not null);
         // The Case's Received date (CaseDataPolicy.ReceivedDate); the report
         // prints it as the date instructions were received.
         var receivedDate = CaseDataPolicy.ReceivedDate(originReceivedAtUtc, caseEntity.CreatedAtUtc);

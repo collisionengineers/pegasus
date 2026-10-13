@@ -208,7 +208,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     null,
                     null,
                     null,
-                    new(42_000, CaseOdometerUnit.Miles, CaseVehicleMileageSourcePolicy.Owner, null),
+                    new(42_000, CaseOdometerUnit.Miles, null),
                     new Dictionary<string, string?>(StringComparer.Ordinal)),
                 Valuation = new(
                 [

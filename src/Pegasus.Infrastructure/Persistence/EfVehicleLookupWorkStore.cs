@@ -212,27 +212,20 @@ internal sealed class EfVehicleLookupWorkStore(
         var caseDataFields = await context.CaseDataFields
             .Where(item => item.WorkId == workId)
             .ToListAsync(cancellationToken);
-        // The selected mileage source and the facts the lookup records are
-        // read together; the source is a dependency, not one of those facts,
-        // so it stays out of the rows the fill compares before and after.
         string[] assessmentPaths =
         [
-            AssessmentVocabulary.VehicleMileageSource,
             AssessmentVocabulary.VehicleType,
             .. AssessmentVocabulary.LookupDerivedPaths
         ];
         var assessmentRows = await context.CaseAssessmentFields
             .Where(item => item.WorkId == workId && assessmentPaths.Contains(item.FieldPath))
             .ToListAsync(cancellationToken);
-        var selectedMileageSource = assessmentRows
-            .SingleOrDefault(item => item.FieldPath == AssessmentVocabulary.VehicleMileageSource)?.Value;
-        assessmentRows.RemoveAll(item => item.FieldPath == AssessmentVocabulary.VehicleMileageSource);
-        var beforeVehicle = ReportVehicleDependencies(caseDataFields, selectedMileageSource);
+        var beforeVehicle = ReportVehicleDependencies(caseDataFields);
         var (beforeAssessment, afterAssessment) = FillVehicleFields(
             context, caseDataFields, assessmentRows, workId, observationId, result, outcome.Mileage, recordedAtUtc);
         var freshness = CaseReportFreshness.ClassifyVehicle(
             beforeVehicle,
-            ReportVehicleDependencies(caseDataFields, selectedMileageSource));
+            ReportVehicleDependencies(caseDataFields));
         // The engine capacity and fuel the lookup records are printed assessment
         // facts, not Case-data vehicle dependencies: the assessment classifier
         // decides. The Vehicle type and the lookup's other facts print nowhere.
@@ -518,8 +511,7 @@ internal sealed class EfVehicleLookupWorkStore(
     }
 
     private static CaseReportVehicleDependencies ReportVehicleDependencies(
-        IReadOnlyList<CaseDataFieldEntity> fields,
-        string? selectedMileageSource)
+        IReadOnlyList<CaseDataFieldEntity> fields)
     {
         string? Current(string fieldName) => CaseDataFieldValues.Current(fields, fieldName);
         var mileage = CaseDataFieldValues.CurrentField(fields, CaseDataFieldNames.VehicleMileage);
@@ -533,8 +525,7 @@ internal sealed class EfVehicleLookupWorkStore(
             Current(CaseDataFieldNames.VehicleMileageUnit),
             CaseVehicleMileageSourcePolicy.Resolve(
                 mileage is null ? null : EfCaseDataStore.ParseSourceKind(mileage.SourceKind),
-                mileage is not null,
-                selectedMileageSource));
+                mileage is not null));
     }
 
     internal static VehicleLookupObservation MapObservation(VehicleLookupObservationEntity entity)
