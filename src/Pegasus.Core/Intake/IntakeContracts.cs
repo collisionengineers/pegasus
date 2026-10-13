@@ -1190,6 +1190,14 @@ public sealed record AcceptIntakeRequest(
     Guid? AllocationAttemptId = null,
     DateTimeOffset? AllocationCompletedAtUtc = null);
 
+/// <summary>
+/// A staff link of one receipt to a Case. <paramref name="SettleUnidentified"/>
+/// is true unless the caller links a submission group's members one by one:
+/// when false, the link commits and files as before but does not synchronise
+/// any Unidentified item, and the caller settles it once for the whole group
+/// (the group, not the member, owns the item). The Worker's replay and the
+/// sweep remain the backstop.
+/// </summary>
 public sealed record LinkIntakeRequest(
     Guid ReceiptId,
     Guid CaseId,
@@ -1198,7 +1206,8 @@ public sealed record LinkIntakeRequest(
     string EditLeaseToken,
     ActionActor Actor,
     string OperationKey,
-    string? Reason);
+    string? Reason,
+    bool SettleUnidentified = true);
 
 public sealed record ReverseIntakeLinkRequest(
     Guid ReceiptId,
