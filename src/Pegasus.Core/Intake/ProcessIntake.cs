@@ -748,6 +748,7 @@ public sealed class ProcessIntake(
                 ProcessQueuedIntake.DeclaredDestinationReason,
                 [
                     .. readerEvidence,
+                    .. (readResult.IsIncomplete ? new[] { IncompleteReadEvidence() } : []),
                     new IntakeEvidence(
                         IntakeEvidenceSource.SystemDefault,
                         IntakeEvidenceStrength.Strong,
@@ -774,6 +775,20 @@ public sealed class ProcessIntake(
                 issue.Code,
                 issue.Reason))
             .ToArray();
+
+    private const string IncompleteReadReason =
+        "The source was retained, but processing could not be completed safely and requires manual sorting.";
+
+    /// <summary>
+    /// The signal that keeps an incomplete read out of image automation
+    /// (ADR-0005 item 11), whichever assessment carries the read.
+    /// </summary>
+    private static IntakeEvidence IncompleteReadEvidence() => new(
+        IntakeEvidenceSource.SystemDefault,
+        IntakeEvidenceStrength.Strong,
+        IntakeEvidenceFinding.Information,
+        IntakeEvidenceSignals.IncompleteRead,
+        IncompleteReadReason);
 
     /// <summary>The honest decision for bytes the reader could not read, whatever the route; null when it could.</summary>
     private static IntakeAssessment? ReaderFailureAssessment(
@@ -819,21 +834,11 @@ public sealed class ProcessIntake(
 
         if (readResult.IsIncomplete)
         {
-            const string incompleteReason =
-                "The source was retained, but processing could not be completed safely and requires manual sorting.";
             // An incomplete read never enters image automation (ADR-0005 item 11).
             return new(
                 IntakeDecision.NeedsSorting,
-                incompleteReason,
-                [
-                    .. readerEvidence,
-                    new IntakeEvidence(
-                        IntakeEvidenceSource.SystemDefault,
-                        IntakeEvidenceStrength.Strong,
-                        IntakeEvidenceFinding.Information,
-                        IntakeEvidenceSignals.IncompleteRead,
-                        incompleteReason)
-                ],
+                IncompleteReadReason,
+                [.. readerEvidence, IncompleteReadEvidence()],
                 [],
                 null,
                 [],

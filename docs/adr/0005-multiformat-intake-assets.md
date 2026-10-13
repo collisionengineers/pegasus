@@ -84,7 +84,7 @@ not need automated interpretation of every historical file container.
 
     Operator decision, 12 October 2026: the decoded-image pixel budget counts
     each distinct image object in a PDF once, charged when it is first reached
-    and before it is decoded. When an image budget is exceeded no further
+    as a page image. When an image budget is exceeded no further
     images are extracted, but every page's text is still read and the intake
     is still incomplete. An incomplete read never enters image automation.
 
