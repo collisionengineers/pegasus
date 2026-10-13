@@ -50,17 +50,11 @@
     var mileageText = mileageValue is { } odometer
         ? unitWord is null ? odometer.Value.ToString("N0") : $"{odometer.Value:N0} {unitWord}"
         : noMotHistory ? VehicleLabels.NoMotHistory : null;
-    // Who told staff the figure is theirs to state. The pick is kept beside
-    // the box whenever the box is editable, because the figure typed into it
-    // may be the one it describes; every other provenance resolves itself.
-    var mileageSource = Model.AssessmentEditorValue(AssessmentVocabulary.VehicleMileageSource);
-    var staffPicked = mileageSource is not null && CaseVehicleMileageSourcePolicy.StaffChoices.Contains(mileageSource);
-    var mileageSourceWord = staffPicked
-        ? VehicleLabels.MileageSource(mileageSource!)
-        : mileageValue is not null ? OperatorLabels.SourceTag(mileageValue.Source)?.Word : null;
-    // The select opens on what the box reads: the staff pick, else the
-    // figure's own source (no staff pick), else the first staff choice.
-    var selectedMileageSource = staffPicked ? mileageSource : mileageSourceWord is null ? CaseVehicleMileageSourcePolicy.StaffChoices[0] : null;
+    // The figure's own source: a figure staff typed is Custom (operator, 12
+    // October 2026). Nothing is picked; editing the figure reads Custom at once.
+    var mileageSourceWord = mileageValue is null ? null
+        : mileageValue.Source?.Kind is null or CaseDataSourceKind.StaffCorrection ? VehicleLabels.MileageSourceCustom
+        : OperatorLabels.SourceTag(mileageValue.Source)?.Word;
     var condition = Model.AssessmentEditorValue(AssessmentVocabulary.VehicleCondition);
     var conditionCodes = AssessmentVocabulary.Definitions[AssessmentVocabulary.VehicleCondition].Codes ?? [];
     var canEditCondition = Model.CanEditAssessmentField(AssessmentVocabulary.VehicleCondition);
@@ -205,8 +199,7 @@
         <div class="sub-panel @Model.CollapsedClass("case.vehicle.mileage")" data-vehicle-mileage data-collapse="case.vehicle.mileage"><h3>@VehicleLabels.MileageAndCondition <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.vehicle.mileage")" /></h3>
             <div class="fg g4">
                 @* One mileage box, with the provenance the report's source code
-                   is read from. The staff pick rides beside the box while it is
-                   editable, and is ignored unless staff supplied the figure. *@
+                   is read from. *@
                 <div class="fc @Ro(editFields)">
                     @{ Lbl(editFields, "edit-mileage", VehicleLabels.Mileage, noMotHistory ? OperatorLabels.SourceTagWord.Lookup : OperatorLabels.SourceTag(mileageValue?.Source)); }
                     <div class="@ValueClass(mileageText) @(noMotHistory ? null : "mono")" data-vehicle-mileage-read>@Value(mileageText)</div>
@@ -215,22 +208,10 @@
                         <input id="edit-mileage" class="fi mono" name="vehicleMileage" type="number" min="0" step="1" inputmode="numeric" form="case-edit-form" value="@mileageValue?.Value" />
                     }
                 </div>
-                <div class="fc @Ro(editFields)">
-                    @{ Lbl(editFields, "edit-mileage-source", VehicleLabels.MileageSourceLabel); }
+                <div class="fc ro" data-mileage-source data-mileage-opened="@mileageValue?.Value"
+                     data-source-word="@mileageSourceWord" data-custom-word="@VehicleLabels.MileageSourceCustom" data-absent-word="@OperatorLabels.CaseWorkspace.AbsentValue">
+                    @{ Lbl(false, string.Empty, VehicleLabels.MileageSourceLabel); }
                     <div class="@ValueClass(mileageSourceWord)">@Value(mileageSourceWord)</div>
-                    @if (editFields)
-                    {
-                        <select id="edit-mileage-source" class="fi" name="vehicleMileageSource" form="case-edit-form">
-                            @if (!staffPicked && mileageSourceWord is not null)
-                            {
-                                <option value="" selected>@mileageSourceWord</option>
-                            }
-                            @foreach (var code in CaseVehicleMileageSourcePolicy.StaffChoices)
-                            {
-                                <option value="@code" selected="@(code == selectedMileageSource ? "selected" : null)">@VehicleLabels.MileageSource(code)</option>
-                            }
-                        </select>
-                    }
                 </div>
                 <div class="fc @Ro(canEditCondition)" data-field="@AssessmentVocabulary.VehicleCondition">
                     @{ Lbl(canEditCondition, "edit-vehicle-condition", VehicleLabels.PreIncidentCondition, Model.AssessmentSourceTag(AssessmentVocabulary.VehicleCondition)); }

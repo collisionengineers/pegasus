@@ -240,7 +240,6 @@ public sealed class CaseVehicleWebTests
             StringComparison.Ordinal);
         Assert.DoesNotContain("MOT mileage", html, StringComparison.Ordinal);
         Assert.DoesNotContain("DVLA suggests", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("name=\"vehicleMileageSource\"", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -307,40 +306,14 @@ public sealed class CaseVehicleWebTests
     }
 
     /// <summary>
-    /// Only staff know who told them a mileage they typed, so the three people
-    /// a case hears one from ride beside the box for as long as the box can be
-    /// typed into — including on a case whose current figure was looked up,
-    /// because the next figure typed over it may be an owner's. A read-only
-    /// case is asked nothing, and a looked-up figure that stands keeps
-    /// answering the question on its own.
+    /// The mileage source follows the figure and is never picked (operator, 12
+    /// October 2026): a looked-up figure reads Lookup, in edit mode as well,
+    /// and a figure staff typed reads Custom. The cell carries the words the
+    /// script swaps in as soon as the box is edited.
     /// </summary>
     [Fact]
-    public async Task TheMileageSourceChoiceIsOfferedInEditMode()
+    public async Task TheMileageSourceFollowsTheFigure()
     {
-        var staffStore = new RecordingCaseDetailsStore();
-        using var staffWorkspace = await EnterEditModeAsync(staffStore, _ => { });
-
-        var staffHtml = await GetHtmlAsync(
-            staffWorkspace.Client,
-            $"/Cases/{staffStore.CaseId:D}?section=vehicle");
-
-        Assert.Contains(
-            "<select id=\"edit-mileage-source\" class=\"fi\" name=\"vehicleMileageSource\" form=\"case-edit-form\">",
-            staffHtml,
-            StringComparison.Ordinal);
-        Assert.Contains("<label for=\"edit-mileage-source\">Mileage source</label>", staffHtml, StringComparison.Ordinal);
-        foreach (var code in CaseVehicleMileageSourcePolicy.StaffChoices)
-        {
-            Assert.Contains(
-                $"<option value=\"{code}\"",
-                staffHtml,
-                StringComparison.Ordinal);
-            Assert.Contains(
-                CaseWorkspaceLabels.Vehicle.MileageSource(code),
-                staffHtml,
-                StringComparison.Ordinal);
-        }
-
         var lookupStore = new RecordingCaseDetailsStore { VehicleLookupEvidence = LookupEvidence() };
         var data = await lookupStore.GetAsync(lookupStore.CaseId, CaseWorkSelector.Current, CancellationToken.None)
             ?? throw new InvalidOperationException("The vehicle fixture did not return case data.");
@@ -355,11 +328,38 @@ public sealed class CaseVehicleWebTests
             $"/Cases/{lookupStore.CaseId:D}?section=vehicle");
 
         Assert.Contains("name=\"vehicleMileage\"", lookupHtml, StringComparison.Ordinal);
-        Assert.Contains("name=\"vehicleMileageSource\"", lookupHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("vehicleMileageSource", lookupHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("edit-mileage-source", lookupHtml, StringComparison.Ordinal);
+        Assert.Matches(
+            "<div class=\"fc ro\" data-mileage-source data-mileage-opened=\"49089\"\\s+"
+            + "data-source-word=\"Lookup\" data-custom-word=\"Custom\"",
+            lookupHtml);
+        Assert.Matches(
+            "<span class=\"lbl\">Mileage source</span>\\s*<div class=\"fv\">Lookup</div>",
+            lookupHtml);
 
-        var readOnlyHtml = await ReadOnlyVehicleSectionAsync(new RecordingCaseDetailsStore());
+        var staffStore = new RecordingCaseDetailsStore();
+        var staffData = await staffStore.GetAsync(staffStore.CaseId, CaseWorkSelector.Current, CancellationToken.None)
+            ?? throw new InvalidOperationException("The vehicle fixture did not return case data.");
+        staffStore.DataOverride = staffData with
+        {
+            Vehicle = staffData.Vehicle with
+            {
+                Mileage = new(
+                    new(
+                        52_000L,
+                        CaseDataValueKind.Fact,
+                        new(CaseDataSourceKind.StaffCorrection, "staff", "Staff edit", "case-edit", 1)),
+                    null,
+                    null)
+            }
+        };
 
-        Assert.DoesNotContain("name=\"vehicleMileageSource\"", readOnlyHtml, StringComparison.Ordinal);
+        var staffHtml = await ReadOnlyVehicleSectionAsync(staffStore);
+
+        Assert.Matches(
+            "<span class=\"lbl\">Mileage source</span>\\s*<div class=\"fv\">Custom</div>",
+            staffHtml);
     }
 
     /// <summary>
