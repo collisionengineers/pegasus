@@ -54,7 +54,7 @@ public partial class ContactSingleType : Migration
             WHERE r.Role <> o.Role;
 
             DELETE v FROM dbo.CaseDataFields v
-            JOIN dbo.CaseDataFields id ON id.WorkId = v.WorkId
+            JOIN dbo.CaseDataFields id ON id.WorkId = v.WorkId AND id.ValueKind = v.ValueKind
             JOIN #Lost l ON TRY_CONVERT(uniqueidentifier, id.Value) = l.OrganizationId
             WHERE (l.Role = N'claim_source' AND id.FieldName = N'claim_source_id' AND v.FieldName IN (N'claim_source_id', N'claim_source_version'))
                OR (l.Role = N'repairer' AND id.FieldName = N'repairer_id' AND v.FieldName IN (N'repairer_id', N'repairer_version'))

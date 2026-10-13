@@ -342,8 +342,8 @@ authorisation. External customers have no staff account.
 
 ## Edge cases and fail-closed behaviour
 
-- A duplicate organisation name or Principal code is refused and leaves no
-  orphan record.
+- A duplicate organisation name within a type, or a duplicate Principal code,
+  is refused and leaves no orphan record.
 - A phone number with letters or other characters is refused in the field
   and on the server.
 - An account cannot disable or delete itself, and the last enabled
