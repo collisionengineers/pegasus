@@ -18,6 +18,12 @@ public partial class LabourRateBuiltInCards : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
+        // The database collation matches a name without regard to case or
+        // trailing spaces; the store matches it exactly. A built-in card kept
+        // under a variant spelling is written in its own name first, so the
+        // seed below and the store agree on which rows are the built-in cards.
+        migrationBuilder.Sql("UPDATE [LabourRateCards] SET [Label] = N'Standard' WHERE [Label] = N'Standard';");
+        migrationBuilder.Sql("UPDATE [LabourRateCards] SET [Label] = N'Prestige/Aluminium' WHERE [Label] = N'Prestige/Aluminium';");
         migrationBuilder.Sql("DELETE FROM [LabourRateCards] WHERE [Label] NOT IN (N'Standard', N'Prestige/Aluminium');");
         migrationBuilder.Sql("""
             INSERT INTO [LabourRateCards] ([Id], [Label], [PanelRate], [Active], [Version], [UpdatedBy], [UpdatedAtUtc], [ConcurrencyToken])
