@@ -314,13 +314,15 @@ public sealed class CaseTasksWebTests
     }
 
     /// <summary>
-    /// The Tasks section follows Notes, lists the Case's tasks, and offers Complete, Cancel and
-    /// Assign on an open task and Add task only in the edit session: a section fetched without
-    /// the render lease reads, and a closed task never offers an action. Assign offers the
-    /// enabled named staff, and a description has no length limit.
+    /// Tasks is the Actions menu's dialog, not a section (operator, 13 October 2026): the section
+    /// row and the record have no Tasks, the menu's item opens the dialog and ?dialog=tasks draws
+    /// it open without script; drawn closed, its body is fetched as it opens. The dialog lists
+    /// the Case's tasks and offers Complete, Cancel and
+    /// Assign on an open task and Add task in the edit session; a closed task never offers an
+    /// action. Assign offers the enabled named staff, and a description has no length limit.
     /// </summary>
     [Fact]
-    public async Task TasksSectionListsTheTasksAndOffersItsActionsOnlyInTheEditSession()
+    public async Task TasksDialogListsTheTasksFromTheActionsMenuAndOffersItsActionsInTheEditSession()
     {
         var store = new RecordingCaseDetailsStore();
         var open = new CaseTaskRecord(
@@ -339,14 +341,15 @@ public sealed class CaseTasksWebTests
             Substitute<ICaseEngineerChoices>(services, new StaffChoices(colleague));
         });
 
-        Assert.Equal(
-            "notes",
-            OperatorLabelsSectionKeyBefore("tasks"));
+        Assert.DoesNotContain(
+            Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.Sections,
+            section => section.Key == "tasks");
 
         var html = WebUtility.HtmlDecode(
-            await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=tasks"));
+            await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?dialog=tasks"));
 
-        var section = Section(html, "section-tasks-title");
+        Assert.Contains("data-dialog=\"case-tasks-dialog\" data-dialog-open-on-load=\"true\">", html, StringComparison.Ordinal);
+        var section = Section(html, "case-tasks-dialog-title");
         Assert.Contains("Send the figures to the garage", section, StringComparison.Ordinal);
         Assert.Contains("Phone the claimant", section, StringComparison.Ordinal);
         Assert.Contains("Open", section, StringComparison.Ordinal);
@@ -374,15 +377,42 @@ public sealed class CaseTasksWebTests
         Assert.True(doneRow.Success, "The completed task's row is not rendered.");
         Assert.DoesNotContain("handler=", doneRow.Value, StringComparison.Ordinal);
 
-        // The lazy Tasks fragment answers (its read phase is allow-listed) and reads without
-        // the render lease.
+        // Read without the dialog asked for: no Tasks section, the dialog drawn hidden,
+        // and the Actions menu's item opening it.
+        var closed = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}"));
+        Assert.DoesNotContain("section-tasks", closed, StringComparison.Ordinal);
+        Assert.Contains("<div id=\"case-tasks-dialog\" class=\"dialog-backdrop\" data-dialog=\"case-tasks-dialog\" hidden>", closed, StringComparison.Ordinal);
+        var actions = Regex.Match(
+            closed,
+            "<details class=\"menu\" data-menu data-case-actions>.*?</details>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant);
+        Assert.True(actions.Success, "The Actions menu is not rendered.");
+        var opener = Regex.Match(actions.Value, "<a [^>]*data-case-tasks-open[^>]*>", RegexOptions.CultureInvariant);
+        Assert.True(opener.Success, "The Actions menu does not offer Tasks.");
+        Assert.Contains("data-dialog-open=\"case-tasks-dialog\"", opener.Value, StringComparison.Ordinal);
+        Assert.Contains("dialog=tasks", opener.Value, StringComparison.Ordinal);
+
+        // Drawn closed, the dialog's body is fetched as it opens.
+        Assert.Contains("data-case-tasks-body data-lazy-tasks=\"\"></div>", closed, StringComparison.Ordinal);
+        Assert.DoesNotContain("Send the figures to the garage", closed, StringComparison.Ordinal);
+
+        // The body's fragment answers (its read phase is allow-listed) and reads without the
+        // render lease.
         using var read = await workspace.Client.GetAsync($"/Cases/{store.CaseId:D}/Section?section=tasks");
         Assert.Equal(HttpStatusCode.OK, read.StatusCode);
         var fragment = WebUtility.HtmlDecode(await read.Content.ReadAsStringAsync());
+        Assert.Contains("data-case-tasks-body>", fragment, StringComparison.Ordinal);
         Assert.Contains("Send the figures to the garage", fragment, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=CompleteCaseTask", fragment, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=AssignCaseTask", fragment, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=CreateCaseTask", fragment, StringComparison.Ordinal);
+    }
+
+    /// <summary>A task action returns to the record with the Tasks dialog drawn open.</summary>
+    private static void AssertReturnsToTheTasksDialog(HttpResponseMessage response, Guid caseId)
+    {
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal($"/Cases/{caseId:D}?dialog=tasks", response.Headers.Location?.OriginalString);
     }
 
     /// <summary>
@@ -419,7 +449,7 @@ public sealed class CaseTasksWebTests
                 ("operationKey", assignKey),
                 ("editLeaseToken", store.LeaseToken),
                 ("assigneeId", assigneeId.ToString("D"))));
-        AssertPrg(assigned, store.CaseId, expectedQuery: "section=tasks");
+        AssertReturnsToTheTasksDialog(assigned, store.CaseId);
         var assign = Assert.Single(store.TaskAssignments);
         AssertTaskMutation(workspace, assign, assignKey, TaskLabels.AssignReason);
         Assert.Equal(taskId, assign.TaskId);
@@ -436,7 +466,7 @@ public sealed class CaseTasksWebTests
                 ("expectedTaskVersion", "4"),
                 ("operationKey", completeKey),
                 ("editLeaseToken", store.LeaseToken)));
-        AssertPrg(completed, store.CaseId, expectedQuery: "section=tasks");
+        AssertReturnsToTheTasksDialog(completed, store.CaseId);
         var complete = Assert.Single(store.TaskCompletions);
         AssertTaskMutation(workspace, complete, completeKey, TaskLabels.CompleteReason);
         Assert.Equal(taskId, complete.TaskId);
@@ -452,7 +482,7 @@ public sealed class CaseTasksWebTests
                 ("expectedTaskVersion", "5"),
                 ("operationKey", cancelKey),
                 ("editLeaseToken", store.LeaseToken)));
-        AssertPrg(cancelled, store.CaseId, expectedQuery: "section=tasks");
+        AssertReturnsToTheTasksDialog(cancelled, store.CaseId);
         var cancel = Assert.Single(store.TaskCancellations);
         AssertTaskMutation(workspace, cancel, cancelKey, TaskLabels.CancelReason);
         Assert.Equal(5, cancel.ExpectedTaskVersion);
@@ -467,7 +497,7 @@ public sealed class CaseTasksWebTests
                 ("operationKey", addKey),
                 ("editLeaseToken", store.LeaseToken),
                 ("description", "Authorise the garage")));
-        AssertPrg(added, store.CaseId, expectedQuery: "section=tasks");
+        AssertReturnsToTheTasksDialog(added, store.CaseId);
         var create = Assert.Single(store.TaskCreations);
         AssertTaskMutation(workspace, create.Actor, create.CaseId, create.ExpectedCaseVersion, create.EditLeaseToken, create.OperationKey, create.Reason, addKey, TaskLabels.AddReason);
         Assert.Equal(taskId, create.TaskId);
@@ -517,15 +547,6 @@ public sealed class CaseTasksWebTests
             ActionActor actor,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<CaseEngineerChoice>>(choices);
-    }
-
-    /// <summary>The key of the section the record lists immediately before <paramref name="key"/>.</summary>
-    private static string OperatorLabelsSectionKeyBefore(string key)
-    {
-        var keys = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.Sections
-            .Select(section => section.Key)
-            .ToList();
-        return keys[keys.IndexOf(key) - 1];
     }
 
     /// <summary>

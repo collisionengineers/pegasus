@@ -258,7 +258,7 @@ public sealed class WorkCentreWebTests
             Received: Now.AddDays(-1))
         {
             MoreCount = 2,
-            Route = $"/Cases/{caseId:D}?section=tasks"
+            Route = $"/Cases/{caseId:D}?dialog=tasks"
         };
         using var host = Host(new FakeSnapshot { Items = [tasks], LaterCount = 1 });
         using var client = Client(host);
@@ -271,7 +271,7 @@ public sealed class WorkCentreWebTests
         Assert.Matches("data-wc-kind=\"tasks\">Tasks<span class=\"n\">1</span>", html);
         Assert.Contains("No due date", html, StringComparison.Ordinal);
         Assert.Contains("<dt>Vehicle</dt>", html, StringComparison.Ordinal);
-        Assert.Contains($"href=\"/Cases/{caseId:D}?section=tasks\"", html, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases/{caseId:D}?dialog=tasks\"", html, StringComparison.Ordinal);
         Assert.Contains("<span>Open tasks</span>", html, StringComparison.Ordinal);
     }
 

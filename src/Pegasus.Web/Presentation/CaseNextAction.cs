@@ -172,11 +172,11 @@ public static class CaseNextAction
         new(CaseWorkspaceLabels.ReportDelivery.SendReport, "report");
 
     // Once the report is sent, the Case's open tasks are what is left to do;
-    // the Next action lists them, each a link to Tasks (operator, 6 October
-    // 2026). With none, nothing is (operator, 12 October 2026).
+    // the Next action lists them, each opening the Tasks dialog (operator,
+    // 6 and 13 October 2026). With none, nothing is (operator, 12 October 2026).
     private static CaseNextActionStep AfterTheSend(bool hasOpenTasks) =>
         hasOpenTasks
-            ? new(OperatorLabels.WorkCentre.OpenTasks, "tasks", ListsOpenTasks: true)
+            ? new(OperatorLabels.WorkCentre.OpenTasks, "overview", ListsOpenTasks: true)
             : new("None", "notes");
 
     // What follows the stored report of an Inspection + Audit Case that has

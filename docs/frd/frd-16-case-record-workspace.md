@@ -151,8 +151,8 @@ mail is available, its control is **Reply**, which opens that message's
 reply composer with Also resolve query ticked; otherwise it is the Actions
 menu's own Resolve query (operator, 11 October 2026).
 Once Report sent is recorded, the Next action also lists the Case's open
-tasks after its step, oldest first, each linking to [Tasks](#tasks)
-(operator, 6 October 2026).
+tasks after its step, oldest first, each opening the [Tasks](#tasks) dialog
+(operator, 6 and 13 October 2026).
 Once the Case has an Audit, the **Views** card heads the aside
 ([Inspection and Audit views](#inspection-and-audit-views)).
 While a Triage Case is linked to the Case, a **Linked cases** card follows
@@ -219,8 +219,8 @@ a composite's typing included; without script the ribbon's **Save now** is
 the save.
 Pressing a section's Edit enters edit mode in place: the section stays where
 it was on the screen. Selecting a tab also updates the section that Refresh
-submits; after a refresh its active lazy body loads. While editing, Files,
-Notes and Tasks still load when they come into view, because none has a field
+submits; after a refresh its active lazy body loads. While editing, Files
+and Notes still load when they come into view, because neither has a field
 in the one Save. Every other section renders with the page.
 
 Reading and editing show the same fields in the same places (operator, 23
@@ -245,7 +245,8 @@ corrections and a return to engineering record a reason.
 **Sections**, in order: **Case details**, **Claim**, **Original report** (an
 Audit Case only), **Inspection details**, **Vehicle** (with **Damage** and
 **Valuation** inside it, each its own foldable panel under the Vehicle link),
-**Repair Spec**, **Decisions**, **Report**, **Files**, **Notes**, **Tasks**.
+**Repair Spec**, **Decisions**, **Report**, **Files**, **Notes**. Tasks is not a
+section: it is the Actions menu's [Tasks](#tasks) dialog (operator, 13 October 2026).
 Every section can always be read. The Engineer sections (Damage, Valuation,
 Repair Spec, Decisions, Report) are editable by every enabled staff role in Not
 ready, Review and With Engineer under the normal edit authority, and read-only
@@ -308,7 +309,7 @@ action and consumed by it, the way Generate report does
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)); a refused action
 frees the lease it claimed, as does a request abandoned mid-action. While a
 colleague holds the lease the menu offers nothing that needs one, so only
-Export case remains; the ribbon names them and offers Take over. A Report
+Export case and Tasks remain; the ribbon names them and offers Take over. A Report
 sent Case offers Edit Case like With Engineer (operator, 11 October 2026);
 Return to Engineer needs no session. The rules behind each action are in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
@@ -320,6 +321,9 @@ Return to Engineer needs no session. The rules behind each action are in
 - **Export case**, on every standard Case in every state. It downloads the
   Case export, needs no lease and never changes the Case
   ([FRD-07](frd-07-case-export.md#export-case)).
+- **Tasks**, on every standard Case in every state (operator, 13 October
+  2026). It opens the [Tasks](#tasks) dialog; without script its link draws
+  the dialog open.
 - **Mark report sent**, in With Engineer. It confirms detected or linked
   Sent evidence and moves the Case to Report sent. It never records a manual
   assertion
@@ -828,16 +832,19 @@ the subject; the message body is never history
 chase is scheduled and the lease is held
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)); a
 chaser sent from the Actions menu records its chase here by itself once its
-Sent evidence arrives. Case tasks are not here: they have their own section,
-after Notes.
+Sent evidence arrives. Case tasks are not here: they are the Actions menu's
+[Tasks](#tasks) dialog.
 
 ### Tasks
 
-Tasks lists what is still to do on the Case (`CASE-20`), after Notes, as a
+Tasks lists what is still to do on the Case (`CASE-20`). It is a dialog the
+Actions menu's **Tasks** opens, not a section (operator, 13 October 2026), as a
 dense table: the task, its assignee, and a state chip (Open, Completed or
 Cancelled), open tasks first. Tasks belong to the Case, so both views of an
-Inspection + Audit Case show the same list. Like Files and Notes the section
-loads when it comes into view and acts through its own posts.
+Inspection + Audit Case show the same list. Like Files and Notes its body
+loads when the dialog opens, and it acts through its own posts; each returns
+to the record with the dialog open (`?dialog=tasks`), which is also how its
+link opens it without script.
 
 In the edit session an open task offers **Complete**, **Cancel task** and
 **Assign**, a choice of the enabled named staff, and the head of the list has
@@ -846,7 +853,7 @@ recorded reason, so there is no reason box, and the session carries on. A
 Held or closed Case, and a Case a colleague is editing, show the list
 without these. There is no due date yet.
 
-Tasks also appear here without anyone adding them: when Report sent is
+Tasks also appear in it without anyone adding them: when Report sent is
 recorded, the after-send tasks the delivery froze are created as open,
 unassigned tasks
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)).
