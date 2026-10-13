@@ -8,8 +8,9 @@
   identity-critical fact are certain. Manual uploads also need a staff
   member to accept the proposal.
 - Missing ordinary detail is not a gate. The new Case starts in `Not ready`.
-- Matching never guesses. A weak or conflicting signal sends material to
-  Unidentified, or to a staff decision, never silently onto a Case.
+- Matching never guesses. A weak or conflicting signal leaves material with
+  no Case for a staff decision (image material in Unidentified, an e-mail
+  in the Inbox's No Case Found scope), never silently onto a Case.
 - One instruction makes exactly one Case. A source occurrence has at most
   one current Case association, and staff can undo a mistaken one with a
   reason.
@@ -61,7 +62,8 @@ another pre-Case gate.
 
 A Triage Case is allocated only once the Principal is established, before
 the request is classified as a Triage, and the registration is known. A
-Triage request missing either becomes Unidentified and allocates nothing
+Triage request missing either allocates nothing; an e-mailed one waits in
+the Inbox's No Case Found scope
 ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
 
 For a standalone Audit, a missing original report is a Case requirement, not
@@ -80,12 +82,18 @@ already classified Audit, with or without standalone-Audit evidence; where
 evidence exists, acceptance checks that it belongs to that receipt.
 
 If a route cannot establish an identity-critical fact, it keeps only what is
-safe and the material becomes Unidentified. Material that could not be read
-(unsupported, failed OCR, or a technical failure on the file) becomes an
-Unidentified item with the reason Could not be read and its file kind, so it
-ages and falls due like any other item. Readable material that must not
-become a Case is closed on its Unidentified item with a free-text reason and
-can be reopened. A retryable technical failure stays retryable work (see
+safe and creates no Case. Only images become Unidentified (operator, 13
+October 2026,
+[FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference)):
+image material becomes an Unidentified item, an e-mail waits in the Inbox's
+No Case Found scope, and a manual-upload document reports on its upload.
+An uploaded image file that could not be read (unsupported, failed OCR, or a
+technical failure on the file) becomes an Unidentified item with the reason
+Could not be read and its file kind, so it ages and falls due like any other
+item. Readable image material that must not become a Case is closed on its
+Unidentified item with a free-text reason and can be reopened; an e-mail is
+refused by Dismiss, and a manual-upload document by its upload. A retryable
+technical failure stays retryable work (see
 [Received file history and technical actions](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions)).
 None of these allocates a reusable identity for convenience.
 
@@ -95,8 +103,9 @@ Matching uses evidence it can explain. Message identifiers, Principal and
 domain policy, route identity, accepted reference tokens, registration,
 party identity, and operator confirmation may all contribute. A weak,
 ambiguous, or contradictory signal never silently attaches material to a
-Case. Automatic routes send competing candidate Cases and unresolved
-source-identity conflicts to Unidentified with the matching reason. Manual
+Case. Automatic routes leave competing candidate Cases and unresolved
+source-identity conflicts unplaced: image material becomes Unidentified with
+the matching reason, and an e-mail waits in No Case Found. Manual
 upload offers staff its match candidates and every other Case and Triage
 Case instead
 ([FRD-18](frd-18-manual-upload.md#upload-confirmation-surface)).
@@ -208,7 +217,8 @@ files.
 ## States and transitions
 
 - Until every pre-Case gate passes, no Case exists and no reference is
-  allocated. Material that cannot pass becomes Unidentified
+  allocated. Image material that cannot pass becomes Unidentified; an
+  e-mail waits in No Case Found
   ([FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference)).
 - When the gates pass, an automatic route creates the Case/PO. Manual upload
   waits for staff to accept the proposal first.
@@ -223,10 +233,12 @@ files.
 
 ## Edge cases and fail-closed behaviour
 
-- Two candidate Cases for an automatic route: Unidentified with the
-  Conflicting identification reason.
+- Two candidate Cases for an automatic route: image material becomes
+  Unidentified with the Conflicting identification reason; an e-mail waits
+  in No Case Found.
 - A route cannot establish an identity-critical fact: it keeps only what is
-  safe and the material becomes Unidentified.
+  safe; image material becomes Unidentified and an e-mail waits in No Case
+  Found.
 - An automatic association meets a live staff lease: it yields and retries
   later against the current version.
 - Automatic mail association meets an archived Case: it yields.
@@ -240,8 +252,9 @@ files.
 
 Acceptance proves, through the real Worker and Web callers: one Case per
 definitive instruction; that no edit lease is bypassed by automatic
-association; that a Triage request without an established Principal becomes
-Unidentified; and that staff link material to a Case and to a Triage Case in
+association; that an e-mailed Triage request without an established
+Principal waits in No Case Found with no Unidentified item; that only images
+become Unidentified; and that staff link material to a Case and to a Triage Case in
 any state. Deployment and live evidence are separate tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 

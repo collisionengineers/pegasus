@@ -26,12 +26,12 @@ owned by [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md).
 
 ### Inbox scopes and filters
 
-`/Inbox` lists retained mail by scope: All incoming, Unidentified, Sent Items
-and Dismissed. There is no Unread scope; an unread row stays bold. The
+`/Inbox` lists retained mail by scope: All incoming, No Case Found, Sent
+Items and Dismissed. There is no Unread scope; an unread row stays bold. The
 filters are mailbox, folder and **Category**, one flat list: All categories,
 the eleven mail categories
 ([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction))
-and Unidentified, with no groups.
+and No Case Found, with no groups.
 
 The default view is the incoming Inbox across all approved mailboxes, newest
 received first. Folder, mailbox, category and search views are explicit
@@ -45,10 +45,17 @@ There is no historical backfill. The workspace shows retained mail from each
 approved mailbox's genuine retention start, names that boundary, and says
 that mail before it is absent. Nothing earlier is reconstructed or implied.
 
-The Unidentified scope lists retained mail whose Unidentified item is still
-open. Once that item resolves, the message leaves the scope but keeps its
-classification record and Case association. Mail views link to the same
-Unidentified item; they never create a second queue row.
+The No Case Found scope (`queue=no_case_found`, operator 13 October 2026)
+lists received, not-dismissed mail whose receipt is linked to no Case: no
+active association, accepted link, Case created by its allocation, or
+Triage it opened. Once the message is linked to a Case, it leaves the
+scope. Only mail carrying nothing but photographs becomes an Unidentified
+item; any other e-mail never does
+([FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference))
+and is refused by Dismiss. A message whose processing left it for sorting
+(`NeedsSorting`) reads **No Case Found** in its outcome chip. Mail views link
+to the same Unidentified item of photographs that arrived by e-mail; they
+never create a second queue row.
 
 Each row shows sender, subject and a short excerpt of the body. The subject
 opens the message. Clicking elsewhere on a row selects it. The selected row

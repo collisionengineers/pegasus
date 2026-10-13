@@ -15,5 +15,5 @@ namespace Pegasus.Web.Pages.Unidentified;
 public sealed class IndexModel : PageModel
 {
     public IActionResult OnGet() =>
-        RedirectPermanent("/Cases?tab=unidentified");
+        RedirectPermanent("/Cases?tab=unassigned&show=unidentified");
 }

@@ -76,8 +76,8 @@ public sealed class IndexModel(
     /// <summary>The one mail category the list narrows to, from <c>queue</c>.</summary>
     public MailCategory? CategoryFilter { get; private set; }
 
-    /// <summary>The Unidentified scope (<c>queue=unidentified</c>): mail no classification has decided.</summary>
-    public bool UnidentifiedFilter { get; private set; }
+    /// <summary>The No Case Found scope (<c>queue=no_case_found</c>): received mail with no linked Case.</summary>
+    public bool NoCaseFoundFilter { get; private set; }
 
     public MailFolderScope Folder { get; private set; } = MailFolderScope.Inbox;
 
@@ -226,7 +226,7 @@ public sealed class IndexModel(
                 Folder,
                 SearchTerm,
                 CategoryFilter,
-                UnidentifiedFilter,
+                NoCaseFoundFilter,
                 UnreadOnly: false,
                 OldestFirst,
                 DismissedOnly: Dismissed),
@@ -330,7 +330,7 @@ public sealed class IndexModel(
                 QueueFilter,
                 out var normalizedQueue,
                 out var category,
-                out var unidentified)
+                out var noCaseFound)
             || (folder is MailFolderScope.DeletedItems or MailFolderScope.Sent && normalizedQueue is not null))
         {
             return false;
@@ -341,7 +341,7 @@ public sealed class IndexModel(
         OldestFirst = oldestFirst;
         QueueFilter = normalizedQueue;
         CategoryFilter = category;
-        UnidentifiedFilter = unidentified;
+        NoCaseFoundFilter = noCaseFound;
         return true;
     }
 
@@ -431,7 +431,7 @@ public sealed class IndexModel(
             mailbox,
             definition.Folder,
             SearchTerm,
-            Unidentified: definition.Unidentified,
+            NoCaseFound: definition.NoCaseFound,
             UnreadOnly: false,
             DismissedOnly: definition.Dismissed)).ToArray();
         var counts = await listRetainedMail.CountManyAsync(actor, scopes, cancellationToken);
@@ -587,9 +587,9 @@ public sealed class IndexModel(
                 {
                     fields["search"] = searchTerm;
                 }
-                if (Definition.Unidentified)
+                if (Definition.NoCaseFound)
                 {
-                    fields["queue"] = UnidentifiedQueueKey;
+                    fields["queue"] = NoCaseFoundQueueKey;
                 }
                 return fields;
             }
@@ -600,7 +600,7 @@ public sealed class IndexModel(
         string Label,
         string IconId,
         MailFolderScope Folder,
-        bool Unidentified = false,
+        bool NoCaseFound = false,
         bool Dismissed = false)
     {
         public bool Matches(
@@ -611,63 +611,63 @@ public sealed class IndexModel(
             && dismissed == Dismissed
             && string.Equals(
                 queueFilter,
-                Unidentified ? UnidentifiedQueueKey : null,
+                NoCaseFound ? NoCaseFoundQueueKey : null,
                 StringComparison.Ordinal);
     }
 
     /// <summary>
     /// The scope rail, in the planned order (Inbox, 13 September): no Unread scope —
     /// read state is not a queue; unread rows are bold — and a Dismissed scope last.
-    /// The Unidentified scope reuses the key the Category select already binds.
+    /// The No Case Found scope reuses the key the Category select already binds.
     /// </summary>
     public static readonly IReadOnlyList<MailScopeDefinition> ScopeDefinitions =
     [
         new("All incoming", "inbox", MailFolderScope.Inbox),
-        new("Unidentified", "search", MailFolderScope.Inbox, Unidentified: true),
+        new(OperatorLabels.Inbox.NoCaseFound, "search", MailFolderScope.Inbox, NoCaseFound: true),
         new("Sent Items", "send", MailFolderScope.Sent),
         new(OperatorLabels.Inbox.DismissedScope, "x", MailFolderScope.Inbox, Dismissed: true)
     ];
 
-    /// <summary>The <c>queue</c> value of the Unidentified scope.</summary>
-    public const string UnidentifiedQueueKey = "unidentified";
+    /// <summary>The <c>queue</c> value of the No Case Found scope.</summary>
+    public const string NoCaseFoundQueueKey = "no_case_found";
 
     public sealed record MailViewOption(string Value, string Label);
 
     /// <summary>
     /// The Category select: one flat list, every mail category in order and
-    /// then Unidentified. Each value is the category's code.
+    /// then No Case Found. Each value is the category's code.
     /// </summary>
     public static IReadOnlyList<MailViewOption> CategoryViews { get; } =
     [
         .. MailCategories.All.Select(category => new MailViewOption(
             MailCategories.Code(category),
             OperatorLabels.MailClassification(category))),
-        new(UnidentifiedQueueKey, "Unidentified")
+        new(NoCaseFoundQueueKey, OperatorLabels.Inbox.NoCaseFound)
     ];
 
     /// <summary>
-    /// A <c>queue</c> value: a mail category code or <c>unidentified</c>;
+    /// A <c>queue</c> value: a mail category code or <c>no_case_found</c>;
     /// anything else is not an address.
     /// </summary>
     internal static bool TryParseQueue(
         string? value,
         out string? normalized,
         out MailCategory? category,
-        out bool unidentified)
+        out bool noCaseFound)
     {
         normalized = null;
         category = null;
-        unidentified = false;
+        noCaseFound = false;
         if (string.IsNullOrWhiteSpace(value))
         {
             return true;
         }
 
         var candidate = value.Trim();
-        if (string.Equals(candidate, UnidentifiedQueueKey, StringComparison.Ordinal))
+        if (string.Equals(candidate, NoCaseFoundQueueKey, StringComparison.Ordinal))
         {
-            normalized = UnidentifiedQueueKey;
-            unidentified = true;
+            normalized = NoCaseFoundQueueKey;
+            noCaseFound = true;
             return true;
         }
         if (!MailCategories.TryParse(candidate, out var parsed))

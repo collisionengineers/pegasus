@@ -335,11 +335,14 @@ complete membership, and fail-closed source-identity rules apply to both.
 
 ### Operator surfaces
 
-**Awaiting instruction queue.** On Cases, Awaiting instruction lists the
-Image-initiated Cases still waiting for an instruction, never formal Cases.
+**Unassigned Images queue.** On Cases, Unassigned Images, showing
+Identified (its default), lists the Image-initiated Cases still Awaiting
+instruction, never formal Cases; its Show choice also lists the open or
+closed Unidentified items
+([FRD-15](frd-15-work-centre-queues-and-search.md#cases-queues-and-filters)).
 Rows show reference, registration,
-image count, custody, received, source, and chase facts; `?tab=` selects
-the queue. Not ready holds only formal instructed Cases. Selecting a row
+image count, custody, received, source, and chase facts;
+`?tab=unassigned` selects the queue. Not ready holds only formal instructed Cases. Selecting a row
 shows a quick detail with the definition list, the open action, and **Add
 to an existing case**. The operator types a Case reference and presses the
 button once: that one press finds the Case and adds the image to it. There

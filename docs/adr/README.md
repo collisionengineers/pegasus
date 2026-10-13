@@ -86,9 +86,10 @@ never renumbered or reused.
 | [ADR-0066](0066-cazana-valuation-through-a-key-vault-held-api-key.md) | Cazana valuation through a Key Vault-held API key | accepted | — | EXT-07, EXT-13 |
 | [ADR-0067](0067-report-sent-replaces-completed-and-queries-are-case-records.md) | Report sent replaces Completed, and queries are Case records | accepted | — | CASE-16, CASE-23 |
 | [ADR-0068](0068-incoming-and-outgoing-mailboxes-and-case-mail-replies.md) | Incoming and Outgoing mailboxes, and Case mail replies to its instruction | accepted | — | MAIL-12, MAIL-18 |
-| [ADR-0069](0069-one-flat-mail-category.md) | One flat mail category | accepted | — | MAIL-02, MAIL-21, MAIL-22 |
-| [ADR-0070](0070-case-state-mail-classification.md) | Case-state mail classification | accepted | — | MAIL-02, MAIL-09, MAIL-21 |
+| [ADR-0069](0069-one-flat-mail-category.md) | One flat mail category | accepted | ADR-0072 (Inbox scope rail; Unidentified as undecided mail) | MAIL-02, MAIL-21, MAIL-22 |
+| [ADR-0070](0070-case-state-mail-classification.md) | Case-state mail classification | accepted | ADR-0072 (closed and Triage Case arms; link reach; Inbox scope consequence) | MAIL-02, MAIL-09, MAIL-21 |
 | [ADR-0071](0071-move-answered-instruction-to-deleted-items.md) | Move the answered instruction to Deleted Items after a confirmed report send | accepted | — | MAIL-25 |
+| [ADR-0072](0072-only-images-become-unidentified-and-no-case-found-mail.md) | Only images become Unidentified, and mail with no Case is No Case Found | accepted | — | INT-23, MAIL-02, UI-14, UI-18 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

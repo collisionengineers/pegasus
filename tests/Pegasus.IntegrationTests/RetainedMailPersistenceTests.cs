@@ -7,7 +7,6 @@ using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
-using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Persistence;
@@ -616,7 +615,7 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
-    public async Task CategoryAndUnidentifiedScopesUseTheCurrentClassification()
+    public async Task CategoryScopesUseTheCurrentClassificationAndNoCaseFoundIgnoresIt()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         await SeedPollStateAsync(database);
@@ -626,7 +625,7 @@ public sealed class RetainedMailPersistenceTests
                 MailCategory.NewInstruction, [], "fixture", "test", 1)),
             ("queries", MailClassificationResult.Classified(
                 MailCategory.Query, [], "fixture", "test", 1)),
-            ("unidentified", MailClassificationResult.Unclassified([], "fixture", "test", 1)),
+            ("unclassified", MailClassificationResult.Unclassified([], "fixture", "test", 1)),
             ("triage", MailClassificationResult.Classified(
                 MailCategory.TriageRequest, [], "fixture", "test", 1)),
             ("general", MailClassificationResult.Classified(
@@ -658,13 +657,16 @@ public sealed class RetainedMailPersistenceTests
             Assert.Equal(category, item.Classification?.Category);
         }
 
-        var unidentified = Assert.Single((await queries.ListAsync(
-            new(null, MailFolderScope.Inbox, Unidentified: true),
+        // No Case Found reads the link, not the classification: none of
+        // these messages is linked to a Case, whatever its category.
+        var noCaseFound = (await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, NoCaseFound: true),
             1,
             25,
-            CancellationToken.None)).Items);
-        Assert.Equal("unidentified", unidentified.Subject);
-        Assert.Equal(MailClassificationOutcome.Unclassified, unidentified.Classification?.Outcome);
+            CancellationToken.None)).Items;
+        Assert.Equal(
+            ["general", "queries", "receiving", "triage", "unclassified"],
+            noCaseFound.Select(item => item.Subject).Order(StringComparer.Ordinal));
         Assert.Empty((await queries.ListAsync(
             new(null, MailFolderScope.Inbox, Category: MailCategory.Billing),
             1,
@@ -673,81 +675,114 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
-    public async Task ResolvedUnidentifiedItemsLeaveTheInboxUnidentifiedScopeWithoutChangingMailFacts()
+    public async Task NoCaseFoundListsReceivedMailWhoseReceiptStandsLinkedToNoCase()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         await SeedPollStateAsync(database);
-        var resolvedMessage = Message("resolved-unidentified", subject: "Resolved unidentified");
-        var openMessage = Message("open-unidentified", subject: "Open unidentified");
-        await RetainAsync(database, resolvedMessage);
-        await RetainAsync(database, openMessage);
-        var resolvedReceipt = await StoreClassifiedReceiptAsync(
-            database,
-            resolvedMessage,
-            MailClassificationResult.Unclassified([], "fixture", "test", 1));
-        var openReceipt = await StoreClassifiedReceiptAsync(
-            database,
-            openMessage,
-            MailClassificationResult.Unclassified([], "fixture", "test", 1));
+        var (caseId, otherCaseId) = await SeedQueryCasesAsync(database);
+        var plain = Message("ncf-plain", subject: "Plain");
+        var active = Message("ncf-active", subject: "Active link");
+        var reversed = Message("ncf-reversed", subject: "Reversed link");
+        var accepted = Message("ncf-accepted", subject: "Accepted link");
+        var triage = Message("ncf-triage", subject: "Triage origin");
+        var unreceipted = Message("ncf-unreceipted", subject: "No receipt");
+        foreach (var message in new[] { plain, active, reversed, accepted, triage })
+        {
+            await RetainAsync(database, message);
+            await StoreClassifiedReceiptAsync(
+                database,
+                message,
+                MailClassificationResult.Unclassified([], "fixture", "test", 1));
+        }
+        await RetainAsync(database, unreceipted);
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            var receiptByToken = await context.IntakeReceipts
+                .ToDictionaryAsync(item => item.ExternalReceiptToken, StringComparer.Ordinal);
+            // An active staff link: the message has its Case.
+            AddAssociation(context, receiptByToken[active.ExternalReceiptToken], caseId, true);
+            // A reversed link: the Case its latest allocation created no
+            // longer stands in, so the message has no Case again.
+            var reversedReceipt = receiptByToken[reversed.ExternalReceiptToken];
+            AddAssociation(context, reversedReceipt, caseId, false);
+            // An accepted link with no association row: the message has its Case.
+            var custodyWorkId = Guid.NewGuid();
+            context.ExternalWorkItems.Add(new()
+            {
+                Id = custodyWorkId,
+                CaseId = caseId,
+                Kind = "create_case_custody",
+                OperationKey = "ncf-accepted-custody",
+                State = "completed",
+                AttemptCount = 1,
+                DueAtUtc = ReceivedAtUtc
+            });
+            context.CaseIntakeLinks.Add(new()
+            {
+                IntakeReceiptId = receiptByToken[accepted.ExternalReceiptToken].Id,
+                CaseId = caseId,
+                CustodyWorkId = custodyWorkId,
+                LinkedAtUtc = ReceivedAtUtc,
+                ActorKind = "Staff",
+                ActorSubjectId = Guid.NewGuid().ToString("D"),
+                ActorRolesJson = "[]",
+                Reason = "No Case Found test.",
+                OperationKey = "ncf-accepted-link"
+            });
+            // A Triage the message opened is its Case.
+            var triageReceipt = receiptByToken[triage.ExternalReceiptToken];
+            var principal = await SeededPrincipals.QdosAsync(context);
+            var triageCaseId = Guid.NewGuid();
+            var triageCase = Case(triageCaseId, principal.Id, principal.SequenceLineageId, triageReceipt.Id, 3);
+            triageCase.Type = CaseTypeCodes.Triage;
+            triageCase.InitialState = null;
+            triageCase.Reference = "t.QDOS31003";
+            context.AddRange(
+                triageCase,
+                new TriageEntity
+                {
+                    CaseId = triageCaseId,
+                    OriginReceiptId = triageReceipt.Id,
+                    SourceChannel = triageReceipt.SourceChannel,
+                    ExternalReceiptToken = triageReceipt.ExternalReceiptToken,
+                    SourceHash = triageReceipt.SourceHash,
+                    EvaluationRevisionId = Guid.NewGuid(),
+                    NormalizedVehicleRegistration = "AB12CDE",
+                    State = "open",
+                    CreatedAtUtc = ReceivedAtUtc,
+                    CreationOperationKey = "ncf-triage",
+                    Version = 0,
+                    ConcurrencyToken = Guid.NewGuid()
+                });
+            await context.SaveChangesAsync();
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO IntakeAllocationAttempts (Id, IntakeReceiptId, AttemptNumber, Kind, Status, ExpectedReceiptVersion, CaseType, PrincipalCode, InstructionComplete, ImagesComplete, ActorKind, ActorSubjectId, ActorRolesJson, OperationKey, CommandHash, Reason, StartedAtUtc, CompletedAtUtc, CaseId, CaseReference) VALUES ({Guid.NewGuid()}, {reversedReceipt.Id}, {1L}, {"automatic"}, {"succeeded"}, {0L}, {"inspection"}, {"QDOS"}, {true}, {false}, {"Automation"}, {"intake-processing"}, {"[]"}, {"ncf-reversed-allocation"}, {new string('B', 64)}, {"Automatic allocation fixture."}, {ReceivedAtUtc}, {ReceivedAtUtc}, {otherCaseId}, {"QDOS31002"})");
+        }
 
         await using var scope = database.CreateAsyncScope();
-        var services = scope.ServiceProvider;
-        var register = services.GetRequiredService<IRegisterUnidentified>();
-        var resolvedItem = (await register.ExecuteAsync(
-            new(
-                UnidentifiedOrigin.Receipt(resolvedReceipt.Id),
-                UnidentifiedReasonCode.NoUsableIdentification,
-                "test detail",
-                ActionActor.SystemWorker("test-worker"),
-                $"unidentified-test:{Guid.NewGuid():N}",
-                ReceivedAtUtc))).Item;
-        await register.ExecuteAsync(
-            new(
-                UnidentifiedOrigin.Receipt(openReceipt.Id),
-                UnidentifiedReasonCode.NoUsableIdentification,
-                "test detail",
-                ActionActor.SystemWorker("test-worker"),
-                $"unidentified-test:{Guid.NewGuid():N}",
-                ReceivedAtUtc));
-        await services.GetRequiredService<IUnidentifiedStore>().ResolveAsync(
-            new(
-                resolvedItem.Id,
-                resolvedItem.Version,
-                ActionActor.Automation("test-worker"),
-                $"unidentified-resolve-test:{Guid.NewGuid():N}",
-                "resolved",
-                UnidentifiedResolutionTargetKind.ExternalReference,
-                "target-1",
-                null,
-                ReceivedAtUtc.AddMinutes(1)));
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+        var noCaseFoundScope = new MailWorkspaceScope(null, MailFolderScope.Inbox, NoCaseFound: true);
+        var noCaseFound = await queries.ListAsync(noCaseFoundScope, 1, 25, CancellationToken.None);
 
-        var queries = services.GetRequiredService<IRetainedMailQueries>();
-        var unidentifiedScope = new MailWorkspaceScope(
-            null,
-            MailFolderScope.Inbox,
-            Unidentified: true);
-        var unidentified = await queries.ListAsync(
-            unidentifiedScope,
-            1,
-            25,
-            CancellationToken.None);
-        Assert.Equal(1, Assert.Single(await queries.CountManyAsync([unidentifiedScope], CancellationToken.None)));
-        Assert.Equal("Open unidentified", Assert.Single(unidentified.Items).Subject);
+        Assert.Equal(
+            ["Plain", "Reversed link"],
+            noCaseFound.Items.Select(item => item.Subject).Order(StringComparer.Ordinal));
+        Assert.Equal(2, Assert.Single(await queries.CountManyAsync([noCaseFoundScope], CancellationToken.None)));
 
-        var allIncoming = await queries.ListAsync(
+        // The scope agrees with the Case each summary reads.
+        var allIncoming = (await queries.ListAsync(
             new(null, MailFolderScope.Inbox),
             1,
             25,
-            CancellationToken.None);
-        Assert.Equal(2, allIncoming.Items.Count);
-        var resolvedSummary = Assert.Single(
-            allIncoming.Items,
-            item => item.Subject == "Resolved unidentified");
-        Assert.True(resolvedSummary.UnidentifiedResolved);
-        Assert.Equal(MailClassificationOutcome.Unclassified, resolvedSummary.Classification!.Outcome);
-        Assert.False(Assert.Single(
-            allIncoming.Items,
-            item => item.Subject == "Open unidentified").UnidentifiedResolved);
+            CancellationToken.None)).Items;
+        Assert.Equal(6, allIncoming.Count);
+        Assert.Null(Assert.Single(allIncoming, item => item.Subject == "Plain").CaseId);
+        Assert.Null(Assert.Single(allIncoming, item => item.Subject == "Reversed link").CaseId);
+        Assert.Equal(caseId, Assert.Single(allIncoming, item => item.Subject == "Active link").CaseId);
+        Assert.Equal(caseId, Assert.Single(allIncoming, item => item.Subject == "Accepted link").CaseId);
+        Assert.NotNull(Assert.Single(allIncoming, item => item.Subject == "Triage origin").CaseId);
+        Assert.Null(Assert.Single(allIncoming, item => item.Subject == "No receipt").IntakeReceiptId);
     }
 
     [Fact]
@@ -763,7 +798,7 @@ public sealed class RetainedMailPersistenceTests
                 MailCategory.Query, [], "fixture", "test", 1)),
             ("batch-triage", MailClassificationResult.Classified(
                 MailCategory.TriageRequest, [], "fixture", "test", 1)),
-            ("batch-unidentified", MailClassificationResult.Unclassified([], "fixture", "test", 1)),
+            ("batch-unclassified", MailClassificationResult.Unclassified([], "fixture", "test", 1)),
             ("batch-dismissed", MailClassificationResult.Unclassified([], "fixture", "test", 1))
         };
         foreach (var (key, classification) in fixtures)
@@ -782,16 +817,17 @@ public sealed class RetainedMailPersistenceTests
             await context.SaveChangesAsync();
         }
 
-        // The four Mail/Index scope-rail queries (All incoming, Unidentified,
+        // The four Mail/Index scope-rail queries (All incoming, No Case Found,
         // Sent Items, Dismissed), then a duplicate and an empty scope to pin
-        // CountMany's positional contract.
+        // CountMany's positional contract. No message is linked to a Case, so
+        // every incoming one is in No Case Found.
         IReadOnlyList<MailWorkspaceScope> scopes =
         [
             new(null, MailFolderScope.Inbox),
-            new(null, MailFolderScope.Inbox, Unidentified: true),
+            new(null, MailFolderScope.Inbox, NoCaseFound: true),
             new(null, MailFolderScope.Sent),
             new(null, MailFolderScope.Inbox, DismissedOnly: true),
-            new(null, MailFolderScope.Inbox, Unidentified: true),
+            new(null, MailFolderScope.Inbox, NoCaseFound: true),
             new(null, MailFolderScope.Inbox, Category: MailCategory.Billing)
         ];
 
@@ -799,7 +835,7 @@ public sealed class RetainedMailPersistenceTests
         var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
         var batchCounts = await queries.CountManyAsync(scopes, CancellationToken.None);
 
-        Assert.Equal([4, 1, 0, 1, 1, 0], batchCounts);
+        Assert.Equal([4, 4, 0, 1, 4, 0], batchCounts);
         Assert.Equal(batchCounts[1], batchCounts[4]);
         Assert.Equal(0, batchCounts[5]);
     }
@@ -1712,7 +1748,7 @@ public sealed class RetainedMailPersistenceTests
             25,
             CancellationToken.None);
 
-        Assert.False(Assert.Single(page.Items).MailboxIsPolled);
+        Assert.Single(page.Items);
         Assert.False(Assert.Single(await queries.ListMailboxesAsync(CancellationToken.None)).IsPolled);
     }
 

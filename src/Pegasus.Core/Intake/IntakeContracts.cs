@@ -130,8 +130,10 @@ public static class IntakeEnvelopeLimits
 /// send only ambiguous Principal, instruction-type or case evidence — and any
 /// unidentified e-mail — to <see cref="NeedsSorting"/>. So a definitive
 /// instruction is <see cref="CaseCreated"/> with the reference already
-/// allocated, ambiguity is <see cref="NeedsSorting"/>. A reasoned refusal is
-/// recorded by closing an Unidentified item.
+/// allocated, ambiguity is <see cref="NeedsSorting"/>. Only image material
+/// becomes an Unidentified item, and a reasoned refusal of it closes that
+/// item; an e-mail is refused by Dismiss, and a manual-upload document that
+/// cannot become a Case is refused by its upload.
 ///
 /// <see cref="CaseCreated"/> is a processing decision — the instruction is
 /// definitive enough to allocate on — not proof that a Case exists. The

@@ -28,22 +28,31 @@ public sealed class CaseStateMailClassificationTests
     [InlineData(CaseLifecycleState.Held)]
     [InlineData(CaseLifecycleState.Review)]
     [InlineData(CaseLifecycleState.ReportPreparation)]
-    public void MailJoiningACaseStillInProgressIsACaseUpdate(CaseLifecycleState state)
-    {
-        var derived = CaseStateMailClassification.Derive(null, state);
-
-        Assert.NotNull(derived);
-        Assert.Equal(MailCategory.CaseUpdate, derived.Category);
-        Assert.Empty(derived.Predicates);
-    }
-
-    [Theory]
     [InlineData(CaseLifecycleState.PrincipalCancelled)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
     [InlineData(CaseLifecycleState.CreatedInError)]
     [InlineData(CaseLifecycleState.SourceEmailUnlinked)]
-    public void AClosedCaseDerivesNothing(CaseLifecycleState state) =>
-        Assert.Null(CaseStateMailClassification.Derive(Unclassified, state));
+    public void MailJoiningACaseWhoseReportIsNotSentIsACaseUpdate(CaseLifecycleState state)
+    {
+        var derived = CaseStateMailClassification.Derive(null, state);
+
+        Assert.NotNull(derived);
+        Assert.Equal(MailClassificationOutcome.Classified, derived.Outcome);
+        Assert.Equal(MailCategory.CaseUpdate, derived.Category);
+        Assert.Equal(CaseStateMailClassification.Key, derived.PolicyKey);
+        Assert.Equal("The message joined the linked Case without a category of its own.", derived.Reason);
+        Assert.Empty(derived.Predicates);
+    }
+
+    [Fact]
+    public void MailJoiningATriageCaseIsACaseUpdate()
+    {
+        var derived = CaseStateMailClassification.Derive(Unclassified, null);
+
+        Assert.NotNull(derived);
+        Assert.Equal(MailCategory.CaseUpdate, derived.Category);
+        Assert.Same(Unclassified.Predicates, derived.Predicates);
+    }
 
     [Fact]
     public void AClassifiedDecisionIsNeverOverridden()

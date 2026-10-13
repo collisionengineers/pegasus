@@ -7,7 +7,6 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
-using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Lifecycle;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -1050,30 +1049,6 @@ internal sealed class EfRetainedMailboxMessageStore(
                     item => item.ReceiptId,
                     item => new CurrentIntakeAssociation(item.CaseId, item.Reference, item.IsTriage),
                     cancellationToken);
-        var resolved = UnidentifiedState.Resolved.ToString();
-        var receiptOrigin = UnidentifiedOriginKind.Receipt.ToString();
-        var resolvedUnidentifiedReceiptIds = receiptIds.Length == 0
-            ? new HashSet<Guid>()
-            : (await context.Set<UnidentifiedItemEntity>()
-                .AsNoTracking()
-                .Where(item => item.OriginKind == receiptOrigin
-                    && receiptIds.Contains(item.OriginId)
-                    && item.State == resolved)
-                .Select(item => item.OriginId)
-                .ToListAsync(cancellationToken))
-                .ToHashSet();
-
-        var addresses = rows.Select(item => item.MailboxAddress).Distinct().ToArray();
-        var approvedState = ApprovedMailboxState.Approved.ToString();
-        var polled = await context.ApprovedMailboxes
-            .AsNoTracking()
-            .Where(item => item.State == approvedState
-                && item.AllowIncoming
-                && addresses.Contains(item.Address))
-            .Select(item => item.Address)
-            .ToListAsync(cancellationToken);
-        var polledAddresses = polled.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
         return rows
             .Select(row =>
             {
@@ -1143,7 +1118,6 @@ internal sealed class EfRetainedMailboxMessageStore(
                     row.Id,
                     row.MailboxId,
                     row.MailboxAddress,
-                    polledAddresses.Contains(row.MailboxAddress),
                     row.SenderAddress,
                     row.SenderDisplayName,
                     effectiveSenderAddress,
@@ -1163,8 +1137,6 @@ internal sealed class EfRetainedMailboxMessageStore(
                     classification)
                 {
                     DismissedAtUtc = row.DismissedAtUtc,
-                    UnidentifiedResolved = receipt is not null
-                        && resolvedUnidentifiedReceiptIds.Contains(receipt.Id),
                     IsTriageCase = isTriageCase
                 };
             })
@@ -1236,24 +1208,32 @@ internal sealed class EfRetainedMailboxMessageStore(
                 && receipt.MailClassificationDecision.Outcome == classified
                 && receipt.MailClassificationDecision.Category == code));
         }
-        if (!scope.Unidentified)
+        if (!scope.NoCaseFound)
         {
             return messages;
         }
 
-        // Unidentified: mail no classification has decided, until its
-        // receipt's Unidentified item resolves.
-        var resolved = UnidentifiedState.Resolved.ToString();
-        var receiptOrigin = UnidentifiedOriginKind.Receipt.ToString();
+        // No Case Found: received mail whose receipt stands linked to no Case.
+        // The same order the summaries read the Case in (MapSummariesAsync):
+        // an active staff or automatic association; else an accepted link when
+        // no association row exists; else the Case the latest allocation
+        // created, unless an association was reversed; else the Triage the
+        // receipt opened.
         return messages.Where(message => context.IntakeReceipts.Any(receipt =>
             receipt.SourceChannel == "mailbox"
             && receipt.ExternalReceiptToken == message.ExternalReceiptToken
-            && receipt.MailClassificationDecision != null
-            && receipt.MailClassificationDecision.Outcome != classified
-            && !context.Set<UnidentifiedItemEntity>().Any(item =>
-                item.OriginKind == receiptOrigin
-                && item.OriginId == receipt.Id
-                && item.State == resolved)));
+            && !context.IntakeManualAssociations.Any(association =>
+                association.IntakeReceiptId == receipt.Id && association.IsActive)
+            && (context.IntakeManualAssociations.Any(association => association.IntakeReceiptId == receipt.Id)
+                || !context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == receipt.Id))
+            && (context.IntakeManualAssociations.Any(association =>
+                    association.IntakeReceiptId == receipt.Id && !association.IsActive)
+                || context.IntakeAllocationAttempts
+                    .Where(attempt => attempt.IntakeReceiptId == receipt.Id)
+                    .OrderByDescending(attempt => attempt.AttemptNumber)
+                    .Select(attempt => attempt.CaseId)
+                    .FirstOrDefault() == null)
+            && !context.Triage.Any(triage => triage.OriginReceiptId == receipt.Id)));
     }
 
     /// <summary>

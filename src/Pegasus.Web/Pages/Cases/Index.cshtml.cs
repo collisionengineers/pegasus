@@ -25,12 +25,13 @@ namespace Pegasus.Web.Pages.Cases;
 /// </summary>
 /// <remarks>
 /// The rail is one continuous list with no groups (issue 1046): Not ready,
-/// Review, With Engineer, Query, Triage, Awaiting instruction, Held and
-/// Unidentified. Report sent Cases have no queue; Search's State filter finds
-/// them. Query lists every open Case with an open query (operator, 11
-/// October 2026). The Unidentified scope lists open items, with closed items
-/// behind its Show filter (received file D5); nothing here lists a Blocked
-/// receipt or links to a received item (received file D1, D2).
+/// Unassigned Images, Review, With Engineer, Queries, Triage and Held
+/// (operator, 13 October 2026). Report sent Cases have no queue; Search's
+/// State filter finds them. Queries lists every open Case with an open query
+/// (operator, 11 October 2026). Unassigned Images shows the image records
+/// awaiting an instruction (Identified) or, behind its Show filter, the open
+/// Unidentified items, or the closed ones (received file D5); nothing here
+/// lists a Blocked receipt or links to a received item (received file D1, D2).
 ///
 /// The queue is <c>?tab=</c>; the earlier <c>?queue=</c> is accepted as
 /// an alias and hyphenated spellings normalise to the same keys. A request
@@ -102,19 +103,18 @@ public sealed class IndexModel(
 
     /// <summary>
     /// The rail, in rail order. Every label comes from
-    /// <see cref="OperatorLabels.CaseStage"/> (D3) or is the record kind's own
-    /// settled name.
+    /// <see cref="OperatorLabels.CaseStage"/> (D3) or is the operator's own
+    /// name for the queue.
     /// </summary>
     public static readonly IReadOnlyList<Tab> Tabs =
     [
         new("not_ready", OperatorLabels.CaseStage(CaseLifecycleState.NotReady), "icon-clock"),
+        new("unassigned", "Unassigned Images", "icon-image"),
         new("review", OperatorLabels.CaseStage(CaseLifecycleState.Review), "icon-check-circle"),
         new("with_engineer", OperatorLabels.CaseStage(CaseLifecycleState.ReportPreparation), "icon-user"),
-        new("query", OperatorLabels.QueryStage, "icon-reply"),
+        new("query", "Queries", "icon-reply"),
         new("triage", "Triage", "icon-file-text"),
-        new("awaiting", "Awaiting instruction", "icon-image"),
-        new("held", OperatorLabels.CaseStage(CaseLifecycleState.Held), "icon-pause"),
-        new("unidentified", "Unidentified", "icon-alert-triangle")
+        new("held", OperatorLabels.CaseStage(CaseLifecycleState.Held), "icon-pause")
     ];
 
     /// <summary>
@@ -155,7 +155,10 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true, Name = "principal")]
     public string? PrincipalFilter { get; set; }
 
-    /// <summary>The Unidentified scope's Show filter: open items (default) or <c>closed</c>.</summary>
+    /// <summary>
+    /// The Unassigned Images Show filter: the identified image records (default),
+    /// <c>unidentified</c> for the open Unidentified items or <c>closed</c> for the closed ones.
+    /// </summary>
     [BindProperty(SupportsGet = true, Name = "show")]
     public string? ShowFilter { get; set; }
 
@@ -166,7 +169,10 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true, Name = "selected")]
     public Guid? SelectedId { get; set; }
 
-    public bool ShowingClosed => Queue == "unidentified" && ShowFilter == "closed";
+    /// <summary>Whether Unassigned Images is showing Unidentified items, open or closed.</summary>
+    public bool ShowingUnidentified => Queue == "unassigned" && ShowFilter is "unidentified" or "closed";
+
+    public bool ShowingClosed => Queue == "unassigned" && ShowFilter == "closed";
 
     /// <summary>Whether the scope lists Case rows, so the Principal filter applies.</summary>
     public static bool ListsCases(string queue) =>
@@ -188,9 +194,8 @@ public sealed class IndexModel(
         "with_engineer" => StageCounts.WithEngineer,
         "query" => StageCounts.Query,
         "triage" => TriageCount,
-        "awaiting" => AwaitingInstructionCount,
+        "unassigned" => AwaitingInstructionCount + UnidentifiedCount,
         "held" => StageCounts.Held,
-        "unidentified" => UnidentifiedCount,
         _ => 0
     };
 
@@ -245,9 +250,9 @@ public sealed class IndexModel(
     public IReadOnlyList<string> Columns => Queue switch
     {
         "triage" => ["Reference", "Registration", "Principal", "Received", "Assignee", "State"],
-        "awaiting" => ["Image reference", "Registration", "Received", "Images", "Source"],
-        "unidentified" when ShowingClosed => ["Reference", "Received", "Material", "Outcome", "Source"],
-        "unidentified" => ["Reference", "Received", "Material", "Reason", "Source"],
+        "unassigned" when ShowingClosed => ["Reference", "Received", "Material", "Outcome", "Source"],
+        "unassigned" when ShowingUnidentified => ["Reference", "Received", "Material", "Reason", "Source"],
+        "unassigned" => ["Image reference", "Registration", "Received", "Images", "Source"],
         "not_ready" => ["Case/PO", "Registration", "Claimant", "Principal", "Received", "Due", "Missing", CaseWorkspaceLabels.Frame.Editing],
         "with_engineer" => ["Case/PO", "Registration", "Claimant", "Principal", "Received", "Due", "Engineer", CaseWorkspaceLabels.Frame.Editing],
         _ => ["Case/PO", "Registration", "Claimant", "Principal", "Received", "Due", "State", CaseWorkspaceLabels.Frame.Editing]
@@ -291,7 +296,7 @@ public sealed class IndexModel(
     /// <summary>
     /// This page's address with the given overrides. Filters ride along per
     /// the target scope — the Principal select exists on Case queues, Show on
-    /// Unidentified only — so
+    /// Unassigned Images only — so
     /// switching scope never carries a filter the destination cannot use.
     /// </summary>
     public string Href(string? tab = null, Guid? selected = null, int? page = null, bool keepFilters = true)
@@ -307,7 +312,7 @@ public sealed class IndexModel(
             {
                 values["principal"] = PrincipalFilter;
             }
-            if (target == "unidentified")
+            if (target == "unassigned")
             {
                 values["show"] = ShowFilter;
             }
@@ -327,7 +332,7 @@ public sealed class IndexModel(
     protected override bool AttachInOnePress => true;
 
     protected override IActionResult RedirectToSurface(Guid id) =>
-        RedirectToPage(new { tab = "awaiting", selected = id });
+        RedirectToPage(new { tab = "unassigned", selected = id });
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -343,14 +348,14 @@ public sealed class IndexModel(
 
         if (Tabs.All(tab => tab.Key != Queue)
             || CurrentPage > 10_000
-            || ShowFilter is not (null or "" or "open" or "closed"))
+            || ShowFilter is not (null or "" or "identified" or "unidentified" or "closed"))
         {
             return NotFound();
         }
 
         CurrentPage = Math.Max(1, CurrentPage);
         PrincipalFilter = EmptyToNull(PrincipalFilter);
-        ShowFilter = Queue == "unidentified" && ShowFilter == "closed" ? "closed" : null;
+        ShowFilter = Queue == "unassigned" && ShowFilter is "unidentified" or "closed" ? ShowFilter : null;
 
         try
         {
@@ -395,10 +400,9 @@ public sealed class IndexModel(
         var rows = Queue switch
         {
             "triage" => await LoadTriageAsync(actor, cancellationToken),
-            "awaiting" => await LoadAwaitingAsync(cancellationToken),
-            "unidentified" => ShowingClosed
-                ? await LoadClosedUnidentifiedAsync(cancellationToken)
-                : await LoadOpenUnidentifiedAsync(cancellationToken),
+            "unassigned" when ShowingClosed => await LoadClosedUnidentifiedAsync(cancellationToken),
+            "unassigned" when ShowingUnidentified => await LoadOpenUnidentifiedAsync(cancellationToken),
+            "unassigned" => await LoadAwaitingAsync(cancellationToken),
             "not_ready" => await LoadNotReadyAsync(actor, cancellationToken),
             _ => await LoadCasesAsync(actor, cancellationToken)
         };
@@ -412,7 +416,7 @@ public sealed class IndexModel(
             : Rows.Count > 0 ? Rows[0] : null;
         if (SelectedId is not null && selectedRow is null)
         {
-            var isPostAttachRedirect = Queue == "awaiting"
+            var isPostAttachRedirect = Queue == "unassigned" && !ShowingUnidentified
                 && (TempData.ContainsKey("Confirmation")
                     || TempData.ContainsKey("UploadConfirmationError"));
             if (!isPostAttachRedirect)
@@ -420,7 +424,7 @@ public sealed class IndexModel(
                 return NotFound();
             }
 
-            // A row just attached to a case leaves the Awaiting instruction queue
+            // A row just attached to a case leaves Unassigned Images
             // (LoadAwaitingAsync excludes it), so its post-attach redirect no longer
             // resolves. Preserve the TempData notice and drop only that stale selection.
             SelectedId = null;
@@ -467,7 +471,8 @@ public sealed class IndexModel(
         Guid surfaceId,
         CancellationToken cancellationToken)
     {
-        TabFilter = "awaiting";
+        TabFilter = "unassigned";
+        ShowFilter = null;
         SelectedId = surfaceId;
         return await OnGetAsync(cancellationToken);
     }
@@ -480,7 +485,7 @@ public sealed class IndexModel(
 
     private async Task<IReadOnlyList<QueueRow>> LoadCasesAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        // Each queue is one stage option: Query is every open Case with an
+        // Each queue is one stage option: Queries is every open Case with an
         // open query, whatever its state (operator, 11 October 2026).
         var stage = OperatorLabels.FindCaseStageOption(Queue switch
         {
