@@ -50,8 +50,9 @@ and the [verification procedure](docs/runbook.md).
   Follow `.agents/skills/pegasus-wipe-intake-data/SKILL.md` for its dry run
   and exact-target execution approval; merging the script authorizes no reset.
 - `Audit`, `Triage`, `Unidentified` and `Image Intake` are distinct, and
-  `Blocked intake` is no longer a term: refused material is a closed
-  Unidentified item. Use the glossary and owning FRD; never call generic
+  `Blocked intake` is no longer a term. Only images become Unidentified, and
+  refused image material is a closed Unidentified item; an e-mail with no
+  Case is No Case Found. Use the glossary and owning FRD; never call generic
   sorting Triage.
 - Never delete a Case or reuse its reference. Wrong-Principal correction and
   reasoned reopening follow FRD-01.

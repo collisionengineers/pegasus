@@ -124,7 +124,9 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
                     IntakeCaseEvidenceRoles.For(asset.Kind, asset.MediaType),
                     DocumentSource.Intake,
                     preparation.ExpectedCaseVersion,
-                    IsAutomaticIntakeEvidencePromotion: true),
+                    IsAutomaticIntakeEvidencePromotion: true,
+                    // The bytes were just read, and verified, from this copy.
+                    RetainedStorageKey: asset.StorageKey),
                 cancellationToken);
             pending |= retained.Disposition is CaseArtifactCustodyDisposition.Pending
                 or CaseArtifactCustodyDisposition.Unknown;

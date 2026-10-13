@@ -62,7 +62,8 @@ function Get-MigrationPermissionMatrix {
         '20260924180000_CaseWorksAndTriageCases.cs',
         '20260929090000_RetireUnusedTables.cs',
         '20261006150000_DropCaseReportDeliveryIntents.cs',
-        '20261007184000_RemoveEva.cs'
+        '20261007184000_RemoveEva.cs',
+        '20261013090000_ContactSingleType.cs'
     ) | ForEach-Object {
         $terminalSource = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $migrationPath) $_)
         [regex]::Matches($terminalSource, 'DropTable\(\s*name:\s*"(?<table>[A-Za-z0-9]+)"') |
@@ -433,7 +434,7 @@ function Get-MigrationPermissionMatrix {
     }
     # 20260909141000_Contacts: the Web directory writer replaces role/link
     # rows atomically. The Worker has no Contact caller.
-    foreach ($table in @('ContactRoles','ContactPrincipalLinks')) {
+    foreach ($table in @('ContactRoles','ContactPrincipalLinks') | Where-Object { $_ -notin $removedTables }) {
         foreach ($permission in @('SELECT','INSERT','DELETE')) {
             $expected.Add("pegasus_web_runtime_role|G|$permission|$table")
         }

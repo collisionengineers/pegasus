@@ -2076,7 +2076,7 @@ internal static class AllocationTestData
         var lineageId = Guid.NewGuid();
         var principalId = Guid.NewGuid();
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {$"Recovery provider {code}"}, {0L})");
+            $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {$"Recovery provider {code}"}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {RecordedAtUtc})");
         await context.Database.ExecuteSqlInterpolatedAsync(

@@ -1013,7 +1013,7 @@ public sealed class PrincipalApiSubmissionTests
         await services.GetRequiredService<IContactDirectoryAdministration>().SaveAsync(
             new SaveContactRequest(
                 Administrator, Guid.NewGuid(), 0, "Other Provider", null, null, null, null, null, true,
-                [ContactRole.Principal], "OTHER", CaseInspectionMode.PhysicalAddress, [],
+                ContactRole.Principal, "OTHER", CaseInspectionMode.PhysicalAddress, [],
                 "principal-api:principal:other"),
             default);
         Guid principalId;

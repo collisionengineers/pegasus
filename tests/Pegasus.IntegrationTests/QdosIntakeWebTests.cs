@@ -322,7 +322,7 @@ public sealed class QdosIntakeWebTests
 
     [GenuineQdosCorpusFact(LowTextNonScanPdfHash)]
     [Trait("Category", "Corpus")]
-    public async Task LowTextPdfWithoutDominantRasterStaysUnidentifiedWithoutOcrOrCaseReference()
+    public async Task LowTextPdfWithoutDominantRasterNeedsSortingWithoutOcrOrCaseReference()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);

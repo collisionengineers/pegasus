@@ -61,7 +61,7 @@ public sealed class CaseRecordFrameV26WebTests
     /// Outside an edit session the menu offers the state's items too
     /// (operator, 29 September 2026), their dialogs posting no lease so the
     /// handler claims one for the action. A colleague's live lease offers
-    /// Take over, and the menu keeps only Export case, which needs no lease.
+    /// Take over, and the menu keeps only Export case and Tasks, which need no lease.
     /// </summary>
     [Fact]
     public async Task OutsideAnEditSessionTheMenuOffersTheStatesItemsAndAColleaguesLeaseOffersOnlyTakeOver()
@@ -82,7 +82,9 @@ public sealed class CaseRecordFrameV26WebTests
         var html = await ReadCaseAsync(held);
         var heldBar = RecordBar(html);
         Assert.Contains("data-case-export", heldBar, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-dialog-open", heldBar, StringComparison.Ordinal);
+        // Tasks, which reads without a lease, is the one dialog the menu still opens.
+        Assert.Equal(1, Occurrences(heldBar, "data-dialog-open"));
+        Assert.Contains("data-dialog-open=\"case-tasks-dialog\"", heldBar, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"case-hold-dialog\"", html, StringComparison.Ordinal);
         Assert.Contains("data-edit-authority", html, StringComparison.Ordinal);
         Assert.Contains(CaseWorkspaceLabels.Frame.TakeOver, html, StringComparison.Ordinal);
@@ -94,7 +96,7 @@ public sealed class CaseRecordFrameV26WebTests
     /// A Report sent Case, with or without an open query, is editable like a
     /// With Engineer Case (operator, 11 October 2026): it offers Edit Case,
     /// and a colleague's lease on it is offered Take over (operator, 29
-    /// September 2026) while the Actions menu keeps only Export case.
+    /// September 2026) while the Actions menu keeps only Export case and Tasks.
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -109,7 +111,8 @@ public sealed class CaseRecordFrameV26WebTests
 
         var held = RecordBar(await ReadCaseAsync(new RecordingCaseDetailsStore { State = state, HasOpenQuery = hasOpenQuery, LeaseHolder = "colleague-staff-id" }));
         Assert.Contains("data-case-export", held, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-dialog-open", held, StringComparison.Ordinal);
+        Assert.Equal(1, Occurrences(held, "data-dialog-open"));
+        Assert.Contains("data-dialog-open=\"case-tasks-dialog\"", held, StringComparison.Ordinal);
         Assert.Contains(CaseWorkspaceLabels.Frame.TakeOver, held, StringComparison.Ordinal);
         Assert.Contains("handler=ClaimLease", held, StringComparison.Ordinal);
         Assert.Contains("name=\"takeOver\" value=\"true\"", held, StringComparison.Ordinal);

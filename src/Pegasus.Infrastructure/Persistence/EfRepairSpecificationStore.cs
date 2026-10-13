@@ -582,8 +582,8 @@ public sealed class EfRepairSpecificationStore(
         {
             var card = await context.LabourRateCards.AsNoTracking().SingleOrDefaultAsync(
                 item => item.Id == rateCardId, cancellationToken);
-            if (card is null || !card.Active || card.Version != request.SelectedRateCardVersion)
-                throw new InvalidOperationException("The selected labour-rate card changed or is disabled. Select a current card.");
+            if (card is null || card.Version != request.SelectedRateCardVersion)
+                throw new InvalidOperationException("The selected labour-rate card changed. Select a current card.");
             request = request with { Details = request.Details with
             {
                 LabourRate = card.PanelRate,

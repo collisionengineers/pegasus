@@ -18,7 +18,7 @@
 
     var hasFilters = Model.PrincipalFilter is not null;
     var isCaseScope = IndexModel.ListsCases(Model.Queue);
-    var noun = isCaseScope || Model.Queue == "awaiting" ? "case" : "item";
+    var noun = isCaseScope || (Model.Queue == "unassigned" && !Model.ShowingUnidentified) ? "case" : "item";
 }
 
 @section Styles {
@@ -97,14 +97,15 @@ else
                 }
             </form>
         }
-        else if (Model.Queue == "unidentified")
+        else if (Model.Queue == "unassigned")
         {
             <form method="get" class="filter-bar cases-filters" data-auto-submit>
-                <input type="hidden" name="tab" value="unidentified" />
+                <input type="hidden" name="tab" value="unassigned" />
                 <div class="field">
                     <label for="queue-show">Show</label>
                     <select id="queue-show" name="show" data-cases-show>
-                        <option value="open">Open items</option>
+                        <option value="identified">Identified</option>
+                        <option value="unidentified" selected="@(Model.ShowFilter == "unidentified" ? "selected" : null)">Unidentified</option>
                         <option value="closed" selected="@(Model.ShowingClosed ? "selected" : null)">Closed items</option>
                     </select>
                 </div>
@@ -118,7 +119,7 @@ else
         <div class="cases-table" data-row-list>
             @if (Model.Rows.Count == 0)
             {
-                <div class="cases-empty">@(Model.ShowingClosed ? "No closed items" : isCaseScope ? "No cases in this queue" : Model.Queue == "triage" ? "No open Triage" : Model.Queue == "awaiting" ? "No images awaiting an instruction" : "Nothing Unidentified")</div>
+                <div class="cases-empty">@(Model.ShowingClosed ? "No closed items" : isCaseScope ? "No cases in this queue" : Model.Queue == "triage" ? "No open Triage" : Model.ShowingUnidentified ? "Nothing Unidentified" : "No images awaiting an instruction")</div>
             }
             else
             {

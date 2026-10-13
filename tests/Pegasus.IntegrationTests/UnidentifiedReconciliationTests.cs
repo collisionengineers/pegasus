@@ -127,7 +127,7 @@ public sealed class UnidentifiedReconciliationTests
         var reconciler = services.GetRequiredService<ReconcileUnidentifiedDestinations>();
 
         // Forward direction: the staff link on a still-NeedsSorting receipt
-        // resolved the item through the link's Worker replay (FRD-22). The sweep
+        // resolved the item itself (FRD-22). The sweep
         // then only completes the fresh resolution's recheck watermark and
         // writes nothing.
         var resolvedToA = await store.GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId));
@@ -167,7 +167,7 @@ public sealed class UnidentifiedReconciliationTests
                 && entry.NewState == UnidentifiedState.Open);
 
         // Relink to a different case: the open item follows it, again in the
-        // link's Worker replay; the sweep only rechecks the moved association.
+        // link itself; the sweep only rechecks the moved association.
         await LinkAsync(factory.Services, receiptId, caseB, actor, "recon-link-b");
         var resolvedToB = await store.GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId));
         Assert.Equal(UnidentifiedState.Resolved, resolvedToB!.State);
@@ -418,8 +418,8 @@ public sealed class UnidentifiedReconciliationTests
                 operationKey,
                 "Staff linked the retained material to the case."),
             CancellationToken.None);
-        // A staff link hands filing and the Unidentified item to the Worker's
-        // replay of the receipt's work.
+        // A staff link resolves the Unidentified item itself and hands filing
+        // to the Worker's replay of the receipt's work, run here.
         await IntakeWebDriver.ReplayLinkedFilingAsync(services, receiptId);
     }
 
@@ -478,7 +478,7 @@ public sealed class UnidentifiedReconciliationTests
         var now = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {$"Reconciliation provider {reference}"}, {0L})");
+            $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {$"Reconciliation provider {reference}"}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {now})");
         await context.Database.ExecuteSqlInterpolatedAsync(

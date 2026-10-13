@@ -322,7 +322,7 @@ public sealed class VehicleWorkflowTerminalTests
         var caseId = Guid.NewGuid();
         await using var context = await database.CreateContextAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"Vehicle terminal test"}, {0L})");
+            $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {"Vehicle terminal test"}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {FixedUtcNow})");
         await context.Database.ExecuteSqlInterpolatedAsync(

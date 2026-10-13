@@ -246,20 +246,32 @@ public sealed class ProcessIntakeTests
         Assert.Empty(registerUnidentified.Requests);
     }
 
-    [Fact]
-    public async Task FinalAttemptTransientReaderFailureIsTerminalAndAllocatesUnidentified()
+    [Theory]
+    [InlineData("mail", IntakeSourceChannel.Mailbox, "application/pdf", "selected.pdf")]
+    [InlineData("upload-pdf", IntakeSourceChannel.ManualUpload, "application/pdf", "scan.pdf")]
+    public async Task FinalAttemptTransientReaderFailureIsTerminalAndAllocatesNoUnidentifiedForNonImageMaterial(
+        string name,
+        IntakeSourceChannel channel,
+        string mediaType,
+        string fileName)
     {
         // Once the queued caller has no retry left, the same transient reader
         // fault must still resolve to a terminal technical-failure receipt so
-        // custody is not silently stranded, and that terminal outcome is what
-        // registers the Unidentified reference.
+        // custody is not silently stranded. Only images become Unidentified
+        // (operator, 13 October 2026): an e-mail waits in the Inbox's No Case
+        // Found scope and a document is refused by its upload.
         var reader = new StubReader((_, _) => throw new TimeoutException("transient reader outage"));
         var store = new RecordingStore();
         var registerUnidentified = new RecordingRegisterUnidentified();
         var sut = CreateSut(reader, store, registerUnidentified: registerUnidentified);
 
         var result = await sut.ExecuteRetainedAsync(
-            CreateSource(),
+            CreateSource() with
+            {
+                FileName = fileName,
+                MediaType = mediaType,
+                SourceIdentity = new(channel, $"transient-{name}")
+            },
             "retained-storage-key",
             replaceExisting: false,
             isFinalAttempt: true);
@@ -267,11 +279,36 @@ public sealed class ProcessIntakeTests
         Assert.Equal(IntakeDecision.TechnicalFailure, result.Decision);
         var draft = Assert.Single(store.Drafts);
         Assert.Equal(IntakeDecision.TechnicalFailure, draft.Decision);
-        // Received file Q3: a file processing could not read is one outcome to the
-        // person, Could not be read, and the item says what kind of file it was.
+        Assert.Empty(registerUnidentified.Requests);
+    }
+
+    [Fact]
+    public async Task FinalAttemptTransientReaderFailureOnAnUploadedImageAllocatesUnidentified()
+    {
+        // The image twin: an uploaded image file that could not be read still
+        // becomes an Unidentified item. Received file Q3: a file processing
+        // could not read is one outcome to the person, Could not be read, and
+        // the item says what kind of file it was.
+        var reader = new StubReader((_, _) => throw new TimeoutException("transient reader outage"));
+        var store = new RecordingStore();
+        var registerUnidentified = new RecordingRegisterUnidentified();
+        var sut = CreateSut(reader, store, registerUnidentified: registerUnidentified);
+
+        var result = await sut.ExecuteRetainedAsync(
+            CreateSource() with
+            {
+                FileName = "IMG_1.jpg",
+                MediaType = "image/jpeg",
+                SourceIdentity = new(IntakeSourceChannel.ManualUpload, "transient-upload-image")
+            },
+            "retained-storage-key",
+            replaceExisting: false,
+            isFinalAttempt: true);
+
+        Assert.Equal(IntakeDecision.TechnicalFailure, result.Decision);
         var request = Assert.Single(registerUnidentified.Requests);
         Assert.Equal(UnidentifiedReasonCode.CouldNotBeRead, request.ReasonCode);
-        Assert.Equal("PDF", request.FileKind);
+        Assert.Equal("Image", request.FileKind);
     }
 
     [Theory]
@@ -364,6 +401,56 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
+    public async Task IncompleteReadWithPhotographsRegistersUnidentifiedWithoutDeferringToImageAutomation()
+    {
+        // An incomplete read never enters image automation (ADR-0005 item 11,
+        // operator, 12 October 2026), so this hook registers it itself.
+        var photograph = new IntakeAssetCandidate(
+            "incomplete.pdf, page 1, image 1",
+            "page-1-image-1.jpg",
+            "image/jpeg",
+            new byte[121_652],
+            IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded,
+            PageNumber: 1,
+            WidthPixels: 547,
+            HeightPixels: 650);
+        var readResult = Readable(
+            transportEvidence: [],
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "incomplete.pdf, page 1",
+                    "Supplementary Report")
+            ]) with
+        {
+            Assets = [photograph],
+            IsIncomplete = true
+        };
+        var store = new RecordingStore();
+        var registerUnidentified = new RecordingRegisterUnidentified();
+        var sut = CreateSut(new StubReader(readResult), store, registerUnidentified: registerUnidentified);
+        var source = CreateSource() with
+        {
+            SourceIdentity = new(IntakeSourceChannel.ManualUpload, "incomplete-read")
+        };
+
+        var receipt = await sut.ExecuteRetainedAsync(source, "retained/incomplete.pdf");
+
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        var signal = Assert.Single(receipt.Evidence, item =>
+            item.Signal == IntakeEvidenceSignals.IncompleteRead);
+        Assert.Equal(IntakeEvidenceSource.SystemDefault, signal.Source);
+        Assert.Equal(receipt.DecisionReason, signal.Detail);
+        Assert.True(ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt));
+        Assert.False(ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt));
+        Assert.False(ProcessIntake.IsDeferredForAutomation(receipt));
+        var request = Assert.Single(registerUnidentified.Requests);
+        Assert.Equal(UnidentifiedOrigin.Receipt(receipt.Id), request.Origin);
+    }
+
+    [Fact]
     public async Task SenderlessScannedDocumentRetainsOcrRequiredWithoutEstablishingQdos()
     {
         var readResult = Readable(
@@ -430,7 +517,7 @@ public sealed class ProcessIntakeTests
         Assert.Equal(IntakeDecision.NeedsSorting, draft.Decision);
         Assert.Null(draft.InstructionDraft);
         Assert.Null(draft.ExtractionPolicyKey);
-        Assert.Empty(draft.Evidence);
+        Assert.Equal(IntakeEvidenceSignals.IncompleteRead, Assert.Single(draft.Evidence).Signal);
         Assert.Collection(
             assets,
             source =>
@@ -557,6 +644,41 @@ public sealed class ProcessIntakeTests
         Assert.Equal(["selected.pdf", "page-1-image-2.jpg"],
             receipt.AssetRecords.Select(asset => asset.FileName));
         Assert.Equal(2, artifactStore.StoredHashes.Count);
+    }
+
+    /// <summary>
+    /// One receipt's files go into holding custody up to four at once, and a
+    /// file that fails does not stop the others: each runs to its own end
+    /// before the failure is thrown.
+    /// </summary>
+    [Fact]
+    public async Task HoldingCustodyRetainsFourFilesAtOnceAndAFailureLetsTheOthersFinish()
+    {
+        var documents = Enumerable.Range(1, 9)
+            .Select(index => new IntakeAssetCandidate(
+                $"outer message, attachment {index}: document-{index}.pdf",
+                $"document-{index}.pdf",
+                "application/pdf",
+                new byte[] { 0x25, (byte)index },
+                IntakeAssetKind.Attachment,
+                IntakeAssetDisposition.Attachment))
+            .ToArray();
+        var receiptStore = new RecordingStore();
+        var custody = new OverlappingHoldingCustody(ProcessIntake.MaximumConcurrentHoldingRetentions);
+        var sut = CreateSut(
+            new StubReader(Readable() with { Assets = documents }),
+            receiptStore,
+            retainIncomingArtifact: new RetainIncomingArtifact(
+                custody, new FailingLookupHoldingRetentionStore(failingLookup: 2)));
+
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.ExecuteAsync(CreateSource()));
+
+        Assert.Equal(FailingLookupHoldingRetentionStore.FailureMessage, failure.Message);
+        Assert.Equal(ProcessIntake.MaximumConcurrentHoldingRetentions, custody.MaximumInFlight);
+        var held = Assert.Single(receiptStore.Drafts).AssetRecords.Count;
+        Assert.True(held > ProcessIntake.MaximumConcurrentHoldingRetentions);
+        Assert.Equal(held - 1, custody.OperationKeys.Count);
     }
 
     [Fact]
@@ -1157,10 +1279,13 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
-    public async Task AmbiguousCaseMatchRegistersUnidentifiedWithConflictingIdentification()
+    public async Task AmbiguousCaseMatchOnAnEmailRegistersNoUnidentifiedButKeepsItsConflictingReason()
     {
-        // Competing candidate cases is a specific, evidenced reason; it must
-        // not collapse into the generic NoUsableIdentification fallback.
+        // An e-mail no longer becomes an Unidentified item (operator, 13
+        // October 2026): it waits in the Inbox's No Case Found scope. The
+        // reason mapping still serves image material: competing candidate
+        // cases is a specific, evidenced reason; it must not collapse into the
+        // generic NoUsableIdentification fallback.
         var caseA = Guid.NewGuid();
         var caseB = Guid.NewGuid();
         var readResult = Readable(
@@ -1202,10 +1327,15 @@ public sealed class ProcessIntakeTests
             SourceIdentity = new(IntakeSourceChannel.Mailbox, "mailbox-ambiguous-match-2")
         };
 
-        await sut.ExecuteAsync(source);
+        var result = await sut.ExecuteAsync(source);
 
-        var request = Assert.Single(registerUnidentified.Requests);
-        Assert.Equal(UnidentifiedReasonCode.ConflictingIdentification, request.ReasonCode);
+        Assert.Equal(IntakeDecision.NeedsSorting, result.Decision);
+        Assert.Empty(registerUnidentified.Requests);
+        var receipt = RecordingStore.RecordFrom(Assert.Single(store.Drafts));
+        Assert.False(ProcessIntake.IsUnidentifiedEligible(receipt));
+        Assert.Equal(
+            UnidentifiedReasonCode.ConflictingIdentification,
+            ProcessIntake.BuildUnidentifiedRegistrationRequest(receipt).ReasonCode);
     }
 
     [Fact]
@@ -2223,6 +2353,80 @@ public sealed class ProcessIntakeTests
                 null, null, null, "holding-file", "holding-version",
                 request.Sha256, request.ContentLength, request.MediaType, null, null));
         }
+    }
+
+    /// <summary>
+    /// Holding custody whose first <paramref name="overlap"/> calls wait for one
+    /// another, so the most that ever run at once is observed exactly.
+    /// </summary>
+    private sealed class OverlappingHoldingCustody(int overlap) : ICaseArtifactCustody
+    {
+        private readonly TaskCompletionSource overlapped = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly Lock sync = new();
+        private int inFlight;
+
+        public int MaximumInFlight { get; private set; }
+
+        public System.Collections.Concurrent.ConcurrentBag<string> OperationKeys { get; } = new();
+
+        public async Task<CaseArtifactCustodyResult> RetainAsync(
+            CaseArtifactCustodyRequest request, CancellationToken cancellationToken)
+        {
+            int running;
+            lock (sync)
+            {
+                running = ++inFlight;
+                MaximumInFlight = Math.Max(MaximumInFlight, running);
+            }
+            if (running == overlap)
+            {
+                overlapped.TrySetResult();
+            }
+            try
+            {
+                await Task.WhenAny(overlapped.Task, Task.Delay(TimeSpan.FromSeconds(10), cancellationToken));
+                OperationKeys.Add(request.OperationKey);
+                return new(
+                    CaseArtifactCustodyDisposition.Confirmed,
+                    null, null, null, "holding-file", "holding-version",
+                    request.Sha256, request.ContentLength, request.MediaType, null, null);
+            }
+            finally
+            {
+                lock (sync)
+                {
+                    inFlight--;
+                }
+            }
+        }
+    }
+
+    /// <summary>Every arrival is unoffered, and looking up the nth one fails.</summary>
+    private sealed class FailingLookupHoldingRetentionStore(int failingLookup) : IIncomingArtifactRetentionStore
+    {
+        public const string FailureMessage = "controlled retention lookup failure";
+        private int lookups;
+
+        public Task<RetainedIncomingArtifact?> FindAsync(
+            string operationKey,
+            CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref lookups) == failingLookup)
+            {
+                throw new InvalidOperationException(FailureMessage);
+            }
+            var assetId = Guid.ParseExact(operationKey.Split(':')[2], "N");
+            return Task.FromResult<RetainedIncomingArtifact?>(
+                new(assetId, operationKey, IncomingArtifactCustodyState.Unknown));
+        }
+
+        public Task<bool> TryClaimHandOverAsync(
+            string operationKey,
+            CancellationToken cancellationToken) => Task.FromResult(true);
+
+        public Task RecordAsync(
+            RetainedIncomingArtifact artifact,
+            CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class UnknownHoldingRetentionStore : IIncomingArtifactRetentionStore

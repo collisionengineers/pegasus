@@ -160,6 +160,27 @@ public sealed class PrincipalReportSendingRulesTests
         Assert.Equal(0, error.RuleIndex);
     }
 
+    /// <summary>A Case type condition takes the types that send a report, by their Core names (operator, 13 October 2026).</summary>
+    [Fact]
+    public void CaseTypeConditionsTakeTheReportingCaseTypesOnly()
+    {
+        foreach (var type in new[] { "Inspection", "Audit", "InspectionAndAudit" })
+        {
+            var normalized = PrincipalReportSendingRules.Normalize(Rules() with
+            {
+                Rules = [Rule(ReportSendingConditionKind.CaseType, [type])]
+            });
+            Assert.Equal(type, Assert.Single(Assert.Single(Assert.Single(normalized.Rules).If).Values));
+        }
+
+        foreach (var unknown in new[] { "Triage", "audit", "Desktop" })
+        {
+            var error = Refused(Rules() with { Rules = [Rule(ReportSendingConditionKind.CaseType, [unknown])] });
+            Assert.Equal(ReportSendingRulesRule.UnknownCaseType, error.Rule);
+            Assert.Equal(0, error.RuleIndex);
+        }
+    }
+
     [Fact]
     public void SenderConditionsTakeAddressesAndTextConditionsTakeText()
     {

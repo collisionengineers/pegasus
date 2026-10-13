@@ -232,6 +232,15 @@
                         <span>@Frame.ExportCase</span>
                     </button>
                 </form>
+                @* Tasks is the Case's task list, a dialog rather than a section
+                   (operator, 13 October 2026), offered on every standard Case;
+                   without script the link draws the dialog open. *@
+                <a class="btn" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
+                   asp-route-section="@Model.Section" asp-route-view="@Model.ViewRoute" asp-route-dialog="tasks"
+                   data-dialog-open="case-tasks-dialog" data-case-tasks-open>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check-square" /></svg>
+                    <span>@CaseWorkspaceLabels.Tasks.Title</span>
+                </a>
                 @if (canConfirmReportSent)
                 {
                     <button type="button" class="btn" data-dialog-open="case-report-sent-dialog">

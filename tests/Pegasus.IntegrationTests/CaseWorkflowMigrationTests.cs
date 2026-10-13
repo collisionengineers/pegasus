@@ -474,7 +474,12 @@ public sealed class CaseWorkflowMigrationTests
                 "20261012190000_PrincipalReportSendingRules",
                 "20261012191000_ReportDispatchRecord",
                 "20261012192000_GrantWorkerCaseTasksForReportSent",
-                "20261012193000_SentReportInstructionMove"
+                "20261012193000_SentReportInstructionMove",
+                "20261013080000_RemoveMileageSourceChoice",
+                "20261013090000_ContactSingleType",
+                "20261013090000_LabourRateBuiltInCards",
+                "20261013091000_ContactSopSeed",
+                "20261013092000_RemoveContactGuidance"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

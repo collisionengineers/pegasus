@@ -557,7 +557,8 @@ public sealed class UploadCaseDecision(
                         lease.Token,
                         actor,
                         operationKey,
-                        Reason: null),
+                        Reason: null,
+                        SettleUnidentified: receiptId == memberReceiptIds[^1]),
                     cancellationToken);
                 added++;
                 nextCaseVersion++;
@@ -587,8 +588,8 @@ public sealed class UploadCaseDecision(
         }
 
         // Each member's link (LinkIntake) commits the association and hands
-        // filing and the group-owned Unidentified settlement to the Worker's
-        // replay of that member's work.
+        // filing to the Worker's replay of that member's work. Only the last
+        // member's link settles the group-owned Unidentified item, once.
         var message = OperatorLabels.AssociatedWithCase(
             destination?.Reference ?? firstReceipt.CurrentCaseReference,
             byStaffDecision: true);

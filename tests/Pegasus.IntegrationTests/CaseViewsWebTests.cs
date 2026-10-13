@@ -765,9 +765,10 @@ public sealed class CaseViewsWebTests
             Assert.Contains($"data-open-task=\"{task.Id:D}\"", list, StringComparison.Ordinal);
             Assert.Contains(task.Description, list, StringComparison.Ordinal);
         }
-        Assert.Equal(openTasks.Length, Occurrences(list, "data-section-jump=\"tasks\""));
-        Assert.Contains("section=tasks", list, StringComparison.Ordinal);
-        Assert.Contains("#section-tasks", list, StringComparison.Ordinal);
+        // Each opens the Tasks dialog, with ?dialog=tasks drawing it open without script.
+        Assert.Equal(openTasks.Length, Occurrences(list, "data-dialog-open=\"case-tasks-dialog\""));
+        Assert.Contains("dialog=tasks", list, StringComparison.Ordinal);
+        Assert.DoesNotContain("section-tasks", list, StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -919,7 +919,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             null,
             null);
 
-    private sealed class Harness
+    internal sealed class Harness
     {
         public Harness()
         {
@@ -1049,7 +1049,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         }
     }
 
-    private sealed class FakeUnidentifiedStore : IUnidentifiedStore
+    internal sealed class FakeUnidentifiedStore : IUnidentifiedStore
     {
         public List<UnidentifiedItem> Items { get; } = [];
 
@@ -1197,16 +1197,24 @@ public sealed class ReconcileUnidentifiedDestinationsTests
     /// Advances the stored item's version exactly as the real resolve does, so
     /// each transition in a pass builds its key from a version of its own.
     /// </summary>
-    private sealed class FakeResolveUnidentified(FakeUnidentifiedStore store) : IResolveUnidentified
+    internal sealed class FakeResolveUnidentified(FakeUnidentifiedStore store) : IResolveUnidentified
     {
         public List<ResolveUnidentifiedRequest> Requests { get; } = [];
 
         public HashSet<string> FailForOperationKeys { get; } = [];
 
+        /// <summary>When set, every resolution fails with it.</summary>
+        public Exception? Failure { get; set; }
+
         public Task<UnidentifiedResolveResult> ExecuteAsync(
             ResolveUnidentifiedRequest request,
             CancellationToken cancellationToken = default)
         {
+            if (Failure is not null)
+            {
+                throw Failure;
+            }
+
             if (FailForOperationKeys.Contains(request.OperationKey))
             {
                 throw new InvalidOperationException("Simulated transient resolution failure.");
@@ -1244,7 +1252,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         }
     }
 
-    private sealed class FakeReceiptQueries : IIntakeReceiptQueries
+    internal sealed class FakeReceiptQueries : IIntakeReceiptQueries
     {
         public Dictionary<Guid, IntakeReceipt> Receipts { get; } = [];
 
@@ -1252,7 +1260,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             Task.FromResult(Receipts.TryGetValue(id, out var receipt) ? receipt : null);
     }
 
-    private sealed class FakeQueuedIntakeStatuses : IQueuedIntakeStatusQueries
+    internal sealed class FakeQueuedIntakeStatuses : IQueuedIntakeStatusQueries
     {
         public Dictionary<Guid, QueuedIntakeStatus> Statuses { get; } = [];
 
@@ -1267,7 +1275,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             throw new NotSupportedException();
     }
 
-    private sealed class FakeSubmissionGroupStore : IIntakeSubmissionGroupStore
+    internal sealed class FakeSubmissionGroupStore : IIntakeSubmissionGroupStore
     {
         public Dictionary<Guid, IntakeSubmissionGroup> Groups { get; } = [];
 
@@ -1311,7 +1319,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
                 Groups.TryGetValue(groupId, out var group) ? group.Members : []);
     }
 
-    private sealed class FakeTriageQueries : ITriageQueries
+    internal sealed class FakeTriageQueries : ITriageQueries
     {
         public Dictionary<Guid, TriageSummary> SummariesByOriginReceipt { get; } = [];
 
@@ -1339,7 +1347,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
                 : null);
     }
 
-    private sealed class FakeImageIntakeQueries : IImageIntakeQueries
+    internal sealed class FakeImageIntakeQueries : IImageIntakeQueries
     {
         public Dictionary<Guid, ImageIntakeDetail> DetailsByOriginReceipt { get; } = [];
 

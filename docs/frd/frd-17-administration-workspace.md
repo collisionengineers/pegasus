@@ -74,8 +74,24 @@ and the secret is write-only
 ### Contacts
 
 Contacts is the one directory for Principals, Claim Sources, Repairers,
-Storage and Third Party Engineers. Principal-specific settings are part of
-that Contact record. Report generation carries the Default fee (£) box above
+Storage and Third Party Engineers. Each Contact has one type; its page shows
+the type read-only and only that type's sections. The list is one panel per
+type, with no lede, no Sort control and no Type column; its order, columns and
+filters are in
+[FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration). The
+contact form shows Type, and for a Principal its Principal code, Inspection
+mode and Accepted e-mail identities, as greyed read-only boxes; Replace code
+stays the only route to a new code. Notes on every Case grows to fit its
+text. Linked principals is one list in three columns. The label is Phone in
+the New dialog, on the contact and in the list. Save contact returns to the
+Contacts list. An active Principal's page is tabs: Contact, Report
+generation, Report sending, Salvage matrix, Default inspection location and
+Principal API, each its own address (`?tab=`) so the tabs work without
+script, with Replace code below them. There is no Principal settings panel.
+A panel's save returns to its tab with its notice inside the panel; a refused
+save shows its message at the top of that panel and keeps what was typed
+(operator, 13 October 2026). Principal-specific
+settings are part of that Contact record. Report generation carries the Default fee (£) box above
 Save report settings; it has no Report recipients settings (operator, 6
 October 2026). The Report sending panel follows Report generation and is
 shown for a Principal only; every Principal has rules to show. Send from is a list of the Outgoing
@@ -85,7 +101,9 @@ six Attach choices are ticks; Hold and the First and Re-send attachment
 names are text, with no length limit. Rules are repeated rows, each with
 Match (All or Any condition), three condition lines (a kind, then a Contact
 list, the four outcomes, or text for Images from, Instruction mentions,
-Bodyshop mentions and Sender is not), and the actions Cc add, Cc remove,
+Bodyshop mentions and Sender is not; the kinds, in order, are Claim Source,
+Repairer, Images from, Instruction mentions, Sender is not, Outcome and
+Bodyshop mentions), and the actions Cc add, Cc remove,
 Remind, Hold and Stop. A Remove rule button per row, one spare blank row, an Add rule button,
 and one Save report sending. The Salvage matrix panel follows it: one
 table per salvage category, with From (£), To (£) and Percentage paid (%)
@@ -111,10 +129,11 @@ the field and the server. The directory rules are owned by
   Unidentified target (default 0, due by the midnight after receipt), Triage
   target (1), Held decision target (7), Review target (1) and AI draft
   target (1);
-- labour-rate-card administration: the global versioned cards (name,
-  panel-and-paint hourly rate, enabled state) that every estimate version
-  selects from. Disabling a card blocks future selection without changing
-  history ([FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications)).
+- labour-rate-card administration: the two built-in global versioned cards,
+  Standard and Prestige/Aluminium (operator, 13 October 2026), that every
+  estimate version selects from. Their names are fixed and there are no other
+  cards; the Administrator changes only each panel-and-paint hourly rate. A
+  change never alters the rate a repair spec recorded ([FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications)).
 
 The six settings and labour-rate-card rows are editable on load. Validation
 names the setting and allowed range when a value is refused. There are no

@@ -33,21 +33,23 @@ public sealed class WorkflowConfigurationPersistenceTests
     }
 
     [Fact]
-    public async Task RateCardEditsPersistVersionedDisabledStateAndRejectStaleSaves()
+    public async Task TheTwoBuiltInRateCardsKeepTheirOrderPersistVersionedRatesAndRejectStaleSaves()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var factory = new PooledDbContextFactory<PegasusDbContext>(new DbContextOptionsBuilder<PegasusDbContext>()
             .UseSqlServer(database.ConnectionString).Options);
         var store = new EfLabourRateCardStore(factory, TimeProvider.System);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
-        var card = await store.SaveAsync(new(Guid.NewGuid(), "Panel and paint", 65m, true, 0, actor,
-            "Create rate", "new-rate"), default);
-        var change = new SaveLabourRateCardRequest(card.Id, card.Name, 80m, false, card.Version, actor,
-            "Retire rate", "edit-rate");
+        var cards = await store.ListAsync(default);
+        Assert.Equal(LabourRateCardAdministration.Names, cards.Select(card => card.Name));
+        Assert.Equal(83.28m, cards[0].HourlyRate);
+        Assert.Equal(103.06m, cards[1].HourlyRate);
+        var card = cards[0];
+        var change = new SaveLabourRateCardRequest(card.Id, 80m, card.Version, actor, "Revise rate", "edit-rate");
         var saved = await store.SaveAsync(change, default);
-        Assert.False(saved.Enabled);
-        Assert.Equal(2, saved.Version);
-        Assert.Equal(80m, Assert.Single(await store.ListAsync(default)).HourlyRate);
+        Assert.Equal(LabourRateCardAdministration.Standard, saved.Name);
+        Assert.Equal(card.Version + 1, saved.Version);
+        Assert.Equal(80m, (await store.ListAsync(default))[0].HourlyRate);
         await Assert.ThrowsAsync<LabourRateCardConflictException>(() =>
             store.SaveAsync(change with { OperationKey = "stale-rate" }, default));
     }

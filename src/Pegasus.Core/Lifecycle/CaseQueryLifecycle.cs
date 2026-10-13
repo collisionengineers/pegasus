@@ -5,10 +5,13 @@ namespace Pegasus.Core.Lifecycle;
 /// <summary>
 /// The one owner of when a Case gains or loses an open query (FRD-13 "Report
 /// sent and queries", operator 11 October 2026). A query is a record on the
-/// Case, never a state: an e-mail classified as a query joining a Report sent Case raises
-/// one, staff or Automation log one, and every open query resolves together.
-/// The stores apply these answers inside the transaction that links, corrects,
-/// unlinks or sends.
+/// Case, never a state: an e-mail classified as a query joining a Case whose
+/// report is sent raises one, staff or Automation log one, and every open query
+/// resolves together. "Report is sent" is
+/// <see cref="CaseLifecycleRules.ReportIsSent(CaseWorkflowRecord)"/>: Report
+/// sent, or With Engineer holding the Inspection report's Sent item while the
+/// Audit is still to come (operator, 13 October 2026). The stores apply these
+/// answers inside the transaction that links, corrects, unlinks or sends.
 /// </summary>
 public static class CaseQueryRules
 {
@@ -16,7 +19,7 @@ public static class CaseQueryRules
     public static bool CanLog(CaseWorkflowRecord workflow)
     {
         ArgumentNullException.ThrowIfNull(workflow);
-        return workflow.State == CaseLifecycleState.ReportSent && workflow.Archive is null;
+        return CaseLifecycleRules.ReportIsSent(workflow) && workflow.Archive is null;
     }
 
     /// <summary>Resolve query is live while any query is open, on a Case that is not archived.</summary>
@@ -44,12 +47,14 @@ public static class CaseQueryRules
 
     /// <summary>
     /// A received message has joined the Case, by automatic match, staff link
-    /// or correction: it raises a query when the Case's report is sent, the
-    /// message is currently classified as a query, and that message does not
-    /// already hold an open query on the Case.
+    /// or correction: it raises a query when the Case's report is sent
+    /// (<paramref name="reportIsSent"/>, the Case's
+    /// <see cref="CaseLifecycleRules.ReportIsSent(CaseLifecycleState, bool, CaseType, bool)"/>),
+    /// the message is currently classified as a query, and that message does
+    /// not already hold an open query on the Case.
     /// </summary>
-    public static bool RaisesOnMailJoined(CaseLifecycleState state, bool isQuery, bool alreadyOpenForMessage) =>
-        state == CaseLifecycleState.ReportSent && isQuery && !alreadyOpenForMessage;
+    public static bool RaisesOnMailJoined(bool reportIsSent, bool isQuery, bool alreadyOpenForMessage) =>
+        reportIsSent && isQuery && !alreadyOpenForMessage;
 
     /// <summary>
     /// A message has left the Case or stopped being a query: the open

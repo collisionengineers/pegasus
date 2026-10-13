@@ -54,10 +54,10 @@ public sealed class ContactDirectoryPolicyTests
         Address: null,
         Postcode: null,
         Active: true,
-        Roles: [ContactRole.Repairer],
+        Role: ContactRole.Repairer,
         PrincipalCode: null,
         PrincipalInspectionMode: CaseInspectionMode.PhysicalAddress,
-        PrincipalAssociations: [],
+        LinkedPrincipalIds: [],
         OperationKey: "telephone-policy-test");
 }
 
@@ -69,17 +69,31 @@ public sealed class ContactNotesOnEveryCaseTests
     [Fact]
     public void AClaimSourceKeepsItsNotesAndOtherContactTypesDoNot()
     {
-        var claimSource = ContactDirectoryPolicy.Normalize(Request([ContactRole.ClaimSource], "  Ask for the policy number.  "));
-        var repairer = ContactDirectoryPolicy.Normalize(Request([ContactRole.Repairer], "Ask for the policy number."));
+        var claimSource = ContactDirectoryPolicy.Normalize(Request(ContactRole.ClaimSource, "  Ask for the policy number.  "));
+        var repairer = ContactDirectoryPolicy.Normalize(Request(ContactRole.Repairer, "Ask for the policy number."));
 
         Assert.Equal("Ask for the policy number.", claimSource.NotesOnEveryCase);
         Assert.Null(repairer.NotesOnEveryCase);
-        Assert.Null(ContactDirectoryPolicy.Normalize(Request([ContactRole.ClaimSource], " ")).NotesOnEveryCase);
+        Assert.Null(ContactDirectoryPolicy.Normalize(Request(ContactRole.ClaimSource, " ")).NotesOnEveryCase);
         Assert.ThrowsAny<ArgumentException>(() =>
-            ContactDirectoryPolicy.Normalize(Request([ContactRole.ClaimSource], new string('x', 2001))));
+            ContactDirectoryPolicy.Normalize(Request(ContactRole.ClaimSource, new string('x', 2001))));
     }
 
-    private static SaveContactRequest Request(IReadOnlyList<ContactRole> roles, string? notes) => new(
+    [Fact]
+    public void OnlyANonPrincipalContactLinksToPrincipalsAndEachOnce()
+    {
+        var principalId = Guid.NewGuid();
+
+        Assert.Equal(
+            [principalId],
+            ContactDirectoryPolicy.Normalize(Request(ContactRole.Storage, null) with { LinkedPrincipalIds = [principalId] }).LinkedPrincipalIds);
+        Assert.Throws<ArgumentException>(() => ContactDirectoryPolicy.Normalize(
+            Request(ContactRole.Principal, null) with { PrincipalCode = "ACME", LinkedPrincipalIds = [principalId] }));
+        Assert.Throws<ArgumentException>(() => ContactDirectoryPolicy.Normalize(
+            Request(ContactRole.Storage, null) with { LinkedPrincipalIds = [principalId, principalId] }));
+    }
+
+    private static SaveContactRequest Request(ContactRole role, string? notes) => new(
         Administrator,
         Guid.NewGuid(),
         ExpectedVersion: 0,
@@ -90,10 +104,10 @@ public sealed class ContactNotesOnEveryCaseTests
         Address: null,
         Postcode: null,
         Active: true,
-        Roles: roles,
+        Role: role,
         PrincipalCode: null,
         PrincipalInspectionMode: CaseInspectionMode.PhysicalAddress,
-        PrincipalAssociations: [],
+        LinkedPrincipalIds: [],
         OperationKey: "notes-policy-test",
         NotesOnEveryCase: notes);
 }

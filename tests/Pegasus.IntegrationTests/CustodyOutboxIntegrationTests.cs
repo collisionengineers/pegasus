@@ -2322,7 +2322,6 @@ public sealed class CustodyOutboxIntegrationTests
         var lineageId = Guid.NewGuid();
         var principalId = Guid.NewGuid();
         const string organizationName = "Custody test organization";
-        const string organizationRole = "principal";
         var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
         if (await context.Principals
@@ -2335,9 +2334,7 @@ public sealed class CustodyOutboxIntegrationTests
 
         await using var transaction = await context.Database.BeginTransactionAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {organizationName}, {0L})");
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO OrganizationRoles (OrganizationId, Role) VALUES ({organizationId}, {organizationRole})");
+            $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {organizationName}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {FixedUtcNow})");
         await context.Database.ExecuteSqlInterpolatedAsync(

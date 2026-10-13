@@ -130,8 +130,10 @@ public static class IntakeEnvelopeLimits
 /// send only ambiguous Principal, instruction-type or case evidence — and any
 /// unidentified e-mail — to <see cref="NeedsSorting"/>. So a definitive
 /// instruction is <see cref="CaseCreated"/> with the reference already
-/// allocated, ambiguity is <see cref="NeedsSorting"/>. A reasoned refusal is
-/// recorded by closing an Unidentified item.
+/// allocated, ambiguity is <see cref="NeedsSorting"/>. Only image material
+/// becomes an Unidentified item, and a reasoned refusal of it closes that
+/// item; an e-mail is refused by Dismiss, and a manual-upload document that
+/// cannot become a Case is refused by its upload.
 ///
 /// <see cref="CaseCreated"/> is a processing decision — the instruction is
 /// definitive enough to allocate on — not proof that a Case exists. The
@@ -199,6 +201,12 @@ public static class IntakeEvidenceSignals
 
     public const string ConflictingInstructionSelection =
         "conflicting-instruction-selection";
+
+    /// <summary>
+    /// The reader could not complete the source within its safe limits. An
+    /// incomplete read never enters image automation (ADR-0005 item 11).
+    /// </summary>
+    public const string IncompleteRead = "incomplete-read";
 
     /// <summary>
     /// The member of staff who uploaded the file declared its Case before the
@@ -953,6 +961,14 @@ public interface IIntakeQuarantineArtifactStore
     Task VerifyAsync(
         IntakeQuarantineArtifact artifact,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The artifact this store already holds under <paramref name="storageKey"/>,
+    /// without reading or writing anything: only the store's own
+    /// content-addressed key for exactly <paramref name="sha256"/> is adopted.
+    /// Null means the key is not one to adopt, and the caller stores the bytes.
+    /// </summary>
+    IntakeQuarantineArtifact? TryAdopt(string storageKey, string sha256, long contentLength) => null;
 }
 
 public interface IIntakeArtifactStore
@@ -1174,6 +1190,14 @@ public sealed record AcceptIntakeRequest(
     Guid? AllocationAttemptId = null,
     DateTimeOffset? AllocationCompletedAtUtc = null);
 
+/// <summary>
+/// A staff link of one receipt to a Case. <paramref name="SettleUnidentified"/>
+/// is true unless the caller links a submission group's members one by one:
+/// when false, the link commits and files as before but does not synchronise
+/// any Unidentified item, and the caller settles it once for the whole group
+/// (the group, not the member, owns the item). The Worker's replay and the
+/// sweep remain the backstop.
+/// </summary>
 public sealed record LinkIntakeRequest(
     Guid ReceiptId,
     Guid CaseId,
@@ -1182,7 +1206,8 @@ public sealed record LinkIntakeRequest(
     string EditLeaseToken,
     ActionActor Actor,
     string OperationKey,
-    string? Reason);
+    string? Reason,
+    bool SettleUnidentified = true);
 
 public sealed record ReverseIntakeLinkRequest(
     Guid ReceiptId,

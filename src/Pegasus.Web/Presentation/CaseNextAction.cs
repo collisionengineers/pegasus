@@ -68,7 +68,10 @@ public static class CaseNextAction
         {
             return early;
         }
-        if (workflow.State == CaseLifecycleState.ReportSent && workflow.HasOpenQuery)
+        // An open query is the next concern of any open Case (the Query stage,
+        // operator 11 October 2026), including one With Engineer that holds the
+        // Inspection report's Sent item while its Audit is still to come.
+        if (CaseQueryRules.IsQueryStage(workflow.State, workflow.HasOpenQuery))
         {
             return new(CaseWorkspaceLabels.Frame.ResolveQuery, "queries", ResolvesQuery: true);
         }
@@ -109,7 +112,7 @@ public static class CaseNextAction
     {
         ArgumentNullException.ThrowIfNull(workflow);
         return BeforeTheReport(workflow, null) is null
-            && !(workflow.State == CaseLifecycleState.ReportSent && workflow.HasOpenQuery);
+            && !CaseQueryRules.IsQueryStage(workflow.State, workflow.HasOpenQuery);
     }
 
     // The steps the Case takes before the report is its next concern.
@@ -172,11 +175,11 @@ public static class CaseNextAction
         new(CaseWorkspaceLabels.ReportDelivery.SendReport, "report");
 
     // Once the report is sent, the Case's open tasks are what is left to do;
-    // the Next action lists them, each a link to Tasks (operator, 6 October
-    // 2026). With none, nothing is (operator, 12 October 2026).
+    // the Next action lists them, each opening the Tasks dialog (operator,
+    // 6 and 13 October 2026). With none, nothing is (operator, 12 October 2026).
     private static CaseNextActionStep AfterTheSend(bool hasOpenTasks) =>
         hasOpenTasks
-            ? new(OperatorLabels.WorkCentre.OpenTasks, "tasks", ListsOpenTasks: true)
+            ? new(OperatorLabels.WorkCentre.OpenTasks, "overview", ListsOpenTasks: true)
             : new("None", "notes");
 
     // What follows the stored report of an Inspection + Audit Case that has

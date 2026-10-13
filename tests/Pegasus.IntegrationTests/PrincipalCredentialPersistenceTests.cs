@@ -40,7 +40,7 @@ public sealed class PrincipalCredentialPersistenceTests
         await services.GetRequiredService<IContactDirectoryAdministration>().SaveAsync(
             new SaveContactRequest(
                 Administrator, Guid.NewGuid(), 0, "Alpha Provider", null, null, null, null, null, true,
-                [ContactRole.Principal], "OTHER", CaseInspectionMode.PhysicalAddress, [],
+                ContactRole.Principal, "OTHER", CaseInspectionMode.PhysicalAddress, [],
                 "credential:principal:other"),
             default);
         Guid otherPrincipalId;

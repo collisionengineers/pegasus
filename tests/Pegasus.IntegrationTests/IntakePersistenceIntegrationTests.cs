@@ -242,7 +242,12 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261012190000_PrincipalReportSendingRules",
                 "20261012191000_ReportDispatchRecord",
                 "20261012192000_GrantWorkerCaseTasksForReportSent",
-                "20261012193000_SentReportInstructionMove"
+                "20261012193000_SentReportInstructionMove",
+                "20261013080000_RemoveMileageSourceChoice",
+                "20261013090000_ContactSingleType",
+                "20261013090000_LabourRateBuiltInCards",
+                "20261013091000_ContactSopSeed",
+                "20261013092000_RemoveContactGuidance"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -420,13 +425,20 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseDueWork'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseManualChases'"));
-        Assert.Equal(3, await database.ScalarAsync<int>(
+        Assert.Equal(2, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM sys.tables
             WHERE name IN (
                 N'EditScopes',
-                N'ContactRoles',
                 N'ContactPrincipalLinks')
+            """));
+        // 20261013090000_ContactSingleType moved the contact type onto Organizations.
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM sys.tables
+            WHERE name IN (
+                N'ContactRoles',
+                N'OrganizationRoles')
             """));
         // 20261007184000_RemoveEva dropped the three EVA tables.
         Assert.Equal(0, await database.ScalarAsync<int>(
@@ -445,13 +457,13 @@ public sealed class IntakePersistenceIntegrationTests
                 N'EngineerNotes',
                 N'OrganizationDirectoryEntries')
             """));
-        Assert.Equal(8, await database.ScalarAsync<int>(
+        Assert.Equal(6, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM sys.columns
             WHERE object_id = OBJECT_ID(N'Organizations')
               AND name IN (
                   N'ContactPerson', N'Email', N'Telephone', N'Address',
-                  N'Active', N'GuidanceTemplate', N'GuidanceTemplateVersion', N'Postcode')
+                  N'Active', N'Postcode')
             """));
         Assert.Equal(3, await database.ScalarAsync<int>(
             """

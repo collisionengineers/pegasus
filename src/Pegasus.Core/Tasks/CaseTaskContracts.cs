@@ -20,7 +20,7 @@ public sealed record CaseTaskRecord(
 
 /// <summary>
 /// An open task as the Case's Next action lists it once Report sent is recorded: what it
-/// is, and the task it links to in the Tasks section.
+/// is, and the task it links to in the Tasks dialog.
 /// </summary>
 public sealed record CaseOpenTask(Guid Id, string Description);
 

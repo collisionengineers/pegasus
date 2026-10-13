@@ -88,14 +88,35 @@ public static class VrmRecognitionProvisionalBar
 
     /// <summary>The distinct accepted registrations across a receipt's recorded reads.</summary>
     public static string[] DistinctAcceptedRegistrations(IEnumerable<ImageVrmSuggestion> suggestions) =>
-        suggestions
-            .Select(suggestion => AcceptedRegistration(
-                suggestion.Outcome,
-                suggestion.SuggestedRegistration,
-                suggestion.Confidence))
+        DistinctAccepted(suggestions.Select(suggestion => AcceptedRegistration(
+            suggestion.Outcome,
+            suggestion.SuggestedRegistration,
+            suggestion.Confidence)));
+
+    /// <summary>The distinct accepted registrations across an image group's member reads.</summary>
+    public static string[] DistinctAcceptedRegistrations(IEnumerable<ImageIntakeGroupMemberRecognition> members) =>
+        DistinctAccepted(members.Select(member => AcceptedRegistration(
+            member.Outcome,
+            member.NormalizedRegistration,
+            member.Confidence)));
+
+    /// <summary>
+    /// The accepted reads without exact duplicates, less any read contained in
+    /// a longer accepted read: a truncated read (<c>AK24</c> beside
+    /// <c>AK24UYD</c>) is not a distinct registration (operator decision,
+    /// 12 October 2026).
+    /// </summary>
+    private static string[] DistinctAccepted(IEnumerable<string?> accepted)
+    {
+        var distinct = accepted
             .OfType<string>()
             .Distinct(StringComparer.Ordinal)
             .ToArray();
+        return distinct
+            .Where(read => !distinct.Any(longer =>
+                longer.Length > read.Length && longer.Contains(read, StringComparison.Ordinal)))
+            .ToArray();
+    }
 }
 
 /// <summary>

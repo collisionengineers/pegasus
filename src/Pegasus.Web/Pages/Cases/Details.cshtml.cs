@@ -266,14 +266,16 @@ public sealed partial class DetailsModel(
             ["valuation"] = "/Pages/Cases/Shared/_CaseValuation.cshtml",
             ["files"] = "/Pages/Cases/Shared/_CaseFiles.cshtml",
             ["notes"] = "/Pages/Cases/Shared/_CaseHistory.cshtml",
-            ["tasks"] = "/Pages/Cases/Shared/_CaseTasks.cshtml",
             ["queries"] = "/Pages/Cases/Shared/_CaseQueries.cshtml"
         };
+
+    /// <summary>The Tasks dialog, whose body the fragment route also serves.</summary>
+    private const string TasksView = "/Pages/Cases/Shared/_CaseTasks.cshtml";
 
     /// <summary>
     /// Whether <paramref name="key"/> is fetched rather than rendered with the
     /// first response. The addressed section is always rendered, so
-    /// <c>?section=</c> works over plain HTTP. Files, Notes, Tasks and Queries
+    /// <c>?section=</c> works over plain HTTP. Files, Notes and Queries
     /// have no fields in the record's single Save form, so they remain deferred
     /// while editing without replacing entered values elsewhere; their bodies
     /// act through their own posts with the render lease token.
@@ -284,7 +286,7 @@ public sealed partial class DetailsModel(
         && !string.Equals(key, SectionLinkKey, StringComparison.Ordinal)
         && !(string.Equals(Section, "vehicle", StringComparison.Ordinal) && IsNestedSection(key))
         && LazySectionViews.ContainsKey(key)
-        && (LeaseToken is null || key is "files" or "notes" or "tasks" or "queries");
+        && (LeaseToken is null || key is "files" or "notes" or "queries");
 
     /// <summary>
     /// A lease token supplied only for rendering an asynchronously mounted
@@ -1142,14 +1144,18 @@ public sealed partial class DetailsModel(
             // four at a time and each on its own database context, and sets the
             // page's state only once all of them have finished. The phases stay
             // in order because each uses what the one before it read.
+            // The Actions menu's Tasks opens here without script, and a task
+            // action returns here: the page draws the Tasks dialog open.
+            var tasksOpen = string.Equals(dialog, "tasks", StringComparison.Ordinal);
             using (DocumentReadTelemetry.Start("web.case.direct-sections"))
             {
-                await LoadDirectSectionsAsync(id, actor, workspace, work, cancellationToken);
+                await LoadDirectSectionsAsync(id, actor, workspace, work, tasksOpen, cancellationToken);
             }
             using (DocumentReadTelemetry.Start("web.case.engineer-sections"))
             {
                 await LoadEngineerSectionsAsync(id, actor, workspace, work, estimate, dialog, cancellationToken);
             }
+            OpenDialog ??= tasksOpen ? "tasks" : null;
             using (DocumentReadTelemetry.Start("web.case.extras"))
             {
                 await LoadExtrasAsync(id, actor, cancellationToken);
@@ -1451,7 +1457,7 @@ public sealed partial class DetailsModel(
         if (string.Equals(estimate, "new", StringComparison.OrdinalIgnoreCase))
         {
             EditingNewEstimate = true;
-            // A new spec starts on the one enabled labour-rate card (FRD-25).
+            // A new spec starts on the Standard labour-rate card (FRD-25).
             var card = LabourRateCardAdministration.ForNewSpecification(LabourRateCards);
             EditorDetails = new EstimateDetails(
                 Name: Labels.CaseWorkspace.EngineerSections.NewEstimate,
@@ -1554,8 +1560,11 @@ public sealed partial class DetailsModel(
             return FragmentNotFound();
         }
 
-        var key = NormalizeSection(section);
-        if (!LazySectionViews.TryGetValue(key, out var view))
+        // The Tasks dialog's body is fetched here as the dialog opens; it is
+        // not a section, so the section vocabulary does not name it.
+        var key = string.Equals(section, "tasks", StringComparison.Ordinal) ? "tasks" : NormalizeSection(section);
+        var view = key == "tasks" ? TasksView : LazySectionViews.GetValueOrDefault(key);
+        if (view is null)
         {
             return FragmentNotFound();
         }
@@ -1645,7 +1654,7 @@ public sealed partial class DetailsModel(
             {
                 await LoadValuationSectionAsync(id, actor, cancellationToken);
             }
-            if (key == "tasks" && TasksReadAssignees)
+            if (key == "tasks" && !ColleagueIsEditing)
             {
                 TaskAssigneeChoices = await caseEngineerChoices.GetAsync(actor, cancellationToken);
             }
@@ -1713,6 +1722,7 @@ public sealed partial class DetailsModel(
         ActionActor actor,
         AssessmentWorkspace? workspace,
         CaseWorkSelector work,
+        bool readsTasks,
         CancellationToken cancellationToken)
     {
         var query = new GetCaseSectionQuery(
@@ -1738,12 +1748,14 @@ public sealed partial class DetailsModel(
         var notes = rendered.Contains("notes")
             ? reads.Start(token => getCaseNotesSection.ExecuteAsync(query, token))
             : null;
-        var tasks = rendered.Contains("tasks")
+        // The Tasks dialog's body is drawn with the page only when the page
+        // draws the dialog open; otherwise it is fetched as the dialog opens.
+        var tasks = readsTasks
             ? reads.Start(token => getCaseTasksSection.ExecuteAsync(query, token))
             : null;
         // An open task's Assign offers the enabled staff only while the Tasks
-        // body is rendered here and can be changed.
-        var taskAssignees = rendered.Contains("tasks") && CanEditCaseData
+        // body is rendered here and can be changed (in or out of a session).
+        var taskAssignees = readsTasks && !ColleagueIsEditing
             ? reads.Start(token => caseEngineerChoices.GetAsync(actor, token))
             : null;
         var queries = rendered.Contains("queries")
@@ -1987,7 +1999,6 @@ public sealed partial class DetailsModel(
         string? vehicleYear,
         long? vehicleMileage,
         string? vehicleMileageUnit,
-        string? vehicleMileageSource,
         string? accidentCircumstances,
         DateOnly? incidentDate,
         DateOnly? dueBy,
@@ -2265,8 +2276,7 @@ public sealed partial class DetailsModel(
                 var inspectionSubmitted = new[] { nameof(inspectionAddress), nameof(storageLocation), nameof(inspectionDate),
                     nameof(inspectionDeadline), nameof(storagePerDay), nameof(recoveryCharge) }.Any(Posted);
                 var vehicleSubmitted = new[] { nameof(vehicleRegistration), nameof(vehicleMake), nameof(vehicleModel),
-                    nameof(vehicleYear), nameof(vehicleMileage), nameof(vehicleMileageUnit),
-                    nameof(vehicleMileageSource) }.Any(Posted)
+                    nameof(vehicleYear), nameof(vehicleMileage), nameof(vehicleMileageUnit) }.Any(Posted)
                     || assessmentFields.ContainsKey(AssessmentVocabulary.HistoryCheck)
                     || assessmentFields.ContainsKey(AssessmentVocabulary.VehicleCondition)
                     || vehicleIdentityFields.Count > 0;
@@ -2340,8 +2350,6 @@ public sealed partial class DetailsModel(
                             Submitted(nameof(vehicleModel), vehicleModel, Accepted(data.Vehicle.Model)?.Value),
                             new(mileageValue,
                                 originalUnit,
-                                Submitted(nameof(vehicleMileageSource), vehicleMileageSource,
-                                    Recorded(AssessmentVocabulary.VehicleMileageSource)),
                                 persisted?.VehicleMileageDisplayUnit),
                             vehicleIdentityFields.Count > 0 ? vehicleIdentityFields : null,
                             Submitted(nameof(vehicleYear), vehicleYear, Accepted(data.Vehicle.Year)?.Value)),
@@ -5069,16 +5077,6 @@ public sealed partial class DetailsModel(
         if (field == "storagePerDay") return AssessmentValue(AssessmentVocabulary.SettlementStoragePerDay);
         if (field == "recoveryCharge") return AssessmentValue(AssessmentVocabulary.CostRecoveryCharge);
         if (field == "reportDate") return AssessmentValue(AssessmentVocabulary.ReportDate);
-        // The mileage source is a typed assessment path, not a case-data field,
-        // and the retained value reads as the word the select offered, not the
-        // stored code. A code with no word of its own is shown as it stands.
-        if (field == "vehicleMileageSource")
-        {
-            var code = AssessmentEditorValue(AssessmentVocabulary.VehicleMileageSource);
-            return code is not null && CaseVehicleMileageSourcePolicy.StaffChoices.Contains(code)
-                ? Pegasus.Web.Presentation.CaseWorkspaceLabels.Vehicle.MileageSource(code)
-                : code;
-        }
         if (Case?.Data is not { } data)
         {
             return null;
@@ -5141,7 +5139,6 @@ public sealed partial class DetailsModel(
         "vehicleYear" => "Year",
         "vehicleMileage" => "Mileage",
         "vehicleMileageUnit" => "Mileage unit",
-        "vehicleMileageSource" => "Mileage source",
         "accidentCircumstances" => "Accident circumstances",
         "incidentDate" => "Incident date",
         "dueBy" => FrameLabels.Due,

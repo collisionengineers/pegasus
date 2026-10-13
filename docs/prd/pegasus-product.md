@@ -30,9 +30,9 @@ historical observations, not competing requirements.
 
 - `Audit` is reviewed work with its own report and acceptance boundary: a standalone Audit Case, or the Audit of an Inspection + Audit Case, which Create audit adds to that same Case; it is not a synonym for Triage or generic sorting.
 - `Triage` is a Case type for an assessment request that is not a definitive instruction, with a `t.` Case/PO and its own workflow, completed by deciding its outcome; Reply with finding is optional email.
-- `Unidentified` is the receiving/intake outcome when evidence can be persisted safely but its identity, meaning, ownership, or destination cannot yet be established. Each item or inseparable group receives an immutable `U<n>` tracking reference and a required canonical reason; that reference is never a Case/PO, Audit, Image Intake, or principal identity.
+- `Unidentified` is the receiving/intake outcome for images when evidence can be persisted safely but its identity, meaning, ownership, or destination cannot yet be established. Only images become Unidentified; an e-mail with no Case waits in the Inbox's No Case Found scope (operator, 13 October 2026). Each item or inseparable group receives an immutable `U<n>` tracking reference and a required canonical reason; that reference is never a Case/PO, Audit, Image Intake, or principal identity.
 - `Image Intake` is the image-initiated pre-instruction outcome when a usable VRM exists but no unique formal instruction Case can be matched; it retains its VRM reference and is not Unidentified.
-- Material that cannot safely become a Case is not a separate outcome: unreadable material is an Unidentified item that could not be read, readable material that must not become a Case is an Unidentified item closed with a reason, and a retryable processing failure stays visible, retryable work.
+- Material that cannot safely become a Case is not a separate outcome: an unreadable image is an Unidentified item that could not be read, a readable image that must not become a Case is an Unidentified item closed with a reason, an e-mail is refused by Dismiss, a manual-upload document by its upload, and a retryable processing failure stays visible, retryable work.
 
 ## Quality, capacity, security, and evidence
 

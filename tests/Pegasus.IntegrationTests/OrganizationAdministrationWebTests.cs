@@ -42,7 +42,6 @@ public sealed partial class OrganizationAdministrationWebTests
             ["CreateType"] = "ClaimSource",
             ["OperationKey"] = InputValue(contactsHtml, "OperationKey"),
             ["ContactId"] = InputValue(contactsHtml, "ContactId"),
-            ["ExpectedVersion"] = InputValue(contactsHtml, "ExpectedVersion"),
             ["Name"] = "Web Caller Claim Source"
         };
         using var contactPost = await client.PostAsync(
@@ -53,7 +52,7 @@ public sealed partial class OrganizationAdministrationWebTests
         var contactId = await factory.Database.ScalarAsync<Guid>(
             "SELECT Id FROM Organizations WHERE Name = 'Web Caller Claim Source';");
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM ContactRoles WHERE OrganizationId = '{contactId:D}' AND Role = 'claim_source';"));
+            $"SELECT COUNT(*) FROM Organizations WHERE Id = '{contactId:D}' AND Role = 'claim_source';"));
         var contactEditHtml = await IntakeWebDriver.GetHtmlAsync(
             client,
             $"/Administration/Contacts/Edit/{contactId:D}");
@@ -73,7 +72,6 @@ public sealed partial class OrganizationAdministrationWebTests
             ["CreateType"] = "Principal",
             ["OperationKey"] = InputValue(principalHtml, "OperationKey"),
             ["ContactId"] = InputValue(principalHtml, "ContactId"),
-            ["ExpectedVersion"] = InputValue(principalHtml, "ExpectedVersion"),
             ["Name"] = "pegasustest",
             ["PrincipalCode"] = "WEBP",
             ["PrincipalInspectionMode"] = "PhysicalAddress"
@@ -96,8 +94,20 @@ public sealed partial class OrganizationAdministrationWebTests
 
         var reportSettingsPath =
             $"/Administration/Contacts/Edit/{principalContactId:D}";
-        var reportSettingsHtml = await EditContactAsync(client, reportSettingsPath);
-        Assert.Contains("pegasustest</h2>", reportSettingsHtml, StringComparison.Ordinal);
+        // An active Principal's page is tabs; the Contact tab is the default.
+        var contactTabHtml = await EditContactAsync(client, reportSettingsPath);
+        Assert.Contains("pegasustest</h2>", contactTabHtml, StringComparison.Ordinal);
+        Assert.Matches(
+            $"<a class=\"tab\"(?=[^>]*href=\"{Regex.Escape(reportSettingsPath)}\")(?=[^>]*aria-current=\"page\")[^>]*>Contact</a>",
+            contactTabHtml);
+        Assert.Matches(
+            $"<a class=\"tab\"(?=[^>]*href=\"{Regex.Escape(reportSettingsPath + "?tab=report-generation")}\")[^>]*>Report generation</a>",
+            contactTabHtml);
+        Assert.DoesNotContain("principal-report-title", contactTabHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Principal settings", contactTabHtml, StringComparison.Ordinal);
+        var reportSettingsHtml = await EditContactAsync(client, reportSettingsPath, "report-generation");
+        Assert.Contains(">Report generation</h2>", reportSettingsHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("contact-title", reportSettingsHtml, StringComparison.Ordinal);
         // A new Principal starts with the default report sending rules; the
         // retired Report recipients settings are not offered.
         Assert.Equal(
@@ -124,13 +134,13 @@ public sealed partial class OrganizationAdministrationWebTests
             reportSettingsPost.StatusCode == HttpStatusCode.Redirect,
             $"Expected a redirect but got {reportSettingsPost.StatusCode}. " +
                 $"Validation errors: {await DescribeValidationErrorsAsync(reportSettingsPost)}");
-        Assert.Equal(reportSettingsPath, reportSettingsPost.Headers.Location?.OriginalString);
+        Assert.Equal($"{reportSettingsPath}?tab=report-generation", reportSettingsPost.Headers.Location?.OriginalString);
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
                 $"SELECT CASE WHEN DefaultFee = 205.00 THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
 
-        var locationHtml = await EditContactAsync(client, reportSettingsPath);
+        var locationHtml = await EditContactAsync(client, reportSettingsPath, "default-inspection-location");
         using var locationPost = await client.PostAsync(
             $"{reportSettingsPath}?handler=UpdateLocation",
             new FormUrlEncodedContent(new Dictionary<string, string>
@@ -142,7 +152,7 @@ public sealed partial class OrganizationAdministrationWebTests
                 ["LocationIsImageBasedAssessment"] = bool.TrueString
             }));
         Assert.Equal(HttpStatusCode.Redirect, locationPost.StatusCode);
-        Assert.Equal(reportSettingsPath, locationPost.Headers.Location?.OriginalString);
+        Assert.Equal($"{reportSettingsPath}?tab=default-inspection-location", locationPost.Headers.Location?.OriginalString);
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"SELECT CASE WHEN DefaultInspectionAddress IS NULL THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
 
@@ -202,7 +212,7 @@ public sealed partial class OrganizationAdministrationWebTests
         var path = $"/Administration/Contacts/Edit/{contactId:D}";
         var noMatrix = $"SELECT COUNT(*) FROM Principals WHERE Id = '{principalId:D}' AND SalvageMatrixJson IS NULL;";
 
-        var html = await EditContactAsync(client, path);
+        var html = await EditContactAsync(client, path, "salvage-matrix");
         Assert.Contains("Salvage matrix", html, StringComparison.Ordinal);
         foreach (var category in new[] { "A", "B", "S", "N" })
         {
@@ -220,9 +230,11 @@ public sealed partial class OrganizationAdministrationWebTests
             WebUtility.HtmlDecode(refusedHtml),
             StringComparison.Ordinal);
         Assert.Contains("value=\"2000\"", refusedHtml, StringComparison.Ordinal);
+        // The refusal shows at the top of the panel that refused.
+        AssertInsidePanel(refusedHtml, "principal-salvage-title", "Cat S: bands overlap");
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(noMatrix));
 
-        html = await EditContactAsync(client, path);
+        html = await EditContactAsync(client, path, "salvage-matrix");
         using var saved = await client.PostAsync(
             $"{path}?handler=UpdateSalvageMatrix",
             SalvageForm(html, [("S", "0.01", "1000", "0"), ("S", "1000.01", "9999999.99", "2"), ("N", "", "", "")]));
@@ -230,11 +242,14 @@ public sealed partial class OrganizationAdministrationWebTests
             saved.StatusCode == HttpStatusCode.Redirect,
             $"Expected a redirect but got {saved.StatusCode}. Validation errors: {await DescribeValidationErrorsAsync(saved)}");
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(noMatrix));
-        var reloaded = await EditContactAsync(client, path);
+        // The save comes back to its panel, with the notice inside it.
+        Assert.Equal($"{path}?tab=salvage-matrix", saved.Headers.Location?.OriginalString);
+        var reloaded = await EditContactAsync(client, path, "salvage-matrix");
         Assert.Contains(
             "The principal's salvage matrix was updated.",
             WebUtility.HtmlDecode(reloaded),
             StringComparison.Ordinal);
+        AssertInsidePanel(reloaded, "principal-salvage-title", "salvage matrix was updated.");
         Assert.Contains("value=\"1000.01\"", reloaded, StringComparison.Ordinal);
         Assert.Contains("value=\"9999999.99\"", reloaded, StringComparison.Ordinal);
 
@@ -246,8 +261,8 @@ public sealed partial class OrganizationAdministrationWebTests
     }
 
     /// <summary>
-    /// The Principal's report sending rules (Report Sending SOP v5): the panel
-    /// follows Report settings, a refused save names the rule and keeps what
+    /// The Principal's report sending rules (Report Sending SOP v5): the tab
+    /// follows Report generation, a refused save names the rule and keeps what
     /// was typed, and a good save is kept and shown again.
     /// </summary>
     [Fact]
@@ -264,15 +279,15 @@ public sealed partial class OrganizationAdministrationWebTests
         var holdText = $"SELECT JSON_VALUE(ReportSendingRulesJson, '$.hold') FROM Principals WHERE Id = '{principalId:D}';";
         var ruleCount = $"SELECT COUNT(*) FROM OPENJSON((SELECT ReportSendingRulesJson FROM Principals WHERE Id = '{principalId:D}'), '$.rules');";
 
-        var html = await EditContactAsync(client, path);
+        var html = await EditContactAsync(client, path, "report-sending");
         Assert.True(
-            html.IndexOf("Report settings", StringComparison.Ordinal) is var settings
+            html.IndexOf(">Report generation</a>", StringComparison.Ordinal) is var settings
                 && settings >= 0
-                && settings < html.IndexOf("Report sending", StringComparison.Ordinal),
-            "The Report sending panel follows Report settings.");
+                && settings < html.IndexOf(">Report sending</a>", StringComparison.Ordinal),
+            "The Report sending tab follows Report generation.");
         Assert.True(
-            html.IndexOf("Report sending", StringComparison.Ordinal) < html.IndexOf("Salvage matrix", StringComparison.Ordinal),
-            "The Report sending panel comes before the Salvage matrix.");
+            html.IndexOf(">Report sending</a>", StringComparison.Ordinal) < html.IndexOf(">Salvage matrix</a>", StringComparison.Ordinal),
+            "The Report sending tab comes before the Salvage matrix.");
         Assert.Contains("data-report-sending-editor", html, StringComparison.Ordinal);
         Assert.Contains("name=\"RsSendFrom\"", html, StringComparison.Ordinal);
         Assert.Contains("data-rs-items=\"RsSendTo\"", html, StringComparison.Ordinal);
@@ -289,9 +304,13 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Equal(1, Regex.Count(html, "name=\"RuleIndex\""));
         Assert.Contains(">Car 2 Go</option>", html, StringComparison.Ordinal);
         Assert.Contains("<option value=\"BodyshopMentions\">Bodyshop mentions</option>", html, StringComparison.Ordinal);
+        // Case type is the last condition, a choice of the types that send a report (13 October 2026).
+        Assert.Matches(@"<option value=""BodyshopMentions"">Bodyshop mentions</option>\s*<option value=""CaseType"">Case type</option>\s*</select>", html);
+        Assert.Matches(@"<option value=""Inspection"">Inspection</option>\s*<option value=""Audit"">Audit</option>\s*<option value=""InspectionAndAudit"">Inspection and audit</option>", html);
         Assert.Contains("Send is refused; staff may override with a reason.", html, StringComparison.Ordinal);
         // The texts have no length limit.
-        var sendingPanel = html[html.IndexOf("data-report-sending-editor", StringComparison.Ordinal)..html.IndexOf("principal-salvage-title", StringComparison.Ordinal)];
+        var sendingStart = html.IndexOf("data-report-sending-editor", StringComparison.Ordinal);
+        var sendingPanel = html[sendingStart..html.IndexOf("</form>", sendingStart, StringComparison.Ordinal)];
         Assert.DoesNotContain("maxlength", sendingPanel, StringComparison.Ordinal);
         var versionBefore = await factory.Database.ScalarAsync<long>(principalVersion);
 
@@ -303,6 +322,7 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Contains("Send to: enter valid e-mail addresses.", WebUtility.HtmlDecode(refusedHtml), StringComparison.Ordinal);
         Assert.Contains("value=\"not an address\"", refusedHtml, StringComparison.Ordinal);
         Assert.Contains("value=\"Typed hold\"", refusedHtml, StringComparison.Ordinal);
+        AssertInsidePanel(refusedHtml, "principal-sending-title", "Send to: enter valid e-mail addresses.");
         Assert.Equal(versionBefore, await factory.Database.ScalarAsync<long>(principalVersion));
 
         using var noValue = await client.PostAsync(
@@ -314,7 +334,7 @@ public sealed partial class OrganizationAdministrationWebTests
             WebUtility.HtmlDecode(await noValue.Content.ReadAsStringAsync()),
             StringComparison.Ordinal);
 
-        html = await EditContactAsync(client, path);
+        html = await EditContactAsync(client, path, "report-sending");
         using var saved = await client.PostAsync(
             $"{path}?handler=UpdateReportSending",
             SendingForm(html,
@@ -336,12 +356,14 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Equal(versionBefore + 1, await factory.Database.ScalarAsync<long>(principalVersion));
         Assert.Equal("Check first.", await factory.Database.ScalarAsync<string>(holdText));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(ruleCount));
+        Assert.Equal($"{path}?tab=report-sending", saved.Headers.Location?.OriginalString);
 
-        var reloaded = await EditContactAsync(client, path);
+        var reloaded = await EditContactAsync(client, path, "report-sending");
         Assert.Contains(
             "The principal's report sending rules were updated.",
             WebUtility.HtmlDecode(reloaded),
             StringComparison.Ordinal);
+        AssertInsidePanel(reloaded, "principal-sending-title", "report sending rules were updated.");
         Assert.Contains("value=\"to@example.com\"", reloaded, StringComparison.Ordinal);
         Assert.Contains("value=\"Check first.\"", reloaded, StringComparison.Ordinal);
         Assert.Contains("value=\"Luton, Dunstable\"", reloaded, StringComparison.Ordinal);
@@ -408,7 +430,7 @@ public sealed partial class OrganizationAdministrationWebTests
     private static async Task AssertCredentialControlsAsync(
         IntakeWebApplicationFactory factory, HttpClient client, Guid principalId, string settingsPath)
     {
-        var settings = await EditContactAsync(client, settingsPath);
+        var settings = await EditContactAsync(client, settingsPath, "principal-api");
         var issueForm = CredentialForm(settings);
         using var issued = await client.PostAsync(
             $"{settingsPath}?handler=IssueCredential", new FormUrlEncodedContent(issueForm));
@@ -430,7 +452,7 @@ public sealed partial class OrganizationAdministrationWebTests
             $"{settingsPath}?handler=IssueCredential", new FormUrlEncodedContent(issueForm));
         replay.EnsureSuccessStatusCode();
         Assert.DoesNotContain(secret, await replay.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-        settings = await EditContactAsync(client, settingsPath);
+        settings = await EditContactAsync(client, settingsPath, "principal-api");
         Assert.DoesNotContain(secret, settings, StringComparison.Ordinal);
         Assert.DoesNotContain("issued-api-key", settings, StringComparison.Ordinal);
 
@@ -446,7 +468,7 @@ public sealed partial class OrganizationAdministrationWebTests
             var authentication = await authenticate.ExecuteAsync(keyId, secret, default);
             Assert.NotNull(authentication);
             Assert.Equal(handler == "ResumeCredential", authentication.MaySubmit);
-            settings = await EditContactAsync(client, settingsPath);
+            settings = await EditContactAsync(client, settingsPath, "principal-api");
         }
 
         var stale = CredentialForm(settings);
@@ -468,7 +490,7 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Null(await authenticate.ExecuteAsync(keyId, secret, default));
         Assert.NotNull(await authenticate.ExecuteAsync(resetKeyId, resetSecret, default));
 
-        settings = await EditContactAsync(client, settingsPath);
+        settings = await EditContactAsync(client, settingsPath, "principal-api");
         using var revoked = await client.PostAsync(
             $"{settingsPath}?handler=RevokeCredential", new FormUrlEncodedContent(CredentialForm(settings)));
         Assert.Equal(HttpStatusCode.Redirect, revoked.StatusCode);
@@ -493,20 +515,20 @@ public sealed partial class OrganizationAdministrationWebTests
         var contactId = await factory.Database.ScalarAsync<Guid>(
             $"SELECT OrganizationId FROM Principals WHERE Id = '{principalId:D}';");
         var path = $"/Administration/Contacts/Edit/{contactId:D}";
-        var settings = await EditContactAsync(client, path);
+        var settings = await EditContactAsync(client, path, "principal-api");
         if (credentialExists)
         {
             using var issued = await client.PostAsync(
                 $"{path}?handler=IssueCredential", new FormUrlEncodedContent(CredentialForm(settings)));
             Assert.Equal(HttpStatusCode.OK, issued.StatusCode);
-            settings = await EditContactAsync(client, path);
+            settings = await EditContactAsync(client, path, "principal-api");
         }
         if (handler == "ResumeCredential")
         {
             using var paused = await client.PostAsync(
                 $"{path}?handler=PauseCredential", new FormUrlEncodedContent(CredentialForm(settings)));
             Assert.Equal(HttpStatusCode.Redirect, paused.StatusCode);
-            settings = await EditContactAsync(client, path);
+            settings = await EditContactAsync(client, path, "principal-api");
         }
 
         await using var scope = factory.Services.CreateAsyncScope();
@@ -530,7 +552,7 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Equal(historyBefore, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateId = '{principalId:D}' AND EventKind LIKE 'principal_credential_%';"));
 
-        var reloaded = await EditContactAsync(client, path);
+        var reloaded = await EditContactAsync(client, path, "principal-api");
         using var retried = await client.PostAsync(
             $"{path}?handler={handler}", new FormUrlEncodedContent(CredentialForm(reloaded)));
         Assert.Equal(handler == "IssueCredential" ? HttpStatusCode.OK : HttpStatusCode.Redirect, retried.StatusCode);
@@ -578,8 +600,18 @@ public sealed partial class OrganizationAdministrationWebTests
             new("ExpectedVersion", InputValue(html, "ExpectedVersion"))
         }.Concat(fields));
 
-    private static Task<string> EditContactAsync(HttpClient client, string path) =>
-        IntakeWebDriver.GetHtmlAsync(client, path);
+    private static Task<string> EditContactAsync(HttpClient client, string path, string? tab = null) =>
+        IntakeWebDriver.GetHtmlAsync(client, tab is null ? path : $"{path}?tab={tab}");
+
+    // The text sits in the panel headed by the title id, before that panel's first field.
+    private static void AssertInsidePanel(string html, string titleId, string text)
+    {
+        var decoded = WebUtility.HtmlDecode(html);
+        var title = decoded.IndexOf($"id=\"{titleId}\"", StringComparison.Ordinal);
+        var at = decoded.IndexOf(text, StringComparison.Ordinal);
+        Assert.True(title >= 0 && at > title, $"'{text}' must show inside the panel '{titleId}'.");
+        Assert.True(decoded.IndexOf("<fieldset", title, StringComparison.Ordinal) > at, $"'{text}' must show at the top of the panel '{titleId}'.");
+    }
 
     private static string InputValue(string html, string name)
     {

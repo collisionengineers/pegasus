@@ -79,6 +79,39 @@ public sealed class EvaluateIntakeCaseMatch(
             return null;
         }
 
+        return await EvaluateDeclaredAsync(policy, sourceData, cancellationToken);
+    }
+
+    /// <summary>
+    /// The Cases of any Principal that survive the same eliminator procedure
+    /// over facts no Principal declared: each registered Principal policy
+    /// normalizes them in its own grammar, exactly as <see
+    /// cref="ExecuteDeclaredAsync"/> does, and every surviving candidate is
+    /// returned. These are suggestions for staff to confirm, never an
+    /// association.
+    /// </summary>
+    public async Task<IReadOnlyList<Guid>> FindSurvivingCasesAsync(
+        CaseMatchSourceData sourceData,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(sourceData);
+        var caseIds = new List<Guid>();
+        foreach (var policy in policies)
+        {
+            var result = await EvaluateDeclaredAsync(policy, sourceData, cancellationToken);
+            caseIds.AddRange(result.Candidates
+                .Where(candidate => candidate.Eliminations.Count == 0)
+                .Select(candidate => candidate.CaseId));
+        }
+
+        return [.. caseIds.Distinct()];
+    }
+
+    private async Task<CaseMatchEvaluationResult> EvaluateDeclaredAsync(
+        IPrincipalCaseMatchPolicy policy,
+        CaseMatchSourceData sourceData,
+        CancellationToken cancellationToken)
+    {
         var derived = policy.DeriveIndexKeys(sourceData);
         ArgumentNullException.ThrowIfNull(derived);
         var keys = new CaseMatchKeys(
@@ -87,7 +120,7 @@ public sealed class EvaluateIntakeCaseMatch(
             derived.NormalizedSurname,
             derived.NormalizedFirstInitial,
             derived.IncidentDate);
-        return await EvaluateAsync(principalCode, policy, keys, cancellationToken);
+        return await EvaluateAsync(policy.PrincipalCode, policy, keys, cancellationToken);
     }
 
     private async Task<CaseMatchEvaluationResult> EvaluateAsync(

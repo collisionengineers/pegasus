@@ -185,7 +185,6 @@ public sealed record CaseWorkspaceClaimSource(
 public sealed record CaseWorkspaceOdometer(
     long? OriginalValue,
     CaseOdometerUnit? OriginalUnit,
-    string? Source,
     CaseOdometerUnit? DisplayUnit);
 
 public sealed record CaseWorkspaceOverview(
@@ -824,11 +823,6 @@ public static class CaseWorkspacePolicy
         AddAll(request.Settlement?.AssessmentFields, "Settlement");
         AddAll(request.Report?.AssessmentFields, "Report");
 
-        if (request.Vehicle?.Odometer is { } odometer)
-        {
-            Add(AssessmentVocabulary.VehicleMileageSource, odometer.Source);
-        }
-
         if (request.Damage is { } damage && damage.Impacts is not null)
         {
             Add(
@@ -981,7 +975,6 @@ public static class CaseWorkspacePolicy
         StringComparer.Ordinal)
     {
         AssessmentVocabulary.DamageImpacts,
-        AssessmentVocabulary.VehicleMileageSource,
         AssessmentVocabulary.SettlementStoragePerDay,
         AssessmentVocabulary.CostRecoveryCharge,
         AssessmentVocabulary.ReportDate

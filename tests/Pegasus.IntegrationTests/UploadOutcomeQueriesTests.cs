@@ -121,6 +121,28 @@ public sealed class UploadOutcomeQueriesTests
         Assert.Equal($"/Cases/Create?receiptId={receiptId:D}", result.PrimaryAction!.Url);
     }
 
+    /// <summary>
+    /// A document that could not be read is refused by its upload, not held
+    /// as an Unidentified item (operator, 13 October 2026).
+    /// </summary>
+    [Theory]
+    [InlineData("unsupported", IntakeDecision.Unsupported)]
+    [InlineData("failure", IntakeDecision.TechnicalFailure)]
+    public async Task AnUnreadableDocumentWithNoUnidentifiedItemCannotBecomeACase(string name, IntakeDecision decision)
+    {
+        Assert.NotEmpty(name);
+        var receiptId = Guid.NewGuid();
+        var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
+        var receipt = MakeReceipt(receiptId, decision);
+
+        var result = await BuildAsync(status, receipt);
+
+        Assert.Equal(UploadOutcomeKind.CannotBecomeCase, result.Kind);
+        Assert.Equal("Could not become a case", result.StateLabel);
+        Assert.Equal($"/Received/{receiptId:D}/Source", result.PrimaryAction?.Url);
+        Assert.Null(result.Attach);
+    }
+
     [Fact]
     public async Task ManualAmbiguousMatchOffersTheRecordedViableDestinationsForConfirmation()
     {

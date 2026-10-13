@@ -77,7 +77,7 @@ public sealed class OperationsPersistenceTests
         var retryableFailureId = Guid.NewGuid();
         var leasedFailureId = Guid.NewGuid();
         context.AddRange(
-            new OrganizationEntity { Id = organizationId, Name = "Request operations test", Version = 0 },
+            new OrganizationEntity { Role = "principal", Id = organizationId, Name = "Request operations test", Version = 0 },
             new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = FixedUtcNow },
             new PrincipalEntity
             {

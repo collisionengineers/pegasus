@@ -30,10 +30,18 @@ flowchart LR
   Infrastructure --> Core
 ```
 
+The mail classifier agent (`src/pegasus-classifier-agent`, TypeScript on its
+own Flex Consumption Function App from `infra/modules/classifier.bicep`) is an
+Automation MCP client, not a composition root. It reaches Pegasus only through
+`/mcp` under `automation.mail` and calls the mail tools as any Automation
+caller does, so Pegasus applies the same checks to its writes. Its three tools
+list, classify and link mail that is Unclassified or has no Case, and leave
+any message staff or an Automation caller has decided.
+
 ## Flows and data ownership
 
-- Contacts uses Organization identities with explicit roles and Principal
-  associations. Principal policy remains on Principal records; Contacts owns
+- Contacts uses Organization identities, each with one type (`Organizations.Role`),
+  and Principal links. Principal policy remains on Principal records; Contacts owns
   the administration routes. Staff accounts have exactly one role.
 - Triage Cases and Image Intake records use typed, versioned edit scopes; a
   Triage Case's scope is also its authority for Case custody and upload

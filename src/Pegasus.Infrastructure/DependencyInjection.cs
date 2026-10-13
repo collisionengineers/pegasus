@@ -219,6 +219,7 @@ public static class DependencyInjection
                 .ToArray());
         services.AddScoped<ICaseMatchCandidateQueries, EfCaseMatchIndex>();
         services.AddScoped<EvaluateIntakeCaseMatch>();
+        services.AddScoped<ThirdPartyReportCaseSuggestions>();
         services.AddSingleton<QdosInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy>(provider =>
             provider.GetRequiredService<QdosInstructionExtractionPolicy>());
@@ -281,7 +282,6 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
         services.AddScoped<IOrganizationAdministrationQueries>(
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
-        services.AddScoped<IOrganizationDirectoryQueries, EfOrganizationDirectory>();
         services.AddScoped<IUpdatePrincipalDefaultInspectionLocation, UpdatePrincipalDefaultInspectionLocation>();
         services.AddScoped<EfPrincipalCredentialStore>();
         services.AddScoped<IPrincipalCredentialStore>(

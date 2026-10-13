@@ -412,7 +412,11 @@ as Send report.
   choose, the Principal's Send from chosen to start with. An uploaded e-mail
   sits in no mailbox, so it takes the new message route.
 - **Rule conditions.** A rule's conditions read the Case's Claim Source,
-  Repairer, recorded outcome and the instruction's sender. A rule is true,
+  Repairer, recorded outcome, Case type and the instruction's sender. A Case
+  type of Inspection or Audit reads the report being sent, which on an
+  Inspection + Audit Case is the view it is sent from (a send carrying both
+  reports counts as that view), and Inspection and audit holds for either
+  report (operator, 13 October 2026). A rule is true,
   false or undecided. With All, any false condition makes it false, else any
   undecided one leaves it undecided. With Any, any true condition makes it
   true, else any undecided one leaves it undecided. A fact the Case has not set

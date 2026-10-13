@@ -57,6 +57,33 @@ public sealed class StructuredIntakeSourceReaderTests
         Assert.Equal(expected, MimeKitPdfPigOpenXmlIntakeSourceReader.Coverage(image, visible), 10);
     }
 
+    /// <summary>
+    /// Operator, 12 October 2026: an image budget stops images only. Page one
+    /// places an image whose declared samples exceed the pixel budget on their
+    /// own; every page's text is still read, no later image is extracted, and
+    /// the read is incomplete with one limit issue.
+    /// </summary>
+    [Fact]
+    public async Task APdfPixelBudgetTripKeepsTheTextOfEveryPage()
+    {
+        var result = await ReadAsync(new TestEmail(
+            "report.pdf",
+            "application/pdf",
+            BuildTwoPagePdfOverThePixelBudget("First page of the report", "Second page of the report")));
+
+        Assert.Equal(IntakeSourceReadStatus.Readable, result.Status);
+        Assert.True(result.IsIncomplete);
+        var limit = Assert.Single(result.Issues, issue => issue.Code == "intake_limit_exceeded");
+        Assert.Equal("uploaded report.pdf expands beyond the safe decoded-image pixel limit.", limit.Reason);
+        Assert.Contains(result.Content, fragment =>
+            fragment.SourceLabel == "uploaded report.pdf, page 1"
+            && fragment.Text.Contains("First page of the report", StringComparison.Ordinal));
+        Assert.Contains(result.Content, fragment =>
+            fragment.SourceLabel == "uploaded report.pdf, page 2"
+            && fragment.Text.Contains("Second page of the report", StringComparison.Ordinal));
+        Assert.Empty(result.AssetCandidates);
+    }
+
     private const string ForwardedBody =
         "Please see the instruction below.\r\n"
         + "\r\n"
@@ -422,6 +449,74 @@ public sealed class StructuredIntakeSourceReaderTests
                 "staff:fixture",
                 new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, Guid.NewGuid().ToString("N"))),
             CancellationToken.None);
+
+    /// <summary>
+    /// Two text pages, each placing one image: page one an image declared at
+    /// 10,001 by 10,000 samples (never decoded), page two an ordinary 2 by 2
+    /// image that would otherwise be extracted.
+    /// </summary>
+    private static byte[] BuildTwoPagePdfOverThePixelBudget(string firstPageText, string secondPageText)
+    {
+        var objectBodies = new List<byte[]>
+        {
+            Encoding.ASCII.GetBytes("<< /Type /Catalog /Pages 2 0 R >>"),
+            Encoding.ASCII.GetBytes("<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>"),
+            Encoding.ASCII.GetBytes(
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+                + "/Resources << /XObject << /Im1 5 0 R >> /Font << /F1 7 0 R >> >> /Contents 8 0 R >>"),
+            Encoding.ASCII.GetBytes(
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+                + "/Resources << /XObject << /Im1 6 0 R >> /Font << /F1 7 0 R >> >> /Contents 9 0 R >>"),
+            ImageObject(10_001, 10_000, [0xff, 0xff, 0xff]),
+            ImageObject(2, 2, [.. Enumerable.Range(0, 12).Select(value => (byte)(value * 20))]),
+            Encoding.ASCII.GetBytes("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+            ContentObject(firstPageText),
+            ContentObject(secondPageText)
+        };
+
+        using var output = new MemoryStream();
+        output.Write(Encoding.ASCII.GetBytes("%PDF-1.4\n"));
+        var offsets = new List<long>();
+        for (var index = 0; index < objectBodies.Count; index++)
+        {
+            offsets.Add(output.Position);
+            output.Write(Encoding.ASCII.GetBytes($"{index + 1} 0 obj\n"));
+            output.Write(objectBodies[index]);
+            output.Write(Encoding.ASCII.GetBytes("\nendobj\n"));
+        }
+
+        var xref = output.Position;
+        output.Write(Encoding.ASCII.GetBytes($"xref\n0 {objectBodies.Count + 1}\n0000000000 65535 f \n"));
+        foreach (var offset in offsets)
+        {
+            output.Write(Encoding.ASCII.GetBytes($"{offset:0000000000} 00000 n \n"));
+        }
+
+        output.Write(Encoding.ASCII.GetBytes(
+            $"trailer\n<< /Size {objectBodies.Count + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n"));
+        return output.ToArray();
+
+        static byte[] ImageObject(int width, int height, byte[] pixels) =>
+        [
+            .. Encoding.ASCII.GetBytes(
+                $"<< /Type /XObject /Subtype /Image /Width {width} /Height {height} "
+                + $"/ColorSpace /DeviceRGB /BitsPerComponent 8 /Length {pixels.Length} >>\nstream\n"),
+            .. pixels,
+            .. Encoding.ASCII.GetBytes("\nendstream")
+        ];
+
+        static byte[] ContentObject(string text)
+        {
+            var operators = Encoding.ASCII.GetBytes(
+                $"q\n100 0 0 100 20 20 cm\n/Im1 Do\nQ\nBT /F1 12 Tf 72 720 Td ({text}) Tj ET");
+            return
+            [
+                .. Encoding.ASCII.GetBytes($"<< /Length {operators.Length} >>\nstream\n"),
+                .. operators,
+                .. Encoding.ASCII.GetBytes("\nendstream")
+            ];
+        }
+    }
 
     private static byte[] BuildLabelledTableDocx() => BuildDocx(
         BuildTable(["Claim Number", "Registration"], ["CLM-9003", "AB12 CDE"]));

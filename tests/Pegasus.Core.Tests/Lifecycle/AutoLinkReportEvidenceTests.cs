@@ -224,6 +224,51 @@ public sealed class AutoLinkReportEvidenceTests
         }
     }
 
+    /// <summary>
+    /// An Inspection + Audit Case with no Audit yet keeps With Engineer when its
+    /// Inspection report's Sent item is linked (operator, 13 October 2026): the
+    /// store says the send did not end the work, and Core accepts that state only.
+    /// </summary>
+    [Fact]
+    public async Task ACurrentWorkLinkThatDoesNotEndTheWorkReadsWithEngineer()
+    {
+        var caseId = Guid.NewGuid();
+        var evidenceId = Guid.NewGuid();
+        var store = new RecordingStore(new(
+            AutoLinkReportEvidenceDisposition.Linked,
+            new(caseId, evidenceId, CaseLifecycleState.ReportPreparation, Version: 3, EndsTheWork: false),
+            NotLinkedReasonCode: null));
+
+        var result = await new AutoLinkReportEvidence(store).ExecuteAsync(
+            new(caseId, evidenceId, WorkerActor, "report-auto-link-window", "Inspection report sent before the Audit"),
+            default);
+
+        Assert.Equal(AutoLinkReportEvidenceDisposition.Linked, result.Disposition);
+        Assert.Equal(CaseLifecycleState.ReportPreparation, result.Link?.State);
+        Assert.False(result.Link?.EndsTheWork);
+    }
+
+    [Theory]
+    [InlineData("ended-but-with-engineer", true, CaseLifecycleState.ReportPreparation)]
+    [InlineData("not-ended-but-report-sent", false, CaseLifecycleState.ReportSent)]
+    public async Task ACurrentWorkLinkMustReadTheStateItsSendProduced(
+        string name,
+        bool endsTheWork,
+        CaseLifecycleState state)
+    {
+        Assert.NotEmpty(name);
+        var caseId = Guid.NewGuid();
+        var evidenceId = Guid.NewGuid();
+        var store = new RecordingStore(new(
+            AutoLinkReportEvidenceDisposition.Linked,
+            new(caseId, evidenceId, state, Version: 3, EndsTheWork: endsTheWork),
+            NotLinkedReasonCode: null));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => new AutoLinkReportEvidence(store).ExecuteAsync(
+            new(caseId, evidenceId, WorkerActor, "report-auto-link-mismatch", "A state the send did not produce"),
+            default));
+    }
+
     private sealed class RecordingStore(AutoLinkReportEvidenceResult result)
         : IAutoLinkReportEvidenceStore
     {

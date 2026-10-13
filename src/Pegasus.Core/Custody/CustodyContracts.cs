@@ -703,6 +703,13 @@ public enum CaseArtifactCustodyDisposition { Confirmed, Pending, Failed, Unknown
 /// </summary>
 public enum CaseCustodyFolder { Case, Audit }
 
+/// <param name="RetainedStorageKey">
+/// Where the caller read <paramref name="Content"/> from, when that is the
+/// intake artifact store. Custody keeps that copy as the pending copy, without
+/// storing or reading the bytes again, when the store adopts the key
+/// (<see cref="IIntakeQuarantineArtifactStore.TryAdopt"/>); otherwise
+/// it stores the bytes itself.
+/// </param>
 public sealed record CaseArtifactCustodyRequest(
     ActionActor Actor, Guid? CaseId, Guid? IntakeReceiptId, string OccurrenceIdentity,
     string OperationKey, string FileName, string MediaType, long ContentLength,
@@ -711,7 +718,8 @@ public sealed record CaseArtifactCustodyRequest(
     DocumentSource Source = DocumentSource.Generated,
     long? ExpectedCaseVersion = null,
     bool IsAutomaticIntakeEvidencePromotion = false,
-    CaseCustodyFolder Folder = CaseCustodyFolder.Case);
+    CaseCustodyFolder Folder = CaseCustodyFolder.Case,
+    string? RetainedStorageKey = null);
 public sealed record CaseArtifactCustodyResult(
     CaseArtifactCustodyDisposition Disposition, Guid? DocumentId, Guid? VersionId, Guid? OccurrenceId,
     string? BoxFileId, string? BoxVersionId, string? Sha256, long? ContentLength,

@@ -22,6 +22,13 @@ param webActivation string = 'disabled'
 @description('Fail-closed Worker activation. Only approved-live-worker enables the nine production functions.')
 param workerActivation string = 'disabled'
 
+@allowed([
+  'disabled'
+  'approved'
+])
+@description('Fail-closed classifier activation. Base provisioning leaves the classifier Function App absent.')
+param classifierActivation string = 'disabled'
+
 @description('Primary Azure region.')
 param location string = 'uksouth'
 
@@ -84,6 +91,8 @@ param dvsaApiKeySecretUri string
 param dvsaTokenUri string
 @description('Approved DVSA OAuth scope.')
 param dvsaScope string
+@description('Versioned Key Vault secret URI containing the Anthropic API key the classifier agent uses.')
+param anthropicApiKeySecretUri string
 
 var activationAllowed = environmentName == 'prod' && deploymentMode == 'approved-live-deployment'
 var resourceGroupName = 'rg-pegasus-prod'
@@ -134,6 +143,20 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     dvsaApiKeySecretUri: dvsaApiKeySecretUri
     dvsaTokenUri: dvsaTokenUri
     dvsaScope: dvsaScope
+  }
+}
+
+module classifier 'modules/classifier.bicep' = if (activationAllowed) {
+  name: 'pegasus-prod-classifier'
+  scope: resourceGroup
+  params: {
+    location: location
+    tags: commonTags
+    classifierActivation: classifierActivation
+    webPublicOrigin: platform!.outputs.webPublicOrigin
+    applicationInsightsName: platform!.outputs.applicationInsightsName
+    automationMcpClientSecretUri: automationMcpClientSecretUri
+    anthropicApiKeySecretUri: anthropicApiKeySecretUri
   }
 }
 
@@ -219,3 +242,8 @@ output AZURE_KEY_VAULT_NAME string = activationAllowed ? platform!.outputs.keyVa
 output APPLICATION_INSIGHTS_NAME string = activationAllowed ? platform!.outputs.applicationInsightsName : ''
 output LOG_ANALYTICS_WORKSPACE_NAME string = activationAllowed ? platform!.outputs.logAnalyticsWorkspaceName : ''
 output ACTION_GROUP_NAME string = activationAllowed ? platform!.outputs.actionGroupName : ''
+output CLASSIFIER_APP_NAME string = activationAllowed ? classifier!.outputs.classifierAppName : ''
+output CLASSIFIER_IDENTITY_NAME string = activationAllowed ? classifier!.outputs.classifierIdentityName : ''
+output CLASSIFIER_IDENTITY_PRINCIPAL_ID string = activationAllowed ? classifier!.outputs.classifierIdentityPrincipalId : ''
+output CLASSIFIER_IDENTITY_CLIENT_ID string = activationAllowed ? classifier!.outputs.classifierIdentityClientId : ''
+output CLASSIFIER_STORAGE_ACCOUNT_NAME string = activationAllowed ? classifier!.outputs.classifierStorageAccountName : ''
