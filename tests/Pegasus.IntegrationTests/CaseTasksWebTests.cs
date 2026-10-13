@@ -401,7 +401,8 @@ public sealed class CaseTasksWebTests
         using var read = await workspace.Client.GetAsync($"/Cases/{store.CaseId:D}/Section?section=tasks");
         Assert.Equal(HttpStatusCode.OK, read.StatusCode);
         var fragment = WebUtility.HtmlDecode(await read.Content.ReadAsStringAsync());
-        Assert.Contains("data-case-tasks-body>", fragment, StringComparison.Ordinal);
+        Assert.Contains("data-case-tasks-body", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-lazy-tasks", fragment, StringComparison.Ordinal);
         Assert.Contains("Send the figures to the garage", fragment, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=CompleteCaseTask", fragment, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=AssignCaseTask", fragment, StringComparison.Ordinal);
