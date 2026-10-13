@@ -473,10 +473,14 @@ span.blocker-name{cursor:default;text-decoration:none}
 #section-estimate .est-rate [data-rate-work]:empty{display:none}
 #section-estimate .est-rate .choice input[disabled]+input+span{color:var(--quiet)}
 
-/* The scaling bar as the reference scales (v38 P6): the floors and Apply on
-   a second row under the slider; Remove scaling never wraps. */
+/* The scaling bar as the reference scales (v38 P6): the slider and its box
+   alone on the first row, so it keeps one length while previewing (operator,
+   13 October 2026); the floors, the readout, Remove scaling and Apply on a
+   second row under it; the readout wraps before Remove scaling does. */
 #section-estimate .est-scale{flex-wrap:wrap}
 #section-estimate .est-scale .est-scale-row{flex-basis:100%;display:flex;align-items:center;gap:12px;margin-top:4px}
+#section-estimate .est-scale .est-scale-row [data-scale-read]{min-width:0}
+#section-estimate .est-scale .dsc input[data-scale-percent]{width:84px}
 #section-estimate .est-scale .est-scale-row [data-scale-apply]{margin-left:auto}
 #section-estimate .est-scale [data-scale-remove]{white-space:nowrap}
 
