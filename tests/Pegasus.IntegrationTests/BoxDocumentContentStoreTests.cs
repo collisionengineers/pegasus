@@ -196,6 +196,58 @@ public sealed class BoxDocumentContentStoreTests
     }
 
     /// <summary>
+    /// Writes running at the same time inside one batch share the one read
+    /// that proves their folder, and a dropped proof is read again.
+    /// </summary>
+    [Fact]
+    public async Task ConcurrentProofsOfOneFolderInABatchShareOneReadUntilDropped()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+
+        using (store.BeginFolderProofBatch())
+        {
+            var before = box.RequestCount;
+            var proofs = await Task.WhenAll(Enumerable.Range(0, 4)
+                .Select(_ => store.ProveFolderAsync(CaseRootId, CancellationToken.None)));
+            Assert.All(proofs, proof => Assert.Equal(CaseRootId, proof.Id));
+            Assert.Equal(1, box.RequestCount - before);
+
+            store.DropProof(CaseRootId);
+            await store.ProveFolderAsync(CaseRootId, CancellationToken.None);
+            Assert.Equal(2, box.RequestCount - before);
+        }
+    }
+
+    /// <summary>
+    /// The retry reads use is the one holding custody's upload and read-back
+    /// use: an unavailable Box is asked again, a refusal is the answer at once.
+    /// </summary>
+    [Fact]
+    public async Task ATransientFailureIsRetriedAndARefusalIsNot()
+    {
+        var transientAttempts = 0;
+        var answer = await BoxDocumentContentStore.RetryTransientAsync(
+            _ => ++transientAttempts == 1
+                ? throw new HttpRequestException("unavailable", null, HttpStatusCode.ServiceUnavailable)
+                : Task.FromResult("answered"),
+            CancellationToken.None);
+        Assert.Equal("answered", answer);
+        Assert.Equal(2, transientAttempts);
+
+        var refusedAttempts = 0;
+        await Assert.ThrowsAsync<HttpRequestException>(() => BoxDocumentContentStore.RetryTransientAsync<string>(
+            _ =>
+            {
+                refusedAttempts++;
+                throw new HttpRequestException("gone", null, HttpStatusCode.NotFound);
+            },
+            CancellationToken.None));
+        Assert.Equal(1, refusedAttempts);
+    }
+
+    /// <summary>
     /// A verified stream is stored without being hashed or copied again, and
     /// lands where the verifying overload would put it.
     /// </summary>

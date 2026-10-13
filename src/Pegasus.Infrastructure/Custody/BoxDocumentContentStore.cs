@@ -38,12 +38,12 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     private const int MaximumConcurrentReads = 4;
 
     /// <summary>
-    /// How many times one read is attempted before its failure is the answer.
+    /// How many times one Box call is attempted before its failure is the answer.
     /// </summary>
-    private const int MaximumReadAttempts = 3;
+    private const int MaximumAttempts = 3;
 
     /// <summary>
-    /// The longest a read waits before its next attempt, whatever Box asks.
+    /// The longest a call waits before its next attempt, whatever Box asks.
     /// </summary>
     internal static readonly TimeSpan MaximumRetryWait = TimeSpan.FromSeconds(10);
 
@@ -54,9 +54,11 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
 
     /// <summary>
     /// The folder proofs of the document-write batch the current call flow is
-    /// inside, or null outside one. Per batch, never a time window.
+    /// inside, or null outside one. Per batch, never a time window. A proof is
+    /// held as the one read that makes it, so writes running at the same time
+    /// share that read rather than each making their own.
     /// </summary>
-    private readonly AsyncLocal<ConcurrentDictionary<string, BoxContentClient.ProvedFolder>?> batchProofs = new();
+    private readonly AsyncLocal<ConcurrentDictionary<string, Lazy<Task<BoxContentClient.ProvedFolder>>>?> batchProofs = new();
 
     /// <summary>
     /// Opens a batch of document writes: the first write into a folder proves
@@ -78,6 +80,41 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     {
         public void Dispose() => store.batchProofs.Value = null;
     }
+
+    /// <summary>
+    /// Proves a folder fit to be written into: inside a batch, once for the
+    /// batch, and outside one, every time. A proof that fails is not kept.
+    /// </summary>
+    internal async Task<BoxContentClient.ProvedFolder> ProveFolderAsync(
+        string folderId,
+        CancellationToken cancellationToken)
+    {
+        var proofs = batchProofs.Value;
+        if (proofs is null)
+        {
+            return await client.ProveFolderAsync(folderId, cancellationToken);
+        }
+        var proof = proofs.GetOrAdd(
+            folderId,
+            id => new Lazy<Task<BoxContentClient.ProvedFolder>>(
+                () => client.ProveFolderAsync(id, cancellationToken)));
+        try
+        {
+            return await proof.Value;
+        }
+        catch
+        {
+            proofs.TryRemove(KeyValuePair.Create(folderId, proof));
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Drops the batch's proof of a folder after a fence failure on a write
+    /// into it, so the next write proves the folder again.
+    /// </summary>
+    internal void DropProof(string folderId) =>
+        batchProofs.Value?.TryRemove(folderId, out _);
 
     /// <summary>
     /// The document's name in the flat case folder: its occurrence ordinal,
@@ -212,23 +249,15 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         // says so, having compared its content with this content.
         // Inside a batch the first write proves the folder and the rest share
         // that proof (FRD-05); outside one every write proves it.
-        var proofs = batchProofs.Value;
-        if (proofs is null || !proofs.TryGetValue(caseFolder, out var folder))
-        {
-            folder = await client.ProveFolderAsync(caseFolder, cancellationToken);
-            if (proofs is not null)
-            {
-                proofs[caseFolder] = folder;
-            }
-        }
+        var folder = await ProveFolderAsync(caseFolder, cancellationToken);
         BoxContentClient.BoxUpload upload;
         try
         {
             upload = await createAsync(folder);
         }
-        catch (Exception exception) when (proofs is not null && BoxContentClient.IsFenceFailure(exception))
+        catch (Exception exception) when (BoxContentClient.IsFenceFailure(exception))
         {
-            proofs.TryRemove(caseFolder, out _);
+            DropProof(caseFolder);
             throw;
         }
         var file = upload.File;
@@ -259,7 +288,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     /// input all reach, so a Box 429 arrived here as a failed page element
     /// rather than as a wait. The read now enters <see cref="ReadGate"/> and a
     /// throttled or unavailable response is retried within
-    /// <see cref="MaximumReadAttempts"/> attempts before it becomes the
+    /// <see cref="MaximumAttempts"/> attempts before it becomes the
     /// caller's failure.
     /// </remarks>
     public async Task<Stream> OpenReadVersionAsync(
@@ -303,31 +332,54 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     /// <c>Retry-After</c> when that is longer than the backoff, and never more
     /// than <see cref="MaximumRetryWait"/>.
     /// </remarks>
-    internal static async Task<T> ReadGatedWithRetryAsync<T>(
+    internal static Task<T> ReadGatedWithRetryAsync<T>(
         Func<CancellationToken, Task<T>> read,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(read);
+        return RetryTransientAsync(
+            async token =>
+            {
+                using (DocumentReadTelemetry.Start("document.provider.gate"))
+                {
+                    await ReadGate.WaitAsync(token);
+                }
+                try
+                {
+                    using var providerRead = DocumentReadTelemetry.Start("document.provider.read");
+                    return await read(token);
+                }
+                finally
+                {
+                    ReadGate.Release();
+                }
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Runs one Box call, retrying a throttled (429) or unavailable (5xx)
+    /// response within <see cref="MaximumAttempts"/> attempts, after
+    /// <see cref="WaitBeforeRetry"/>. Any other failure is the answer at once.
+    /// Holding custody's upload and read-back use it ungated; reads use it
+    /// through <see cref="ReadGatedWithRetryAsync"/>.
+    /// </summary>
+    internal static async Task<T> RetryTransientAsync<T>(
+        Func<CancellationToken, Task<T>> call,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(call);
         for (var attempt = 1; ; attempt++)
         {
-            using (DocumentReadTelemetry.Start("document.provider.gate"))
-            {
-                await ReadGate.WaitAsync(cancellationToken);
-            }
-            var wait = TimeSpan.Zero;
+            TimeSpan wait;
             try
             {
-                using var providerRead = DocumentReadTelemetry.Start("document.provider.read");
-                return await read(cancellationToken);
+                return await call(cancellationToken);
             }
             catch (HttpRequestException exception)
-                when (attempt < MaximumReadAttempts && IsTransientReadFailure(exception))
+                when (attempt < MaximumAttempts && IsTransientFailure(exception))
             {
                 wait = WaitBeforeRetry(exception, attempt + 1);
-            }
-            finally
-            {
-                ReadGate.Release();
             }
             await Task.Delay(wait, cancellationToken);
         }
@@ -352,7 +404,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     /// Whether Box said "later" rather than "no": the rate limit, or one of
     /// its own failures.
     /// </summary>
-    private static bool IsTransientReadFailure(HttpRequestException exception) =>
+    private static bool IsTransientFailure(HttpRequestException exception) =>
         exception.StatusCode == HttpStatusCode.TooManyRequests
         || (int?)exception.StatusCode >= 500;
 

@@ -130,6 +130,24 @@ public sealed class AzureBlobIntakeArtifactStore
         }
     }
 
+    /// <summary>
+    /// The content-addressed blob for exactly this hash, taken as it is: the
+    /// key names its own content, so storing those bytes again would only
+    /// find them there.
+    /// </summary>
+    public IntakeQuarantineArtifact? TryAdopt(string storageKey, string sha256, long contentLength)
+    {
+        if (contentLength < 0 || sha256 is not { Length: 64 } || !sha256.All(char.IsAsciiHexDigit))
+        {
+            return null;
+        }
+
+        var contentHash = sha256.ToUpperInvariant();
+        return string.Equals(storageKey, $"sha256/{contentHash[..2]}/{contentHash}", StringComparison.Ordinal)
+            ? new IntakeQuarantineArtifact(storageKey, contentHash, contentLength)
+            : null;
+    }
+
     public async Task<ReadOnlyMemory<byte>?> ReadAsync(
         string storageKey,
         CancellationToken cancellationToken)
