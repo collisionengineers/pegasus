@@ -42,7 +42,8 @@ public sealed class WorkflowConfigurationPersistenceTests
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var cards = await store.ListAsync(default);
         Assert.Equal(LabourRateCardAdministration.Names, cards.Select(card => card.Name));
-        Assert.Equal(new[] { 83.28m, 103.06m }, cards.Select(card => card.HourlyRate));
+        Assert.Equal(83.28m, cards[0].HourlyRate);
+        Assert.Equal(103.06m, cards[1].HourlyRate);
         var card = cards[0];
         var change = new SaveLabourRateCardRequest(card.Id, 80m, card.Version, actor, "Revise rate", "edit-rate");
         var saved = await store.SaveAsync(change, default);

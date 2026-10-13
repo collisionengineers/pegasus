@@ -1309,10 +1309,12 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await using var harness = await Harness.CreateAsync();
         var caseId = (await harness.AcceptAsync("import-in-use-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
-        var rateCard = await new EfLabourRateCardStore(harness.Factory, harness.Clock).SaveAsync(
-            new(Guid.NewGuid(), "80", 80m, true, 0,
+        var rateCards = new EfLabourRateCardStore(harness.Factory, harness.Clock);
+        var standard = LabourRateCardAdministration.ForNewSpecification(await rateCards.ListAsync(CancellationToken.None))!;
+        var rateCard = await rateCards.SaveAsync(
+            new(standard.Id, 80m, standard.Version,
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
-                "Create rate", "import-in-use-rate-create"),
+                "Set rate", "import-in-use-rate-set"),
             CancellationToken.None);
         var xml = System.Text.Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml());
         var parsed = new Pegasus.Infrastructure.Glass.GlassEstimateXmlParser().Parse(xml);
