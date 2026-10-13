@@ -318,7 +318,8 @@ public sealed class CaseTasksWebTests
     /// row and the record have no Tasks, the menu's item opens the dialog and ?dialog=tasks draws
     /// it open without script; drawn closed, its body is fetched as it opens. The dialog lists
     /// the Case's tasks and offers Complete, Cancel and
-    /// Assign on an open task and Add task in the edit session; a closed task never offers an
+    /// Assign on an open task and Add task, in and out of the edit session (operator,
+    /// 13 October 2026); a closed task never offers an
     /// action. Assign offers the enabled named staff, and a description has no length limit.
     /// </summary>
     [Fact]
@@ -397,16 +398,18 @@ public sealed class CaseTasksWebTests
         Assert.DoesNotContain("Send the figures to the garage", closed, StringComparison.Ordinal);
 
         // The body's fragment answers (its read phase is allow-listed) and reads without the
-        // render lease.
+        // render lease; its actions are offered out of a session too, each claiming the
+        // Case's lease for the one command (operator, 13 October 2026).
         using var read = await workspace.Client.GetAsync($"/Cases/{store.CaseId:D}/Section?section=tasks");
         Assert.Equal(HttpStatusCode.OK, read.StatusCode);
         var fragment = WebUtility.HtmlDecode(await read.Content.ReadAsStringAsync());
         Assert.Contains("data-case-tasks-body", fragment, StringComparison.Ordinal);
         Assert.DoesNotContain("data-lazy-tasks", fragment, StringComparison.Ordinal);
         Assert.Contains("Send the figures to the garage", fragment, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=CompleteCaseTask", fragment, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=AssignCaseTask", fragment, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=CreateCaseTask", fragment, StringComparison.Ordinal);
+        Assert.Contains("handler=CompleteCaseTask", fragment, StringComparison.Ordinal);
+        Assert.Contains("handler=AssignCaseTask", fragment, StringComparison.Ordinal);
+        Assert.Contains("handler=CreateCaseTask", fragment, StringComparison.Ordinal);
+        Assert.Contains("name=\"editLeaseToken\" value=\"\"", fragment, StringComparison.Ordinal);
     }
 
     /// <summary>A task action returns to the record with the Tasks dialog drawn open.</summary>

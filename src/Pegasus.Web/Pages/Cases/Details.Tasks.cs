@@ -7,10 +7,11 @@ namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
 /// The Tasks dialog (FRD-16, CASE-20): complete, cancel, assign and add a Case task from the
-/// Case record. Each action runs under the edit session's lease with one fixed recorded reason,
-/// so the section carries no reason box. A task the lease consumed is claimed again (save as
-/// you go, 29 September 2026), so the session carries on, and the action lands back on the
-/// Tasks dialog.
+/// Case record, in and out of an edit session (operator, 13 October 2026). In a session each
+/// action runs under the session's lease, which is claimed again so the session carries on
+/// (save as you go, 29 September 2026); outside one each claims the Case's lease for that
+/// one command, as the other Actions-menu dialogs do. Each records one fixed reason, so the
+/// dialog carries no reason box, and the action lands back on the Tasks dialog.
 /// </summary>
 public sealed partial class DetailsModel
 {
@@ -25,27 +26,31 @@ public sealed partial class DetailsModel
         Guid taskId,
         long expectedVersion,
         string operationKey,
-        string editLeaseToken,
+        string? editLeaseToken,
         string description,
         CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
+        ExecuteCaseCommandUnderLeaseAsync(
             id,
+            expectedVersion,
             editLeaseToken,
             "create_case_task",
-            actor => createCaseTask.ExecuteAsync(
-                new(
-                    id,
-                    taskId,
-                    expectedVersion,
-                    actor,
-                    RequireOperationKey(operationKey),
-                    TaskLabels.AddReason,
-                    editLeaseToken,
-                    description),
-                cancellationToken),
-            TaskLabels.AddedNotice,
-            RedirectToTasks,
-            keepEditing: true);
+            async (actor, lease) =>
+            {
+                await createCaseTask.ExecuteAsync(
+                    new(
+                        id,
+                        taskId,
+                        expectedVersion,
+                        actor,
+                        RequireOperationKey(operationKey),
+                        TaskLabels.AddReason,
+                        lease,
+                        description),
+                    cancellationToken);
+                return TaskLabels.AddedNotice;
+            },
+            _ => CaseCommandRefused,
+            RedirectToTasks);
 
     public Task<IActionResult> OnPostAssignCaseTaskAsync(
         Guid id,
@@ -53,28 +58,32 @@ public sealed partial class DetailsModel
         long expectedVersion,
         long expectedTaskVersion,
         string operationKey,
-        string editLeaseToken,
+        string? editLeaseToken,
         Guid assigneeId,
         CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
+        ExecuteCaseCommandUnderLeaseAsync(
             id,
+            expectedVersion,
             editLeaseToken,
             "assign_case_task",
-            actor => assignCaseTask.ExecuteAsync(
-                new(
-                    id,
-                    taskId,
-                    expectedVersion,
-                    expectedTaskVersion,
-                    actor,
-                    RequireOperationKey(operationKey),
-                    TaskLabels.AssignReason,
-                    editLeaseToken,
-                    assigneeId),
-                cancellationToken),
-            TaskLabels.AssignedNotice,
-            RedirectToTasks,
-            keepEditing: true);
+            async (actor, lease) =>
+            {
+                await assignCaseTask.ExecuteAsync(
+                    new(
+                        id,
+                        taskId,
+                        expectedVersion,
+                        expectedTaskVersion,
+                        actor,
+                        RequireOperationKey(operationKey),
+                        TaskLabels.AssignReason,
+                        lease,
+                        assigneeId),
+                    cancellationToken);
+                return TaskLabels.AssignedNotice;
+            },
+            _ => CaseCommandRefused,
+            RedirectToTasks);
 
     public Task<IActionResult> OnPostCompleteCaseTaskAsync(
         Guid id,
@@ -82,26 +91,30 @@ public sealed partial class DetailsModel
         long expectedVersion,
         long expectedTaskVersion,
         string operationKey,
-        string editLeaseToken,
+        string? editLeaseToken,
         CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
+        ExecuteCaseCommandUnderLeaseAsync(
             id,
+            expectedVersion,
             editLeaseToken,
             "complete_case_task",
-            actor => completeCaseTask.ExecuteAsync(
-                new(
-                    id,
-                    taskId,
-                    expectedVersion,
-                    expectedTaskVersion,
-                    actor,
-                    RequireOperationKey(operationKey),
-                    TaskLabels.CompleteReason,
-                    editLeaseToken),
-                cancellationToken),
-            TaskLabels.CompletedNotice,
-            RedirectToTasks,
-            keepEditing: true);
+            async (actor, lease) =>
+            {
+                await completeCaseTask.ExecuteAsync(
+                    new(
+                        id,
+                        taskId,
+                        expectedVersion,
+                        expectedTaskVersion,
+                        actor,
+                        RequireOperationKey(operationKey),
+                        TaskLabels.CompleteReason,
+                        lease),
+                    cancellationToken);
+                return TaskLabels.CompletedNotice;
+            },
+            _ => CaseCommandRefused,
+            RedirectToTasks);
 
     public Task<IActionResult> OnPostCancelCaseTaskAsync(
         Guid id,
@@ -109,26 +122,30 @@ public sealed partial class DetailsModel
         long expectedVersion,
         long expectedTaskVersion,
         string operationKey,
-        string editLeaseToken,
+        string? editLeaseToken,
         CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
+        ExecuteCaseCommandUnderLeaseAsync(
             id,
+            expectedVersion,
             editLeaseToken,
             "cancel_case_task",
-            actor => cancelCaseTask.ExecuteAsync(
-                new(
-                    id,
-                    taskId,
-                    expectedVersion,
-                    expectedTaskVersion,
-                    actor,
-                    RequireOperationKey(operationKey),
-                    TaskLabels.CancelReason,
-                    editLeaseToken),
-                cancellationToken),
-            TaskLabels.CancelledNotice,
-            RedirectToTasks,
-            keepEditing: true);
+            async (actor, lease) =>
+            {
+                await cancelCaseTask.ExecuteAsync(
+                    new(
+                        id,
+                        taskId,
+                        expectedVersion,
+                        expectedTaskVersion,
+                        actor,
+                        RequireOperationKey(operationKey),
+                        TaskLabels.CancelReason,
+                        lease),
+                    cancellationToken);
+                return TaskLabels.CancelledNotice;
+            },
+            _ => CaseCommandRefused,
+            RedirectToTasks);
 
     /// <summary>
     /// The Tasks dialog is where a task is read back: the action returns to the section and view

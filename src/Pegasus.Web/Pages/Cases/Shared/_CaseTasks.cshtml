@@ -3,9 +3,10 @@
     Actions menu opens (operator, 13 October 2026), not a section. A dense
     table of the Case's tasks, open ones first; the tasks Report sent creates from
     the Principal's sending rules and the ones staff add read the same. Complete,
-    Cancel, Assign and Add task are offered in the edit session only, each posting
-    under the session's lease with one fixed recorded reason, so there is no reason
-    box. Assign offers the enabled named staff; there is no unassign. Each post
+    Cancel, Assign and Add task are offered in and out of an edit session: in one
+    each posts under the session's lease, outside one each claims the Case's lease
+    for that command, with one fixed recorded reason either way, so there is no
+    reason box. Assign offers the enabled named staff; there is no unassign. Each post
     returns with ?dialog=tasks, which draws the dialog open, so it works without
     script as the estimate dialogs do. There is no due date yet.
 *@
@@ -19,14 +20,19 @@
     var names = section?.AssigneeNames;
     var assigneeChoices = Model.TaskAssigneeChoices;
     var leaseToken = Model.RenderLeaseToken;
-    var mayChange = Model.CanEditCaseData && !Pegasus.Core.Lifecycle.CaseLifecycleRules.IsTerminal(workflow.State);
+    // Task actions act in and out of an edit session; a Held or closed Case, an
+    // archived one and a Case a colleague is editing show the list without them.
+    var mayChange = !Pegasus.Core.Lifecycle.CaseLifecycleRules.IsTerminal(workflow.State)
+        && workflow.State != Pegasus.Core.Workflow.CaseLifecycleState.Held
+        && workflow.Archive is null
+        && !Model.ColleagueIsEditing;
     var openOnLoad = Model.OpenDialog == "tasks"
         ? Html.Raw(" data-dialog-open-on-load=\"true\"")
         : Html.Raw(" hidden");
     // Razor renders a data- attribute even when its value is null, so the
     // lazy marker is written as raw markup only when the body is unread.
     var lazyBody = section is null
-        ? Html.Raw(" data-lazy-tasks=\"\"")
+        ? Html.Raw("data-lazy-tasks=\"\"")
         : Html.Raw("");
 }
 
@@ -39,7 +45,7 @@
         </button>
     </div>
     @* Without the tasks read, the body is fetched as the dialog opens. *@
-    <div class="dialog-body stack" data-case-tasks-body@lazyBody>
+    <div class="dialog-body stack" data-case-tasks-body @lazyBody>
         @if (section is not null)
         {
         if (mayChange)

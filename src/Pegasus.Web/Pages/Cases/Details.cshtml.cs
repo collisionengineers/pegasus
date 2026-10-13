@@ -1654,7 +1654,7 @@ public sealed partial class DetailsModel(
             {
                 await LoadValuationSectionAsync(id, actor, cancellationToken);
             }
-            if (key == "tasks" && CanEditCaseData)
+            if (key == "tasks" && !ColleagueIsEditing)
             {
                 TaskAssigneeChoices = await caseEngineerChoices.GetAsync(actor, cancellationToken);
             }
@@ -1754,8 +1754,8 @@ public sealed partial class DetailsModel(
             ? reads.Start(token => getCaseTasksSection.ExecuteAsync(query, token))
             : null;
         // An open task's Assign offers the enabled staff only while the Tasks
-        // body is rendered here and can be changed.
-        var taskAssignees = readsTasks && CanEditCaseData
+        // body is rendered here and can be changed (in or out of a session).
+        var taskAssignees = readsTasks && !ColleagueIsEditing
             ? reads.Start(token => caseEngineerChoices.GetAsync(actor, token))
             : null;
         var queries = rendered.Contains("queries")
