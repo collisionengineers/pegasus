@@ -92,10 +92,17 @@ access.
 
 ### Contacts administration
 
-**Contacts** lists every external organisation with its type, name, contact
-person, email, phone, last Case, and state filters and sorting. A contact has
-an organisation name, contact person, email, phone, address and active
-state. Phone accepts digits, spaces and one optional leading `+` only. UK
+**Contacts** lists the external organisations in one panel per type, in the
+order Principals, Claim Sources, Repairers, Storage, Third Party Engineers,
+each sorted by name; a type with no matching contact is absent. Search runs
+across every panel, and the Type filter narrows the list to one panel. A
+panel's columns follow its type: Principals show Principal code, name,
+contact person, email, phone, last Case and state; Claim Sources and Third
+Party Engineers show name, contact person, email, phone, linked Principals
+(their codes), last Case and state; Repairers and Storage show postcode
+before linked Principals (operator, 13 October 2026). A contact has an
+organisation name, contact person, email, phone, address, postcode and
+active state. Phone accepts digits, spaces and one optional leading `+` only. UK
 numbers are written with a leading `0` and internal spaces. Letters and other
 characters are rejected in the field and on the server.
 
@@ -108,8 +115,8 @@ Principal policy lives on its Principal Contact. A Principal code is created
 in the same transaction as that Contact and stays with the same
 Contact through a code replacement
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
-A duplicate organisation name or Principal code fails without leaving an
-orphan identity. The screen's visuals and controls are owned by the
+Names are unique within a type: a second Contact of the same type and name,
+or a duplicate Principal code, fails without leaving an orphan identity. The screen's visuals and controls are owned by the
 [design README](../design/README.md); its layout is in
 [FRD-17](frd-17-administration-workspace.md#contacts).
 

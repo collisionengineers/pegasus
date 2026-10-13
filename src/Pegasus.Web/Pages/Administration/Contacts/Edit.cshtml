@@ -2,48 +2,72 @@
 @model Pegasus.Web.Pages.Administration.Contacts.EditModel
 @using Pegasus.Core.Cases
 @using Pegasus.Core.Reports
+@using Microsoft.AspNetCore.Mvc.Rendering
 @{
     ViewData["Title"] = Model.Contact!.Name;
     ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
     ViewData["AdminArea"] = "contacts";
     var contactRole = Model.Contact!.Role;
+    var isPrincipal = contactRole == ContactRole.Principal;
+    var status = TempData["AdministrationStatus"] as string;
+    // An active Principal's page is tabs; every other contact is its one panel.
+    var tabbed = Model.Principal is { IsActive: true };
+    var tab = tabbed ? Model.CurrentTab : EditModel.ContactTab;
+    // A panel's notice and refusal show at the top of that panel (operator, 13 October 2026).
+    async Task PanelMessages(bool allErrors)
+    {
+        if (status is not null) { <div class="notice notice--success" role="status">@status</div> }
+        if (!Model.ReplaceRefused) { <div asp-validation-summary="@(allErrors ? ValidationSummary.All : ValidationSummary.ModelOnly)" class="validation-summary" role="alert"></div> }
+    }
 }
 <partial name="Shared/_PageHeader" />
 <div class="admin-layout"><partial name="Shared/_AdminNav" /><div class="stack">
-    @if (TempData["AdministrationStatus"] is string status) { <div class="notice notice--success" role="status">@status</div> }
+    @if (tabbed)
+    {
+        <nav class="tabs" aria-label="@Model.Contact.Name">@foreach (var (key, label) in EditModel.PrincipalTabs) { <a class="tab" asp-page="Edit" asp-route-id="@Model.ContactId" asp-route-tab="@(key == EditModel.ContactTab ? null : key)" aria-current="@(key == tab ? "page" : null)">@label</a> }</nav>
+    }
+    @if (tab == EditModel.ContactTab)
+    {
     <section class="panel" aria-labelledby="contact-title">
-        <div class="panel-head"><div><h2 id="contact-title">@Model.Contact!.Name</h2><p class="panel-title-meta">@OperatorLabels.Contacts.Type(contactRole)</p></div><partial name="Shared/_StatusChip" model="@(Model.Contact.Active ? "Active" : "Disabled")" /></div>
+        <div class="panel-head"><div><h2 id="contact-title">@Model.Contact.Name</h2></div><partial name="Shared/_StatusChip" model="@(Model.Contact.Active ? "Active" : "Disabled")" /></div>
         <form method="post" asp-page-handler="Save" asp-route-id="@Model.ContactId" class="panel-body stack contact-editor">
-            <div asp-validation-summary="ModelOnly" class="validation-summary" role="alert"></div>
+            @{ await PanelMessages(false); }
             <input asp-for="ContactId" type="hidden" /><input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input asp-for="OperationKey" type="hidden" />
             <fieldset class="stack">
             <div class="form-grid form-grid--2">
                 <div class="field field-wide"><label class="req" asp-for="Name">Organisation name</label><input asp-for="Name" autocomplete="organization" /><span asp-validation-for="Name"></span></div>
+                <div class="field"><label for="contact-type">Type</label><input id="contact-type" value="@OperatorLabels.Contacts.Type(contactRole)" readonly /></div>
+                @if (isPrincipal)
+                {
+                    <div class="field"><label asp-for="PrincipalCode">@OperatorLabels.PrincipalAdministration.Code</label><input asp-for="PrincipalCode" class="mono" readonly /></div>
+                }
+                else
+                {
+                    <div class="field" aria-hidden="true"></div>
+                }
                 <div class="field"><label asp-for="ContactPerson">Contact person</label><input asp-for="ContactPerson" autocomplete="name" /></div>
                 <div class="field"><label asp-for="Telephone">Phone</label><input asp-for="Telephone" type="tel" inputmode="tel" pattern="^\+?[0-9 ]+$" autocomplete="tel" /><span asp-validation-for="Telephone"></span></div>
                 <div class="field field-wide"><label asp-for="Email">Email</label><input asp-for="Email" type="email" autocomplete="email" /></div>
                 <div class="field"><label asp-for="Address">Address</label><textarea asp-for="Address" rows="3" autocomplete="street-address"></textarea></div>
                 <div class="field"><label asp-for="Postcode">Postcode</label><input asp-for="Postcode" autocomplete="postal-code" /></div>
+                @if (isPrincipal)
+                {
+                    <div class="field"><label for="principal-inspection-mode">Inspection mode</label><input id="principal-inspection-mode" value="@OperatorLabels.InspectionMode(Model.PrincipalInspectionMode)" readonly /></div>
+                    <div class="field"><label for="principal-accepted-identities">@OperatorLabels.PrincipalAdministration.AcceptedIdentities</label><input id="principal-accepted-identities" value="@string.Join(", ", Model.AcceptedIdentities)" readonly /></div>
+                }
             </div>
-            @if (contactRole == ContactRole.Principal)
-            {
-            <section class="contact-section" aria-labelledby="principal-details-title">
-                <h3 id="principal-details-title">Principal details</h3>
-                <div class="form-grid form-grid--2"><div class="field"><label asp-for="PrincipalCode">@OperatorLabels.PrincipalAdministration.Code</label><input asp-for="PrincipalCode" autocomplete="off" /><span asp-validation-for="PrincipalCode"></span></div><div class="field"><label asp-for="PrincipalInspectionMode">Inspection mode</label><select asp-for="PrincipalInspectionMode"><option value="@CaseInspectionMode.PhysicalAddress">Physical address</option><option value="@CaseInspectionMode.ImageBasedAssessment">Image Based Assessment</option></select></div></div>
-            </section>
-            }
             @if (contactRole is ContactRole.Principal or ContactRole.ClaimSource)
             {
             <section class="contact-section">
-                @* Record notes (13 September): stored once on the organisation, shown read-only on every Case of this Principal or from this Claim source. *@
+                @* Record notes (13 September): stored once on the organisation, shown read-only on every Case of this Principal or from this Claim source. The box grows to its text (operator, 13 October 2026). *@
                 <div class="field" data-notes-on-every-case><label asp-for="NotesOnEveryCase">Notes on every Case</label><textarea asp-for="NotesOnEveryCase" rows="4" maxlength="@ContactDirectoryPolicy.MaximumNotesOnEveryCaseLength"></textarea><span asp-validation-for="NotesOnEveryCase"></span></div>
             </section>
             }
-            @if (contactRole != ContactRole.Principal)
+            @if (!isPrincipal)
             {
             <section class="contact-section" aria-labelledby="linked-principals-title">
                 <h3 id="linked-principals-title">Linked principals</h3>
-                @foreach (var principal in Model.PrincipalChoices) { <label class="choice"><input type="checkbox" name="LinkedPrincipalIds" value="@principal.Principal.Id" @(Model.LinkedPrincipalIds.Contains(principal.Principal.Id) ? "checked" : null) /> <span>@principal.Name (@principal.Principal.Code)</span></label> }
+                <div class="contact-links">@foreach (var principal in Model.PrincipalChoices) { <label class="choice"><input type="checkbox" name="LinkedPrincipalIds" value="@principal.Principal.Id" @(Model.LinkedPrincipalIds.Contains(principal.Principal.Id) ? "checked" : null) /> <span>@principal.Name (@principal.Principal.Code)</span></label> }</div>
             </section>
             }
             <label class="choice"><input asp-for="Active" /> <span>Active</span></label>
@@ -51,16 +75,19 @@
             <div class="button-row"><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save contact</button><a asp-page="Index" class="btn">Cancel</a></div>
         </form>
     </section>
-
-    @if (Model.Principal is not null)
+    }
+    @if (Model.Principal is { IsActive: false })
     {
-        <section class="panel" aria-labelledby="principal-settings-title">
-            <div class="panel-head"><div><h2 id="principal-settings-title">Principal settings</h2><p class="panel-title-meta mono">@Model.Principal.Code</p></div><partial name="Shared/_StatusChip" model="@(Model.Principal.IsActive ? "Active" : "Disabled")" /></div>
-            <div class="panel-body stack"><div asp-validation-summary="All" class="validation-summary" role="alert"></div>@if (Model.AcceptedIdentities.Count > 0) { <dl class="definition-list"><div class="definition"><dt>Accepted e-mail identities</dt><dd>@string.Join(", ", Model.AcceptedIdentities)</dd></div></dl> }</div>
-        </section>
-        @if (Model.Principal.IsActive)
+        <section class="panel"><div class="empty"><p>This principal is inactive. Change the settings on its successor.</p></div></section>
+    }
+    @if (tabbed)
+    {
+        if (tab == EditModel.ReportGenerationTab)
         {
-            <section class="panel" aria-labelledby="principal-report-title"><div class="panel-head"><h2 id="principal-report-title">Report settings</h2></div><form method="post" asp-page-handler="UpdateReportSettings" asp-route-id="@Model.ContactId" class="panel-body stack"><input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input type="hidden" name="PrincipalExpectedVersion" value="@Model.PrincipalExpectedVersion" /><input asp-for="ReportSettingsOperationKey" type="hidden" /><fieldset class="stack"><div class="field"><label for="principal-default-fee">@OperatorLabels.PrincipalAdministration.DefaultFee</label><input id="principal-default-fee" name="DefaultFee" type="number" inputmode="decimal" min="0.01" step="0.01" required value="@Model.DefaultFee?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" /></div><div class="button-row"><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save report settings</button></div></fieldset></form></section>
+            <section class="panel" aria-labelledby="principal-report-title"><div class="panel-head"><h2 id="principal-report-title">@OperatorLabels.PrincipalAdministration.ReportGeneration</h2></div><form method="post" asp-page-handler="UpdateReportSettings" asp-route-id="@Model.ContactId" class="panel-body stack">@{ await PanelMessages(true); }<input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input type="hidden" name="PrincipalExpectedVersion" value="@Model.PrincipalExpectedVersion" /><input asp-for="ReportSettingsOperationKey" type="hidden" /><fieldset class="stack"><div class="field"><label for="principal-default-fee">@OperatorLabels.PrincipalAdministration.DefaultFee</label><input id="principal-default-fee" name="DefaultFee" type="number" inputmode="decimal" min="0.01" step="0.01" required value="@Model.DefaultFee?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" /></div><div class="button-row"><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save report settings</button></div></fieldset></form></section>
+        }
+        if (tab == EditModel.ReportSendingTab)
+        {
             @* Report sending rules (Report Sending SOP v5): who the report goes to and from, who is copied, what goes with it, and what holds or stops delivery.
                A rule row left blank is ignored, so the list keeps one spare row to type into. *@
                 var sending = Model.ReportSendingRules;
@@ -77,7 +104,7 @@
                     }
                     return options;
                 }
-            <section class="panel" aria-labelledby="principal-sending-title"><div class="panel-head"><h2 id="principal-sending-title">@OperatorLabels.PrincipalAdministration.ReportSending</h2></div><form method="post" asp-page-handler="UpdateReportSending" asp-route-id="@Model.ContactId" class="panel-body stack" data-report-sending-editor><input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input type="hidden" name="PrincipalExpectedVersion" value="@Model.PrincipalExpectedVersion" /><input asp-for="ReportSendingOperationKey" type="hidden" /><fieldset class="stack">
+            <section class="panel" aria-labelledby="principal-sending-title"><div class="panel-head"><h2 id="principal-sending-title">@OperatorLabels.PrincipalAdministration.ReportSending</h2></div><form method="post" asp-page-handler="UpdateReportSending" asp-route-id="@Model.ContactId" class="panel-body stack" data-report-sending-editor>@{ await PanelMessages(true); }<input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input type="hidden" name="PrincipalExpectedVersion" value="@Model.PrincipalExpectedVersion" /><input asp-for="ReportSendingOperationKey" type="hidden" /><fieldset class="stack">
                 <div class="form-grid form-grid--2">
                     <div class="field"><label for="rs-send-from">@OperatorLabels.PrincipalAdministration.SendFrom</label><select id="rs-send-from" name="RsSendFrom"><option value="">@OperatorLabels.PrincipalAdministration.SendFromNone</option>@foreach (var address in sendFromChoices) { <option value="@address" selected="@string.Equals(address, sending.SendFromMailbox, StringComparison.OrdinalIgnoreCase)">@address</option> }</select></div>
                     <fieldset class="field"><legend>@OperatorLabels.PrincipalAdministration.SendTo</legend><div class="stack" data-rs-items="RsSendTo">@foreach (var address in sending.SendTo) { <input name="RsSendTo" type="email" value="@address" aria-label="@OperatorLabels.PrincipalAdministration.SendTo" autocomplete="off" /> }</div><button type="button" class="btn" data-rs-add="RsSendTo" data-rs-label="@OperatorLabels.PrincipalAdministration.SendTo" data-rs-type="email">@OperatorLabels.PrincipalAdministration.AddAddress</button><p class="hint">@OperatorLabels.PrincipalAdministration.SendToHint</p></fieldset>
@@ -127,10 +154,13 @@
                     <div class="button-row"><button type="button" class="btn" data-add-rs-rule>@OperatorLabels.PrincipalAdministration.AddRule</button></div>
                 </section>
                 <div class="button-row"><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">@OperatorLabels.PrincipalAdministration.SaveReportSending</button></div></fieldset></form></section>
+        }
+        if (tab == EditModel.SalvageMatrixTab)
+        {
             @* The Principal's salvage matrix (29 September 2026): each category's
                Engineer's Value bands and the percentage paid. A blank row is
                ignored, so each table keeps one spare row to type into. *@
-            <section class="panel" aria-labelledby="principal-salvage-title"><div class="panel-head"><h2 id="principal-salvage-title">@OperatorLabels.PrincipalAdministration.SalvageMatrix</h2></div><form method="post" asp-page-handler="UpdateSalvageMatrix" asp-route-id="@Model.ContactId" class="panel-body stack" data-salvage-matrix-editor><input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input type="hidden" name="PrincipalExpectedVersion" value="@Model.PrincipalExpectedVersion" /><input asp-for="SalvageMatrixOperationKey" type="hidden" /><fieldset class="stack">
+            <section class="panel" aria-labelledby="principal-salvage-title"><div class="panel-head"><h2 id="principal-salvage-title">@OperatorLabels.PrincipalAdministration.SalvageMatrix</h2></div><form method="post" asp-page-handler="UpdateSalvageMatrix" asp-route-id="@Model.ContactId" class="panel-body stack" data-salvage-matrix-editor>@{ await PanelMessages(true); }<input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input type="hidden" name="PrincipalExpectedVersion" value="@Model.PrincipalExpectedVersion" /><input asp-for="SalvageMatrixOperationKey" type="hidden" /><fieldset class="stack">
                 @foreach (var category in Pegasus.Core.Assessment.SalvageMatrix.Categories)
                 {
                     var categoryLabel = OperatorLabels.PrincipalAdministration.SalvageCategory(category);
@@ -152,12 +182,18 @@
                     </section>
                 }
                 <div class="button-row"><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">@OperatorLabels.PrincipalAdministration.SaveSalvageMatrix</button></div></fieldset></form></section>
-            <section class="panel" aria-labelledby="principal-location-title"><div class="panel-head"><h2 id="principal-location-title">Default inspection location</h2></div><form method="post" asp-page-handler="UpdateLocation" asp-route-id="@Model.ContactId" class="panel-body stack"><input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input type="hidden" name="PrincipalExpectedVersion" value="@Model.PrincipalExpectedVersion" /><input asp-for="LocationOperationKey" type="hidden" /><fieldset class="stack"><label class="choice"><input asp-for="LocationIsImageBasedAssessment" type="checkbox" /> <span>Default to Image Based Assessment</span></label><div class="field" data-location-physical><label asp-for="LocationLabel">Location label (optional)</label><input asp-for="LocationLabel" autocomplete="off" /></div><div class="field" data-location-physical><label asp-for="LocationAddress">Address</label><input asp-for="LocationAddress" autocomplete="off" /><span asp-validation-for="LocationAddress"></span></div><div class="field" data-location-physical><label asp-for="LocationPostcode">Postcode (optional)</label><input asp-for="LocationPostcode" autocomplete="off" /></div><div class="button-row"><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save default location</button></div></fieldset></form></section>
-            <section class="panel" aria-labelledby="principal-api-title"><div class="panel-head"><h2 id="principal-api-title">@OperatorLabels.PrincipalAdministration.PrincipalApi</h2></div><div class="panel-body stack"><dl class="definition-list"><div class="definition"><dt>Submission endpoint</dt><dd><code>@Pegasus.Web.PrincipalApi.PrincipalApi.SubmissionsPath</code></dd></div><div class="definition"><dt>@OperatorLabels.PrincipalAdministration.State</dt><dd>@(Model.Credential?.State.ToString() ?? "Not issued")</dd></div></dl>@if (Model.IssuedSecret is not null) { <div class="field"><label for="issued-api-key">API key (shown once)</label><input id="issued-api-key" value="@Model.IssuedSecret" readonly autocomplete="off" /></div> }<form method="post" asp-route-id="@Model.ContactId" class="stack"><input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input asp-for="CredentialVersion" type="hidden" /><input asp-for="CredentialOperationKey" type="hidden" /><fieldset class="stack">@if (Model.Credential is not null && Model.Credential.State != PrincipalCredentialState.Revoked) { <p>Resetting or revoking the API key stops the current key from working.</p> }<div class="button-row"><button type="submit" asp-page-handler="IssueCredential" class="btn btn--primary" data-busy-label="@(Model.Credential is null ? OperatorLabels.Busy.Generating : OperatorLabels.Busy.Resetting)">@(Model.Credential is null ? "Generate API key" : "Reset API key")</button>@if (Model.Credential?.State == PrincipalCredentialState.Active) { <button type="submit" asp-page-handler="PauseCredential" class="btn" data-busy-label="@OperatorLabels.Busy.Pausing">Pause</button> }@if (Model.Credential?.State == PrincipalCredentialState.Paused) { <button type="submit" asp-page-handler="ResumeCredential" class="btn" data-busy-label="@OperatorLabels.Busy.Resuming">Resume</button> }@if (Model.Credential is not null && Model.Credential.State != PrincipalCredentialState.Revoked) { <button type="submit" asp-page-handler="RevokeCredential" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Revoking">Revoke</button> }</div></fieldset></form></div></section>
-            <div class="button-row"><button class="btn btn--danger" type="button" data-dialog-open="replace-principal">@OperatorLabels.PrincipalAdministration.ReplaceCode</button></div>
-            <dialog id="replace-principal" aria-labelledby="replace-principal-title"><form method="post" asp-page-handler="Replace" asp-route-id="@Model.ContactId" class="stack"><h2 id="replace-principal-title">Replace @Model.Principal.Code</h2><p>@Model.Principal.AllocatedCaseCount allocated cases remain with their existing references.</p><input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input asp-for="ReplacementExpectedVersion" type="hidden" /><input asp-for="ReplacementOperationKey" type="hidden" /><fieldset class="stack"><div class="field"><label class="req" asp-for="SuccessorCode">New principal code</label><input asp-for="SuccessorCode" autocomplete="off" /><span asp-validation-for="SuccessorCode"></span></div><div class="button-row"><button class="btn" type="button" data-dialog-close="replace-principal">Cancel</button><button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Replacing">@OperatorLabels.PrincipalAdministration.ReplaceCode</button></div></fieldset></form></dialog>
         }
-        else { <section class="panel"><div class="empty"><p>This principal is inactive. Change the settings on its successor.</p></div></section> }
+        if (tab == EditModel.LocationTab)
+        {
+            <section class="panel" aria-labelledby="principal-location-title"><div class="panel-head"><h2 id="principal-location-title">@OperatorLabels.PrincipalAdministration.DefaultInspectionLocation</h2></div><form method="post" asp-page-handler="UpdateLocation" asp-route-id="@Model.ContactId" class="panel-body stack">@{ await PanelMessages(true); }<input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input type="hidden" name="PrincipalExpectedVersion" value="@Model.PrincipalExpectedVersion" /><input asp-for="LocationOperationKey" type="hidden" /><fieldset class="stack"><label class="choice"><input asp-for="LocationIsImageBasedAssessment" type="checkbox" /> <span>Default to Image Based Assessment</span></label><div class="field" data-location-physical><label asp-for="LocationLabel">Location label (optional)</label><input asp-for="LocationLabel" autocomplete="off" /></div><div class="field" data-location-physical><label asp-for="LocationAddress">Address</label><input asp-for="LocationAddress" autocomplete="off" /><span asp-validation-for="LocationAddress"></span></div><div class="field" data-location-physical><label asp-for="LocationPostcode">Postcode (optional)</label><input asp-for="LocationPostcode" autocomplete="off" /></div><div class="button-row"><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save default location</button></div></fieldset></form></section>
+        }
+        if (tab == EditModel.ApiTab)
+        {
+            <section class="panel" aria-labelledby="principal-api-title"><div class="panel-head"><h2 id="principal-api-title">@OperatorLabels.PrincipalAdministration.PrincipalApi</h2></div><div class="panel-body stack">@{ await PanelMessages(true); }<dl class="definition-list"><div class="definition"><dt>Submission endpoint</dt><dd><code>@Pegasus.Web.PrincipalApi.PrincipalApi.SubmissionsPath</code></dd></div><div class="definition"><dt>@OperatorLabels.PrincipalAdministration.State</dt><dd>@(Model.Credential?.State.ToString() ?? "Not issued")</dd></div></dl>@if (Model.IssuedSecret is not null) { <div class="field"><label for="issued-api-key">API key (shown once)</label><input id="issued-api-key" value="@Model.IssuedSecret" readonly autocomplete="off" /></div> }<form method="post" asp-route-id="@Model.ContactId" class="stack"><input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input asp-for="CredentialVersion" type="hidden" /><input asp-for="CredentialOperationKey" type="hidden" /><fieldset class="stack">@if (Model.Credential is not null && Model.Credential.State != PrincipalCredentialState.Revoked) { <p>Resetting or revoking the API key stops the current key from working.</p> }<div class="button-row"><button type="submit" asp-page-handler="IssueCredential" class="btn btn--primary" data-busy-label="@(Model.Credential is null ? OperatorLabels.Busy.Generating : OperatorLabels.Busy.Resetting)">@(Model.Credential is null ? "Generate API key" : "Reset API key")</button>@if (Model.Credential?.State == PrincipalCredentialState.Active) { <button type="submit" asp-page-handler="PauseCredential" class="btn" data-busy-label="@OperatorLabels.Busy.Pausing">Pause</button> }@if (Model.Credential?.State == PrincipalCredentialState.Paused) { <button type="submit" asp-page-handler="ResumeCredential" class="btn" data-busy-label="@OperatorLabels.Busy.Resuming">Resume</button> }@if (Model.Credential is not null && Model.Credential.State != PrincipalCredentialState.Revoked) { <button type="submit" asp-page-handler="RevokeCredential" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Revoking">Revoke</button> }</div></fieldset></form></div></section>
+        }
+        if (Model.ReplaceRefused) { <div asp-validation-summary="All" class="validation-summary" role="alert"></div> }
+            <div class="button-row"><button class="btn btn--danger" type="button" data-dialog-open="replace-principal">@OperatorLabels.PrincipalAdministration.ReplaceCode</button></div>
+            <dialog id="replace-principal" aria-labelledby="replace-principal-title"><form method="post" asp-page-handler="Replace" asp-route-id="@Model.ContactId" class="stack"><h2 id="replace-principal-title">Replace @Model.Principal!.Code</h2><p>@Model.Principal!.AllocatedCaseCount allocated cases remain with their existing references.</p><input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input type="hidden" name="Tab" value="@tab" /><input asp-for="ReplacementExpectedVersion" type="hidden" /><input asp-for="ReplacementOperationKey" type="hidden" /><fieldset class="stack"><div class="field"><label class="req" asp-for="SuccessorCode">New principal code</label><input asp-for="SuccessorCode" autocomplete="off" /><span asp-validation-for="SuccessorCode"></span></div><div class="button-row"><button class="btn" type="button" data-dialog-close="replace-principal">Cancel</button><button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Replacing">@OperatorLabels.PrincipalAdministration.ReplaceCode</button></div></fieldset></form></dialog>
     }
 </div></div>
 @section Scripts {

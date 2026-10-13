@@ -32,6 +32,28 @@ public sealed class EditModel(
 {
     public ContactDirectoryRecord? Contact { get; private set; }
 
+    // An active Principal's page is tabs (operator, 13 October 2026): a ?tab= query
+    // picks the one panel the server renders, and each panel's save comes back to it.
+    public const string ContactTab = "contact";
+    public const string ReportGenerationTab = "report-generation";
+    public const string ReportSendingTab = "report-sending";
+    public const string SalvageMatrixTab = "salvage-matrix";
+    public const string LocationTab = "default-inspection-location";
+    public const string ApiTab = "principal-api";
+    public static readonly IReadOnlyList<(string Key, string Label)> PrincipalTabs =
+    [
+        (ContactTab, OperatorLabels.PrincipalAdministration.ContactTab),
+        (ReportGenerationTab, OperatorLabels.PrincipalAdministration.ReportGeneration),
+        (ReportSendingTab, OperatorLabels.PrincipalAdministration.ReportSending),
+        (SalvageMatrixTab, OperatorLabels.PrincipalAdministration.SalvageMatrix),
+        (LocationTab, OperatorLabels.PrincipalAdministration.DefaultInspectionLocation),
+        (ApiTab, OperatorLabels.PrincipalAdministration.PrincipalApi)
+    ];
+    [BindProperty(SupportsGet = true)] public string? Tab { get; set; }
+    public string CurrentTab => PrincipalTabs.Any(tab => tab.Key == Tab) ? Tab! : ContactTab;
+    // A refused Replace code shows its message beside Replace code, not in the panel.
+    public bool ReplaceRefused { get; private set; }
+
     // Whether the form carried a field at all: a field the form does not yet render
     // keeps the record's current value rather than clearing it.
     private bool Posted(string field) => Request.HasFormContentType && Request.Form.ContainsKey(field);
@@ -104,6 +126,7 @@ public sealed class EditModel(
         if (!TryGetActor(out var actor)) return Forbid();
         if (!TargetsContact(id)) return BadRequest();
         ContactId = id;
+        Tab = ContactTab;
         Contact = await contacts.GetAsync(actor, id, cancellationToken);
         if (Contact is null) return NotFound();
         // These fields belong to separate consequential Principal actions.
@@ -128,7 +151,7 @@ public sealed class EditModel(
                 // other refusal keeps the general notice.
                 if (exception.ParamName == nameof(Telephone))
                 {
-                    ModelState.AddModelError(nameof(Telephone), "Telephone must be digits.");
+                    ModelState.AddModelError(nameof(Telephone), "Phone must be digits.");
                 }
                 else
                 {
@@ -145,6 +168,7 @@ public sealed class EditModel(
         if (!TryGetActor(out var actor)) return Forbid();
         if (id == Guid.Empty) return BadRequest();
         ContactId = id;
+        Tab = ReportGenerationTab;
         ClearModelStatePreservingErrors(
             nameof(DefaultFee),
             nameof(PrincipalExpectedVersion),
@@ -164,13 +188,16 @@ public sealed class EditModel(
                     ExpectedVersion,
                     Posted(nameof(NotesOnEveryCase)) ? NotesOnEveryCase : Principal.NotesOnEveryCase), cancellationToken);
                 TempData["AdministrationStatus"] = "The principal's report settings were updated.";
-                return RedirectToPage(new { id = ContactId });
+                return RedirectToPage(new { id = ContactId, tab = Tab });
             }
             catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
             catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The settings were not accepted."); }
             catch (StaffAuthorizationException) { return Forbid(); }
         }
+        var typedFee = DefaultFee;
         await PopulateAsync(actor, cancellationToken);
+        // What was typed stays.
+        DefaultFee = typedFee;
         return Page();
     }
 
@@ -179,6 +206,7 @@ public sealed class EditModel(
         if (!TryGetActor(out var actor)) return Forbid();
         if (id == Guid.Empty) return BadRequest();
         ContactId = id;
+        Tab = SalvageMatrixTab;
         ClearModelStatePreservingErrors(
             nameof(PrincipalExpectedVersion),
             nameof(ExpectedVersion),
@@ -195,7 +223,7 @@ public sealed class EditModel(
                     Principal!.Id, expectedVersion, actor, SalvageMatrixOperationKey!,
                     SalvageMatrix.FromEntries(posted), ExpectedVersion), cancellationToken);
                 TempData["AdministrationStatus"] = "The principal's salvage matrix was updated.";
-                return RedirectToPage(new { id = ContactId });
+                return RedirectToPage(new { id = ContactId, tab = Tab });
             }
             catch (SalvageMatrixException exception) { ModelState.AddModelError(string.Empty, SalvageMatrixErrorMessage(exception)); }
             catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
@@ -213,6 +241,7 @@ public sealed class EditModel(
         if (!TryGetActor(out var actor)) return Forbid();
         if (id == Guid.Empty) return BadRequest();
         ContactId = id;
+        Tab = ReportSendingTab;
         ClearModelStatePreservingErrors(
             nameof(PrincipalExpectedVersion),
             nameof(ExpectedVersion),
@@ -229,7 +258,7 @@ public sealed class EditModel(
                     Principal!.Id, expectedVersion, actor, ReportSendingOperationKey!,
                     posted, ExpectedVersion), cancellationToken);
                 TempData["AdministrationStatus"] = "The principal's report sending rules were updated.";
-                return RedirectToPage(new { id = ContactId });
+                return RedirectToPage(new { id = ContactId, tab = Tab });
             }
             catch (ReportSendingRulesException exception) { ModelState.AddModelError(string.Empty, ReportSendingRulesErrorMessage(exception)); }
             catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
@@ -247,6 +276,7 @@ public sealed class EditModel(
         if (!TryGetActor(out var actor)) return Forbid();
         if (id == Guid.Empty) return BadRequest();
         ContactId = id;
+        Tab = LocationTab;
         ClearModelStatePreservingErrors(
             nameof(LocationIsImageBasedAssessment),
             nameof(LocationLabel),
@@ -266,13 +296,16 @@ public sealed class EditModel(
                 await updatePrincipalDefaultInspectionLocation.ExecuteAsync(new(actor, Principal!.Id, expectedVersion, LocationOperationKey!, LocationIsImageBasedAssessment ? InspectionAddressEvidenceKind.ImageBasedAssessment : InspectionAddressEvidenceKind.PhysicalAddress, LocationLabel, LocationAddress, LocationPostcode, "manual", null, null,
                     ExpectedVersion), cancellationToken);
                 TempData["AdministrationStatus"] = "The principal's default inspection location was updated.";
-                return RedirectToPage(new { id = ContactId });
+                return RedirectToPage(new { id = ContactId, tab = Tab });
             }
             catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
             catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The default location was not accepted."); }
             catch (StaffAuthorizationException) { return Forbid(); }
         }
+        var (imageBased, label, address, postcode) = (LocationIsImageBasedAssessment, LocationLabel, LocationAddress, LocationPostcode);
         await PopulateAsync(actor, cancellationToken);
+        // What was typed stays.
+        (LocationIsImageBasedAssessment, LocationLabel, LocationAddress, LocationPostcode) = (imageBased, label, address, postcode);
         return Page();
     }
 
@@ -309,6 +342,7 @@ public sealed class EditModel(
             catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The replacement details were not accepted."); }
             catch (StaffAuthorizationException) { return Forbid(); }
         }
+        ReplaceRefused = true;
         await PopulateAsync(actor, cancellationToken);
         return Page();
     }
@@ -318,6 +352,7 @@ public sealed class EditModel(
         if (!TryGetActor(out var actor)) return Forbid();
         if (id == Guid.Empty) return BadRequest();
         ContactId = id;
+        Tab = ApiTab;
         ClearModelStatePreservingErrors(
             nameof(CredentialReason),
             nameof(CredentialVersion),
@@ -351,7 +386,7 @@ public sealed class EditModel(
                     _ => throw new InvalidOperationException("Unknown credential action.")
                 };
                 TempData["AdministrationStatus"] = "The principal credential was updated.";
-                return RedirectToPage(new { id = ContactId });
+                return RedirectToPage(new { id = ContactId, tab = Tab });
             }
             catch (PrincipalCredentialException exception)
             {
@@ -552,7 +587,7 @@ public sealed class EditModel(
 
     private bool TargetsContact(Guid id) => id != Guid.Empty && ContactId == id;
 
-    private static string ContactErrorMessage(ContactDirectoryError error) => error switch { ContactDirectoryError.DuplicateOrganizationName => "A contact with that organisation name already exists.", ContactDirectoryError.DuplicatePrincipalCode => "That principal code already exists.", ContactDirectoryError.InvalidPrincipalAssociation => "A contact cannot link to itself as a principal, and only non-principal types can link to principals.", ContactDirectoryError.StaleVersion => "The contact changed after you opened it. Reload it and try again.", _ => "The contact could not be saved." };
+    private static string ContactErrorMessage(ContactDirectoryError error) => error switch { ContactDirectoryError.DuplicateOrganizationName => "A contact with that name already exists.", ContactDirectoryError.DuplicatePrincipalCode => "That principal code already exists.", ContactDirectoryError.InvalidPrincipalAssociation => "A contact cannot link to itself as a principal, and only non-principal types can link to principals.", ContactDirectoryError.StaleVersion => "The contact changed after you opened it. Reload it and try again.", _ => "The contact could not be saved." };
     private static string SalvageMatrixErrorMessage(SalvageMatrixException exception)
     {
         var category = OperatorLabels.PrincipalAdministration.SalvageCategory(exception.Category);
