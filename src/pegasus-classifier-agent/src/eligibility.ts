@@ -29,11 +29,40 @@ export function isEligible(detail: MailDetail): boolean {
 
 /**
  * Before a write later in the same run. The message was eligible when the run
- * listed it; it stays writable unless staff have decided it since. This lets
- * the agent both link and classify one message in a run.
+ * listed it; it stays writable unless staff have decided it since. Another
+ * caller's change that leaves the pipeline as the decider, such as a staff
+ * link, is caught by hasChangedSince, not here.
  */
 export function isStillWritable(detail: MailDetail): boolean {
   return detail.classification !== null && decider(detail.classification.currentActor) !== "staff";
+}
+
+/** What the run last knew of a message: its classification version and linked Case. */
+export interface MessageState {
+  classificationVersion: number;
+  /** Lower case, so Case ids compare whichever way Pegasus writes them. */
+  caseId: string | null;
+}
+
+export function stateOf(detail: MailDetail): MessageState | null {
+  return detail.classification === null
+    ? null
+    : {
+        classificationVersion: detail.classification.version,
+        caseId: detail.summary.caseId?.toLowerCase() ?? null,
+      };
+}
+
+/**
+ * Before any write: the message no longer reads as the run last knew it, as
+ * listed or as the run's own latest write left it. Someone else has classified
+ * or linked it since, so the run leaves it alone.
+ */
+export function hasChangedSince(known: MessageState, detail: MailDetail): boolean {
+  const current = stateOf(detail);
+  return current === null
+    || current.classificationVersion !== known.classificationVersion
+    || current.caseId !== known.caseId;
 }
 
 /**

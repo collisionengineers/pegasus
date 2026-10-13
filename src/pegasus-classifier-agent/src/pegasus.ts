@@ -13,6 +13,13 @@ export interface ClassificationResult {
   caseType: string | null;
 }
 
+/** The versioned classification decision, as get and correct_classification return it. */
+export interface MailClassification {
+  version: number;
+  current: ClassificationResult;
+  currentActor: string;
+}
+
 export interface MailSummary {
   id: string;
   senderAddress: string | null;
@@ -38,11 +45,7 @@ export interface MailDetail {
   bodyPlainText: string | null;
   attachments: { fileName: string; mediaType: string; contentLength: number }[];
   thread: { senderAddress: string | null; subject: string | null; receivedAtUtc: string }[];
-  classification: {
-    version: number;
-    current: ClassificationResult;
-    currentActor: string;
-  } | null;
+  classification: MailClassification | null;
   intakeVersion: number | null;
   canLinkCase: boolean;
 }
@@ -109,7 +112,7 @@ export class PegasusMail {
     workType?: string;
     reason: string;
     operationKey: string;
-  }): Promise<unknown> {
+  }): Promise<MailClassification> {
     return this.call("pegasus_mail_correct_classification", args);
   }
 
