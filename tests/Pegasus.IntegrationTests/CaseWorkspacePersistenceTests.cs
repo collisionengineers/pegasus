@@ -244,7 +244,7 @@ public sealed class CaseWorkspacePersistenceTests
             {
                 Id = sourceId, Name = "Guidance source", Version = 1, Active = true,
                 GuidanceTemplate = "Contact the repairer before finalising.", GuidanceTemplateVersion = 1,
-                ContactRoles = [new() { Role = "claim_source" }]
+                Role = "claim_source"
             });
             await context.SaveChangesAsync();
         }
@@ -1996,9 +1996,9 @@ public sealed class CaseWorkspacePersistenceTests
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             context.Organizations.AddRange(
-                new() { Id = inactiveId, Name = "Retired source", Version = 1, Active = false, ContactRoles = [new() { Role = "claim_source" }] },
-                new() { Id = repairerId, Name = "A repairer", Version = 1, Active = true, ContactRoles = [new() { Role = "repairer" }] },
-                new() { Id = activeId, Name = "Acme Claims", Version = 3, Active = true, ContactRoles = [new() { Role = "claim_source" }] });
+                new() { Id = inactiveId, Name = "Retired source", Version = 1, Active = false, Role = "claim_source" },
+                new() { Id = repairerId, Name = "A repairer", Version = 1, Active = true, Role = "repairer" },
+                new() { Id = activeId, Name = "Acme Claims", Version = 3, Active = true, Role = "claim_source" });
             await context.SaveChangesAsync();
         }
 
@@ -2129,8 +2129,8 @@ public sealed class CaseWorkspacePersistenceTests
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             context.Organizations.AddRange(
-                new() { Id = sourceAId, Name = "Source A", Version = 1, Active = true, ContactRoles = [new() { Role = "claim_source" }] },
-                new() { Id = sourceBId, Name = "Source B", Version = 2, Active = true, ContactRoles = [new() { Role = "claim_source" }] });
+                new() { Id = sourceAId, Name = "Source A", Version = 1, Active = true, Role = "claim_source" },
+                new() { Id = sourceBId, Name = "Source B", Version = 2, Active = true, Role = "claim_source" });
             await context.SaveChangesAsync();
         }
 

@@ -645,7 +645,7 @@ public sealed class CaseCursorQueryPersistenceTests
         var lineageId = Guid.NewGuid();
         var principalId = Guid.NewGuid();
         context.AddRange(
-            new OrganizationEntity { Id = organizationId, Name = $"{principalCode} test", Version = 0 },
+            new OrganizationEntity { Role = "principal", Id = organizationId, Name = $"{principalCode} test", Version = 0 },
             new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = BaseUtcNow },
             new PrincipalEntity
             {

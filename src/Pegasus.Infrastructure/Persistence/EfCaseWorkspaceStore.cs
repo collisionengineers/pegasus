@@ -812,7 +812,7 @@ internal static class CaseGuidance
         if (claimSourceId is { } sourceId)
         {
             var source = await context.Organizations.AsNoTracking().SingleOrDefaultAsync(
-                item => item.Id == sourceId && item.Active && item.ContactRoles.Any(role => role.Role == "claim_source"), cancellationToken)
+                item => item.Id == sourceId && item.Active && item.Role == "claim_source", cancellationToken)
                 ?? throw new InvalidOperationException("The selected Claim Source is unavailable.");
             guidance.AddRange(ForOrganization("claim_source_guidance_applied", source));
         }
@@ -871,7 +871,7 @@ internal static class CaseGuidance
                 || !organization.Active
                 || !await context.Organizations.AsNoTracking().AnyAsync(
                     item => item.Id == organizationId
-                        && item.ContactRoles.Any(role => role.Role == "claim_source"),
+                        && item.Role == "claim_source",
                     cancellationToken)))
         {
             throw new InvalidOperationException("The selected claim source is not an active Claim source record.");

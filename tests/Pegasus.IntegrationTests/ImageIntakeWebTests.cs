@@ -970,8 +970,8 @@ internal static class ImageIntakeTestData
         var lineageId = Guid.NewGuid();
         var principalId = Guid.NewGuid();
         await context.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO [Organizations] ([Id], [Name], [Version])
-            VALUES ({organizationId}, {$"Fixture organization {code}"}, 0)
+            INSERT INTO [Organizations] ([Role], [Id], [Name], [Version])
+            VALUES (N'principal', {organizationId}, {$"Fixture organization {code}"}, 0)
             """);
         await context.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO [PrincipalSequenceLineages] ([Id], [CreatedAtUtc])
@@ -1086,7 +1086,7 @@ internal static class ImageIntakeTestData
 
         await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlInterpolatedAsync(
             context.Database,
-            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {$"Auto provider {reference}"}, {0L})");
+            $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {$"Auto provider {reference}"}, {0L})");
         await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlInterpolatedAsync(
             context.Database,
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {now})");

@@ -363,7 +363,7 @@ public sealed class AutomaticVehicleLookupTests
         var code = $"C{Math.Abs(principalId.GetHashCode() % 997):D3}";
         await using var context = await database.CreateContextAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {$"Automatic lookup test {organizationId:N}"}, {0L})");
+            $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {$"Automatic lookup test {organizationId:N}"}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {FixedUtcNow})");
         await context.Database.ExecuteSqlInterpolatedAsync(
@@ -464,7 +464,7 @@ public sealed class AutomaticVehicleLookupTests
         // seeds two Cases would otherwise collide about once in a thousand runs.
         await using var context = await database.CreateContextAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {$"Automatic lookup test {organizationId:N}"}, {0L})");
+            $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {$"Automatic lookup test {organizationId:N}"}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {FixedUtcNow})");
         await context.Database.ExecuteSqlInterpolatedAsync(

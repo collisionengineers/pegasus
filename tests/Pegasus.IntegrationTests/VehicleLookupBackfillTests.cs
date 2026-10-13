@@ -134,7 +134,7 @@ public sealed class VehicleLookupBackfillTests
 
         await using var context = await database.CreateContextAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {$"Backfill {organizationId:N}"}, {0L})");
+            $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {$"Backfill {organizationId:N}"}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {now})");
         await context.Database.ExecuteSqlInterpolatedAsync(

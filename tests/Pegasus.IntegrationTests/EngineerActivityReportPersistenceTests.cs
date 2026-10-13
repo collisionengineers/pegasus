@@ -286,7 +286,7 @@ public sealed class EngineerActivityReportPersistenceTests
         await using (var context = await database.CreateContextAsync())
         {
             context.AddRange(
-                new OrganizationEntity { Id = organizationId, Name = "Report test", Version = 0 },
+                new OrganizationEntity { Role = "principal", Id = organizationId, Name = "Report test", Version = 0 },
                 new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = From },
                 new PrincipalEntity
                 {

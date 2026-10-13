@@ -170,8 +170,8 @@ public sealed partial class OrganizationDirectoryWebTests
         Assert.Matches(
             """<div class="field" data-notes-on-every-case><label for="NotesOnEveryCase">Notes on every Case</label><textarea[^>]*name="NotesOnEveryCase"[^>]*>""",
             editor);
-        // A Principal-only contact has no role to link to a principal.
-        Assert.Contains("<section class=\"contact-section\" data-linked-principals hidden=\"hidden\"", editor, StringComparison.Ordinal);
+        // A Principal contact never links to a principal.
+        Assert.DoesNotContain("linked-principals-title", editor, StringComparison.Ordinal);
 
         // Save posts only the contact form: the Replace dialog's fields are absent.
         var inspectionMode = await factory.Database.ScalarAsync<string>(
@@ -186,7 +186,6 @@ public sealed partial class OrganizationDirectoryWebTests
                 ["GuidanceTemplateVersion"] = InputValue(editor, "GuidanceTemplateVersion"),
                 ["OperationKey"] = InputValue(editor, "OperationKey"),
                 ["Name"] = InputValue(editor, "Name"),
-                ["Roles"] = "Principal",
                 ["PrincipalCode"] = InputValue(editor, "PrincipalCode"),
                 ["PrincipalInspectionMode"] = inspectionMode == "image_based_assessment" ? "ImageBasedAssessment" : "PhysicalAddress",
                 ["NotesOnEveryCase"] = "Ring the claimant before inspection.",

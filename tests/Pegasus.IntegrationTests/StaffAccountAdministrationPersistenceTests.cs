@@ -288,7 +288,7 @@ public sealed class StaffAccountAdministrationPersistenceTests
         var receiptId = Guid.NewGuid();
         var caseId = Guid.NewGuid();
         context.AddRange(
-            new OrganizationEntity { Id = organizationId, Name = "Staff delete test " + reference, Version = 0 },
+            new OrganizationEntity { Role = "principal", Id = organizationId, Name = "Staff delete test " + reference, Version = 0 },
             new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = occurredAtUtc },
             new PrincipalEntity
             {
