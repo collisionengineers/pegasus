@@ -2,19 +2,6 @@ using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Cases;
 
-public enum OrganizationDirectoryRole { Repairer, Storage }
-public sealed record OrganizationDirectoryRecord(
-    Guid Id, OrganizationDirectoryRole Role, string Name, string? ContactName,
-    string? Telephone, string? Email, string Address, string? Postcode,
-    bool Active, long Version);
-public sealed record OrganizationDirectoryQuery(
-    ActionActor Actor, string Prefix, OrganizationDirectoryRole? Role, int Limit = 20);
-public interface IOrganizationDirectoryQueries
-{
-    Task<IReadOnlyList<OrganizationDirectoryRecord>> SearchAsync(
-        OrganizationDirectoryQuery query, CancellationToken cancellationToken);
-}
-
 /// <summary>
 /// EXT-18/S05: the shared local-suggestion matching rule. No fuzzy or
 /// geographic inference — a trimmed, collapsed-whitespace, case-insensitive

@@ -295,7 +295,6 @@ public sealed class EfCaseAcceptanceStore(
             Version = 0
         };
         context.CaseWorkflows.Add(workflowEntity);
-        await CaseGuidance.ApplyCreationAsync(context, workflowEntity, null, acceptedAtUtc, request.OperationKey, cancellationToken);
         if (initialState == CaseInitialState.NotReady)
         {
             context.CaseDueWork.Add(new()

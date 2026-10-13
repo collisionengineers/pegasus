@@ -85,6 +85,7 @@ public sealed class CaseChaserRecipientQueriesPersistenceTests
         context.Organizations.Add(new OrganizationEntity
         {
             Id = organizationId,
+            Role = "repairer",
             Name = name,
             Email = email,
             Version = 0

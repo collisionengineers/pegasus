@@ -157,7 +157,7 @@ public sealed partial class CaseCreateWebTests
     }
 
     [Fact]
-    public async Task ManualCreateSnapshotsTheSelectedClaimSourceAndAppliesItsGuidance()
+    public async Task ManualCreateSnapshotsTheSelectedClaimSource()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -186,13 +186,9 @@ public sealed partial class CaseCreateWebTests
         Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimSourceName
             && item.Value == "Manual guidance Claim Source");
 
-        var guidance = await context.CaseWorkflowEvents.SingleAsync(item =>
-            item.CaseId == caseId && item.EventType == "case_guidance_applied");
-        Assert.Contains("claim_source_guidance_applied", guidance.ResultJson, StringComparison.Ordinal);
-        Assert.Contains("Call the Claim Source before finalising the report.", guidance.ResultJson, StringComparison.Ordinal);
-        var notes = await client.GetStringAsync($"/Cases/{caseId:D}?section=notes");
-        Assert.Contains("Call the Claim Source before finalising the report.", notes, StringComparison.Ordinal);
-        Assert.DoesNotContain("<strong>Guidance applied</strong>", notes, StringComparison.Ordinal);
+        // Guidance for new Cases is retired (13 October 2026): creation records none.
+        Assert.False(await context.CaseWorkflowEvents.AnyAsync(item =>
+            item.CaseId == caseId && item.EventType == "case_guidance_applied"));
     }
 
     [Fact]
@@ -1008,7 +1004,7 @@ public sealed partial class CaseCreateWebTests
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"Hand-keyed provider"}, {0L})");
+            $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {"Hand-keyed provider"}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {RecordedAtUtc})");
         await context.Database.ExecuteSqlInterpolatedAsync(
@@ -1037,12 +1033,11 @@ public sealed partial class CaseCreateWebTests
                 null,
                 null,
                 true,
-                [ContactRole.ClaimSource],
+                ContactRole.ClaimSource,
                 null,
                 CaseInspectionMode.PhysicalAddress,
                 [],
-                "seed-manual-claim-source",
-                "Call the Claim Source before finalising the report."),
+                "seed-manual-claim-source"),
             CancellationToken.None);
         return claimSourceId;
     }

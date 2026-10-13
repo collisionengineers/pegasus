@@ -9,8 +9,8 @@ using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
-/// <summary>The one directory writer for external organisations and their
-/// roles. Principal policy stays on <see cref="PrincipalEntity"/>; this store
+/// <summary>The one directory writer for external organisations, each of one
+/// type. Principal policy stays on <see cref="PrincipalEntity"/>; this store
 /// never copies credentials or report policy into a contact row.</summary>
 public sealed class EfContactDirectoryAdministration(
     IDbContextFactory<PegasusDbContext> contextFactory,
@@ -34,7 +34,6 @@ public sealed class EfContactDirectoryAdministration(
         if (organizationId == Guid.Empty) throw new ArgumentException("A contact identifier is required.", nameof(organizationId));
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await context.Organizations.AsNoTracking()
-            .Include(item => item.ContactRoles)
             .Include(item => item.PrincipalLinks)
             .Include(item => item.Principals)
             .SingleOrDefaultAsync(item => item.Id == organizationId, cancellationToken);
@@ -55,16 +54,12 @@ public sealed class EfContactDirectoryAdministration(
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         var contacts = context.Organizations.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(prefix)) contacts = contacts.Where(item => item.Name.StartsWith(prefix));
-        if (role is not null) contacts = contacts.Where(item => item.ContactRoles.Any(item => item.Role == role));
+        if (role is not null) contacts = contacts.Where(item => item.Role == role);
         var rows = contacts.Select(contact => new ContactListRow
         {
             OrganizationId = contact.Id,
             Name = contact.Name,
-            FirstRole = context.Set<ContactRoleEntity>()
-                .Where(item => item.OrganizationId == contact.Id)
-                .OrderBy(item => item.Role)
-                .Select(item => item.Role)
-                .FirstOrDefault()
+            Role = contact.Role
         });
         if (query.Sort == ContactSort.LastCase)
         {
@@ -76,7 +71,7 @@ public sealed class EfContactDirectoryAdministration(
                              {
                                  OrganizationId = row.OrganizationId,
                                  Name = row.Name,
-                                 FirstRole = row.FirstRole,
+                                 Role = row.Role,
                                  ReceivedAtUtc = (DateTimeOffset?)latest.ReceivedAtUtc,
                                  Reference = latest.Reference
                              };
@@ -99,7 +94,7 @@ public sealed class EfContactDirectoryAdministration(
         }
 
         var ordered = query.Sort == ContactSort.Type
-            ? rows.OrderBy(item => item.FirstRole).ThenBy(item => item.Name).ThenBy(item => item.OrganizationId)
+            ? rows.OrderBy(item => item.Role).ThenBy(item => item.Name).ThenBy(item => item.OrganizationId)
             : rows.OrderBy(item => item.Name).ThenBy(item => item.OrganizationId);
         var pageIds = await ordered.Take(limit).Select(item => item.OrganizationId).ToArrayAsync(cancellationToken);
         var pageLatest = pageIds.Length == 0
@@ -131,8 +126,7 @@ public sealed class EfContactDirectoryAdministration(
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         var roleCode = ToCode(role);
         var ids = await context.Organizations.AsNoTracking()
-            .Where(item => item.Active
-                && item.ContactRoles.Any(contactRole => contactRole.Role == roleCode))
+            .Where(item => item.Active && item.Role == roleCode)
             .OrderBy(item => item.Name)
             .ThenBy(item => item.Id)
             .Select(item => item.Id)
@@ -154,9 +148,8 @@ public sealed class EfContactDirectoryAdministration(
         var requestHash = EfOrganizationAdministration.HashRequest(new
         {
             command = SaveKind, request.OrganizationId, request.ExpectedVersion, request.Name, request.ContactPerson,
-            request.Email, request.Telephone, request.Address, request.Postcode, request.Active, request.Roles, request.PrincipalCode,
-            request.PrincipalInspectionMode, request.PrincipalAssociations, request.GuidanceTemplate, request.GuidanceTemplateVersion,
-            request.NotesOnEveryCase
+            request.Email, request.Telephone, request.Address, request.Postcode, request.Active, request.Role, request.PrincipalCode,
+            request.PrincipalInspectionMode, request.LinkedPrincipalIds, request.NotesOnEveryCase
         });
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
@@ -171,41 +164,37 @@ public sealed class EfContactDirectoryAdministration(
             return replay;
         }
 
-        var entity = await context.Organizations.Include(item => item.ContactRoles).Include(item => item.PrincipalLinks).Include(item => item.Principals)
+        var entity = await context.Organizations.Include(item => item.PrincipalLinks).Include(item => item.Principals)
             .SingleOrDefaultAsync(item => item.Id == request.OrganizationId, cancellationToken);
         var creating = entity is null;
         if (creating)
         {
             if (request.ExpectedVersion != 0) throw new ContactDirectoryException(ContactDirectoryError.StaleVersion);
             var normalizedName = request.Name.ToUpperInvariant();
-            if (await context.Organizations.AnyAsync(item => item.NormalizedName == normalizedName, cancellationToken))
+            var roleCode = ToCode(request.Role);
+            if (await context.Organizations.AnyAsync(item => item.NormalizedName == normalizedName && item.Role == roleCode, cancellationToken))
                 throw new ContactDirectoryException(ContactDirectoryError.DuplicateOrganizationName);
-            entity = new OrganizationEntity { Id = request.OrganizationId, Name = request.Name, Version = 0 };
+            entity = new OrganizationEntity { Id = request.OrganizationId, Name = request.Name, Role = ToCode(request.Role), Version = 0 };
             context.Organizations.Add(entity);
+        }
+        else if (entity!.Role != ToCode(request.Role))
+        {
+            // The type is chosen when the contact is added and never changes.
+            throw new ArgumentException("A contact's type cannot change.", nameof(request));
         }
         else if (entity!.Version != request.ExpectedVersion)
         {
             throw new ContactDirectoryException(ContactDirectoryError.StaleVersion);
         }
         var before = creating ? null : ToRecord(entity!);
-        var guidanceChanged = entity!.GuidanceTemplate != request.GuidanceTemplate;
-        var changed = entity.Name != request.Name || entity.ContactPerson != request.ContactPerson || entity.Email != request.Email
+        var changed = entity!.Name != request.Name || entity.ContactPerson != request.ContactPerson || entity.Email != request.Email
             || entity.Telephone != request.Telephone || entity.Address != request.Address || entity.Postcode != request.Postcode || entity.Active != request.Active
-            || guidanceChanged
-            || entity.NotesOnEveryCase != request.NotesOnEveryCase
-            || !entity.ContactRoles.Select(item => item.Role).Order().SequenceEqual(request.Roles.Select(ToCode).Order());
+            || entity.NotesOnEveryCase != request.NotesOnEveryCase;
         entity.Name = request.Name; entity.ContactPerson = request.ContactPerson; entity.Email = request.Email;
         entity.Telephone = request.Telephone; entity.Address = request.Address; entity.Postcode = request.Postcode; entity.Active = request.Active;
         entity.NotesOnEveryCase = request.NotesOnEveryCase;
-        if (guidanceChanged)
-        {
-            entity.GuidanceTemplate = request.GuidanceTemplate;
-            entity.GuidanceTemplateVersion = checked(entity.GuidanceTemplateVersion + 1);
-        }
-        entity.ContactRoles.Clear();
-        foreach (var role in request.Roles) entity.ContactRoles.Add(new() { OrganizationId = entity.Id, Role = ToCode(role) });
 
-        var isPrincipal = request.Roles.Contains(ContactRole.Principal);
+        var isPrincipal = request.Role == ContactRole.Principal;
         if (isPrincipal && entity.Principals.Count == 0)
         {
             if (await context.Principals.AnyAsync(item => item.Code == request.PrincipalCode, cancellationToken))
@@ -215,8 +204,6 @@ public sealed class EfContactDirectoryAdministration(
             entity.Principals.Add(new PrincipalEntity { Id = Guid.NewGuid(), OrganizationId = entity.Id, Code = request.PrincipalCode!, SequenceLineageId = lineage.Id, SequenceLineage = lineage, IsActive = entity.Active, InspectionMode = PrincipalInspectionModePolicy.ToCode(request.PrincipalInspectionMode), ReportSendingRulesJson = EfOrganizationAdministration.DefaultReportSendingJson, Version = 0 });
             changed = true;
         }
-        if (!isPrincipal && entity.Principals.Count > 0)
-            throw new ContactDirectoryException(ContactDirectoryError.InvalidPrincipalAssociation);
         foreach (var principal in entity.Principals.Where(item => item.SuccessorId is null))
         {
             if (principal.IsActive != entity.Active)
@@ -226,33 +213,21 @@ public sealed class EfContactDirectoryAdministration(
             }
         }
 
-        var requestedPrincipalIds = request.PrincipalAssociations
-            .Select(association => association.PrincipalId)
-            .Distinct()
-            .ToArray();
+        var requestedPrincipalIds = request.LinkedPrincipalIds.ToArray();
         var principals = await context.Principals
             .Where(item => requestedPrincipalIds.Contains(item.Id) && item.IsActive)
             .ToArrayAsync(cancellationToken);
         if (principals.Length != requestedPrincipalIds.Length || principals.Any(item => item.OrganizationId == entity.Id))
             throw new ContactDirectoryException(ContactDirectoryError.InvalidPrincipalAssociation);
         var existingLinks = entity.PrincipalLinks.ToArray();
-        var requestedLinks = request.PrincipalAssociations
-            .Select(association => (association.PrincipalId, Role: ToCode(association.Role)))
-            .ToHashSet();
-        var currentLinks = existingLinks.Select(link => (link.PrincipalId, link.Role)).ToHashSet();
-        changed |= !currentLinks.SetEquals(requestedLinks);
+        changed |= !existingLinks.Select(link => link.PrincipalId).ToHashSet().SetEquals(requestedPrincipalIds);
         context.RemoveRange(existingLinks);
-        foreach (var association in request.PrincipalAssociations)
+        foreach (var principalId in requestedPrincipalIds)
         {
-            context.Add(new ContactPrincipalLinkEntity
-            {
-                PrincipalId = association.PrincipalId,
-                OrganizationId = entity.Id,
-                Role = ToCode(association.Role)
-            });
+            context.Add(new ContactPrincipalLinkEntity { PrincipalId = principalId, OrganizationId = entity.Id });
         }
         entity.Version = changed ? checked(entity.Version + 1) : entity.Version;
-        var result = ToRecord(entity, principalAssociations: request.PrincipalAssociations);
+        var result = ToRecord(entity, linkedPrincipalIds: requestedPrincipalIds);
         var now = _timeProvider.GetUtcNow();
         EfOrganizationAdministration.AddReceipt(context, request.OperationKey, SaveKind, requestHash, result, now);
         EfOrganizationAdministration.AddHistory(context, "contact", entity.Id, creating ? "contact_created" : "contact_saved", request.Actor, request.OperationKey, now, null, before, result);
@@ -272,7 +247,6 @@ public sealed class EfContactDirectoryAdministration(
         if (orderedIds.Length == 0) return [];
         var entities = await context.Organizations.AsNoTracking()
             .Where(item => orderedIds.Contains(item.Id))
-            .Include(item => item.ContactRoles)
             .Include(item => item.PrincipalLinks)
             .Include(item => item.Principals)
             .ToDictionaryAsync(item => item.Id, cancellationToken);
@@ -342,17 +316,9 @@ public sealed class EfContactDirectoryAdministration(
     private static ContactDirectoryRecord ToRecord(
         OrganizationEntity entity,
         LatestCaseRow? latestCase = null,
-        IReadOnlyList<ContactPrincipalAssociation>? principalAssociations = null)
+        IReadOnlyList<Guid>? linkedPrincipalIds = null)
     {
-        var roles = entity.ContactRoles.Select(item => ParseRole(item.Role)).OrderBy(item => item).ToList();
-        if (entity.Principals.Count > 0 && !roles.Contains(ContactRole.Principal)) roles.Add(ContactRole.Principal);
-        var links = principalAssociations ?? entity.PrincipalLinks
-            .Select(item => new ContactPrincipalAssociation(
-                item.OrganizationId,
-                ParseRole(item.Role),
-                item.PrincipalId))
-            .OrderBy(item => item.Role).ThenBy(item => item.PrincipalId)
-            .ToArray();
+        var links = (linkedPrincipalIds ?? entity.PrincipalLinks.Select(item => item.PrincipalId)).Order().ToArray();
         return new(
             entity.Id,
             entity.Name,
@@ -362,14 +328,12 @@ public sealed class EfContactDirectoryAdministration(
             entity.Address,
             entity.Postcode,
             entity.Active,
-            roles.Order().ToArray(),
+            ParseRole(entity.Role),
             entity.Version,
             latestCase?.ReceivedAtUtc,
             latestCase?.Reference,
             links,
             entity.Principals.Select(item => item.Id).Order().ToArray(),
-            entity.GuidanceTemplate,
-            entity.GuidanceTemplateVersion,
             entity.NotesOnEveryCase);
     }
 
@@ -384,7 +348,7 @@ public sealed class EfContactDirectoryAdministration(
     {
         public Guid OrganizationId { get; init; }
         public string Name { get; init; } = string.Empty;
-        public string? FirstRole { get; init; }
+        public string Role { get; init; } = string.Empty;
         public DateTimeOffset? ReceivedAtUtc { get; init; }
         public string? Reference { get; init; }
     }

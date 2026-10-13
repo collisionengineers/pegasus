@@ -2,8 +2,9 @@ using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Cases;
 
-/// <summary>Directory roles for external organisations. A Principal remains a
-/// policy-bearing record; the other roles may be associated with it.</summary>
+/// <summary>The one type of an external organisation, chosen when it is added
+/// and never changed. A Principal remains a policy-bearing record; a contact of
+/// any other type may be linked to Principals.</summary>
 public enum ContactRole
 {
     Principal,
@@ -29,20 +30,13 @@ public sealed record ContactDirectoryRecord(
     string? Address,
     string? Postcode,
     bool Active,
-    IReadOnlyList<ContactRole> Roles,
+    ContactRole Role,
     long Version,
     DateTimeOffset? LastCaseReceivedAtUtc,
     string? LastCaseReference,
-    IReadOnlyList<ContactPrincipalAssociation>? PrincipalAssociations = null,
+    IReadOnlyList<Guid>? LinkedPrincipalIds = null,
     IReadOnlyList<Guid>? OwnPrincipalIds = null,
-    string? GuidanceTemplate = null,
-    long GuidanceTemplateVersion = 0,
     string? NotesOnEveryCase = null);
-
-public sealed record ContactPrincipalAssociation(
-    Guid OrganizationId,
-    ContactRole Role,
-    Guid PrincipalId);
 
 public sealed record ContactDirectoryQuery(
     ActionActor Actor,
@@ -62,13 +56,11 @@ public sealed record SaveContactRequest(
     string? Address,
     string? Postcode,
     bool Active,
-    IReadOnlyList<ContactRole> Roles,
+    ContactRole Role,
     string? PrincipalCode,
     CaseInspectionMode PrincipalInspectionMode,
-    IReadOnlyList<ContactPrincipalAssociation> PrincipalAssociations,
+    IReadOnlyList<Guid> LinkedPrincipalIds,
     string OperationKey,
-    string? GuidanceTemplate = null,
-    long GuidanceTemplateVersion = 0,
     string? NotesOnEveryCase = null);
 
 public interface IContactDirectoryQueries
@@ -134,7 +126,6 @@ public static partial class ContactDirectoryPolicy
     public const int MaximumTelephoneLength = 50;
     public const int MaximumAddressLength = 1000;
     public const int MaximumPostcodeLength = 20;
-    public const int MaximumGuidanceTemplateLength = 4000;
     public const int MaximumNotesOnEveryCaseLength = 2000;
     public const int MaximumOperationKeyLength = 100;
     public const int MaximumListLimit = 200;
@@ -152,34 +143,27 @@ public static partial class ContactDirectoryPolicy
             throw new ArgumentOutOfRangeException(nameof(request), "The expected version cannot be negative.");
         }
 
-        var roles = request.Roles.Distinct().OrderBy(role => role).ToArray();
-        if (roles.Length == 0)
+        if (!Enum.IsDefined(request.Role))
         {
-            throw new ArgumentException("Select at least one contact type.", nameof(request));
+            throw new ArgumentException("Select a contact type.", nameof(request));
         }
-        if (roles.Contains(ContactRole.Principal) && string.IsNullOrWhiteSpace(request.PrincipalCode))
+        var isPrincipal = request.Role == ContactRole.Principal;
+        if (isPrincipal && string.IsNullOrWhiteSpace(request.PrincipalCode))
         {
             throw new ArgumentException("A principal code is required for a principal contact.", nameof(request));
         }
-        if (!roles.Contains(ContactRole.Principal) && !string.IsNullOrWhiteSpace(request.PrincipalCode))
+        if (!isPrincipal && !string.IsNullOrWhiteSpace(request.PrincipalCode))
         {
             throw new ArgumentException("A principal code is only valid for a principal contact.", nameof(request));
         }
-        var associations = request.PrincipalAssociations ?? [];
-        if (associations.Any(association => association.OrganizationId != request.OrganizationId
-                || association.PrincipalId == Guid.Empty
-                || association.Role == ContactRole.Principal
-                || !roles.Contains(association.Role))
-            || associations.DistinctBy(association => (association.Role, association.PrincipalId)).Count()
-                != associations.Count)
+        var linkedPrincipalIds = request.LinkedPrincipalIds ?? [];
+        if (linkedPrincipalIds.Any(id => id == Guid.Empty) || linkedPrincipalIds.Distinct().Count() != linkedPrincipalIds.Count)
         {
-            throw new ArgumentException(
-                "Each linked principal must be selected once for one selected non-principal type.",
-                nameof(request));
+            throw new ArgumentException("Each linked principal must be selected once.", nameof(request));
         }
-        if (associations.Count > 0 && roles.All(role => role == ContactRole.Principal))
+        if (linkedPrincipalIds.Count > 0 && isPrincipal)
         {
-            throw new ArgumentException("Select a non-principal type before linking a contact to a principal.", nameof(request));
+            throw new ArgumentException("A principal contact cannot link to a principal.", nameof(request));
         }
 
         return request with
@@ -190,14 +174,12 @@ public static partial class ContactDirectoryPolicy
             Telephone = OptionalTelephone(request.Telephone, MaximumTelephoneLength, nameof(request.Telephone)),
             Address = Optional(request.Address, MaximumAddressLength, nameof(request.Address)),
             Postcode = Optional(request.Postcode, MaximumPostcodeLength, nameof(request.Postcode)),
-            GuidanceTemplate = Optional(request.GuidanceTemplate, MaximumGuidanceTemplateLength, nameof(request.GuidanceTemplate)),
             // Only a Principal or Claim source record carries notes on every Case (decided
             // 13 September); for any other contact type the field is absent, not kept.
-            NotesOnEveryCase = roles.Contains(ContactRole.Principal) || roles.Contains(ContactRole.ClaimSource)
+            NotesOnEveryCase = isPrincipal || request.Role == ContactRole.ClaimSource
                 ? Optional(request.NotesOnEveryCase, MaximumNotesOnEveryCaseLength, nameof(request.NotesOnEveryCase))
                 : null,
-            Roles = roles,
-            PrincipalAssociations = associations,
+            LinkedPrincipalIds = linkedPrincipalIds,
             PrincipalCode = string.IsNullOrWhiteSpace(request.PrincipalCode)
                 ? null : OrganizationAdministrationPolicy.NormalizePrincipalCode(request.PrincipalCode),
             OperationKey = Required(request.OperationKey, MaximumOperationKeyLength, nameof(request.OperationKey))

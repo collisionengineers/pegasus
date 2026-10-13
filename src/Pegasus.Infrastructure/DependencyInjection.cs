@@ -282,7 +282,6 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
         services.AddScoped<IOrganizationAdministrationQueries>(
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
-        services.AddScoped<IOrganizationDirectoryQueries, EfOrganizationDirectory>();
         services.AddScoped<IUpdatePrincipalDefaultInspectionLocation, UpdatePrincipalDefaultInspectionLocation>();
         services.AddScoped<EfPrincipalCredentialStore>();
         services.AddScoped<IPrincipalCredentialStore>(

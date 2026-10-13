@@ -20,7 +20,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.ContactPrincipalLinkEntity",
                 typeof(ContactPrincipalLinkEntity),
                 baseEntityType,
-                propertyCount: 3,
+                propertyCount: 2,
                 navigationCount: 2,
                 foreignKeyCount: 2,
                 unnamedIndexCount: 1,
@@ -44,21 +44,12 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 sentinel: new Guid("00000000-0000-0000-0000-000000000000"));
             organizationId.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
-            var role = runtimeEntityType.AddProperty(
-                "Role",
-                typeof(string),
-                propertyInfo: typeof(ContactPrincipalLinkEntity).GetProperty("Role", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(ContactPrincipalLinkEntity).GetField("<Role>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                afterSaveBehavior: PropertySaveBehavior.Throw,
-                maxLength: 40);
-            role.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
             var key = runtimeEntityType.AddKey(
-                new[] { principalId, organizationId, role });
+                new[] { principalId, organizationId });
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
-                new[] { organizationId, role });
+                new[] { organizationId });
 
             return runtimeEntityType;
         }

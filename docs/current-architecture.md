@@ -32,8 +32,8 @@ flowchart LR
 
 ## Flows and data ownership
 
-- Contacts uses Organization identities with explicit roles and Principal
-  associations. Principal policy remains on Principal records; Contacts owns
+- Contacts uses Organization identities, each with one type (`Organizations.Role`),
+  and Principal links. Principal policy remains on Principal records; Contacts owns
   the administration routes. Staff accounts have exactly one role.
 - Triage Cases and Image Intake records use typed, versioned edit scopes; a
   Triage Case's scope is also its authority for Case custody and upload

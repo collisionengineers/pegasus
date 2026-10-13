@@ -199,7 +199,7 @@ public sealed class DiscardIntakeSubmissionGroupTests
             var principalId = Guid.NewGuid();
             var caseId = Guid.NewGuid();
             context.AddRange(
-                new OrganizationEntity { Id = organizationId, Name = "Discard association test", Version = 0 },
+                new OrganizationEntity { Role = "principal", Id = organizationId, Name = "Discard association test", Version = 0 },
                 new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = DateTimeOffset.UtcNow },
                 new PrincipalEntity
                 {

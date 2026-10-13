@@ -1685,7 +1685,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
             var actor = DevelopmentOfflineIdentity.AdministratorId.ToString("D");
 
             context.AddRange(
-                new OrganizationEntity { Id = organizationId, Name = $"Glass's web test {reference}", Version = 0 },
+                new OrganizationEntity { Role = "principal", Id = organizationId, Name = $"Glass's web test {reference}", Version = 0 },
                 new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = FixedUtcNow },
                 new PrincipalEntity
                 {

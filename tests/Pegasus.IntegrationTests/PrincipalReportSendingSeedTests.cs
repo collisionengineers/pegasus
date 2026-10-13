@@ -41,7 +41,6 @@ public sealed class PrincipalReportSendingSeedTests
         var contextFactory = factory.Services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
         var organizations = await context.Organizations.AsNoTracking()
-            .Include(item => item.ContactRoles)
             .ToDictionaryAsync(item => item.Id);
         var principals = (await context.Principals.AsNoTracking().ToArrayAsync())
             .ToDictionary(
@@ -100,7 +99,7 @@ public sealed class PrincipalReportSendingSeedTests
             Assert.Null(principal.PredecessorId);
             Assert.Null(principal.SuccessorId);
             var organization = organizations[principal.OrganizationId];
-            Assert.Contains(organization.ContactRoles, role => role.Role == "principal");
+            Assert.Equal("principal", organization.Role);
             Assert.True(organization.Active, code);
             Assert.Equal(0, organization.Version);
         }
@@ -112,12 +111,10 @@ public sealed class PrincipalReportSendingSeedTests
             organizations[principals["AMS"].Principal.OrganizationId].Address);
         Assert.Equal("PR2 9LF", organizations[principals["AMS"].Principal.OrganizationId].Postcode);
         Assert.Equal("Swade Solutions Ltd", organizations[principals["SWADE"].Principal.OrganizationId].Name);
-        // ACSP and CS also introduce work, so they are Claim Sources too.
+        // 20261013090000_ContactSingleType: a contact has one type, so ACSP and CS are Principals only.
         foreach (var code in new[] { "ACSP", "CS" })
         {
-            Assert.Contains(
-                organizations[principals[code].Principal.OrganizationId].ContactRoles,
-                role => role.Role == "claim_source");
+            Assert.Equal("principal", organizations[principals[code].Principal.OrganizationId].Role);
         }
     }
 
@@ -130,7 +127,7 @@ public sealed class PrincipalReportSendingSeedTests
         foreach (var (name, role) in SourceOrganizations)
         {
             var organization = Assert.Single(organizations.Values, item => item.Name == name);
-            Assert.Contains(organization.ContactRoles, item => item.Role == role);
+            Assert.Equal(role, organization.Role);
         }
 
         // Every contact a condition names is a real organisation with the right role.
@@ -147,8 +144,7 @@ public sealed class PrincipalReportSendingSeedTests
                 if (role is null) continue;
                 Assert.All(condition.Values, id =>
                 {
-                    var organization = organizations[Guid.Parse(id)];
-                    Assert.Contains(organization.ContactRoles, item => item.Role == role);
+                    Assert.Equal(role, organizations[Guid.Parse(id)].Role);
                 });
             }
         }
@@ -174,14 +170,18 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.False(Rules("AX").Attach.FeeNoteSeparate);
         Assert.True(Rules("AX").GarageFigures);
 
-        // RJS: any of "mentions Luton" or the CS claim source.
+        // RJS: any of "mentions Luton" or Claim Specialists. ACSP and CS are Principals
+        // only, so the instruction is matched on the v5 SOP's own text for them.
         var rjs = Rules("RJS").Rules[0];
         Assert.Equal(ReportSendingRuleMatch.Any, rjs.Match);
-        Assert.Equal(["Luton"], rjs.If.Single(condition => condition.Kind == ReportSendingConditionKind.Mentions).Values.ToArray());
+        Assert.All(rjs.If, condition => Assert.Equal(ReportSendingConditionKind.Mentions, condition.Kind));
         Assert.Equal(
-            [principals["CS"].Principal.OrganizationId.ToString("D")],
-            rjs.If.Single(condition => condition.Kind == ReportSendingConditionKind.ClaimSource).Values.ToArray());
+            [["Luton"], ["Claim Specialist", "Claims Specialist", "claimsspecialists.co.uk"]],
+            rjs.If.Select(condition => condition.Values.ToArray()).ToArray());
         Assert.Equal(2, rjs.Then.CcAdd.Count);
+        var rjsAcsp = Rules("RJS").Rules[1];
+        Assert.Equal(["Accident Specialist"], Assert.Single(rjsAcsp.If, condition => condition.Kind == ReportSendingConditionKind.Mentions).Values.ToArray());
+        Assert.Equal(["admin@accidentspecialist.co.uk"], rjsAcsp.Then.CcAdd.ToArray());
 
         // YML: images from Swinton is a question for staff.
         var yml = Assert.Single(Rules("YML").Rules);
@@ -239,13 +239,51 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.Contains("TL threshold: 74%", Notes("OAK"), StringComparison.Ordinal);
         Assert.Contains("TL threshold: 70%", Notes("RJS"), StringComparison.Ordinal);
         Assert.Contains("TL threshold: 66%", Notes("SBL"), StringComparison.Ordinal);
-        Assert.Equal("TL threshold: 66% (always)", Notes("PCH"));
+        Assert.StartsWith("TL threshold: 66% (always)", Notes("PCH"), StringComparison.Ordinal);
         Assert.Contains("Contract repair at 73%.", Notes("QCL"), StringComparison.Ordinal);
-        // Only the TL thresholds and QCL's contract repair line are kept.
+        // Release 103 kept only the TL thresholds and QCL's contract repair line;
+        // 20261013091000_ContactSopSeed adds the job sheet, not these v5 notes.
         Assert.DoesNotContain("Engineers (Ben)", Notes("HTU"), StringComparison.Ordinal);
         Assert.DoesNotContain("three PDFs", Notes("MP"), StringComparison.Ordinal);
         Assert.DoesNotContain("Open question", Notes("SWADE"), StringComparison.Ordinal);
         // A Principal the SOP gives nothing to keep has no appended notes.
         Assert.DoesNotContain("TL threshold", Notes("WLS"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheContactSopSeedAddsTheJobSheetPrincipalsTheV5ClaimSourcesAndTheirNotes()
+    {
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
+        var (principals, organizations) = await LoadAsync(factory);
+        string Notes(string code) => organizations[principals[code].Principal.OrganizationId].NotesOnEveryCase ?? string.Empty;
+
+        string[] jobSheetCodes =
+        [
+            "ABRAHAMS", "ASLS", "ALL", "AS", "AVI", "BAKER", "CASTLE", "CW", "GG", "LEX",
+            "LPS", "MATT", "MBH", "RL", "RELAY", "ROZZII", "STALLION", "TA", "WIL", "ZEN"
+        ];
+        foreach (var code in jobSheetCodes)
+        {
+            var principal = principals[code].Principal;
+            Assert.True(principal.IsActive, code);
+            Assert.Equal("physical_address", principal.InspectionMode);
+            Assert.Equal(PrincipalReportSendingRules.Default, principals[code].Rules);
+            Assert.Equal("principal", organizations[principal.OrganizationId].Role);
+            Assert.Contains("Inbox: ", Notes(code), StringComparison.Ordinal);
+        }
+        Assert.Equal("Graham Coffey", organizations[principals["GG"].Principal.OrganizationId].Name);
+        foreach (var name in new[] { "Easdons", "Guardian Accident Claims", "Hackney Solutions", "James Claims", "Swinton" })
+        {
+            Assert.Equal("claim_source", Assert.Single(organizations.Values, item => item.Name == name).Role);
+        }
+
+        // Appended after what a record already held, one block per job-sheet row.
+        Assert.StartsWith("TL threshold: 70%", Notes("RJS"), StringComparison.Ordinal);
+        Assert.Contains("Solicitors Instructions: Claim Specialists", Notes("RJS"), StringComparison.Ordinal);
+        Assert.Contains("Solicitors Instructions: Accident Specialist", Notes("RJS"), StringComparison.Ordinal);
+        Assert.Contains("Copy in mdakri@montrealprestige.co.uk", Notes("MP"), StringComparison.Ordinal);
+        // The v5 notes and received-via the sheet lacks.
+        Assert.Contains("\"[reg] Initial\" or \"[reg] Supplementary\"", Notes("PCH"), StringComparison.Ordinal);
+        Assert.Equal("Inbox: Engineers", Notes("SWADE"));
     }
 }

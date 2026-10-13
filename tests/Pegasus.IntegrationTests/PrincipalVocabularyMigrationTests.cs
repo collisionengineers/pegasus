@@ -111,7 +111,9 @@ public sealed class PrincipalVocabularyMigrationTests
         await context.Database.MigrateAsync(PreviousMigration);
         await database.ExecuteAsync(OldVocabularyRowsSql);
 
-        await context.Database.MigrateAsync();
+        // The rows are checked where the rename left them: 20261013090000_ContactSingleType
+        // later drops OrganizationRoles.
+        await context.Database.MigrateAsync(VocabularyMigration);
 
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM OrganizationRoles WHERE OrganizationId = '87000000-0000-0000-0000-000000000001' AND Role = N'principal'"));
@@ -195,20 +197,19 @@ public sealed class PrincipalVocabularyMigrationTests
         await using var context = await database.CreateContextAsync();
         await context.Database.MigrateAsync();
 
+        // 20261013090000_ContactSingleType replaced OrganizationRoles with Organizations.Role.
         Assert.Equal(1, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.check_constraints WHERE name = N'CK_OrganizationRoles_Role' AND definition LIKE N'%''principal''%' AND definition NOT LIKE N'%work_provider%'"));
+            "SELECT COUNT(*) FROM sys.check_constraints WHERE name = N'CK_Organizations_Role' AND definition LIKE N'%''principal''%' AND definition NOT LIKE N'%work_provider%'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.check_constraints WHERE name = N'CK_CaseDataFields_SourceKind' AND definition LIKE N'%principal_setting%' AND definition LIKE N'%principal_api%' AND definition NOT LIKE N'%provider_%'"));
 
         await database.ExecuteAsync(
             """
-            INSERT INTO Organizations (Id, Name, Version)
-            VALUES ('87000000-0000-0000-0000-000000000021', 'Principal role organization', 0);
-            INSERT INTO OrganizationRoles (OrganizationId, Role)
-            VALUES ('87000000-0000-0000-0000-000000000021', N'principal');
+            INSERT INTO Organizations (Id, Name, Version, Role)
+            VALUES ('87000000-0000-0000-0000-000000000021', 'Principal role organization', 0, N'principal');
             """);
         await Assert.ThrowsAnyAsync<Exception>(() => database.ExecuteAsync(
-            "INSERT INTO OrganizationRoles (OrganizationId, Role) VALUES ('87000000-0000-0000-0000-000000000021', N'work_provider')"));
+            "INSERT INTO Organizations (Id, Name, Version, Role) VALUES ('87000000-0000-0000-0000-000000000022', 'Old role organization', 0, N'work_provider')"));
     }
 
     [Fact]

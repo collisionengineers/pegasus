@@ -9,7 +9,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     : IdentityDbContext<PegasusIdentityUser, IdentityRole<Guid>, Guid>(options)
 {
     internal DbSet<OrganizationEntity> Organizations => Set<OrganizationEntity>();
-    internal DbSet<OrganizationRoleEntity> OrganizationRoles => Set<OrganizationRoleEntity>();
     internal DbSet<OrganizationAdministrationOperationEntity> OrganizationAdministrationOperations =>
         Set<OrganizationAdministrationOperationEntity>();
     internal DbSet<PrincipalSequenceLineageEntity> PrincipalSequenceLineages =>
@@ -479,7 +478,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
                 .HasComputedColumnSql("UPPER(LTRIM(RTRIM([Name])))", stored: true);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => item.Name);
-            entity.HasIndex(item => item.NormalizedName)
+            // A name is unique within one contact type (operator, 13 October 2026).
+            entity.HasIndex(item => new { item.NormalizedName, item.Role })
                 .IsUnique()
                 .HasFilter(null);
         });
@@ -491,21 +491,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.CommandKind).HasMaxLength(64).IsRequired();
             entity.Property(item => item.RequestHash).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.Property(item => item.ResultJson).IsRequired();
-        });
-
-
-        builder.Entity<OrganizationRoleEntity>(entity =>
-        {
-            entity.ToTable("OrganizationRoles", table =>
-                table.HasCheckConstraint(
-                    "CK_OrganizationRoles_Role",
-                    "[Role] IN ('principal', 'instruction_intermediary')"));
-            entity.HasKey(item => new { item.OrganizationId, item.Role });
-            entity.Property(item => item.Role).HasMaxLength(40).IsRequired();
-            entity.HasOne(item => item.Organization)
-                .WithMany(item => item.Roles)
-                .HasForeignKey(item => item.OrganizationId)
-                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<PrincipalSequenceLineageEntity>(entity =>
@@ -1196,14 +1181,12 @@ internal sealed class OrganizationEntity
     public string? Telephone { get; set; }
     public string? Address { get; set; }
     public string? Postcode { get; set; }
-    public string? GuidanceTemplate { get; set; }
-    public long GuidanceTemplateVersion { get; set; }
     // "Notes on every Case": read live onto every Case of this Principal or from this Claim source.
     public string? NotesOnEveryCase { get; set; }
     public bool Active { get; set; } = true;
     public long Version { get; set; }
-    public List<OrganizationRoleEntity> Roles { get; set; } = [];
-    public List<ContactRoleEntity> ContactRoles { get; set; } = [];
+    // The one contact type: principal, claim_source, repairer, storage or third_party_engineer.
+    public required string Role { get; set; }
     public List<ContactPrincipalLinkEntity> PrincipalLinks { get; set; } = [];
     public List<PrincipalEntity> Principals { get; set; } = [];
 }
@@ -1216,13 +1199,6 @@ internal sealed class OrganizationAdministrationOperationEntity
     public DateTimeOffset CompletedAtUtc { get; set; }
 }
 
-
-internal sealed class OrganizationRoleEntity
-{
-    public Guid OrganizationId { get; set; }
-    public OrganizationEntity Organization { get; set; } = null!;
-    public required string Role { get; set; }
-}
 
 internal sealed class PrincipalSequenceLineageEntity
 {

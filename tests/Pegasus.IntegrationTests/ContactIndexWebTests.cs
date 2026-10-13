@@ -32,7 +32,6 @@ public sealed partial class ContactIndexWebTests
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CreateType"] = "ClaimSource",
             ["ContactId"] = InputValue(html, "ContactId"),
-            ["ExpectedVersion"] = InputValue(html, "ExpectedVersion"),
             ["OperationKey"] = InputValue(html, "OperationKey"),
             ["Name"] = "Wizard Claim Source"
         };
@@ -43,7 +42,7 @@ public sealed partial class ContactIndexWebTests
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM Organizations WHERE Name = 'Wizard Claim Source';"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM ContactRoles r JOIN Organizations o ON o.Id = r.OrganizationId WHERE o.Name = 'Wizard Claim Source' AND r.Role = 'claim_source';"));
+            "SELECT COUNT(*) FROM Organizations WHERE Name = 'Wizard Claim Source' AND Role = 'claim_source';"));
     }
 
     /// <summary>
@@ -64,7 +63,6 @@ public sealed partial class ContactIndexWebTests
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CreateType"] = "ClaimSource",
             ["ContactId"] = InputValue(html, "ContactId"),
-            ["ExpectedVersion"] = InputValue(html, "ExpectedVersion"),
             ["OperationKey"] = InputValue(html, "OperationKey"),
             ["Name"] = "Lettered Telephone Contact",
             ["Telephone"] = "01234 56789O"
@@ -118,8 +116,12 @@ public sealed partial class ContactIndexWebTests
             "SELECT COUNT(*) FROM Organizations WHERE Name = 'Rejected edit contact';"));
     }
 
+    /// <summary>
+    /// A contact has one type, so a possible match is only a link to the
+    /// existing contact; checking for matches never changes it.
+    /// </summary>
     [Fact]
-    public async Task ExistingMatchSelectsTheContactAndAddsOnlyTheSelectedType()
+    public async Task APossibleMatchLinksToTheExistingContact()
     {
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -136,7 +138,7 @@ public sealed partial class ContactIndexWebTests
             null,
             null,
             true,
-            [ContactRole.ClaimSource],
+            ContactRole.ClaimSource,
             null,
             CaseInspectionMode.PhysicalAddress,
             [],
@@ -159,41 +161,11 @@ public sealed partial class ContactIndexWebTests
             new FormUrlEncodedContent(findForm));
         var foundHtml = await found.Content.ReadAsStringAsync();
         found.EnsureSuccessStatusCode();
-        Assert.Contains("Match Contact", foundHtml, StringComparison.Ordinal);
-        Assert.Contains("Use this contact", foundHtml, StringComparison.Ordinal);
-
-        var chooseForm = new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = InputValue(foundHtml, "__RequestVerificationToken"),
-            ["CreateType"] = "ThirdPartyEngineer",
-            ["ExistingContactId"] = existingId.ToString("D"),
-            ["OperationKey"] = InputValue(foundHtml, "OperationKey")
-        };
-        using var chosen = await client.PostAsync(
-            "/Administration/Contacts?handler=ChooseExisting",
-            new FormUrlEncodedContent(chooseForm));
-        var chosenHtml = await chosen.Content.ReadAsStringAsync();
-        chosen.EnsureSuccessStatusCode();
-        Assert.Contains("Adding <strong>Third Party Engineer</strong> to Match Contact", chosenHtml, StringComparison.Ordinal);
-
-        var saveForm = new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = InputValue(chosenHtml, "__RequestVerificationToken"),
-            ["CreateType"] = "ThirdPartyEngineer",
-            ["ContactId"] = InputValue(chosenHtml, "ContactId"),
-            ["ExistingContactId"] = InputValue(chosenHtml, "ExistingContactId"),
-            ["ExpectedVersion"] = InputValue(chosenHtml, "ExpectedVersion"),
-            ["OperationKey"] = InputValue(chosenHtml, "OperationKey"),
-            ["Name"] = "Match Contact",
-            ["ContactPerson"] = "Existing person",
-            ["Email"] = "existing@example.test"
-        };
-        using var saved = await client.PostAsync(
-            "/Administration/Contacts?handler=Create",
-            new FormUrlEncodedContent(saveForm));
-        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
-        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM ContactRoles WHERE OrganizationId = '{existingId:D}' AND Role IN ('claim_source', 'third_party_engineer');"));
+        Assert.Contains("Match Contact · Claim Source", foundHtml, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Administration/Contacts/Edit/{existingId:D}\"", foundHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Use this contact", foundHtml, StringComparison.Ordinal);
+        Assert.Equal("claim_source", await factory.Database.ScalarAsync<string>(
+            $"SELECT Role FROM Organizations WHERE Id = '{existingId:D}';"));
     }
 
     private static string InputValue(string html, string name)
