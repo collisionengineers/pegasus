@@ -8,10 +8,22 @@ import { readConfig, type ClassifierConfig } from "./config.js";
 import { fingerprint, isCandidate, isEligible } from "./eligibility.js";
 import { PegasusMail } from "./pegasus.js";
 import { SystemPrompt } from "./prompt.js";
-import { MemoryReviewedStore, TableReviewedStore, type ReviewedStore } from "./reviewed.js";
+import {
+  attemptsAt,
+  isClosedAt,
+  MemoryReviewedStore,
+  reviewedAt,
+  TableReviewedStore,
+  type ReviewedStore,
+} from "./reviewed.js";
 import { createClassifierServer, ServerName, ToolNames, type Candidate, type Logger } from "./tools.js";
 
 const RunTimeLimitMs = 12 * 60 * 1000;
+
+// A message whose write failed is looked at again on the next run. After this
+// many runs in which a write to it failed, with the message unchanged, it is
+// closed as failed and not looked at again unless it changes.
+const MaxFailedAttempts = 3;
 
 // Host variables the Claude subprocess needs; the Windows ones serve local runs.
 const PassedThrough = ["PATH", "LANG", "PATHEXT", "SystemRoot", "ComSpec", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP"];
@@ -32,12 +44,12 @@ async function collectBatch(
   for (let page = 0; page < config.scanPages; page++) {
     const listed = await pegasus.list(continuation);
     for (const summary of listed.items) {
-      if (!isCandidate(summary) || (await reviewed.get(summary.id)) === fingerprint(summary)) {
+      if (!isCandidate(summary) || isClosedAt(await reviewed.get(summary.id), fingerprint(summary))) {
         continue;
       }
       const detail = await pegasus.get(summary.id);
       if (!isEligible(detail)) {
-        await reviewed.set(summary.id, fingerprint(summary));
+        await reviewed.set(summary.id, reviewedAt(fingerprint(summary)));
         continue;
       }
       const destinations = detail.canLinkCase ? await pegasus.linkDestinations(summary.id) : [];
@@ -83,7 +95,7 @@ export async function runClassifier(log: Logger): Promise<RunSummary> {
     // End the run cleanly before the Functions host's 14-minute limit.
     const abortController = new AbortController();
     const timer = setTimeout(() => abortController.abort(), RunTimeLimitMs);
-    const failed = new Set<string>();
+    const failed = new Map<string, string>();
     let outcome = "no result";
     let completed = false;
     let costUsd = 0;
@@ -132,14 +144,24 @@ export async function runClassifier(log: Logger): Promise<RunSummary> {
       clearTimeout(timer);
     }
 
-    // A completed run has looked at every listed message, except those whose
-    // write failed. A run cut short by its turn, budget or time cap tries them
-    // all again next time.
-    if (completed) {
-      for (const { detail } of batch.values()) {
-        if (!failed.has(detail.summary.id)) {
-          await reviewed.set(detail.summary.id, fingerprint(detail.summary));
+    // A message whose write failed counts one failed attempt for this run, and
+    // is looked at again next run until it has failed MaxFailedAttempts runs
+    // while unchanged; then it is closed as failed. A completed run has looked
+    // at every other listed message. A run cut short by its turn, budget or
+    // time cap tries those again next time.
+    for (const { detail } of batch.values()) {
+      const messageId = detail.summary.id;
+      const seen = fingerprint(detail.summary);
+      const lastError = failed.get(messageId);
+      if (lastError !== undefined) {
+        const attempts = attemptsAt(await reviewed.get(messageId), seen) + 1;
+        const giveUp = attempts >= MaxFailedAttempts;
+        await reviewed.set(messageId, { fingerprint: seen, outcome: giveUp ? "failed" : "retrying", attempts });
+        if (giveUp) {
+          log("closed as failed: writes to the message failed in every attempt", { messageId, attempts, lastError });
         }
+      } else if (completed) {
+        await reviewed.set(messageId, reviewedAt(seen));
       }
     }
     return { eligible: batch.size, outcome, costUsd };
