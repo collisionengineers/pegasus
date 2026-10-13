@@ -272,6 +272,13 @@ public sealed class PrincipalReportSendingSeedTests
             Assert.Contains("Inbox: ", Notes(code), StringComparison.Ordinal);
         }
         Assert.Equal("Graham Coffey", organizations[principals["GG"].Principal.OrganizationId].Name);
+        // Address and Postcode from contactseva_combined.csv, as written.
+        Assert.Equal(
+            "C/O Lex Solicitors\r\n6 St Mark's Street\r\nBolton",
+            organizations[principals["LEX"].Principal.OrganizationId].Address);
+        Assert.Equal("BL3 6NR", organizations[principals["LEX"].Principal.OrganizationId].Postcode);
+        Assert.Equal("Ace Claims & Bodyworks Ltd", organizations[principals["STALLION"].Principal.OrganizationId].Address);
+        Assert.Null(organizations[principals["STALLION"].Principal.OrganizationId].Postcode);
         foreach (var name in new[] { "Easdons", "Guardian Accident Claims", "Hackney Solutions", "James Claims", "Swinton" })
         {
             Assert.Equal("claim_source", Assert.Single(organizations.Values, item => item.Name == name).Role);
