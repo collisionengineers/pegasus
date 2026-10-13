@@ -1051,7 +1051,7 @@ The page offers a transition only where its Core use case permits it for the
 current state and account ([FRD-13](frd-13-case-lifecycle-and-workflow.md)).
 Section editability by state:
 
-| State | Overview, Inspection, Vehicle, Files, Notes, Tasks | Engineer sections |
+| State | Overview, Inspection, Vehicle, Files, Notes, and the Tasks dialog | Engineer sections |
 | --- | --- | --- |
 | Not ready, Review, With Engineer, Report sent | Editable under the lease | Editable with `PerformCasework` |
 | Held | Read-only | Read-only |
