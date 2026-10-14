@@ -361,7 +361,7 @@ replays by its operation key.
   inspects by images needs no settling. An Audit is accepted only for an
   item classified as one. With `allocate` it retries a failed allocation with
   a reason, naming the attempt, as the Intake log's **Retry allocation** does.
-- `pegasus_case_create` creates a Case directly, as staff **Add case** does
+- `pegasus_case_create` creates a Case directly, as staff **New case** does
   ([FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts)): an
   Inspection or Inspection and Audit Case with its identity-critical facts,
   or a Triage Case from its Principal and registration. An Audit is never
