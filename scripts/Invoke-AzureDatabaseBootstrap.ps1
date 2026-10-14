@@ -638,10 +638,13 @@ function Get-MigrationPermissionMatrix {
         ProviderReferences = 'PrincipalReferences'
         ProviderDomainEvidence = 'PrincipalDomainEvidence'
     }
+    # Only the renamed tables: a table dropped and later re-created under its
+    # own name (the OpenIddict four) keeps its re-creation grants.
+    $droppedAfterRename = @($renamedTables.Values | Where-Object { $_ -in $removedTables })
     $renamed = foreach ($row in $expected) {
         $parts = $row.Split('|')
         if ($renamedTables.ContainsKey($parts[3])) { $parts[3] = $renamedTables[$parts[3]] }
-        if ($parts[3] -in $removedTables) { continue }
+        if ($parts[3] -in $droppedAfterRename) { continue }
         $parts -join '|'
     }
     return @($renamed | Sort-Object -Unique)
