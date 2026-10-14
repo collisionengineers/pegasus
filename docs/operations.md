@@ -4,7 +4,69 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
-## Intake data wipe — 13 October 2026
+## Release 105 - 14 October 2026 (deployment live)
+
+Release 105 deployed [PR 1325](https://github.com/collisionengineers/pegasus/pull/1325)
+(`dev` to `main`: [PR 1323](https://github.com/collisionengineers/pegasus/pull/1323)'s
+combine of #1306-#1320 and #1322, and [PR 1324](https://github.com/collisionengineers/pegasus/pull/1324)),
+with [PR 1326](https://github.com/collisionengineers/pegasus/pull/1326) and
+[PR 1327](https://github.com/collisionengineers/pegasus/pull/1327) promoted during the
+release. One type per contact with the SOP-seeded Principals and Claim sources, v40
+Contacts, Unassigned Images and No Case Found, Tasks in Actions, the classifier
+agent's infrastructure (app absent), intake and Inspection + Audit fixes, labour-rate
+cards as the two built-in cards, the mileage-source choice removed, contact guidance
+removed, and recognition kept in code with the Principal domain reference snapshot
+dropped.
+
+The route was the destructive App Service route. The old Worker and Web were stopped
+before SQL and only approved new bytes ran against the new schema. Web and Worker are
+Running on the approved release and full production smoke passed on its second read,
+the first having run eight seconds after the Worker started.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `c23b4501271a4d21643d4f421485ab6e3a47b3f3`, the merge of PR 1327 into `dev`; `main` and `dev` both read it back. Manifest SHA-256 `E8393D308721ACEAFDD76139F5EFB80B5E2B5B94A030835B4DD118668FF1F680` (schema 3, clean, `win-x64`/`efbundle.exe`); `web.zip` `68551C527D9AB338BC624CC4A9E9424619813F1DA49ECDC223E61129009B7380`; `worker.zip` `61E58A865269BA6B7E0BFDB5BE1AC823EAE4CF4CD18D71D5090C17EAB89FBA20`; `classifier.zip` `F78F8A32B323A200C5315F509ABCE927B6A3115BAC421016B0047ED8EBD6C4ED` (built, not deployed: no classifier Function App exists and `PEGASUS_CLASSIFIER_ACTIVATION` is unset); `efbundle.exe` `E8D4FB08A8BFB198873906C015B30B43D1CA2082DC94F2508312234D93F1B1D3`. Tools: .NET SDK 10.0.302, Node v24.15.0, npm 11.14.1, az 2.88.0, azd 1.34.1. |
+| Review and promotion | PR 1325 was reviewed read-only at `dev` `6d593ce6a` (12 of 12 checks): the review removed five stray root files from `5d2338708` (`6d593ce6a`, direct on `dev` as they had arrived), placed the Anthropic key from Infisical `pegasus_anthropic_api_key` into Key Vault as `anthropic-api-key` (version `8c259f5d97014b138fb8391bf0b10ec5`, 13 October 14:47:50Z) and set `ANTHROPIC_API_KEY_SECRET_URI`, and verified read-only that every `ContactSingleType` and `ContactSopSeed` guard passed on live data. Three promotions under `MERGE AUTH GRANTED`: `6d593ce6a` (PR 1325, 13 October 20:08Z), `55e3375a5` (PR 1326: `System.Security.Cryptography.Pkcs` and `.Xml` to 10.0.13 after NuGet audit refused the release restore on five advisories published 13 October) and `c23b45012` (PR 1327, below). |
+| Wipe | Approved ordinary intake wipe before the release (nested entry below). |
+| Schema and grants | Destructive. Deployed head `20261012193000_SentReportInstructionMove`; new head `20261013100000_DropPrincipalDomainReference` through six migrations (`RemoveMileageSourceChoice`, `ContactSingleType`, `LabourRateBuiltInCards`, `ContactSopSeed`, `RemoveContactGuidance`, `DropPrincipalDomainReference`). Before SQL (read-only, 13 October): 17 `principal` and 7 `claim_source` role rows, CS and ACSP the only Principals losing a Claim source role, RJS's rules holding the exact `ClaimSource` strings the migration rewrites, no over-long notes, both labour-rate cards once. Bundle (`55e3375a5` build, hash `ED6F96D9…`) applied all six 09:59:43-09:59:57Z. After: 53 Principals (33 + 20 SOP), 10 Claim sources (5 + 5 SOP), `ContactRoles`, `OrganizationRoles` and the three `PrincipalDomain*` tables absent, cards `Standard=83.28`, `Prestige/Aluminium=103.06`. |
+| Bootstrap deviation | The first bootstrap (10:00Z, at `55e3375a5`) refused: 18 live rows on the four OpenIddict tables were absent from its expected matrix. The database was correct; PR 1324's late filter had discarded re-created tables. The script's own clean-tree guard refused a patched run, so PR 1327 landed the one-line fix (`infrastructure` lane green), `c23b45012` was promoted under fresh `MERGE AUTH GRANTED`, and the artifacts were rebuilt there. The bundle was not re-run (identity unchanged; head verified). Bootstrap at `c23b45012` passed 10:31:23Z: 684 catalogued permission/denial rows, 481 effective runtime DML rows. The estate stayed contained throughout. |
+| Containment and deployment | Old Web read `156715acd6666daa1c9dd8994cd57030003fd0e2` Running on `DOTNETCORE\|10.0`; Worker template unchanged (documented default strategy). Census set disabled 09:55:57Z; `worker.zip` (`55e3375a5` build) staged 09:57:48Z, Worker-only smoke passed both times; Worker `Stopped` 09:58:14Z; Web `Stopped` and unserved (403) 09:58:25Z; fresh read-back before SQL 09:58:34Z and again 09:59:26Z. After the rebuild the Worker was started with its census disabled (new bytes, suppressed triggers) to re-stage `worker.zip` from `c23b45012` (10:34:28Z, smoke passed) and stopped again 10:34:51Z. `web.zip` deployed to the stopped Web App with `--restart false` 10:36:02Z, still `Stopped`. Provision with Web approved and Worker disabled 10:38:08Z created the classifier module's identity `pegasus-prod-classifier-id-252ow37gij`, storage `pegclass252ow37gij` (`app-package`, `reviewed`), FC1 plan `pegasus-prod-classifier-plan-252ow37gij` and three role assignments; no classifier Function App. Provision with Worker `approved-live-worker` 10:40:50Z; Web started 10:40:53Z and read back ready at the release 10:43:54Z; Worker `Running` 10:44:02Z. Outage 09:58:14Z-10:43:54Z (Web), extended by the bootstrap deviation. |
+| Production smoke | Passed 10:48Z: Worker activation `approved-live-worker`; Web Running on `DOTNETCORE\|10.0`; active package `20261014103534.zip` SHA-256 equals the approved `web.zip`; intake liveness passed (last poll 10:45:02Z; Graph subscription expires 2026-10-18 17:10:00Z); all five Disabled settings `false`. The 10:44:06Z read failed only on poll age (50 minutes; the Worker had run eight seconds). |
+| Query Store | State `READ_WRITE`. Before snapshot (24 h to 09:58Z, 146 statements; taken after the fact from retained history) at ignored `artifacts/performance/query-store-release-105-before-20261014T0958Z.csv`. The after snapshot is owed after a day of use. |
+| PR states | PRs 1325, 1326 and 1327 read Merged with their heads in `main` and `dev`. #991, #992, #993, #994 and #1013 were closed on 13 October by operator decision (recognition stays in code). |
+| Still owed | Live proofs of the changes on a real Case and the Contacts pages signed in: the one-type Contacts list and contact page at v40, a route-less Principal's "No accepted e-mail route…" box, the SOP-seeded Principals' Notes on every Case, Unassigned Images and No Case Found, Tasks in Actions, the two labour-rate cards in a repair spec. The classifier identity's exact-secret grants on `anthropic-api-key` and the Automation client secret, and `PEGASUS_CLASSIFIER_ACTIVATION=approved`, are a separate approved release. `docs/operations.md`'s open item on `principal-domains.v1.json` on disk closes: the file now lives under `reference/`. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-105-c23b4501`; the stage drivers (bootstrap, deploy, activate), their logs, the containment and first-migration logs (whose drivers went with the discarded `55e3375a5` worktree), the precondition queries, the three build logs and the wipe log at `artifacts/releases/release-105-driver`. |
+
+- Approved ordinary intake wipe (14 October 2026), before the release: Worker
+  `pegasus-prod-worker-252ow37gij` stopped and read back `Stopped` at
+  08:18:05Z, resumed and read back `Running` at 08:19:09Z after verification;
+  the Web App stayed Running. The approved dry run (13 October) and the fresh
+  dry run immediately before the execute both found 26 blobs (60,300,575
+  bytes) in `pegcustody252ow37gij/transient-intake` and 254 rows across 86
+  non-preserved tables in SQL `pegasus` on `pegasus-prod-sql-252ow37gij`
+  (1 Case, 11 documents, 3 retained mails, 1 intake receipt); the batch
+  reported 258 affected rows, 4 beyond the inventoried deletes, from the
+  mail-boundary update on the preserved poll rows. The committed mail cutoff
+  is `2026-10-14T08:18:29.8701317+00:00`; 39 effective tables and 942
+  preserved rows remain (`ContactRoles`, `OrganizationRoles` and the three
+  `PrincipalDomain*` tables preserved because the pre-release schema still
+  had them). `CaseSequences`/`ImageIntakeSequences`/`UnidentifiedSequences`
+  unchanged at 103/12/1; `ValuationPresets` 4/4, `EmailTemplates` 3/3 and
+  built-in image tags 4/4 before/after. `authentication-ring`, `box-links`,
+  `pegtrans252ow37gij`, Outlook and Box untouched. No `-ResetTestEstate`.
+
+## Release 104 - 12 October 2026 (deployment superseded; recorded 14 October)
+
+Release 104 deployed [PR 1311](https://github.com/collisionengineers/pegasus/pull/1311)
+(a new mailbox resolved by its address when the directory refuses the lookup) at
+`156715acd6666daa1c9dd8994cd57030003fd0e2` on the normal route, and was not recorded
+at the time. Reconstructed from its retained drivers (`artifacts/releases/release-104-driver`,
+`release-104-156715ac`): build, predeploy and normal-route phases exited 0; full
+smoke passed at 17:05:57Z (Web Running on `DOTNETCORE\|10.0`, package
+`20261012165954.zip` equal to the approved `web.zip`, Worker `approved-live-worker`,
+last poll 17:05:00Z). Release 105's preflight read this SHA as the serving Web.
+
+## Intake data wipe - 13 October 2026
 
 - Approved ordinary intake wipe (13 October 2026): Worker
   `pegasus-prod-worker-252ow37gij` stopped for the maintenance window and
