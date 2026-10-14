@@ -8,9 +8,9 @@ description: Run a Stage 1 design round for Pegasus. Build the self-contained of
 Design is settled on a mockup the operator can open in a browser, not on prose.
 This skill owns the round from the first inventory to the approval that lets
 Stage 2 begin. The v26 round is the worked example:
-[notes](../../../design/planning-and-old-designs/v26_planning/current/v26-notes.md),
-[discussion log](../../../design/planning-and-old-designs/v26_planning/current/discussion-log.md),
-[page folders](../../../design/planning-and-old-designs/v26_planning/pages/README.md).
+[notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v26_planning/current/v26-notes.md),
+[discussion log](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v26_planning/current/discussion-log.md),
+[page folders](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v26_planning/pages/README.md).
 Reuse its shape; do not copy its decisions.
 
 ## Two gates
@@ -109,10 +109,10 @@ instructions; do not restate them here.
 
 ## Placement and branch
 
-- `design/planning-and-old-designs/vNN_planning/` with `README.md`, `current/`
-  and `pages/`, on `task/<slug>` from `origin/dev`.
-- The folder is a temporary review artifact under the
-  [index](../../../docs/index.md) carve-out: mark it temporary, and remove or
-  retain it by operator instruction in the final Stage 2 PR.
-- Relative links in new Markdown must resolve; CI's `documentation` job
-  checks them.
+- `vNN_planning/` with `README.md`, `current/` and `pages/` at the root of
+  [pegasus-design-archive](https://github.com/collisionengineers/pegasus-design-archive),
+  cloned beside this repository as `../pegasus-design-archive/`. Commit the
+  round there on `main`. Never add it to this repository; `/design/` is ignored.
+- FRD, ADR and skill edits for the round go on `task/<slug>` from `origin/dev`
+  here. Link to the round with its full archive URL; relative links in this
+  repository must resolve, and CI's `documentation` job checks them.

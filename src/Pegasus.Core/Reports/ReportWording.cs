@@ -38,7 +38,7 @@ public sealed record CaseReportWording(
 /// Every heading and composed sentence here is copied word for word from one
 /// of two sources (operator, 27 September 2026): the template
 /// (<c>reference/rendererref1</c>) or the manager's case page
-/// (<c>design/planning-and-old-designs/v27_planning/pegasus_case_dashboard_2026-09-15.html</c>).
+/// (<c>v27_planning/pegasus_case_dashboard_2026-09-15.html</c> in pegasus-design-archive).
 /// Nothing is worded here that neither source words.
 /// </summary>
 public static class ReportWordingComposition

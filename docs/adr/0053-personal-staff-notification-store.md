@@ -53,4 +53,4 @@ write the store.
 ## Links
 
 - [FRD-12 — the bell](../frd/frd-12-operator-experience.md)
-- Provenance: [v26 planning, Notifications](../../design/planning-and-old-designs/v26_planning/pages/work-centre/dialogs/notifications/how-it-should-work.md)
+- Provenance: [v26 planning, Notifications](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v26_planning/pages/work-centre/dialogs/notifications/how-it-should-work.md)

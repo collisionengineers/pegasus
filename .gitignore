@@ -3,6 +3,8 @@
 **/emailevallocal/
 /tests/Pegasus-Test-Logs/
 /t2fix.log
+# Mockup rounds live in pegasus-design-archive, not here.
+/design/
 # Local secrets and environment state
 .env
 .env.*

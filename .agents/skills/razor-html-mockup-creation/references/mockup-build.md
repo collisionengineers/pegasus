@@ -83,7 +83,7 @@ Run it with file access allowed and read the RESULT line:
 ```powershell
 & $chrome --headless=new --allow-file-access-from-files `
   --virtual-time-budget=30000 --dump-dom `
-  design/planning-and-old-designs/vNN_planning/current/vNN-selfcheck.html |
+  ../pegasus-design-archive/vNN_planning/current/vNN-selfcheck.html |
   Select-String 'RESULT'
 ```
 

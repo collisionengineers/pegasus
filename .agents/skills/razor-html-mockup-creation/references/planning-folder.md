@@ -1,7 +1,8 @@
 # Planning folder layout
 
-`design/planning-and-old-designs/vNN_planning/` holds one round. Model:
-[v26_planning](../../../../design/planning-and-old-designs/v26_planning/README.md).
+`vNN_planning/` at the root of `../pegasus-design-archive/` holds one round.
+Model:
+[v26_planning](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v26_planning/README.md).
 
 ```text
 vNN_planning/

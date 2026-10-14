@@ -62,9 +62,9 @@ a second stylesheet. Keep the frame rules the notes state as numbers.
 
 ## Close-out
 
-- The planning folder is temporary. In the final Stage 2 PR remove it, or
-  retain it by operator instruction with a README that states it is
-  historical reference and that current behaviour is owned by the PRDs, FRDs
-  and ADRs, as v26's does.
+- The planning folder stays in
+  [pegasus-design-archive](https://github.com/collisionengineers/pegasus-design-archive).
+  At close-out its README states it is historical reference and that current
+  behaviour is owned by the PRDs, FRDs and ADRs, as v26's does.
 - The FRD and ADR edits from "Documentation impact" land before or with the
   code, and the docs index routes to them.

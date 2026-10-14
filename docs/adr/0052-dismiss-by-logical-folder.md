@@ -68,4 +68,4 @@ touching it in Outlook, and a way to get it back.
 - [FRD-21 — Outbound correspondence](../frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)
 - [FRD-20 — Inbox](../frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters)
 - [ADR-0036](0036-outbound-mail-via-approved-mailbox.md)
-- Provenance: [v26 planning, Inbox](../../design/planning-and-old-designs/v26_planning/pages/inbox/how-it-should-work.md)
+- Provenance: [v26 planning, Inbox](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v26_planning/pages/inbox/how-it-should-work.md)

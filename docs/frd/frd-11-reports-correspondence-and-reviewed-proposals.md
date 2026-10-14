@@ -124,7 +124,8 @@ Audit once an Audit exists, and written by the one Case save.
 Report wording comes from two sources only (operator, 27 September 2026):
 the supplied template, `reference/rendererref1`, and the old manager's case
 page,
-`design/planning-and-old-designs/v27_planning/pegasus_case_dashboard_2026-09-15.html`.
+[`v27_planning/pegasus_case_dashboard_2026-09-15.html`](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v27_planning/pegasus_case_dashboard_2026-09-15.html)
+in the design archive.
 Every heading, label and composed sentence uses one source's own words.
 Wording found in neither does not print. The one ruled exception is the
 `TOTAL LOSS` badge of a total loss with no category (operator, 26 September
