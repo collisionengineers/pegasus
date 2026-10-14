@@ -141,13 +141,10 @@
                     <span class="shortcut-hint" aria-hidden="true">Ctrl K</span>
                 </form>
                 <div class="utility-actions">
-                    @if (inboxEnabled)
-                    {
-                        <a class="btn btn--primary" asp-page="/Cases/Create">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
-                            <span>@OperatorLabels.Shell.NewCase</span>
-                        </a>
-                    }
+                    <a class="btn btn--primary" asp-page="/Cases/Create">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                        <span>@OperatorLabels.Shell.NewCase</span>
+                    </a>
                     <span class="bell-wrap">
                         <button type="button" class="icon-button" data-dialog-open="notifications-dialog" aria-label="@OperatorLabels.Shell.BellLabel(unread)">
                             <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>

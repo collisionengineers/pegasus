@@ -116,9 +116,8 @@ hidden.
 
 The **utility bar** is dark and sticky at the top of the column: freshness
 text, the global search input with its "Ctrl K" hint (Enter or Ctrl K opens
-the command palette dialog), the "New case" link to the real creation form
-when intake is available, and the bell. Upload and Inbox retain their named
-navigation destinations.
+the command palette dialog), the "New case" link to the real creation form,
+and the bell. Upload and Inbox retain their named navigation destinations.
 
 The **bell** is personal notifications and nothing else: never office-wide
 work, attention rows or queue counts. Its `.bell-count` shows the signed-in
