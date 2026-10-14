@@ -104,13 +104,13 @@ down, there is no collapse.
 
 **The utility bar** carries the page freshness text, the global search input
 (Enter or Ctrl K opens the command palette), **New case**, and the bell.
-On the Work Centre, whose header carries Create Case, New case is omitted so
-the action has one home. Upload and Inbox keep their named navigation.
+Upload and Inbox keep their named navigation.
 
-**Create Case** opens direct staff creation with the identity-critical Case
-facts and no invented intake receipt or source provenance. When opened from
-an Unidentified item or an upload decision, the same form uses that existing
-receipt and the normal intake allocation path, not a second allocation route
+**New case** opens direct staff creation (`/Cases/Create`) with the
+identity-critical Case facts and no invented intake receipt or source
+provenance. When opened from an Unidentified item or an upload decision
+(**Create Case**), the same form uses that existing receipt and the normal
+intake allocation path, not a second allocation route
 ([FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts)). A file
 that cannot become a Case is refused with the reason and Open message / Open
 file. The direct form's Case type also offers **Triage**, which asks only for
@@ -223,7 +223,7 @@ Cases, references and routes by typing and opens the selection.
 | --- | --- |
 | Ctrl K | Command palette |
 | Ctrl U | Upload |
-| Ctrl N | Create Case |
+| Ctrl N | New case |
 | Ctrl S | Save now while editing a Case (every change already saves as it is made) |
 | F5 | Refresh: re-query, not a page reload |
 | Arrow Up / Down | Move through a row list |

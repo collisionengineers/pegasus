@@ -254,7 +254,7 @@ the 64px mark. The sign-in password field carries a Show / Hide control
 | --- | --- |
 | Ctrl K | Command palette dialog (also Enter in the utility search) |
 | Ctrl U | Upload (`/upload`) |
-| Ctrl N | Create Case |
+| Ctrl N | New case |
 | Ctrl S | Save now, only while a Case is in edit; every change already saves as it is made (29 September 2026) |
 | F5 | Refresh — re-query the current page, never a browser reload |
 | ArrowUp / ArrowDown | Move through a row list (`scope-list`, `row-button`, result rows) |

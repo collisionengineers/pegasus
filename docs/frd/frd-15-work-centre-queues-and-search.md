@@ -30,8 +30,7 @@ record is owned by [FRD-16](frd-16-case-record-workspace.md).
 
 The Work Centre (`/`) shows office-wide work in one ledger (v30 design B,
 25 September 2026; v32 design A, 5 October 2026). Its head reads "Updated
-HH:MM", the page's one clock, with **Refresh** and **Create Case**; the utility bar's New case is omitted on this page and only
-this page, so the action has one home. The page refreshes itself only while
+HH:MM", the page's one clock, with **Refresh**. The page refreshes itself only while
 its browser tab is visible: every five minutes, and when the tab regains focus
 after 30 seconds away. The five-minute refresh fires only when at least five
 minutes have passed since the last successful refresh; a failed or deferred
