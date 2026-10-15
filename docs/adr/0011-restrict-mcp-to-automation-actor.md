@@ -30,9 +30,13 @@ related staff-MCP clauses of ADR-0002 as follows:
 
 - MCP is a management/development-controlled ingress for one named,
   vendor-neutral Automation Actor, not a staff interface.
-- The Actor has distinct authentication and durable identity. Every MCP action
-  records that Actor, caller, target, action, outcome, reason where required,
-  and the applicable before/after evidence in Pegasus permanent history.
+- The Actor has distinct authentication and durable identity. Every casework
+  action, lease claim or release, takeover, and refusal records that Actor,
+  caller, target, action, outcome, reason where required, and the applicable
+  before/after evidence in Pegasus permanent history; routine lease renewal and
+  job-polling or progress heartbeats are telemetry only unless refused
+  ([FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md#edit-leases),
+  [FRD-14](../frd/frd-14-record-edit-leases.md#case-edit-lease)).
 - The Actor may invoke only its approved inventory of ordinary operational Core
   use cases. It has no Administrator, configuration, credential, cloud,
   release, deletion, or other management authority.
