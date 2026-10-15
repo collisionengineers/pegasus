@@ -49,3 +49,18 @@ for each: write it into the named owner, or drop it.
 | ENG-02 | Narratives derived from Engineer-owned figures without retyping | FRD-24 |
 | OPS-08 | An alert for matching failures | ADR-0002 |
 | OPS-13 | Policy and quota checks before deployment | ADR-0007 |
+
+## v41 full-application UI/UX round (Stage 1)
+
+Owner: [Design authority](design/README.md), [FRD-12](frd/frd-12-operator-experience.md),
+[FRD-15](frd/frd-15-work-centre-queues-and-search.md), [FRD-16](frd/frd-16-case-record-workspace.md),
+[FRD-17](frd/frd-17-administration-workspace.md), [FRD-18](frd/frd-18-manual-upload.md)
+and [FRD-20](frd/frd-20-mailbox-workspace.md).
+
+The v41 Stage 1 full-application audit and interactive mockup round is recorded in
+[pegasus-design-archive PR #1](https://github.com/collisionengineers/pegasus-design-archive/pull/1)
+(`v41_planning/current/pegasus_v41.html`, `v41-notes.md`, `discussion-log.md`,
+`v41-selfcheck.html` with `RESULT {"fail": [], "okCount": 376}`, and `pages/`).
+Decision needed: operator sign-off on lettered items `A`–`Y` in `v41-notes.md`
+before Stage 2 Razor implementation begins.
+
