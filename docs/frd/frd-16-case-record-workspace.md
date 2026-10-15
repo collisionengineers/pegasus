@@ -886,9 +886,16 @@ on this case", above any resolved rows. A row carries the query's state chip
 it was raised, its channel, and either the e-mail it came by (sender and
 subject, with **Open message** as the Correspondence tab draws it and, while
 open, **Reply** into that message's composer) or the logged query's details,
-then when and by whom it was resolved. A withdrawn query (its e-mail untagged
-or unlinked) is not listed. The section has no edit session: Log query and
-Resolve query are the Actions menu's and the Next action's
+then when and by whom it was resolved. An open mail query's row also carries
+its AI draft ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)):
+**Draft reply with AI** beside Reply while no job is live, withheld with its
+reason (post-report work, the Send to AI switch) rather than hidden; "AI
+draft · Queued" or "AI draft · Taken" in its place while the job is worked;
+and **Reply with AI draft** in place of Reply once the draft is ready, which
+opens the message's composer on the draft (operator, 14 October 2026). A
+withdrawn query (its e-mail untagged or unlinked) is not listed. The section
+has no edit session: Log query and Resolve query are the Actions menu's and
+the Next action's
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
 
 ### Assessment

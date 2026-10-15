@@ -182,7 +182,7 @@ Market research, as a table (v32 A): Job, State, Instruction, Record, Started
 (who and when), Note (a Taken job reads "Taken until HH:MM", v32 item K; a
 failed job its reason), then the Draft ready action defined per kind in
 [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)
-(Review estimate, Open query, Review, Complete job) and **Dismiss**. A failed
+(Review estimate, Reply with AI draft, Review, Complete job) and **Dismiss**. A failed
 job shows its reason with Open Case. There is no Cancel
 here; an Administrator stops a job on Administration AI jobs.
 

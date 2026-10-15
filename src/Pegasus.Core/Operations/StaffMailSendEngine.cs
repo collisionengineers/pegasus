@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
@@ -201,7 +202,9 @@ public sealed class StaffMailSend(
     IStaffMailTransport transport,
     TimeProvider timeProvider,
     IStaffMailExecutionLock executionLock,
-    IAutomationIngressStatusQueries? automationIngress = null) : IStaffMailSend
+    IAutomationIngressStatusQueries? automationIngress = null,
+    IAiJobStore? aiJobs = null,
+    IConfirmAiJob? confirmAiJob = null) : IStaffMailSend
 {
     public async Task<StaffMailOperation> SendAsync(
         StaffMailSendCommand command, CancellationToken cancellationToken)
@@ -211,7 +214,47 @@ public sealed class StaffMailSend(
         {
             throw new InvalidOperationException("Case-report mail must pass the frozen report-readiness boundary.");
         }
-        return await SendValidatedAsync(command, _ => Task.CompletedTask, cancellationToken);
+        var operation = await SendValidatedAsync(command, _ => Task.CompletedTask, cancellationToken);
+        await CompleteDraftReplyJobAsync(command, operation, cancellationToken);
+        return operation;
+    }
+
+    /// <summary>
+    /// A reply composed on an AI draft completes its Query response job once
+    /// the provider has the send (FRD-27): the staff act that consumes the
+    /// draft is the send, as **Use repair spec** is for an Estimate job. A
+    /// refused or cancelled send leaves the job Draft ready. The job must
+    /// still be the Draft ready reply to this message on this Case; anything
+    /// else is left as it is.
+    /// </summary>
+    private async Task CompleteDraftReplyJobAsync(
+        StaffMailSendCommand command,
+        StaffMailOperation operation,
+        CancellationToken cancellationToken)
+    {
+        if (command.AiJobId is not { } jobId
+            || aiJobs is null
+            || confirmAiJob is null
+            || operation.State is StaffMailState.Failed or StaffMailState.Cancelled
+            || command.OriginalMessage is not { } original)
+        {
+            return;
+        }
+        var job = await aiJobs.GetAsync(jobId, cancellationToken);
+        if (job is null
+            || !AiJobPolicy.IsDraftReplyFor(job, original.RetainedMessageId, command.ContextId)
+            || AiJobPolicy.EffectiveState(job, timeProvider.GetUtcNow()) != AiJobState.DraftReady)
+        {
+            return;
+        }
+        // Derived from the send's operation key so a replayed send replays the
+        // confirmation too; kept inside the ledger's own 100-character key limit.
+        var jobOperationKey = string.Concat(
+            command.OperationKey.AsSpan(0, Math.Min(command.OperationKey.Length, 96)),
+            ":job");
+        await confirmAiJob.ExecuteAsync(
+            new ConfirmAiJobCommand(job.JobId, job.Version, command.Actor, jobOperationKey),
+            cancellationToken);
     }
 
     internal async Task<StaffMailOperation> SendValidatedAsync(
@@ -509,6 +552,13 @@ public sealed class StaffMailSend(
                 || command.ComposeMode is not (StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll)))
         {
             throw new ArgumentException("Only a reply to Case correspondence can resolve the Case's queries.", nameof(command));
+        }
+        if (command.AiJobId is { } aiJobId
+            && (aiJobId == Guid.Empty
+                || command.Purpose != StaffMailPurpose.GeneralCorrespondence
+                || command.ComposeMode is not (StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll)))
+        {
+            throw new ArgumentException("Only a reply to Case correspondence is composed on an AI draft.", nameof(command));
         }
         // A report send is a reply to the instruction e-mail whenever its mailbox
         // can send (#1304), so the second report rides on either compose mode.

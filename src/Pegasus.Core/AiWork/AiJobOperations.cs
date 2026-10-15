@@ -64,6 +64,13 @@ public static class AiJobPolicy
         _ => persisted
     };
 
+    /// <summary>The state a reader sees for <paramref name="job"/> as of <paramref name="now"/>.</summary>
+    public static AiJobState EffectiveState(AiJobRecord job, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(job);
+        return EffectiveState(job.State, job.ExpiresAtUtc, job.LeaseExpiresAtUtc, now);
+    }
+
     public static bool IsLegalTransition(AiJobState from, AiJobState to) =>
         (from, to) switch
         {
@@ -232,6 +239,66 @@ public static class AiJobPolicy
         ArgumentNullException.ThrowIfNull(detail);
         return detail.Summary.CaseId is not null
             && detail.Classification?.Current?.Is(Intake.MailCategory.Query) == true;
+    }
+
+    /// <summary>
+    /// The retained message a Query response job answers: the message id its
+    /// creator put in the instruction, or the one the client named as its
+    /// result reference. Null for any other kind or when neither parses.
+    /// </summary>
+    public static Guid? QueryResponseMessageId(AiJobRecord job)
+    {
+        ArgumentNullException.ThrowIfNull(job);
+        if (job.Kind != AiJobKind.QueryResponse)
+        {
+            return null;
+        }
+        if (Guid.TryParse(job.ResultReference, out var fromResult) && fromResult != Guid.Empty)
+        {
+            return fromResult;
+        }
+        return Guid.TryParse(job.Instruction, out var fromInstruction) && fromInstruction != Guid.Empty
+            ? fromInstruction
+            : null;
+    }
+
+    /// <summary>
+    /// The live Query response job for one retained message among a Case's
+    /// jobs: the newest one that is Queued, Taken or Draft ready as of
+    /// <paramref name="now"/>. Null when none is live, so the message offers
+    /// **Draft reply with AI** again.
+    /// </summary>
+    public static AiJobRecord? QueryResponseJobFor(
+        IEnumerable<AiJobRecord> jobs,
+        Guid messageId,
+        DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(jobs);
+        return jobs
+            .Where(job => QueryResponseMessageId(job) == messageId)
+            .Where(job => EffectiveState(job, now)
+                is AiJobState.Queued or AiJobState.Taken or AiJobState.DraftReady)
+            .OrderByDescending(job => job.CreatedAtUtc)
+            .ThenByDescending(job => job.JobId)
+            .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Whether <paramref name="job"/> is a Draft ready reply to
+    /// <paramref name="messageId"/> on <paramref name="caseId"/> with text to
+    /// offer the composer (FRD-27: a drafted reply is text offered to the
+    /// composer). A job with no text, on another Case or for another message
+    /// prefills nothing.
+    /// </summary>
+    public static bool IsDraftReplyFor(AiJobRecord job, Guid messageId, Guid caseId)
+    {
+        ArgumentNullException.ThrowIfNull(job);
+        return job.State == AiJobState.DraftReady
+            && job.Kind == AiJobKind.QueryResponse
+            && job.SubjectKind == AiJobSubjectKind.Case
+            && job.SubjectId == caseId
+            && !string.IsNullOrWhiteSpace(job.ResultText)
+            && QueryResponseMessageId(job) == messageId;
     }
 
     /// <summary>The instruction an Estimate job carries when its caller gives no direction.</summary>

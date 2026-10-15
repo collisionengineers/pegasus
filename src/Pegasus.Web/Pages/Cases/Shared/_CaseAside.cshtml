@@ -137,7 +137,7 @@
                 var (label, action) = draft.Action switch
                 {
                     AiDraftAction.ReviewEstimate => (OperatorLabels.AiJobs.AiProposalReady, Frame.ReviewEstimate),
-                    AiDraftAction.OpenQuery => ("Query response draft ready", Frame.OpenQuery),
+                    AiDraftAction.OpenQuery => ("Query response draft ready", OperatorLabels.QueryResponseJobs.ReplyWithDraft),
                     _ => ("Unidentified resolution draft ready", Frame.Review)
                 };
                 <div class="next-row ai-next" data-ai-draft="@draft.Job.JobId">

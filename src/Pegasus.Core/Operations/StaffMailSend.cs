@@ -66,7 +66,10 @@ public static class StaffMailCorrelationHeaders
 /// <paramref name="SecondReport"/> is the other work's report a Case report
 /// send also carries on an Inspection + Audit Case (operator, 12 October
 /// 2026); it is left out of the payload hash while absent, for the same
-/// reason.
+/// reason. <paramref name="AiJobId"/> is the Draft ready Query response job
+/// whose draft the reply was composed on (FRD-27): a send that the provider
+/// accepts completes that job, as **Use repair spec** completes an Estimate
+/// job. It is left out of the payload hash while absent, for the same reason.
 /// </summary>
 public sealed record StaffMailSendCommand(
     ActionActor Actor, Guid ApprovedMailboxId, long ExpectedMailboxGeneration,
@@ -78,7 +81,9 @@ public sealed record StaffMailSendCommand(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     bool ResolvesCaseQueries = false,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    StaffMailSecondReport? SecondReport = null)
+    StaffMailSecondReport? SecondReport = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    Guid? AiJobId = null)
 {
     /// <summary>
     /// What a report send records with its operation; null for every other

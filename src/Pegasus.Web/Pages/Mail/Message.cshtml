@@ -97,10 +97,23 @@
 
     @if (Model.IsQueryResponseSource)
     {
+        @* The live Query response job stands in for the start button (FRD-27):
+           pending while Queued or Taken, Reply with AI draft once Draft ready. *@
         <div class="record-bar">
             <span class="eyebrow">@OperatorLabels.QueryResponseJobs.Source</span>
             <span class="record-bar-end">
-                @if (Model.QueryResponseEnabled)
+                @if (Model.QueryResponseJob is { IsReady: true, Job: var readyJob } && Model.StaffMailAvailable && Model.CurrentCase is { } draftCase)
+                {
+                    <a class="btn btn--dark" href="@Pegasus.Core.Notifications.StaffNotificationPolicy.MessageReplyRoute(summary.Id, draftCase.Summary.Reference, readyJob.JobId)" data-query-ai-draft="@readyJob.JobId">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                        <span>@OperatorLabels.QueryResponseJobs.ReplyWithDraft</span>
+                    </a>
+                }
+                else if (Model.QueryResponseJob is { } liveJob)
+                {
+                    <span class="muted" data-query-ai-pending="@liveJob.Job.JobId">@OperatorLabels.QueryResponseJobs.Pending(liveJob.State)</span>
+                }
+                else if (Model.QueryResponseEnabled)
                 {
                     <form method="post" asp-page-handler="CreateQueryResponse"
                           asp-route-id="@summary.Id"
@@ -314,6 +327,16 @@
                             <input asp-for="CorrespondenceSubject" type="text" />
                             <span asp-validation-for="CorrespondenceSubject"></span>
                         </div>
+                        @if (Model.AiDraft is { } aiDraft)
+                        {
+                            @* Opened on an AI draft (FRD-27): Message holds the draft and
+                               the send completes the job. Staff edit it before sending. *@
+                            <div class="notice" role="status" data-ai-draft="@aiDraft.JobId">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                                <span><span class="src-tag src-tag--ai">AI</span> @OperatorLabels.QueryResponseJobs.DraftLine(aiDraft.DraftReadyAtUtc ?? aiDraft.CreatedAtUtc, aiDraft.TakenBy)</span>
+                            </div>
+                        }
+                        <input type="hidden" asp-for="AiJobId" />
                         <div class="field">
                             <label asp-for="CorrespondenceBody">Message</label>
                             <textarea asp-for="CorrespondenceBody" rows="8"></textarea>

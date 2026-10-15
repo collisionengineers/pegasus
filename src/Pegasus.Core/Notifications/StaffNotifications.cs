@@ -132,12 +132,23 @@ public static class StaffNotificationPolicy
     public static string UnidentifiedRoute(Guid unidentifiedId) => $"/Unidentified/{unidentifiedId:D}";
 
     /// <summary>
+    /// The message's reply composer opened on an AI draft (FRD-27, FRD-21):
+    /// the reply is filed against the job's Case, Also resolve query starts
+    /// ticked as it does from the Case's Resolve query Next action, and the
+    /// composer reads the draft from the named job.
+    /// </summary>
+    public static string MessageReplyRoute(Guid retainedMessageId, string caseReference, Guid jobId) =>
+        $"{MessageRoute(retainedMessageId)}?compose=reply"
+        + $"&correspondenceCaseReference={Uri.EscapeDataString(caseReference)}"
+        + $"&resolveQuery=true&aiJob={jobId:D}";
+
+    /// <summary>
     /// Where an AI draft opens, per kind: Estimate at the Case's Repair Spec section,
-    /// Query response at the message it answers when the job names one, otherwise
-    /// the Case's correspondence, Unidentified resolution at the item. The Work
-    /// Centre, the Case's Next action and draft notifications all open this
-    /// route. Market research and the queue pass raise
-    /// nothing (null).
+    /// Query response at the reply composer of the message it answers when the
+    /// job names one, otherwise the Case's correspondence, Unidentified
+    /// resolution at the item. The Work Centre, the Case's Next action and
+    /// draft notifications all open this route. Market research and the queue
+    /// pass raise nothing (null).
     /// </summary>
     public static string? AiDraftRoute(AiJobRecord job)
     {
@@ -146,8 +157,8 @@ public static class StaffNotificationPolicy
         {
             AiJobKind.Estimate when job.SubjectId is { } caseId => CaseRoute(caseId, "estimate"),
             AiJobKind.QueryResponse when job.SubjectId is { } caseId =>
-                Guid.TryParse(job.ResultReference, out var messageId)
-                    ? MessageRoute(messageId)
+                AiJobPolicy.QueryResponseMessageId(job) is { } messageId
+                    ? MessageReplyRoute(messageId, job.SubjectReference, job.JobId)
                     : CaseRoute(caseId, "correspondence"),
             AiJobKind.UnidentifiedResolution when job.SubjectId is { } itemId => UnidentifiedRoute(itemId),
             _ => null

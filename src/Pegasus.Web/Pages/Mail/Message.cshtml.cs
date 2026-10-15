@@ -34,7 +34,9 @@ public sealed class MessageModel(
     GetRetainedMailPreview getRetainedMailPreview,
     ICreateAiJob createAiJob,
     IAiJobQueries aiJobQueries,
+    IAiJobStore aiJobStore,
     ISendToAiControl sendToAiControl,
+    TimeProvider clock,
     CorrectRetainedMailClassification correctClassification,
     ISearchCases searchCases,
     IGetCaseHeader getCaseHeader,
@@ -148,10 +150,28 @@ public sealed class MessageModel(
     /// The reply composer's "Also resolve query" tick (operator, 11 October
     /// 2026): the Case's open queries resolve when the Sent item is observed.
     /// Pre-ticked only when the composer was reached from the Case's Resolve
-    /// query Next action.
+    /// query Next action or opened on an AI draft.
     /// </summary>
     [BindProperty(SupportsGet = true, Name = "resolveQuery")]
     public bool ResolveQuery { get; set; }
+
+    /// <summary>
+    /// The Draft ready Query response job the composer was opened on (FRD-27):
+    /// its text prefills Message, and the send carries the job so an accepted
+    /// send completes it. Cleared when the job is no longer that draft.
+    /// </summary>
+    [BindProperty(SupportsGet = true, Name = "aiJob")]
+    public Guid? AiJobId { get; set; }
+
+    /// <summary>The draft the composer holds, for its one AI line; null when none applied.</summary>
+    public AiJobRecord? AiDraft { get; private set; }
+
+    /// <summary>
+    /// The live Query response job for this message, which the record bar
+    /// draws in place of **Draft reply with AI**: pending while Queued or
+    /// Taken, **Reply with AI draft** once Draft ready.
+    /// </summary>
+    public QueryDraft? QueryResponseJob { get; private set; }
 
     /// <summary>
     /// The Case page the Correspondence tab's Tag as query returns to after
@@ -1280,7 +1300,8 @@ public sealed class MessageModel(
                     CorrespondenceBody!.Trim(),
                     attachments,
                     CorrespondenceOperationKey!.Trim(),
-                    ResolvesCaseQueries: ResolveQuery && OffersResolveQuery),
+                    ResolvesCaseQueries: ResolveQuery && OffersResolveQuery,
+                    AiJobId: AiJobId is { } aiJobId && aiJobId != Guid.Empty ? aiJobId : null),
                 cancellationToken);
             CorrespondenceOperation = operation;
             if (operation.State == StaffMailState.Sent)
@@ -1420,9 +1441,40 @@ public sealed class MessageModel(
             {
                 CorrespondenceOperationKey = NewRetainedOperationKey(Detail.Summary.Id);
                 CorrespondenceSubject = SubjectFor(mode, Detail.Summary.Subject);
+                await ApplyAiDraftAsync(mode, cancellationToken);
             }
         }
         return true;
+    }
+
+    /// <summary>
+    /// A composer opened on an AI draft (FRD-27, FRD-21): the named job must
+    /// still be the Draft ready reply to this message on the composer's Case.
+    /// Its text becomes Message and the tick starts ticked, as from the Case's
+    /// Resolve query Next action. Any other job prefills nothing and is
+    /// forgotten, so the send completes nothing.
+    /// </summary>
+    private async Task ApplyAiDraftAsync(StaffMailComposeMode mode, CancellationToken cancellationToken)
+    {
+        if (AiJobId is not { } jobId || jobId == Guid.Empty)
+        {
+            AiJobId = null;
+            return;
+        }
+        var job = mode is StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll
+            && CorrespondenceCase is { } correspondenceCase
+                ? await aiJobStore.GetAsync(jobId, cancellationToken)
+                : null;
+        if (job is null
+            || !AiJobPolicy.IsDraftReplyFor(job, Detail.Summary.Id, CorrespondenceCase!.Summary.CaseId)
+            || AiJobPolicy.EffectiveState(job, clock.GetUtcNow()) != AiJobState.DraftReady)
+        {
+            AiJobId = null;
+            return;
+        }
+        AiDraft = job;
+        CorrespondenceBody = job.ResultText;
+        ResolveQuery = OffersResolveQuery;
     }
 
     private Task<CaseHeader?> ResolveCaseAsync(
@@ -1599,25 +1651,21 @@ public sealed class MessageModel(
         IsQueryResponseSource = AiJobPolicy.IsQueryResponseSource(Detail);
         if (IsQueryResponseSource)
         {
-            if (CurrentCase is null)
-            {
-                QueryResponseCondition = OperatorLabels.QueryResponseJobs.CaseUnavailable;
-            }
-            else if (!AiJobPolicy.IsEligibleQueryResponse(CurrentCase.Workflow))
-            {
-                QueryResponseCondition = OperatorLabels.QueryResponseJobs.AvailableInPostReportWork;
-            }
-            else if (!await sendToAiControl.IsEnabledAsync(cancellationToken))
-            {
-                QueryResponseCondition = OperatorLabels.QueryResponseJobs.AutomationStopped;
-            }
+            QueryResponseCondition = await QueryResponseAvailability.ConditionAsync(
+                CurrentCase?.Workflow, sendToAiControl, cancellationToken);
         }
 
-        if (ActiveSection == "case" && CurrentCase is { } currentCase)
+        // The Case tab lists the Case's jobs; the record bar needs them for the
+        // live Query response job whenever the message is a query source.
+        if ((ActiveSection == "case" || IsQueryResponseSource) && CurrentCase is { } currentCase)
         {
             AiJobs = await aiJobQueries.ListForSubjectAsync(
                 currentCase.Summary.CaseId,
                 cancellationToken);
+            if (IsQueryResponseSource)
+            {
+                QueryResponseJob = QueryDraft.For(AiJobs, Detail.Summary.Id, clock.GetUtcNow());
+            }
         }
     }
 

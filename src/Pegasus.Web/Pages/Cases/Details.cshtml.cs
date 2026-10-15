@@ -22,6 +22,7 @@ using Pegasus.Core.Reports;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Glass;
+using Pegasus.Web.Presentation;
 using Pegasus.Infrastructure.Email;
 using EstimateVatLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateVat;
 using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession;
@@ -102,6 +103,7 @@ public sealed partial class DetailsModel(
     GlassRepairEstimateAvailability glassAvailability,
     ICreateAudit createAudit,
     IAiJobQueries aiJobs,
+    Pegasus.Core.Intake.GetRetainedMail getRetainedMail,
     IStartMarketResearch startMarketResearch,
     IFetchGuideValuation fetchGuideValuation,
     IListValuationPresets listValuationPresets,
@@ -366,6 +368,23 @@ public sealed partial class DetailsModel(
     public CaseTasksSection? TasksSection { get; private set; }
     public CaseFilesSection? FilesSection { get; private set; }
     public CaseQueriesSection? QueriesSection { get; private set; }
+
+    /// <summary>
+    /// The Case's AI jobs, read once for the Next action's drafts, the
+    /// Valuation section's pending research and the Queries rows' live
+    /// Query response jobs.
+    /// </summary>
+    public IReadOnlyList<AiJobRecord> CaseAiJobs { get; private set; } = [];
+
+    /// <summary>
+    /// Why a Queries row withholds **Draft reply with AI**, or null when the
+    /// row offers it: the same answer the message record gives.
+    /// </summary>
+    public string? QueryDraftCondition { get; private set; }
+
+    /// <summary>The live Query response job for one open mail query's message, as the Queries row draws it.</summary>
+    public QueryDraft? QueryDraftFor(Guid retainedMessageId) =>
+        QueryDraft.For(CaseAiJobs, retainedMessageId, clock.GetUtcNow());
 
     public CaseSectionFrame? SectionFrame => VehicleSection?.Frame
         ?? ValuationSection?.Frame
@@ -1617,6 +1636,7 @@ public sealed partial class DetailsModel(
                     {
                         return FragmentNotFound();
                     }
+                    await LoadQueryDraftsAsync(id, QueriesSection.Frame.Workflow, cancellationToken);
                     break;
                 case "files":
                     FilesSection = await getCaseFilesSection.ExecuteAsync(new(id, actor), cancellationToken);
@@ -1886,6 +1906,84 @@ public sealed partial class DetailsModel(
         var jobs = await caseAiJobs;
         AiDrafts = AiDraftPolicy.Drafts(jobs, details.Data.RequiredAiDraftTargetDays);
         PendingMarketResearch = MarketResearchPolicy.PendingOf(jobs);
+        CaseAiJobs = jobs;
+        if (QueriesSection is not null)
+        {
+            QueryDraftCondition = await QueryDraftConditionAsync(details.Workflow, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// What the Queries rows need (FRD-27): the Case's jobs for each open mail
+    /// query's live Query response job, and whether a row may start one.
+    /// </summary>
+    private async Task LoadQueryDraftsAsync(Guid id, CaseWorkflowRecord workflow, CancellationToken cancellationToken)
+    {
+        CaseAiJobs = await aiJobs.ListForSubjectAsync(id, cancellationToken);
+        QueryDraftCondition = await QueryDraftConditionAsync(workflow, cancellationToken);
+    }
+
+    // The Send to AI switch is read only while the Case holds an open query a
+    // row could draft a reply to; otherwise no row offers the action.
+    private Task<string?> QueryDraftConditionAsync(CaseWorkflowRecord workflow, CancellationToken cancellationToken) =>
+        workflow.HasOpenQuery
+            ? QueryResponseAvailability.ConditionAsync(workflow, sendToAiControl, cancellationToken)
+            : Task.FromResult<string?>(Labels.QueryResponseJobs.AvailableInPostReportWork);
+
+    /// <summary>
+    /// Draft reply with AI on a Queries row (FRD-27): queues a Query response
+    /// job for that row's retained message through the same Core command as
+    /// the message record's own button. The message must be a Query linked to
+    /// this Case; nothing is sent.
+    /// </summary>
+    public async Task<IActionResult> OnPostDraftQueryReplyAsync(
+        Guid id,
+        Guid messageId,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["CaseError"] = "The form has expired. Retry the operation.";
+            return RedirectToSection(id, "queries");
+        }
+
+        try
+        {
+            var detail = await getRetainedMail.ExecuteAsync(actor, messageId, cancellationToken);
+            if (detail is null || !AiJobPolicy.IsQueryResponseSource(detail) || detail.Summary.CaseId != id)
+            {
+                TempData["CaseError"] = Labels.QueryResponseJobs.InvalidSource;
+                return RedirectToSection(id, "queries");
+            }
+
+            await createAiJob.ExecuteAsync(
+                new(
+                    AiJobKind.QueryResponse,
+                    id,
+                    detail.Summary.CaseReference,
+                    messageId.ToString("D"),
+                    null,
+                    actor,
+                    operationKey),
+                cancellationToken);
+            TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.Queries.DraftStarted;
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is
+            ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            TempData["CaseError"] = exception.Message;
+        }
+
+        return RedirectToSection(id, "queries");
     }
 
     public Task<IActionResult> OnPostClaimLeaseAsync(
