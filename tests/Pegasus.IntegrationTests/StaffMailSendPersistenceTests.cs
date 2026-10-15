@@ -487,6 +487,8 @@ public sealed class StaffMailSendPersistenceTests
     {
         await using var scope = database.CreateAsyncScope();
         var store = scope.ServiceProvider.GetRequiredService<IAiJobStore>();
+        // The lease is read against the container's clock, whatever it is set to.
+        var now = (scope.ServiceProvider.GetService<TimeProvider>() ?? TimeProvider.System).GetUtcNow();
         var client = ActionActor.Automation("draft-client");
         var queued = await store.CreateAsync(
             new NewAiJob(
@@ -497,7 +499,7 @@ public sealed class StaffMailSendPersistenceTests
         var taken = await store.TransitionAsync(
             new AiJobTransition(
                 queued.JobId, queued.Version, AiJobState.Taken, client, $"mcp:{Guid.NewGuid():N}",
-                LeaseExpiresAtUtc: DateTimeOffset.UtcNow + AiJobPolicy.LeaseDuration),
+                LeaseExpiresAtUtc: now + AiJobPolicy.LeaseDuration),
             CancellationToken.None);
         return await store.TransitionAsync(
             new AiJobTransition(

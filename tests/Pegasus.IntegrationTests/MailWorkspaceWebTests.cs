@@ -704,12 +704,14 @@ public sealed class MailWorkspaceWebTests
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var store = scope.ServiceProvider.GetRequiredService<IAiJobStore>();
+        // The lease is read against the host's clock, which the test host fixes.
+        var now = scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow();
         var client = ActionActor.Automation("draft-client");
         var job = (await store.GetAsync(jobId, CancellationToken.None))!;
         var taken = await store.TransitionAsync(
             new AiJobTransition(
                 job.JobId, job.Version, AiJobState.Taken, client, $"mcp:{Guid.NewGuid():N}",
-                LeaseExpiresAtUtc: DateTimeOffset.UtcNow + AiJobPolicy.LeaseDuration),
+                LeaseExpiresAtUtc: now + AiJobPolicy.LeaseDuration),
             CancellationToken.None);
         await store.TransitionAsync(
             new AiJobTransition(

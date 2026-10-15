@@ -1164,6 +1164,8 @@ public sealed class StaffCorrespondenceWebTests
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var store = scope.ServiceProvider.GetRequiredService<IAiJobStore>();
+        // The lease is read against the host's clock, which the test host fixes.
+        var now = scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow();
         var client = ActionActor.Automation("draft-client");
         var queued = await store.CreateAsync(
             new NewAiJob(
@@ -1175,7 +1177,7 @@ public sealed class StaffCorrespondenceWebTests
         var taken = await store.TransitionAsync(
             new AiJobTransition(
                 queued.JobId, queued.Version, AiJobState.Taken, client, $"mcp:{Guid.NewGuid():N}",
-                LeaseExpiresAtUtc: DateTimeOffset.UtcNow + AiJobPolicy.LeaseDuration),
+                LeaseExpiresAtUtc: now + AiJobPolicy.LeaseDuration),
             CancellationToken.None);
         return await store.TransitionAsync(
             new AiJobTransition(
