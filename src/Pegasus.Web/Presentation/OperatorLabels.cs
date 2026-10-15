@@ -822,7 +822,6 @@ public static class OperatorLabels
         public const string Triages = "Triages";
         public const string Eyebrow = "Office-wide work";
         public const string Title = "Work Centre";
-        public const string CreateCase = "Create Case";
         public const string NeedsAttention = "Needs attention";
         public const string Office = "Office";
         public const string Mine = "Mine";

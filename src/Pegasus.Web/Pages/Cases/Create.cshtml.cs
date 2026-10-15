@@ -226,7 +226,7 @@ public sealed partial class CreateModel(
         Guid receiptId,
         CancellationToken cancellationToken = default)
     {
-        // Add and Ctrl+N are a distinct staff path. They allocate a Case with
+        // New case and Ctrl+N are a distinct staff path. They allocate a Case with
         // entered facts and no fictional received item or source document.
         if (receiptId == Guid.Empty)
         {

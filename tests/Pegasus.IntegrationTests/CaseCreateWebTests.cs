@@ -40,7 +40,7 @@ public sealed partial class CaseCreateWebTests
         [StaffRole.Administrator]);
 
     /// <summary>
-    /// Add, Work Centre and Ctrl+N start a direct staff entry without creating
+    /// New case and Ctrl+N start a direct staff entry without creating
     /// a fictional received item.
     /// </summary>
     [Fact]

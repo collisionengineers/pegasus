@@ -21,16 +21,6 @@
     </div>
     <div class="page-actions">
         <partial name="Shared/_FreshnessBanner" model="Model.LoadedAtUtc" />
-        @* A case is made from received material, so /Cases/Create is
-           receipt-bound (Create.cshtml.cs returns NotFound without one) and
-           every working call site reaches it with a receipt. This page holds
-           no receipt, so the contracted action starts where the receipt comes
-           from. The Add dialog and Ctrl N still point at the receipt-less
-           404; settling all of them is outstanding shell work. *@
-        <a class="btn btn--primary" asp-page="/Upload">
-            <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
-            <span>Create Case</span>
-        </a>
     </div>
 </header>
 
