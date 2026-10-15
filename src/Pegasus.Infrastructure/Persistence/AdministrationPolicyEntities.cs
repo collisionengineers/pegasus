@@ -48,12 +48,3 @@ internal sealed class ApprovedMailboxSubscriptionEntity
     public DateTimeOffset? LastMaintainedAtUtc { get; set; }
     public string? LastMaintenanceFailureCode { get; set; }
 }
-
-internal sealed class ApprovedOutlookCategoryEntity
-{
-    public Guid Id { get; set; }
-    public required string DisplayName { get; set; }
-    public required string NormalizedDisplayName { get; set; }
-    public required string State { get; set; }
-    public int Version { get; set; }
-}

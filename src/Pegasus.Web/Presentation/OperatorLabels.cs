@@ -2076,32 +2076,18 @@ public static class OperatorLabels
     public static class MailSettings
     {
         public const string ApprovedMailboxes = "Approved mailboxes";
-        public const string MailCategories = "Mail categories";
         public const string Mailbox = "Mailbox";
         public const string State = "State";
         public const string Subscription = "Subscription";
-        public const string Category = "Category";
         public const string AddMailbox = "Add mailbox";
-        public const string AddCategory = "Add category";
         public const string SaveMailbox = "Save mailbox";
-        public const string SaveCategory = "Save category";
         public const string ApprovedAddress = "Approved address";
         public const string RouteScope = "Used for";
-        public const string DisplayName = "Display name";
         public const string NoApprovedMailboxes = "No approved mailboxes";
-        public const string NoMailCategories = "No mail categories";
         public const string NotActivated = "Not activated";
         public const string NoSubscription = "None.";
 
-        /// <summary>
-        /// Both state vocabularies are the enum names themselves, so they
-        /// delegate to <see cref="Humanise"/> rather than restating a second
-        /// copy of the same two words.
-        /// </summary>
         public static string MailboxState(ApprovedMailboxState state) =>
-            Humanise(state.ToString());
-
-        public static string CategoryState(ApprovedOutlookCategoryState state) =>
             Humanise(state.ToString());
 
         public static string PollStatus(

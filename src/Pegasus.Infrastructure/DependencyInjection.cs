@@ -1,4 +1,4 @@
-﻿using Pegasus.Core.AiWork;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
@@ -382,14 +382,6 @@ public static class DependencyInjection
         services.AddScoped<IApprovedMailboxSubscriptionStore, EfApprovedMailboxSubscriptionStore>();
         services.AddScoped<ListApprovedMailboxes>();
         services.AddScoped<UpdateApprovedMailbox>();
-        services.AddScoped<EfApprovedOutlookCategoryStore>();
-        services.AddScoped<IApprovedOutlookCategoryStore>(provider =>
-            provider.GetRequiredService<EfApprovedOutlookCategoryStore>());
-        services.AddScoped<IApprovedOutlookCategoryResolver>(provider =>
-            provider.GetRequiredService<EfApprovedOutlookCategoryStore>());
-        services.AddScoped<ListApprovedOutlookCategories>();
-        services.AddScoped<UpdateApprovedOutlookCategory>();
-        services.AddScoped<ResolveApprovedOutlookCategory>();
         services.AddScoped<EfCaseWorkflowStore>();
         services.AddScoped<ICaseWorkflowStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<IReleaseAutomationLeases>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());

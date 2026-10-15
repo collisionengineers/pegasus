@@ -157,7 +157,6 @@ exclusion.
 | MAIL-09 | Automatic association of related email and attachments with a case | [Automatic Case association of retained mail](frd/frd-08-email-mailbox-and-background-processing.md#automatic-case-association-of-retained-mail) |
 | MAIL-10 | Manual email/case association, unlink, relink, correction, and the next action a corrected classification offers | [Classification and linking actions](frd/frd-20-mailbox-workspace.md#classification-and-linking-actions) |
 | MAIL-11 | Browse, search and view mailbox messages and threads | [Quick preview and message detail](frd/frd-20-mailbox-workspace.md#quick-preview-and-message-detail) |
-| MAIL-13 | Outlook category by allowlisted identifier; no read-state, flag or Delete control | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
 | CASE-23 | Queries, disputes included, raised, listed and resolved on the existing Case | [Report sent and queries](frd/frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries) |
 | UI-10 | Full email-management workspace | [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
 | UI-14 | Categorised email views by mail category | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction); [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
@@ -266,3 +265,4 @@ statements and the `CAP-0NN` source map remain recoverable from Git history.
 | MAIL-06 | Staff confirmation of a recommended folder move in Pegasus | 2026-10-12, operator decision ([ADR-0069](adr/0069-one-flat-mail-category.md)) |
 | MAIL-07 | Move the confirmed message to the designated Outlook folder | 2026-10-12, operator decision ([ADR-0069](adr/0069-one-flat-mail-category.md)) |
 | MAIL-23 | Map the detailed taxonomy to operational queues and designated Outlook folders | 2026-10-12, operator decision ([ADR-0069](adr/0069-one-flat-mail-category.md)) |
+| MAIL-13 | Outlook category by allowlisted identifier | 2026-10-14, operator decision |

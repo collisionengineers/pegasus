@@ -248,7 +248,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261013090000_LabourRateBuiltInCards",
                 "20261013091000_ContactSopSeed",
                 "20261013092000_RemoveContactGuidance",
-                "20261013100000_DropPrincipalDomainReference"
+                "20261013100000_DropPrincipalDomainReference",
+                "20261014220000_DropApprovedOutlookCategories"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -278,7 +279,7 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT CASE WHEN CONVERT(sysname, DATABASEPROPERTYEX(DB_NAME(), 'Collation'))"
             + " COLLATE Latin1_General_CI_AS LIKE '%[_]CI[_]%' THEN 1 ELSE 0 END"));
 
-        Assert.Equal(1, await database.ScalarAsync<int>(
+        Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'ApprovedOutlookCategories'"));
         Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'ApprovedMailboxFolderBindings'"));

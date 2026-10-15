@@ -9,14 +9,6 @@ Add a question here only when it is genuinely unresolved, with its owner,
 affected contract and the decision needed; remove it once its outcome has a
 durable owner.
 
-## Outlook category write
-
-Owner: [FRD-08](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)
-(`MAIL-13`). FRD-08 describes an Administrator allowlist of Outlook
-categories that staff may apply. The code applies no Outlook category today;
-sending is its only mailbox write. Decision needed: build
-the category write, or remove the allowlist from FRD-08.
-
 ## Capability wording with no owning requirement
 
 The 18 September 2026 capability review found these clauses in the old

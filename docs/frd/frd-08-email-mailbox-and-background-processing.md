@@ -1,6 +1,6 @@
 # FRD-08: Email, mailbox, and background processing
 
-> Owner capabilities: MAIL-01 to MAIL-04, MAIL-09, MAIL-13, MAIL-21, MAIL-22, UI-14 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MAIL-01 to MAIL-04, MAIL-09, MAIL-21, MAIL-22, UI-14 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -186,15 +186,6 @@ reference. Message and file bodies, credentials, tokens and secrets never go
 into action history. Polling, retry, lease and adapter mechanics stay in
 telemetry.
 
-**Outlook category allowlist.** Administrators keep one global allowlist of exact
-Outlook category display names. Each entry has a server-owned internal
-identifier and is Active or Disabled; entries are disabled, never deleted.
-MAIL-13 accepts only the internal identifier, and Core reloads an Active
-entry's display name before any action on an exact message. The catalogue
-stores no Graph identifier or colour, does not synchronise Outlook master
-categories, and provides no search, Case linking or generic mailbox-rule
-behaviour.
-
 ### Automatic Case association of retained mail
 
 Automatic association of inbound mail is deliberately cautious. A message
@@ -263,7 +254,7 @@ mailbox and Graph subscription states are owned by
 
 ## Links
 
-- Capabilities: `MAIL-01`–`MAIL-04`, `MAIL-09`, `MAIL-13`, `MAIL-21`,
+- Capabilities: `MAIL-01`–`MAIL-04`, `MAIL-09`, `MAIL-21`,
   `MAIL-22`, `UI-14` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md)
