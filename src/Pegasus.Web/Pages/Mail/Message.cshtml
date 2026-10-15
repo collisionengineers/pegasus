@@ -336,7 +336,8 @@
                                 <span><span class="src-tag src-tag--ai">AI</span> @OperatorLabels.QueryResponseJobs.DraftLine(aiDraft.DraftReadyAtUtc ?? aiDraft.CreatedAtUtc, aiDraft.TakenBy)</span>
                             </div>
                         }
-                        <input type="hidden" asp-for="AiJobId" />
+                        @* Bound under its route name, so the send carries the job the composer opened on. *@
+                        <input type="hidden" name="aiJob" value="@(Model.AiJobId?.ToString("D"))" />
                         <div class="field">
                             <label asp-for="CorrespondenceBody">Message</label>
                             <textarea asp-for="CorrespondenceBody" rows="8"></textarea>

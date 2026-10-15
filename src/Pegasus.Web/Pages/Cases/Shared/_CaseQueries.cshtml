@@ -111,7 +111,7 @@
                                             {
                                                 <form method="post" asp-page="/Cases/Details" asp-page-handler="DraftQueryReply" asp-route-id="@caseId" data-query-ai-draft-start="@row.RetainedMessageId">
                                                     <input type="hidden" name="messageId" value="@row.RetainedMessageId" />
-                                                    <input type="hidden" name="operationKey" value="@($"query-response:{Pegasus.Web.Pages.StaffPageModel.NewOperationKey()}")" />
+                                                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                                                     <input type="hidden" name="view" value="@Model.ViewRoute" />
                                                     <button class="btn btn--small" type="submit" data-busy-label="@OperatorLabels.Busy.Drafting">
                                                         <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>

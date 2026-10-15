@@ -1139,14 +1139,14 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(forThisMessage, html.Contains($"data-ai-draft=\"{job.JobId:D}\"", StringComparison.Ordinal));
         Assert.Equal(forThisMessage, html.Contains("thank you for your e-mail of 13 October", StringComparison.Ordinal));
         Assert.Equal(forThisMessage, html.Contains("Edit before sending.", StringComparison.Ordinal));
-        var hiddenJob = InputValue(html, "AiJobId");
+        var hiddenJob = InputValue(html, "aiJob");
         Assert.Equal(forThisMessage ? job.JobId.ToString("D") : string.Empty, hiddenJob);
         var tick = Regex.Match(html, "<input[^>]*data-resolve-query[^>]*>", RegexOptions.CultureInvariant);
         Assert.True(tick.Success);
         Assert.Contains("checked", tick.Value, StringComparison.Ordinal);
 
         var form = RetainedReplyForm(html, InputValue(html, "CorrespondenceOperationKey"), "Edited reply.");
-        form["AiJobId"] = hiddenJob;
+        form["aiJob"] = hiddenJob;
         form["ResolveQuery"] = "true";
         using var response = await client.PostAsync(
             $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));

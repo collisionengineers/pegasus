@@ -242,9 +242,10 @@ public static class AiJobPolicy
     }
 
     /// <summary>
-    /// The retained message a Query response job answers: the message id its
-    /// creator put in the instruction, or the one the client named as its
-    /// result reference. Null for any other kind or when neither parses.
+    /// The retained message a Query response job answers: the message id
+    /// Pegasus wrote as its instruction when the job was started, which no
+    /// client changes; failing that, the one the client named as its result
+    /// reference. Null for any other kind or when neither parses.
     /// </summary>
     public static Guid? QueryResponseMessageId(AiJobRecord job)
     {
@@ -253,12 +254,12 @@ public static class AiJobPolicy
         {
             return null;
         }
-        if (Guid.TryParse(job.ResultReference, out var fromResult) && fromResult != Guid.Empty)
+        if (Guid.TryParse(job.Instruction, out var fromInstruction) && fromInstruction != Guid.Empty)
         {
-            return fromResult;
+            return fromInstruction;
         }
-        return Guid.TryParse(job.Instruction, out var fromInstruction) && fromInstruction != Guid.Empty
-            ? fromInstruction
+        return Guid.TryParse(job.ResultReference, out var fromResult) && fromResult != Guid.Empty
+            ? fromResult
             : null;
     }
 
@@ -284,16 +285,16 @@ public static class AiJobPolicy
     }
 
     /// <summary>
-    /// Whether <paramref name="job"/> is a Draft ready reply to
-    /// <paramref name="messageId"/> on <paramref name="caseId"/> with text to
-    /// offer the composer (FRD-27: a drafted reply is text offered to the
-    /// composer). A job with no text, on another Case or for another message
-    /// prefills nothing.
+    /// Whether <paramref name="job"/> is, as of <paramref name="now"/>, a
+    /// Draft ready reply to <paramref name="messageId"/> on
+    /// <paramref name="caseId"/> with text to offer the composer (FRD-27: a
+    /// drafted reply is text offered to the composer). A job with no text, on
+    /// another Case or for another message prefills nothing.
     /// </summary>
-    public static bool IsDraftReplyFor(AiJobRecord job, Guid messageId, Guid caseId)
+    public static bool IsDraftReplyFor(AiJobRecord job, Guid messageId, Guid caseId, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(job);
-        return job.State == AiJobState.DraftReady
+        return EffectiveState(job, now) == AiJobState.DraftReady
             && job.Kind == AiJobKind.QueryResponse
             && job.SubjectKind == AiJobSubjectKind.Case
             && job.SubjectId == caseId
@@ -515,6 +516,59 @@ public sealed class CreateAiJob(
 
         return await workflow.GetAsync(caseId, cancellationToken)
             ?? throw new KeyNotFoundException("The case was not found.");
+    }
+}
+
+/// <summary>
+/// Draft reply with AI (FRD-27): the message must be a retained Query linked
+/// to its Case, and to <paramref name="CaseId"/> when the caller names one.
+/// </summary>
+public sealed record StartQueryResponseCommand(
+    ActionActor Actor,
+    Guid RetainedMessageId,
+    string OperationKey,
+    Guid? CaseId = null);
+
+/// <summary>
+/// The one owner of starting a Query response job, called by the message
+/// record, the Case's Queries row and the Automation Actor's create tool.
+/// </summary>
+public interface IStartQueryResponse
+{
+    Task<AiJobRecord> ExecuteAsync(StartQueryResponseCommand command, CancellationToken cancellationToken);
+}
+
+public sealed class StartQueryResponse(
+    Intake.GetRetainedMail mail,
+    ICreateAiJob create) : IStartQueryResponse
+{
+    public const string NotASource = "This message is not a linked post-report message.";
+
+    public async Task<AiJobRecord> ExecuteAsync(
+        StartQueryResponseCommand command,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        var detail = await mail.ExecuteAsync(command.Actor, command.RetainedMessageId, cancellationToken)
+            ?? throw new KeyNotFoundException("The retained message was not found.");
+        if (!AiJobPolicy.IsQueryResponseSource(detail)
+            || detail.Summary.CaseId is not { } caseId
+            || (command.CaseId is { } named && named != caseId))
+        {
+            throw new InvalidOperationException(NotASource);
+        }
+
+        // The instruction is the message the job answers; QueryResponseMessageId reads it back.
+        return await create.ExecuteAsync(
+            new(
+                AiJobKind.QueryResponse,
+                caseId,
+                detail.Summary.CaseReference,
+                command.RetainedMessageId.ToString("D"),
+                null,
+                command.Actor,
+                command.OperationKey),
+            cancellationToken);
     }
 }
 

@@ -2302,8 +2302,6 @@ public static class OperatorLabels
         public const string AutomationStopped = "Automation stopped";
         public const string AvailableInPostReportWork = "Available in post-report work";
         public const string CaseUnavailable = "Case unavailable";
-        public const string InvalidSource =
-            "This message is not a linked post-report message.";
 
         /// <summary>
         /// A Draft ready reply opens the message's composer on the draft

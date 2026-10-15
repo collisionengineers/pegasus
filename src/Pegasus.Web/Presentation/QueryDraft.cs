@@ -6,16 +6,18 @@ namespace Pegasus.Web.Presentation;
 /// <summary>
 /// The live Query response job for one retained query as a page draws it
 /// (FRD-27): the job and the state a reader sees now, so a lapsed lease reads
-/// Queued. Draft ready offers **Reply with AI draft**; Queued and Taken read
-/// as pending; none offers **Draft reply with AI**.
+/// Queued. A Draft ready job with text offers **Reply with AI draft**; Queued,
+/// Taken and a Draft ready job that carries no text read as their state; none
+/// offers **Draft reply with AI**.
 /// </summary>
-public sealed record QueryDraft(AiJobRecord Job, AiJobState State)
+public sealed record QueryDraft(AiJobRecord Job, AiJobState State, bool IsReady)
 {
-    public bool IsReady => State == AiJobState.DraftReady;
-
     public static QueryDraft? For(IEnumerable<AiJobRecord> jobs, Guid messageId, DateTimeOffset now) =>
         AiJobPolicy.QueryResponseJobFor(jobs, messageId, now) is { } job
-            ? new(job, AiJobPolicy.EffectiveState(job, now))
+            ? new(
+                job,
+                AiJobPolicy.EffectiveState(job, now),
+                job.SubjectId is { } caseId && AiJobPolicy.IsDraftReplyFor(job, messageId, caseId, now))
             : null;
 }
 

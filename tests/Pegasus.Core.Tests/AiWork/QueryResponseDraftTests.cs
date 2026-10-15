@@ -16,13 +16,16 @@ public sealed class QueryResponseDraftTests
     private static readonly DateTimeOffset Now = new(2026, 10, 14, 10, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public void TheMessageIsTheResultReferenceThenTheInstructionAndOnlyForAQueryResponse()
+    public void TheMessageIsTheInstructionPegasusWroteThenTheResultReferenceAndOnlyForAQueryResponse()
     {
         var other = Guid.NewGuid();
 
         Assert.Equal(MessageId, AiJobPolicy.QueryResponseMessageId(Job(AiJobState.Queued)));
-        Assert.Equal(other, AiJobPolicy.QueryResponseMessageId(
+        // A client that names something else as its result does not detach the job from its message.
+        Assert.Equal(MessageId, AiJobPolicy.QueryResponseMessageId(
             Job(AiJobState.DraftReady) with { ResultReference = other.ToString("D") }));
+        Assert.Equal(other, AiJobPolicy.QueryResponseMessageId(
+            Job(AiJobState.DraftReady) with { Instruction = "Draft a reply.", ResultReference = other.ToString("D") }));
         Assert.Null(AiJobPolicy.QueryResponseMessageId(Job(AiJobState.Queued) with { Instruction = "Draft a reply." }));
         Assert.Null(AiJobPolicy.QueryResponseMessageId(Job(AiJobState.Queued) with { Kind = AiJobKind.Estimate }));
     }
@@ -57,12 +60,12 @@ public sealed class QueryResponseDraftTests
     {
         var ready = Job(AiJobState.DraftReady);
 
-        Assert.True(AiJobPolicy.IsDraftReplyFor(ready, MessageId, CaseId));
-        Assert.False(AiJobPolicy.IsDraftReplyFor(ready, Guid.NewGuid(), CaseId));
-        Assert.False(AiJobPolicy.IsDraftReplyFor(ready, MessageId, Guid.NewGuid()));
-        Assert.False(AiJobPolicy.IsDraftReplyFor(ready with { ResultText = " " }, MessageId, CaseId));
-        Assert.False(AiJobPolicy.IsDraftReplyFor(ready with { State = AiJobState.Completed }, MessageId, CaseId));
-        Assert.False(AiJobPolicy.IsDraftReplyFor(Job(AiJobState.Taken) with { ResultText = null }, MessageId, CaseId));
+        Assert.True(AiJobPolicy.IsDraftReplyFor(ready, MessageId, CaseId, Now));
+        Assert.False(AiJobPolicy.IsDraftReplyFor(ready, Guid.NewGuid(), CaseId, Now));
+        Assert.False(AiJobPolicy.IsDraftReplyFor(ready, MessageId, Guid.NewGuid(), Now));
+        Assert.False(AiJobPolicy.IsDraftReplyFor(ready with { ResultText = " " }, MessageId, CaseId, Now));
+        Assert.False(AiJobPolicy.IsDraftReplyFor(ready with { State = AiJobState.Completed }, MessageId, CaseId, Now));
+        Assert.False(AiJobPolicy.IsDraftReplyFor(Job(AiJobState.Taken) with { ResultText = null }, MessageId, CaseId, Now));
     }
 
     [Fact]

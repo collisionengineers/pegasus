@@ -103,7 +103,7 @@ public sealed partial class DetailsModel(
     GlassRepairEstimateAvailability glassAvailability,
     ICreateAudit createAudit,
     IAiJobQueries aiJobs,
-    Pegasus.Core.Intake.GetRetainedMail getRetainedMail,
+    IStartQueryResponse startQueryResponse,
     IStartMarketResearch startMarketResearch,
     IFetchGuideValuation fetchGuideValuation,
     IListValuationPresets listValuationPresets,
@@ -1636,7 +1636,7 @@ public sealed partial class DetailsModel(
                     {
                         return FragmentNotFound();
                     }
-                    await LoadQueryDraftsAsync(id, QueriesSection.Frame.Workflow, cancellationToken);
+                    await LoadQueryDraftsAsync(id, QueriesSection, cancellationToken);
                     break;
                 case "files":
                     FilesSection = await getCaseFilesSection.ExecuteAsync(new(id, actor), cancellationToken);
@@ -1907,9 +1907,9 @@ public sealed partial class DetailsModel(
         AiDrafts = AiDraftPolicy.Drafts(jobs, details.Data.RequiredAiDraftTargetDays);
         PendingMarketResearch = MarketResearchPolicy.PendingOf(jobs);
         CaseAiJobs = jobs;
-        if (QueriesSection is not null)
+        if (QueriesSection is { } queriesSection)
         {
-            QueryDraftCondition = await QueryDraftConditionAsync(details.Workflow, cancellationToken);
+            QueryDraftCondition = await QueryDraftConditionAsync(queriesSection, cancellationToken);
         }
     }
 
@@ -1917,18 +1917,19 @@ public sealed partial class DetailsModel(
     /// What the Queries rows need (FRD-27): the Case's jobs for each open mail
     /// query's live Query response job, and whether a row may start one.
     /// </summary>
-    private async Task LoadQueryDraftsAsync(Guid id, CaseWorkflowRecord workflow, CancellationToken cancellationToken)
+    private async Task LoadQueryDraftsAsync(Guid id, CaseQueriesSection section, CancellationToken cancellationToken)
     {
         CaseAiJobs = await aiJobs.ListForSubjectAsync(id, cancellationToken);
-        QueryDraftCondition = await QueryDraftConditionAsync(workflow, cancellationToken);
+        QueryDraftCondition = await QueryDraftConditionAsync(section, cancellationToken);
     }
 
-    // The Send to AI switch is read only while the Case holds an open query a
-    // row could draft a reply to; otherwise no row offers the action.
-    private Task<string?> QueryDraftConditionAsync(CaseWorkflowRecord workflow, CancellationToken cancellationToken) =>
-        workflow.HasOpenQuery
-            ? QueryResponseAvailability.ConditionAsync(workflow, sendToAiControl, cancellationToken)
-            : Task.FromResult<string?>(Labels.QueryResponseJobs.AvailableInPostReportWork);
+    // The Send to AI switch is read only when some open mail query has no live
+    // job, so a row would offer Draft reply with AI; otherwise no row asks.
+    private Task<string?> QueryDraftConditionAsync(CaseQueriesSection section, CancellationToken cancellationToken) =>
+        section.Queries.Any(query =>
+            query.IsOpen && query.Message is { } message && QueryDraftFor(message.RetainedMessageId) is null)
+            ? QueryResponseAvailability.ConditionAsync(section.Frame.Workflow, sendToAiControl, cancellationToken)
+            : Task.FromResult<string?>(null);
 
     /// <summary>
     /// Draft reply with AI on a Queries row (FRD-27): queues a Query response
@@ -1954,22 +1955,8 @@ public sealed partial class DetailsModel(
 
         try
         {
-            var detail = await getRetainedMail.ExecuteAsync(actor, messageId, cancellationToken);
-            if (detail is null || !AiJobPolicy.IsQueryResponseSource(detail) || detail.Summary.CaseId != id)
-            {
-                TempData["CaseError"] = Labels.QueryResponseJobs.InvalidSource;
-                return RedirectToSection(id, "queries");
-            }
-
-            await createAiJob.ExecuteAsync(
-                new(
-                    AiJobKind.QueryResponse,
-                    id,
-                    detail.Summary.CaseReference,
-                    messageId.ToString("D"),
-                    null,
-                    actor,
-                    operationKey),
+            await startQueryResponse.ExecuteAsync(
+                new(actor, messageId, operationKey, CaseId: id),
                 cancellationToken);
             TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.Queries.DraftStarted;
         }

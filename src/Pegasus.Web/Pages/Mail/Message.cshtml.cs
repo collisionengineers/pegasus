@@ -32,7 +32,7 @@ public enum MessageOffer
 public sealed class MessageModel(
     GetRetainedMail getRetainedMail,
     GetRetainedMailPreview getRetainedMailPreview,
-    ICreateAiJob createAiJob,
+    IStartQueryResponse startQueryResponse,
     IAiJobQueries aiJobQueries,
     IAiJobStore aiJobStore,
     ISendToAiControl sendToAiControl,
@@ -688,29 +688,8 @@ public sealed class MessageModel(
 
         try
         {
-            var detail = await getRetainedMail.ExecuteAsync(actor, id, SearchTerm, cancellationToken);
-            if (detail is null)
-            {
-                return NotFound();
-            }
-            if (!AiJobPolicy.IsQueryResponseSource(detail) || detail.Summary.CaseId is not { } caseId)
-            {
-                ModelState.AddModelError(
-                    string.Empty,
-                    OperatorLabels.QueryResponseJobs.InvalidSource);
-                return await ReloadAsync(actor, id, cancellationToken);
-            }
-
-            await createAiJob.ExecuteAsync(
-                new(
-                    AiJobKind.QueryResponse,
-                    caseId,
-                    detail.Summary.CaseReference,
-                    id.ToString("D"),
-                    null,
-                    actor,
-                    operationKey),
-                cancellationToken);
+            // One owner with the Case's Queries row and pegasus_ai_job_create (FRD-27).
+            await startQueryResponse.ExecuteAsync(new(actor, id, operationKey), cancellationToken);
             QueryResponseNotice = OperatorLabels.QueryResponseJobs.Created;
             return RedirectToMessage(id);
         }
@@ -718,8 +697,11 @@ public sealed class MessageModel(
         {
             return Forbid();
         }
-        catch (Exception exception) when (exception is
-            ArgumentException or InvalidOperationException or KeyNotFoundException)
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {
             ModelState.AddModelError(string.Empty, exception.Message);
             return await ReloadAsync(actor, id, cancellationToken);
@@ -1441,8 +1423,8 @@ public sealed class MessageModel(
             {
                 CorrespondenceOperationKey = NewRetainedOperationKey(Detail.Summary.Id);
                 CorrespondenceSubject = SubjectFor(mode, Detail.Summary.Subject);
-                await ApplyAiDraftAsync(mode, cancellationToken);
             }
+            await ApplyAiDraftAsync(mode, prefill: initializeForm, cancellationToken);
         }
         return true;
     }
@@ -1450,11 +1432,14 @@ public sealed class MessageModel(
     /// <summary>
     /// A composer opened on an AI draft (FRD-27, FRD-21): the named job must
     /// still be the Draft ready reply to this message on the composer's Case.
-    /// Its text becomes Message and the tick starts ticked, as from the Case's
-    /// Resolve query Next action. Any other job prefills nothing and is
-    /// forgotten, so the send completes nothing.
+    /// When the form is first drawn its text becomes Message and the tick
+    /// starts ticked, as from the Case's Resolve query Next action; a reload
+    /// after a refused post keeps what staff typed and only redraws the AI
+    /// line. Any other job prefills nothing and is forgotten, so the send
+    /// completes nothing.
     /// </summary>
-    private async Task ApplyAiDraftAsync(StaffMailComposeMode mode, CancellationToken cancellationToken)
+    private async Task ApplyAiDraftAsync(
+        StaffMailComposeMode mode, bool prefill, CancellationToken cancellationToken)
     {
         if (AiJobId is not { } jobId || jobId == Guid.Empty)
         {
@@ -1466,15 +1451,17 @@ public sealed class MessageModel(
                 ? await aiJobStore.GetAsync(jobId, cancellationToken)
                 : null;
         if (job is null
-            || !AiJobPolicy.IsDraftReplyFor(job, Detail.Summary.Id, CorrespondenceCase!.Summary.CaseId)
-            || AiJobPolicy.EffectiveState(job, clock.GetUtcNow()) != AiJobState.DraftReady)
+            || !AiJobPolicy.IsDraftReplyFor(job, Detail.Summary.Id, CorrespondenceCase!.Summary.CaseId, clock.GetUtcNow()))
         {
             AiJobId = null;
             return;
         }
         AiDraft = job;
-        CorrespondenceBody = job.ResultText;
-        ResolveQuery = OffersResolveQuery;
+        if (prefill)
+        {
+            CorrespondenceBody = job.ResultText;
+            ResolveQuery = OffersResolveQuery;
+        }
     }
 
     private Task<CaseHeader?> ResolveCaseAsync(
