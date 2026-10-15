@@ -116,9 +116,8 @@ hidden.
 
 The **utility bar** is dark and sticky at the top of the column: freshness
 text, the global search input with its "Ctrl K" hint (Enter or Ctrl K opens
-the command palette dialog), the "New case" link to the real creation form
-when intake is available, and the bell. Upload and Inbox retain their named
-navigation destinations.
+the command palette dialog), the "New case" link to the real creation form,
+and the bell. Upload and Inbox retain their named navigation destinations.
 
 The **bell** is personal notifications and nothing else: never office-wide
 work, attention rows or queue counts. Its `.bell-count` shows the signed-in
@@ -254,7 +253,7 @@ the 64px mark. The sign-in password field carries a Show / Hide control
 | --- | --- |
 | Ctrl K | Command palette dialog (also Enter in the utility search) |
 | Ctrl U | Upload (`/upload`) |
-| Ctrl N | Create Case |
+| Ctrl N | New case |
 | Ctrl S | Save now, only while a Case is in edit; every change already saves as it is made (29 September 2026) |
 | F5 | Refresh — re-query the current page, never a browser reload |
 | ArrowUp / ArrowDown | Move through a row list (`scope-list`, `row-button`, result rows) |

@@ -620,16 +620,18 @@ public sealed class WorkCentreWebTests
     }
 
     [Fact]
-    public async Task TheUtilityBarOmitsNewCaseOnTheWorkCentre()
+    public async Task TheUtilityBarShowsNewCaseWithNoExtraCreateCaseHeaderButton()
     {
         using var host = Host(new FakeSnapshot());
         using var client = Client(host);
 
-        var html = await GetOkAsync(client, "/");
+        var workCentreHtml = await GetOkAsync(client, "/");
+        Assert.Equal(1, Regex.Count(workCentreHtml, ">New case</span>"));
+        Assert.DoesNotContain(">Create Case</span>", workCentreHtml, StringComparison.Ordinal);
 
-        // Create Case has one home here: the page header (v30 WE).
-        Assert.DoesNotContain(">New case</span>", html, StringComparison.Ordinal);
-        Assert.Equal(1, Regex.Count(html, ">Create Case</span>"));
+        var searchHtml = await GetOkAsync(client, "/Search");
+        Assert.Equal(1, Regex.Count(searchHtml, ">New case</span>"));
+        Assert.DoesNotContain(">Create Case</span>", searchHtml, StringComparison.Ordinal);
     }
 
     [Fact]

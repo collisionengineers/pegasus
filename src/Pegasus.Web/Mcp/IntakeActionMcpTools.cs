@@ -343,7 +343,7 @@ internal sealed class IntakeActionMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Creates a Case directly from entered facts, as the staff Add case does, with no received item or source document. An Inspection or Inspection and Audit Case needs the identity-critical facts (claimant, claim number, registration and the rest the staff form asks for); a Triage Case takes only its Principal and the vehicle registration. An Audit is never created by hand. A Case reference is allocated once and never reused. Requires a mcp:-prefixed operation key; replaying the same key with the same facts returns the same Case.")]
+    [Description("Creates a Case directly from entered facts, as the staff New case does, with no received item or source document. An Inspection or Inspection and Audit Case needs the identity-critical facts (claimant, claim number, registration and the rest the staff form asks for); a Triage Case takes only its Principal and the vehicle registration. An Audit is never created by hand. A Case reference is allocated once and never reused. Requires a mcp:-prefixed operation key; replaying the same key with the same facts returns the same Case.")]
     public async Task<CaseCreateToolResult> CreateCaseAsync(
         [Description("The Principal code, at most 20 characters.")] string principalCode,
         [Description("Inspection, InspectionAndAudit or Triage.")] string caseType,

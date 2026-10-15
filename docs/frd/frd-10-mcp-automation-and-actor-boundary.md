@@ -41,9 +41,12 @@ items by exact U-reference through the same Core command as staff
 **One Actor.** MCP is a management and development controlled entry point for
 one named, vendor-neutral Automation Actor. Ordinary staff have no MCP access.
 The Actor calls only its approved list of ordinary Core actions, with its own
-authentication, identity and permanent history. It has no Administrator,
-configuration, credential, cloud, release, deletion or other management
-authority.
+authentication, identity and permanent history for casework, lease claims and
+releases, takeovers and refusals; routine lease renewal, job polling and
+progress heartbeats are telemetry only
+([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). It has no
+Administrator, configuration, credential, cloud, release, deletion or other
+management authority.
 
 **Casework parity.** Within casework the Actor may do anything a staff member
 with `PerformCasework` can, with two exceptions: it never puts an estimate in
@@ -120,7 +123,11 @@ write made under an Automation lease advances the record's version and keeps
 the lease, so one token from `pegasus_edit_begin` carries every write of the
 work until `pegasus_edit_end` releases it (operator, 8 October 2026).
 `pegasus_edit_end` on a lease that has already lapsed or been released answers
-`released` false. Stopping the automation client releases every Case lease and
+`released` false. `pegasus_edit_begin` and `pegasus_edit_end` record permanent
+history; a routine `pegasus_edit_renew` is telemetry only and records
+permanent history only when refused
+([FRD-14](frd-14-record-edit-leases.md#case-edit-lease); operator, 14 October
+2026). Stopping the automation client releases every Case lease and
 Triage or Image Intake scope Automation holds, so staff need not wait for the
 lapse; the Stop's own history entry records what was released, and no record
 gains history of its own (operator, 10 October 2026).
@@ -361,7 +368,7 @@ replays by its operation key.
   inspects by images needs no settling. An Audit is accepted only for an
   item classified as one. With `allocate` it retries a failed allocation with
   a reason, naming the attempt, as the Intake log's **Retry allocation** does.
-- `pegasus_case_create` creates a Case directly, as staff **Add case** does
+- `pegasus_case_create` creates a Case directly, as staff **New case** does
   ([FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts)): an
   Inspection or Inspection and Audit Case with its identity-critical facts,
   or a Triage Case from its Principal and registration. An Audit is never
@@ -391,7 +398,9 @@ The Actor's inventory includes the AI job ledger tools from
 Every tool calls the same Core command as the staff application, supplies the
 resolved Automation identity and the connecting client's name, needs an
 operation key and expected version on every change, and records permanent
-history. The ADR-0031 kill switch and attribution rules still apply: a
+history (routine `pegasus_ai_job_list` polling and `Progress` lease heartbeats
+are telemetry only unless refused). The ADR-0031 kill switch and attribution
+rules still apply: a
 stopped automation client is refused before any tool runs.
 
 | Tool | Scope | Action |
