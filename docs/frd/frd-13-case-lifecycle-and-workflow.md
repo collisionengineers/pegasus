@@ -233,7 +233,7 @@ queries first and the resolved ones after them; and on a Report sent Case
 the Next action is **Resolve query**
 ([FRD-16](frd-16-case-record-workspace.md#queries)). A query stays open
 when the Case leaves Report sent (Return to Engineer, Create audit, Unlink
-report evidence, Hold) and is resolved from wherever the Case then is.
+report evidence) and is resolved from wherever the Case then is.
 
 A query is resolved in one of three ways, each closing every open query on
 the Case at once: **Resolve query** from the Actions menu or the Next

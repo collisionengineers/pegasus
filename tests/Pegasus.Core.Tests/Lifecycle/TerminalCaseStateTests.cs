@@ -47,6 +47,27 @@ public sealed class TerminalCaseStateTests
     public void AnOrdinaryClosureOutcomeStillPassesValidation() =>
         CaseLifecycleRules.ValidateClose(CloseWith(CaseClosureOutcome.PrincipalCancelled));
 
+    [Theory]
+    [InlineData(CaseLifecycleState.NotReady)]
+    [InlineData(CaseLifecycleState.Review)]
+    [InlineData(CaseLifecycleState.ReportPreparation)]
+    [InlineData(CaseLifecycleState.Held)]
+    public void TheGenericCloseIsAllowedBeforeTheReportIsSent(CaseLifecycleState state) =>
+        CaseLifecycleRules.RequireClosureIsAllowed(
+            CaseQueryRulesTests.Workflow(state, hasOpenQuery: false),
+            CloseWith(CaseClosureOutcome.PrincipalCancelled));
+
+    [Fact]
+    public void TheGenericCloseIsRefusedOnceTheReportIsSent()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            CaseLifecycleRules.RequireClosureIsAllowed(
+                CaseQueryRulesTests.Workflow(CaseLifecycleState.ReportSent, hasOpenQuery: false),
+                CloseWith(CaseClosureOutcome.PrincipalCancelled)));
+
+        Assert.Equal("A case can be closed only before its report is sent.", exception.Message);
+    }
+
     private static CloseCaseRequest CloseWith(CaseClosureOutcome outcome) => new(
         Guid.NewGuid(),
         3,

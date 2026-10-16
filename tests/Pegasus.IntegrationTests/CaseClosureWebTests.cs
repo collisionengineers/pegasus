@@ -184,7 +184,8 @@ public sealed class CaseClosureWebTests
     [InlineData(CaseLifecycleState.NotReady, true)]
     [InlineData(CaseLifecycleState.Review, true)]
     [InlineData(CaseLifecycleState.ReportPreparation, true)]
-    [InlineData(CaseLifecycleState.ReportSent, true)]
+    [InlineData(CaseLifecycleState.Held, true)]
+    [InlineData(CaseLifecycleState.ReportSent, false)]
     [InlineData(CaseLifecycleState.PrincipalCancelled, false)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected, false)]
     [InlineData(CaseLifecycleState.CreatedInError, false)]
@@ -208,8 +209,8 @@ public sealed class CaseClosureWebTests
             html.Contains("data-dialog=\"case-close-dialog\"", StringComparison.Ordinal));
         if (!offersClosure)
         {
-            // A closed Case is read: it keeps its reference and reads its
-            // recorded outcome, and offers no way to close it a second time.
+            // A Case Core will not close, closed already or its report sent,
+            // keeps its reference and its stage and offers no Close item.
             Assert.DoesNotContain("data-dialog-open=\"case-close-dialog\"", html, StringComparison.Ordinal);
             Assert.Contains("QDOS3100042", html, StringComparison.Ordinal);
             Assert.Contains(EncodedStage(state), html, StringComparison.Ordinal);
@@ -268,20 +269,20 @@ public sealed class CaseClosureWebTests
     [Fact]
     public async Task TheCloseActionDoesNotDisplaceTheProgressionActions()
     {
-        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportSent };
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
         using var workspace = await EnterEditModeAsync(store, services =>
             Substitute<ICloseCase>(services, new CoreCheckedCloseCase(store)));
 
         var bar = RecordBar(await workspace.GetWorkspaceAsync());
         var adverseStart = bar.IndexOf("data-dialog-open=\"case-close-dialog\"", StringComparison.Ordinal);
 
-        Assert.Contains(CaseWorkspaceLabels.Frame.LogQuery, bar, StringComparison.Ordinal);
-        Assert.Contains("Place on Hold", bar, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkspaceLabels.Frame.PlaceOnHold, bar, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkspaceLabels.Frame.CorrectPrincipal, bar, StringComparison.Ordinal);
         Assert.True(adverseStart > 0, "The Close item is not rendered.");
-        // The progression items and the hold group are drawn before the
-        // divider that sets Close apart at the end of the menu.
-        Assert.InRange(bar.IndexOf(CaseWorkspaceLabels.Frame.LogQuery, StringComparison.Ordinal), 0, adverseStart);
-        Assert.InRange(bar.IndexOf("Place on Hold", StringComparison.Ordinal), 0, adverseStart);
+        // The hold group is drawn before the divider that sets Close apart at
+        // the end of the menu.
+        Assert.InRange(bar.IndexOf(CaseWorkspaceLabels.Frame.PlaceOnHold, StringComparison.Ordinal), 0, adverseStart);
+        Assert.InRange(bar.IndexOf(CaseWorkspaceLabels.Frame.CorrectPrincipal, StringComparison.Ordinal), 0, adverseStart);
         Assert.InRange(bar.LastIndexOf("menu-sep", StringComparison.Ordinal), 0, adverseStart);
     }
 

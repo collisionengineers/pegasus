@@ -35,9 +35,12 @@ public sealed class CaseRecordFrameV26WebTests
     [InlineData(CaseLifecycleState.Held,
         "case-release-hold-dialog,case-correct-principal-dialog",
         "case-hold-dialog,case-log-query-dialog,case-return-engineer-dialog")]
+    [InlineData(CaseLifecycleState.ReportPreparation,
+        "case-hold-dialog,case-correct-principal-dialog",
+        "case-release-hold-dialog")]
     [InlineData(CaseLifecycleState.ReportSent,
-        "case-log-query-dialog,case-return-review-dialog,case-return-engineer-dialog,case-hold-dialog,case-correct-principal-dialog",
-        "case-release-hold-dialog,case-complete-dialog")]
+        "case-log-query-dialog,case-return-review-dialog,case-return-engineer-dialog,case-correct-principal-dialog",
+        "case-hold-dialog,case-release-hold-dialog,case-complete-dialog,case-close-dialog")]
     public async Task TheActionsMenuOffersTheItemsTheStatePermits(
         CaseLifecycleState state, string offered, string absent)
     {
@@ -116,6 +119,22 @@ public sealed class CaseRecordFrameV26WebTests
         Assert.Contains(CaseWorkspaceLabels.Frame.TakeOver, held, StringComparison.Ordinal);
         Assert.Contains("handler=ClaimLease", held, StringComparison.Ordinal);
         Assert.Contains("name=\"takeOver\" value=\"true\"", held, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Core holds a Case only from Not ready, Review or With Engineer, so the
+    /// page of a Report sent Case draws neither the Place on Hold item nor its
+    /// dialog; Correct principal stays.
+    /// </summary>
+    [Fact]
+    public async Task AReportSentCaseOffersNoPlaceOnHoldAndNoHoldDialog()
+    {
+        var page = await ReadCaseAsync(new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportSent });
+
+        Assert.DoesNotContain("data-dialog-open=\"case-hold-dialog\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"case-hold-dialog\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=Hold", page, StringComparison.Ordinal);
+        Assert.Contains("data-dialog-open=\"case-correct-principal-dialog\"", page, StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -349,9 +349,9 @@ public sealed class CaseWorkflowPersistenceTests
         await AssertOpenQueryMarkMatchesRowsAsync(harness, harness.CaseId);
     }
 
-    /// <summary>A Report sent Case can be held and released back to Report sent, its open query untouched.</summary>
+    /// <summary>A hold the migration left on a Report sent Case still releases back to Report sent, its open query untouched.</summary>
     [Fact]
-    public async Task HoldReleaseFromReportSentReturnsToReportSentWithItsOpenQuery()
+    public async Task AHoldMigratedFromReportSentStillReleases()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
@@ -362,26 +362,21 @@ public sealed class CaseWorkflowPersistenceTests
         var logged = await harness.Store.RaiseQueryAsync(
             new(harness.CaseId, 0, actor, "log-before-hold", "Query logged.", logLease.Token, CaseQueryChannel.Other, "By letter."),
             CancellationToken.None);
-        var holdLease = await harness.Store.ClaimAsync(
-            new(harness.CaseId, logged.Version, actor, "claim-hold-report-sent"),
-            CancellationToken.None);
-        var held = await new PutCaseOnHold(harness.Store, harness.TimeProvider).ExecuteAsync(
-            new(harness.CaseId, logged.Version, actor, "hold-report-sent", "Awaiting the principal.", holdLease.Token),
-            CancellationToken.None);
-        Assert.Equal(CaseLifecycleState.Held, held.State);
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
-            Assert.Equal(
-                nameof(CaseLifecycleState.ReportSent),
-                (await context.CaseWorkflows.SingleAsync(item => item.CaseId == harness.CaseId)).PreHoldState);
+            var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == harness.CaseId);
+            workflow.State = nameof(CaseLifecycleState.Held);
+            workflow.PreHoldState = nameof(CaseLifecycleState.ReportSent);
+            workflow.HeldAtUtc = harness.TimeProvider.GetUtcNow();
+            await context.SaveChangesAsync();
         }
 
         var releaseLease = await harness.Store.ClaimAsync(
-            new(harness.CaseId, held.Version, actor, "claim-release-report-sent"),
+            new(harness.CaseId, logged.Version, actor, "claim-release-report-sent"),
             CancellationToken.None);
         var released = await new ReleaseCaseHold(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
-                harness.CaseId, held.Version, actor, "release-report-sent", "Principal replied.", releaseLease.Token),
+                harness.CaseId, logged.Version, actor, "release-report-sent", "Principal replied.", releaseLease.Token),
             CancellationToken.None);
 
         Assert.Equal(CaseLifecycleState.ReportSent, released.State);
