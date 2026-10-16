@@ -14,6 +14,7 @@ namespace Pegasus.Core.Tests.Assessment;
 /// original report. A report that cannot be read yields no reading and never
 /// an exception, so neither the Case nor the Mark is refused for it.
 /// </summary>
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed class ReadOriginalReportTests
 {
     private const string Report = """

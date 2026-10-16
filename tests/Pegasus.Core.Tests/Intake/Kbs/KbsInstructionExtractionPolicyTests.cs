@@ -4,6 +4,7 @@ using Pegasus.Core.Tests.Support;
 
 namespace Pegasus.Core.Tests.Intake.Kbs;
 
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed class KbsInstructionExtractionPolicyTests
 {
     [ReferencePackTheory]

@@ -7,6 +7,7 @@ using Pegasus.Core.Tests.Intake.ThirdPartyReports;
 
 namespace Pegasus.Core.Tests.Intake;
 
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed class InstructionEvidenceImagesTests
 {
     [Fact]

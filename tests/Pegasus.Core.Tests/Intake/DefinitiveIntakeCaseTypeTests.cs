@@ -3,6 +3,7 @@ using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Tests.Intake;
 
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed class DefinitiveIntakeCaseTypeTests
 {
     [Theory]

@@ -26,6 +26,7 @@ namespace Pegasus.Core.Tests.Intake.ThirdPartyReports;
 /// produces, and the padding-independence test proves the same rules read the
 /// same values when a text engine collapses the column padding instead.
 /// </summary>
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed partial class ThirdPartyReportExtractionTests
 {
     private const string ConnexusHeader = """

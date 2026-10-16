@@ -5,6 +5,7 @@ using Pegasus.Core.Tests.Support;
 
 namespace Pegasus.Core.Tests.Intake.Oak;
 
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed partial class OakInstructionExtractionPolicyTests
 {
     [ReferencePackTheory]

@@ -6,6 +6,7 @@ using Pegasus.Core.Tests.Support;
 
 namespace Pegasus.Core.Tests.Intake.Bc;
 
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed class BcInstructionExtractionPolicyTests
 {
     [ReferencePackTheory]
