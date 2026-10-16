@@ -240,7 +240,8 @@ public sealed class CaseQueriesSectionWebTests
 
     private static AiJobRecord Job(Guid caseId, Guid messageId, AiJobState state)
     {
-        var now = DateTimeOffset.UtcNow;
+        // The page reads the job against the host's clock, which the test host fixes.
+        var now = IntakeWebApplicationFactory.FixedUtcNow;
         var ready = state == AiJobState.DraftReady;
         return new(
             Guid.NewGuid(), AiJobKind.QueryResponse, AiJobSubjectKind.Case, caseId, Reference,
