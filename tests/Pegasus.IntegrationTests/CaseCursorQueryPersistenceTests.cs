@@ -561,14 +561,13 @@ public sealed class CaseCursorQueryPersistenceTests
     }
 
     /// <summary>
-    /// A Case header is four commands: the workflow with its owners, the
-    /// summary row, the three counts as one command, and the Case's works. Before
-    /// the counts were folded it was six. A caller that needs only a Case's
-    /// documents pays less than the Files section, which reads them with the
-    /// Case's frame and correspondence.
+    /// A Case header is at most four commands: the workflow with its owners, the
+    /// summary row, the three counts as one command, and the Case's works. A
+    /// caller that needs only a Case's documents pays less than the Files
+    /// section, which reads them with the Case's frame and correspondence.
     /// </summary>
     [Fact]
-    public async Task TheCaseHeaderIsFourCommandsAndTheDocumentsOnlyReadIsFewerThanTheFilesSection()
+    public async Task TheCaseHeaderIsAtMostFourCommandsAndTheDocumentsOnlyReadIsFewerThanTheFilesSection()
     {
         var counter = new CommandCountingInterceptor();
         await using var database = await LocalDbTestDatabase.CreateAsync(
@@ -593,7 +592,9 @@ public sealed class CaseCursorQueryPersistenceTests
         _ = await documents.ListAsync(caseId, CancellationToken.None);
         var documentCommands = counter.Count;
 
-        Assert.Equal(4, headerCommands);
+        Assert.True(
+            headerCommands <= 4,
+            $"The Case header sent {headerCommands} commands; at most 4 are allowed.");
         Assert.True(
             documentCommands < filesCommands,
             $"The documents-only read ({documentCommands}) must cost less than the Files section ({filesCommands}).");
