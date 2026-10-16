@@ -4,6 +4,34 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 107 - 16 October 2026 (deployment live)
+
+Release 107 deployed [PR 1337](https://github.com/collisionengineers/pegasus/pull/1337)
+(the combine of [PR 1331](https://github.com/collisionengineers/pegasus/pull/1331),
+AI-drafted replies to mail Queries with one Core confirm of the AI job before a send,
+[PR 1332](https://github.com/collisionengineers/pegasus/pull/1332), the Outlook category
+write removed with its catalogue table (#1211), and
+[PR 1335](https://github.com/collisionengineers/pegasus/pull/1335), the Release 106
+record). It was the first destructive release after the 14 October history rewrite and
+the first wave of the release-readiness programme to land.
+
+The route was the destructive App Service route. The old Worker and Web were stopped
+before SQL and only approved new bytes ran against the new schema. Web and Worker are
+Running on the approved release and full production smoke passed on its fourth read,
+the first three having run before the restarted Worker's first inbound poll.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `eff3ad287b4dfeebe865eb08d3ce1945d9d9c7cd`, the merge of PR 1337 into `dev`; `main` and `dev` both read it back. Manifest SHA-256 `761C804D1FA028B33444A7F4D9E1D2C93ADCB84BFD544625CB52A3DB4B77BCC8` (schema 3, clean, `win-x64`/`efbundle.exe`); `web.zip` `86077708FA7A2BE3826E1B741BAB1716BD4421EA3FB1DF13238F0005CF519A5D`; `worker.zip` `7A523542588F415E41325E1460930107ED7E1204FE6BC8AEA5608298F59C882F`; `classifier.zip` `A0BFFEB6231288B5CFD9BA07A8F6A5A2D1F2577691DE2F09A5D86B73FE89C080` (built, not deployed: no classifier Function App exists); `efbundle.exe` `77E7920EB493913DC6A1BF64E52F5A543F598C9C7BB685A2B3ADE168BA70BB9A`. Built 15:22-15:31Z in a detached worktree at the release SHA; Local and Artifact plan validations passed. Tools: .NET SDK 10.0.302, Node v24.15.0, npm 11.14.1, az 2.88.0, azd 1.34.1. |
+| Review and promotion | PR 1331 was approved at `235567b0d` after its review rework; PR 1337's head tree equals the release tree, its lost-work audit passed and its checks passed (run 38919158421: unit, six `sql-integration` shards, coverage, invariants; the classifier lane did not apply). One promotion from `main` `b8124e3f0` at 21:58:01Z, under the operator's authorisation of 16 October for the programme's landings, promotions and deployments. |
+| Schema and grants | Destructive. Deployed head `20261013100000_DropPrincipalDomainReference` (221 applied); new head `20261014220000_DropApprovedOutlookCategories` (222). The one non-additive operation drops `dbo.ApprovedOutlookCategories`, the retired Administrator Mail categories catalogue (MAIL-13); the table held 0 rows before SQL (read-only 14:58Z and again 22:05:55Z), so the forward-only boundary loses no data. Bundle applied the one migration 22:06:08-22:06:15Z; bootstrap passed 22:06:34Z (680 catalogued permission/denial rows, 478 effective runtime DML rows; the dropped table's rows gone); head verified 22:06:36Z. |
+| Containment and deployment | Old Web read `b8124e3f08f86a023a2cc95a6fdd2ec8ae904bc0` Running on `DOTNETCORE\|10.0` (22:02:29Z); the Worker's Flex `siteUpdateStrategy` reads `Recreate`. Census set disabled 22:02:47Z; `worker.zip` staged 22:04:38Z, Worker-only smoke passed both times; Worker `Stopped` 22:05:19Z; Web `Stopped` and unserved (403) 22:05:28Z; fresh read-back before SQL 22:05:36Z and again 22:05:52Z. `web.zip` deployed to the stopped Web App with `--restart false` 22:07:48Z, still `Stopped`. Provision with Web approved and Worker disabled 22:09:36Z (no resource changes); provision with Worker `approved-live-worker` 22:11:44Z; Web started 22:11:47Z and read back ready at the release 22:14:46Z; Worker `Running` 22:14:53Z; all five Disabled settings `false` 22:15:04Z. Web outage 22:05:28Z-22:14:46Z. |
+| Production smoke | Passed 22:20:46Z: Worker activation `approved-live-worker`; Web Running on `DOTNETCORE\|10.0`; deployment record `33892418-548d-418b-9cf1-e4312a2e241c` (OneDeploy, 22:07:38Z); active package `20261016220720.zip` SHA-256 equals the approved `web.zip`; intake liveness passed (last poll 22:20:00Z; Graph subscription expires 2026-10-18 17:10:00Z). The 22:15Z, 22:16Z and 22:18Z reads failed only on poll age (16-19 minutes); the first poll after the Worker start completed 22:20:00Z. |
+| Query Store | State `READ_WRITE`. Before snapshot (24 h to 22:02Z, 84 statements) at ignored `artifacts/performance/query-store-release-107-before-20261016T2202Z.csv`, taken because PR 1331 maps `AiJobRecord.LastOperationKey`. The after snapshot is owed after a day of use. |
+| Still owed | Live proof signed in: an open mail Query offers Draft reply with AI and shows its job state; a send completes the Draft ready job and the refused-confirm notice reads as ruled; Administration no longer lists Mail categories. Release 106's owed items stand. |
+| PR states | PRs 1331, 1332, 1335 and 1337 read Merged with their heads in `main` and `dev`. #1211 was closed at landing; #972 and #980 were closed as not planned by operator ruling. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-107-eff3ad28`; the stage drivers and their logs at `artifacts/releases/release-107-driver`. |
+
 ## Release 106 - 15 October 2026 (deployment live)
 
 Release 106 deployed [PR 1334](https://github.com/collisionengineers/pegasus/pull/1334)
