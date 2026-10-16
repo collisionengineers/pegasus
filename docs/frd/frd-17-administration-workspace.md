@@ -1,6 +1,6 @@
 # FRD-17: Administration workspace
 
-> Owner capabilities: MI-01 to MI-06, UI-11, MAIL-24 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MI-01 to MI-06, UI-11, MAIL-24, OPS-26, OPS-27 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -380,7 +380,7 @@ behaviour. Deployment and live acceptance are separate evidence tiers
 
 ## Links
 
-- Capabilities: `MI-01`–`MI-06`, `UI-11` in
+- Capabilities: `MI-01`–`MI-06`, `UI-11`, `MAIL-24`, `OPS-26`, `OPS-27` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-04](frd-04-parties-accounts-and-access.md),

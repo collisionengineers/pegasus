@@ -188,10 +188,7 @@ the time of the newest job. There is no connectivity test button.
 ## States and transitions
 
 AI job states and their transitions are listed under
-[AI Job List](#ai-job-list). Settlement proposals are **Awaiting**,
-**Accepted** or **Corrected**, as described under
-[Targeted sending and reviewed AI proposals](#targeted-sending-and-reviewed-ai-proposals).
-The Case's own states are in
+[AI Job List](#ai-job-list). The Case's own states are in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels).
 
 ## Edge cases and fail-closed behaviour

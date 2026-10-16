@@ -138,14 +138,15 @@ Case's identity changes and neither reference is reused. The replacement
 records the correct Principal as a Confirmed `principal_code` with source
 kind staff correction. The original Case's own fields are left as they were.
 After Create audit, the replacement starts from the Inspection's values only
-and has no Audit. Created in error is a recorded disposition, not a
-permanent closure. A Triage Case's Principal is fixed with its `t.` Case/PO:
-Triage has no Set principal, and Correct principal is not offered on a
-Triage Case.
+and has no Audit. Created in error is a recorded disposition, and a Case
+marked Created in error is never returned to work. A Triage Case's Principal
+is fixed with its `t.` Case/PO: Triage has no Set principal, and Correct
+principal is not offered on a Triage Case.
 
-**Never deleted.** A Case is never deleted and never permanently closed.
-Returning a Case to engineering work records a reason and uses the normal
-gates in [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
+**Never deleted.** A Case is never deleted and, except `Created in error`,
+never permanently closed. Returning a Case other than `Created in error` to
+engineering work records a reason and uses the normal gates in
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
 
 **Who is who.** The Principal is the party that instructs and pays. An
 Intermediary provides a route to Pegasus; that does not make it the Principal.

@@ -1,6 +1,6 @@
 # FRD-10: MCP automation and actor boundary
 
-> Owner capabilities: MCP-01 to MCP-04 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MCP-01 to MCP-05 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -101,10 +101,12 @@ authenticated URL for the original bytes:
 `/automation/documents/{occurrence}/versions/{version}` for a Case document
 (Documents scope) and `/automation/intake-sources/{receipt}` for a retained
 intake source (Intake scope). Each endpoint needs the same bearer audience and
-its scope, rechecks Case or receipt authorisation, and answers with the exact
-SHA-256 as ETag; the document route supports ranges. A metadata-only answer
-fetches zero content bytes. There are no public signed links, no document
-export archive, and no fetches of arbitrary URLs.
+its scope, checks the casework right, and answers with the exact SHA-256 as
+ETag. The document route resolves the document inside the Case it names; the
+intake-source route rechecks no Case or receipt membership. The document route
+supports ranges. A metadata-only answer fetches zero content bytes. There are
+no public signed links, no document export archive, and no fetches of
+arbitrary URLs.
 
 **Edit leases.** <a id="edit-leases"></a> A write tool presented without an
 edit lease token claims the record's lease through the same Core port as
@@ -413,7 +415,7 @@ stopped automation client is refused before any tool runs.
 | `pegasus_ai_job_list` | `automation.jobs` | List jobs by state and kind; a client sees every queued job and its own taken jobs |
 | `pegasus_ai_job_create` | `automation.jobs` | Create a job of any kind with the subject the staff action names: Estimate (a Case, optional direction and target), MarketResearch (a Case and guide month; a pending job for the Case is returned instead), QueryResponse (a retained Query e-mail linked to its Case), UnidentifiedResolution (an open U-reference) or UnidentifiedQueuePass (an instruction). Jobs are how external agents on automated runs hand work to each other (operator, 7 October 2026) |
 | `pegasus_ai_job_transition` | `automation.jobs` | One tool with an `action`: Take claims a queued job under a bounded lease held by the client's name (refused when the job is not queued or the kill switch is on); Progress renews the lease and records a short note (refused after cancellation, lease expiry or while the kill switch is on); Complete marks a non-MarketResearch job `Draft ready`, naming its result kind; Fail marks it `Failed` with a reason; Release returns a taken job to `Queued` before the lease ends. Those five act only on the client's own job. Cancel stops any queued, taken or `Draft ready` job with a reason, as an Administrator's Stop does; Confirm marks a `Draft ready` QueryResponse or UnidentifiedQueuePass `Completed`, as the Work Centre's **Complete job** does |
-| `pegasus_ai_job_complete_market_research` | `automation.jobs` | File one findings document and one AI market research card and mark the client's MarketResearch job `Draft ready`. It takes no Case edit lease and no Case version: a source card is not a Case field edit, and the Engineer who asked is usually still editing, so it never waits on or ends their session. The Case history records the attachment at the Case's current version. Refused for an archived or completed Case (operator, 28 September 2026) |
+| `pegasus_ai_job_complete_market_research` | `automation.jobs` | File one findings document and one AI market research card and mark the client's MarketResearch job `Draft ready`. It takes no Case edit lease and no Case version: a source card is not a Case field edit, and the Engineer who asked is usually still editing, so it never waits on or ends their session. The Case history records the attachment at the Case's current version. Refused for an archived or closed Case (operator, 28 September 2026) |
 | `pegasus_estimate_save` | `automation.assessment` | Create an estimate on a Case, which lands as an AI-draft `Draft`, or edit any live estimate in place, the Current one included; citing the Estimate job it fulfils is optional |
 | `pegasus_estimate_list` | `automation.assessment` | List a Case's estimates with their state and source |
 | `pegasus_estimate_get` | `automation.assessment` | One estimate in full: its header, every line with its `lineId` and evidence, its totals and the snapshots it can be restored to |
@@ -577,7 +579,7 @@ acceptance are separate evidence tiers
 
 ## Links
 
-- Capabilities: `MCP-01`–`MCP-04` in [capabilities](../capabilities.md).
+- Capabilities: `MCP-01`–`MCP-05` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-03](frd-03-triage.md),
   [FRD-05](frd-05-documents-extraction-and-custody.md),

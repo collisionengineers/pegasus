@@ -39,7 +39,7 @@ only by the actual application caller and current evidence, never by an
 imported workspace or plan.
 
 One engine owns each readable format. PDF uses PdfPig, the only live PDF
-implementation (ADR-0001, ADR-0003). DOCX uses OpenXml. EML uses MimeKit.
+implementation (ADR-0040, ADR-0003). DOCX uses OpenXml. EML uses MimeKit.
 DOC and MSG use the CollisionDocNet-derived compound-file readers brought in
 by ADR-0025, and those readers handle only those two formats. Video is kept
 and labelled for review; it is never treated as readable text.
@@ -332,12 +332,12 @@ identity still returns not-found.
 
 Image tags classify Case images. They are separate from Box and SQL file
 custody. The shared vocabulary has `Name`, `Colour` and `IsBuiltIn`. A join
-records which tag sits on which image occurrence, with `AppliedBy`,
-`AppliedAtUtc` and the operation key. The seeded, non-deletable tags are
-Overview, Close-up, Third party and Reflection. An authorised staff member
-may add a custom tag of up to 40 characters, unique against every existing
-name ignoring case, with one of six fixed design tints. An occurrence may
-carry any number of tags.
+records which tag sits on which image occurrence, with `AppliedByKind`,
+`AppliedBySubjectId`, `AppliedAtUtc` and the operation key. The seeded,
+non-deletable tags are Overview, Close-up, Third party and Reflection. An
+authorised staff member may add a custom tag of up to 40 characters, unique
+against every existing name ignoring case, with one of six fixed design
+tints. An occurrence may carry any number of tags.
 
 Tags carry meaning for the report (operator, 26 September 2026). A new
 image is in the report. The first image in the report tagged Overview prints
@@ -413,9 +413,10 @@ test subtree. Deployment and live acceptance are separate evidence tiers
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-18](frd-18-manual-upload.md),
   [FRD-19](frd-19-image-led-intake-and-pairing.md).
-- Technical constraints: [ADR-0001](../adr/0001-hybrid-pdf-extraction.md),
+- Technical constraints:
   [ADR-0003](../adr/0003-pdfpig-for-first-qdos-slice.md),
   [ADR-0025](../adr/0025-integrate-renderer-and-extractor-into-the-application.md),
+  [ADR-0040](../adr/0040-qualified-document-intelligence-ocr.md),
   [ADR-0045](../adr/0045-document-custody-and-derived-caches.md),
-  [ADR-0047](../adr/0047-scanned-instruction-ocr-only.md),
-  [ADR-0056](../adr/0056-one-case-per-work-data-and-triage-case-type.md).
+  [ADR-0056](../adr/0056-one-case-per-work-data-and-triage-case-type.md),
+  [ADR-0061](../adr/0061-ocr-every-scanned-document-page.md).

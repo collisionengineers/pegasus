@@ -11,8 +11,7 @@ Required outcomes:
 
 The 6 September 2026 v1 scope completes engineering and final reports in
 Pegasus. Staff or the Automation actor initiate every report and chaser send. Per-staff
-Glass's repair estimates are included, while its valuation service and the
-additional spreadsheet-driven workflow automation remain deferred. These are the current product requirements; earlier limitations are
+Glass's repair estimates are included. These are the current product requirements; earlier limitations are
 historical observations, not competing requirements.
 
 - make receiving work, incomplete intake, Triage, active cases, due work, queries, and completed work visible without reconstructing state from multiple systems;
@@ -136,15 +135,15 @@ to invent automated WhatsApp ingestion. Guided capture runs outside Pegasus
 through Tractable, which emails a PDF that intake reads; Pegasus has no
 Tractable integration and no capture of its own. Glass's repair estimates,
 Glass's valuation and native Pegasus reports are included; additional
-spreadsheet-driven customer, recipient/package/chase and garage-procedure
-automation remain deferred.
+spreadsheet-driven customer and garage-procedure automation remain deferred.
 
 ## Excluded product capabilities
 
 - ACC-12: External/customer application accounts.
 - ACC-13: Public registration.
 - ACC-14: Multi-factor authentication for staff.
-- UI-12: Responsive/mobile staff interface.
+- UI-12: Mobile-specific staff product.
+- MAIL-19: Automatic chasers or other outbound messages.
 - DOC-09: Automated malware scanning of inbound files.
 - DOC-10: Document redaction workflow.
 - DOC-11: Digital signatures.

@@ -1,6 +1,6 @@
 # FRD-21: Outbound correspondence and Sent evidence
 
-> Owner capabilities: MAIL-12, MAIL-14 to MAIL-16, MAIL-19, MAIL-25 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MAIL-12, MAIL-14 to MAIL-16, MAIL-25 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -337,7 +337,7 @@ document never moves a Case by itself.
 
 ## Links
 
-- Capabilities: `MAIL-12`, `MAIL-14`–`MAIL-16`, `MAIL-19`, `MAIL-25` in
+- Capabilities: `MAIL-12`, `MAIL-14`–`MAIL-16`, `MAIL-25` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-08](frd-08-email-mailbox-and-background-processing.md)
   (inbound mail and classification),

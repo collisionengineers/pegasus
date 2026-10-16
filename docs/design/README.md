@@ -966,7 +966,7 @@ second caller and a recorded reason.
 | --- | --- |
 | `_Layout`, `_LayoutAuth` | Frames |
 | `_LucideSprite` | The inlined sprite |
-| `_ShellDialogs` | Account, Notifications, command palette |
+| `_ShellDialogs` | Account, Notifications, command palette, What's new, Report a problem |
 | `_AdminNav` | Administration panel nav |
 | `_StatusChip`, `_PageHeader`, `_ReasonDialog`, `_ErrorSummary`, `_EvidenceViewer`, `_ImageGallery`, `_UploadReview` | Retained, restyled to the vocabulary |
 | `Presentation/OperatorLabels.cs` | The one label map |
