@@ -30,24 +30,22 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
-    [Theory]
-    [InlineData("Update")]
-    [InlineData("SaveCategory")]
-    public async Task NonAdministratorCannotPostMailSettingsHandlers(string handler)
+    [Fact]
+    public async Task NonAdministratorCannotPostMailSettingsHandlers()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = IntakeWebDriver.CreateClient(factory);
         client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
 
         using var response = await client.PostAsync(
-            $"/Administration/Mailboxes?handler={handler}",
+            "/Administration/Mailboxes?handler=Update",
             new FormUrlEncodedContent(new Dictionary<string, string>()));
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
-    public async Task AdministratorSeesTheAdminLayoutBothTablesAndApplicableHandlers()
+    public async Task AdministratorSeesTheAdminLayoutTableAndApplicableHandlers()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -62,9 +60,7 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Contains("<th scope=\"col\">Used for</th>", page, StringComparison.Ordinal);
         Assert.Contains("<th scope=\"col\">Last checked</th>", page, StringComparison.Ordinal);
         Assert.Contains("<th scope=\"col\">State</th>", page, StringComparison.Ordinal);
-        Assert.Contains("<caption class=\"sr-only\">Mail categories</caption>", page, StringComparison.Ordinal);
         Assert.Contains("?mailboxId=", page, StringComparison.Ordinal);
-        Assert.Contains("?handler=SaveCategory", page, StringComparison.Ordinal);
         Assert.Contains("data-dialog=\"new-mailbox-dialog\"", page, StringComparison.Ordinal);
         Assert.DoesNotContain("default-sender", page, StringComparison.Ordinal);
         Assert.DoesNotContain("https://github.com/", page, StringComparison.Ordinal);
@@ -174,38 +170,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Equal(1, resolver.AccessChecks);
         Assert.Contains("could not verify read access", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.DoesNotContain($"<td>{NewAddress}</td>", await GetPageAsync(client), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task InvalidNewCategoryReopensOnlyTheCategoryDialog()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var page = await GetPageAsync(client);
-
-        var response = await client.PostAsync(
-            "/Administration/Mailboxes?handler=SaveCategory",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["CategoryForm.CategoryId"] = NewCategoryId(page),
-                ["CategoryForm.ExpectedVersion"] = "0",
-                ["CategoryForm.OperationKey"] = NewCategoryOperationKey(page),
-                ["CategoryForm.DisplayName"] = string.Empty,
-                ["CategoryForm.SelectedState"] = "Active",
-                ["__RequestVerificationToken"] = AntiforgeryToken(page)
-            }));
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("The DisplayName field is required.", html, StringComparison.Ordinal);
-        Assert.Contains(
-            "data-dialog=\"add-mail-category-dialog\" data-dialog-open-on-load=\"true\"",
-            html,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            "data-dialog=\"new-mailbox-dialog\" data-dialog-open-on-load=\"true\"",
-            html,
-            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -679,12 +643,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
     private static string OperationKey(string html) =>
         Value(OperationKeyTagRegex().Matches(html)[^1].Value);
 
-    private static string NewCategoryId(string html) =>
-        Value(CategoryIdTagRegex().Matches(html)[^1].Value);
-
-    private static string NewCategoryOperationKey(string html) =>
-        Value(CategoryOperationKeyTagRegex().Matches(html)[^1].Value);
-
     private static string Value(string tag)
     {
         var match = ValueRegex().Match(tag);
@@ -770,12 +728,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
 
     [GeneratedRegex("<input[^>]*name=\"MailboxForm\\.OperationKey\"[^>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex OperationKeyTagRegex();
-
-    [GeneratedRegex("<input[^>]*name=\"CategoryForm\\.CategoryId\"[^>]*>", RegexOptions.IgnoreCase)]
-    private static partial Regex CategoryIdTagRegex();
-
-    [GeneratedRegex("<input[^>]*name=\"CategoryForm\\.OperationKey\"[^>]*>", RegexOptions.IgnoreCase)]
-    private static partial Regex CategoryOperationKeyTagRegex();
 
     [GeneratedRegex("(?<form><form\\b[^>]*>.*?</form>)", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex FormRegex();

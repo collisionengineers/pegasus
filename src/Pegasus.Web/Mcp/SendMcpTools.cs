@@ -12,6 +12,7 @@ using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Pages.Cases;
 using Pegasus.Web.Pages.Mail;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Mcp;
 
@@ -37,7 +38,8 @@ internal sealed record MailSendToolResult(
     [property: Description("The Case the mail is filed against (the Triage Case for triage_reply).")] Guid CaseId,
     [property: Description("The retained message answered or forwarded; null for a chaser sent as a new message.")] Guid? MessageId,
     string OperationKey,
-    string CorrelationId);
+    string CorrelationId,
+    string? AiJobNotCompleted = null);
 
 /// <summary>
 /// Outward sending for the Automation Actor (ADR-0064 phase 4, operator
@@ -211,6 +213,7 @@ internal sealed class SendMcpTools(
         [Description("chaser only, and only for a Case with no instruction e-mail to reply to: the address of the Outgoing approved mailbox to send from.")] string? fromMailbox = null,
         [Description("Files to attach: Case document version ids (documentVersionId from pegasus_case_get), or for triage_reply the origin item's assetIds (pegasus_intake_get).")] Guid[]? attachments = null,
         [Description("reply and reply_all only: also resolve the Case's open queries once the Sent item is observed, as the composer's Also resolve query tick does.")] bool resolveQuery = false,
+        [Description("reply and reply_all only: the Draft ready QueryResponse job (pegasus_ai_job_list) whose draft this reply was composed on; an accepted send completes it, as the staff composer's Send does. A job that is not that message's Draft ready reply is left as it is.")] Guid? aiJobId = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.SendScope, cancellationToken);
@@ -248,6 +251,10 @@ internal sealed class SendMcpTools(
                 {
                     throw new McpException("resolveQuery applies to reply and reply_all only.");
                 }
+                if (aiJobId is not null && verb is not ("reply" or "reply_all"))
+                {
+                    throw new McpException("aiJobId applies to reply and reply_all only.");
+                }
 
                 var (command, message) = verb switch
                 {
@@ -272,6 +279,9 @@ internal sealed class SendMcpTools(
                             Body = body.Trim(),
                             OperationKey = key,
                             ResolvesCaseQueries = resolveQuery,
+                            AiJobId = aiJobId is { } cited
+                                ? AutomationMcpErrors.RequireId(cited, "AI job identifier")
+                                : null,
                         },
                         cancellationToken);
                 return new MailSendToolResult(
@@ -283,7 +293,10 @@ internal sealed class SendMcpTools(
                     caseId,
                     message,
                     key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    AutomationMcpAuditor.CorrelationId(context, key),
+                    operation.AiJobRefusal is { } refusal
+                        ? OperatorLabels.QueryResponseJobs.NotCompleted(refusal)
+                        : null);
             }),
             cancellationToken);
     }

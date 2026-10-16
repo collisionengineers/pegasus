@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
@@ -201,6 +202,8 @@ public sealed class StaffMailSend(
     IStaffMailTransport transport,
     TimeProvider timeProvider,
     IStaffMailExecutionLock executionLock,
+    IAiJobStore aiJobs,
+    IConfirmAiJob confirmAiJob,
     IAutomationIngressStatusQueries? automationIngress = null) : IStaffMailSend
 {
     public async Task<StaffMailOperation> SendAsync(
@@ -211,7 +214,45 @@ public sealed class StaffMailSend(
         {
             throw new InvalidOperationException("Case-report mail must pass the frozen report-readiness boundary.");
         }
-        return await SendValidatedAsync(command, _ => Task.CompletedTask, cancellationToken);
+        var operation = await SendValidatedAsync(command, _ => Task.CompletedTask, cancellationToken);
+        return await CompleteDraftReplyJobAsync(command, operation, cancellationToken);
+    }
+
+    /// <summary>
+    /// A reply composed on an AI draft completes its Query response job once
+    /// the provider has the send (FRD-27): the staff act that consumes the
+    /// draft is the send, as **Use repair spec** is for an Estimate job, and
+    /// both make the one confirm (<see cref="AiJobConsumption"/>). Only a
+    /// Submitted or Sent operation counts; a refused, cancelled or Unknown
+    /// send leaves the job Draft ready, and a job that is not this message's
+    /// Query response on this Case is not the send's to complete. The mail has
+    /// gone whatever the ledger answers, so a refused confirm is carried on
+    /// the returned operation (operator, 16 October 2026); any other failure
+    /// propagates.
+    /// </summary>
+    private async Task<StaffMailOperation> CompleteDraftReplyJobAsync(
+        StaffMailSendCommand command,
+        StaffMailOperation operation,
+        CancellationToken cancellationToken)
+    {
+        if (command.AiJobId is not { } jobId
+            || operation.State is not (StaffMailState.Submitted or StaffMailState.Sent)
+            || command.OriginalMessage is not { } original)
+        {
+            return operation;
+        }
+        var job = await aiJobs.GetAsync(jobId, cancellationToken);
+        if (job is null
+            || !AiJobPolicy.IsQueryResponseFor(job, original.RetainedMessageId, command.ContextId))
+        {
+            return operation;
+        }
+        return operation with
+        {
+            AiJobRefusal = await AiJobConsumption.ConfirmAsync(
+                aiJobs, confirmAiJob, job, command.Actor, command.OperationKey,
+                timeProvider.GetUtcNow(), cancellationToken)
+        };
     }
 
     internal async Task<StaffMailOperation> SendValidatedAsync(
@@ -509,6 +550,13 @@ public sealed class StaffMailSend(
                 || command.ComposeMode is not (StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll)))
         {
             throw new ArgumentException("Only a reply to Case correspondence can resolve the Case's queries.", nameof(command));
+        }
+        if (command.AiJobId is { } aiJobId
+            && (aiJobId == Guid.Empty
+                || command.Purpose != StaffMailPurpose.GeneralCorrespondence
+                || command.ComposeMode is not (StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll)))
+        {
+            throw new ArgumentException("Only a reply to Case correspondence is composed on an AI draft.", nameof(command));
         }
         // A report send is a reply to the instruction e-mail whenever its mailbox
         // can send (#1304), so the second report rides on either compose mode.

@@ -89,7 +89,6 @@ public static class CaseWorkspaceLabels
         public const string SendChaser = "Send chaser";
         // The AI Proposal by its reserved term (v36 item C, 9 October 2026).
         public const string ReviewEstimate = "Review AI Proposal";
-        public const string OpenQuery = "Open query";
         /// <summary>The Next action row an open Case shows while a linked message is a cancellation (FRD-13).</summary>
         public const string CancellationReceived = "Cancellation received";
         public const string Review = "Review";
@@ -1340,6 +1339,8 @@ public static class CaseWorkspaceLabels
         public const string ResolvedBy = "Resolved by";
         public const string Open = "Query";
         public const string Message = "Message";
+        /// <summary>The Case status line after a Queries row's Draft reply with AI.</summary>
+        public const string DraftStarted = "AI reply job created. Its draft opens from here, the Work Centre or your notifications when ready.";
 
         public static string Channel(CaseQueryChannel channel) => channel switch
         {

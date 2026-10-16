@@ -495,7 +495,8 @@ public sealed class EfAiJobStore(
         entity.ClosureReason,
         entity.Version)
     {
-        DraftReadyAtUtc = entity.DraftReadyAtUtc
+        DraftReadyAtUtc = entity.DraftReadyAtUtc,
+        LastOperationKey = entity.LastOperationKey
     };
 
     private static TEnum Parse<TEnum>(string value) where TEnum : struct, Enum =>

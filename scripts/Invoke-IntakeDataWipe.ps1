@@ -33,10 +33,12 @@ $preserve = @(
 # drops TriageSequences (a Triage Case takes its reference from CaseSequences);
 # 20260927002303_EmailTemplates adds EmailTemplates; 20261013090000_ContactSingleType
 # drops ContactRoles and OrganizationRoles; 20261013100000_DropPrincipalDomainReference
-# drops the three PrincipalDomain reference tables.
+# drops the three PrincipalDomain reference tables;
+# 20261014220000_DropApprovedOutlookCategories drops ApprovedOutlookCategories.
 $optionalPreserve = @(
     'TriageSequences', 'EmailTemplates', 'ContactRoles', 'OrganizationRoles',
-    'PrincipalDomainEvidence', 'PrincipalDomainPackages', 'PrincipalReferences'
+    'PrincipalDomainEvidence', 'PrincipalDomainPackages', 'PrincipalReferences',
+    'ApprovedOutlookCategories'
 )
 
 Write-Output "=== Blob inventory: $storageAccount/$container ==="

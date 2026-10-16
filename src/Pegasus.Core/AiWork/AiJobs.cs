@@ -93,6 +93,9 @@ public sealed record AiJobRecord(
 {
     /// <summary>When the client wrote its draft; set once the job reaches Draft ready.</summary>
     public DateTimeOffset? DraftReadyAtUtc { get; init; }
+
+    /// <summary>The operation key of the job's last transition, which a replay of that transition repeats.</summary>
+    public string? LastOperationKey { get; init; }
 }
 
 /// <summary>

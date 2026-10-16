@@ -480,7 +480,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20261013090000_LabourRateBuiltInCards",
                 "20261013091000_ContactSopSeed",
                 "20261013092000_RemoveContactGuidance",
-                "20261013100000_DropPrincipalDomainReference"
+                "20261013100000_DropPrincipalDomainReference",
+                "20261014220000_DropApprovedOutlookCategories"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

@@ -5,8 +5,6 @@
   "Pegasus.IntegrationTests.ApprovedMailboxAdministrationWebTests": 147.15,
   "Pegasus.IntegrationTests.ApprovedMailboxEstateIntegrationTests": 80.91,
   "Pegasus.IntegrationTests.ApprovedMailboxIdentityMigrationTests": 8.02,
-  "Pegasus.IntegrationTests.ApprovedOutlookCategoryAdministrationWebTests": 41.49,
-  "Pegasus.IntegrationTests.ApprovedOutlookCategoryPersistenceTests": 12.2,
   "Pegasus.IntegrationTests.AssessmentCopyWebTests": 13.92,
   "Pegasus.IntegrationTests.AssessmentEstimateImportWebTests": 260.68,
   "Pegasus.IntegrationTests.AssessmentPersistenceIntegrationTests": 271.97,

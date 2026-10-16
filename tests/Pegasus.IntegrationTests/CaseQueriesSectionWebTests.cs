@@ -2,8 +2,11 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Notifications;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
@@ -146,6 +149,118 @@ public sealed class CaseQueriesSectionWebTests
     }
 
     /// <summary>
+    /// An open mail query carries its AI draft (FRD-27): with no live job the
+    /// row offers Draft reply with AI beside Reply, posting the Case's own
+    /// handler for that message; while the job is Queued or Taken the row
+    /// reads the pending state instead; once Draft ready, Reply with AI draft
+    /// replaces Reply and opens the message's composer on the job.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData(AiJobState.Queued)]
+    [InlineData(AiJobState.Taken)]
+    [InlineData(AiJobState.DraftReady)]
+    public async Task AnOpenMailQueryOffersAnAiDraftAndReadsItsJobsState(AiJobState? jobState)
+    {
+        var messageId = Guid.NewGuid();
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportSent,
+            HasOpenQuery = true,
+            Queries = [MailQuery(messageId)]
+        };
+        var job = jobState is { } state ? Job(store.CaseId, messageId, state) : null;
+
+        var html = await ReadQueriesAsync(store, fragment: false, staffMail: true, jobs: job is null ? [] : [job]);
+        var row = Assert.Single(Rows(QueriesBody(html)));
+
+        var replies = Regex.Matches(row.Markup, "<a[^>]*data-query-reply=\"[^\"]+\"[^>]*>");
+        var reply = Assert.Single(replies);
+        var startForm = Regex.Match(
+            row.Markup,
+            $"<form[^>]*data-query-ai-draft-start=\"{messageId:D}\"[^>]*>.*?</form>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant);
+        if (job is null)
+        {
+            Assert.DoesNotContain("aiJob=", reply.Value, StringComparison.Ordinal);
+            Assert.True(startForm.Success, "The row offers no Draft reply with AI.");
+            Assert.Contains($"action=\"/Cases/{store.CaseId:D}?handler=DraftQueryReply\"", startForm.Value, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains($"name=\"messageId\" value=\"{messageId:D}\"", startForm.Value, StringComparison.Ordinal);
+            Assert.Contains($">{OperatorLabels.QueryResponseJobs.Create}</span>", startForm.Value, StringComparison.Ordinal);
+            Assert.DoesNotContain("data-query-ai-pending", row.Markup, StringComparison.Ordinal);
+        }
+        else if (job.State == AiJobState.DraftReady)
+        {
+            Assert.Contains($"data-query-ai-draft=\"{job.JobId:D}\"", reply.Value, StringComparison.Ordinal);
+            Assert.Contains(
+                $"href=\"{StaffNotificationPolicy.MessageReplyRoute(messageId, Reference, job.JobId)}\"",
+                reply.Value,
+                StringComparison.Ordinal);
+            Assert.Contains($">{OperatorLabels.QueryResponseJobs.ReplyWithDraft}</span>", row.Markup, StringComparison.Ordinal);
+            Assert.False(startForm.Success);
+            Assert.DoesNotContain("data-query-ai-pending", row.Markup, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.DoesNotContain("aiJob=", reply.Value, StringComparison.Ordinal);
+            Assert.False(startForm.Success);
+            Assert.Contains(
+                $"data-query-ai-pending=\"{job.JobId:D}\">{OperatorLabels.QueryResponseJobs.Pending(job.State)}</span>",
+                row.Markup,
+                StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// Draft reply with AI is withheld with its reason, never silently
+    /// disabled: while the Administrator has stopped AI work, and on a Case
+    /// whose query stayed open after it left post-report work.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.ReportSent, false, OperatorLabels.QueryResponseJobs.AutomationStopped)]
+    [InlineData(CaseLifecycleState.ReportPreparation, true, OperatorLabels.QueryResponseJobs.AvailableInPostReportWork)]
+    public async Task DraftReplyWithAiIsGatedWithItsReason(CaseLifecycleState state, bool sendToAi, string condition)
+    {
+        var messageId = Guid.NewGuid();
+        var store = new RecordingCaseDetailsStore
+        {
+            State = state,
+            HasOpenQuery = true,
+            Queries = [MailQuery(messageId)]
+        };
+
+        var row = Assert.Single(Rows(QueriesBody(await ReadQueriesAsync(store, fragment: true, sendToAi: sendToAi))));
+
+        Assert.DoesNotContain("data-query-ai-draft-start", row.Markup, StringComparison.Ordinal);
+        var gated = Regex.Match(row.Markup, "<span class=\"gated\" data-condition=\"(?<condition>[^\"]+)\">", RegexOptions.CultureInvariant);
+        Assert.True(gated.Success, "The withheld action carries no reason.");
+        Assert.Equal(condition, gated.Groups["condition"].Value);
+        Assert.Contains($">{OperatorLabels.QueryResponseJobs.Create}</span>", row.Markup, StringComparison.Ordinal);
+    }
+
+    private static AiJobRecord Job(Guid caseId, Guid messageId, AiJobState state)
+    {
+        // The page reads the job against the host's clock, which the test host fixes.
+        var now = IntakeWebApplicationFactory.FixedUtcNow;
+        var ready = state == AiJobState.DraftReady;
+        return new(
+            Guid.NewGuid(), AiJobKind.QueryResponse, AiJobSubjectKind.Case, caseId, Reference,
+            messageId.ToString("D"), null, null, state, ActorKind.Staff, Guid.NewGuid().ToString("D"),
+            now.AddMinutes(-10), now + AiJobPolicy.DefaultExpiry,
+            state == AiJobState.Queued ? null : "draft-client",
+            state == AiJobState.Queued ? null : now.AddMinutes(-5),
+            state == AiJobState.Queued ? null : now + AiJobPolicy.LeaseDuration,
+            null,
+            ready ? AiJobResultKind.DraftReply : null,
+            ready ? messageId.ToString("D") : null,
+            ready ? "Dear Ms Patel, thank you for your e-mail." : null,
+            null, null, 2)
+        {
+            DraftReadyAtUtc = ready ? now.AddMinutes(-1) : null
+        };
+    }
+
+    /// <summary>
     /// Tag as query is offered on a received row that carries a
     /// classification version and is not already post-report, never on a
     /// post-report, Sent or undecided row. It posts the Inbox record's own
@@ -231,7 +346,9 @@ public sealed class CaseQueriesSectionWebTests
     private static async Task<string> ReadQueriesAsync(
         RecordingCaseDetailsStore store,
         bool fragment,
-        bool staffMail = false)
+        bool staffMail = false,
+        IReadOnlyList<AiJobRecord>? jobs = null,
+        bool sendToAi = true)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
@@ -239,6 +356,8 @@ public sealed class CaseQueriesSectionWebTests
             {
                 Substitute<IGetCaseEditBasis>(services, store);
                 SubstituteDetailsPageReaders(services, store);
+                Substitute<IAiJobQueries>(services, new FixedAiJobs(jobs ?? []));
+                Substitute<ISendToAiControl>(services, new FixedSendToAi(sendToAi));
                 if (staffMail)
                 {
                     Substitute<IStaffMailSend>(services, new OfferedStaffMailSend());
@@ -281,5 +400,38 @@ public sealed class CaseQueriesSectionWebTests
         var end = html.IndexOf("</table>", start, StringComparison.Ordinal);
         Assert.True(end > start, "The Correspondence table is not rendered.");
         return html[start..end];
+    }
+
+    /// <summary>The Case's AI jobs as the page reads them; nothing else is asked of the ledger.</summary>
+    private sealed class FixedAiJobs(IReadOnlyList<AiJobRecord> jobs) : IAiJobQueries
+    {
+        public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(Guid subjectId, CancellationToken cancellationToken) =>
+            Task.FromResult(jobs);
+
+        public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<AiJobQueryPage> ListOpenPageAsync(
+            AiJobKind? kind, string grantId, DateTimeOffset? afterCreatedAtUtc, Guid? afterJobId, int limit,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<AiJobRecord?> GetPendingMarketResearchAsync(Guid subjectId, CancellationToken cancellationToken) =>
+            Task.FromResult<AiJobRecord?>(null);
+
+        public Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(int max, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<AiJobCounts> GetCountsAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+    }
+
+    private sealed class FixedSendToAi(bool enabled) : ISendToAiControl
+    {
+        public Task<bool> IsEnabledAsync(CancellationToken cancellationToken) => Task.FromResult(enabled);
+
+        public Task<bool> SetEnabledAsync(
+            bool value, ActionActor actor, string? reason, string operationKey, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
     }
 }

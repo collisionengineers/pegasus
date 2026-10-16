@@ -1805,8 +1805,19 @@ public static class OperatorLabels
         public const string SendUnidentified = "Send Unidentified to AI";
         public const string CompleteJob = "Complete job";
         public const string ReviewEstimate = "Review AI Proposal";
-        public const string OpenQuery = "Open query";
+        // A Draft ready Query response opens the reply composer on its draft (FRD-27).
+        public const string OpenQuery = QueryResponseJobs.ReplyWithDraft;
         public const string Review = "Review";
+
+        /// <summary>
+        /// The instruction a row prints. A Query response stores the message
+        /// id it answers as its instruction, which no operator reads, so that
+        /// kind prints its fixed sentence instead.
+        /// </summary>
+        public static string Instruction(Pegasus.Core.AiWork.AiJobRecord job) =>
+            job.Kind == Pegasus.Core.AiWork.AiJobKind.QueryResponse
+                ? QueryResponseJobs.Instruction
+                : job.Instruction;
 
         /// <summary>
         /// A queue pass names no record: its Core subject reference is the
@@ -2075,32 +2086,18 @@ public static class OperatorLabels
     public static class MailSettings
     {
         public const string ApprovedMailboxes = "Approved mailboxes";
-        public const string MailCategories = "Mail categories";
         public const string Mailbox = "Mailbox";
         public const string State = "State";
         public const string Subscription = "Subscription";
-        public const string Category = "Category";
         public const string AddMailbox = "Add mailbox";
-        public const string AddCategory = "Add category";
         public const string SaveMailbox = "Save mailbox";
-        public const string SaveCategory = "Save category";
         public const string ApprovedAddress = "Approved address";
         public const string RouteScope = "Used for";
-        public const string DisplayName = "Display name";
         public const string NoApprovedMailboxes = "No approved mailboxes";
-        public const string NoMailCategories = "No mail categories";
         public const string NotActivated = "Not activated";
         public const string NoSubscription = "None.";
 
-        /// <summary>
-        /// Both state vocabularies are the enum names themselves, so they
-        /// delegate to <see cref="Humanise"/> rather than restating a second
-        /// copy of the same two words.
-        /// </summary>
         public static string MailboxState(ApprovedMailboxState state) =>
-            Humanise(state.ToString());
-
-        public static string CategoryState(ApprovedOutlookCategoryState state) =>
             Humanise(state.ToString());
 
         public static string PollStatus(
@@ -2290,8 +2287,49 @@ public static class OperatorLabels
         public const string AutomationStopped = "Automation stopped";
         public const string AvailableInPostReportWork = "Available in post-report work";
         public const string CaseUnavailable = "Case unavailable";
-        public const string InvalidSource =
-            "This message is not a linked post-report message.";
+
+        /// <summary>
+        /// A Draft ready reply opens the message's composer on the draft
+        /// (FRD-27): the Case's Next action, the Work Centre row, the Queries
+        /// row and the message record all say the same thing.
+        /// </summary>
+        public const string ReplyWithDraft = "Reply with AI draft";
+
+        /// <summary>The Work Centre and Administration instruction for this kind, whose stored instruction is the message id.</summary>
+        public const string Instruction = "Draft a reply to the query";
+
+        /// <summary>A job not yet Draft ready, in place of the start button: "AI draft · Queued".</summary>
+        public static string Pending(Pegasus.Core.AiWork.AiJobState state) =>
+            $"AI draft · {AiJobs.State(state)}";
+
+        /// <summary>The composer's one line above a prefilled Message.</summary>
+        public static string DraftLine(DateTimeOffset writtenAtUtc, string? client) =>
+            string.IsNullOrWhiteSpace(client)
+                ? $"Draft written {OfficeTime(writtenAtUtc)}. Edit before sending."
+                : $"Draft written {OfficeTime(writtenAtUtc)} by {client}. Edit before sending.";
+
+        /// <summary>
+        /// A send that has gone but left the AI draft job it was composed on as
+        /// it was (operator, 16 October 2026): the line beside the composer's
+        /// send status and in <c>pegasus_mail_send</c>'s result, then one reason.
+        /// </summary>
+        public const string NotCompletedBySend = "The AI draft job was not completed by this send";
+        public const string NotCompletedCancelled = "it was cancelled";
+        public const string NotCompletedAlreadyCompleted = "it was already completed";
+        public const string NotCompletedChanged = "it changed while the reply was being sent";
+
+        /// <summary>"The AI draft job was not completed by this send: {reason}."</summary>
+        public static string NotCompleted(Pegasus.Core.AiWork.AiJobConfirmRefusal refusal)
+        {
+            var reason = refusal switch
+            {
+                Pegasus.Core.AiWork.AiJobConfirmRefusal.Cancelled => NotCompletedCancelled,
+                Pegasus.Core.AiWork.AiJobConfirmRefusal.AlreadyCompleted => NotCompletedAlreadyCompleted,
+                Pegasus.Core.AiWork.AiJobConfirmRefusal.Changed => NotCompletedChanged,
+                _ => throw new ArgumentOutOfRangeException(nameof(refusal))
+            };
+            return $"{NotCompletedBySend}: {reason}.";
+        }
     }
 
     /// <summary>

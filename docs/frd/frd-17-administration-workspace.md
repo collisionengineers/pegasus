@@ -46,10 +46,10 @@ Stop on the click, with no confirmation dialog.
 
 Contact, staff-account and mailbox Settings load their current values and
 expected version with editing available immediately. Glass's credentials,
-workflow configuration, labour-rate cards, approved categories and valuation
-presets are also immediately editable. Each independent change sends its
-rendered expected version. A stale change is refused without overwriting the
-newer value and asks the Administrator to reload.
+workflow configuration, labour-rate cards and valuation presets are also
+immediately editable. Each independent change sends its rendered expected
+version. A stale change is refused without overwriting the newer value and
+asks the Administrator to reload.
 
 Where Automation is composed, each of its scopes (`automation.cases`,
 `automation.intake`, `automation.documents`, `automation.assessment`,

@@ -382,14 +382,6 @@ public static class DependencyInjection
         services.AddScoped<IApprovedMailboxSubscriptionStore, EfApprovedMailboxSubscriptionStore>();
         services.AddScoped<ListApprovedMailboxes>();
         services.AddScoped<UpdateApprovedMailbox>();
-        services.AddScoped<EfApprovedOutlookCategoryStore>();
-        services.AddScoped<IApprovedOutlookCategoryStore>(provider =>
-            provider.GetRequiredService<EfApprovedOutlookCategoryStore>());
-        services.AddScoped<IApprovedOutlookCategoryResolver>(provider =>
-            provider.GetRequiredService<EfApprovedOutlookCategoryStore>());
-        services.AddScoped<ListApprovedOutlookCategories>();
-        services.AddScoped<UpdateApprovedOutlookCategory>();
-        services.AddScoped<ResolveApprovedOutlookCategory>();
         services.AddScoped<EfCaseWorkflowStore>();
         services.AddScoped<ICaseWorkflowStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<IReleaseAutomationLeases>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
@@ -519,6 +511,7 @@ public static class DependencyInjection
         services.AddScoped<IAiJobStore>(provider => provider.GetRequiredService<EfAiJobStore>());
         services.AddScoped<IAiJobQueries>(provider => provider.GetRequiredService<EfAiJobStore>());
         services.AddScoped<ICreateAiJob, CreateAiJob>();
+        services.AddScoped<IStartQueryResponse, StartQueryResponse>();
         services.AddScoped<IMarketResearchQueries, MarketResearchQueries>();
         services.AddScoped<IStartMarketResearch, StartMarketResearch>();
         // Guide providers register beside their adapter (Glass's through

@@ -1,3 +1,4 @@
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
@@ -7,6 +8,10 @@ namespace Pegasus.Core.Tests.Operations;
 
 public sealed class StaffMailSendTests
 {
+    /// <summary>The AI job ports of a send that names no AI job.</summary>
+    private static readonly Jobs NoJobs = new();
+    private static readonly ConfirmAiJob NoConfirm = new(NoJobs);
+
     /// <summary>
     /// The Automation Actor sends as staff do (ADR-0064 phase 4): the same
     /// engine, the same attachment bytes, the same Submitted outcome. Its
@@ -32,7 +37,7 @@ public sealed class StaffMailSendTests
             new Reader(bytes, attachment),
             transport,
             TimeProvider.System,
-            new ExecutionLock(),
+            new ExecutionLock(), NoJobs, NoConfirm,
             ingress);
 
         var result = await send.SendAsync(command, CancellationToken.None);
@@ -56,7 +61,7 @@ public sealed class StaffMailSendTests
             null!,
             transport,
             TimeProvider.System,
-            new ExecutionLock(),
+            new ExecutionLock(), NoJobs, NoConfirm,
             new Ingress(enabled: false));
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
@@ -74,7 +79,7 @@ public sealed class StaffMailSendTests
         var command = Command(ActionActor.Automation("pegasus-automation"));
         var store = new Store();
         var send = new StaffMailSend(
-            store, null!, null!, new Transport(), TimeProvider.System, new ExecutionLock());
+            store, null!, null!, new Transport(), TimeProvider.System, new ExecutionLock(), NoJobs, NoConfirm);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             send.SendAsync(command, CancellationToken.None));
@@ -91,7 +96,7 @@ public sealed class StaffMailSendTests
             Command(actor), new string('A', 64), DateTimeOffset.UtcNow, CancellationToken.None);
         var ingress = new Ingress(enabled: true);
         var send = new StaffMailSend(
-            store, null!, null!, null!, TimeProvider.System, new ExecutionLock(), ingress);
+            store, null!, null!, null!, TimeProvider.System, new ExecutionLock(), NoJobs, NoConfirm, ingress);
 
         var result = await send.GetLatestForOriginalAsync(actor, Guid.NewGuid(), CancellationToken.None);
 
@@ -110,7 +115,7 @@ public sealed class StaffMailSendTests
             : ActionActor.SystemWorker("sent-evidence-poll");
         var store = new Store();
         var send = new StaffMailSend(
-            store, null!, null!, new Transport(), TimeProvider.System, new ExecutionLock(),
+            store, null!, null!, new Transport(), TimeProvider.System, new ExecutionLock(), NoJobs, NoConfirm,
             new Ingress(enabled: true));
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
@@ -127,7 +132,7 @@ public sealed class StaffMailSendTests
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var command = Command(actor) with { Purpose = StaffMailPurpose.CaseReport };
         var transport = new Transport();
-        var send = new StaffMailSend(null!, null!, null!, transport, TimeProvider.System, new ExecutionLock());
+        var send = new StaffMailSend(null!, null!, null!, transport, TimeProvider.System, new ExecutionLock(), NoJobs, NoConfirm);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             send.SendAsync(command, CancellationToken.None));
@@ -139,7 +144,7 @@ public sealed class StaffMailSendTests
     [Fact]
     public async Task NewMailCannotBorrowAnOriginalMessageIdentity()
     {
-        var send = new StaffMailSend(null!, null!, null!, null!, TimeProvider.System, new ExecutionLock());
+        var send = new StaffMailSend(null!, null!, null!, null!, TimeProvider.System, new ExecutionLock(), NoJobs, NoConfirm);
         var command = Command(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])) with
         {
             OriginalMessage = new(
@@ -194,7 +199,7 @@ public sealed class StaffMailSendTests
             new Mailboxes(command.ApprovedMailboxId, command.ExpectedMailboxGeneration),
             new Reader(bytes, attachment),
             transport,
-            TimeProvider.System, new ExecutionLock());
+            TimeProvider.System, new ExecutionLock(), NoJobs, NoConfirm);
 
         var result = await send.SendAsync(command, CancellationToken.None);
 
@@ -224,7 +229,7 @@ public sealed class StaffMailSendTests
             reader,
             new Transport(),
             TimeProvider.System,
-            new ExecutionLock());
+            new ExecutionLock(), NoJobs, NoConfirm);
 
         await send.SendAsync(command, CancellationToken.None);
 
@@ -243,7 +248,7 @@ public sealed class StaffMailSendTests
         var command = Command(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])) with { Body = body };
         var store = new Store();
         var transport = new Transport();
-        var send = new StaffMailSend(store, null!, null!, transport, TimeProvider.System, new ExecutionLock());
+        var send = new StaffMailSend(store, null!, null!, transport, TimeProvider.System, new ExecutionLock(), NoJobs, NoConfirm);
 
         await Assert.ThrowsAsync<ArgumentException>(() => send.SendAsync(command, CancellationToken.None));
 
@@ -265,7 +270,7 @@ public sealed class StaffMailSendTests
             new Reader([], new(Guid.NewGuid(), Guid.NewGuid(), new string('A', 64), 1,
                 "unused", "application/octet-stream")),
             transport,
-            TimeProvider.System, new ExecutionLock());
+            TimeProvider.System, new ExecutionLock(), NoJobs, NoConfirm);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             send.SendAsync(command, CancellationToken.None));
@@ -283,7 +288,7 @@ public sealed class StaffMailSendTests
         var expected = await store.PrepareAsync(
             Command(actor), new string('A', 64), DateTimeOffset.UtcNow, CancellationToken.None);
         var send = new StaffMailSend(
-            store, null!, null!, null!, TimeProvider.System, new ExecutionLock());
+            store, null!, null!, null!, TimeProvider.System, new ExecutionLock(), NoJobs, NoConfirm);
 
         var result = await send.GetLatestForOriginalAsync(
             actor, retainedMessageId, CancellationToken.None);
@@ -300,7 +305,7 @@ public sealed class StaffMailSendTests
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var store = new Store { RejectCurrentStaff = true };
         var send = new StaffMailSend(
-            store, null!, null!, null!, TimeProvider.System, new ExecutionLock());
+            store, null!, null!, null!, TimeProvider.System, new ExecutionLock(), NoJobs, NoConfirm);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             send.GetLatestForOriginalAsync(actor, Guid.NewGuid(), CancellationToken.None));
@@ -319,7 +324,7 @@ public sealed class StaffMailSendTests
             new Mailboxes(command.ApprovedMailboxId, command.ExpectedMailboxGeneration),
             new Reader([], new(Guid.NewGuid(), Guid.NewGuid(), new string('A', 64), 1,
                 "unused", "application/octet-stream")), transport, TimeProvider.System,
-            new ExecutionLock());
+            new ExecutionLock(), NoJobs, NoConfirm);
 
         var operation = await send.SendValidatedAsync(
             command, _ => throw new InvalidDataException("report changed"), CancellationToken.None);
@@ -350,7 +355,7 @@ public sealed class StaffMailSendTests
             new Mailboxes(command.ApprovedMailboxId, command.ExpectedMailboxGeneration),
             new Reader([], new(Guid.NewGuid(), Guid.NewGuid(), new string('A', 64), 1,
                 "unused", "application/octet-stream")), transport, TimeProvider.System,
-            new ExecutionLock());
+            new ExecutionLock(), NoJobs, NoConfirm);
 
         var operation = await send.SendAsync(command, CancellationToken.None);
 
@@ -390,7 +395,7 @@ public sealed class StaffMailSendTests
             new Reader(bytes, custodyAttachment),
             transport,
             TimeProvider.System,
-            new ExecutionLock());
+            new ExecutionLock(), NoJobs, NoConfirm);
 
         var result = await new StaffReportSend(readiness, send).SendAsync(
             new(mail, report), CancellationToken.None);
@@ -461,7 +466,7 @@ public sealed class StaffMailSendTests
         var second = new ReportSendReadinessRequest(actor, first.CaseId, secondId, 2, [other]);
         var reportSend = new StaffReportSend(new Readiness(), new StaffMailSend(
             new Store(), new Mailboxes(mail.ApprovedMailboxId, mail.ExpectedMailboxGeneration),
-            new Reader([1], report), new Transport(), TimeProvider.System, new ExecutionLock()));
+            new Reader([1], report), new Transport(), TimeProvider.System, new ExecutionLock(), NoJobs, NoConfirm));
 
         // The mail names a second report its readiness does not, or the other way round.
         await Assert.ThrowsAsync<ArgumentException>(() => reportSend.SendAsync(new(mail, first), CancellationToken.None));
@@ -481,7 +486,7 @@ public sealed class StaffMailSendTests
             CancellationToken.None));
         var send = new StaffMailSend(
             new Store(), new Mailboxes(mail.ApprovedMailboxId, mail.ExpectedMailboxGeneration),
-            new Reader([1], report), new Transport(), TimeProvider.System, new ExecutionLock());
+            new Reader([1], report), new Transport(), TimeProvider.System, new ExecutionLock(), NoJobs, NoConfirm);
         await Assert.ThrowsAsync<ArgumentException>(() => send.SendAsync(
             Command(actor) with { SecondReport = new(secondId, 1) }, CancellationToken.None));
 
@@ -503,7 +508,7 @@ public sealed class StaffMailSendTests
         var send = new StaffMailSend(store,
             new Mailboxes(command.ApprovedMailboxId, command.ExpectedMailboxGeneration),
             new Reader([], new(Guid.NewGuid(), Guid.NewGuid(), new string('A', 64), 1,
-                "unused", "application/octet-stream")), transport, TimeProvider.System, gate);
+                "unused", "application/octet-stream")), transport, TimeProvider.System, gate, NoJobs, NoConfirm);
 
         var winner = send.SendAsync(command, CancellationToken.None);
         await transport.SendEntered.Task;
@@ -526,13 +531,72 @@ public sealed class StaffMailSendTests
         var send = new StaffMailSend(
             new Store(),
             new Mailboxes(command.ApprovedMailboxId, command.ExpectedMailboxGeneration),
-            null!, transport, TimeProvider.System, new ExecutionLock());
+            null!, transport, TimeProvider.System, new ExecutionLock(), NoJobs, NoConfirm);
 
         var result = await send.SendAsync(command, CancellationToken.None);
 
         Assert.Equal(StaffMailState.Submitted, result.State);
         Assert.Equal(0, transport.FindCount);
         Assert.Equal(1, transport.CreateCount);
+    }
+
+    /// <summary>
+    /// A reply composed on an AI draft makes the one confirm once the provider
+    /// has the send (FRD-27). A confirm refused because the job moved on is
+    /// carried on the sent operation with its reason (operator, 16 October
+    /// 2026); the send's own confirmation read back on a replay is not a
+    /// refusal, and a refusal that leaves the job as it was propagates.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedJobConfirmIsOnTheSentOperation()
+    {
+        var messageId = Guid.NewGuid();
+        var command = Command(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])) with
+        {
+            ComposeMode = StaffMailComposeMode.Reply,
+            OriginalMessage = new(messageId, Guid.NewGuid(), "immutable", null, null)
+        };
+        var ready = new AiJobRecord(
+            Guid.NewGuid(), AiJobKind.QueryResponse, AiJobSubjectKind.Case, command.ContextId, "QDOS260001",
+            messageId.ToString("D"), null, null, AiJobState.DraftReady, ActorKind.Staff, "starter",
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow + AiJobPolicy.DefaultExpiry, "client", null, null, null,
+            AiJobResultKind.DraftReply, null, "Dear Ms Patel.", null, null, 3);
+
+        async Task<(StaffMailOperation Operation, Jobs Jobs)> SendOnAsync(
+            AiJobRecord job, Func<AiJobRecord, AiJobRecord>? refuseAs = null)
+        {
+            var jobs = new Jobs { Job = job, RefuseAs = refuseAs };
+            var send = new StaffMailSend(
+                new Store(), new Mailboxes(command.ApprovedMailboxId, command.ExpectedMailboxGeneration),
+                null!, new Transport(), TimeProvider.System, new ExecutionLock(), jobs, new ConfirmAiJob(jobs));
+            return (await send.SendAsync(command with { AiJobId = job.JobId }, CancellationToken.None), jobs);
+        }
+
+        var (completed, completedJobs) = await SendOnAsync(ready);
+        Assert.Equal(StaffMailState.Submitted, completed.State);
+        Assert.Null(completed.AiJobRefusal);
+        var confirm = Assert.Single(completedJobs.Transitions);
+        Assert.Equal(AiJobState.Completed, confirm.TargetState);
+        Assert.Equal(ready.Version, confirm.ExpectedVersion);
+        Assert.Equal("operation-key:job", confirm.OperationKey);
+
+        // The job moved on under the confirm: the mail has gone and says why.
+        Assert.Equal(AiJobConfirmRefusal.Cancelled, (await SendOnAsync(
+            ready, job => job with { State = AiJobState.Cancelled, Version = 4 })).Operation.AiJobRefusal);
+        Assert.Equal(AiJobConfirmRefusal.Changed, (await SendOnAsync(
+            ready, job => job with { Version = 4 })).Operation.AiJobRefusal);
+        // Another act completed it before the send: nothing is confirmed.
+        var (byHand, byHandJobs) = await SendOnAsync(
+            ready with { State = AiJobState.Completed, Version = 4, LastOperationKey = "by-hand" });
+        Assert.Equal(StaffMailState.Submitted, byHand.State);
+        Assert.Equal(AiJobConfirmRefusal.AlreadyCompleted, byHand.AiJobRefusal);
+        Assert.Empty(byHandJobs.Transitions);
+        // This send completed it on an earlier run under the same key.
+        Assert.Null((await SendOnAsync(
+            ready with { State = AiJobState.Completed, Version = 4, LastOperationKey = "operation-key:job" }))
+            .Operation.AiJobRefusal);
+        // A refusal that leaves the job as it was is not the job moving on.
+        await Assert.ThrowsAsync<InvalidOperationException>(() => SendOnAsync(ready, job => job));
     }
 
     private static StaffMailSendCommand Command(ActionActor actor) => new(
@@ -646,6 +710,46 @@ public sealed class StaffMailSendTests
         {
             Checks++;
             return Task.FromResult(enabled);
+        }
+    }
+
+    /// <summary>
+    /// The AI job ledger holding one job. A confirm completes it, unless
+    /// <see cref="RefuseAs"/> is set: then the ledger refuses and the job
+    /// reads as that returns.
+    /// </summary>
+    private sealed class Jobs : IAiJobStore
+    {
+        public AiJobRecord? Job { get; set; }
+        public Func<AiJobRecord, AiJobRecord>? RefuseAs { get; init; }
+        public List<AiJobTransition> Transitions { get; } = [];
+
+        public Task<AiJobRecord> CreateAsync(NewAiJob job, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<AiJobRecord?> GetAsync(Guid jobId, CancellationToken cancellationToken) =>
+            Task.FromResult(Job?.JobId == jobId ? Job : null);
+
+        public Task<IReadOnlyDictionary<Guid, AiJobSubjectReference>> ListSubjectReferencesAsync(
+            IReadOnlyCollection<Guid> jobIds, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<AiJobRecord> TransitionAsync(AiJobTransition transition, CancellationToken cancellationToken)
+        {
+            Transitions.Add(transition);
+            var current = Job!;
+            if (RefuseAs is { } refuse)
+            {
+                Job = refuse(current);
+                throw new InvalidOperationException("The AI job changed concurrently; reload and retry.");
+            }
+            Job = current with
+            {
+                State = transition.TargetState,
+                Version = current.Version + 1,
+                LastOperationKey = transition.OperationKey
+            };
+            return Task.FromResult(Job);
         }
     }
 

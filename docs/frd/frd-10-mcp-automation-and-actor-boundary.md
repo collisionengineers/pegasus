@@ -277,7 +277,12 @@ submission is not part of it.
   origin e-mail, the chaser until the outcome is recorded and the outcome
   reply once Completed ([FRD-03](frd-03-triage.md)). `reply` and
   `reply_all` take `resolveQuery`, the composer's Also resolve query tick
-  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
+  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)),
+  and `aiJobId`, the Draft ready Query response job the reply was composed
+  on: a send the provider accepts completes it, as the staff composer's Send
+  does ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)),
+  and a send that leaves it as it was returns the composer's line in
+  `aiJobNotCompleted`.
   Every mode files the mail against a Case and checks the version the
   caller observed.
   Attachments are Case files by document version, or the origin item's files
@@ -507,7 +512,7 @@ its one command when none is given.
 | `automation.mail` | `pegasus_mail_action` | `dismiss` or `restore` in Pegasus | key |
 | `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
 | `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does | one-command lease |
-| `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `chaser`, `reply`, `reply_all` (either with `resolveQuery`), `forward`, `triage_reply` | Case or Triage version and key |
+| `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `chaser`, `reply`, `reply_all` (either with `resolveQuery` and `aiJobId`), `forward`, `triage_reply` | Case or Triage version and key |
 
 ## States and transitions
 

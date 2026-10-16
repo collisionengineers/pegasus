@@ -1,6 +1,5 @@
 @page
 @using Pegasus.Core.Identity
-@using Pegasus.Core.Intake
 @using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Administration.MailboxesModel
 @{
@@ -68,72 +67,7 @@
                 </table>
             </div>
         </section>
-
-        <section class="panel" aria-labelledby="mail-categories-title">
-            <div class="panel-head">
-                <h2 id="mail-categories-title">@OperatorLabels.MailSettings.MailCategories</h2>
-                <button type="button" class="btn btn--small btn--dark" data-dialog-open="add-mail-category-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg><span>@OperatorLabels.MailSettings.AddCategory</span></button>
-            </div>
-            <div class="table-wrap no-border">
-                <table class="table table--compact">
-                    <caption class="sr-only">@OperatorLabels.MailSettings.MailCategories</caption>
-                    <thead>
-                        <tr>
-                            <th scope="col">@OperatorLabels.MailSettings.Category</th>
-                            <th scope="col">@OperatorLabels.MailSettings.State</th>
-                            <th scope="col"><span class="sr-only">Save</span></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    @if (Model.Categories.Count == 0)
-                    {
-                        <tr><td colspan="3">@OperatorLabels.MailSettings.NoMailCategories</td></tr>
-                    }
-                    else
-                    {
-                        @foreach (var category in Model.Categories)
-                        {
-                            var formId = $"category-save-{category.Id}";
-                            var displayNameId = $"category-display-name-{category.Id}";
-                            var stateId = $"category-state-{category.Id}";
-                            <tr>
-                                <td>
-                                    <form id="@formId" method="post" asp-page-handler="SaveCategory"></form>
-                                    <input form="@formId" type="hidden" name="CategoryForm.CategoryId" value="@category.Id" />
-                                    <input form="@formId" type="hidden" name="CategoryForm.ExpectedVersion" value="@Model.ExpectedCategoryVersionFor(category)" />
-                                    <input form="@formId" type="hidden" name="CategoryForm.OperationKey" value="@Model.CategoryOperationKeyFor(category)" />
-                                    <div class="field"><label class="sr-only" for="@displayNameId">@OperatorLabels.MailSettings.DisplayName</label><input form="@formId" id="@displayNameId" name="CategoryForm.DisplayName" value="@Model.CategoryDisplayNameFor(category)" required maxlength="255" /></div>
-                                </td>
-                                <td>
-                                    <div class="field"><label class="sr-only" for="@stateId">@OperatorLabels.MailSettings.State</label><select form="@formId" id="@stateId" name="CategoryForm.SelectedState"><option value="Active" selected="@Model.IsCategoryStateSelected(category, ApprovedOutlookCategoryState.Active)">@OperatorLabels.MailSettings.CategoryState(ApprovedOutlookCategoryState.Active)</option><option value="Disabled" selected="@Model.IsCategoryStateSelected(category, ApprovedOutlookCategoryState.Disabled)">@OperatorLabels.MailSettings.CategoryState(ApprovedOutlookCategoryState.Disabled)</option></select></div>
-                                </td>
-                                <td class="cluster">
-                                    <button form="@formId" type="submit" class="btn btn--small btn--dark" data-busy-label="@OperatorLabels.Busy.Saving">@OperatorLabels.MailSettings.SaveCategory</button>
-                                    <button form="@formId" type="reset" class="btn btn--small">Reset</button>
-                                </td>
-                            </tr>
-                        }
-                    }
-                    </tbody>
-                </table>
-            </div>
-        </section>
     </div>
-</div>
-
-<div class="dialog-backdrop" data-dialog="add-mail-category-dialog" data-dialog-open-on-load="@(Model.IsNewCategoryEditorOpen ? "true" : null)" hidden>
-    <section class="dialog dialog--mailbox" role="dialog" aria-modal="true" aria-labelledby="add-mail-category-title">
-        <div class="dialog-head"><h2 id="add-mail-category-title">@OperatorLabels.MailSettings.AddCategory</h2><button type="button" class="btn btn--icon" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
-        <form method="post" asp-page-handler="SaveCategory">
-            <div class="dialog-body stack">
-                <div asp-validation-summary="All" class="validation-summary"></div>
-                    <input type="hidden" name="CategoryForm.CategoryId" value="@Model.NewCategoryId" /><input type="hidden" name="CategoryForm.ExpectedVersion" value="0" /><input type="hidden" name="CategoryForm.OperationKey" value="@Model.NewCategoryOperationKey" />
-                    <div class="field"><label class="req" for="new-category-display-name">@OperatorLabels.MailSettings.DisplayName</label><input id="new-category-display-name" name="CategoryForm.DisplayName" value="@Model.NewCategoryDisplayName" required maxlength="255" /></div>
-                    <div class="field"><label for="new-category-state">@OperatorLabels.MailSettings.State</label><select id="new-category-state" name="CategoryForm.SelectedState"><option value="Active" selected="@Model.IsNewCategoryStateSelected(ApprovedOutlookCategoryState.Active)">@OperatorLabels.MailSettings.CategoryState(ApprovedOutlookCategoryState.Active)</option><option value="Disabled" selected="@Model.IsNewCategoryStateSelected(ApprovedOutlookCategoryState.Disabled)">@OperatorLabels.MailSettings.CategoryState(ApprovedOutlookCategoryState.Disabled)</option></select></div>
-            </div>
-            <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Adding">@OperatorLabels.MailSettings.AddCategory</button></div>
-        </form>
-    </section>
 </div>
 
 <div class="dialog-backdrop" data-dialog="new-mailbox-dialog"

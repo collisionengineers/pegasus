@@ -609,7 +609,7 @@ else
                                 <partial name="Shared/_StatusChip" model="@OperatorLabels.AiJobs.State(job.State)"
                                          view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.AiJobs.StateToneOverride(job.State) }' />
                             </td>
-                            <td class="wc-col-instruction">@job.Instruction</td>
+                            <td class="wc-col-instruction">@OperatorLabels.AiJobs.Instruction(job)</td>
                             <td class="wc-col-record">
                                 <span class="mono">
                                     @if (recordPage is not null && job.SubjectId is { } subjectId)

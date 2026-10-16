@@ -468,7 +468,7 @@ public sealed class WorkCentreWebTests
         Assert.Contains("AI jobs<span class=\"tab-count\">4</span>", html, StringComparison.Ordinal);
         Assert.Contains("2 draft ready &#xB7; 1 failed", html, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{caseId:D}?section=estimate\">Review AI Proposal</a>", html, StringComparison.Ordinal);
-        Assert.Contains(">Open query</a>", html, StringComparison.Ordinal);
+        Assert.Contains(">Reply with AI draft</a>", html, StringComparison.Ordinal);
         // Complete job belongs to a Query response, not an Estimate; it returns to this tab.
         Assert.Equal(1, Regex.Count(html, "handler=CompleteAiJob"));
         Assert.Contains("name=\"returnUrl\" value=\"/?scope=office&amp;tab=ai-jobs\"", html, StringComparison.Ordinal);

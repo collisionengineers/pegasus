@@ -76,7 +76,7 @@ internal sealed class AiJobMcpTools(
     ICancelAiJob cancel,
     IConfirmAiJob confirm,
     ICompleteMarketResearchAiJob completeMarketResearch,
-    GetRetainedMail getRetainedMail,
+    IStartQueryResponse startQueryResponse,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
     ICursorProtector cursors)
@@ -221,8 +221,9 @@ internal sealed class AiJobMcpTools(
 
     /// <summary>
     /// A Query response answers one retained post-report query linked to its
-    /// Case, as the message page's action does; its instruction is the
-    /// message identifier.
+    /// Case, through the same Core owner as the message record's and the
+    /// Queries row's **Draft reply with AI**; its instruction is the message
+    /// identifier.
     /// </summary>
     private async Task<AiJobRecord> CreateQueryResponseAsync(
         AutomationActorContext context,
@@ -233,24 +234,19 @@ internal sealed class AiJobMcpTools(
         var id = AutomationMcpErrors.RequireId(
             messageId ?? throw new McpException("A QueryResponse job needs messageId."),
             "retained message identifier");
-        var detail = await getRetainedMail.ExecuteAsync(context.Actor, id, cancellationToken)
-            ?? throw new McpException("The retained message was not found.");
-        if (!AiJobPolicy.IsQueryResponseSource(detail) || detail.Summary.CaseId is not { } queryCaseId)
+        try
+        {
+            return await startQueryResponse.ExecuteAsync(new(context.Actor, id, key), cancellationToken);
+        }
+        catch (KeyNotFoundException)
+        {
+            throw new McpException("The retained message was not found.");
+        }
+        catch (InvalidOperationException exception) when (exception.Message == StartQueryResponse.NotASource)
         {
             throw new McpException(
                 "A QueryResponse job answers a retained post-report query that is linked to its Case.");
         }
-
-        return await create.ExecuteAsync(
-            new(
-                AiJobKind.QueryResponse,
-                queryCaseId,
-                detail.Summary.CaseReference,
-                id.ToString("D"),
-                null,
-                context.Actor,
-                key),
-            cancellationToken);
     }
 
     /// <summary>A subject field another kind needs is refused rather than ignored.</summary>
