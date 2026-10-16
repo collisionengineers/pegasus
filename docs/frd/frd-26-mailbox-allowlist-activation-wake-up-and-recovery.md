@@ -190,6 +190,8 @@ The states of a retained message are owned by
   downloaded again; the cursor moves past it.
 - A different delta item that reuses a retained Internet message ID:
   downloaded; different bytes are quarantined as an identity conflict.
+- A message over 150 MiB (157,286,400 bytes), Exchange Online's largest
+  message, is quarantined as `message_too_large` (operator, 15 October 2026).
 - A tenant that has not admitted the application: that mailbox alone fails
   and says so.
 - An unknown, expired, malformed or wrongly scoped notification: refused

@@ -60,6 +60,12 @@ public sealed class IntakeEnvelopeLimitsTests
     }
 
     [Fact]
+    public void TheMailboxBoundIs150MiBBecauseThatIsTheLargestMessageExchangeOnlineCarries()
+    {
+        Assert.Equal(150L * 1024 * 1024, IntakeEnvelopeLimits.MaximumMailboxContentLength);
+    }
+
+    [Fact]
     public void TheBatchBudgetIsPinnedRatherThanDerivedFromTheFileCount()
     {
         Assert.Equal(65_536L, IntakeEnvelopeLimits.MultipartOverhead);
