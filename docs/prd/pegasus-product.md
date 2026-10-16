@@ -16,7 +16,7 @@ historical observations, not competing requirements.
 
 - make receiving work, incomplete intake, Triage, active cases, due work, queries, and completed work visible without reconstructing state from multiple systems;
 - retain source identity, chronology, custody, decisions, corrections, and action history;
-- fail closed before source receipt or reference allocation when safe persistence, identity-critical route facts, limits, or processing are incomplete or ambiguous; once safe processing establishes Principal and Case type, allocate the Case/PO and retain incomplete ordinary detail, images, or checks as `Not ready`; missing or ambiguous standalone Audit evidence withholds only the later Audit reference;
+- fail closed before source receipt or reference allocation when safe persistence, identity-critical route facts, limits, or processing are incomplete or ambiguous; once safe processing establishes Principal and Case type, allocate the Case/PO and retain incomplete ordinary detail or images as `Not ready`; missing or ambiguous standalone Audit evidence withholds only the later Audit reference;
 - keep business decisions in `Pegasus.Core`, with infrastructure, UI, Worker, MCP, imported workspaces, skills, prompts, and models subordinate to Core policy and to report approval and sending by staff or the Automation actor;
 - support deterministic, repeatable local verification and separately authorised live verification;
 - preserve deferred capability seams and data identities without building dormant capability.

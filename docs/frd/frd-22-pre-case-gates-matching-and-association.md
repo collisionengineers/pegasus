@@ -57,7 +57,7 @@ allocates its permanent reference. Manual upload instead waits for staff to
 accept the editable proposal
 ([FRD-18](frd-18-manual-upload.md#upload-confirmation-surface));
 extraction alone never allocates or reserves a Case/PO. Missing ordinary
-detail, images, or external checks keep the Case at `Not ready`; they are not
+detail or images keep the Case at `Not ready`; they are not
 another pre-Case gate.
 
 A Triage Case is allocated only once the Principal is established, before

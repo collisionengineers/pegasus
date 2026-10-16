@@ -40,8 +40,8 @@ it never reserves a reference. A manual upload also needs a staff member to
 accept it. Until then it is a proposal with no reference
 ([FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts)).
 
-Missing business detail, missing images or an outstanding external check do
-not stop allocation. They create or keep the Case as `Not ready`
+Missing business detail or missing images do not stop allocation. They
+create or keep the Case as `Not ready`
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)).
 
 **Reference format.** The base reference is
