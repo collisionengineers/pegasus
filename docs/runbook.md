@@ -389,6 +389,9 @@ dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category
 
 These commands are identical on both platforms; `pwsh` runs them either way.
 
+A [daily run](../.github/workflows/dependency-advisories.yml) repeats this
+locked restore against `dev` and raises one issue when it fails.
+
 The focused forms are below:
 
 ```powershell

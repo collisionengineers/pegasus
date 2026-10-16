@@ -1,0 +1,84 @@
+name: dependency-advisories
+
+# A schedule fires only from the default branch's copy of this file, so the run
+# starts on main and checks out dev. Warnings are errors (Directory.Build.props),
+# so a NuGet audit advisory fails the same locked restore that CI and the
+# runbook use. A failed restore raises one open issue and turns the run red.
+on:
+  schedule:
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: dependency-advisories
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: dev
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Locked restore
+        id: restore
+        run: |
+          $ErrorActionPreference = 'Continue'
+          dotnet restore ./Pegasus.slnx --locked-mode 2>&1 | Tee-Object -FilePath restore.log
+          "exit=$LASTEXITCODE" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          exit 0
+      - name: Raise or update the advisories issue
+        if: steps.restore.outputs.exit != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $date =[DateTime]::UtcNow.ToString('yyyy-MM-dd')
+          $title = "Dependency advisories $date"
+          $output = @(Get-Content -LiteralPath restore.log)
+          $advisories = @($output | Where-Object { $_ -match 'NU19\d\d' } | ForEach-Object { $_.Trim() } | Select-Object -Unique)
+          if ($advisories.Count -gt 0) {
+              $heading = 'Restore output lines naming NU19xx advisories:'
+              $lines = $advisories
+          } else {
+              $heading = 'Last 40 lines of the restore output:'
+              $lines = $output | Select-Object -Last 40
+          }
+          $fence = '```'
+          $body = @(
+              "Date (UTC): $date"
+              "dev commit: $(git rev-parse HEAD)"
+              "Run: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+              'Reproduce: dotnet restore ./Pegasus.slnx --locked-mode'
+              ''
+              $heading
+              ''
+              $fence
+              $lines
+              $fence
+          ) -join "`n"
+          $bodyFile = Join-Path $env:RUNNER_TEMP 'advisories-body.md'
+          Set-Content -LiteralPath $bodyFile -Value $body
+
+          $json = gh issue list --state open --limit 200 --json number,title
+          if ($LASTEXITCODE -ne 0) { throw 'gh issue list failed.' }
+          $open = @($json | ConvertFrom-Json | Where-Object { $_.title -like 'Dependency advisories *' })
+          if ($open.Count -eq 0) {
+              gh issue create --title $title --label type:task --body-file $bodyFile
+          } else {
+              gh issue comment $open[0].number --body-file $bodyFile
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'gh could not write the issue.' }
+      - name: Fail the run
+        if: steps.restore.outputs.exit != '0'
+        run: exit 1
