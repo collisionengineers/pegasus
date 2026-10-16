@@ -1657,6 +1657,52 @@ public sealed class ImageIntakePersistenceTests
             CancellationToken.None));
     }
 
+    /// <summary>
+    /// A member of staff takes over an Image Intake scope the Automation Actor holds, and the
+    /// history line names the Actor as AI, never by its grant id (operator, 15 and 16 October
+    /// 2026).
+    /// </summary>
+    [Fact]
+    public async Task StaffTakeOverOfAnAutomationHeldImageScopeNamesTheAutomationActorInHistory()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receiptId = await UploadImageAsync(factory, client);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, receiptId, "AB12CDE", "automation-scope-registration");
+        var queries = services.GetRequiredService<IImageIntakeQueries>();
+        var store = services.GetRequiredService<IImageIntakeStore>();
+        var leases = services.GetRequiredService<IEditScopeLeases>();
+        var detail = Assert.IsType<ImageIntakeDetail>(
+            await queries.GetByOriginReceiptAsync(receiptId, CancellationToken.None));
+        var automation = ActionActor.Automation($"grant:{Guid.NewGuid():N}");
+        var staff = StaffActor();
+
+        var held = await leases.ClaimAsync(
+            new(EditScopeKind.ImageIntake, detail.Record.Id, detail.LifecycleVersion, automation,
+                "image-intake-scope-automation"),
+            CancellationToken.None);
+        var taken = await leases.ClaimAsync(
+            new ClaimEditScopeRequest(EditScopeKind.ImageIntake, detail.Record.Id,
+                detail.LifecycleVersion, staff, "image-intake-scope-staff-takeover")
+            {
+                TakeOver = true
+            },
+            CancellationToken.None);
+
+        Assert.NotEqual(held.Token, taken.Token);
+        var history = Assert.Single(
+            await store.ListHistoryAsync(detail.Record.Id, CancellationToken.None),
+            entry => entry.EventType == "edit_lease_taken_over");
+        Assert.Equal(ActorKind.Staff, history.Actor.Kind);
+        Assert.Equal(staff.SubjectId, history.Actor.SubjectId);
+        Assert.Equal("Edit lease taken over from AI.", history.Reason);
+    }
+
     private static async Task<Guid> UploadImageAsync(
         IntakeWebApplicationFactory factory,
         HttpClient client)

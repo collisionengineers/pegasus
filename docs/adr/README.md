@@ -84,7 +84,7 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0061](0061-ocr-every-scanned-document-page.md) | OCR every scanned document page; a full-page raster is a document or a photograph by its colour | accepted | — | INT-16, AI-04 |
 | [ADR-0062](0062-glass-placeholder-vehicle-for-unknown-plates.md) | A plate Glass's does not know launches its estimate on a placeholder vehicle | accepted | — | EXT-06 |
 | [ADR-0063](0063-glass-estimate-belongs-to-its-repair-spec.md) | A Glass's estimate belongs to its repair spec, by its stock vehicle | accepted | — | EXT-06, ENG-01 |
-| [ADR-0064](0064-automation-actor-staff-casework-parity.md) | The Automation Actor has staff casework parity | accepted | ADR-0068 (`pegasus_mail_send` new mode), ADR-0069 (mail folder move) | MCP-01, MCP-02, MCP-06 |
+| [ADR-0064](0064-automation-actor-staff-casework-parity.md) | The Automation Actor has staff casework parity | accepted | ADR-0068 (`pegasus_mail_send` new mode), ADR-0069 (mail folder move), ADR-0075 (decision 7: staff Take over of an Automation lease) | MCP-01, MCP-02, MCP-06 |
 | [ADR-0065](0065-case-export-replaces-eva-routes.md) | The Case export replaces the EVA routes | accepted | — | CASE-21, CASE-30, EXT-03, EXT-04, UI-04 |
 | [ADR-0066](0066-cazana-valuation-through-a-key-vault-held-api-key.md) | Cazana valuation through a Key Vault-held API key | accepted | — | EXT-07, EXT-13 |
 | [ADR-0067](0067-report-sent-replaces-completed-and-queries-are-case-records.md) | Report sent replaces Completed, and queries are Case records | accepted | — | CASE-16, CASE-23 |
@@ -94,6 +94,7 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0071](0071-move-answered-instruction-to-deleted-items.md) | Move the answered instruction to Deleted Items after a confirmed report send | accepted | — | MAIL-25 |
 | [ADR-0072](0072-only-images-become-unidentified-and-no-case-found-mail.md) | Only images become Unidentified, and mail with no Case is No Case Found | accepted | — | INT-23, MAIL-02, UI-14, UI-18 |
 | [ADR-0073](0073-send-to-ai-hand-off-record-retired.md) | The Send to AI hand-off record is retired | accepted | — | AI-10, AI-09 |
+| [ADR-0075](0075-staff-take-over-of-an-automation-lease.md) | Staff may take over an Automation lease | accepted | — | CASE-27, MCP-01 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

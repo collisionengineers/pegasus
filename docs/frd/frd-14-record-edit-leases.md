@@ -15,9 +15,9 @@
 - The lease belongs to the staff member, not the window. Coming back to a
   record you are still editing puts you straight back in; you never take over
   your own lease.
-- Any staff member with edit rights can **Take over** a colleague's lease.
-  No reason is needed. The takeover goes into history, and the previous
-  editor's next save is refused.
+- Any staff member with edit rights can **Take over** a colleague's lease,
+  or one the Automation Actor holds. No reason is needed. The takeover goes
+  into history, and the previous editor's next save is refused.
 - Every save sends the lease token and the version that was loaded. A
   wrong or superseded lease, or a save that would overwrite a value the system
   wrote since the page loaded it, is refused and nothing is overwritten.
@@ -174,9 +174,11 @@ is the same for everyone with edit rights. The Automation Actor may take over
 a Case lease or Triage scope a staff member holds in the same way, and the
 takeover is recorded the same way
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#edit-leases); operator,
-7 October 2026). A lease held by automatic processing, the Automation Actor's
-included, cannot be taken over; it lapses within five minutes, or ends at
-once when an Administrator stops the automation client
+7 October 2026). Staff may take over a Case lease the Automation Actor holds
+in the same way, and only staff may; the history line names the Automation
+Actor as AI (operator, 15 and 16 October 2026). Otherwise that lease lapses
+within five minutes, or ends at once when an Administrator stops the
+automation client
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#edit-leases)). Take over
 applies to a Case and an Image Intake record only: a Triage Case's scope
 lasts one save.

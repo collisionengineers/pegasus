@@ -76,9 +76,11 @@ public sealed class EfEditScopeStore(
         {
             throw new EditScopeConflictException(request.ScopeKind, request.RecordId);
         }
+        ActorKind? previousHolderKind = Enum.TryParse<ActorKind>(scope?.HolderKind, out var parsedKind)
+            ? parsedKind
+            : null;
         var previousHolder = isLive
-            && !(Enum.TryParse<ActorKind>(scope!.HolderKind, out var holderKind)
-                && EditScopeAuthority.IsHolder(holderKind, scope.Holder, request.Actor))
+            && !EditScopeAuthority.IsHolder(previousHolderKind, scope!.Holder, request.Actor)
                 ? scope!.Holder
                 : null;
 
@@ -106,7 +108,7 @@ public sealed class EfEditScopeStore(
         if (previousHolder is not null)
         {
             await AddTakeoverHistoryAsync(
-                context, request, previousHolder, now, cancellationToken);
+                context, request, previousHolderKind, previousHolder, now, cancellationToken);
         }
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -374,12 +376,17 @@ public sealed class EfEditScopeStore(
     private static async Task AddTakeoverHistoryAsync(
         PegasusDbContext context,
         ClaimEditScopeRequest request,
+        ActorKind? previousHolderKind,
         string previousHolder,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         var name = previousHolder;
-        if (Guid.TryParse(previousHolder, out var staffId))
+        if (previousHolderKind == ActorKind.Automation)
+        {
+            name = CaseEditAuthorityHolder.AutomationName;
+        }
+        else if (Guid.TryParse(previousHolder, out var staffId))
         {
             name = await context.Users.AsNoTracking()
                 .Where(item => item.Id == staffId)

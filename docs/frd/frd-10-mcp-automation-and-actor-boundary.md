@@ -118,9 +118,11 @@ multi-step work, named by `recordKind`, under that record's own scope
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). With `takeOver`,
 `pegasus_edit_begin` takes over a lease a staff member holds, as a staff
 **Take over** does, and the takeover goes into the record's history. Staff
-cannot take over an Automation lease; it lapses within five minutes. An
-Automation lease that lapsed, with nobody claiming the record since, carries
-on with the same token, as a staff lease does (operator, 7 October 2026). A
+may take over an Automation Case lease in the same way, and only staff may;
+the history line names the Automation Actor as AI (operator, 15 and 16
+October 2026). Otherwise it lapses within five minutes. An Automation lease
+that lapsed, with nobody claiming the record since, carries on with the same
+token, as a staff lease does (operator, 7 October 2026). A
 write made under an Automation lease advances the record's version and keeps
 the lease, so one token from `pegasus_edit_begin` carries every write of the
 work until `pegasus_edit_end` releases it (operator, 8 October 2026).
@@ -567,7 +569,8 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-11.
   UnidentifiedQueuePass; those others complete through their record's own
   act.
 - A subject field a job kind does not take is refused, not ignored.
-- Staff cannot take over an Automation lease; it lapses within five minutes.
+- Only staff take over an Automation Case lease; otherwise it lapses within
+  five minutes.
 - Stopping the automation client releases every lease Automation holds.
 - Missing production signing or encryption keys fail closed.
 

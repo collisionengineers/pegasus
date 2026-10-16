@@ -2038,7 +2038,7 @@ public sealed class CaseEditModeWebTests
     /// </summary>
 
     [Fact]
-    public async Task AnAutomationHeldCaseIsReadOnlyToStaffAndAPostedClaimIsRefused()
+    public async Task AnAutomationHeldCaseOffersStaffTakeOverAndAPlainClaimIsStillRefused()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore
@@ -2061,10 +2061,14 @@ public sealed class CaseEditModeWebTests
             BaseAddress = new Uri("https://localhost")
         });
 
+        // Staff may take over a lease the Automation Actor holds (operator, 15 October 2026).
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        var bar = RecordBar(html);
         Assert.Contains("AI is editing", EditAuthorityNote(html), StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=ClaimLease", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(">Edit case<", html, StringComparison.Ordinal);
+        Assert.Contains("handler=ClaimLease", bar, StringComparison.Ordinal);
+        Assert.Contains("name=\"takeOver\" value=\"true\"", bar, StringComparison.Ordinal);
+        Assert.Contains($">{CaseWorkspaceLabels.Frame.TakeOver}<", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain($">{CaseWorkspaceLabels.Frame.EditCase}<", bar, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("pegasus-automation", html, StringComparison.OrdinalIgnoreCase);
 
@@ -2084,8 +2088,26 @@ public sealed class CaseEditModeWebTests
         var afterRefusal = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         Assert.Contains("Someone else is editing this case.", afterRefusal, StringComparison.Ordinal);
         Assert.Contains("AI is editing", EditAuthorityNote(afterRefusal), StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=ClaimLease", afterRefusal, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", afterRefusal, StringComparison.Ordinal);
+
+        using (var takeOverResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(afterRefusal),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("takeOver", "true"))))
+        {
+            AssertPrg(takeOverResponse, store.CaseId);
+        }
+
+        var claim = Assert.Single(store.Claims);
+        Assert.True(claim.TakeOver);
+        Assert.Equal(ActorKind.Staff, claim.Actor.Kind);
+        var editing = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        Assert.Equal(store.LeaseToken, InputValue(editing, "editLeaseToken"));
+        Assert.DoesNotContain("data-edit-authority", editing, StringComparison.Ordinal);
     }
 
     /// <summary>
