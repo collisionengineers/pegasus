@@ -104,7 +104,9 @@ public sealed class CaseWorkflowPersistenceTests
         var closeLease = await harness.Store.ClaimAsync(
             new(harness.CaseId, sent.Version, actor, "claim-post-report-close"),
             default);
-        var closed = await new CloseCase(harness.Store).ExecuteAsync(
+        // Core no longer closes a Report sent Case, so the store closes it, as
+        // the Cases closed before that rule were.
+        var closed = await harness.Store.CloseAsync(
             new(
                 harness.CaseId,
                 sent.Version,
@@ -934,7 +936,9 @@ public sealed class CaseWorkflowPersistenceTests
         var linkedAssociation = Assert.IsType<AutoLinkedReportEvidence>(autoLinked.Link);
         Assert.Equal(firstStarted.Version + 1, linkedAssociation.Version);
 
-        var closed = await new CloseCase(harness.Store).ExecuteAsync(
+        // The store closes the Report sent Case, as the Cases closed before
+        // Core refused that were.
+        var closed = await harness.Store.CloseAsync(
             new(
                 harness.CaseId,
                 linkedAssociation.Version,
@@ -1450,7 +1454,9 @@ public sealed class CaseWorkflowPersistenceTests
                 retained.EvidenceId),
             default));
 
-        var closed = await new CloseCase(harness.Store).ExecuteAsync(
+        // The store closes the Report sent Case, as the Cases closed before
+        // Core refused that were.
+        var closed = await harness.Store.CloseAsync(
             new(
                 harness.CaseId,
                 linked.Version,
