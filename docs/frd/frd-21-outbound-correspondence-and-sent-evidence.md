@@ -1,6 +1,6 @@
 # FRD-21: Outbound correspondence and Sent evidence
 
-> Owner capabilities: MAIL-12, MAIL-14 to MAIL-16, MAIL-19, MAIL-25 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MAIL-12, MAIL-14 to MAIL-16, MAIL-25 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -74,6 +74,10 @@ read it, that the content was right, or that the Case is complete. Preparing,
 viewing, copying or acknowledging a chaser or any other message is not
 evidence of sending. A staff note that says "sent" stays an assertion unless
 the exact external evidence is retained.
+
+A management event is recorded after each report or fee-note send. This is
+`MAIL-17`'s management-event clause, a ruling awaiting delivery (operator
+ruling, 15 October 2026).
 
 **Tidying the answered instruction.** A report send that replied to a retained
 instruction is due for one move once its Sent item is confirmed. The Worker
@@ -337,7 +341,7 @@ document never moves a Case by itself.
 
 ## Links
 
-- Capabilities: `MAIL-12`, `MAIL-14`–`MAIL-16`, `MAIL-19`, `MAIL-25` in
+- Capabilities: `MAIL-12`, `MAIL-14`–`MAIL-16`, `MAIL-25` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-08](frd-08-email-mailbox-and-background-processing.md)
   (inbound mail and classification),

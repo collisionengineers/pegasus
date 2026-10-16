@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
@@ -47,6 +48,17 @@ internal static partial class CaseWebTestSupport
                 new CaseWork(Guid.NewGuid(), CaseId, CaseWorkKind.Audit, inspectionSentAtUtc.AddDays(1)));
             ReportSentEvidence = null;
         }
+    }
+
+    /// <summary>The state chip the ribbon renders, exactly.</summary>
+    internal static string RibbonStateChip(string html)
+    {
+        var chip = Regex.Match(
+            html,
+            "data-case-ribbon-chips>\\s*(?<chip><span class=\"status status--[a-z]+\">[^<]+</span>)",
+            RegexOptions.CultureInvariant);
+        Assert.True(chip.Success, "The ribbon's state chip is not rendered.");
+        return chip.Groups["chip"].Value;
     }
 
     /// <summary>Retained Sent evidence of a report, sent at <paramref name="sentAtUtc"/>.</summary>

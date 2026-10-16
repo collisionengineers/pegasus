@@ -115,4 +115,5 @@ instructions; do not restate them here.
   round there on `main`. Never add it to this repository; `/design/` is ignored.
 - FRD, ADR and skill edits for the round go on `task/<slug>` from `origin/dev`
   here. Link to the round with its full archive URL; relative links in this
-  repository must resolve, and CI's `documentation` job checks them.
+  repository must resolve, and the Documentation links step of CI's
+  `invariants` job checks them.

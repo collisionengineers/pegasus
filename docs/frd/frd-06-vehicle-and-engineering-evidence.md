@@ -222,16 +222,17 @@ specifications stay separate capabilities.
 
 ### Vehicle data and MOT enrichment
 
-**What is looked up.** Vehicle identity and specification are required on
-every Case. Where the instruction omits vehicle facts, an accepted DVLA/DVSA
-caller supplies make, model, manufacture year, engine capacity, fuel type,
-colour, tax due date, available MOT history and mileage observations for the
+**What is looked up.** Every Case carries vehicle identity and
+specification; where the instruction omits them, the lookup supplies them.
+Where the instruction omits vehicle facts, an accepted DVLA/DVSA caller
+supplies make, model, manufacture year, engine capacity, fuel type, colour,
+tax due date, available MOT history and mileage observations for the
 registration. Once active, DVSA runs for every Case. Until then, approved
 local replay returns its preserved result, and with no replay evidence the
 value is source-labelled `Unavailable`.
 
 The mileage tiers and discrepancy rule are in
-[FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#global-vehicle-and-value-checks).
+[FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#vehicle-details-and-mileage-evidence).
 
 **Every lookup is an observation.** Each lookup or refresh keeps its provider
 or source, retrieval time, effective date, source age, response or version
@@ -326,6 +327,11 @@ from where the Case mileage came from; it is not recorded separately.
 The `owner`, `repairer` and `average` codes are still renderer sentences, but
 nothing derives them. Staff no longer record a separate mileage-source report
 field, and the Case page has no source to pick.
+
+Mileage evidence is classified as supplied, external or estimated. The
+sources are the table above, and the estimate is the
+[conservative MOT mileage estimation](#conservative-mot-mileage-estimation)
+(operator ruling, 15 October 2026).
 
 **No MOT history.** Sometimes the latest lookup answers for the Case's current
 registration but DVSA holds no MOT test. It answers either with an empty

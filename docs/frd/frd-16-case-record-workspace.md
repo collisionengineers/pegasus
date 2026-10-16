@@ -29,8 +29,8 @@
 ## Purpose
 
 This document says how the Case record page behaves: its ribbon, edit
-session, Actions menu, twelve sections and the Engineer workbench. Lifecycle
-rules are owned by [FRD-13](frd-13-case-lifecycle-and-workflow.md). Edit
+session, Actions menu, twelve sections, Queries and the Engineer sections.
+Lifecycle rules are owned by [FRD-13](frd-13-case-lifecycle-and-workflow.md). Edit
 leases are owned by [FRD-14](frd-14-record-edit-leases.md). Visual and
 component rules are owned by [design](../design/README.md).
 
@@ -245,12 +245,13 @@ corrections and a return to engineering record a reason.
 **Sections**, in order: **Case details**, **Claim**, **Original report** (an
 Audit Case only), **Inspection details**, **Vehicle** (with **Damage** and
 **Valuation** inside it, each its own foldable panel under the Vehicle link),
-**Repair Spec**, **Decisions**, **Report**, **Files**, **Notes**. Tasks is not a
-section: it is the Actions menu's [Tasks](#tasks) dialog (operator, 13 October 2026).
+**Repair Spec**, **Decisions**, **Report**, **Files**, **Notes**,
+**Queries**. Tasks is not a section: it is the Actions menu's
+[Tasks](#tasks) dialog (operator, 13 October 2026).
 Every section can always be read. The Engineer sections (Damage, Valuation,
 Repair Spec, Decisions, Report) are editable by every enabled staff role in Not
-ready, Review and With Engineer under the normal edit authority, and read-only
-in Held and after completion. The Engineer's Value is a staff finding, typed
+ready, Review, With Engineer and Report sent under the normal edit authority,
+and read-only in Held. The Engineer's Value is a staff finding, typed
 or filled by the calculation from a guide card on Valuation; the report's
 Retail and Trade values are that card's figures.
 
@@ -900,9 +901,9 @@ the Next action's
 
 ### Assessment
 
-The Engineer workbench is the Damage, Valuation, Repair Spec, Decisions and
-Report sections of the Case record. The sections can always be read and are
-read-only in Completed. An image has one place (v28 P50): whether the report
+The Engineer sections of the Case record are Damage, Valuation, Repair Spec,
+Decisions and Report. The sections can always be read and are
+read-only in Held. An image has one place (v28 P50): whether the report
 uses it, its order and the tools that change them are on its tile under
 Files, and non-destructive crops leave the retained source and its hash
 untouched. A new image is in the report. The tile has no report
@@ -1105,9 +1106,9 @@ Inspection's values only.
 
 ## Acceptance evidence
 
-Acceptance covers the twelve sections and the `?section=` jump, the Report
-readiness list in the aside's Report not ready card linking each blocker to its section,
-the read-only rule in Held, the Actions menu per state, the Queries
+Acceptance covers the twelve sections, Queries and the `?section=` jump, the
+Report readiness list in the aside's Report not ready card linking each
+blocker to its section, the read-only rule in Held, the Actions menu per state, the Queries
 section empty and filled, and save as
 you go: a save keeps the session and returns the authority the next one
 carries, and the ribbon offers Done and no Save or Cancel. Web tests cover

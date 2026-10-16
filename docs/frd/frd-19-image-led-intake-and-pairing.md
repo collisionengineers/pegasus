@@ -226,6 +226,9 @@ plate must not detach from the overview image submitted with it. The group,
 never an individual image, is what reaches an association, a registration,
 or an Unidentified outcome.
 
+The accepted image formats are JPEG and PNG (`.jpg`, `.jpeg`, `.png`)
+(operator ruling, 15 October 2026).
+
 For manual upload, staff confirmation replaces automatic attachment:
 matching supplies suggestions. A group with a usable registration that
 matches one or more existing Cases is not registered while it waits: no

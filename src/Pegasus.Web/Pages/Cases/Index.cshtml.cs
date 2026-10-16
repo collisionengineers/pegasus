@@ -391,11 +391,6 @@ public sealed class IndexModel(
         AwaitingInstructionCount = awaitingTask.Result;
         TriageCount = triageTask.Result;
         UnidentifiedCount = openUnidentifiedCountTask.Result;
-        RailCountsPageFilter.SetCaseCounts(
-            HttpContext,
-            StageCounts,
-            TriageCount,
-            UnidentifiedCount);
 
         var rows = Queue switch
         {

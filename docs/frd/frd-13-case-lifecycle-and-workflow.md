@@ -1,9 +1,11 @@
 # FRD-13: Case lifecycle and workflow
 
-> Owner capabilities: CASE-01, CASE-13 to CASE-20, CASE-24 to CASE-26, CASE-32, EXT-05, MAIL-18 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: CASE-01, CASE-13 to CASE-20, CASE-23 to CASE-26, CASE-32, EXT-05, MAIL-18 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
+- Every active Case type travels end to end to handoff (operator ruling,
+  15 October 2026).
 - A Case moves `Not ready` → `Review` → `With Engineer` → `Report sent`.
   A query is a record on the Case, not a state: a Case with an open query
   reads `Query`. `Held` is a pause.
@@ -15,7 +17,8 @@
   There is no Mark completed (operator, 11 October 2026). On an Inspection +
   Audit Case the Inspection report's send is not the last step: the Case
   stays With Engineer until the Audit report is sent or the Case is closed
-  (operator, 13 October 2026). A Case is never permanently closed.
+  (operator, 13 October 2026). A Case is never permanently closed, except
+  `Created in error`.
 - **Close case** records a cancellation or a rejection with a reason.
   **Archive** hides a closed Case from queues. Nothing is ever deleted.
 - **Create audit** adds the Audit to an Inspection + Audit Case in work,
@@ -47,6 +50,7 @@ names never leak into labels.
 | `Report sent` | The report has been sent. The Case's last stage; still editable. |
 | `Query` | An open Case that holds an open query, whatever its state (operator, 11 October 2026). |
 | `Held` | Paused by staff with a reason. |
+| `Closed` | Closed in one of the four dispositions below (operator, 15 October 2026). |
 
 Query is not a stored state: it is the stage word every screen, queue and
 filter gives an open Case while a query is open on it
@@ -54,8 +58,9 @@ filter gives an open Case while a query is open on it
 
 A Case can also carry one of four closed dispositions: `Principal cancelled`,
 `Collision Engineers rejected`, `Created in error` and `Source email
-unlinked`. Each records a reason. The Case stays on record and can be
-returned to work with a reason. No Case is ever shown as "Closed".
+unlinked`. Each reads `Closed`, and its disposition and reason are written to
+the Case's Notes (operator, 15 October 2026). The Case stays on record and,
+except for `Created in error`, can be returned to work with a reason.
 
 Every state change and disposition is a Core transition. It records who did
 it, when, why, the state before and after, and any evidence, permanently.
@@ -141,10 +146,10 @@ never changes the Case state and records no handoff.
   decision target after the hold was placed. The record reads "Held · review
   on 24 Sep". **Release Hold** records a reason.
 - **Damage, Valuation, Estimate, Settlement and Report** can always be
-  viewed. Staff with `PerformCasework` may edit them in Not ready, Review and
-  With Engineer under the normal edit authority. They are read-only in Held
-  and Completed. Staff and the Automation Actor record the Engineer's Value
-  ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#assessment-writes)).
+  viewed. Staff with `PerformCasework` may edit them in Not ready, Review,
+  With Engineer and Report sent under the normal edit authority. They are
+  read-only in Held. Staff and the Automation Actor record the Engineer's
+  Value ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#assessment-writes)).
 - **Report approval** names one immutable report file and who approved it:
   a staff member or the Automation actor
   ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#reports)).
@@ -193,8 +198,9 @@ corrected-Principal replacement action
 Case ([FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association)).
 Report sent is ordinary progress, not a closure.
 
-A closed disposition locks nothing permanently and deletes no evidence. The
-Case can return to work with a reason through the normal gates.
+A closed disposition deletes no evidence. Except for `Created in error`, none
+locks anything permanently: the Case can return to work with a reason through
+the normal gates.
 
 ### Archive
 
@@ -225,7 +231,7 @@ the claimant; a dispute is a query. A query is a record on the Case
 
 A Query e-mail joining a Case in any other state raises nothing. The
 Case's Engineer is told of a query raised from mail
-([FRD-12](frd-12-operator-experience.md#the-shell)).
+([FRD-12](frd-12-operator-experience.md#shell-and-routes)).
 
 While any query is open the Case reads **Query** on every screen, queue and
 filter, in purple, whatever its state; the Queries section lists the open
@@ -233,7 +239,7 @@ queries first and the resolved ones after them; and on a Report sent Case
 the Next action is **Resolve query**
 ([FRD-16](frd-16-case-record-workspace.md#queries)). A query stays open
 when the Case leaves Report sent (Return to Engineer, Create audit, Unlink
-report evidence, Hold) and is resolved from wherever the Case then is.
+report evidence) and is resolved from wherever the Case then is.
 
 A query is resolved in one of three ways, each closing every open query on
 the Case at once: **Resolve query** from the Actions menu or the Next
@@ -317,6 +323,9 @@ The Engineer who issues a report is not automatically its signatory.
 **Due by** comes from the inspection date or the accepted equivalent
 deadline. On an Inspection + Audit Case, Due by and the completeness gate
 follow the Inspection's values; editing the Audit's copy changes neither.
+The Case page shows **Overdue** beside Due by, by the Overdue rule in
+[FRD-15](frd-15-work-centre-queues-and-search.md#work-centre). This is a
+ruling awaiting delivery (operator ruling, 15 October 2026).
 
 **Chase interval.** One global setting in Workflow configuration, in whole
 calendar days, range 1 to 365, default 7, calculated in Europe/London. When a
@@ -364,7 +373,9 @@ complete, cancel and assign tasks in the Case record's Tasks dialog, opened
 from its Actions menu, in
 the edit session and under its lease
 ([FRD-16](frd-16-case-record-workspace.md#tasks)). A Case with an open task
-cannot be archived until each task is completed or cancelled. Once Report
+cannot be archived until each task is completed or cancelled. Correcting a
+Case to a new Principal cancels its open tasks, each recording the
+correction's reason (operator, 16 October 2026). Once Report
 sent is recorded, the Case's Next action lists its open tasks, and Archive is
 greyed with the reason "Complete or cancel every open task first." (operator,
 6 October 2026). A task has no due date
@@ -392,7 +403,7 @@ records the settled classification of each accepted message. Automatic
 association uses the instruction profiles and match keys in
 [FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association);
 QDOS keeps its accepted correspondence predicates under
-[ADR-0020](../adr/0020-accepted-qdos-case-association-predicates.md). Quoted
+[FRD-09](frd-09-principal-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association). Quoted
 historical instructions inside a message are ignored. Only an incoming
 instruction creates intake work.
 
@@ -406,7 +417,7 @@ stays in history.
 While a linked message's current classification is a cancellation and the
 Case is open, the Case page's Next action names it, **Cancellation received**,
 with **Open message**, and the Case's Engineer is told through the bell
-([FRD-12](frd-12-operator-experience.md#the-shell)). Correcting the message
+([FRD-12](frd-12-operator-experience.md#shell-and-routes)). Correcting the message
 away clears the row. The Case's state still changes only by a staff or
 Automation Actor action.
 
@@ -428,7 +439,7 @@ Automation Actor action.
 | any open state | Created in error | Corrected-Principal replacement action |
 | any open state | Source email unlinked | Unlink the source email |
 | closed disposition | archived | Archive |
-| closed disposition | working state | Return to work (reason), through the normal gates |
+| closed disposition other than Created in error | working state | Return to work (reason), through the normal gates |
 
 ## Edge cases and fail-closed behaviour
 
@@ -458,19 +469,19 @@ acceptance are separate evidence tiers
 
 ## Links
 
-- Capabilities: `CASE-01`, `CASE-13`–`CASE-20`, `CASE-24`–`CASE-26`,
+- Capabilities: `CASE-01`, `CASE-13`–`CASE-20`, `CASE-23`–`CASE-26`,
   `CASE-32`, `EXT-05`, `MAIL-18` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-22](frd-22-pre-case-gates-matching-and-association.md),
   [FRD-04](frd-04-parties-accounts-and-access.md),
   [FRD-07](frd-07-case-export.md),
+  [FRD-09](frd-09-principal-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association),
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),
   [FRD-14](frd-14-record-edit-leases.md),
   [FRD-16](frd-16-case-record-workspace.md),
   [FRD-17](frd-17-administration-workspace.md),
   [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md).
 - Technical constraints:
-  [ADR-0020](../adr/0020-accepted-qdos-case-association-predicates.md),
   [ADR-0065](../adr/0065-case-export-replaces-eva-routes.md),
   [ADR-0056](../adr/0056-one-case-per-work-data-and-triage-case-type.md).

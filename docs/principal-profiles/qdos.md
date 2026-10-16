@@ -148,7 +148,7 @@ the assessment remains a separate Case fact.
 
 Owner: `src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs`
 (`principal_case_match`, Version 1), the accepted predicates of
-`docs/adr/0020-accepted-qdos-case-association-predicates.md`.
+[FRD-09](../frd/frd-09-principal-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association).
 
 - **Label-anchored with a required separator** — free text is never scraped
   (this excludes the predecessor's false registrations: office-address
@@ -271,7 +271,7 @@ render on the case Evidence tab and are retained in Box.
 | --- | --- |
 | Is this mail on the QDOS route / who is the effective sender? | `src/Pegasus.Core/Intake/PrincipalMailRoutePolicy.cs` |
 | What type of message is it? | `src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs` |
-| Which case does it belong to? | `src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs` + `docs/adr/0020-accepted-qdos-case-association-predicates.md` |
+| Which case does it belong to? | `src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs` + [FRD-09](../frd/frd-09-principal-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association) |
 | What case type is allocated? | `src/Pegasus.Core/Intake/IntakeAllocation.cs` (from the classification decision) |
 | What fields are extracted, and how? | `src/Pegasus.Core/Intake/DirectPrincipals/Qdos/QdosInstructionExtractionPolicy.cs` + `src/Pegasus.Core/Intake/InstructionFieldExtraction.cs` |
 | What does the operator see? | `src/Pegasus.Web/Presentation/OperatorLabels.cs`, `MailClassificationSelection.cs`, `MailBodyPresentation.cs`, `src/Pegasus.Core/Intake/StaffForwardBodyCleaner.cs` |

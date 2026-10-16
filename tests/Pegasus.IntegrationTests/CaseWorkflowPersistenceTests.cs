@@ -104,7 +104,9 @@ public sealed class CaseWorkflowPersistenceTests
         var closeLease = await harness.Store.ClaimAsync(
             new(harness.CaseId, sent.Version, actor, "claim-post-report-close"),
             default);
-        var closed = await new CloseCase(harness.Store).ExecuteAsync(
+        // Core no longer closes a Report sent Case, so the store closes it, as
+        // the Cases closed before that rule were.
+        var closed = await harness.Store.CloseAsync(
             new(
                 harness.CaseId,
                 sent.Version,
@@ -349,9 +351,9 @@ public sealed class CaseWorkflowPersistenceTests
         await AssertOpenQueryMarkMatchesRowsAsync(harness, harness.CaseId);
     }
 
-    /// <summary>A Report sent Case can be held and released back to Report sent, its open query untouched.</summary>
+    /// <summary>A hold the migration left on a Report sent Case still releases back to Report sent, its open query untouched.</summary>
     [Fact]
-    public async Task HoldReleaseFromReportSentReturnsToReportSentWithItsOpenQuery()
+    public async Task AHoldMigratedFromReportSentStillReleases()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
@@ -362,26 +364,21 @@ public sealed class CaseWorkflowPersistenceTests
         var logged = await harness.Store.RaiseQueryAsync(
             new(harness.CaseId, 0, actor, "log-before-hold", "Query logged.", logLease.Token, CaseQueryChannel.Other, "By letter."),
             CancellationToken.None);
-        var holdLease = await harness.Store.ClaimAsync(
-            new(harness.CaseId, logged.Version, actor, "claim-hold-report-sent"),
-            CancellationToken.None);
-        var held = await new PutCaseOnHold(harness.Store, harness.TimeProvider).ExecuteAsync(
-            new(harness.CaseId, logged.Version, actor, "hold-report-sent", "Awaiting the principal.", holdLease.Token),
-            CancellationToken.None);
-        Assert.Equal(CaseLifecycleState.Held, held.State);
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
-            Assert.Equal(
-                nameof(CaseLifecycleState.ReportSent),
-                (await context.CaseWorkflows.SingleAsync(item => item.CaseId == harness.CaseId)).PreHoldState);
+            var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == harness.CaseId);
+            workflow.State = nameof(CaseLifecycleState.Held);
+            workflow.PreHoldState = nameof(CaseLifecycleState.ReportSent);
+            workflow.HeldAtUtc = harness.TimeProvider.GetUtcNow();
+            await context.SaveChangesAsync();
         }
 
         var releaseLease = await harness.Store.ClaimAsync(
-            new(harness.CaseId, held.Version, actor, "claim-release-report-sent"),
+            new(harness.CaseId, logged.Version, actor, "claim-release-report-sent"),
             CancellationToken.None);
         var released = await new ReleaseCaseHold(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
-                harness.CaseId, held.Version, actor, "release-report-sent", "Principal replied.", releaseLease.Token),
+                harness.CaseId, logged.Version, actor, "release-report-sent", "Principal replied.", releaseLease.Token),
             CancellationToken.None);
 
         Assert.Equal(CaseLifecycleState.ReportSent, released.State);
@@ -939,7 +936,9 @@ public sealed class CaseWorkflowPersistenceTests
         var linkedAssociation = Assert.IsType<AutoLinkedReportEvidence>(autoLinked.Link);
         Assert.Equal(firstStarted.Version + 1, linkedAssociation.Version);
 
-        var closed = await new CloseCase(harness.Store).ExecuteAsync(
+        // The store closes the Report sent Case, as the Cases closed before
+        // Core refused that were.
+        var closed = await harness.Store.CloseAsync(
             new(
                 harness.CaseId,
                 linkedAssociation.Version,
@@ -1455,7 +1454,9 @@ public sealed class CaseWorkflowPersistenceTests
                 retained.EvidenceId),
             default));
 
-        var closed = await new CloseCase(harness.Store).ExecuteAsync(
+        // The store closes the Report sent Case, as the Cases closed before
+        // Core refused that were.
+        var closed = await harness.Store.CloseAsync(
             new(
                 harness.CaseId,
                 linked.Version,
@@ -2800,56 +2801,72 @@ public sealed class CaseWorkflowPersistenceTests
             Assert.Single(with.Items, item => item.CaseId == harness.CaseId).AccidentCircumstances);
     }
 
-    [Theory]
-    [InlineData(CaseTaskState.Completed)]
-    [InlineData(CaseTaskState.Cancelled)]
-    public async Task WrongPrincipalReplacementRollsBackForOpenTasksThenSucceedsAndReplays(
-        CaseTaskState resolvedState)
+    [Fact]
+    public async Task WrongPrincipalReplacementCancelsTheOriginalsOpenTasksAndReplays()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
-        var taskId = Guid.NewGuid();
-        await harness.SeedCaseTaskAsync(harness.CaseId, taskId, CaseTaskState.Open);
+        var openTaskId = Guid.NewGuid();
+        var completedTaskId = Guid.NewGuid();
+        await harness.SeedCaseTaskAsync(harness.CaseId, openTaskId, CaseTaskState.Open);
+        await harness.SeedCaseTaskAsync(harness.CaseId, completedTaskId, CaseTaskState.Completed);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var lease = await harness.Store.ClaimAsync(
-            new(harness.CaseId, 0, actor, $"claim-task-gated-replacement-{resolvedState}"),
+            new(harness.CaseId, 0, actor, "claim-task-cancelling-replacement"),
             default);
         var request = new CreateLinkedReplacementRequest(
             harness.CaseId,
             0,
             actor,
-            $"task-gated-replacement-{resolvedState}",
-            "Correct the immutable principal only after resolving open work",
+            "task-cancelling-replacement",
+            "Correct the immutable principal with open work",
             lease.Token,
             "QDOS");
         var create = new CreateLinkedReplacement(harness.ReplacementStore, new DiscardingCommittedWorkPublisher());
         var initialCaseCount = await harness.CountCasesAsync();
         var initialQdosReferenceCount = await harness.CountQdosReferencesAsync();
 
-        var denied = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => create.ExecuteAsync(request, default));
-
-        Assert.Equal(CaseTaskRules.OpenTasksBlockTerminal, denied.Message);
-        Assert.Equal(initialCaseCount, await harness.CountCasesAsync());
-        Assert.Equal(initialQdosReferenceCount, await harness.CountQdosReferencesAsync());
-        var unchanged = await harness.Store.GetAsync(harness.CaseId, default);
-        Assert.Equal(CaseLifecycleState.Review, unchanged?.State);
-        Assert.Null(unchanged?.ReplacementCaseId);
-
-        await harness.SetCaseTaskStateAsync(taskId, resolvedState);
         var allocated = await create.ExecuteAsync(request, default);
-        await harness.SetCaseTaskStateAsync(taskId, CaseTaskState.Open);
+
+        var tasks = await harness.TaskStore.ListAsync(harness.CaseId, default);
+        var cancelled = Assert.Single(tasks, item => item.Id == openTaskId);
+        Assert.Equal(CaseTaskState.Cancelled, cancelled.State);
+        Assert.Equal(1, cancelled.Version);
+        var completed = Assert.Single(tasks, item => item.Id == completedTaskId);
+        Assert.Equal(CaseTaskState.Completed, completed.State);
+        Assert.Equal(0, completed.Version);
+        var original = await harness.Store.GetAsync(harness.CaseId, default);
+        Assert.Equal(CaseLifecycleState.CreatedInError, original?.State);
+        Assert.Equal(1, original?.Version);
+        var history = await ReadTaskCancellationsAsync(harness);
+        var cancellation = Assert.Single(history);
+        Assert.Equal(openTaskId.ToString("D"), cancellation.AggregateId);
+        Assert.Equal(request.Reason, cancellation.Reason);
+        Assert.Equal(nameof(ActorKind.Staff), cancellation.ActorKind);
+        Assert.Equal(actor.SubjectId, cancellation.ActorSubjectId);
+        Assert.Equal(request.OperationKey, cancellation.CorrelationId);
+
         var replay = await create.ExecuteAsync(request, default);
-        await harness.SetCaseTaskStateAsync(taskId, resolvedState);
 
         Assert.False(allocated.IsDuplicate);
         Assert.True(replay.IsDuplicate);
         Assert.Equal(allocated.Identity, replay.Identity);
         Assert.Equal(initialCaseCount + 1, await harness.CountCasesAsync());
         Assert.Equal(initialQdosReferenceCount + 1, await harness.CountQdosReferencesAsync());
+        Assert.Single(await ReadTaskCancellationsAsync(harness));
+    }
+
+    private static async Task<IReadOnlyList<ActionHistoryEntity>> ReadTaskCancellationsAsync(
+        WorkflowHarness harness)
+    {
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        return await context.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == "case_task"
+                && item.EventKind == "case_task_cancelled")
+            .ToListAsync();
     }
 
     [Fact]
-    public async Task ConcurrentTaskCreationAndWrongPrincipalReplacementPreserveTheTerminalTaskInvariant()
+    public async Task ConcurrentTaskCreationAndWrongPrincipalReplacementUnderOneLeaseCommitExactlyOne()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
@@ -2875,7 +2892,7 @@ public sealed class CaseWorkflowPersistenceTests
                 "concurrent-replacement-task",
                 "Exercise terminal task serialization",
                 lease.Token,
-                "Retained work must not survive terminalization",
+                "Task created under the lease the replacement also presents",
                 null),
             default);
 
@@ -3523,10 +3540,6 @@ public sealed class CaseWorkflowPersistenceTests
             await database.ExecuteAsync(
                 $"INSERT INTO CaseTasks (Id, CaseId, Description, State, Version, ConcurrencyToken) VALUES ('{taskId:D}', '{caseId:D}', 'Retained replacement work', '{state}', 0, '{Guid.NewGuid():D}')");
         }
-
-        public Task SetCaseTaskStateAsync(Guid taskId, CaseTaskState state) =>
-            database.ExecuteAsync(
-                $"UPDATE CaseTasks SET State = '{state}', Version = Version + 1, ConcurrencyToken = '{Guid.NewGuid():D}' WHERE Id = '{taskId:D}'");
 
         public Task<long> CountCasesAsync() =>
             database.ScalarAsync<long>("SELECT COUNT_BIG(*) FROM Cases");

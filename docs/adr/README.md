@@ -12,8 +12,11 @@ Every ADR carries frontmatter (`id`, `status`, `date`, `supersedes`,
 by themselves form a complete current architecture snapshot. An accepted ADR with
 a `superseded_by` list retains only the unaffected clauses; its Status section
 names the precise partial scope. Published bodies are
-immutable; a changed decision is recorded by a new, superseding ADR — IDs are
-never renumbered or reused.
+immutable, with two exceptions: a wording-only rewrite that keeps every
+decision, date and status, with a fidelity check on each; and a decision bullet
+that an operator ruling changes, which is edited in place, citing the ruling
+and its date. Any other changed decision is recorded by a new, superseding
+ADR — IDs are never renumbered or reused.
 
 ## Decisions
 
@@ -23,7 +26,7 @@ never renumbered or reused.
 | [ADR-0002](0002-dotnet-modular-monolith-on-azure.md) | .NET modular monolith on Azure App Service | accepted | ADR-0004, ADR-0007, ADR-0015, ADR-0030, ADR-0032, ADR-0043, ADR-0049, ADR-0051, ADR-0056 | — |
 | [ADR-0003](0003-pdfpig-for-first-qdos-slice.md) | PdfPig for the first QDOS embedded-text slice | accepted | — | — |
 | [ADR-0004](0004-provider-api-and-staff-mcp-authentication.md) | Provider API and staff MCP authentication | accepted | ADR-0011 | — |
-| [ADR-0005](0005-multiformat-intake-assets.md) | Multi-format intake and review assets | accepted | ADR-0040, ADR-0061 (decision 5: scan pages) | — |
+| [ADR-0005](0005-multiformat-intake-assets.md) | Multi-format intake and review assets | accepted | ADR-0040 | — |
 | [ADR-0006](0006-provider-neutral-intake-with-contained-qdos-policy.md) | Provider-neutral intake with a contained QDOS policy | accepted | ADR-0008 | — |
 | [ADR-0007](0007-direct-terminal-azure-deployment.md) | Direct authorised-terminal Azure deployment | accepted | ADR-0014, ADR-0015, ADR-0037 | — |
 | [ADR-0008](0008-separate-direct-provider-and-intermediary-email-policies.md) | Separate direct-provider and intermediary email policies | accepted | — | — |
@@ -52,12 +55,12 @@ never renumbered or reused.
 | [ADR-0032](0032-near-real-time-durable-intake-triggering.md) | Near-real-time durable intake triggering | superseded | ADR-0033 | INT-33 |
 | [ADR-0033](0033-warm-unified-work-queue-for-five-second-intake.md) | Warm unified work queue for five-second intake | accepted | — | INT-33 |
 | [ADR-0034](0034-per-principal-eva-api-submission-settings.md) | Per-Principal EVA API submission settings | superseded | ADR-0038 | EXT-04 |
-| [ADR-0035](0035-ai-job-ledger.md) | AI job ledger | accepted | — | AI-10, AI-09, MCP-06, MCP-01 |
+| [ADR-0035](0035-ai-job-ledger.md) | AI job ledger | accepted | ADR-0073 (AI-09 hand-off record) | AI-10, AI-09, MCP-06, MCP-01 |
 | [ADR-0036](0036-outbound-mail-via-approved-mailbox.md) | Outbound mail via the approved mailbox | accepted | ADR-0042, ADR-0052, ADR-0068 (Compose and the default mailbox), ADR-0069 (folder move) | — |
 | [ADR-0037](0037-linux-authorised-release-workstation.md) | Linux authorised release workstation | superseded | ADR-0039 | OPS-10, OPS-24 |
 | [ADR-0038](0038-manual-only-eva-api-submission.md) | Manual-only EVA API submission | superseded | ADR-0048 | EXT-04 |
 | [ADR-0039](0039-windows-and-linux-release-workstations.md) | Windows and Linux release workstations | accepted | — | OPS-10, OPS-24 |
-| [ADR-0040](0040-qualified-document-intelligence-ocr.md) | Qualified Document Intelligence OCR | accepted | ADR-0061 (source qualification only) | INT-16, EXT-12 |
+| [ADR-0040](0040-qualified-document-intelligence-ocr.md) | Qualified Document Intelligence OCR | accepted | ADR-0047 | INT-16, EXT-12 |
 | [ADR-0041](0041-persistent-automation-keys-and-grant-attribution.md) | Persistent Automation keys and grant attribution | accepted | — | — |
 | [ADR-0042](0042-staff-send-operation-journal.md) | Staff-send operation journal and Sent evidence | accepted | — | — |
 | [ADR-0043](0043-per-engineer-vendor-credential-protection.md) | Per-Engineer vendor credential protection | accepted | — | — |
@@ -67,29 +70,30 @@ never renumbered or reused.
 | [ADR-0047](0047-scanned-instruction-ocr-only.md) | OCR only for incoming scanned instructions | superseded | ADR-0061 | INT-16 |
 | [ADR-0048](0048-principal-report-generation-policies.md) | Principal report-generation policies | accepted | ADR-0065 (all but recipient settings) | EXT-04 |
 | [ADR-0049](0049-host-web-on-app-service-code-deploy.md) | Host Pegasus Web on an App Service Web App by code deployment | accepted | — | EXT-08 |
-| [ADR-0050](0050-questpdf-report-renderer.md) | Render reports with QuestPDF inside the application | accepted | — | EXT-08, RPT-01, RPT-02 |
+| [ADR-0050](0050-questpdf-report-renderer.md) | Render reports with QuestPDF inside the application | accepted | — | EXT-08, RPT-01, RPT-02, RPT-07 |
 | [ADR-0051](0051-linked-audit-case-identity-and-custody.md) | Linked Audit Case identity and custody | superseded | ADR-0056 | — |
 | [ADR-0052](0052-dismiss-by-logical-folder.md) | Dismiss a retained message by logical folder; no Flag or Delete | accepted | ADR-0069 (logical folder), ADR-0071 (clause 3) | — |
 | [ADR-0053](0053-personal-staff-notification-store.md) | Personal staff notification store | accepted | — | — |
 | [ADR-0054](0054-release-notes-authored-in-the-application.md) | Release notes are authored in the application by an Administrator | accepted | — | — |
 | [ADR-0055](0055-github-issues-as-the-problem-report-sink.md) | GitHub issues as the problem-report sink | accepted | — | — |
-| [ADR-0056](0056-one-case-per-work-data-and-triage-case-type.md) | One Case with per-work data; Triage as a Case type | accepted | — | CASE-04, TRI-01 |
+| [ADR-0056](0056-one-case-per-work-data-and-triage-case-type.md) | One Case with per-work data; Triage as a Case type | accepted | — | CASE-04, CASE-07, CASE-08, TRI-01, TRI-08 |
 | [ADR-0057](0057-compress-staff-html-responses.md) | Compress staff HTML responses over HTTPS | accepted | — | — |
 | [ADR-0058](0058-glass-provider-work-in-the-web-host.md) | Glass's provider work runs in the background of the Web host | accepted | — | EXT-06 |
 | [ADR-0059](0059-native-mcp-file-content-and-consolidated-tool-inventory.md) | Native MCP file content and a consolidated tool inventory | accepted | — | MCP-01, MCP-02, MCP-03, MCP-04, MCP-06 |
-| [ADR-0060](0060-glass-valuation-account-and-valuation-report.md) | Glass's valuation through a Key Vault-held account, with its report filed on the Case | accepted | — | EXT-13 |
+| [ADR-0060](0060-glass-valuation-account-and-valuation-report.md) | Glass's valuation through a Key Vault-held account, with its report filed on the Case | accepted | — | EXT-07, EXT-13 |
 | [ADR-0061](0061-ocr-every-scanned-document-page.md) | OCR every scanned document page; a full-page raster is a document or a photograph by its colour | accepted | — | INT-16, AI-04 |
 | [ADR-0062](0062-glass-placeholder-vehicle-for-unknown-plates.md) | A plate Glass's does not know launches its estimate on a placeholder vehicle | accepted | — | EXT-06 |
 | [ADR-0063](0063-glass-estimate-belongs-to-its-repair-spec.md) | A Glass's estimate belongs to its repair spec, by its stock vehicle | accepted | — | EXT-06, ENG-01 |
 | [ADR-0064](0064-automation-actor-staff-casework-parity.md) | The Automation Actor has staff casework parity | accepted | ADR-0068 (`pegasus_mail_send` new mode), ADR-0069 (mail folder move) | MCP-01, MCP-02, MCP-06 |
-| [ADR-0065](0065-case-export-replaces-eva-routes.md) | The Case export replaces the EVA routes | accepted | — | CASE-21, CASE-30, EXT-03 |
+| [ADR-0065](0065-case-export-replaces-eva-routes.md) | The Case export replaces the EVA routes | accepted | — | CASE-21, CASE-30, EXT-03, EXT-04, UI-04 |
 | [ADR-0066](0066-cazana-valuation-through-a-key-vault-held-api-key.md) | Cazana valuation through a Key Vault-held API key | accepted | — | EXT-07, EXT-13 |
 | [ADR-0067](0067-report-sent-replaces-completed-and-queries-are-case-records.md) | Report sent replaces Completed, and queries are Case records | accepted | — | CASE-16, CASE-23 |
-| [ADR-0068](0068-incoming-and-outgoing-mailboxes-and-case-mail-replies.md) | Incoming and Outgoing mailboxes, and Case mail replies to its instruction | accepted | — | MAIL-12, MAIL-18 |
-| [ADR-0069](0069-one-flat-mail-category.md) | One flat mail category | accepted | ADR-0072 (Inbox scope rail; Unidentified as undecided mail) | MAIL-02, MAIL-21, MAIL-22 |
-| [ADR-0070](0070-case-state-mail-classification.md) | Case-state mail classification | accepted | ADR-0072 (closed and Triage Case arms; link reach; Inbox scope consequence) | MAIL-02, MAIL-09, MAIL-21 |
+| [ADR-0068](0068-incoming-and-outgoing-mailboxes-and-case-mail-replies.md) | Incoming and Outgoing mailboxes, and Case mail replies to its instruction | accepted | — | MAIL-12, MAIL-14, MAIL-18, INT-05, INT-06, INT-07 |
+| [ADR-0069](0069-one-flat-mail-category.md) | One flat mail category | accepted | ADR-0072 (Inbox scope rail; Unidentified as undecided mail) | MAIL-02, MAIL-21, MAIL-22, UI-14 |
+| [ADR-0070](0070-case-state-mail-classification.md) | Case-state mail classification | accepted | ADR-0072 (closed and Triage Case arms; link reach; Inbox scope consequence) | MAIL-02, MAIL-03, MAIL-04, MAIL-09, MAIL-21 |
 | [ADR-0071](0071-move-answered-instruction-to-deleted-items.md) | Move the answered instruction to Deleted Items after a confirmed report send | accepted | — | MAIL-25 |
 | [ADR-0072](0072-only-images-become-unidentified-and-no-case-found-mail.md) | Only images become Unidentified, and mail with no Case is No Case Found | accepted | — | INT-23, MAIL-02, UI-14, UI-18 |
+| [ADR-0073](0073-send-to-ai-hand-off-record-retired.md) | The Send to AI hand-off record is retired | accepted | — | AI-10, AI-09 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

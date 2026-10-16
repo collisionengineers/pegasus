@@ -99,8 +99,8 @@ public sealed class CancelCaseTask(ICaseTaskStore store) : ICancelCaseTask
 public static class CaseTaskRules
 {
     /// <summary>
-    /// Why a Case with an open task cannot be closed or archived: the refusal the store
-    /// raises and the hover text of the greyed Archive (operator, 6 October 2026).
+    /// Why a Case with an open task cannot be archived: the refusal the store raises and the
+    /// hover text of the greyed Archive (operator, 6 October 2026; Archive only, 15 October 2026).
     /// </summary>
     public const string OpenTasksBlockTerminal = "Complete or cancel every open task first.";
 

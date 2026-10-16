@@ -163,7 +163,7 @@ into a second test file is the third-copy rule applied to tests.
 ### Case Workspace v2 fixture values
 
 Test fixtures may use the Case Workspace v2 mockup's corpus-derived fixture
-values (`Pegasus_UI_v2_src/src/04-fixtures.js`).
+values.
 These values include real claimant names and telephone numbers. The operator
 decision of 2026-09-02 supersedes the earlier rule that the prototype's
 fixture data is not domain data, for this fixture set only. `corpus/` stays local, ignored

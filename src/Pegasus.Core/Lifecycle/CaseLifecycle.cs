@@ -18,10 +18,10 @@ public sealed class PutCaseOnHold(ICaseWorkflowStore store, TimeProvider timePro
         CaseLifecycleRules.ValidateMutation(request);
         CaseLifecycleRules.ValidateHoldReviewDate(request.ReviewOn, _timeProvider.GetUtcNow());
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if ((current.State == CaseLifecycleState.Held || CaseLifecycleRules.IsTerminal(current.State))
+        if (!CaseLifecycleRules.CanBeHeld(current.State)
             && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
         {
-            throw new InvalidOperationException("Only an open case can be held.");
+            throw new InvalidOperationException("A case can be held only from Not ready, Review or With Engineer.");
         }
 
         return await _store.HoldAsync(request, cancellationToken);
@@ -58,13 +58,11 @@ public sealed class ReturnCaseToReview(ICaseWorkflowStore store) : IReturnCaseTo
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
         // Return to Review is offered on With Engineer and Report sent, where it
         // sends the Case back for another Engineer handoff (operator, 11 October 2026).
-        if (current.State is not (CaseLifecycleState.NotReady
-                or CaseLifecycleState.ReportPreparation
-                or CaseLifecycleState.ReportSent)
+        if (current.State is not (CaseLifecycleState.ReportPreparation or CaseLifecycleState.ReportSent)
             && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
         {
             throw new InvalidOperationException(
-                "A case can enter Review only from Not ready, With Engineer or Report sent.");
+                "A case can enter Review only from With Engineer or Report sent.");
         }
 
         return await _store.ReturnToReviewAsync(request, cancellationToken);
@@ -568,6 +566,15 @@ public static class CaseLifecycleRules
         CaseLifecycleState.SourceEmailUnlinked;
 
     /// <summary>
+    /// Place on Hold runs only from Not ready, Review and With Engineer (the
+    /// FRD-13 transition table).
+    /// </summary>
+    public static bool CanBeHeld(CaseLifecycleState state) => state is
+        CaseLifecycleState.NotReady or
+        CaseLifecycleState.Review or
+        CaseLifecycleState.ReportPreparation;
+
+    /// <summary>
     /// A case nobody is still working: its report is sent or it ended in a terminal
     /// outcome. The one question asked when a staff account is about to be removed, so an
     /// open case never points at an Engineer who no longer exists.
@@ -753,6 +760,11 @@ public static class CaseLifecycleRules
 
     public static void RequireClosureIsAllowed(CaseWorkflowRecord current, CloseCaseRequest request)
     {
+        if (current.State == CaseLifecycleState.ReportSent)
+        {
+            throw new InvalidOperationException("A case can be closed only before its report is sent.");
+        }
+
         if (IsTerminal(current.State))
         {
             throw new InvalidOperationException("A closed case cannot be closed again.");

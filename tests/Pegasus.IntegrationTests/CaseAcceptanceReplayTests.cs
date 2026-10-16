@@ -12,6 +12,7 @@ using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
@@ -174,6 +175,7 @@ public sealed partial class CaseAcceptanceReplayTests
                     new(true, true)),
                 CancellationToken.None);
         var caseId = accepted.Identity.CaseId;
+        await SeedOpenTaskAsync(factory.Services, caseId);
         var acquireLease = scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>();
         var reverse = scope.ServiceProvider.GetRequiredService<IReverseIntakeLink>();
         var link = scope.ServiceProvider.GetRequiredService<ILinkIntake>();
@@ -210,6 +212,10 @@ public sealed partial class CaseAcceptanceReplayTests
         Assert.Equal(caseId, unlinked.AcceptedCaseId);
         Assert.False(unlinked.UnlinkCancelsCase);
         Assert.Equal(1, await CountRowsAsync(factory.Services, "CaseIntakeLinks"));
+        var retainedTask = Assert.Single(
+            await scope.ServiceProvider.GetRequiredService<ICaseTaskQueries>()
+                .ListAsync(caseId, CancellationToken.None));
+        Assert.Equal(CaseTaskState.Open, retainedTask.State);
 
         // The unlink is idempotent under replay, and a changed replay conflicts.
         await reverse.ExecuteAsync(unlinkRequest, CancellationToken.None);
@@ -383,6 +389,16 @@ public sealed partial class CaseAcceptanceReplayTests
         var updated = await context.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE Cases SET CustodyState = {custodyState}");
         Assert.Equal(1, updated);
+    }
+
+    private static async Task SeedOpenTaskAsync(IServiceProvider services, Guid caseId)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var inserted = await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO CaseTasks (Id, CaseId, Description, State, Version, ConcurrencyToken) VALUES ({Guid.NewGuid()}, {caseId}, {"Retained open task"}, {"Open"}, {0L}, {Guid.NewGuid()})");
+        Assert.Equal(1, inserted);
     }
 
     private static async Task<AcceptancePersistence> ReadAcceptancePersistenceAsync(

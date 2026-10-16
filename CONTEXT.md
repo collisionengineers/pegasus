@@ -87,9 +87,16 @@ _Avoid_: Cancelled, closed
 
 **Created in error**:
 A reasoned disposition for a Case created against the wrong Principal; its
-immutable reference remains consumed and links to its replacement. It does not
-create a terminally closed Case.
+immutable reference remains consumed and links to its replacement. The Case
+reads Closed and is never returned to work (operator, 15 October 2026).
 _Avoid_: Delete, reopen
+
+**Closed**:
+What every screen shows for a Case in any of its four closed dispositions:
+`Principal cancelled`, `Collision Engineers rejected`, `Created in error` or
+`Source email unlinked`. The disposition and its reason are written to the
+Case's Notes (operator, 15 October 2026)
+([FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md#states-and-labels)).
 
 **Associated**:
 The settled outcome for an Image intake whose evidence has been linked to one eligible pre-report instructed Case; it becomes final at report delivery. Before report delivery, authorised staff may reasonedly reverse the association; the intake reference, Case identity, source evidence, and relationship history remain permanent.
@@ -183,7 +190,6 @@ operator sees, not on how the code is named.
 | Domain term | Interface term |
 | --- | --- |
 | Intake receipt | Received file (an Intake log row) |
-| Intake queues | E-mail activity |
 | Image intake | Vehicle images |
 | Image Intake Reference | Image reference |
 | State (case filter) | Case stage |

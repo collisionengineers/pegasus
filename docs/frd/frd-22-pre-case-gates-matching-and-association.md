@@ -26,8 +26,8 @@ allocates a reference, and the rules for matching material to a Case and
 linking or unlinking it. It serves the PRD outcomes for one Case per
 instruction and no invented identity. Receiving material, receipt identity
 and Unidentified are owned by
-[FRD-02](frd-02-intake-and-source-identity.md). Case fields, provenance and
-the global checks are owned by
+[FRD-02](frd-02-intake-and-source-identity.md). Case fields and provenance
+are owned by
 [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md). The
 principal email routes are owned by
 [FRD-09](frd-09-principal-and-intermediary-routes.md), manual upload by
@@ -57,7 +57,7 @@ allocates its permanent reference. Manual upload instead waits for staff to
 accept the editable proposal
 ([FRD-18](frd-18-manual-upload.md#upload-confirmation-surface));
 extraction alone never allocates or reserves a Case/PO. Missing ordinary
-detail, images, or external checks keep the Case at `Not ready`; they are not
+detail or images keep the Case at `Not ready`; they are not
 another pre-Case gate.
 
 A Triage Case is allocated only once the Principal is established, before

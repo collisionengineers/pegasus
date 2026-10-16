@@ -1,11 +1,13 @@
 # FRD-24: Engineer findings, damage, valuation and settlement
 
-> Owner capabilities: CASE-22, CASE-28, ENG-02 to ENG-04, EXT-07, EXT-10, EXT-13 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: CASE-22, CASE-28, ENG-02 to ENG-05, EXT-07, EXT-10, EXT-13 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
 - Roadworthiness and Assessment are separate Engineer findings. A correction
-  is a new reasoned version, never an edit of the old one.
+  to an issued report is a new reasoned version, never an edit of the old
+  one. A saved finding keeps its before and after values in history
+  (`case_assessment_saved`).
 - A damage entry records the areas it covers, a severity and a note. Impact
   location and severity are derived by `Pegasus.Core`, never typed in.
 - Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources.
@@ -56,10 +58,16 @@ an Audit, the Audit's findings, damage, valuation and settlement are
 recorded on the Audit's values; the Inspection's stay as its report was
 sent ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
 
-**Corrections.** A correction never edits an accepted or issued finding in
-place. It creates a reasoned superseding report, finding or addendum with
-actor, time, source, structured before-and-after values, and the earlier
-artifact or version kept. Case edits follow the state, role, lease and
+Report narratives derive from the Engineer's figures (final value,
+deductions, outcome, salvage and roadworthiness) without retyping (operator
+ruling, 15 October 2026). The report's wording blocks are in
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-wording-blocks).
+
+**Corrections.** A correction never edits an issued report in place. It
+creates a reasoned superseding report or addendum with actor, time, source,
+structured before-and-after values, and the earlier artifact or version kept.
+Saving a finding keeps its before and after values in history as
+`case_assessment_saved`. Case edits follow the state, role, lease and
 version rules in [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions) and
 [FRD-14](frd-14-record-edit-leases.md#case-edit-lease). Report sent stays
 editable and queries follow
@@ -301,17 +309,17 @@ fields are recorded on the Case and not printed (operator, 27 September
 2026).
 
 **The Decisions surface (v28, ruled 20 September 2026).** Outcome, Salvage
-category and Roadworthiness are chosen from a radio group of their codes,
-with the unset state offered as "Not recorded"; the select stays the posted
-control, so a browser without script picks the same value from it. Salvage
-value carries a slider reading the share of the Engineer's Value, with 5,
-10, 15, 20 and 25 % snaps: the amount and the share are one fact and the
-last touch wins. While the outcome is not a total loss the salvage rows are
-absent and a "Salvage · Not applicable" line stands in their place. Below
-the strip stand the agreed contract sum, labour hours (read-only, from the
-Current repair spec), storage per day and the recovery charge; there is no
-Costs, hire & delays sub-panel, no Salvage sub-panel and no computed repair
-reserve (operator, 9 October 2026).
+category and Roadworthiness read as the greyed value box and edit as a select
+whose empty option is Not recorded (operator, 9 October 2026); the select
+stays the posted control, so a browser without script picks the same value
+from it. Salvage value carries a slider reading the share of the Engineer's
+Value, with 5, 10, 15, 20 and 25 % snaps: the amount and the share are one
+fact and the last touch wins. While the outcome is not a total loss the
+salvage rows are absent and a "Salvage · Not applicable" line stands in their
+place. The agreed contract sum, labour hours (read-only, from the Current
+repair spec), storage per day and the recovery charge also stand on it; there
+is no figures strip, no Costs, hire & delays sub-panel, no Salvage sub-panel
+and no computed repair reserve (operator, 9 October 2026).
 
 **The salvage matrix (operator, 29 September 2026).** When the Case's
 Principal has a salvage matrix
@@ -368,23 +376,17 @@ Job states and attribution are owned by
 
 ### Valuation readiness
 
-Any valuation check required before Review or Assign Engineer must be
-resolvable at that stage by an authorised human staff member. The Engineer sections are
-editable before handoff in Not ready and Review, so availability is not a
-reason to defer such a check. Engineer's Value, settlement and report
-calculations are engineering work, not invented pre-assignment blockers. A
-named external-check failure shows its actual permitted resolution. No
-circular readiness gate is acceptable.
+No circular readiness gate is acceptable (operator, 16 October 2026).
 
 ## States and transitions
 
 | Thing | States |
 | --- | --- |
-| Engineer finding | recorded; a correction is a superseding version, never an edit |
+| Engineer finding | recorded; each save keeps its before and after values (`case_assessment_saved`); a correction to an issued report is a superseding version, never an edit |
 
 ## Edge cases and fail-closed behaviour
 
-- A correction never edits an accepted or issued finding in place.
+- A correction never edits an issued report in place.
 - Equity is absent when its accepted inputs are incomplete, never a made-up
   zero.
 - The Engineer's Value and its retail and trade values are professional
@@ -433,7 +435,7 @@ separate tier
 
 ## Links
 
-- Capabilities: `CASE-22`, `CASE-28`, `ENG-02`–`ENG-04`, `EXT-07`, `EXT-10`,
+- Capabilities: `CASE-22`, `CASE-28`, `ENG-02`–`ENG-05`, `EXT-07`, `EXT-10`,
   `EXT-13` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-04](frd-04-parties-accounts-and-access.md),
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md),

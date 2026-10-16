@@ -11,13 +11,12 @@ Required outcomes:
 
 The 6 September 2026 v1 scope completes engineering and final reports in
 Pegasus. Staff or the Automation actor initiate every report and chaser send. Per-staff
-Glass's repair estimates are included, while its valuation service and the
-additional spreadsheet-driven workflow automation remain deferred. These are the current product requirements; earlier limitations are
+Glass's repair estimates are included. These are the current product requirements; earlier limitations are
 historical observations, not competing requirements.
 
 - make receiving work, incomplete intake, Triage, active cases, due work, queries, and completed work visible without reconstructing state from multiple systems;
 - retain source identity, chronology, custody, decisions, corrections, and action history;
-- fail closed before source receipt or reference allocation when safe persistence, identity-critical route facts, limits, or processing are incomplete or ambiguous; once safe processing establishes Principal and Case type, allocate the Case/PO and retain incomplete ordinary detail, images, or checks as `Not ready`; missing or ambiguous standalone Audit evidence withholds only the later Audit reference;
+- fail closed before source receipt or reference allocation when safe persistence, identity-critical route facts, limits, or processing are incomplete or ambiguous; once safe processing establishes Principal and Case type, allocate the Case/PO and retain incomplete ordinary detail or images as `Not ready`; missing or ambiguous standalone Audit evidence withholds only the later Audit reference;
 - keep business decisions in `Pegasus.Core`, with infrastructure, UI, Worker, MCP, imported workspaces, skills, prompts, and models subordinate to Core policy and to report approval and sending by staff or the Automation actor;
 - support deterministic, repeatable local verification and separately authorised live verification;
 - preserve deferred capability seams and data identities without building dormant capability.
@@ -136,15 +135,15 @@ to invent automated WhatsApp ingestion. Guided capture runs outside Pegasus
 through Tractable, which emails a PDF that intake reads; Pegasus has no
 Tractable integration and no capture of its own. Glass's repair estimates,
 Glass's valuation and native Pegasus reports are included; additional
-spreadsheet-driven customer, recipient/package/chase and garage-procedure
-automation remain deferred.
+spreadsheet-driven customer and garage-procedure automation remain deferred.
 
 ## Excluded product capabilities
 
 - ACC-12: External/customer application accounts.
 - ACC-13: Public registration.
 - ACC-14: Multi-factor authentication for staff.
-- UI-12: Responsive/mobile staff interface.
+- UI-12: Mobile-specific staff product.
+- MAIL-19: Automatic chasers or other outbound messages.
 - DOC-09: Automated malware scanning of inbound files.
 - DOC-10: Document redaction workflow.
 - DOC-11: Digital signatures.
@@ -175,9 +174,11 @@ automation remain deferred.
 ## Ongoing Case responsibility
 
 Inspection, Audit, Inspection + Audit and Triage are active product scope.
-Formal Cases have no terminally closed state: Report sent is the last stage,
-a query raised on the Case marks it Query until the query is resolved, and
-the Case stays editable throughout. Every Audit Case/PO uses the `a.` prefix independently of its
+Report sent is a formal Case's last stage, a query raised on the Case marks
+it Query until the query is resolved, and the Case stays editable throughout.
+A Case can carry one of four closed dispositions, each reading Closed, with
+the reason in Notes; a Case marked Created in error is never returned to work
+(operator, 15 October 2026). Every Audit Case/PO uses the `a.` prefix independently of its
 assessment outcome, and every Triage Case/PO the `t.` prefix. The Audit of an
 Inspection + Audit Case lives on that Case under the Audit reference
 `a.{Case/PO}`.

@@ -40,8 +40,8 @@ it never reserves a reference. A manual upload also needs a staff member to
 accept it. Until then it is a proposal with no reference
 ([FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts)).
 
-Missing business detail, missing images or an outstanding external check do
-not stop allocation. They create or keep the Case as `Not ready`
+Missing business detail or missing images do not stop allocation. They
+create or keep the Case as `Not ready`
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)).
 
 **Reference format.** The base reference is
@@ -138,14 +138,15 @@ Case's identity changes and neither reference is reused. The replacement
 records the correct Principal as a Confirmed `principal_code` with source
 kind staff correction. The original Case's own fields are left as they were.
 After Create audit, the replacement starts from the Inspection's values only
-and has no Audit. Created in error is a recorded disposition, not a
-permanent closure. A Triage Case's Principal is fixed with its `t.` Case/PO:
-Triage has no Set principal, and Correct principal is not offered on a
-Triage Case.
+and has no Audit. Created in error is a recorded disposition, and a Case
+marked Created in error is never returned to work. A Triage Case's Principal
+is fixed with its `t.` Case/PO: Triage has no Set principal, and Correct
+principal is not offered on a Triage Case.
 
-**Never deleted.** A Case is never deleted and never permanently closed.
-Returning a Case to engineering work records a reason and uses the normal
-gates in [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
+**Never deleted.** A Case is never deleted and, except `Created in error`,
+never permanently closed. Returning a Case other than `Created in error` to
+engineering work records a reason and uses the normal gates in
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
 
 **Who is who.** The Principal is the party that instructs and pays. An
 Intermediary provides a route to Pegasus; that does not make it the Principal.
@@ -194,10 +195,12 @@ four active types and there is no generic Case type.
 
 **What a Case owns.** Its identity, Principal, reference and type. Its
 accepted source links. Its snapshotted parties and addresses. Its vehicle
-identity. Its work state and due work. Its documents, correspondence,
-findings, decisions, action history and closure history. Its assigned
-Engineer and Sign-off Engineer. Its one Case Notes history. Its storage
-location and inspect-at choice.
+identity. Its typed Principal, claimant, claim, vehicle, accident, contact,
+instruction and inspection data (operator ruling, 15 October 2026). Its work
+state and due work. Its documents, correspondence, findings, decisions,
+action history and closure history. Its assigned Engineer and Sign-off
+Engineer. Its one Case Notes history. Its storage location and inspect-at
+choice.
 
 **The Inspection and the Audit.** The working values of a Case (Case data,
 assessment, damage, estimates, valuations, decisions and report wording)

@@ -80,7 +80,7 @@ exclusion.
 | CASE-19 | Hold/release behavior that preserves the chase interval | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-20 | General Case tasks: a Tasks dialog from the Case record's Actions menu (add, assign, complete, cancel), after-send tasks created from the list the report send recorded when Report sent is recorded, and open tasks listed in Next action after the send and blocking Archive (no due date yet) | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing); [Tasks](frd/frd-16-case-record-workspace.md#tasks) |
 | CASE-21 | Replay-safe Case export history | [Export case](frd/frd-07-case-export.md#export-case) |
-| CASE-24 | Post-report completion, Principal cancellation, and Collision Engineers rejection outcomes | [Close case](frd/frd-13-case-lifecycle-and-workflow.md#close-case) |
+| CASE-24 | Principal cancellation and Collision Engineers rejection outcomes | [Close case](frd/frd-13-case-lifecycle-and-workflow.md#close-case) |
 | CASE-25 | Reasoned return to engineering through normal destination gates | [Actions](frd/frd-13-case-lifecycle-and-workflow.md#actions) |
 | CASE-26 | Archive without permanent case deletion | [Archive](frd/frd-13-case-lifecycle-and-workflow.md#archive) |
 | CASE-27 | Exclusive edit lease and stale-write protection | [Case edit lease](frd/frd-14-record-edit-leases.md#case-edit-lease) |
@@ -90,8 +90,8 @@ exclusion.
 | CASE-32 | Sign-off Engineer field, default and signature tuple | [Sign-off Engineer](frd/frd-13-case-lifecycle-and-workflow.md#sign-off-engineer); [Staff accounts](frd/frd-04-parties-accounts-and-access.md#staff-accounts) |
 | CASE-34 | Inspect at fast-update choices and Case storage location | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
 | UI-02 | Case queues for Not ready, Review, and Held | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
-| UI-03 | E-mail activity for Unidentified, including closed and could-not-be-read items | [Pre-Case records](frd/frd-15-work-centre-queues-and-search.md#pre-case-records) |
-| UI-04 | Activity: New cases, Sent to Engineer, Reports sent, Completed and E-mails received, each today and this week | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
+| UI-03 | Unidentified records, including closed and could-not-be-read items | [Pre-Case records](frd/frd-15-work-centre-queues-and-search.md#pre-case-records) |
+| UI-04 | Activity: New cases, Sent to Engineer, Reports sent and E-mails received, each today and this week | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | UI-05 | Click-through filtered work queues | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | UI-06 | Last-good time, distinct current/stale/partial/unavailable/failed states, auditable reconciliation, and manual refresh | [Dashboard freshness and reconciliation](frd/frd-15-work-centre-queues-and-search.md#dashboard-freshness-and-reconciliation) |
 | UI-07 | Search and filter across Cases and pre-Case records | [Search](frd/frd-15-work-centre-queues-and-search.md#search) |
@@ -99,8 +99,8 @@ exclusion.
 | UI-09 | Full case workspace | [Case workspace](frd/frd-16-case-record-workspace.md#case-workspace) |
 | UI-11 | Accounts, Contacts, mailbox allowlist, and configuration workspace | [Administration](frd/frd-17-administration-workspace.md#administration) |
 | UI-13 | Accessible keyboard, screen-reader, focus, contrast, and error behavior | [Operator experience](frd/frd-12-operator-experience.md#operator-experience) |
-| UI-16 | Operations Workspace shell: rail, counts, command palette | [Shell and routes](frd/frd-12-operator-experience.md#shell-and-routes) |
-| UI-17 | Case record: one scrolling page of twelve sections, and the Inspection and Audit views | [Case workspace](frd/frd-16-case-record-workspace.md#case-workspace) |
+| UI-16 | Operations Workspace shell: rail, command palette | [Shell and routes](frd/frd-12-operator-experience.md#shell-and-routes) |
+| UI-17 | Case record: one scrolling page of twelve sections and Queries, and the Inspection and Audit views | [Case workspace](frd/frd-16-case-record-workspace.md#case-workspace) |
 | UI-18 | Unassigned Images pre-Case queue | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
 | UI-19 | Service health is Administration-only | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | ENG-03 | Damage record: zones with severity and note, unrelated damage, diagram | [Damage record](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record) |
@@ -165,15 +165,15 @@ exclusion.
 | API-03 | Principal API resulting Case/PO lookup | [Principal API and contract boundary](frd/frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary) |
 | API-04 | Principal API credential issue, reset, revoke, pause, and resume | [Principal API and contract boundary](frd/frd-09-principal-and-intermediary-routes.md#principal-api-and-contract-boundary) |
 | MCP-05 | Automation Actor actions for the broader classified-email workspace | [MCP automation and actor boundary](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary) |
-| AI-05 | Automatic AI-assisted image readiness assessment of the current Case image set | [Ordinary-image VRM and image analysis](frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis) |
+| AI-05 | Automatic AI-assisted image readiness assessment of the current Case image set (deferred) | [Ordinary-image VRM and image analysis](frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis) |
 | INT-32 | Separate chase state per half; pairing shown in Work Centre | [Age and chase state](frd/frd-19-image-led-intake-and-pairing.md#age-and-chase-state); [Pairing and merge](frd/frd-19-image-led-intake-and-pairing.md#pairing-and-merge); [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | INT-33 | Near-real-time durable intake with truthful transient state | [Source occurrence and dispatch identity](frd/frd-02-intake-and-source-identity.md#source-occurrence-and-dispatch-identity); [Mailbox wake-up and recovery](frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#mailbox-wake-up-and-recovery) |
-| MAIL-19 | Automatically send chasers or other outbound messages | [Outbound correspondence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence) |
+| MAIL-19 | Automatically send chasers or other outbound messages (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | CASE-05 | Diminution cases (deferred) | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
 | CASE-06 | Commercial cases (deferred) | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
 | EXT-15 | Automated WhatsApp ingestion and coexistence (deferred) | [Operating and commercial constraints](prd/pegasus-product.md#operating-and-commercial-constraints) |
 | AI-04 | AI-assisted document extraction and operator review | [Qualified OCR](frd/frd-05-documents-extraction-and-custody.md#qualified-ocr) |
-| AI-06 | Ranked inspection-address suggestions, never chosen automatically | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
+| AI-06 | Ranked inspection-address suggestions, never chosen automatically (deferred) | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
 | MAIL-17 | Idempotent report and fee-note send with Box filing | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
 | CASE-22 | Native inspection and report-preparation work inside Pegasus | [Professional engineering findings and correction](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#professional-engineering-findings-and-correction) |
 | EXT-05 | Native Engineer assignment | [Assign Engineer](frd/frd-13-case-lifecycle-and-workflow.md#assign-engineer) |
@@ -185,14 +185,13 @@ exclusion.
 | EXT-11 | Versioned fee/invoice and Engineer cost/payment inputs, accounting status, and staff-role-neutral visibility | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | EXT-12 | Glass's and Audatex PDF estimate ingestion with retained source and variant proof | [Retained PDF estimates](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#retained-pdf-estimate-import) |
 | EXT-13 | Independently licensed valuation-source adapters that preserve each source observation and version | [Valuation sources](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources) |
-| AI-07 | AI Assessor as a staff-selected Engineer option | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
 | MAIL-12 | Authenticated staff reply, forward, chase and send reports by email in Pegasus | [Outbound correspondence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence) |
 | MAIL-24 | Editable e-mail templates with placeholders | [E-mail templates](frd/frd-17-administration-workspace.md#e-mail-templates) |
 | EXT-17 | Tractable capture outside Pegasus, received as an emailed PDF | [Ways intake starts](frd/frd-02-intake-and-source-identity.md#ways-intake-starts) |
 | CASE-31 | One accepted record feeds every report and fee note | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | ENG-01 | One canonical repair specification with route provenance | [Canonical repair specifications](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications) |
 | ENG-02 | Human staff-owned value, outcome and salvage drive derived figures | [Professional engineering findings and correction](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#professional-engineering-findings-and-correction) |
-| UI-15 | Engineer workbench inside the Case record sections | [Assessment](frd/frd-16-case-record-workspace.md#assessment) |
+| UI-15 | Engineer sections inside the Case record | [Assessment](frd/frd-16-case-record-workspace.md#assessment) |
 | RPT-01 | Renderer validates data, computes figures once, fixed design | [Initial renderer activation](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation) |
 | RPT-02 | Four assessment outcomes with fee note and repair breakdown | [Assessment-report outcomes](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes) |
 | RPT-03 | Audit report reuses the Inspection output with Audit provenance | [Audit report parity](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#audit-report-parity) |
@@ -215,7 +214,7 @@ exclusion.
 | ACC-12 | External/customer application accounts (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | ACC-13 | Public registration (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | ACC-14 | Multi-factor authentication for staff (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
-| UI-12 | Responsive/mobile staff interface (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
+| UI-12 | Mobile-specific staff product (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | DOC-09 | Automated malware scanning of inbound files (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | DOC-10 | Document redaction workflow (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | DOC-11 | Digital signatures (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
@@ -259,10 +258,11 @@ statements and the `CAP-0NN` source map remain recoverable from Git history.
 | EXT-19 | Custom application domain | 2026-09-18, operator decision |
 | INT-21 | Human-reviewed extraction cohort and accuracy reporting | 2026-09-18, operator decision |
 | UI-01 | Operations dashboard/cockpit: the `/Operations` page and its rail row | 2026-09-28, operator decision |
-| AI-09 | Send to AI push hand-off to a channel, with its work-request record and connector settings; the AI Job List (`AI-10`) is the only route | 2026-09-28, operator decision |
+| AI-09 | Send to AI push hand-off to a channel, with its work-request record and connector settings; the AI Job List (`AI-10`) is the only route | 2026-09-28, operator decision ([ADR-0073](adr/0073-send-to-ai-hand-off-record-retired.md)) |
 | EXT-04 | Principal-selected report route to an external engineering system (ZIP export or API send); every standard Case now has the Case export ([ADR-0065](adr/0065-case-export-replaces-eva-routes.md)) | 2026-10-07, operator decision |
 | MAIL-05 | Recommend the designated Outlook folder for a classified message | 2026-10-12, operator decision ([ADR-0069](adr/0069-one-flat-mail-category.md)) |
 | MAIL-06 | Staff confirmation of a recommended folder move in Pegasus | 2026-10-12, operator decision ([ADR-0069](adr/0069-one-flat-mail-category.md)) |
 | MAIL-07 | Move the confirmed message to the designated Outlook folder | 2026-10-12, operator decision ([ADR-0069](adr/0069-one-flat-mail-category.md)) |
 | MAIL-23 | Map the detailed taxonomy to operational queues and designated Outlook folders | 2026-10-12, operator decision ([ADR-0069](adr/0069-one-flat-mail-category.md)) |
 | MAIL-13 | Outlook category by allowlisted identifier | 2026-10-14, operator decision |
+| AI-07 | AI Assessor as a staff-selected Engineer option | 2026-10-15, operator decision |

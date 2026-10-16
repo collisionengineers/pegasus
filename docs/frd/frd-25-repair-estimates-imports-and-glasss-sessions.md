@@ -114,9 +114,8 @@ ambiguous artifact is refused, never guessed.
 **Authority is checked twice.** Before reading a replay or parsing the source,
 the command proves the typed actor, the current persisted Case version, and
 the edit lease holder, token and expiry. Both that check and the final save
-need an assessment-writable state: Not ready, Review or With Engineer, where
-With Engineer covers before and after the report
-([FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels)). A file
+need an assessment-writable state: Not ready, Review, With Engineer or Report
+sent ([FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels)). A file
 occurrence must name the exact confirmed, non-removed document version; a
 correctly paired historical version is still valid evidence. The new spec is
 guarded again in the save transaction. A staff import becomes the Current
@@ -540,7 +539,7 @@ materials sit on lines. Extras keep their printed price.
 
 Readable embedded text is required. An unusable font map, a scan-like page
 or a parser failure gives an explicit refusal, never an OCR request
-([ADR-0047](../adr/0047-scanned-instruction-ocr-only.md)). The staff Import
+([ADR-0061](../adr/0061-ocr-every-scanned-document-page.md)). The staff Import
 action accepts one supported file and stores the source through the existing
 Case document upload mechanism before parsing it immediately. The confirmed
 source appears in Case Files even when parsing refuses it; retrying the same
@@ -627,4 +626,4 @@ Supplier startup failures remain open until that journey passes
   [FRD-14](frd-14-record-edit-leases.md),
   [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md).
 - Technical constraints:
-  [ADR-0047](../adr/0047-scanned-instruction-ocr-only.md).
+  [ADR-0061](../adr/0061-ocr-every-scanned-document-page.md).

@@ -425,11 +425,13 @@ public sealed class MailWorkspaceWebTests
     // the account the cookie check read, not the database.
     // 24 before #1319: the message read no longer looks up whether the mailbox
     // is polled or whether the receipt's Unidentified item was resolved.
-    private const int InboxMessageCommands = 22;
+    // 22 before the rail stopped counting: - 3 (the rail no longer counts, R6).
+    private const int InboxMessageCommands = 19;
 
     // 24 before #1179 (the rail no longer counts Awaiting instruction) and #1181 (the Inbox list trims).
     // 19 before #1319 (the list's rows no longer look up the polled mailbox or the resolved item).
-    private const int InboxListCommands = 17;
+    // 17 before the rail stopped counting: - 3 (the rail no longer counts, R6).
+    private const int InboxListCommands = 14;
 
     // 9 before #1305 (the preview no longer reads the Outlook folder recommendation).
     // 8 before #1319 (the preview's row no longer looks up the polled mailbox or the resolved item).

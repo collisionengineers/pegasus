@@ -19,7 +19,7 @@ param deploymentMode string
 @description('Fail-closed Web activation. Base provisioning leaves the public Web App absent.')
 param webActivation string = 'disabled'
 
-@description('Fail-closed Worker activation. Only approved-live-worker enables the nine production functions.')
+@description('Fail-closed Worker activation. Only approved-live-worker enables the five production functions.')
 param workerActivation string = 'disabled'
 
 @allowed([

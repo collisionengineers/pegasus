@@ -81,6 +81,16 @@ public sealed partial class DetailsModel
         && AssignEngineerChoices is { EngineerOptions.Count: > 0 };
 
     /// <summary>
+    /// Place on Hold is live: a Case Core allows to be held (Not ready, Review
+    /// or With Engineer) that no colleague is editing. Its dialog renders and
+    /// the Actions menu opens it.
+    /// </summary>
+    public bool CanPlaceOnHold =>
+        Case is { } details
+        && CaseLifecycleRules.CanBeHeld(details.Workflow.State)
+        && !ColleagueIsEditing;
+
+    /// <summary>
     /// Log query is live: a Report sent Case no colleague is editing
     /// (operator, 11 October 2026). The Actions menu opens its dialog.
     /// </summary>

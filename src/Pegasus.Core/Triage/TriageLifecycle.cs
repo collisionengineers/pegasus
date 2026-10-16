@@ -511,8 +511,8 @@ public static class TriageLifecycleRules
     };
 
     /// <summary>
-    /// The states a Triage is still being worked in: the Triage queue, the shell
-    /// count and the Triages metric read these. Completed and Cancelled Triages
+    /// The states a Triage is still being worked in: the Triage queue and the
+    /// Triages metric read these. Completed and Cancelled Triages
     /// are found through Search (FRD-15).
     /// </summary>
     public static IReadOnlyCollection<TriageState> ActiveStates { get; } =
