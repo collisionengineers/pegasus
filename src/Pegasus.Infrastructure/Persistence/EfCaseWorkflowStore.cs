@@ -947,12 +947,8 @@ public sealed class EfCaseWorkflowStore(
         MutateAsync(
             request,
             $"case_closed_{request.Outcome}",
-            async (context, workflow, now) =>
+            (context, workflow, now) =>
         {
-            await CaseTerminalReadinessGuard.RequireNoOpenTasksAsync(
-                context,
-                workflow.CaseId,
-                cancellationToken);
             if (request.Outcome == CaseClosureOutcome.CreatedInError)
             {
                 throw new InvalidOperationException(
@@ -966,6 +962,7 @@ public sealed class EfCaseWorkflowStore(
             workflow.State = request.Outcome.ToString();
             workflow.ClosureOutcome = request.Outcome.ToString();
             CaseChaseState.Stop(workflow);
+            return Task.CompletedTask;
         }, cancellationToken);
 
     public Task<CaseWorkflowRecord> ReturnToEngineerAsync(

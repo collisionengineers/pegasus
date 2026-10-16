@@ -240,6 +240,10 @@ public interface ICreateLinkedReplacement
 }
 public interface ILinkedCaseReplacementStore
 {
+    /// <summary>
+    /// The original's open tasks are cancelled with the correction's reason in the same commit
+    /// that closes it as Created in error (operator, 16 October 2026).
+    /// </summary>
     Task<CaseAcceptanceOutcome> CreateAsync(
         CreateLinkedReplacementRequest request,
         CancellationToken cancellationToken);

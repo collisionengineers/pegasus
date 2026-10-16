@@ -72,10 +72,6 @@ public sealed class EfLinkedCaseReplacementStore(
             throw new InvalidOperationException(
                 "The wrong-principal case already has an immutable replacement link.");
         }
-        await CaseTerminalReadinessGuard.RequireNoOpenTasksAsync(
-            context,
-            original.CaseId,
-            cancellationToken);
 
         var replacementPrincipal = await context.Principals
             .Include(item => item.Organization)
@@ -187,6 +183,14 @@ public sealed class EfLinkedCaseReplacementStore(
             CaseRootCreationToken = CustodyCreationOwner.Create()
         });
 
+        await EfCaseTaskStore.CancelOpenOnCorrectionAsync(
+            context,
+            original,
+            request.Actor,
+            request.OperationKey,
+            request.Reason,
+            now,
+            cancellationToken);
         var beforeVersion = original.Version;
         original.State = nameof(CaseLifecycleState.CreatedInError);
         original.StateEnteredAtUtc = now;

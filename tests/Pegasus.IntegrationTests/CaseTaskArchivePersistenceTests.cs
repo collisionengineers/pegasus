@@ -146,8 +146,7 @@ public sealed class CaseTaskArchivePersistenceTests
     [Theory]
     [InlineData(CaseClosureOutcome.PrincipalCancelled)]
     [InlineData(CaseClosureOutcome.CollisionEngineersRejected)]
-    [InlineData(CaseClosureOutcome.CreatedInError)]
-    public async Task EveryTerminalCloseOutcomeRejectsOpenTasks(
+    public async Task CloseWithAnOpenTaskCommitsAndLeavesTheTaskOpen(
         CaseClosureOutcome outcome)
     {
         await using var harness = await Harness.CreateAsync();
@@ -156,26 +155,54 @@ public sealed class CaseTaskArchivePersistenceTests
             new(harness.TaskCaseId, 0, harness.UserActor, $"claim-close-{outcome}"),
             default);
 
+        var closed = await harness.WorkflowStore.CloseAsync(
+            new(
+                harness.TaskCaseId,
+                0,
+                harness.UserActor,
+                $"close-{outcome}",
+                "Close a Case that still has an open task",
+                lease.Token,
+                outcome),
+            default);
+
+        Assert.Equal(outcome.ToString(), closed.State.ToString());
+        Assert.Equal(outcome, closed.ClosureOutcome);
+        Assert.Equal(1, closed.Version);
+        Assert.Equal(1L, await harness.CountStateAsync(CaseTaskState.Open));
+    }
+
+    [Fact]
+    public async Task CloseAsCreatedInErrorStillRequiresTheCorrectedPrincipalReplacement()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.SeedOpenTaskAsync(Guid.NewGuid());
+        var lease = await harness.AcquireLease.ExecuteAsync(
+            new(harness.TaskCaseId, 0, harness.UserActor, "claim-close-created-in-error"),
+            default);
+
         var error = await Assert.ThrowsAsync<InvalidOperationException>(
             () => harness.WorkflowStore.CloseAsync(
                 new(
                     harness.TaskCaseId,
                     0,
                     harness.UserActor,
-                    $"close-{outcome}",
-                    "Exercise the open task closure gate",
+                    "close-created-in-error",
+                    "Close a Case as Created in error without the replacement",
                     lease.Token,
-                    outcome),
+                    CaseClosureOutcome.CreatedInError),
                 default));
 
-        Assert.Equal(CaseTaskRules.OpenTasksBlockTerminal, error.Message);
+        Assert.Equal(
+            "Created in error requires the atomic corrected-principal replacement action.",
+            error.Message);
         var retained = await harness.WorkflowStore.GetAsync(harness.TaskCaseId, default);
         Assert.Equal(CaseLifecycleState.Review, retained?.State);
         Assert.Equal(0, retained?.Version);
     }
 
     [Fact]
-    public async Task ArchiveRejectsALegacyTerminalCaseWithAnOpenTask()
+    public async Task ArchiveRejectsAClosedCaseWithAnOpenTask()
     {
         await using var harness = await Harness.CreateAsync();
         await harness.SeedOpenTaskAsync(Guid.NewGuid());
@@ -184,7 +211,7 @@ public sealed class CaseTaskArchivePersistenceTests
             CaseLifecycleState.PrincipalCancelled);
         await harness.SetCustodyStateAsync(harness.TaskCaseId, "confirmed");
         var lease = await harness.AcquireLease.ExecuteAsync(
-            new(harness.TaskCaseId, 0, harness.UserActor, "claim-legacy-terminal-archive"),
+            new(harness.TaskCaseId, 0, harness.UserActor, "claim-closed-archive"),
             default);
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -193,7 +220,7 @@ public sealed class CaseTaskArchivePersistenceTests
                     harness.TaskCaseId,
                     0,
                     harness.UserActor,
-                    "archive-legacy-terminal-open-task",
+                    "archive-closed-open-task",
                     "Exercise the archive open task gate",
                     lease.Token),
                 default));
@@ -269,7 +296,7 @@ public sealed class CaseTaskArchivePersistenceTests
 
 
     [Fact]
-    public async Task ConcurrentTaskCreationAndClosureCannotLeaveOpenWorkOnATerminalCase()
+    public async Task ConcurrentTaskCreationAndClosureUnderOneLeaseCommitExactlyOne()
     {
         await using var harness = await Harness.CreateAsync();
         var lease = await harness.AcquireLease.ExecuteAsync(

@@ -701,11 +701,6 @@ internal sealed class EfIntakeMutationStore(
             throw new InvalidOperationException("A case is required for an intake association.");
         }
 
-        await CaseTerminalReadinessGuard.RequireNoOpenTasksAsync(
-            context,
-            @case.Id,
-            cancellationToken);
-
         var workflow = await context.CaseWorkflows
             .Include(item => item.DueWork)
             .SingleAsync(item => item.CaseId == @case.Id, cancellationToken);

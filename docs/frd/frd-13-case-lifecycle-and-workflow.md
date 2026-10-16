@@ -364,7 +364,9 @@ complete, cancel and assign tasks in the Case record's Tasks dialog, opened
 from its Actions menu, in
 the edit session and under its lease
 ([FRD-16](frd-16-case-record-workspace.md#tasks)). A Case with an open task
-cannot be archived until each task is completed or cancelled. Once Report
+cannot be archived until each task is completed or cancelled. Correcting a
+Case to a new Principal cancels its open tasks, each recording the
+correction's reason (operator, 16 October 2026). Once Report
 sent is recorded, the Case's Next action lists its open tasks, and Archive is
 greyed with the reason "Complete or cancel every open task first." (operator,
 6 October 2026). A task has no due date
