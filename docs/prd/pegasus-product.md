@@ -174,9 +174,11 @@ spreadsheet-driven customer and garage-procedure automation remain deferred.
 ## Ongoing Case responsibility
 
 Inspection, Audit, Inspection + Audit and Triage are active product scope.
-Formal Cases have no terminally closed state: Report sent is the last stage,
-a query raised on the Case marks it Query until the query is resolved, and
-the Case stays editable throughout. Every Audit Case/PO uses the `a.` prefix independently of its
+Report sent is a formal Case's last stage, a query raised on the Case marks
+it Query until the query is resolved, and the Case stays editable throughout.
+A Case can carry one of four closed dispositions, each reading Closed, with
+the reason in Notes; a Case marked Created in error is never returned to work
+(operator, 15 October 2026). Every Audit Case/PO uses the `a.` prefix independently of its
 assessment outcome, and every Triage Case/PO the `t.` prefix. The Audit of an
 Inspection + Audit Case lives on that Case under the Audit reference
 `a.{Case/PO}`.

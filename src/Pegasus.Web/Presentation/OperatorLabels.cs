@@ -160,15 +160,15 @@ public static class OperatorLabels
         CaseLifecycleState.Review => "Review",
         CaseLifecycleState.ReportPreparation => "With Engineer",
         CaseLifecycleState.ReportSent => "Report sent",
-        CaseLifecycleState.PrincipalCancelled => "Closed · Cancelled",
-        CaseLifecycleState.CollisionEngineersRejected => "Closed · Collision Engineers rejected",
-        CaseLifecycleState.CreatedInError => "Closed · Created in error",
-        CaseLifecycleState.SourceEmailUnlinked => "Closed · E-mail unlinked",
+        _ when CaseLifecycleRules.IsTerminal(state) => ClosedStage,
         _ => Humanise(state.ToString())
     };
 
     /// <summary>The stage word of an open Case that holds an open query (operator, 11 October 2026).</summary>
     public const string QueryStage = "Query";
+
+    /// <summary>The stage word of a Case in any closed disposition (operator, 15 October 2026).</summary>
+    public const string ClosedStage = "Closed";
 
     /// <summary>
     /// The stage as every screen, queue and filter reads it: Query while the
@@ -191,7 +191,7 @@ public static class OperatorLabels
     /// <summary>
     /// The stages a Case can be filtered by, in workflow order: one per stage
     /// word. Report sent is a Case with no open query; Query is any open Case
-    /// with one.
+    /// with one; Closed is every closed disposition.
     /// </summary>
     public static IReadOnlyList<CaseStageOption> CaseStageOptions { get; } =
     [
@@ -205,10 +205,7 @@ public static class OperatorLabels
             Enum.GetValues<CaseLifecycleState>().Where(state => !CaseLifecycleRules.IsTerminal(state)).ToArray(),
             HasOpenQuery: true),
         new(nameof(CaseLifecycleState.Held), CaseStage(CaseLifecycleState.Held), [CaseLifecycleState.Held]),
-        new(nameof(CaseLifecycleState.PrincipalCancelled), CaseStage(CaseLifecycleState.PrincipalCancelled), [CaseLifecycleState.PrincipalCancelled]),
-        new(nameof(CaseLifecycleState.CollisionEngineersRejected), CaseStage(CaseLifecycleState.CollisionEngineersRejected), [CaseLifecycleState.CollisionEngineersRejected]),
-        new(nameof(CaseLifecycleState.CreatedInError), CaseStage(CaseLifecycleState.CreatedInError), [CaseLifecycleState.CreatedInError]),
-        new(nameof(CaseLifecycleState.SourceEmailUnlinked), CaseStage(CaseLifecycleState.SourceEmailUnlinked), [CaseLifecycleState.SourceEmailUnlinked])
+        new(ClosedStage, ClosedStage, Enum.GetValues<CaseLifecycleState>().Where(CaseLifecycleRules.IsTerminal).ToArray())
     ];
 
     /// <summary>The stage option a filter value names, or null for none or an unknown key.</summary>
@@ -218,16 +215,16 @@ public static class OperatorLabels
             : CaseStageOptions.FirstOrDefault(option => string.Equals(option.Key, key.Trim(), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
-    /// One named closure outcome, as the operator chooses it. The words are
-    /// <see cref="CaseStage(CaseLifecycleState)"/>'s own terminal names without
-    /// the "Closed · " prefix, which the chooser's heading already carries.
+    /// One named closure outcome, as the operator chooses it in the Close
+    /// dialog: FRD-13's disposition names (operator, 16 October 2026). Every
+    /// disposition reads <see cref="ClosedStage"/> as the Case's stage.
     /// </summary>
     public static string CaseClosure(CaseClosureOutcome outcome) => outcome switch
     {
-        CaseClosureOutcome.PrincipalCancelled => "Cancelled",
+        CaseClosureOutcome.PrincipalCancelled => "Principal cancelled",
         CaseClosureOutcome.CollisionEngineersRejected => "Collision Engineers rejected",
         CaseClosureOutcome.CreatedInError => "Created in error",
-        CaseClosureOutcome.SourceEmailUnlinked => "E-mail unlinked",
+        CaseClosureOutcome.SourceEmailUnlinked => "Source email unlinked",
         _ => Humanise(outcome.ToString())
     };
 
@@ -1532,8 +1529,8 @@ public static class OperatorLabels
             _ when key.StartsWith("awaiting ", StringComparison.Ordinal) || key.EndsWith(" preparing", StringComparison.Ordinal) => "amber",
             _ when key.EndsWith(" failed", StringComparison.Ordinal) || key.StartsWith("failed ", StringComparison.Ordinal) => "red",
 
-            // Every other state, including the D3 "Closed · <outcome>" terminals,
-            // is settled or absent and reads neutral.
+            // Every other state, including a closed Case's "Closed", is
+            // settled or absent and reads neutral.
             _ => "neutral"
         };
     }

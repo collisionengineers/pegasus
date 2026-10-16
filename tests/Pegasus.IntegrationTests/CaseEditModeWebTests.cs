@@ -2092,9 +2092,9 @@ public sealed class CaseEditModeWebTests
     /// Review point 12: the adverse disposition is not a step in the workflow.
     /// It stands alone at the end of the record bar, away from the progression
     /// actions, and offers only the outcomes Core will actually accept from
-    /// the Case's current state. Created in error and E-mail unlinked each
-    /// have their own action, so neither is ever in the chooser, and post-report
-    /// completion is progression rather than an adverse disposition.
+    /// the Case's current state. Created in error and Source email unlinked
+    /// each have their own action, so neither is ever in the chooser, and
+    /// post-report completion is progression rather than an adverse disposition.
     /// </summary>
 
     private static void AssertNoBannedVocabulary(string sectionHtml)

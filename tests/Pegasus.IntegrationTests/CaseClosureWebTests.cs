@@ -210,10 +210,12 @@ public sealed class CaseClosureWebTests
         if (!offersClosure)
         {
             // A Case Core will not close, closed already or its report sent,
-            // keeps its reference and its stage and offers no Close item.
+            // keeps its reference and its stage and offers no Close item. A
+            // closed Case reads Closed (operator, 15 October 2026).
             Assert.DoesNotContain("data-dialog-open=\"case-close-dialog\"", html, StringComparison.Ordinal);
             Assert.Contains("QDOS3100042", html, StringComparison.Ordinal);
-            Assert.Contains(EncodedStage(state), html, StringComparison.Ordinal);
+            var stage = CaseLifecycleRules.IsTerminal(state) ? OperatorLabels.ClosedStage : OperatorLabels.CaseStage(state);
+            Assert.Contains($">{stage}</span>", RibbonStateChip(html), StringComparison.Ordinal);
             return;
         }
 
@@ -289,8 +291,8 @@ public sealed class CaseClosureWebTests
     /// <summary>
     /// A complete disposition reaches Core with the workspace's own reasoned
     /// envelope — actor, version, lease, operation key and reason — carrying
-    /// the chosen outcome, and the Case is still there afterwards, reading the
-    /// outcome it was closed with. Closing never deletes a Case.
+    /// the chosen outcome, and the Case is still there afterwards, reading
+    /// Closed. Closing never deletes a Case.
     /// </summary>
 
     [Fact]
@@ -318,10 +320,9 @@ public sealed class CaseClosureWebTests
         var html = await workspace.GetWorkspaceAsync();
         Assert.Contains("The selected terminal outcome was recorded.", html, StringComparison.Ordinal);
         Assert.Contains("QDOS3100042", html, StringComparison.Ordinal);
-        Assert.Contains(
-            EncodedStage(CaseLifecycleState.PrincipalCancelled),
-            html,
-            StringComparison.Ordinal);
+        Assert.Equal(
+            $"<span class=\"status status--neutral\">{OperatorLabels.ClosedStage}</span>",
+            RibbonStateChip(html));
         Assert.DoesNotContain("data-dialog-open=\"case-close-dialog\"", html, StringComparison.Ordinal);
     }
 
@@ -382,14 +383,6 @@ public sealed class CaseClosureWebTests
         // The Case itself is untouched and still readable.
         Assert.Contains("QDOS3100042", html, StringComparison.Ordinal);
     }
-
-    /// <summary>
-    /// A stage name as the response actually carries it: the framework's HTML
-    /// encoder writes the chip's separator as a numeric reference.
-    /// </summary>
-
-    private static string EncodedStage(CaseLifecycleState state) =>
-        System.Text.Encodings.Web.HtmlEncoder.Default.Encode(OperatorLabels.CaseStage(state));
 
     /// <summary>The Actions menu's tail below its last divider (v26): the Close item alone.</summary>
 

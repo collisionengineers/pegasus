@@ -24,8 +24,8 @@ namespace Pegasus.Web.Pages.Search;
 /// the row projection plus one batched Engineer-name resolve rather than a
 /// per-row Case read: the wave-1 selection script needs a preview template
 /// per row regardless, and this keeps the page at its two queries.
-/// Terminal outcomes render their D3 "Closed · outcome" chip here — this
-/// is the one work view that lists them.
+/// Closed Cases render their "Closed" chip here — this is the one work view
+/// that lists them.
 /// </remarks>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
