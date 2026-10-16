@@ -16,8 +16,28 @@ using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
 
+/// <summary>
+/// The latest schema, restored once from the per-run template for the
+/// read-only tests of <see cref="AzureSqlRuntimeRoleMigrationTests"/>.
+/// </summary>
+public sealed class RuntimeRoleSchemaFixture : IAsyncLifetime
+{
+    internal LocalDbTestDatabase Database { get; private set; } = null!;
+
+    public async Task InitializeAsync() => Database = await LocalDbTestDatabase.CreateAsync();
+
+    public async Task DisposeAsync()
+    {
+        if (Database is not null)
+        {
+            await Database.DisposeAsync();
+        }
+    }
+}
+
 [Trait("Category", "SqlServer")]
-public sealed class AzureSqlRuntimeRoleMigrationTests
+public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture fixture)
+    : IClassFixture<RuntimeRoleSchemaFixture>
 {
     /// <summary>
     /// The Worker links a Triage that already holds a finding and fills the
@@ -362,10 +382,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationKeepsBootstrapRemovedAndRestoresAutomationOpenIddictState()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'RequestUploadLinks', N'RequestUploadReceipts', N'PublicUploadSessions', N'PublicUploadOccurrences')"));
@@ -502,10 +519,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationSeedsImageTagsAndGivesThemTheirExactRuntimePermissions()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         Assert.Equal(
             ["Close-up", "Overview", "Reflection", "Third party"],
@@ -552,10 +566,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationDropsDeadBoxRequestsAndGrantsWorkerCaseCreation()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'BoxFileRequests'"));
@@ -610,10 +621,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGrantsOnlyWebReadAccessToMigrationHistory()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         Assert.Equal(
             [$"{WebRole}:G:SELECT"],
@@ -719,9 +727,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGivesFoundationTablesTheirExactRuntimePermissions()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         var tables = ParseLines(FoundationTableSpec);
         Assert.Equal(0, await database.ScalarAsync<int>(
@@ -788,9 +794,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationAllowsOnlyStaffAccountDeletionTablesForWeb()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         var deleteGrants = (await ReadGrantedPermissionsAsync(database, WebRole))
             .Where(value => value.EndsWith(":DELETE", StringComparison.Ordinal))
@@ -817,9 +821,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGivesCaseQueriesItsExactRuntimePermissions()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         Assert.Equal(
             [
@@ -860,9 +862,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGivesCaseWorksItsExactRuntimePermissions()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         Assert.Equal(
             [
@@ -906,9 +906,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGivesEmailTemplatesItsExactRuntimePermissions()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         Assert.Equal(
             [
@@ -943,9 +941,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGivesWorkCentreDismissalsItsExactRuntimePermissions()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         Assert.Equal(
             [
@@ -982,10 +978,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGrantsWorkerCaseTaskInsertForReportSent()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         Assert.Equal(
             ["CaseTasks:INSERT", "CaseTasks:SELECT"],
@@ -1010,10 +1003,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task RetainedMailSearchProjectionUsesExactCallerPermissions()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         Assert.Equal(
             ["IntakeSearchDocuments:SELECT"],
@@ -1034,10 +1024,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGrantsWorkerAutomaticVehicleLookupInsert()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         Assert.Equal(
             [
@@ -1056,10 +1043,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGrantsWorkerDeleteOnCaseAssessmentFields()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         Assert.Equal(
             [
@@ -1081,10 +1065,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGrantsWorkerUpdateOnGeneratedCaseArtifacts()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         Assert.Equal(
             [
@@ -1113,10 +1094,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGrantsWorkerTheCaseDocumentTables()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
         var webGranted = await ReadGrantedPermissionsAsync(database, WebRole);
@@ -1147,10 +1125,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGrantsWorkerTheCaseChaseRecord()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
         Assert.Equal(
@@ -1167,10 +1142,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGrantsWorkerTheTriageFindingRead()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
         Assert.Equal(
@@ -1187,10 +1159,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGrantsWorkerTheSentRepairSpecificationFreeze()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
         Assert.Equal(
@@ -1210,10 +1179,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGrantsWebUpdateOnRetainedMailboxMessages()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         Assert.Equal(
             ["RetainedMailboxMessages:SELECT", "RetainedMailboxMessages:UPDATE"],
@@ -1230,10 +1196,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGrantsBothRuntimeRolesUpdateOnCaseDataSnapshots()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         foreach (var role in new[] { WebRole, WorkerRole })
         {
@@ -1302,10 +1265,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGrantsWorkerTheThumbnailSweepTables()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
         foreach (var permission in new[]
@@ -1326,10 +1286,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGrantsImageIntakeLifecycleUpdatesToBothRuntimeRoles()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         foreach (var role in new[] { WebRole, WorkerRole })
         {
@@ -1349,10 +1306,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGivesBothRuntimeRolesAppendOnlyImageLifecycleEvents()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         Assert.Equal(
             [
@@ -1391,9 +1345,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestMigrationGrantsOnlyTheRequiredSubscriptionPermissions()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-        await context.Database.MigrateAsync();
+        var database = fixture.Database;
 
         Assert.Equal(
             [
@@ -1427,9 +1379,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task V1FoundationRuntimeRolesCanPerformOnlyTheirRepresentativeWrites()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-        await context.Database.MigrateAsync();
+        await using var database = await LocalDbTestDatabase.CreateAsync();
 
         await database.ExecuteAsync(
             $"""
@@ -1501,9 +1451,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task WebRuntimeCanInsertPairedOcrWorkRowsButCannotProcessOcr()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-        await context.Database.MigrateAsync();
+        await using var database = await LocalDbTestDatabase.CreateAsync();
 
         var receiptId = Guid.NewGuid();
         var assetId = Guid.NewGuid();
@@ -1605,9 +1553,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task WorkerRuntimeReadsAStandaloneAuditsOriginalReportAtAcceptance()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-        await context.Database.MigrateAsync();
+        await using var database = await LocalDbTestDatabase.CreateAsync();
 
         var receiptId = Guid.NewGuid();
         var assetId = Guid.NewGuid();
@@ -1687,9 +1633,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task WorkerReconcilesRegisteredImageUsingCurrentCaseIdentityExactlyOnce()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var database = await LocalDbTestDatabase.CreateAsync();
         await using var context = await database.CreateContextAsync();
-        await context.Database.MigrateAsync();
 
         var caseReceiptId = Guid.NewGuid();
         var imageReceiptId = Guid.NewGuid();
@@ -1828,9 +1773,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task RetainedMailboxReplyTargetsRoundTripThroughRestrictedRuntimeRoles()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-        await context.Database.MigrateAsync();
+        await using var database = await LocalDbTestDatabase.CreateAsync();
 
         Assert.Equal(1, await database.ScalarAsync<int>(
             """
@@ -1903,11 +1846,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     [Fact]
     public async Task LatestSchemaRetainsOneLabourRateAndRemovesTheObsoletePaintRate()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync(
-            migrate: false,
-            useTemplate: false);
+        var database = fixture.Database;
         await using var context = await database.CreateContextAsync();
-        await context.Database.MigrateAsync();
 
         Assert.Equal(0, await database.ScalarAsync<int>(
             """
