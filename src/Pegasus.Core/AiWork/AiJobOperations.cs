@@ -244,23 +244,17 @@ public static class AiJobPolicy
     /// <summary>
     /// The retained message a Query response job answers: the message id
     /// Pegasus wrote as its instruction when the job was started, which no
-    /// client changes; failing that, the one the client named as its result
-    /// reference. Null for any other kind or when neither parses.
+    /// client changes. Null for any other kind or when the instruction is not
+    /// a message id; what a client names as its result never stands in.
     /// </summary>
     public static Guid? QueryResponseMessageId(AiJobRecord job)
     {
         ArgumentNullException.ThrowIfNull(job);
-        if (job.Kind != AiJobKind.QueryResponse)
-        {
-            return null;
-        }
-        if (Guid.TryParse(job.Instruction, out var fromInstruction) && fromInstruction != Guid.Empty)
-        {
-            return fromInstruction;
-        }
-        return Guid.TryParse(job.ResultReference, out var fromResult) && fromResult != Guid.Empty
-            ? fromResult
-            : null;
+        return job.Kind == AiJobKind.QueryResponse
+            && Guid.TryParse(job.Instruction, out var messageId)
+            && messageId != Guid.Empty
+                ? messageId
+                : null;
     }
 
     /// <summary>

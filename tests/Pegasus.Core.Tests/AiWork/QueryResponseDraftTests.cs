@@ -16,7 +16,7 @@ public sealed class QueryResponseDraftTests
     private static readonly DateTimeOffset Now = new(2026, 10, 14, 10, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public void TheMessageIsTheInstructionPegasusWroteThenTheResultReferenceAndOnlyForAQueryResponse()
+    public void TheMessageIsTheInstructionPegasusWroteAndOnlyForAQueryResponse()
     {
         var other = Guid.NewGuid();
 
@@ -24,7 +24,8 @@ public sealed class QueryResponseDraftTests
         // A client that names something else as its result does not detach the job from its message.
         Assert.Equal(MessageId, AiJobPolicy.QueryResponseMessageId(
             Job(AiJobState.DraftReady) with { ResultReference = other.ToString("D") }));
-        Assert.Equal(other, AiJobPolicy.QueryResponseMessageId(
+        // Nor does it name the message when the instruction does not.
+        Assert.Null(AiJobPolicy.QueryResponseMessageId(
             Job(AiJobState.DraftReady) with { Instruction = "Draft a reply.", ResultReference = other.ToString("D") }));
         Assert.Null(AiJobPolicy.QueryResponseMessageId(Job(AiJobState.Queued) with { Instruction = "Draft a reply." }));
         Assert.Null(AiJobPolicy.QueryResponseMessageId(Job(AiJobState.Queued) with { Kind = AiJobKind.Estimate }));

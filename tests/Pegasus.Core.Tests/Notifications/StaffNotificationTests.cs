@@ -43,7 +43,7 @@ public sealed class StaffNotificationTests
         var item = Guid.NewGuid();
 
         Assert.Equal($"/Cases/{CaseId:D}?section=estimate", StaffNotificationPolicy.AiDraftRoute(Job(AiJobKind.Estimate, CaseId)));
-        var queryReply = Job(AiJobKind.QueryResponse, CaseId, message.ToString("D"));
+        var queryReply = Job(AiJobKind.QueryResponse, CaseId) with { Instruction = message.ToString("D") };
         // A Draft ready reply opens the message's composer on the job (FRD-27).
         Assert.Equal(
             StaffNotificationPolicy.MessageReplyRoute(message, "QDOS260001", queryReply.JobId),
