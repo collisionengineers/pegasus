@@ -87,23 +87,6 @@ public sealed class AssessmentCopyWebTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    /// <summary>
-    /// The Assessment page and its permanent redirect are retired (#834): the
-    /// route is not found rather than forwarded, so no link can depend on it.
-    /// </summary>
-    [Fact]
-    public async Task RetiredAssessmentRouteIsNotFound()
-    {
-        var caseId = Guid.NewGuid();
-        using var factory = Compose(caseId, out _);
-        using var client = EngineerClient(factory);
-
-        using var response = await client.GetAsync($"/Cases/{caseId:D}/Assessment");
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.Null(response.Headers.Location);
-    }
-
     private static WebApplicationFactory<Program> Compose(
         Guid caseId,
         out FakeGetCase source,

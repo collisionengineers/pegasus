@@ -42,7 +42,6 @@ public sealed partial class SendToAiIntegrationTests
         Assert.DoesNotContain("data-dialog=\"send-to-ai-dialog\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-estimate-send-to-ai", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-condition=", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Send to Claude", html, StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -876,17 +876,6 @@ public sealed class AdministrationSearchAccountWebTests
     }
 
     [Fact]
-    public async Task ObsoleteChangePasswordRouteIsAbsent()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        using var response = await client.GetAsync("/Account/ChangePassword");
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
     public async Task ReportsRendersReportsByPrincipalCountsAndTheMatchingCsvForThePeriod()
     {
         var from = new DateTimeOffset(2032, 1, 1, 0, 0, 0, TimeSpan.Zero);

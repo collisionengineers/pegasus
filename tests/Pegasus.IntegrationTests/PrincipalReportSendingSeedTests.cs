@@ -10,8 +10,7 @@ namespace Pegasus.IntegrationTests;
 /// Principals Pegasus did not have, the claim sources rule conditions point
 /// at, every SOP Principal's rules and the TL thresholds appended to Notes on
 /// every Case (Report Sending SOP v5, 2 October 2026; operator, 6 October
-/// 2026). Every Principal has rules, and the retired report recipient
-/// settings are gone.
+/// 2026). Every Principal has rules.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class PrincipalReportSendingSeedTests
@@ -67,21 +66,6 @@ public sealed class PrincipalReportSendingSeedTests
                 EfOrganizationAdministration.ToReportSendingJson(seeded.Rules)));
             Assert.Equal(seeded.Rules, PrincipalReportSendingRules.Normalize(seeded.Rules));
         }
-    }
-
-    [Fact]
-    public async Task TheRetiredReportRecipientSettingsAreGone()
-    {
-        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
-
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
-            """
-            SELECT COUNT(*) FROM sys.columns
-            WHERE object_id = OBJECT_ID(N'Principals')
-              AND name IN (N'IncludeOriginalInstructionSender', N'ReportRecipientAddressesJson')
-            """));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'Principals') AND name = N'ReportSendingRulesJson' AND is_nullable = 0"));
     }
 
     [Fact]

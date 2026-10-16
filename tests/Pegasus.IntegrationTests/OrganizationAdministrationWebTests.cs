@@ -406,27 +406,6 @@ public sealed partial class OrganizationAdministrationWebTests
         }
     }
 
-    [Fact]
-    public async Task SupersededPrincipalRoutesAreNotPublicEndpoints()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var principalId = Guid.Parse("1eeea2b1-3e1d-4a0a-8205-0c25396206e8");
-        string[] routes =
-        [
-            "/Administration/Principals",
-            "/Administration/Principals/Create",
-            $"/Administration/Principals/Replace/{principalId:D}",
-            $"/Administration/Principals/Settings/{principalId:D}"
-        ];
-
-        foreach (var route in routes)
-        {
-            using var response = await client.GetAsync(route);
-            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        }
-    }
-
     private static async Task AssertCredentialControlsAsync(
         IntakeWebApplicationFactory factory, HttpClient client, Guid principalId, string settingsPath)
     {

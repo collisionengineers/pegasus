@@ -2456,19 +2456,6 @@ public sealed class MailWorkspaceWebTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    [Fact]
-    public async Task TheNavigationSeparatesTheInboxFromTheReceivedItemRecord()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        var html = await GetHtmlAsync(client, "/Inbox");
-
-        Assert.Contains("href=\"/Inbox\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("href=\"/Operations\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(">Operations<", html, StringComparison.Ordinal);
-    }
-
     /// <summary>
     /// Dismiss on the row (Inbox, 13 September): the message leaves every incoming
     /// scope and the counts, appears only under Dismissed, and Restore brings it

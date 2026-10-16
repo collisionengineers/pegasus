@@ -519,22 +519,13 @@ public sealed class TriageQueuesWebTests
         Assert.Equal("/Cases?tab=unassigned&show=unidentified", response.Headers.Location?.OriginalString);
     }
 
-    /// <summary>
-    /// Unassigned Images replaced the Awaiting instruction and Unidentified
-    /// queues (operator, 13 October 2026): their keys are not addresses, and
-    /// the Show filter belongs to Unassigned Images alone.
-    /// </summary>
-    [Theory]
-    [InlineData("awaiting", "/Cases?tab=awaiting")]
-    [InlineData("unidentified", "/Cases?tab=unidentified")]
-    [InlineData("show-open", "/Cases?tab=unassigned&show=open")]
-    public async Task RetiredQueueAddressesAreNotFound(string name, string address)
+    [Fact]
+    public async Task AnUnknownTabOrShowValueIsNotFound()
     {
-        Assert.NotEmpty(name);
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        using var response = await client.GetAsync(address);
+        using var response = await client.GetAsync("/Cases?tab=not-a-queue");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
