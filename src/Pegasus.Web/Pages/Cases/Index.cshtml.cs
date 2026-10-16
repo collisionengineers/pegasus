@@ -163,7 +163,10 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true, Name = "show")]
     public string? ShowFilter { get; set; }
 
-    [BindProperty(SupportsGet = true, Name = "page")]
+    // "page" is also the Razor Pages route value naming this page, which
+    // outranks the query string; bind the list's page from the query.
+    [FromQuery(Name = "page")]
+    [BindProperty(SupportsGet = true)]
     public int CurrentPage { get; set; } = 1;
 
     /// <summary>The row the quick-detail pane is showing; the first row when unset.</summary>
