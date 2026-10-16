@@ -38,7 +38,7 @@ owner* column in [`capabilities.md`](../capabilities.md).
 | [FRD-20](frd-20-mailbox-workspace.md) | The Inbox: browsing, preview, classify, link, dismiss | UI, MAIL |
 | [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md) | Sending mail from Pegasus and proving a report was sent | MAIL |
 | [FRD-22](frd-22-pre-case-gates-matching-and-association.md) | Pre-Case gates, matching conflicts, reversible association, staff linking to any Case | INT |
-| [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md) | Case draft fields, field provenance, global vehicle and value checks | INT |
+| [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md) | Case draft fields and provenance | INT |
 | [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md) | Engineer findings, damage record, valuation sources, settlement, Market Research | CASE, ENG, EXT |
 | [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md) | Repair specifications, Glass's sessions, estimate sources, PDF estimate import | ENG, EXT |
 | [FRD-26](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md) | Mailbox allowlist, activation, wipe, wake-up and recovery | MAIL, INT |
