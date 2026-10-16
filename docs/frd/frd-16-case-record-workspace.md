@@ -903,7 +903,7 @@ the Next action's
 
 The Engineer workbench is the Damage, Valuation, Repair Spec, Decisions and
 Report sections of the Case record. The sections can always be read and are
-read-only in Completed. An image has one place (v28 P50): whether the report
+read-only in Held. An image has one place (v28 P50): whether the report
 uses it, its order and the tools that change them are on its tile under
 Files, and non-destructive crops leave the retained source and its hash
 untouched. A new image is in the report. The tile has no report

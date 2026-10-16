@@ -114,9 +114,8 @@ ambiguous artifact is refused, never guessed.
 **Authority is checked twice.** Before reading a replay or parsing the source,
 the command proves the typed actor, the current persisted Case version, and
 the edit lease holder, token and expiry. Both that check and the final save
-need an assessment-writable state: Not ready, Review or With Engineer, where
-With Engineer covers before and after the report
-([FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels)). A file
+need an assessment-writable state: Not ready, Review, With Engineer or Report
+sent ([FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels)). A file
 occurrence must name the exact confirmed, non-removed document version; a
 correctly paired historical version is still valid evidence. The new spec is
 guarded again in the save transaction. A staff import becomes the Current
