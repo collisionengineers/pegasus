@@ -78,21 +78,4 @@ public sealed class GraphMailboxChangeSubscriptions(
 
     public static string Resource(string mailboxId, string inboxFolderId) =>
         $"users/{Uri.EscapeDataString(mailboxId)}/mailFolders/{Uri.EscapeDataString(inboxFolderId)}/messages";
-
-    public static bool RequiresWrite(
-        ApprovedMailboxSubscriptionMaintenanceCandidate candidate,
-        DateTimeOffset nowUtc,
-        DateTimeOffset renewBeforeUtc)
-    {
-        var current = candidate.Subscription;
-        return current is null
-            || current.LifecycleState != ApprovedMailboxSubscriptionLifecycleState.Active
-            || current.ExpiresAtUtc <= nowUtc
-            || current.ExpiresAtUtc <= renewBeforeUtc
-            || current.Generation != candidate.Generation
-            || !string.Equals(
-                current.Resource,
-                Resource(candidate.GraphMailboxId, candidate.InboxFolderIdentity),
-                StringComparison.Ordinal);
-    }
 }

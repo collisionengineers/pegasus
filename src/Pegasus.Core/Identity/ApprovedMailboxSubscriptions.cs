@@ -47,6 +47,11 @@ public interface IApprovedMailboxSubscriptionStore
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Only the approved mailboxes whose subscription is due a Graph write: it has
+    /// none, is not Active, belongs to an older mailbox generation, or is inside the
+    /// renewal window of its expiry. An empty list means nothing is to be written.
+    /// </summary>
     Task<IReadOnlyList<ApprovedMailboxSubscriptionMaintenanceCandidate>>
         ListMaintenanceCandidatesAsync(
         DateTimeOffset nowUtc,

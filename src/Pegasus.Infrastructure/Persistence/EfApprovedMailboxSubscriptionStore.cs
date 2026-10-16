@@ -7,6 +7,8 @@ namespace Pegasus.Infrastructure.Persistence;
 internal sealed class EfApprovedMailboxSubscriptionStore(
     IDbContextFactory<PegasusDbContext> contextFactory) : IApprovedMailboxSubscriptionStore
 {
+    private static readonly TimeSpan RenewalWindow = TimeSpan.FromHours(48);
+
     public async Task<ApprovedMailboxSubscription?> GetActiveAsync(
         string subscriptionId,
         DateTimeOffset nowUtc,
@@ -49,7 +51,7 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var active = ApprovedMailboxSubscriptionLifecycleState.Active.ToString();
         var approved = ApprovedMailboxState.Approved.ToString();
-        var maintenanceDueBeforeUtc = nowUtc.AddHours(-6);
+        var renewBeforeUtc = nowUtc.Add(RenewalWindow);
         var candidates = await context.ApprovedMailboxes
             .AsNoTracking()
             .Where(mailbox =>
@@ -66,8 +68,7 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
             .Where(item => item.subscription == null
                 || item.subscription.LifecycleState != active
                 || item.subscription.Generation != item.mailbox.MailboxGeneration
-                || item.subscription.LastMaintainedAtUtc == null
-                || item.subscription.LastMaintainedAtUtc <= maintenanceDueBeforeUtc)
+                || item.subscription.ExpiresAtUtc <= renewBeforeUtc)
             .OrderBy(item => item.mailbox.Id)
             .ToListAsync(cancellationToken);
         return candidates.Select(item =>

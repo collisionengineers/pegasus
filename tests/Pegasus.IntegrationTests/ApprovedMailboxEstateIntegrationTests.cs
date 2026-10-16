@@ -340,7 +340,7 @@ public sealed class ApprovedMailboxEstateIntegrationTests
                 mailboxId,
                 "current-subscription",
                 "users/instructions/mailFolders/inbox/messages",
-                nowUtc.AddDays(2),
+                nowUtc.AddDays(3),
                 ApprovedMailboxSubscriptionLifecycleState.Active,
                 nowUtc,
                 null,
@@ -522,6 +522,43 @@ public sealed class ApprovedMailboxEstateIntegrationTests
                 CancellationToken.None));
 
         Assert.Equal("concurrent-subscription", await CurrentSubscriptionIdAsync(database));
+    }
+
+    [Fact]
+    public async Task MaintenanceCandidatesAreOnlyTheRowsThatAreDue()
+    {
+        await using var database = await CreateInitialSubscriptionDatabaseAsync();
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IApprovedMailboxSubscriptionStore>();
+        var nowUtc = new DateTimeOffset(2026, 9, 30, 10, 5, 3, TimeSpan.Zero);
+        string Hours(int fromNow) => $"'{nowUtc.AddHours(fromNow):O}'";
+        async Task<IReadOnlyList<ApprovedMailboxSubscriptionMaintenanceCandidate>> DueAfterAsync(
+            string assignments)
+        {
+            await database.ExecuteAsync($"UPDATE ApprovedMailboxSubscriptions SET {assignments};");
+            return await store.ListMaintenanceCandidatesAsync(nowUtc, CancellationToken.None);
+        }
+
+        // A healthy row is not due however old its last stamp is.
+        Assert.Empty(await DueAfterAsync(
+            $"LifecycleState = 'Active', ExpiresAtUtc = {Hours(72)}, LastMaintainedAtUtc = {Hours(-7)}"));
+        Assert.Single(await DueAfterAsync($"ExpiresAtUtc = {Hours(47)}"));
+        Assert.Single(await DueAfterAsync($"ExpiresAtUtc = {Hours(48)}"));
+        foreach (var state in new[]
+        {
+            ApprovedMailboxSubscriptionLifecycleState.Missed,
+            ApprovedMailboxSubscriptionLifecycleState.Removed,
+            ApprovedMailboxSubscriptionLifecycleState.ReauthorizationRequired
+        })
+        {
+            Assert.Single(await DueAfterAsync($"LifecycleState = '{state}', ExpiresAtUtc = {Hours(72)}"));
+        }
+
+        await database.ExecuteAsync("DELETE FROM ApprovedMailboxSubscriptions;");
+        var unsubscribed = Assert.Single(await store.ListMaintenanceCandidatesAsync(
+            nowUtc,
+            CancellationToken.None));
+        Assert.Null(unsubscribed.Subscription);
     }
 
     private static readonly ActionActor WorkerActor =
