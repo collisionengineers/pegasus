@@ -117,8 +117,7 @@ jobs:
     # The cheap invariant checks, in one runner rather than three. They gate
     # every heavy lane (DELIV-043): a broken link used to buy ~85 runner-minutes
     # of tests whose verdict could not change the outcome. A lane skipped
-    # because a cheap check failed is not green (docs/engineering.md "Delivery
-    # evidence").
+    # because a cheap check failed is not green.
     #
     # One job with conditional steps, not three jobs with conditions: a skipped
     # job skips its dependents, so gating these as jobs would take every heavy
@@ -140,7 +139,7 @@ jobs:
       - uses: actions/checkout@v7
       - name: Documentation links
         # The one check every change set runs, including change sets that touch
-        # no build-relevant path (docs/engineering.md "Delivery evidence").
+        # no build-relevant path.
         shell: pwsh
         run: ./scripts/Test-DocumentationLinks.ps1
       - name: LocalDB lifecycle classifier tests

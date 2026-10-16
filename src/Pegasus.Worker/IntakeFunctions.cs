@@ -433,8 +433,8 @@ public sealed partial class StagedArtifactReconciliationFunction(
     ILogger<StagedArtifactReconciliationFunction> logger)
 {
     /// <summary>
-    /// How many plain thumbnails one run makes. The sweep runs every few
-    /// seconds, so a small number keeps up with filing without a burst on Box.
+    /// How many plain thumbnails one run makes. The sweep runs every minute,
+    /// so a small number keeps up with filing without a burst on Box.
     /// </summary>
     private const int ThumbnailsPerRun = 2;
 
