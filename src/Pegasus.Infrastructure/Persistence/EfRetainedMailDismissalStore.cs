@@ -1,4 +1,3 @@
-using System.Data;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
@@ -47,9 +46,7 @@ internal sealed class EfRetainedMailDismissalStore(
         // serializable read of an operation key that is not there holds RangeS-S over the
         // gap, and the insert behind it converts to RangeI-N, so two acts deadlocked on
         // one another whichever messages they carried (issue 835).
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.ReadCommitted,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
 
         var message = await FindForUpdateAsync(context, messageId, cancellationToken);
         if (message is null)

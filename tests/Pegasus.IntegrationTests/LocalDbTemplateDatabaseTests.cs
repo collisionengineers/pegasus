@@ -63,6 +63,17 @@ public sealed class LocalDbTemplateDatabaseTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'TemplateIsolationProbe'"));
     }
 
+    [Fact]
+    public async Task ATestDatabaseHasReadCommittedSnapshotOn()
+    {
+        // On LocalDB this is a restore of the template, so it proves the
+        // setting survives the backup as well as the create.
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+
+        Assert.True(await database.ScalarAsync<bool>(
+            "SELECT is_read_committed_snapshot_on FROM sys.databases WHERE name = DB_NAME()"));
+    }
+
     [LocalDbTemplateFact]
     public async Task AnUnmigratedDatabaseIsNeverServedFromTheTemplate()
     {
