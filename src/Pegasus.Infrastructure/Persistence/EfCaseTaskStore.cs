@@ -298,6 +298,45 @@ public sealed class EfCaseTaskStore(
         return result;
     }
 
+    /// <summary>
+    /// Cancels every open task of a Case that is being corrected to a new Principal, each with
+    /// the correction's reason, inside the caller's transaction (operator, 16 October 2026).
+    /// A task's version moves on once and its <c>case_task_cancelled</c> action history is
+    /// written under the correction's operation key. No workflow event is written: those are
+    /// unique per Case version, and the caller moves the Case's version on once for the whole
+    /// correction. The caller owns the replay check, the guards and the commit.
+    /// </summary>
+    internal static async Task CancelOpenOnCorrectionAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        ActionActor actor,
+        string operationKey,
+        string reason,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var open = await context.CaseTasks
+            .Where(item => item.CaseId == workflow.CaseId
+                && item.State == nameof(CaseTaskState.Open))
+            .ToArrayAsync(cancellationToken);
+        var caseVersionAfter = checked(workflow.Version + 1);
+        foreach (var task in open)
+        {
+            var before = Map(task, workflow.Version);
+            task.State = nameof(CaseTaskState.Cancelled);
+            task.Version = checked(task.Version + 1);
+            AddActionHistory(
+                context,
+                actor,
+                operationKey,
+                reason,
+                "case_task_cancelled",
+                Map(task, caseVersionAfter),
+                before,
+                occurredAtUtc);
+        }
+    }
+
     private async Task<CaseTaskRecord> MutateAsync<TRequest>(
         TRequest request,
         string eventKind,
@@ -482,7 +521,26 @@ public sealed class EfCaseTaskStore(
             AfterVersion = workflow.Version,
             ResultJson = resultJson
         });
-        context.ActionHistory.Add(new()
+        AddActionHistory(
+            context,
+            actor,
+            operationKey,
+            reason,
+            eventKind,
+            result,
+            before,
+            occurredAtUtc);
+    }
+
+    private static void AddActionHistory(
+        PegasusDbContext context,
+        ActionActor actor,
+        string operationKey,
+        string reason,
+        string eventKind,
+        CaseTaskRecord result,
+        CaseTaskRecord? before,
+        DateTimeOffset occurredAtUtc) => context.ActionHistory.Add(new()
         {
             Id = Guid.NewGuid(),
             AggregateType = "case_task",
@@ -500,10 +558,9 @@ public sealed class EfCaseTaskStore(
             BeforeJson = before is null
                 ? null
                 : JsonSerializer.Serialize(before, SerializerOptions),
-            AfterJson = resultJson,
+            AfterJson = JsonSerializer.Serialize(result, SerializerOptions),
             PolicyVersion = "case-task-v1"
         });
-    }
 
     private static CaseTaskRecord Map(CaseTaskEntity task, long caseVersion) =>
         new(

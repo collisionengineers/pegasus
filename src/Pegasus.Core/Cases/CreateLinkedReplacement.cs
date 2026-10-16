@@ -6,6 +6,8 @@ namespace Pegasus.Core.Cases;
 /// <summary>
 /// The only wrong-principal correction path. The persistence port closes the immutable
 /// original, allocates the corrected identity, and records reciprocal linkage in one commit.
+/// The same commit cancels the original's open tasks, each with the correction's reason
+/// (operator, 16 October 2026).
 /// </summary>
 public sealed class CreateLinkedReplacement(
     ILinkedCaseReplacementStore store,
