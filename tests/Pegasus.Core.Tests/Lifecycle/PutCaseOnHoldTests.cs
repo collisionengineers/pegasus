@@ -71,6 +71,50 @@ public sealed class PutCaseOnHoldTests
         Assert.Null(released.HeldAtUtc);
     }
 
+    [Theory]
+    [InlineData(CaseLifecycleState.NotReady)]
+    [InlineData(CaseLifecycleState.Review)]
+    [InlineData(CaseLifecycleState.ReportPreparation)]
+    public async Task HoldIsAcceptedFromNotReadyReviewAndWithEngineer(CaseLifecycleState state)
+    {
+        var store = new HoldStore(state);
+        var sut = new PutCaseOnHold(store, new FixedTimeProvider(Now));
+
+        var held = await sut.ExecuteAsync(Request(reviewOn: null), default);
+
+        Assert.NotNull(store.Held);
+        Assert.Equal(CaseLifecycleState.Held, held.State);
+    }
+
+    [Theory]
+    [InlineData(CaseLifecycleState.Held)]
+    [InlineData(CaseLifecycleState.ReportSent)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled)]
+    [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
+    [InlineData(CaseLifecycleState.CreatedInError)]
+    [InlineData(CaseLifecycleState.SourceEmailUnlinked)]
+    public async Task HoldIsRefusedOutsideNotReadyReviewAndWithEngineer(CaseLifecycleState state)
+    {
+        var store = new HoldStore(state);
+        var sut = new PutCaseOnHold(store, new FixedTimeProvider(Now));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.ExecuteAsync(Request(reviewOn: null), default));
+
+        Assert.Null(store.Held);
+    }
+
+    [Fact]
+    public async Task ReplayOfAnAppliedHoldIsNotRefused()
+    {
+        var store = new HoldStore(CaseLifecycleState.Held, replay: true);
+        var sut = new PutCaseOnHold(store, new FixedTimeProvider(Now));
+
+        await sut.ExecuteAsync(Request(reviewOn: null), default);
+
+        Assert.NotNull(store.Held);
+    }
+
     private static PutCaseOnHoldRequest Request(DateOnly? reviewOn) =>
         new(CaseId, 0, Actor, "hold", "Awaiting the claimant", "lease-token", reviewOn);
 
@@ -79,14 +123,16 @@ public sealed class PutCaseOnHoldTests
         public override DateTimeOffset GetUtcNow() => utcNow;
     }
 
-    private sealed class HoldStore : ICaseWorkflowStore
+    private sealed class HoldStore(
+        CaseLifecycleState state = CaseLifecycleState.Review,
+        bool replay = false) : ICaseWorkflowStore
     {
         public PutCaseOnHoldRequest? Held { get; private set; }
 
         private CaseWorkflowRecord _current = new(
             CaseId,
             new(CaseId, "QDOS", 2026, 1, "QDOS260001"),
-            CaseLifecycleState.Review,
+            state,
             null,
             null,
             null,
@@ -105,7 +151,7 @@ public sealed class PutCaseOnHoldTests
             throw new NotSupportedException();
 
         public Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken) =>
-            Task.FromResult(false);
+            Task.FromResult(replay);
 
         public Task<CaseWorkflowRecord> HoldAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken)
         {

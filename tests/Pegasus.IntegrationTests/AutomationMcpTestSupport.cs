@@ -214,8 +214,9 @@ internal static class AutomationMcpTestSupport
     }
 
     /// <summary>
-    /// Walks Not ready → Review through <see cref="IReturnCaseToReview"/>,
-    /// the same Core command staff use. Does not write workflow state in SQL.
+    /// Walks Not ready → Review through the store's gated
+    /// <see cref="ICaseWorkflowStore.ReturnToReviewAsync"/>: the Core command no
+    /// longer admits Not ready. Does not write workflow state in SQL.
     /// </summary>
     public static async Task EnsureInReviewAsync(
         WebApplicationFactory<Program> factory,
@@ -235,8 +236,8 @@ internal static class AutomationMcpTestSupport
 
         Assert.Equal(CaseLifecycleState.NotReady, workflow.State);
         var lease = await BeginEditAsync(client, token, caseId, workflow.Version, rpcId: 900);
-        await scope.ServiceProvider.GetRequiredService<IReturnCaseToReview>()
-            .ExecuteAsync(
+        await scope.ServiceProvider.GetRequiredService<ICaseWorkflowStore>()
+            .ReturnToReviewAsync(
                 new(
                     caseId,
                     lease.CaseVersion,

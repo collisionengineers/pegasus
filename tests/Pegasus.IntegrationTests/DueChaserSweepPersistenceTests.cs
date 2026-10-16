@@ -163,7 +163,7 @@ public sealed class DueChaserSweepPersistenceTests
         var reviewLease = await harness.WorkflowStore.ClaimAsync(
             new(harness.CaseId, current!.Version, actor, "claim-review-material"),
             default);
-        var review = await new ReturnCaseToReview(harness.WorkflowStore).ExecuteAsync(
+        var review = await harness.WorkflowStore.ReturnToReviewAsync(
             new(
                 harness.CaseId,
                 current.Version,
