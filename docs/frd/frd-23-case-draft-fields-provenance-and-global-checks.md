@@ -1,4 +1,4 @@
-# FRD-23: Case draft fields, provenance and global checks
+# FRD-23: Case draft fields and provenance
 
 > Owner capabilities: INT-19, INT-20 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
@@ -8,9 +8,6 @@
   the same as confirming the value.
 - A value is a Fact, a Suggestion, or Confirmed. A Confirmed value wins for
   current use, and the earlier value stays in history.
-- Every Case needs three global checks, or a recorded exception, before it
-  can enter Review: vehicle identity and specification, vehicle history and
-  risk, and market valuation.
 - Mileage evidence has a fixed order. DVSA runs for every Case, fills the
   mileage only when nothing better exists, and a difference is shown as a
   discrepancy.
@@ -19,8 +16,8 @@
 ## Purpose
 
 This document owns what a Case's drafted fields mean, how each value records
-its provenance and kind, and the global vehicle and value checks a Case must
-pass before Review. It serves the PRD outcome for no invented identity.
+its provenance and kind, and the vehicle details and mileage evidence a
+Case holds. It serves the PRD outcome for no invented identity.
 Receiving material is owned by
 [FRD-02](frd-02-intake-and-source-identity.md). The gates before a Case
 exists, and matching, are owned by
@@ -58,17 +55,12 @@ replacement Case
 A Confirmed value supersedes an earlier Fact or Suggestion for current use
 without erasing it from history.
 
-### Global vehicle and value checks
+### Vehicle details and mileage evidence
 
-Every Case must pass three global checks unless a documented exception
-applies: vehicle identity and specification, vehicle history and risk, and
-market valuation. All three results, or their recorded exceptions, are
-required before the Case can enter Review and appear in the Engineers queue.
-An authorised staff reviewer may record an exception as a named, reasoned
-Case action in permanent history. Principal and route policy choose the
-provider, the required result, the acceptable provenance, and the
-unavailable or failure behaviour for each check. This requirement names no
-provider.
+Vehicle lookup and valuation are features of a Case, not gates. Review needs
+instruction and image completeness, which
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review) owns
+(operator ruling, 15 October 2026).
 
 Vehicle details come from the instruction where present, otherwise from the
 applicable DVLA or MOT source. Mileage evidence ranks as:
@@ -122,15 +114,11 @@ print it.
 - A datum's value kind is Fact, Suggestion, or Confirmed. A Confirmed value
   supersedes an earlier Fact or Suggestion for current use without erasing
   it from history.
-- A Case cannot enter Review or appear in the Engineers queue until all
-  three global checks have a result or a recorded exception. The Case
-  states themselves are owned by
+- The Case states are owned by
   [FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels).
 
 ## Edge cases and fail-closed behaviour
 
-- A global check has no result: the Case stays out of Review until an
-  authorised staff reviewer records a named, reasoned exception.
 - A higher-tier mileage value exists: the DVSA estimate never overwrites
   it. The difference is shown on the Case as a discrepancy.
 - Mileage evidence is used in tier order: staff-entered, extracted from the
@@ -145,10 +133,9 @@ print it.
 ## Acceptance evidence
 
 Acceptance proves the value kinds and source kinds, the mileage tier order,
-the DVSA discrepancy display, that the instruction date the Case export and the report
-print is the Case's Received date, and that a Case cannot enter Review
-without the three global checks or their recorded exceptions. Deployment
-and live evidence are separate tiers
+the DVSA discrepancy display, and that the instruction date the Case export
+and the report print is the Case's Received date. Deployment and live
+evidence are separate tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links

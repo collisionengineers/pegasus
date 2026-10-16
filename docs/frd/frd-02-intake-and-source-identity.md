@@ -13,8 +13,8 @@
 - Receipt is acknowledged only after the bytes, the receipt and one
   processing-dispatch record have committed. The Worker alone processes it.
 - The gates before a Case exists, and matching, are in
-  [FRD-22](frd-22-pre-case-gates-matching-and-association.md). Case fields,
-  provenance and the global checks are in
+  [FRD-22](frd-22-pre-case-gates-matching-and-association.md). Case fields
+  and provenance are in
   [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md).
 - Manual upload is in [FRD-18](frd-18-manual-upload.md). Image-only
   material is in [FRD-19](frd-19-image-led-intake-and-pairing.md).
@@ -25,8 +25,8 @@ This document says how Pegasus receives material, proves it was received,
 processes it once, and holds images it cannot place as Unidentified. It serves
 the PRD outcomes for durable intake and no invented identity. The gates
 before a Case is created, matching and association are owned by
-[FRD-22](frd-22-pre-case-gates-matching-and-association.md). Case fields,
-provenance and the global vehicle and value checks are owned by
+[FRD-22](frd-22-pre-case-gates-matching-and-association.md). Case fields
+and provenance are owned by
 [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md). Manual
 upload is owned by [FRD-18](frd-18-manual-upload.md) and
 image-only material by [FRD-19](frd-19-image-led-intake-and-pairing.md).

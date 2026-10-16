@@ -90,9 +90,11 @@ removed clause maps to its owner:
   image-led material remaining a pre-Case Image intake (clause 1); and
   staff-initiated Box custody recovery with no automatic business retry
   (clause 5).
-- [FRD-23 — Case draft fields, provenance and global checks](../frd/frd-23-case-draft-fields-provenance-and-global-checks.md#global-vehicle-and-value-checks):
-  the global vehicle identity/specification, vehicle-history/risk, and
-  market-valuation progression gates (clause 2).
+- [FRD-23 — Case draft fields and provenance](../frd/frd-23-case-draft-fields-provenance-and-global-checks.md#vehicle-details-and-mileage-evidence):
+  the vehicle identity/specification, vehicle-history/risk, and
+  market-valuation progression gates (clause 2) were removed by operator
+  ruling, 15 October 2026; Review readiness is
+  [FRD-13](../frd/frd-13-case-lifecycle-and-workflow.md#readiness-and-review)'s.
 - [FRD-06 — Vehicle and engineering evidence](../frd/frd-06-vehicle-and-engineering-evidence.md):
   the deferred `AI-05` advisory image-readiness assessment that neither changes
   Case state nor creates an AI Proposal (clause 9).
