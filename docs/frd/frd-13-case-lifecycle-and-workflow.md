@@ -47,6 +47,7 @@ names never leak into labels.
 | `Report sent` | The report has been sent. The Case's last stage; still editable. |
 | `Query` | An open Case that holds an open query, whatever its state (operator, 11 October 2026). |
 | `Held` | Paused by staff with a reason. |
+| `Closed` | Closed in one of the four dispositions below (operator, 15 October 2026). |
 
 Query is not a stored state: it is the stage word every screen, queue and
 filter gives an open Case while a query is open on it
@@ -54,8 +55,9 @@ filter gives an open Case while a query is open on it
 
 A Case can also carry one of four closed dispositions: `Principal cancelled`,
 `Collision Engineers rejected`, `Created in error` and `Source email
-unlinked`. Each records a reason. The Case stays on record and can be
-returned to work with a reason. No Case is ever shown as "Closed".
+unlinked`. Each reads `Closed`, and its disposition and reason are written to
+the Case's Notes (operator, 15 October 2026). The Case stays on record and,
+except for `Created in error`, can be returned to work with a reason.
 
 Every state change and disposition is a Core transition. It records who did
 it, when, why, the state before and after, and any evidence, permanently.

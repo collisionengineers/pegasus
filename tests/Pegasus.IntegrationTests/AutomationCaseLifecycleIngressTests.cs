@@ -93,6 +93,59 @@ public sealed class AutomationCaseLifecycleIngressTests
     }
 
     /// <summary>
+    /// close (operator, 15 October 2026): a closure without a reason changes
+    /// nothing; with one, the history records the reason and the disposition
+    /// under the Automation actor.
+    /// </summary>
+    [Fact]
+    public async Task CloseThroughCaseActionNeedsAReasonAndRecordsItWithTheOutcome()
+    {
+        const string reason = "The Principal withdrew the instruction.";
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+        var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
+
+        using (var noReason = await PostMcpAsync(client, token, ToolCallPayload(40, "pegasus_case_action", new
+        {
+            caseId,
+            expectedVersion = version,
+            operationKey = "mcp:close-no-reason",
+            action = "close",
+            outcome = nameof(CaseClosureOutcome.PrincipalCancelled),
+        })))
+        {
+            Assert.Contains("The close action needs a reason.", await ReadErrorTextAsync(noReason), StringComparison.Ordinal);
+        }
+        Assert.Equal(version, await GetWorkflowVersionAsync(mcpFactory, caseId));
+
+        using var closed = await PostMcpAsync(client, token, ToolCallPayload(41, "pegasus_case_action", new
+        {
+            caseId,
+            expectedVersion = version,
+            operationKey = "mcp:close",
+            action = "close",
+            outcome = nameof(CaseClosureOutcome.PrincipalCancelled),
+            reason,
+        }));
+        var closedResult = await ReadStructuredContentAsync(closed);
+        Assert.Equal(nameof(CaseLifecycleState.PrincipalCancelled), closedResult.GetProperty("state").GetString());
+
+        await using var scope = mcpFactory.Services.CreateAsyncScope();
+        await using var db = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+        var closure = await db.CaseWorkflowEvents.AsNoTracking()
+            .SingleAsync(row => row.CaseId == caseId && row.EventType == "case_closed_PrincipalCancelled");
+        Assert.Equal(reason, closure.Reason);
+        Assert.Equal(nameof(ActorKind.Automation), closure.ActorKind);
+        Assert.Equal(ClientId, closure.ActorSubjectId);
+        var workflow = await db.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId);
+        Assert.Equal(nameof(CaseClosureOutcome.PrincipalCancelled), workflow.ClosureOutcome);
+    }
+
+    /// <summary>
     /// log_query and resolve_query (operator, 11 October 2026): Automation logs
     /// a query on a Report sent Case with the channel it came by and its
     /// details, and resolves every open query at once, each through the same

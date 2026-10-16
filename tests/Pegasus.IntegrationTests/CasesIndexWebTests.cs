@@ -233,16 +233,16 @@ public sealed class CasesIndexWebTests
         Assert.Contains($"href=\"/Cases/{search.CaseId:D}\"", html, StringComparison.Ordinal);
 
         // The ported page: selectable rows, a server-rendered Selected Case
-        // pane, and the D3 terminal chip on the closed result.
+        // pane, and the Closed chip on the closed result (operator, 15 October
+        // 2026).
         Assert.Contains("Selected Case", html, StringComparison.Ordinal);
         Assert.Contains("data-preview-target", html, StringComparison.Ordinal);
         Assert.Contains($"data-select-id=\"{search.CaseId:D}\"", html, StringComparison.Ordinal);
         Assert.Contains($"data-select-id=\"{search.ClosedCaseId:D}\"", html, StringComparison.Ordinal);
-        // The rendered bytes, not the source literal: the framework's HTML
-        // encoder writes every non-ASCII character as a numeric reference, so
-        // the settled "Closed · outcome" chip reaches the browser with its
-        // separator encoded.
-        Assert.Contains("Closed &#xB7; Created in error", html, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<span class=\"status status--neutral\">{Pegasus.Web.Presentation.OperatorLabels.ClosedStage}</span>",
+            html,
+            StringComparison.Ordinal);
 
         var next = Regex.Match(
             html,
@@ -267,13 +267,15 @@ public sealed class CasesIndexWebTests
     /// <summary>
     /// The State filter is one option per stage, each posting its key
     /// (operator, 11 October 2026): With Engineer finds its one state, Report
-    /// sent finds Report sent Cases with no open query, and Query finds every
-    /// open Case with an open query, whatever its state.
+    /// sent finds Report sent Cases with no open query, Query finds every
+    /// open Case with an open query, whatever its state, and Closed finds every
+    /// closed disposition (operator, 15 October 2026).
     /// </summary>
     [Theory]
     [InlineData("ReportPreparation", "With Engineer", null)]
     [InlineData("ReportSent", "Report sent", false)]
     [InlineData("Query", "Query", true)]
+    [InlineData(Pegasus.Web.Presentation.OperatorLabels.ClosedStage, Pegasus.Web.Presentation.OperatorLabels.ClosedStage, null)]
     public async Task SearchStateFilterTakesAStageKey(string key, string label, bool? hasOpenQuery)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
@@ -290,6 +292,8 @@ public sealed class CasesIndexWebTests
         {
             "ReportPreparation" => [CaseLifecycleState.ReportPreparation],
             "ReportSent" => [CaseLifecycleState.ReportSent],
+            Pegasus.Web.Presentation.OperatorLabels.ClosedStage =>
+                [.. Enum.GetValues<CaseLifecycleState>().Where(Pegasus.Core.Lifecycle.CaseLifecycleRules.IsTerminal)],
             _ => [.. Enum.GetValues<CaseLifecycleState>().Where(state => !Pegasus.Core.Lifecycle.CaseLifecycleRules.IsTerminal(state))]
         };
         Assert.Equal(expectedStates, query.Filters.States);

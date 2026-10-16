@@ -1002,17 +1002,6 @@ public sealed class CaseViewsWebTests
         return report[start..end];
     }
 
-    /// <summary>The state chip the ribbon renders, exactly.</summary>
-    private static string RibbonStateChip(string html)
-    {
-        var chip = Regex.Match(
-            html,
-            "data-case-ribbon-chips>\\s*(?<chip><span class=\"status status--[a-z]+\">[^<]+</span>)",
-            RegexOptions.CultureInvariant);
-        Assert.True(chip.Success, "The ribbon's state chip is not rendered.");
-        return chip.Groups["chip"].Value;
-    }
-
     /// <summary>The store's page frame with the open tasks the frame reads once Report sent is recorded.</summary>
     private sealed class PageFrameWithOpenTasks(
         RecordingCaseDetailsStore store,

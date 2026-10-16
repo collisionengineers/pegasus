@@ -47,6 +47,14 @@ public sealed class TerminalCaseStateTests
     public void AnOrdinaryClosureOutcomeStillPassesValidation() =>
         CaseLifecycleRules.ValidateClose(CloseWith(CaseClosureOutcome.PrincipalCancelled));
 
+    /// <summary>A closure needs a reason (operator, 15 October 2026).</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void TheCloseEnvelopeRefusesAMissingReason(string reason) =>
+        Assert.Throws<ArgumentException>(() =>
+            CaseLifecycleRules.ValidateClose(CloseWith(CaseClosureOutcome.PrincipalCancelled) with { Reason = reason }));
+
     [Theory]
     [InlineData(CaseLifecycleState.NotReady)]
     [InlineData(CaseLifecycleState.Review)]

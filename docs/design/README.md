@@ -346,9 +346,10 @@ shared `.dismiss` × so it can be put away before it expires.
   An inert control is a defect.
 
 Use the glossary's exact business terms and FRD-01's lifecycle labels.
-Report sent is the last stage and Query marks an open query; no formal Case
-is terminally Closed. The single presentation map translates Core states to those labels;
-no page defines its own map or generic Close action.
+Report sent is the last stage and Query marks an open query; a Case in any of
+its four closed dispositions reads Closed, with the reason in Notes (operator,
+15 October 2026). The single presentation map translates Core states to those
+labels; no page defines its own map or generic Close action.
 
 ## Tokens
 
