@@ -17,6 +17,7 @@ public sealed class CaseWorkflowMigrationTests
     private const string DamageMigration = "20260921070000_DamageImpactsAsAreas";
     private const string RepairHeaderMigration = "20260921070455_RepairSpecHeaderByLine";
     private const string PrePublicUploadRemovalMigration = "20260917153000_CaseClaimSourceContactOverride";
+    private const string CaseSignOffEngineerMigration = "20260905010654_CaseSignOffEngineer";
     private const string ReviewCaseId = "60000000-0000-0000-0000-000000000001";
     private const string NotReadyCaseId = "60000000-0000-0000-0000-000000000002";
 
@@ -337,7 +338,7 @@ public sealed class CaseWorkflowMigrationTests
         // This fixture proves the historical custody and hand-off chain. The v1
         // foundation establishes the documented estate on disposable data;
         // it does not convert this pre-release fixture into that estate.
-        await context.Database.MigrateAsync("20260905010654_CaseSignOffEngineer");
+        await context.Database.MigrateAsync(CaseSignOffEngineerMigration);
 
         Assert.Equal(documentId, await database.ScalarAsync<string>(
             $"SELECT CONVERT(varchar(36), Id) FROM CaseDocuments WHERE Id = '{documentId}'"));
@@ -352,138 +353,10 @@ public sealed class CaseWorkflowMigrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = 'EvaHandoffDownloadOperations'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = 'EvaFirstHandoffProxies'"));
-        Assert.Equal(
-            [
-                "20260906054658_V1PlatformFoundation",
-                "20260906170000_FilterActiveCaseReportGenerationSnapshot",
-                "20260906212604_RetainedMailboxReplyTargets",
-                "20260906220638_RemovePaintLabourRate",
-                "20260907093000_PublicUploadOccurrenceReplacementLineage",
-                "20260907100000_RemoveAutomaticEvaSubmission",
-                "20260907210000_ReportInputInvalidationPermissions",
-                "20260907221500_RemoveCaseStaffConfirmation",
-                "20260909091500_RemoveCaseDocumentOcrOperations",
-                "20260909120000_ApprovedMailboxDefaultStaffSend",
-                "20260909140000_EditScopeOwnership",
-                "20260909141000_Contacts",
-                "20260909142000_StaffAccountSingleRoleAndVersion",
-                "20260909143000_EditableWorkflowConfiguration",
-                "20260909144000_PrincipalReportGenerationPolicies",
-                "20260909145000_GuidanceAndRemoveEngineerNotes",
-                "20260909146000_ManualCaseCreation",
-                "20260909147000_RemoveClaimSourceCaseNote",
-                "20260909148000_CanonicalContactLocations",
-                "20260910100000_ManualUploadGroupDiscard",
-                "20260910101000_RemoveManualChaseReason",
-                "20260910102000_AllowInitialIntakeAssociationWithoutReason",
-                "20260910103000_RetainObservedStaffMailSentEvidence",
-                "20260910104000_RecordCaseReportViewAndDownloadEvents",
-                "20260910105000_SoftRemoveValuationPresets",
-                "20260910110000_SecurityEventActingPrincipal",
-                "20260910111500_DocumentContentCacheVariants",
-                "20260910120000_CaseImageTags",
-                "20260911100000_PromoteVehicleLookupSuggestionsToFacts",
-                "20260913082540_WorkflowDueTargets",
-                "20260913083338_CaseHoldReviewDate",
-                "20260913090000_MarketResearchImageTag",
-                "20260913090111_OrganizationNotesOnEveryCase",
-                "20260913091041_RetainedMailDismissal",
-                "20260913092038_StaffNotifications",
-                "20260913092816_AiJobDraftReadyAt",
-                "20260913094324_WorkCentreLastSeen",
-                "20260913095127_UnidentifiedCouldNotBeRead",
-                "20260913101413_LinkedAuditCase",
-                "20260913200000_CaseFieldProposals",
-                "20260914091000_PreCaseImagePreparation",
-                "20260914100000_WidenDocumentContentCacheVariant",
-                "20260914150656_UploadedCorrespondenceMailbox",
-                "20260916090000_VehicleLookupTypeSignals",
-                "20260917014000_EstimateDocumentPreviewEvents",
-                "20260917140000_GrantWorkerCaseAssessmentFields",
-                "20260917150000_RemoveCaseSequenceCeiling",
-                "20260917152000_CaseDueByStaffOverride",
-                "20260917153000_CaseClaimSourceContactOverride",
-                "20260917161519_RemovePublicUploadLinks",
-                "20260918090000_RemoveAdministrationEditScopes",
-                "20260920200240_ReleaseNotes",
-                "20260920201616_ProblemReports",
-                "20260921060711_CapValuationSource",
-                "20260921070000_DamageImpactsAsAreas",
-                "20260921070455_RepairSpecHeaderByLine",
-                "20260921073633_RepairSpecificationSnapshots",
-                "20260921081236_UnroadworthyReasonBank",
-                "20260921084154_ReportImageFullPage",
-                "20260921090527_ReportWordingBlocks",
-                "20260921142708_ProblemReportDispatchClaims",
-                "20260922213214_ProviderSubmissionBodyDigest",
-                "20260922223104_RepairSpecificationSnapshotSupplementary",
-                "20260922224715_ProblemReportDispatchIdentity",
-                "20260922225349_ReleaseNoteCreateIdentity",
-                "20260923120000_StaffAccountDeletionRuntimePermissions",
-                "20260923180000_ValuationCardFiguresOptional",
-                "20260924090000_IntakeAssetBoxParentFolder",
-                "20260924180000_CaseWorksAndTriageCases",
-                "20260925090000_VehicleLookupDerivedFacts",
-                "20260925120000_RetireInstructionDate",
-                "20260925150000_RemovePerFieldConfirmation",
-                "20260925190000_EditLeaseTakeoverHistoryEvents",
-                "20260926090000_RepairSpecInUseOnCreate",
-                "20260926150000_DeclaredUploadDestination",
-                "20260927002303_EmailTemplates",
-                "20260927004150_ImageInReport",
-                "20260928090000_GrantWorkerGeneratedCaseArtifactUpdate",
-                "20260928100000_WorkCentreQueryIndexes",
-                "20260928160000_GrantWorkerDocumentOccurrenceUpdate",
-                "20260929090000_RetireUnusedTables",
-                "20260929091000_GrantWebRetainedMailDismissal",
-                "20260929093000_MarketResearchAttachedEvent",
-                "20260929120000_PrincipalVocabulary",
-                "20260929150000_GrantCaseDataSnapshotUpdate",
-                "20260930090000_PrincipalSalvageMatrix",
-                "20261001090000_DocumentVersionEstimateRecognition",
-                "20261001100000_MergeChasingSubtypes",
-                "20261001110000_StaffNotificationCancellationCause",
-                "20261002105641_WorkCentreDismissals",
-                "20261005090000_CorrespondenceSentEvent",
-                "20261005120000_GrantWorkerCaseManualChases",
-                "20261005150000_PrincipalDefaultFee",
-                "20261006150000_DropCaseReportDeliveryIntents",
-                "20261006160000_RepairSpecificationGlassEstimate",
-                "20261007140000_MarketResearchDocumentRole",
-                "20261007160000_RemoveReportDateOverride",
-                "20261007180000_SimplifyPrincipalSubmissions",
-                "20261007181000_InspectionAddressSettlerKind",
-                "20261007182000_StaffMailSendActorKind",
-                "20261007183000_GrantWorkerTriageFindings",
-                "20261007184000_RemoveEva",
-                "20261008090000_DropAutomationWorkflowEventTimeIndex",
-                "20261008174505_CaseListPresets",
-                "20261009100000_MergeDisputesIntoQueries",
-                "20261009120000_DropGlassSessionExpiry",
-                "20261009120000_RemoveUnprintedAssessmentFields",
-                "20261009120000_WorkCentreActivityIndexes",
-                "20261011112442_DiscardDeletesRepairSpec",
-                "20261011130000_DropAiJobMarketResearchIndexes",
-                "20261011140000_ImageMatchDecline",
-                "20261011191701_ReportSentAndCaseQueries",
-                "20261012120000_MailboxIncomingOutgoing",
-                "20261012120000_SupplementaryOfSnapshot",
-                "20261012120000_WorkerObservesReportSends",
-                "20261012130000_ReportSendCarriesSecondReport",
-                "20261012180000_FlatMailCategory",
-                "20261012190000_PrincipalReportSendingRules",
-                "20261012191000_ReportDispatchRecord",
-                "20261012192000_GrantWorkerCaseTasksForReportSent",
-                "20261012193000_SentReportInstructionMove",
-                "20261013080000_RemoveMileageSourceChoice",
-                "20261013090000_ContactSingleType",
-                "20261013090000_LabourRateBuiltInCards",
-                "20261013091000_ContactSopSeed",
-                "20261013092000_RemoveContactGuidance",
-                "20261013100000_DropPrincipalDomainReference",
-                "20261014220000_DropApprovedOutlookCategories"
-            ],
-            await context.Database.GetPendingMigrationsAsync());
+        var expectedPending = context.Database.GetMigrations()
+            .SkipWhile(name => name != CaseSignOffEngineerMigration)
+            .Skip(1);
+        Assert.Equal(expectedPending, await context.Database.GetPendingMigrationsAsync());
     }
 
     private const string AdministrationEditScopesSql =
