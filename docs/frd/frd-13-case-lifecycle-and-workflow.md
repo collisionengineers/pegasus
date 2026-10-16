@@ -225,7 +225,7 @@ the claimant; a dispute is a query. A query is a record on the Case
 
 A Query e-mail joining a Case in any other state raises nothing. The
 Case's Engineer is told of a query raised from mail
-([FRD-12](frd-12-operator-experience.md#the-shell)).
+([FRD-12](frd-12-operator-experience.md#shell-and-routes)).
 
 While any query is open the Case reads **Query** on every screen, queue and
 filter, in purple, whatever its state; the Queries section lists the open
@@ -406,7 +406,7 @@ stays in history.
 While a linked message's current classification is a cancellation and the
 Case is open, the Case page's Next action names it, **Cancellation received**,
 with **Open message**, and the Case's Engineer is told through the bell
-([FRD-12](frd-12-operator-experience.md#the-shell)). Correcting the message
+([FRD-12](frd-12-operator-experience.md#shell-and-routes)). Correcting the message
 away clears the row. The Case's state still changes only by a staff or
 Automation Actor action.
 
