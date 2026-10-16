@@ -29,7 +29,7 @@
 ## Purpose
 
 This document says how the Case record page behaves: its ribbon, edit
-session, Actions menu, twelve sections, Queries and the Engineer workbench.
+session, Actions menu, twelve sections, Queries and the Engineer sections.
 Lifecycle rules are owned by [FRD-13](frd-13-case-lifecycle-and-workflow.md). Edit
 leases are owned by [FRD-14](frd-14-record-edit-leases.md). Visual and
 component rules are owned by [design](../design/README.md).
@@ -901,8 +901,8 @@ the Next action's
 
 ### Assessment
 
-The Engineer workbench is the Damage, Valuation, Repair Spec, Decisions and
-Report sections of the Case record. The sections can always be read and are
+The Engineer sections of the Case record are Damage, Valuation, Repair Spec,
+Decisions and Report. The sections can always be read and are
 read-only in Held. An image has one place (v28 P50): whether the report
 uses it, its order and the tools that change them are on its tile under
 Files, and non-destructive crops leave the retained source and its hash

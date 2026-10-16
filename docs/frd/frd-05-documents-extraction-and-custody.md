@@ -274,7 +274,9 @@ from `CaseFiles.Current`, every current image occurrence that has not been
 logically removed, whatever its custody state, and offers the thumbnail,
 viewer link, tags and Crop only on Confirmed ones. The Documents tab lists
 the same set, each row stating its custody, and offers Preview and Save as
-only where the bytes are held.
+only where the bytes are held. Export is the one Case export
+([FRD-07](frd-07-case-export.md#export-case)), not a per-document action
+(operator ruling, 15 October 2026).
 
 The Worker makes the plain gallery thumbnail of each newly filed image in the
 background, a few at a time on its existing sweep. The first view then reads

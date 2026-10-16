@@ -90,8 +90,10 @@ shows the classification, the Case or Triage Case, and the folder. While a
 search term is typed, it also says where the term matched. Its actions are
 Open full message, Reply when the mailbox the message arrived in can send
 (it opens the message record's Reply), and Open Case, or Open Triage when
-the message opened a Triage. It has no controls that change anything. Previewing never changes
-classification, association, read state, Case state or custody.
+the message's Case is a Triage Case, whether the message opened it or staff
+linked the message to it (operator ruling, 15 October 2026). It has no
+controls that change anything. Previewing never changes classification,
+association, read state, Case state or custody.
 
 Opening a message keeps the list's filter and position. The record shows the
 full retained message, its attachments and a chronological thread, and
@@ -159,6 +161,14 @@ summary, asks for a reason and needs explicit confirmation. Linking may
 happen while classification is still unresolved, when the link evidence on
 its own is enough. The Automation Actor links through the same command
 (`pegasus_mail_link_case`).
+
+The opened message record also offers **Unlink** beside the linked Case. It
+asks for a reason and needs explicit confirmation; where the Case is the one
+the message's own acceptance created, the dialog says that unlinking cancels
+it. Once no Case is current, **Link to case** relinks the message. Both keep
+the history rule in
+[FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)
+(operator ruling, 15 October 2026).
 
 The message record shows its current Case association even while its
 classification is Unclassified. Classification, Case association and custody

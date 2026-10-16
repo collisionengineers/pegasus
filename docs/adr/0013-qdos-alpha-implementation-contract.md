@@ -43,10 +43,10 @@ removed functional clauses (1–9 and 13) are mapped to their owning FRDs in
     ordinary staff receive no MCP access and no staff identity is impersonated.
 11. **The domain action is `Send to AI`.** Provider-specific UI wording does not
     redefine the action. Claude is the current provider candidate for that later
-    user-triggered action; Microsoft Foundry is the intended candidate platform
-    for later AI query-response proposals. Exact client, model, transport,
-    credential, evaluation, recovery, cost, and caller choices remain activation
-    gates.
+    user-triggered action. Drafts come from external AIs through MCP, and a
+    person reviews a draft before it is sent (operator ruling AI-08,
+    15 October 2026). Exact client, model, transport, credential, evaluation,
+    recovery, cost, and caller choices remain activation gates.
 12. **Login protection is transient throttling.** The alpha uses generic
     authentication failure plus the accepted per-source and global request
     limits; it does not introduce persistent ASP.NET Identity account lockout.

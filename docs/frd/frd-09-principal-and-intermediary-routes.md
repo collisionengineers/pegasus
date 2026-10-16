@@ -49,7 +49,8 @@ Principal routes and Principal APIs.
 The security boundary is the stable Pegasus Principal, not an email domain
 or an external tenant. A Principal client gets a separately issued,
 Principal-scoped client ID and an opaque secret. Only the secret's hash is
-stored. Rotation and revocation are supported.
+stored. Issue, reset, revoke, pause and resume are supported, as the Contacts
+page has them (operator ruling, 15 October 2026).
 
 The client may submit instructions and attachments idempotently, and read
 only its own Principal's receipt, processing status and resulting Case/PO.

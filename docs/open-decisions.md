@@ -8,36 +8,3 @@ and its linked PR/CI records own delivery work.
 Add a question here only when it is genuinely unresolved, with its owner,
 affected contract and the decision needed; remove it once its outcome has a
 durable owner.
-
-## Capability wording with no owning requirement
-
-The 18 September 2026 capability review found these clauses in the old
-capability wording and in no FRD, PRD or ADR. The
-[capabilities](capabilities.md) labels no longer carry them. Decision needed
-for each: write it into the named owner, or drop it.
-
-| ID | Clause with no owner | Likely owner |
-| --- | --- | --- |
-| MAIL-03 | One shared classification policy across all supported mailboxes, stated as a rule | FRD-08 |
-| MAIL-10 | Unlink and relink of a message from a Case in the Inbox | FRD-20 |
-| MAIL-17 | Standing-note preferences; report delivery through the Principal API; management-event recording | FRD-27, FRD-21 |
-| MAIL-21 | An acceptance cohort for the classification rules | FRD-08 |
-| INT-13 | JPEG and PNG named as the image-led formats | FRD-19 |
-| INT-20 | Validation, missing-value and contradiction display on the draft | FRD-23 |
-| TRI-01 | A distinct Inbox label for Triage | FRD-20 |
-| CASE-01 | The end-to-end journey for every active Case type, stated as one rule | FRD-13 |
-| CASE-11 | Typed claim, accident, contact and inspection data named in the Case identity FRD | FRD-01, FRD-23 |
-| CASE-17 | Overdue display beside Due by | FRD-13, FRD-15 |
-| CASE-31 | Addendum, query document, invoice input and statistics as consumers of the one accepted record | FRD-11 |
-| UI-13 | A contrast requirement | FRD-12 |
-| UI-15 | Inspection, vehicle, media, salvage, text and administration as workbench parts | FRD-16 |
-| DOC-07 | A document export action | FRD-05 |
-| EXT-02 | The supplied, external and estimated mileage classification named in the MOT section | FRD-06, FRD-23 |
-| EXT-11 | Engineer cost and payment inputs, accounting status, staff-role-neutral visibility | FRD-11 |
-| MCP-05 | Automation Actor actions for the classified-email workspace | FRD-10 |
-| API-04 | Credential reset and resume | FRD-09 |
-| AI-07 | `AI Assessor` as a selectable Engineer option that owns no button, queue, model or transport | FRD-27, FRD-13 |
-| AI-08 | Microsoft Foundry as the candidate; house style and letterhead; named Engineer approval before sending | FRD-27 |
-| ENG-02 | Narratives derived from Engineer-owned figures without retyping | FRD-24 |
-| OPS-08 | An alert for matching failures | ADR-0002 |
-| OPS-13 | Policy and quota checks before deployment | ADR-0007 |

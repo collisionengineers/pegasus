@@ -58,6 +58,11 @@ an Audit, the Audit's findings, damage, valuation and settlement are
 recorded on the Audit's values; the Inspection's stay as its report was
 sent ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
 
+Report narratives derive from the Engineer's figures (final value,
+deductions, outcome, salvage and roadworthiness) without retyping (operator
+ruling, 15 October 2026). The report's wording blocks are in
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-wording-blocks).
+
 **Corrections.** A correction never edits an issued report in place. It
 creates a reasoned superseding report or addendum with actor, time, source,
 structured before-and-after values, and the earlier artifact or version kept.

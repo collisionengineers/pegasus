@@ -410,6 +410,8 @@ Application Insights sampling and Log Analytics daily caps control telemetry
 cost. Alerts cover application availability, authentication anomalies, mailbox
 cursor/ingestion failures, poison queues, OCR/PDF failures, Box failures, overdue
 work, chase generation, EVA export, database pressure, and unexpected cost.
+Alerts for matching failures, chasing failures and availability are wanted, on
+the existing action group (operator ruling OPS-08, 15 October 2026).
 
 Azure SQL automated point-in-time restore is the database recovery mechanism.
 Azure SQL creates transaction-log backups approximately every ten minutes and

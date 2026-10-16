@@ -31,7 +31,7 @@ owner* column in [`capabilities.md`](../capabilities.md).
 | [FRD-13](frd-13-case-lifecycle-and-workflow.md) | Case states, readiness, Assign Engineer, actions, Create audit, Close case, Archive, chasing, Report sent and queries | CASE |
 | [FRD-14](frd-14-record-edit-leases.md) | Edit leases and record edit scopes, Take over, refusals | CASE, TRI, ACC |
 | [FRD-15](frd-15-work-centre-queues-and-search.md) | Work Centre, Cases queues, pre-Case records, the Triage Case page, Search, freshness | UI |
-| [FRD-16](frd-16-case-record-workspace.md) | The Case record page, its Inspection and Audit views, and the Engineer workbench | UI, ENG |
+| [FRD-16](frd-16-case-record-workspace.md) | The Case record page, its Inspection and Audit views, and the Engineer sections | UI, ENG |
 | [FRD-17](frd-17-administration-workspace.md) | Administration areas: accounts, contacts, workflow configuration, logs, reports | UI, MI |
 | [FRD-18](frd-18-manual-upload.md) | Staff upload page, upload limits and confirmation | INT |
 | [FRD-19](frd-19-image-led-intake-and-pairing.md) | Vehicle images that arrive without an instruction: grouping, pairing, merge | INT |

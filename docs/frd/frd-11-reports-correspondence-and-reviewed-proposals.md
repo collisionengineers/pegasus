@@ -653,6 +653,13 @@ issued report. Later report changes follow
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions) and keep the
 correction history.
 
+One accepted record of the Case feeds its reports, fee notes, addenda, query
+documents, invoice inputs and statistics (operator ruling, 15 October 2026).
+Addenda are not activated
+([Initial renderer activation](#initial-renderer-activation)) and invoicing is
+deferred
+([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#professional-engineering-findings-and-correction)).
+
 Report sent is the exact approved-mailbox Sent-item evidence in
 [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence).
 Report sent is the Case's last stage; it does not close the Case.

@@ -42,7 +42,7 @@ in the same folder by the operator.
 | INT-13, INT-17 | Image intake and plate reading | uploaded vehicle photos read their registration and group | in-process ONNX |
 | TRI-01 | Triage Case lifecycle | a Triage Case walks its states | the outcome reply cannot send |
 | RPT-01, RPT-03 | Report rendering | the Inspection and Audit PDFs render and download | in-process renderer |
-| CASE-28, ENG-01 | Assessment findings and repair specification | the Engineer workbench saves and the report reflects it | — |
+| CASE-28, ENG-01 | Assessment findings and repair specification | the Engineer sections save and the report reflects it | — |
 | ACC-03, ACC-15, ACC-05, ACC-07, ACC-08, UI-11 | Administration workspace | accounts, Contacts, mailbox allowlist and configuration save | local mailbox resolver stands in for Graph |
 | OPS-26 | Release notes | a published note is shown once | — |
 | OPS-27 | Report a problem | the report is kept as Not sent and can be retried | the GitHub sink is deliberately unconfigured locally |
