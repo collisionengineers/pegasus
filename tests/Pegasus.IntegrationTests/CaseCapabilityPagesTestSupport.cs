@@ -33,11 +33,15 @@ internal static partial class CaseWebTestSupport
     internal const string SecondSupportingFileName = "interior.jpg";
     internal const string UnusedFileName = "plate.jpg";
 
+    /// <param name="keepDatabase">Builds the restored-database host, for a test that needs a read no database-less default answers.</param>
     internal static async Task<LeasedWorkspace> EnterEditModeAsync(
         RecordingCaseDetailsStore store,
-        Action<IServiceCollection> substitutePorts)
+        Action<IServiceCollection> substitutePorts,
+        bool keepDatabase = false)
     {
-        var baseFactory = new IntakeWebApplicationFactory();
+        var baseFactory = keepDatabase
+            ? new IntakeWebApplicationFactory()
+            : IntakeWebApplicationFactory.WithoutDatabase();
         var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -217,12 +221,16 @@ internal static partial class CaseWebTestSupport
     /// store's. Without a lease a lazy section (Vehicle among them) is a
     /// placeholder unless <paramref name="section"/> addresses it.
     /// </summary>
+    /// <param name="keepDatabase">Builds the restored-database host, for a test that needs a read no database-less default answers.</param>
     internal static async Task<string> ReadCaseAsync(
         RecordingCaseDetailsStore store,
         Action<IServiceCollection>? substitutePorts = null,
-        string? section = null)
+        string? section = null,
+        bool keepDatabase = false)
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = keepDatabase
+            ? new IntakeWebApplicationFactory()
+            : IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -1289,22 +1297,26 @@ internal static partial class CaseWebTestSupport
     /// no edit lease: for an action that claims its own lease, or to enter
     /// edit mode from.
     /// </summary>
+    /// <param name="keepDatabase">Builds the restored-database host, for a test that needs a read no database-less default answers.</param>
     internal static async Task<LeasedWorkspace> OpenEngineerWorkspaceAsync(
         RecordingCaseDetailsStore store,
         Action<IServiceCollection> substitutePorts,
-        StaffRole role = StaffRole.Engineer)
+        StaffRole role = StaffRole.Engineer,
+        bool keepDatabase = false)
     {
-        var (baseFactory, factory, client) = EngineerClient(store, substitutePorts, role);
+        var (baseFactory, factory, client) = EngineerClient(store, substitutePorts, role, keepDatabase);
         var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         return new(baseFactory, factory, client, store, AntiforgeryValue(initial));
     }
 
+    /// <param name="keepDatabase">Builds the restored-database host, for a test that needs a read no database-less default answers.</param>
     internal static async Task<LeasedWorkspace> EnterEngineerEditModeAsync(
         RecordingCaseDetailsStore store,
         Action<IServiceCollection> substitutePorts,
-        StaffRole role = StaffRole.Engineer)
+        StaffRole role = StaffRole.Engineer,
+        bool keepDatabase = false)
     {
-        var (baseFactory, factory, client) = EngineerClient(store, substitutePorts, role);
+        var (baseFactory, factory, client) = EngineerClient(store, substitutePorts, role, keepDatabase);
         var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         using var claim = await client.PostAsync(
             $"/Cases/{store.CaseId:D}?handler=ClaimLease",
@@ -1328,9 +1340,12 @@ internal static partial class CaseWebTestSupport
         EngineerClient(
             RecordingCaseDetailsStore store,
             Action<IServiceCollection> substitutePorts,
-            StaffRole role)
+            StaffRole role,
+            bool keepDatabase)
     {
-        var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var baseFactory = keepDatabase
+            ? new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true)
+            : IntakeWebApplicationFactory.WithoutDatabase();
         var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {

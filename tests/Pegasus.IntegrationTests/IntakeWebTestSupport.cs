@@ -21,11 +21,19 @@ using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Fonts.Standard14Fonts;
 using UglyToad.PdfPig.Writer;
+using Pegasus.Core.Address;
+using Pegasus.Core.AiWork;
+using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Notifications;
+using Pegasus.Core.ReleaseNotes;
+using Pegasus.Core.Reports;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 using Pegasus.IntegrationTests.Support;
@@ -35,6 +43,15 @@ namespace Pegasus.IntegrationTests;
 public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
 {
     internal static readonly DateTimeOffset FixedUtcNow = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+
+    /// <summary>
+    /// A database-less host's connection string: a host under <c>.invalid</c>,
+    /// which cannot resolve, so a connection the guard does not see fails within
+    /// its one-second timeout instead of reaching a database.
+    /// </summary>
+    private const string UnresolvableConnectionString =
+        "Server=tcp:pegasus-database-less.invalid,1433;Database=Pegasus;Integrated Security=True;Connect Timeout=1;Encrypt=False";
+
     private readonly string environment;
     private readonly bool? localIntakeEnabled;
     private readonly TimeProvider timeProvider;
@@ -46,7 +63,9 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     private readonly DbCommandInterceptor? commandInterceptor;
     private readonly bool useIntegrationTestAuthentication;
     private readonly bool initializeDevelopmentOffline;
-    private readonly LocalDbTestDatabase database;
+    private readonly LocalDbTestDatabase? database;
+    private readonly DatabaseOpenGuard? databaseOpenGuard;
+    private bool databaseOpenAttemptsReported;
     private readonly string workingDirectory = Path.Combine(
         Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
 
@@ -102,7 +121,34 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         database = LocalDbTestDatabase.CreateAsync().GetAwaiter().GetResult();
     }
 
-    internal LocalDbTestDatabase Database => database;
+    private IntakeWebApplicationFactory(DatabaseOpenGuard databaseOpenGuard)
+    {
+        environment = "Development";
+        localIntakeEnabled = true;
+        timeProvider = new TestTimeProvider(FixedUtcNow);
+        useIntegrationTestAuthentication = true;
+        this.databaseOpenGuard = databaseOpenGuard;
+    }
+
+    /// <summary>
+    /// A host for a test whose Case data is a recording store: it restores no
+    /// database and runs no offline initialisation, signs requests in through
+    /// <see cref="IntegrationTestAuthenticationHandler"/>, answers the shell's
+    /// reads, the staff directory and the Case page's other reads as the
+    /// migrated database answers them (<see cref="DatabaseLessCaseReads"/>),
+    /// and refuses and records every connection it is asked to open. Its
+    /// disposal reports the record, so a test that reached the database fails
+    /// even where the page swallowed the refusal. A test's own substitution
+    /// still replaces a default.
+    /// </summary>
+    internal static IntakeWebApplicationFactory WithoutDatabase() => new(new DatabaseOpenGuard());
+
+    internal LocalDbTestDatabase Database => database
+        ?? throw new InvalidOperationException(
+            "This factory was built without a database (IntakeWebApplicationFactory.WithoutDatabase).");
+
+    /// <summary>The connections a database-less host refused, in order; empty for a host with a database.</summary>
+    internal IReadOnlyList<string> DatabaseOpenAttempts => databaseOpenGuard?.Attempts ?? [];
 
     internal string ArtifactDirectory => Path.Combine(workingDirectory, "intake-artifacts");
 
@@ -124,7 +170,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                     StringComparison.OrdinalIgnoreCase)
                     ? "DevelopmentOffline"
                     : "Production",
-                ["ConnectionStrings:Pegasus"] = database.ConnectionString,
+                ["ConnectionStrings:Pegasus"] = database?.ConnectionString ?? UnresolvableConnectionString,
                 ["Intake:LocalArtifactPath"] = ArtifactDirectory,
                 ["Features:LocalIntake"] = (localIntakeEnabled ?? false).ToString(),
                 ["Features:LocalDocumentCustody"] = environment.Equals(
@@ -146,6 +192,13 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                 services.ConfigureDbContext<PegasusDbContext>(
                     options => options.AddInterceptors(commandInterceptor),
                     ServiceLifetime.Singleton);
+            }
+            if (databaseOpenGuard is not null)
+            {
+                services.ConfigureDbContext<PegasusDbContext>(
+                    options => options.AddInterceptors(databaseOpenGuard),
+                    ServiceLifetime.Singleton);
+                SubstituteDatabaseLessReads(services);
             }
             // Program.cs configures data protection only on the Production
             // branch, so a Development host would otherwise fall back to the
@@ -208,9 +261,51 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         });
     }
 
+    /// <summary>
+    /// The reads a database-less host answers itself, registered before any
+    /// test's own substitution so that one still replaces them.
+    /// </summary>
+    private static void SubstituteDatabaseLessReads(IServiceCollection services)
+    {
+        CaseWebTestSupport.Substitute<IMyStaffNotifications>(services, new EmptyStaffNotifications());
+        CaseWebTestSupport.Substitute<IMyReleaseNotes>(services, new NoReleaseNotes());
+        // After offline initialisation the directory holds the one
+        // Administrator, so the stand-in names that account.
+        CaseWebTestSupport.Substitute<IStaffAccountQueries>(services, new CaseWebTestSupport.StubStaffAccounts(
+            DevelopmentOfflineIdentity.AdministratorId,
+            DevelopmentOfflineIdentity.UserName,
+            StaffRole.Administrator));
+        var reads = new DatabaseLessCaseReads();
+        CaseWebTestSupport.Substitute<ICaseKindQueries>(services, reads);
+        CaseWebTestSupport.Substitute<ICaseAssetPreparationQueries>(services, reads);
+        CaseWebTestSupport.Substitute<IInspectionAddressChoicesQueries>(services, reads);
+        CaseWebTestSupport.Substitute<IAiJobQueries>(services, reads);
+        CaseWebTestSupport.Substitute<IListCaseEstimates>(services, reads);
+        CaseWebTestSupport.Substitute<ILabourRateCardStore>(services, reads);
+        CaseWebTestSupport.Substitute<IUnroadworthyReasonBankStore>(services, reads);
+        CaseWebTestSupport.Substitute<IPrincipalSalvageMatrixQueries>(services, reads);
+        CaseWebTestSupport.Substitute<ICaseReportSnapshotSource>(services, reads);
+        CaseWebTestSupport.Substitute<ICaseReportGenerationStore>(services, reads);
+        CaseWebTestSupport.Substitute<ISendToAiControl>(services, reads);
+        CaseWebTestSupport.Substitute<IListCaseValuations>(services, reads);
+        CaseWebTestSupport.Substitute<IListAppliedValuations>(services, reads);
+        CaseWebTestSupport.Substitute<IValuationPresetStore>(services, reads);
+        CaseWebTestSupport.Substitute<IContactDirectoryQueries>(services, reads);
+        CaseWebTestSupport.Substitute<IResumeCaseEditLease>(services, reads);
+        CaseWebTestSupport.Substitute<IReadImageTagVocabulary>(services, reads);
+        CaseWebTestSupport.Substitute<IImageIntakeQueries>(services, reads);
+    }
+
     protected override IHost CreateHost(IHostBuilder builder)
     {
         var host = base.CreateHost(builder);
+        // A database-less host has nothing to migrate and no account to
+        // create: its requests sign in through the integration handler.
+        if (databaseOpenGuard is not null)
+        {
+            return host;
+        }
+
         using var scope = host.Services.CreateScope();
         if (initializeDevelopmentOffline)
         {
@@ -239,7 +334,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             {
                 try
                 {
-                    database.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    database?.DisposeAsync().AsTask().GetAwaiter().GetResult();
                 }
                 finally
                 {
@@ -249,6 +344,33 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                     }
                 }
             }
+        }
+
+        if (disposing)
+        {
+            ReportDatabaseOpenAttempts();
+        }
+    }
+
+    /// <summary>
+    /// Fails the disposal of a database-less host that refused a connection,
+    /// naming every refusal. It reports once, so a repeated disposal is quiet.
+    /// </summary>
+    private void ReportDatabaseOpenAttempts()
+    {
+        if (databaseOpenGuard is null || databaseOpenAttemptsReported)
+        {
+            return;
+        }
+
+        databaseOpenAttemptsReported = true;
+        var attempts = databaseOpenGuard.Attempts;
+        if (attempts.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"This database-less test host refused {attempts.Count} database connection(s):"
+                + Environment.NewLine
+                + string.Join(Environment.NewLine, attempts));
         }
     }
 
