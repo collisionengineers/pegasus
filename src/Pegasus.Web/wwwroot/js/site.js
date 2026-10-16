@@ -2091,7 +2091,7 @@ window.pegasusPreferences = (function () {
 })();
 
 // --- Rail collapse (v25 C3) ----------------------------------------------------
-// The Collapse control at the rail's foot narrows it to icons and counts;
+// The Collapse control at the rail's foot narrows it to icons;
 // the choice is per browser in the "pegasus-rail" cookie, which the server
 // reads for its first paint. A collapsed link carries its label as a title
 // so the name is still readable.
@@ -2123,7 +2123,7 @@ window.pegasusPreferences = (function () {
         toggle.setAttribute('aria-label', collapsed ? expandLabel : collapseLabel);
         toggle.title = collapsed ? expandLabel : '';
         links.forEach(function (link) {
-            var name = link.querySelector('span:not(.nav-count)');
+            var name = link.querySelector('span');
             if (collapsed && name) {
                 link.title = name.textContent.trim();
             } else {

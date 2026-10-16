@@ -320,15 +320,14 @@ var automationMcpOptions = AutomationMcpOptions.TryCreate(builder.Configuration)
 // without the flag no /api/principal route, scheme or policy exists.
 var principalApiEnabled = builder.Configuration.GetValue<bool>(PrincipalApi.FeatureFlag);
 
-// RailCountsPageFilter supplies ViewData["RailCounts"] on authenticated full
-// page results — the rail shipped with the badge
-// mechanism but nothing populated it until now. RazorPagesOptions has no
-// Filters collection of its own, so the global filter is added through the
-// underlying MvcOptions instead.
+// ShellPageFilter supplies the shell's rendered time, the bell's notifications
+// and the release note on authenticated full page results. RazorPagesOptions
+// has no Filters collection of its own, so the global filter is added through
+// the underlying MvcOptions instead.
 builder.Services.AddRazorPages()
     .AddMvcOptions(options =>
     {
-        options.Filters.Add<Pegasus.Web.Presentation.RailCountsPageFilter>();
+        options.Filters.Add<Pegasus.Web.Presentation.ShellPageFilter>();
         options.Filters.Add<Pegasus.Web.Presentation.WorkspaceRequestTimingFilter>();
     })
     .AddRazorPagesOptions(options =>

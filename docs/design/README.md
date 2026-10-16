@@ -79,8 +79,8 @@ content, top to bottom:
 
 - **Brand** — the refined Pegasus mark (`images/pegasus-mark-refined-128.png`, no wordmark
   inside the image) at 52px beside "PEGASUS" and the line "Case management" (v28 P1).
-- **Nav label "Work"**, then the links in order: Work Centre (`/`), Inbox
-  [count], Upload, Cases (`/cases`) [count], Search (`/search`).
+- **Nav label "Work"**, then the links in order: Work Centre (`/`), Inbox,
+  Upload, Cases (`/cases`), Search (`/search`).
 - **Nav label "Manage"**, then Administration — rendered for Administrators
   only, absent for everyone else.
 - **Rail foot** — the health line (dot and "Current · HH:MM") and the user
@@ -93,21 +93,13 @@ the current-route border moves to the bottom edge, so the cue survives the
 reflow; nothing is hidden at any width except the rail foot and nav labels,
 whose functions move to the utility bar and account dialog.
 
-**A rail count is a figure a page already queried**, never one the shell
-invents. The Cases count is
-`not_ready + review + with_engineer + query + held + triage + unidentified` (group
-contract §1.1); the Inbox figure is composed by the wave-2
-ticket that owns that query — the shell invents none. An absent
-count renders nothing at all — a shell-level `0` would be exactly
-the stale zero the operator-experience requirements forbid. Counts are
-supplied by one page filter (`Presentation/RailCountsPageFilter.cs`), not by
-each page.
+No rail item carries a count (operator, 15 October 2026).
 
 The **account dialog** opens from the rail-foot button and shows Name, Role,
 Session started (an `auth_time` claim) and Idle lock, with Close and Sign out.
 
 **Rail collapse.** A Collapse control at the rail foot folds the rail to 64px:
-icons and counts stay, labels become each link's `title`, and the control's
+icons stay, labels become each link's `title`, and the control's
 label flips between Collapse and Expand navigation. The choice is remembered
 per browser in the `pegasus-rail` cookie (read by
 `Presentation/ShellPreferences.cs`), so the collapsed rail is painted by the
@@ -878,7 +870,7 @@ deleted in wave 5.
 | --- | --- |
 | `app-shell`, `app-rail`, `app-column`, `app-main`, `content` | Grid, rail, column, main landmark, 1580px content |
 | `brand`, `brand-copy` | Rail lockup |
-| `primary-nav`, `nav-label`, `nav-link`, `nav-count` | Rail navigation; `nav-count` is absent when there is no figure |
+| `primary-nav`, `nav-label`, `nav-link` | Rail navigation |
 | `rail-health`, `rail-user` | Rail foot |
 | `utility-bar`, `utility-freshness`, `utility-search` | Dark bar |
 | `rail-collapsed` (on `app-shell`), `[data-rail-toggle]` | Collapsed 64px rail and its Collapse/Expand control |
@@ -970,7 +962,7 @@ second caller and a recorded reason.
 | `_AdminNav` | Administration panel nav |
 | `_StatusChip`, `_PageHeader`, `_ReasonDialog`, `_ErrorSummary`, `_EvidenceViewer`, `_ImageGallery`, `_UploadReview` | Retained, restyled to the vocabulary |
 | `Presentation/OperatorLabels.cs` | The one label map |
-| `Presentation/RailCountsPageFilter.cs` | Rail counts |
+| `Presentation/ShellPageFilter.cs` | Bell and release note |
 
 
 
@@ -1017,7 +1009,7 @@ prove acceptance.
 | Engineering procedure | [Engineering](../engineering.md) | Reviewed implementation and verification |
 | Design authority | This file | Approved tokens, assets, class vocabulary and page contracts |
 | Interaction contract | Current operator instructions and [FRD-12](../frd/frd-12-operator-experience.md) | Earlier imported design decisions provide context only where consistent with current requirements |
-| Shell | This file | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml`, `_ShellDialogs`, `RailCountsPageFilter.cs` |
+| Shell | This file | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml`, `_ShellDialogs`, `ShellPageFilter.cs` |
 | Tokens and vocabulary | This file | `src/Pegasus.Web/wwwroot/css/site.css`, `site.js` |
 | Font | This file | `src/Pegasus.Web/wwwroot/fonts/inter/` |
 | Master logo | `docs/design/brand/logos/logo_no_margin.png`, checksum above | Embedded by the Infrastructure report adapter; the Web shell uses the refined mark mappings above |
@@ -1072,7 +1064,7 @@ this section holds the cross-cutting rules every page is held to.
 
 | Component | Required contract |
 | --- | --- |
-| Shell/access | Sign-in and disabled/stale-role/denied outcomes; permitted-route visibility plus server authorisation; rail counts absent, never zero. |
+| Shell/access | Sign-in and disabled/stale-role/denied outcomes; permitted-route visibility plus server authorisation. |
 | Metric/queue | Label, value or unavailable state, last-good time, current refresh state, and exact destination filter. `0`, loading, current, stale, partial, unavailable, and failed remain distinct. |
 | Row | One keyboard-focusable full-row button with visible affordance; all row text contributes to its accessible name; arrow-key navigation within the list. |
 | Field provenance | Every source-derived Case datum shows its current source tag; a staff value carries none. Origin and status remain distinct. |

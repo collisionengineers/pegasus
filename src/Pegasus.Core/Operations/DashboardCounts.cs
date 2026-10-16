@@ -63,7 +63,7 @@ public sealed record OpenCaseTask(
     Guid? CreatedByStaffId);
 
 /// <summary>
-/// The Cases rail counts and the Work Centre's own reads. Every count is a
+/// The Cases page's and the Work Centre's own reads. Every count is a
 /// real number or the tile that would have shown it is not rendered — there is
 /// no placeholder value.
 /// </summary>
@@ -73,7 +73,7 @@ public interface IDashboardQueries
 
     /// <summary>
     /// Unassociated image-initiated records still awaiting instruction. Only
-    /// the Cases page shows this figure, so the shell never reads it.
+    /// the Cases page shows this figure.
     /// </summary>
     Task<int> GetAwaitingInstructionCountAsync(CancellationToken cancellationToken);
 
