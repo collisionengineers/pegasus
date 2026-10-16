@@ -278,6 +278,93 @@ public sealed class UnidentifiedPersistenceTests
     }
 
     /// <summary>
+    /// The Cases page pages the open queue newest first: windows of any size
+    /// concatenate to the queue reversed with no row skipped or repeated, ties
+    /// included; each window is one statement the database bounds and reads
+    /// neither JSON column; the media-kind filter windows the same way; a bad
+    /// window is refused.
+    /// </summary>
+    [Fact]
+    public async Task TheOpenQueueWindowsPartitionTheQueueNewestFirstOneBoundedStatementEach()
+    {
+        var counter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter));
+        await using var scope = database.CreateAsyncScope();
+        var receiptStore = scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>();
+        var register = scope.ServiceProvider.GetRequiredService<IRegisterUnidentified>();
+        var store = scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>();
+        (IntakeSourceChannel Channel, string MediaType, string FileName)[] sources =
+        [
+            (IntakeSourceChannel.Mailbox, "message/rfc822", "window-0.eml"),
+            (IntakeSourceChannel.ManualUpload, "image/jpeg", "window-1.jpg"),
+            (IntakeSourceChannel.ManualUpload, "application/pdf", "window-2.pdf"),
+            (IntakeSourceChannel.ManualUpload, "image/jpeg", "window-3.jpg"),
+            (IntakeSourceChannel.ManualUpload, "image/png", "window-4.png")
+        ];
+        for (var index = 0; index < sources.Length; index++)
+        {
+            var (channel, mediaType, fileName) = sources[index];
+            // Neighbours share a timestamp, so the Sequence tie-break decides them.
+            await RegisterAsync(
+                register,
+                await StoreReceiptAsync(
+                    receiptStore,
+                    channel,
+                    mediaType,
+                    fileName,
+                    subject: channel == IntakeSourceChannel.Mailbox ? "Window subject" : null,
+                    senderAddress: channel == IntakeSourceChannel.Mailbox ? "window@example.test" : null),
+                CreatedAtUtc.AddHours(index / 2));
+        }
+
+        var queue = await store.ListQueueAsync(null);
+        var expected = queue.Reverse().Select(row => row.Id).ToArray();
+        Assert.Equal(sources.Length, expected.Length);
+
+        foreach (var size in new[] { 1, 2, sources.Length })
+        {
+            var windows = new List<UnidentifiedQueueRow>();
+            for (var skip = 0; skip < sources.Length; skip += size)
+            {
+                windows.AddRange(await store.ListQueueWindowAsync(null, skip, size));
+            }
+
+            Assert.Equal(expected, windows.Select(row => row.Id));
+        }
+
+        Assert.Equal(
+            CreatedAtUtc.AddHours(2),
+            Assert.Single(await store.ListQueueWindowAsync(null, 0, 1)).ReceivedAtUtc);
+        Assert.Empty(await store.ListQueueWindowAsync(null, sources.Length, 2));
+
+        counter.Reset();
+        var window = await store.ListQueueWindowAsync(null, 1, 2);
+        Assert.Equal(expected[1..3], window.Select(row => row.Id));
+        Assert.Equal(1, counter.Count);
+        var read = Assert.Single(counter.Reads);
+        Assert.Equal(2, read.Rows);
+        Assert.DoesNotContain("[FieldsJson]", read.CommandText, StringComparison.Ordinal);
+        Assert.DoesNotContain("[OcrCandidatesJson]", read.CommandText, StringComparison.Ordinal);
+
+        var partitioned = new List<Guid>();
+        foreach (var kind in Enum.GetValues<UnidentifiedMediaKind>())
+        {
+            var ofKind = await store.ListQueueWindowAsync(kind, 0, sources.Length);
+            Assert.All(ofKind, row => Assert.Equal(kind, row.MediaKind));
+            Assert.Equal(
+                (await store.ListQueueAsync(kind)).Reverse().Select(row => row.Id),
+                ofKind.Select(row => row.Id));
+            partitioned.AddRange(ofKind.Select(row => row.Id));
+        }
+
+        Assert.Equal(expected.Order(), partitioned.Order());
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => store.ListQueueWindowAsync(null, -1, 1));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => store.ListQueueWindowAsync(null, 0, 0));
+    }
+
+    /// <summary>
     /// The Closed filter asks for its page size and the store returns only
     /// that many, newest closed first, in one statement.
     /// </summary>
@@ -327,7 +414,10 @@ public sealed class UnidentifiedPersistenceTests
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => store.ListClosedQueueAsync(null, 0));
     }
 
-    private static async Task<UnidentifiedItem> RegisterAsync(IRegisterUnidentified register, Guid receiptId)
+    private static async Task<UnidentifiedItem> RegisterAsync(
+        IRegisterUnidentified register,
+        Guid receiptId,
+        DateTimeOffset? createdAtUtc = null)
     {
         var result = await register.ExecuteAsync(
             new(
@@ -336,7 +426,7 @@ public sealed class UnidentifiedPersistenceTests
                 "test detail",
                 ActionActor.SystemWorker("test-worker"),
                 $"unidentified-test:{Guid.NewGuid():N}",
-                CreatedAtUtc));
+                createdAtUtc ?? CreatedAtUtc));
         return result.Item;
     }
 
@@ -401,7 +491,9 @@ public sealed class UnidentifiedPersistenceTests
     /// in-memory doubles with no recheck queue stay honest (empty page, no
     /// watermark). That default is a trap for the one implementation that MUST
     /// override it: a production store silently inheriting it would report no
-    /// stale resolutions for ever and the correction loop would never run.
+    /// stale resolutions for ever and the correction loop would never run. The
+    /// queue window member's default fails closed, and the Cases page needs
+    /// the production store to declare it.
     /// </summary>
     [Fact]
     public void TheProductionStoreDeclaresEveryReopenAndRecheckMemberItself()
@@ -418,6 +510,7 @@ public sealed class UnidentifiedPersistenceTests
         Assert.Contains(nameof(IUnidentifiedStore.ListResolutionsToRecheckAsync), declared);
         Assert.Contains(nameof(IUnidentifiedStore.MarkResolutionRecheckedAsync), declared);
         Assert.Contains(nameof(IUnidentifiedStore.OldestOpenReceivedAtUtcAsync), declared);
+        Assert.Contains(nameof(IUnidentifiedStore.ListQueueWindowAsync), declared);
     }
 
     /// <summary>#1156: Management Reports' Queues figures are two aggregates over the open items, not the queue's rows.</summary>

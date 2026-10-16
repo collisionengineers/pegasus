@@ -861,6 +861,63 @@ public sealed class EfImageIntakeStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await ProjectAsync(
+            NewestFirst(ListFilter(context, associated, state)),
+            context,
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ImageIntakeSummary>> ListWindowAsync(
+        bool? associated,
+        ImageInitiatedCaseState? state,
+        int skip,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(skip);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(take);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // The window is applied before the projection, so only its rows pay
+        // for the per-row reads.
+        return await ProjectAsync(
+            NewestFirst(ListFilter(context, associated, state)).Skip(skip).Take(take),
+            context,
+            cancellationToken);
+    }
+
+    public async Task<int?> ListPositionAsync(
+        bool? associated,
+        ImageInitiatedCaseState? state,
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var query = ListFilter(context, associated, state);
+        var createdAtUtc = await query
+            .Where(item => item.Id == id)
+            .Select(item => (DateTimeOffset?)item.CreatedAtUtc)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (createdAtUtc is not { } created)
+        {
+            return null;
+        }
+
+        // The rows ahead of it in the NewestFirst order.
+        return await query.CountAsync(
+            item => item.CreatedAtUtc > created
+                || (item.CreatedAtUtc == created && item.Id.CompareTo(id) > 0),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// The one owner of the <see cref="ListAsync"/> filter: lifecycle state and
+    /// whether the record has a current Case.
+    /// </summary>
+    private static IQueryable<ImageIntakeEntity> ListFilter(
+        PegasusDbContext context,
+        bool? associated,
+        ImageInitiatedCaseState? state)
+    {
         IQueryable<ImageIntakeEntity> query = context.ImageIntakes.AsNoTracking();
         if (state is { } lifecycleState)
         {
@@ -885,11 +942,15 @@ public sealed class EfImageIntakeStore(
                     hasCase.Parameters));
         }
 
-        return await ProjectAsync(
-            query.OrderByDescending(item => item.CreatedAtUtc),
-            context,
-            cancellationToken);
+        return query;
     }
+
+    /// <summary>
+    /// The one owner of the <see cref="ListAsync"/> order; the id breaks ties
+    /// so a window boundary falls the same way on every read.
+    /// </summary>
+    private static IOrderedQueryable<ImageIntakeEntity> NewestFirst(IQueryable<ImageIntakeEntity> query) =>
+        query.OrderByDescending(item => item.CreatedAtUtc).ThenByDescending(item => item.Id);
 
     public async Task<IReadOnlyList<ImageIntakeSummary>> ListPendingPairingAsync(
         int maximumItems,
