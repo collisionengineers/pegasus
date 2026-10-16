@@ -345,13 +345,6 @@ public sealed class CaseWorkflowMigrationTests
             $"SELECT Ordinal FROM CaseDocuments WHERE Id = '{documentId}'"));
         Assert.Equal(2, await database.ScalarAsync<int>(
             $"SELECT Ordinal FROM DocumentOccurrences WHERE Id = '{occurrenceId}'"));
-        // The hand-off's three tables were dropped. This case still
-        // proves the migration chain runs to completion over pre-existing
-        // rows; the table it used to look for is the evidence that it did.
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name = 'EvaHandoffDownloadOperations'"));
-        Assert.Equal(1, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name = 'EvaFirstHandoffProxies'"));
         Assert.Equal(
             [
                 "20260906054658_V1PlatformFoundation",

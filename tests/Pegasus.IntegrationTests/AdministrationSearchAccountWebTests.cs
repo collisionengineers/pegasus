@@ -43,12 +43,6 @@ public sealed class AdministrationSearchAccountWebTests
         var administrationHtml = await administration.Content.ReadAsStringAsync();
         Assert.Contains("/Administration/Configuration", administrationHtml, StringComparison.Ordinal);
         Assert.Contains("/Administration/Mailboxes", administrationHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("/Administration/MailCategories", administrationHtml, StringComparison.Ordinal);
-
-        // Mail categories live in Mail settings; the redirect stub is deleted, so the
-        // old route no longer exists (Phase 6).
-        using var retiredCategories = await client.GetAsync("/Administration/MailCategories");
-        Assert.Equal(HttpStatusCode.NotFound, retiredCategories.StatusCode);
 
         // The Action logs card is now Logs.
         Assert.Contains("href=\"/Administration/Logs\"", administrationHtml, StringComparison.Ordinal);

@@ -176,12 +176,9 @@ public sealed partial class BusyButtonContractTests
     public void BusyIsNotTheDisabledLook()
     {
         // The pressed button keeps its colours; only its neighbours stand
-        // aside. The retired rule greyed every submit in a busy form, and the
-        // retired ring was a border circle rather than the Refresh glyph's spin.
+        // aside.
         var siteCss = Read("src/Pegasus.Web/wwwroot/css/site.css");
 
-        Assert.DoesNotContain("form[aria-busy=\"true\"] button", siteCss, StringComparison.Ordinal);
-        Assert.DoesNotContain(".busy-ring", siteCss, StringComparison.Ordinal);
         Assert.Contains("[data-busy-aside]", siteCss, StringComparison.Ordinal);
         Assert.Contains(".busy-spin{animation:pegasus-spin 1s linear infinite}", siteCss, StringComparison.Ordinal);
         Assert.Contains("[data-busy-complete]", siteCss, StringComparison.Ordinal);

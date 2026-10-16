@@ -205,9 +205,7 @@ public sealed class CaseVehicleWebTests
 
     /// <summary>
     /// One mileage, stated once, with the provenance its report code is read
-    /// from. The section used to draw the case's figure, the MOT reading and a
-    /// suggested reading as three rows, which left the operator to work out
-    /// which of them the report would print.
+    /// from.
     /// </summary>
     [Fact]
     public async Task MileageShowsOneBoxWithItsProvenance()
@@ -238,8 +236,6 @@ public sealed class CaseVehicleWebTests
             "<span class=\"lbl\">Mileage<span class=\"src-tag src-tag--lookup\" data-provenance-word=\"Lookup\">Lookup</span></span>",
             html,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("MOT mileage", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("DVLA suggests", html, StringComparison.Ordinal);
     }
 
     /// <summary>

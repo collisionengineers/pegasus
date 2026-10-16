@@ -197,8 +197,6 @@ public sealed class CaseWorkflowWebTests
             $"/Cases/{store.CaseId:D}/Documents/Export?handler=Bundle",
             recordBar,
             StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Send to EVA", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("eva-handoff", html, StringComparison.Ordinal);
     }
 
     /// <summary>

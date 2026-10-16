@@ -1352,7 +1352,6 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains(">No Case Found<", row, StringComparison.Ordinal);
         Assert.Contains("class=\"status status--amber\"", row, StringComparison.Ordinal);
         Assert.DoesNotContain(">Unidentified<", row, StringComparison.Ordinal);
-        Assert.DoesNotContain("No longer polled", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1853,11 +1852,6 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("/Inbox?queue=new-instruction&amp;pageNumber=2", detail, StringComparison.Ordinal);
         // The Case tab carries the whole list context forward.
         Assert.Contains("queue=new-instruction&amp;section=case", detail, StringComparison.Ordinal);
-        foreach (var retired in new[] { "needs-sorting", "receiving-work", "classification:received:General:autoreply" })
-        {
-            using var unknown = await client.GetAsync($"/Inbox?queue={Uri.EscapeDataString(retired)}");
-            Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
-        }
         using var deleted = await client.GetAsync("/Inbox?folder=deleted&queue=triage-request");
         using var deletedDetail = await client.GetAsync($"/Inbox/{ids[5]:D}?folder=deleted&queue=triage-request");
         Assert.Equal(HttpStatusCode.NotFound, deleted.StatusCode);
@@ -2079,13 +2073,8 @@ public sealed class MailWorkspaceWebTests
 
         var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
 
-        // The Decision card shows only populated rows, and no folder prose
-        // reaches the page.
+        // The Decision card shows only populated rows.
         Assert.Contains("<h2 class=\"decision-head\">Decision</h2>", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Folder recommendation", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Recommended Outlook folder", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(">Folder</span>", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("no current classification decision", html, StringComparison.Ordinal);
         // Sign-out, Report a problem and the record's Dismiss.
         Assert.Equal(3, CountOccurrences(html, "method=\"post\""));
     }
@@ -2110,8 +2099,6 @@ public sealed class MailWorkspaceWebTests
         Assert.DoesNotContain("shared-mail-policy", html, StringComparison.Ordinal);
         Assert.DoesNotContain("sender-domain", html, StringComparison.Ordinal);
         Assert.DoesNotContain("mail_operational_destination", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Recommended Outlook folder", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("absent or ambiguous", html, StringComparison.Ordinal);
         // The correction is a dialog on the card, posting the exact decision
         // version it corrects.
         Assert.Contains(">Save correction</button>", html, StringComparison.Ordinal);

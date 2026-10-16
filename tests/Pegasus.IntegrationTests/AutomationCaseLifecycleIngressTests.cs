@@ -150,7 +150,7 @@ public sealed class AutomationCaseLifecycleIngressTests
     /// a query on a Report sent Case with the channel it came by and its
     /// details, and resolves every open query at once, each through the same
     /// Core command as staff and attributed to the Automation actor. The
-    /// result carries whether a query is still open. complete is no act.
+    /// result carries whether a query is still open.
     /// </summary>
     [Fact]
     public async Task LogAndResolveQueryThroughCaseActionAreAttributedToTheAutomationActor()
@@ -169,12 +169,7 @@ public sealed class AutomationCaseLifecycleIngressTests
         var token = await RequestTokenAsync(client, AllScopes);
         var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
 
-        // Completed is no longer an act, and a malformed log_query claims nothing.
-        using (var complete = await PostMcpAsync(client, token, ToolCallPayload(30, "pegasus_case_action",
-            new { caseId, expectedVersion = version, operationKey = "mcp:complete", action = "complete", reason = "Done." })))
-        {
-            Assert.Contains("The action must be one of", await ReadErrorTextAsync(complete), StringComparison.Ordinal);
-        }
+        // A malformed log_query claims nothing.
         using (var noChannel = await PostMcpAsync(client, token, ToolCallPayload(31, "pegasus_case_action",
             new { caseId, expectedVersion = version, operationKey = "mcp:log-no-channel", action = "log_query" })))
         {

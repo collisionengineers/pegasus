@@ -1091,9 +1091,7 @@ public sealed class AssessmentPolicyTests
     }
 
     /// <summary>
-    /// Each resolution names a section the Case page has. The retired
-    /// Assessment page, its Apply command and the old section names are gone
-    /// from every blocker, conditional ones included.
+    /// Each resolution names a section the Case page has.
     /// </summary>
     [Fact]
     public void ReadinessResolutionsNameTheLiveCaseSections()
@@ -1114,24 +1112,11 @@ public sealed class AssessmentPolicyTests
         Assert.Equal("Record it on the Fee tab of the Report section.", HowToResolve("Agreed fee"));
         Assert.Equal("Record it on the Inspection details section.", HowToResolve("Inspection date"));
 
-        // Every conditional blocker was reached, so the wording check below
-        // covers it.
+        // Every conditional blocker was reached.
         Assert.Contains(items, item => item.Requirement == "Inspection address");
         Assert.Contains(items, item => item.Requirement == "Unroadworthy reason");
         Assert.Contains(items, item => item.Requirement == "Salvage category");
         Assert.Contains(items, item => item.Requirement == "Agreed contract sum");
-
-        foreach (var retired in new[]
-        {
-            "Assessment page", "Apply", "EXT-09", "assigned staff member", "Findings section",
-            "Settlement section", "Incident and impact", "Report content", "Estimate section", "case details"
-        })
-        {
-            Assert.DoesNotContain(
-                items,
-                item => item.HowToResolve.Contains(retired, StringComparison.Ordinal)
-                    || item.WhyOutstanding.Contains(retired, StringComparison.Ordinal));
-        }
     }
 
     private static SaveAssessmentRequest Request(

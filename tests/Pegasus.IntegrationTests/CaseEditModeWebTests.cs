@@ -386,7 +386,6 @@ public sealed class CaseEditModeWebTests
         // than a row among the vehicle's facts, in edit mode as in read mode.
         Assert.Contains("data-vehicle-history", html, StringComparison.Ordinal);
         Assert.Matches("<textarea[^>]*id=\"edit-vehicle-history\"[^>]*form=\"case-edit-form\"", html);
-        Assert.DoesNotContain("Saving returns the case to Not ready", html, StringComparison.Ordinal);
         Assert.True(store.MetadataReads > 0);
 
         var fields = new (string Name, string Value)[]

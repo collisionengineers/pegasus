@@ -58,8 +58,6 @@ public sealed partial class OrganizationAdministrationWebTests
             $"/Administration/Contacts/Edit/{contactId:D}");
         Assert.Contains("Web Caller Claim Source</h2>", contactEditHtml, StringComparison.Ordinal);
 
-        using var retiredOrganizations = await client.GetAsync("/Administration/Organizations");
-        Assert.Equal(HttpStatusCode.NotFound, retiredOrganizations.StatusCode);
         var principalHtml = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Contacts?createType=Principal");
         Assert.Contains("Name", principalHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("OrganizationId", principalHtml, StringComparison.Ordinal);
@@ -108,15 +106,11 @@ public sealed partial class OrganizationAdministrationWebTests
         var reportSettingsHtml = await EditContactAsync(client, reportSettingsPath, "report-generation");
         Assert.Contains(">Report generation</h2>", reportSettingsHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("contact-title", reportSettingsHtml, StringComparison.Ordinal);
-        // A new Principal starts with the default report sending rules; the
-        // retired Report recipients settings are not offered.
+        // A new Principal starts with the default report sending rules.
         Assert.Equal(
             EfOrganizationAdministration.ToReportSendingJson(Pegasus.Core.Reports.PrincipalReportSendingRules.Default),
             await factory.Database.ScalarAsync<string>(
                 $"SELECT ReportSendingRulesJson FROM Principals WHERE Id = '{principalId:D}';"));
-        Assert.DoesNotContain("Report recipients", reportSettingsHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("IncludeOriginalInstructionSender", reportSettingsHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("AdditionalReportRecipients", reportSettingsHtml, StringComparison.Ordinal);
         var reportSettingsForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(

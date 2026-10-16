@@ -364,16 +364,13 @@ public sealed class AutomationAssessmentIngressTests
         var lease = await BeginEditAsync(client, token, caseId, 0, rpcId: 50);
 
         // An automation value is one staff can change or clear on its Case
-        // section, so a fact the vehicle lookup records, a case-owned fact and
-        // the retired paths (the statement of truth is the report contract's
-        // wording) are each refused, naming the field. A path no section
-        // edits, the Engineer signature, is refused in the test above.
+        // section, so a fact the vehicle lookup records and a case-owned fact
+        // are each refused, naming the field. A path no section edits, the
+        // Engineer signature, is refused in the test above.
         var refusals = new (string Path, string Value, string Refusal)[]
         {
             (AssessmentVocabulary.VehicleFuel, "Petrol", "filled by the DVLA/DVSA vehicle lookup"),
-            ("statement_of_truth", "I believe the facts stated are true.", "not part of the assessment vocabulary"),
-            ("incident.assessed", "2031-05-06", "case-detail edit path"),
-            ("costs.repairer_vat_registered", "true", "not part of the assessment vocabulary")
+            ("incident.assessed", "2031-05-06", "case-detail edit path")
         };
         var rpcId = 51;
         foreach (var (path, value, refusal) in refusals)

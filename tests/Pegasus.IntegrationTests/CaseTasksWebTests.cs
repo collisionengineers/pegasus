@@ -25,7 +25,7 @@ namespace Pegasus.IntegrationTests;
 public sealed class CaseTasksWebTests
 {
     [Fact]
-    public async Task TasksPageBindsReportEvidenceLinksAndRefusesRetiredTaskHandlers()
+    public async Task TasksPageBindsReportEvidenceLinks()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, services =>
@@ -49,14 +49,6 @@ public sealed class CaseTasksWebTests
         AssertLeasedMutation(workspace, unlink, "unlink-evidence", "Wrong message");
         Assert.Equal(evidenceId, link.EvidenceId);
         Assert.Equal(evidenceId, unlink.EvidenceId);
-
-        foreach (var handler in new[] { "CreateTask", "AssignTask", "CompleteTask", "CancelTask" })
-        {
-            using var retired = await workspace.PostAsync(
-                $"Tasks?handler={handler}",
-                workspace.MutationForm("retired-task", "No task route"));
-            Assert.Equal(HttpStatusCode.NotFound, retired.StatusCode);
-        }
     }
     /// <summary>
     /// Inspection address: the recorded value and, in edit

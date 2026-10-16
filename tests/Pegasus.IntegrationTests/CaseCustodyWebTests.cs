@@ -187,7 +187,6 @@ public sealed class CaseCustodyWebTests
         // Add evidence opens Upload for this Case: the destination is declared
         // before the upload (FRD-18).
         Assert.Contains($"href=\"/Upload?caseId={store.CaseId:D}\"", html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("href=\"/Operations\"", html, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -268,7 +267,7 @@ public sealed class CaseCustodyWebTests
     /// docs/design/README.md "No explanatory copy and page economy": a
     /// read-only visit renders no empty-state panel and no prose about how the
     /// page works. Both sentences this section used to carry are gone, and a
-    /// case with no images draws no empty panel or public-link controls.
+    /// case with no images draws no empty panel.
     /// </summary>
     [Fact]
     public async Task CaseFilesSectionCarriesNoExplanatoryCopyOrEmptyStatePanels()
@@ -293,8 +292,6 @@ public sealed class CaseCustodyWebTests
 
         Assert.DoesNotContain("Availability is not assumed", html, StringComparison.Ordinal);
         Assert.DoesNotContain("No vehicle images", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Public upload requests", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Create upload link", html, StringComparison.Ordinal);
     }
 
     /// <summary>

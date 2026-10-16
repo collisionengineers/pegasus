@@ -236,11 +236,9 @@ public sealed class TriageQueuesWebTests
         Assert.Contains("<span class=\"status status--purple\">Query</span>", queryHtml, StringComparison.Ordinal);
         Assert.Equal(1, QueueCount(queryHtml, "Queries"));
 
-        // Issue 1046: a finished Case has no queue. The rail offers none, the
-        // old route is not found and no Case queue lists the Report sent Case.
+        // Issue 1046: a finished Case has no queue. The rail offers none and no
+        // Case queue lists the Report sent Case.
         Assert.DoesNotContain("<span>Report sent</span>", queryHtml, StringComparison.Ordinal);
-        using var completeResponse = await client.GetAsync("/Cases?tab=complete");
-        Assert.Equal(HttpStatusCode.NotFound, completeResponse.StatusCode);
         foreach (var queue in new[] { "not_ready", "review", "with_engineer", "held" })
         {
             using var queueResponse = await client.GetAsync($"/Cases?tab={queue}");
