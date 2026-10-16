@@ -3,7 +3,7 @@ id: ADR-0035
 status: accepted
 date: 2026-08-28
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0073]
 related_capabilities: [AI-10, AI-09, MCP-06, MCP-01]
 related_frd: [frd-10, frd-27]
 tags: [ai, mcp, automation, ledger]

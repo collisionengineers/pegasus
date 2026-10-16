@@ -259,7 +259,7 @@ statements and the `CAP-0NN` source map remain recoverable from Git history.
 | EXT-19 | Custom application domain | 2026-09-18, operator decision |
 | INT-21 | Human-reviewed extraction cohort and accuracy reporting | 2026-09-18, operator decision |
 | UI-01 | Operations dashboard/cockpit: the `/Operations` page and its rail row | 2026-09-28, operator decision |
-| AI-09 | Send to AI push hand-off to a channel, with its work-request record and connector settings; the AI Job List (`AI-10`) is the only route | 2026-09-28, operator decision |
+| AI-09 | Send to AI push hand-off to a channel, with its work-request record and connector settings; the AI Job List (`AI-10`) is the only route | 2026-09-28, operator decision ([ADR-0073](adr/0073-send-to-ai-hand-off-record-retired.md)) |
 | EXT-04 | Principal-selected report route to an external engineering system (ZIP export or API send); every standard Case now has the Case export ([ADR-0065](adr/0065-case-export-replaces-eva-routes.md)) | 2026-10-07, operator decision |
 | MAIL-05 | Recommend the designated Outlook folder for a classified message | 2026-10-12, operator decision ([ADR-0069](adr/0069-one-flat-mail-category.md)) |
 | MAIL-06 | Staff confirmation of a recommended folder move in Pegasus | 2026-10-12, operator decision ([ADR-0069](adr/0069-one-flat-mail-category.md)) |

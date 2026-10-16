@@ -41,6 +41,10 @@ PDF asset, never the enclosing e-mail; readable pages are neither sent nor
 replaced; a blank OCR page is a page, not a failure; and an instruction with
 scanned pages from more than one retained source still needs staff review for
 the instruction decision, while each asset's report reading stands on its own.
+ADR-0047's estimate clause is carried too: estimate import remains
+deterministic parsing through its existing Core owner, and unsupported
+estimates are refused without OCR or partial import (operator ruling,
+16 October 2026).
 ADR-0040's provider, pinned model and API version, Worker-only identity,
 custody and durable-operation clauses remain accepted.
 

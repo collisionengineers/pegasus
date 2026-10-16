@@ -1,6 +1,6 @@
 # FRD-27: Send to AI, reviewed proposals and the AI Job List
 
-> Owner capabilities: AI-07 to AI-11, MAIL-17, MCP-06, MCP-07 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: AI-07, AI-08, AI-10, AI-11, MAIL-17, MCP-06, MCP-07 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -213,8 +213,8 @@ Deployment and live acceptance are separate evidence tiers
 
 ## Links
 
-- Capabilities: `AI-07`–`AI-11`, `MAIL-17`, `MCP-06`, `MCP-07` in
-  [capabilities](../capabilities.md).
+- Capabilities: `AI-07`, `AI-08`, `AI-10`, `AI-11`, `MAIL-17`, `MCP-06`,
+  `MCP-07` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-04](frd-04-parties-accounts-and-access.md),
   [FRD-10](frd-10-mcp-automation-and-actor-boundary.md),
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),
@@ -224,4 +224,5 @@ Deployment and live acceptance are separate evidence tiers
 - Technical constraints:
   [ADR-0026](../adr/0026-enable-automation-mcp-by-explicit-deployment-configuration.md),
   [ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md),
-  [ADR-0035](../adr/0035-ai-job-ledger.md).
+  [ADR-0035](../adr/0035-ai-job-ledger.md),
+  [ADR-0073](../adr/0073-send-to-ai-hand-off-record-retired.md).

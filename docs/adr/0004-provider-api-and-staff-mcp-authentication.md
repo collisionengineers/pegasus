@@ -2,7 +2,7 @@
 id: ADR-0004
 status: accepted
 date: 2026-07-23
-supersedes: []
+supersedes: [ADR-0002]
 superseded_by: [ADR-0011]
 related_capabilities: []
 related_frd: [frd-09, frd-10]

@@ -2,7 +2,7 @@
 id: ADR-0030
 status: accepted
 date: 2026-08-24
-supersedes: []
+supersedes: [ADR-0002]
 superseded_by: [ADR-0046]
 related_capabilities: []
 related_frd: []
@@ -35,7 +35,7 @@ destructive schema change during deployment or rollback". That rule exists to
 protect live case work across a rollback.
 
 Pegasus has not cut over. Step 7 of the ordered critical path in
-[open decisions](../open-decisions.md) — all new QDOS instructions entering
+open decisions — all new QDOS instructions entering
 Pegasus — has not happened. Production has carried only alpha cases, and the
 operator has twice approved a selective wipe of them, which is the recorded
 position that pre-cutover case data is disposable while identity, principal,
@@ -101,4 +101,4 @@ From cutover, ADR-0002's clause binds again with no exemption.
 
 - [ADR-0002](0002-dotnet-modular-monolith-on-azure.md) — the superseded clause
 - [`runbook.md` rollback step 3](../runbook.md#previous-artifact-rollback-web-and-worker)
-- [`open-decisions.md`](../open-decisions.md) — the ordered critical path
+- `open-decisions.md` — the ordered critical path
