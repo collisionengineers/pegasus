@@ -160,6 +160,9 @@ composition fact tests must repeat ("Web does not register the processor" →
 `IntakeWebDriver.CreateProcessor`); one drain loop. A fake or helper copied
 into a second test file is the third-copy rule applied to tests.
 
+A new assertion on text an operator reads uses the label constant the page
+renders (`OperatorLabels`, `CaseWorkspaceLabels`) where one exists.
+
 ### Case Workspace v2 fixture values
 
 Test fixtures may use the Case Workspace v2 mockup's corpus-derived fixture

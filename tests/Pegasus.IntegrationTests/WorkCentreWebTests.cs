@@ -11,6 +11,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Web.Pages;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -66,8 +67,8 @@ public sealed class WorkCentreWebTests
         Assert.DoesNotContain("wc-inline-detail", html, StringComparison.Ordinal);
         Assert.DoesNotContain("class=\"status status--red\"", html, StringComparison.Ordinal);
         // The ledger's columns.
-        Assert.Contains(">Next action</th>", html, StringComparison.Ordinal);
-        Assert.Contains(">Record / detail</th>", html, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.WorkCentre.NextAction}</th>", html, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.WorkCentre.RecordDetail}</th>", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -111,14 +112,14 @@ public sealed class WorkCentreWebTests
         using var client = Client(host);
 
         var office = await GetOkAsync(client, "/");
-        Assert.Contains("No work to show.", office, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.WorkCentre.NoWorkToShow, office, StringComparison.Ordinal);
         Assert.Contains("class=\"panel wc-ledger\" hidden=\"hidden\"", office, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"wc-tab-attention\"", office, StringComparison.Ordinal);
 
         // Mine keeps its section, so Office stays one click away.
         var mine = await GetOkAsync(client, "/?scope=mine");
-        Assert.DoesNotContain("No work to show.", mine, StringComparison.Ordinal);
-        Assert.Contains("Nothing needs attention", mine, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.WorkCentre.NoWorkToShow, mine, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.WorkCentre.NothingNeedsAttention, mine, StringComparison.Ordinal);
         Assert.Contains("data-wc-scope-link=\"office\"", mine, StringComparison.Ordinal);
         Assert.Contains("Page 1 of 1 &#xB7; earliest due first", mine, StringComparison.Ordinal);
     }
@@ -173,9 +174,9 @@ public sealed class WorkCentreWebTests
         Assert.Contains("class=\"chip on\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"q\" value=\"QDOS26\"", html, StringComparison.Ordinal);
         // Clear filters drops both the kinds and the term; the chip links keep the term.
-        Assert.Contains("href=\"/?scope=office\" data-wc-clear>Clear filters</a>", html, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/?scope=office\" data-wc-clear>{OperatorLabels.WorkCentre.ClearFilters}</a>", html, StringComparison.Ordinal);
         Assert.Contains("href=\"/?scope=office&amp;kind=triage&amp;q=QDOS26\"", html, StringComparison.Ordinal);
-        Assert.Contains("No work matches these filters.", html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.WorkCentre.NoMatches, html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -196,8 +197,8 @@ public sealed class WorkCentreWebTests
 
         Assert.Equal(2, snapshot.Queries[0].Page);
         Assert.Contains("Page 2 of 3 &#xB7; earliest due first", html, StringComparison.Ordinal);
-        Assert.Contains("href=\"/?scope=office\">Previous</a>", html, StringComparison.Ordinal);
-        Assert.Contains("href=\"/?scope=office&amp;page=3\">Next</a>", html, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/?scope=office\">{OperatorLabels.WorkCentre.Previous}</a>", html, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/?scope=office&amp;page=3\">{OperatorLabels.WorkCentre.Next}</a>", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -228,7 +229,7 @@ public sealed class WorkCentreWebTests
         // The chip's tone follows the fixture's due group; its words follow the host clock.
         Assert.Contains("class=\"status status--amber\">", html, StringComparison.Ordinal);
         Assert.Contains("<dt>Vehicle</dt>", html, StringComparison.Ordinal);
-        Assert.Contains("Assign Engineer", html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.WorkCentre.AssignEngineer, html, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=AssignToMe", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Assign to me", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-wc-take", html, StringComparison.Ordinal);
@@ -366,8 +367,8 @@ public sealed class WorkCentreWebTests
         Assert.Contains("data-wc-refresh-outcome=\"partial\" data-wc-tab=\"attention\"", html, StringComparison.Ordinal);
         // AI jobs could not be read: the tab stays with a dash and the section says so.
         Assert.Contains("AI jobs<span class=\"tab-count\">&#x2014;</span>", html, StringComparison.Ordinal);
-        Assert.Contains("AI jobs are unavailable.", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("No work to show.", html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.WorkCentre.AiJobsUnavailable, html, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.WorkCentre.NoWorkToShow, html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -582,7 +583,7 @@ public sealed class WorkCentreWebTests
         using var failing = Host(new FakeSnapshot(), activity: new FakeActivity { Throw = true });
         using var failingClient = Client(failing);
         var unavailable = await GetOkAsync(failingClient, "/");
-        Assert.Contains("Activity is unavailable.", unavailable, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.WorkCentre.ActivityUnavailable, unavailable, StringComparison.Ordinal);
         Assert.DoesNotContain("data-figure=\"sent-today\"", unavailable, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-section=\"activity\" data-wc-refresh-state=\"unavailable\"", unavailable, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-outcome=\"partial\"", unavailable, StringComparison.Ordinal);
@@ -613,7 +614,7 @@ public sealed class WorkCentreWebTests
 
         var html = await GetOkAsync(client, "/");
 
-        Assert.Contains("Work Centre is unavailable. Refresh to run the live queues again.", html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.WorkCentre.Unavailable, html, StringComparison.Ordinal);
         Assert.DoesNotContain("class=\"metric\" data-value=", html, StringComparison.Ordinal);
         Assert.Contains("Needs attention<span class=\"tab-count\">&#x2014;</span>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(nameof(InvalidOperationException), html, StringComparison.Ordinal);

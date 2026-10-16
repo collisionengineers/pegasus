@@ -17,6 +17,7 @@ using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -555,7 +556,7 @@ public sealed class MailWorkspaceWebTests
         using var client = CreateClient(factory);
         var (messageId, caseId, linked) = await SeedLinkedPostReportQueryAsync(factory, client);
         Assert.Contains("handler=CreateQueryResponse", linked, StringComparison.Ordinal);
-        Assert.Contains(">Draft reply with AI</span>", linked, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.QueryResponseJobs.Create}</span>", linked, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"case-ai-jobs-title\"", linked, StringComparison.Ordinal);
         var createForm = AssociationForm(linked, "CreateQueryResponse");
         using var create = await client.PostAsync(
@@ -580,7 +581,7 @@ public sealed class MailWorkspaceWebTests
         }
 
         var rendered = await GetHtmlAsync(client, create.Headers.Location!.ToString());
-        Assert.Contains("AI reply job created.", rendered, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.QueryResponseJobs.Created, rendered, StringComparison.Ordinal);
         Assert.Contains("id=\"case-ai-jobs-title\"", rendered, StringComparison.Ordinal);
         Assert.Contains(">Query response</td>", rendered, StringComparison.Ordinal);
         Assert.Contains(">Queued</span>", rendered, StringComparison.Ordinal);
@@ -1238,11 +1239,11 @@ public sealed class MailWorkspaceWebTests
 
         var preview = Between(html, "<aside id=\"mail-quick-preview\"", "</aside>");
         Assert.Contains(">Triage</span>", preview, StringComparison.Ordinal);
-        Assert.Contains("<dt>Case</dt>", preview, StringComparison.Ordinal);
+        Assert.Contains($"<dt>{OperatorLabels.Inbox.Case}</dt>", preview, StringComparison.Ordinal);
         Assert.Contains("data-mail-preview-association>t.QDOS31007</dd>", preview, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{triageCaseId:D}\"", preview, StringComparison.Ordinal);
-        Assert.Contains("<span>Open Triage</span>", preview, StringComparison.Ordinal);
-        Assert.DoesNotContain("Open Case", preview, StringComparison.Ordinal);
+        Assert.Contains($"<span>{OperatorLabels.Inbox.OpenTriage}</span>", preview, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.Inbox.OpenCase, preview, StringComparison.Ordinal);
         Assert.DoesNotContain(">None<", preview, StringComparison.Ordinal);
 
         var row = MailRow(html, messageId);
@@ -1281,8 +1282,8 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains(">Triage</span>", preview, StringComparison.Ordinal);
         Assert.Contains("data-mail-preview-association>t.QDOS31008</dd>", preview, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{triageCaseId:D}\"", preview, StringComparison.Ordinal);
-        Assert.Contains("<span>Open Triage</span>", preview, StringComparison.Ordinal);
-        Assert.DoesNotContain("Open Case", preview, StringComparison.Ordinal);
+        Assert.Contains($"<span>{OperatorLabels.Inbox.OpenTriage}</span>", preview, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.Inbox.OpenCase, preview, StringComparison.Ordinal);
         Assert.Contains(">Triage</span>", MailRow(html, messageId), StringComparison.Ordinal);
     }
 
@@ -1304,9 +1305,9 @@ public sealed class MailWorkspaceWebTests
 
         var caseTab = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?section=case");
 
-        Assert.Contains("<h2 class=\"decision-head\">Triage</h2>", caseTab, StringComparison.Ordinal);
+        Assert.Contains($"<h2 class=\"decision-head\">{OperatorLabels.Inbox.Triage}</h2>", caseTab, StringComparison.Ordinal);
         Assert.Contains($"<a href=\"/Cases/{triageCaseId:D}\">t.QDOS31010</a>", caseTab, StringComparison.Ordinal);
-        Assert.Contains("<span>Open Triage</span>", caseTab, StringComparison.Ordinal);
+        Assert.Contains($"<span>{OperatorLabels.Inbox.OpenTriage}</span>", caseTab, StringComparison.Ordinal);
         Assert.DoesNotContain("Linked case", caseTab, StringComparison.Ordinal);
         Assert.Contains("association-case-query", caseTab, StringComparison.Ordinal);
     }
@@ -1349,7 +1350,7 @@ public sealed class MailWorkspaceWebTests
         var html = await GetHtmlAsync(client, $"/Inbox?selected={messageId:D}");
 
         var row = MailRow(html, messageId);
-        Assert.Contains(">No Case Found<", row, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.NoCaseFound}<", row, StringComparison.Ordinal);
         Assert.Contains("class=\"status status--amber\"", row, StringComparison.Ordinal);
         Assert.DoesNotContain(">Unidentified<", row, StringComparison.Ordinal);
         Assert.DoesNotContain("No longer polled", html, StringComparison.Ordinal);
@@ -1377,9 +1378,9 @@ public sealed class MailWorkspaceWebTests
         Assert.DoesNotContain(">Receiving work</span>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Case updates</span>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Pre-instructions</span>", html, StringComparison.Ordinal);
-        Assert.Contains(">No Case Found</span>", html, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.NoCaseFound}</span>", html, StringComparison.Ordinal);
         Assert.Contains(">Sent Items</span>", html, StringComparison.Ordinal);
-        Assert.Contains(">Dismissed</span>", html, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.DismissedScope}</span>", html, StringComparison.Ordinal);
         Assert.Equal(4, CountOccurrences(html, "class=\"scope-button\""));
         // Three retained inbox messages, none read.
         Assert.Contains("<span class=\"tabular\">3</span>", html, StringComparison.Ordinal);
@@ -1388,7 +1389,7 @@ public sealed class MailWorkspaceWebTests
         // pane's full-detail entry carries the list context.
         Assert.Contains("data-mail-preview-facts", html, StringComparison.Ordinal);
         Assert.Contains("Message 2 from instructions", html, StringComparison.Ordinal);
-        Assert.Contains("Open full message", html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.Inbox.OpenFullMessage, html, StringComparison.Ordinal);
 
         // The Dismissed scope is a real query: nothing dismissed yet, so it is empty
         // and pressed, and the incoming rows are not in it.
@@ -1504,7 +1505,7 @@ public sealed class MailWorkspaceWebTests
 
         var html = await GetHtmlAsync(client, "/Inbox");
 
-        Assert.Contains("Never updated", html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.Freshness.Never, html, StringComparison.Ordinal);
         Assert.Contains(">Unavailable<", html, StringComparison.Ordinal);
         Assert.Contains("No mail has been received.", html, StringComparison.Ordinal);
     }
@@ -1747,11 +1748,11 @@ public sealed class MailWorkspaceWebTests
 
         // The pane says where the term matched only while one is typed.
         var searched = Between(html, "<aside id=\"mail-quick-preview\"", "</aside>");
-        Assert.Contains("<dt>Matched</dt>", searched, StringComparison.Ordinal);
+        Assert.Contains($"<dt>{OperatorLabels.Inbox.Matched}</dt>", searched, StringComparison.Ordinal);
         Assert.Contains("data-mail-preview-matched", searched, StringComparison.Ordinal);
         Assert.Contains("<dd>Message body</dd>", searched, StringComparison.Ordinal);
         var unsearched = Between(await GetHtmlAsync(client, "/Inbox"), "<aside id=\"mail-quick-preview\"", "</aside>");
-        Assert.DoesNotContain("Matched", unsearched, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.Inbox.Matched, unsearched, StringComparison.Ordinal);
         Assert.DoesNotContain("Search match", unsearched, StringComparison.Ordinal);
     }
 
@@ -1805,8 +1806,8 @@ public sealed class MailWorkspaceWebTests
 
         var receiving = await GetHtmlAsync(client, "/Inbox?queue=new-instruction");
         // Category, not Queue (Inbox, 13 September).
-        Assert.Contains("<label for=\"queue-filter\">Category</label>", receiving, StringComparison.Ordinal);
-        Assert.Contains(">All categories</option>", receiving, StringComparison.Ordinal);
+        Assert.Contains($"<label for=\"queue-filter\">{OperatorLabels.Inbox.Category}</label>", receiving, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.AllCategories}</option>", receiving, StringComparison.Ordinal);
         Assert.DoesNotContain(">Queue</label>", receiving, StringComparison.Ordinal);
         // One flat list: All categories, every category in order, then No Case Found.
         Assert.DoesNotContain("<optgroup", receiving, StringComparison.Ordinal);
@@ -1817,7 +1818,7 @@ public sealed class MailWorkspaceWebTests
                 .Select(match => match.Groups["value"].Value)
                 .ToArray());
         Assert.Contains(">Not client related</option>", categorySelect, StringComparison.Ordinal);
-        Assert.Contains(">No Case Found</option>", categorySelect, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.NoCaseFound}</option>", categorySelect, StringComparison.Ordinal);
         Assert.DoesNotContain("Current view:", receiving, StringComparison.Ordinal);
         Assert.DoesNotContain("class=\"field-hint\"", receiving, StringComparison.Ordinal);
         // One selected option per filter-bar select: mailbox, folder, queue.
@@ -2047,7 +2048,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("intake@collisionengineers.co.uk", message, StringComparison.Ordinal);
         // Nothing was processed, so the state strip says so rather than blanking.
         Assert.Contains("Not yet processed", message, StringComparison.Ordinal);
-        Assert.Contains(">None</strong>", message, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.NoCase}</strong>", message, StringComparison.Ordinal);
         // Back reconstructs the exact list position.
         Assert.Contains($"/Inbox?mailbox={FirstMailboxFilter}", message, StringComparison.Ordinal);
         // Beyond the layout's sign-out and Report a problem, the record's only POST is Dismiss (Inbox, 13 September).
@@ -2166,7 +2167,7 @@ public sealed class MailWorkspaceWebTests
             $"<a href=\"/Cases/{caseId:D}\">MAIL-DESTINATION</a>",
             linked,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("<strong>No Case Found</strong>", linked, StringComparison.Ordinal);
+        Assert.DoesNotContain($"<strong>{OperatorLabels.Inbox.NoCaseFound}</strong>", linked, StringComparison.Ordinal);
 
         var previewPage = await GetHtmlAsync(viewer, $"/Inbox?selected={linkedMessageId:D}");
         var linkedRowStart = previewPage.IndexOf(
@@ -2177,22 +2178,22 @@ public sealed class MailWorkspaceWebTests
         Assert.True(linkedRowEnd > linkedRowStart, "The linked message row was not complete.");
         var linkedRow = previewPage[linkedRowStart..linkedRowEnd];
         Assert.Contains("Case update", linkedRow, StringComparison.Ordinal);
-        Assert.DoesNotContain("No Case Found", linkedRow, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.Inbox.NoCaseFound, linkedRow, StringComparison.Ordinal);
 
         var preview = Between(previewPage, "<aside id=\"mail-quick-preview\"", "</aside>");
         Assert.Contains("data-mail-preview-classification>Case update</dd>", preview, StringComparison.Ordinal);
         // An instruction Case: the Case cell names its Case/PO and the pane offers Open Case.
-        Assert.Contains("<dt>Case</dt>", preview, StringComparison.Ordinal);
+        Assert.Contains($"<dt>{OperatorLabels.Inbox.Case}</dt>", preview, StringComparison.Ordinal);
         Assert.Contains("data-mail-preview-association>MAIL-DESTINATION</dd>", preview, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{caseId:D}\"", preview, StringComparison.Ordinal);
-        Assert.Contains("<span>Open Case</span>", preview, StringComparison.Ordinal);
-        Assert.DoesNotContain("Open Triage", preview, StringComparison.Ordinal);
-        Assert.DoesNotContain("No Case Found", preview, StringComparison.Ordinal);
+        Assert.Contains($"<span>{OperatorLabels.Inbox.OpenCase}</span>", preview, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.Inbox.OpenTriage, preview, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.Inbox.NoCaseFound, preview, StringComparison.Ordinal);
 
         var unlinked = await GetHtmlAsync(viewer, $"/Inbox/{unlinkedMessageId:D}");
         Assert.Contains("<strong>Unclassified</strong>", unlinked, StringComparison.Ordinal);
         Assert.DoesNotContain("<span>Destination</span>", unlinked, StringComparison.Ordinal);
-        Assert.Contains(">None</strong>", unlinked, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.NoCase}</strong>", unlinked, StringComparison.Ordinal);
     }
 
     [Fact]
