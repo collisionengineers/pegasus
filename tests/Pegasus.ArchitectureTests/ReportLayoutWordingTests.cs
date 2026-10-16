@@ -48,22 +48,8 @@ public sealed partial class ReportLayoutWordingTests
     private static string Source(string file)
     {
         var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(), "src", "Pegasus.Infrastructure", "Reports", file));
+            RepositoryRoot.Find(), "src", "Pegasus.Infrastructure", "Reports", file));
         return Comment().Replace(source, string.Empty);
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Pegasus.slnx")))
-            {
-                return directory.FullName;
-            }
-            directory = directory.Parent;
-        }
-        throw new InvalidOperationException("Repository root not found.");
     }
 
     [GeneratedRegex(@"^\s*//.*$", RegexOptions.Multiline)]

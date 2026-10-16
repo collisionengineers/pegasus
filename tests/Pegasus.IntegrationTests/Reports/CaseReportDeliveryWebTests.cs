@@ -8,6 +8,7 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests.Reports;
 
@@ -1987,19 +1988,4 @@ public sealed partial class AssessmentReportDraftWebTests
             .Append(new("__RequestVerificationToken", antiforgeryToken));
         return new(fields);
     }
-
-    private static string AntiforgeryValue(string html)
-    {
-        var tag = AntiforgeryTagRegex().Match(html);
-        Assert.True(tag.Success, "The case action must render an antiforgery token.");
-        var value = ValueRegex().Match(tag.Value);
-        Assert.True(value.Success, "The case antiforgery token must have a value.");
-        return WebUtility.HtmlDecode(value.Groups["value"].Value);
-    }
-
-    [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex AntiforgeryTagRegex();
-
-    [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex ValueRegex();
 }

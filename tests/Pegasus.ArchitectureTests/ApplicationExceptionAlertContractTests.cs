@@ -6,7 +6,7 @@ public sealed class ApplicationExceptionAlertContractTests
     public void ProductionAlertPagesForFailedOrRepeatedOperations()
     {
         var template = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(), "infra", "modules", "platform.bicep"));
+            RepositoryRoot.Find(), "infra", "modules", "platform.bicep"));
 
         Assert.Contains("name: '${prefix}-application-exceptions'", template, StringComparison.Ordinal);
         Assert.Contains("severity: 2", template, StringComparison.Ordinal);
@@ -18,21 +18,5 @@ public sealed class ApplicationExceptionAlertContractTests
         Assert.Contains("DistinctMinuteBuckets >= 3", template, StringComparison.Ordinal);
         Assert.Contains("threshold: 0", template, StringComparison.Ordinal);
         Assert.Contains("minFailingPeriodsToAlert: 1", template, StringComparison.Ordinal);
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Pegasus.slnx")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate the Pegasus repository root.");
     }
 }

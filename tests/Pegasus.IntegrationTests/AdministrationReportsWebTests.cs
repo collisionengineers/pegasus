@@ -19,7 +19,7 @@ public sealed class AdministrationReportsWebTests
     public async Task TheWorkbookDownloadsOneSheetPerReportForThePeriod()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         using var response = await client.GetAsync($"{Page}?handler=Workbook&from=2031-04-01T00:00&to=2031-05-01T00:00");
 
@@ -63,7 +63,7 @@ public sealed class AdministrationReportsWebTests
     public async Task ThePageIsDesignAWithItsSortsWorkChoicesAndDownloads()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         using var response = await client.GetAsync($"{Page}?sort=queries&dir=desc&work=audit");
 
@@ -102,7 +102,7 @@ public sealed class AdministrationReportsWebTests
     public async Task AnInvalidPeriodShowsTheErrorAndDrawsNoReport()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         using var response = await client.GetAsync($"{Page}?from=2031-05-01T00:00&to=2031-04-01T00:00");
 
@@ -122,7 +122,7 @@ public sealed class AdministrationReportsWebTests
     public async Task APeriodChoiceIsKeptAndEachCsvUsesThePageHeadings()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         var html = await client.GetStringAsync($"{Page}?period=last-month");
         Assert.Contains("<option value=\"last-month\" selected=\"selected\">Last month</option>", html, StringComparison.Ordinal);
@@ -303,7 +303,7 @@ public sealed class AdministrationReportsWebTests
     public async Task NonAdministratorsCannotDownloadTheWorkbook()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
 
         using var response = await client.GetAsync($"{Page}?handler=Workbook");
@@ -315,7 +315,7 @@ public sealed class AdministrationReportsWebTests
     public async Task ThePageIsManagementReportsAndOffersTheCaseListWithoutReportTypes()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         var html = await client.GetStringAsync(Page);
 
@@ -332,7 +332,7 @@ public sealed class AdministrationReportsWebTests
     public async Task TheCaseListDownloadsTheChosenColumnsAsCsvAndWorkbook()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync(Page));
 
         using var csv = await client.PostAsync($"{Page}?handler=CaseListCsv", CaseListForm(token, ("AllTime", "true"), ("Columns", "case.type"), ("Columns", "case.reference")));
@@ -355,7 +355,7 @@ public sealed class AdministrationReportsWebTests
     public async Task ARefusedCaseListTellsAScriptWhyAndShowsThePageWithoutOne()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync(Page));
 
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{Page}?handler=CaseListCsv")
@@ -382,7 +382,7 @@ public sealed class AdministrationReportsWebTests
     public async Task APresetIsSavedChosenUpdatedAndRemoved()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync(Page));
         var presetId = Guid.NewGuid();
 
@@ -436,7 +436,7 @@ public sealed class AdministrationReportsWebTests
     public async Task NonAdministratorsCannotDownloadTheCaseListOrKeepPresets()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync(Page));
         client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
 
@@ -450,13 +450,6 @@ public sealed class AdministrationReportsWebTests
 
     private static FormUrlEncodedContent CaseListForm(string token, params (string Name, string Value)[] fields) =>
         new([new("__RequestVerificationToken", token), .. fields.Select(field => new KeyValuePair<string, string>(field.Name, field.Value))]);
-
-    private static HttpClient CreateClient(IntakeWebApplicationFactory factory) =>
-        factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost:7139")
-        });
 
     /// <summary>Item L: a report's CSV refuses only when its own read failed.</summary>
     private static async Task AssertCsvsAsync(HttpClient client, string[] refused)

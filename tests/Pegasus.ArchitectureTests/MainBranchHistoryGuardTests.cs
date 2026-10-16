@@ -4,7 +4,7 @@ namespace Pegasus.ArchitectureTests;
 
 public sealed class MainBranchHistoryGuardTests : IDisposable
 {
-    private readonly string _repositoryRoot = FindRepositoryRoot();
+    private readonly string _repositoryRoot = RepositoryRoot.Find();
     private readonly string _testRoot = Path.Combine(Path.GetTempPath(), $"pegasus-main-history-{Guid.NewGuid():N}");
 
     [Fact]
@@ -218,19 +218,6 @@ public sealed class MainBranchHistoryGuardTests : IDisposable
             + Path.DirectorySeparatorChar;
         Assert.StartsWith(temporaryParent, expected + Path.DirectorySeparatorChar,
             StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Pegasus.slnx")))
-            {
-                return directory.FullName;
-            }
-        }
-
-        throw new DirectoryNotFoundException("Could not find the Pegasus repository root.");
     }
 
     private sealed record CommandResult(int ExitCode, string Output);

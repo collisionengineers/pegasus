@@ -6,7 +6,7 @@ public sealed class TelemetryDailyCapAlertContractTests
     public void ProductionAlertWarnsBeforeTheDailyCapTrips()
     {
         var template = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(), "infra", "modules", "platform.bicep"));
+            RepositoryRoot.Find(), "infra", "modules", "platform.bicep"));
 
         Assert.Contains("name: '${prefix}-telemetry-daily-cap'", template, StringComparison.Ordinal);
         var start = template.IndexOf("resource telemetryDailyCapAlert ", StringComparison.Ordinal);
@@ -22,21 +22,5 @@ public sealed class TelemetryDailyCapAlertContractTests
         Assert.Contains("threshold: 80", template, StringComparison.Ordinal);
         Assert.Contains("autoMitigate: false", template, StringComparison.Ordinal);
         Assert.Contains("actionGroups: [actionGroup.id]", template, StringComparison.Ordinal);
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Pegasus.slnx")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate the Pegasus repository root.");
     }
 }

@@ -17,6 +17,7 @@ using Pegasus.Core.Support;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Pages;
 using Pegasus.Web.Presentation;
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
@@ -466,13 +467,6 @@ public sealed class ProblemReportsWebTests
         }
 
         return client;
-    }
-
-    private static async Task<string> GetHtmlAsync(HttpClient client, string path)
-    {
-        using var response = await client.GetAsync(path);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await response.Content.ReadAsStringAsync();
     }
 
     private static FormUrlEncodedContent Form(string page, Dictionary<string, string> fields)

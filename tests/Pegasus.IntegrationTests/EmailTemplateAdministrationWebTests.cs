@@ -27,7 +27,7 @@ public sealed class EmailTemplateAdministrationWebTests
     public async Task TheAreaIsForbiddenToAnyoneButAnAdministrator(string role)
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         client.DefaultRequestHeaders.Add("X-Test-Roles", role);
 
         using var response = await client.GetAsync(Page);
@@ -39,7 +39,7 @@ public sealed class EmailTemplateAdministrationWebTests
     public async Task TheNavEntryAndHubCardFollowMailSettings()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         var hub = await GetHtmlAsync(client, "/Administration");
 
@@ -60,7 +60,7 @@ public sealed class EmailTemplateAdministrationWebTests
     public async Task ThePageShowsTheBuiltInBodyAtVersionZero()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         var html = await GetHtmlAsync(client, Page);
 
@@ -80,7 +80,7 @@ public sealed class EmailTemplateAdministrationWebTests
     public async Task SaveInsertsAtVersionOneAndEntersTheActionLog()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var html = await GetHtmlAsync(client, Page);
 
         using var saved = await PostSaveAsync(client, html, 0, "Result for {registration}\nRoadworthiness: {roadworthiness}");
@@ -116,7 +116,7 @@ public sealed class EmailTemplateAdministrationWebTests
     {
         const EmailTemplatePurpose delivery = EmailTemplatePurpose.CaseReportDelivery;
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var html = await GetHtmlAsync(client, Page);
 
         Assert.Contains($"data-email-template=\"{delivery}\"", html, StringComparison.Ordinal);
@@ -160,7 +160,7 @@ public sealed class EmailTemplateAdministrationWebTests
     {
         const EmailTemplatePurpose chaser = EmailTemplatePurpose.CaseChaser;
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var html = await GetHtmlAsync(client, Page);
 
         Assert.Contains($"data-email-template=\"{chaser}\"", html, StringComparison.Ordinal);
@@ -183,7 +183,7 @@ public sealed class EmailTemplateAdministrationWebTests
     public async Task AStaleSaveIsRefusedAndAsksToReload()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var html = await GetHtmlAsync(client, Page);
         using (var first = await PostSaveAsync(client, html, 0, "First {registration}"))
         {
@@ -207,7 +207,7 @@ public sealed class EmailTemplateAdministrationWebTests
     public async Task ABodyWithAnUnknownPlaceholderCannotBeSaved()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var html = await GetHtmlAsync(client, Page);
 
         using var response = await PostSaveAsync(client, html, 0, "Dear {claimant}, your {registration}");
@@ -257,11 +257,4 @@ public sealed class EmailTemplateAdministrationWebTests
         var end = html.IndexOf("</section>", start, StringComparison.Ordinal);
         return html[start..end];
     }
-
-    private static HttpClient CreateClient(IntakeWebApplicationFactory factory) =>
-        factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost:7139")
-        });
 }

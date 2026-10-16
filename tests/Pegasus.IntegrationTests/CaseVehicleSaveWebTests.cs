@@ -15,6 +15,7 @@ using Pegasus.Core.Vehicle;
 using Pegasus.Web.Authentication;
 using Pegasus.Infrastructure.Persistence;
 using Xunit.Abstractions;
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
@@ -172,7 +173,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
         var caseId = await AcceptCaseAsync(
             factory, "accept-case-statement-count", withMileage: false);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
         // The first render of each shape pays one-off work; the counts are later ones.
         _ = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
@@ -276,7 +277,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
         var caseId = await AcceptCaseAsync(
             factory, "accept-case-commit-answer", withMileage: false);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
         // The first render of each shape pays one-off work; the counts are later ones.
         _ = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
@@ -436,7 +437,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             useIntegrationTestAuthentication: true);
         var caseId = await AcceptCaseAsync(
             factory, "accept-case-vehicle-mileage-typed", withMileage: false);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
 
         await SaveMileageAsync(client, caseId, "51234", "Recorded the mileage read at inspection.");
@@ -456,7 +457,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             useIntegrationTestAuthentication: true);
         var caseId = await AcceptCaseAsync(
             factory, "accept-case-vehicle-mileage-kilometres", withMileage: false);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
 
         await SaveMileageAsync(client, caseId, "42000", "Recorded the mileage read at inspection.");
@@ -489,7 +490,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             useIntegrationTestAuthentication: true);
         var caseId = await AcceptCaseAsync(
             factory, "accept-case-vehicle-mileage-cleared", withMileage: false);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
         await SaveMileageAsync(client, caseId, "51234", "Recorded the mileage read at inspection.");
 
@@ -534,13 +535,6 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
                 CancellationToken.None);
         return accepted.Identity.CaseId;
     }
-
-    private static HttpClient CreateClient(IntakeWebApplicationFactory factory) =>
-        factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost:7139")
-        });
 
     private static async Task SaveMileageAsync(
         HttpClient client,
@@ -811,13 +805,6 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         };
         Assert.True((await users.CreateAsync(user, password)).Succeeded);
         Assert.True((await users.AddToRoleAsync(user, StaffRole.Engineer.ToString())).Succeeded);
-    }
-
-    private static async Task<string> GetHtmlAsync(HttpClient client, string path)
-    {
-        using var response = await client.GetAsync(path);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await response.Content.ReadAsStringAsync();
     }
 
     private static FormUrlEncodedContent Form(
