@@ -2,7 +2,7 @@
 id: ADR-0025
 status: accepted
 date: 2026-08-17
-supersedes: []
+supersedes: [ADR-0009]
 superseded_by: []
 related_capabilities: [RPT-01, RPT-02, RPT-03, RPT-04, RPT-05, INT-10, INT-11, INT-12]
 related_frd: [frd-02, frd-05, frd-11]
