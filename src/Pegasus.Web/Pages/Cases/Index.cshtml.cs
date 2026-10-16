@@ -118,16 +118,6 @@ public sealed class IndexModel(
     ];
 
     /// <summary>
-    /// The query parameters that belong to <c>/Search</c> and never to this
-    /// page. Their presence means an old <c>/Cases</c> search link.
-    /// </summary>
-    private static readonly string[] SearchOnlyParameters =
-    [
-        "case", "registration", "claimant", "claimNumber", "engineerId",
-        "receivedDate", "fromDate", "toDate", "query"
-    ];
-
-    /// <summary>
     /// When these counts and rows were last read. Set only after the queries
     /// return, so a failed load never claims to be fresh.
     /// </summary>
@@ -336,11 +326,6 @@ public sealed class IndexModel(
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
-        if (SearchOnlyParameters.Any(parameter => Request.Query.ContainsKey(parameter)))
-        {
-            return RedirectPermanent("/Search" + Request.QueryString.Value);
-        }
-
         if (!TryGetActor(out var actor))
         {
             return Forbid();

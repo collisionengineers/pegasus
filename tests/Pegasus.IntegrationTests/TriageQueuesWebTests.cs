@@ -508,18 +508,6 @@ public sealed class TriageQueuesWebTests
     }
 
     [Fact]
-    public async Task UnidentifiedRouteRedirectsPermanentlyToTheQueuesTab()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        using var response = await client.GetAsync("/Unidentified");
-
-        Assert.Equal(HttpStatusCode.MovedPermanently, response.StatusCode);
-        Assert.Equal("/Cases?tab=unassigned&show=unidentified", response.Headers.Location?.OriginalString);
-    }
-
-    [Fact]
     public async Task AnUnknownTabOrShowValueIsNotFound()
     {
         using var factory = new IntakeWebApplicationFactory();

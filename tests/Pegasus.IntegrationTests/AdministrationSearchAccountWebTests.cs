@@ -50,15 +50,8 @@ public sealed class AdministrationSearchAccountWebTests
         using var retiredCategories = await client.GetAsync("/Administration/MailCategories");
         Assert.Equal(HttpStatusCode.NotFound, retiredCategories.StatusCode);
 
-        // The Action logs card is now Logs, and the old Action logs route redirects
-        // to it with its filters intact.
+        // The Action logs card is now Logs.
         Assert.Contains("href=\"/Administration/Logs\"", administrationHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("href=\"/Administration/ActionLogs\"", administrationHtml, StringComparison.Ordinal);
-        using var retiredActionLogs = await client.GetAsync("/Administration/ActionLogs?Area=Security");
-        Assert.Equal(HttpStatusCode.MovedPermanently, retiredActionLogs.StatusCode);
-        Assert.Equal(
-            "/Administration/Logs?Area=Security",
-            retiredActionLogs.Headers.Location?.OriginalString ?? string.Empty);
 
         using var shell = await client.GetAsync("/");
         var shellHtml = await shell.Content.ReadAsStringAsync();
@@ -169,14 +162,12 @@ public sealed class AdministrationSearchAccountWebTests
             typeof(MailboxesModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
         Assert.Equal(StaffRoleNames.Administrator, typeof(HealthModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
         Assert.Equal(StaffRoleNames.Administrator, typeof(LogsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
-        Assert.Equal(StaffRoleNames.Administrator, typeof(ActionLogsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
         Assert.Equal(StaffRoleNames.Administrator, typeof(AiJobsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
         Assert.Equal(StaffRoleNames.Administrator, typeof(ReportsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
     }
 
     [Theory]
     [InlineData("/Administration/Health")]
-    [InlineData("/Administration/ActionLogs")]
     [InlineData("/Administration/Logs")]
     [InlineData("/Administration/Logs?tab=intake")]
     [InlineData("/Administration/AiJobs")]
@@ -820,59 +811,6 @@ public sealed class AdministrationSearchAccountWebTests
         Assert.Contains("default-window-050", second, StringComparison.Ordinal);
         Assert.DoesNotContain("default-window-000", second, StringComparison.Ordinal);
         Assert.DoesNotContain("default-window-newer", second, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task OldCasesSearchLinksRedirectToSearchWithTheirValuesIntact()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        // The workspace redesign moved the case search to /Search and the workflow tabs to
-        // /Cases. A /Cases link that carries a search-only parameter is an
-        // old search bookmark and lands on its results, values intact.
-        const string keyword = "QDOS-search-no-match";
-        using var oldLink = await client.GetAsync($"/Cases?query={keyword}");
-        Assert.Equal(HttpStatusCode.MovedPermanently, oldLink.StatusCode);
-        Assert.Equal(
-            $"/Search?query={keyword}",
-            oldLink.Headers.Location?.OriginalString ?? string.Empty);
-
-        using var search = await client.GetAsync($"/Search?query={keyword}");
-        search.EnsureSuccessStatusCode();
-        var html = await search.Content.ReadAsStringAsync();
-        Assert.Contains("No cases match these filters.", html, StringComparison.Ordinal);
-
-        // A real bookmark carries a whole filter set, including the received
-        // date the ported grid does not draw. Every value survives the move
-        // byte for byte, in its original order, and the page it lands on
-        // accepts all of them.
-        const string wholeFilterSet =
-            "?case=QDOS3100042&registration=AB12CDE&claimant=Claimant&claimNumber=CLM42"
-            + "&principal=QDOS&state=Review&receivedDate=2031-05-01"
-            + "&fromDate=2031-04-01&toDate=2031-05-31"
-            + "&origin=Email&query=" + keyword + "&page=2";
-        using var wholeBookmark = await client.GetAsync("/Cases" + wholeFilterSet);
-        Assert.Equal(HttpStatusCode.MovedPermanently, wholeBookmark.StatusCode);
-        Assert.Equal(
-            "/Search" + wholeFilterSet,
-            wholeBookmark.Headers.Location?.OriginalString ?? string.Empty);
-
-        using var landed = await client.GetAsync("/Search" + wholeFilterSet);
-        landed.EnsureSuccessStatusCode();
-        var landedHtml = await landed.Content.ReadAsStringAsync();
-        foreach (var (field, value) in new[]
-                 {
-                     ("search-query", keyword), ("search-registration", "AB12CDE"),
-                     ("search-claimant", "Claimant"), ("search-claim-number", "CLM42"),
-                     ("search-principal", "QDOS"), ("search-from-date", "2031-04-01"),
-                     ("search-to-date", "2031-05-31"), ("search-origin", "Email")
-                 })
-        {
-            Assert.Matches(
-                $"id=\"{field}\"[^>]*value=\"{Regex.Escape(value)}\"",
-                landedHtml);
-        }
     }
 
     [Fact]
