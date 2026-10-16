@@ -79,8 +79,8 @@ content, top to bottom:
 
 - **Brand** — the refined Pegasus mark (`images/pegasus-mark-refined-128.png`, no wordmark
   inside the image) at 52px beside "PEGASUS" and the line "Case management" (v28 P1).
-- **Nav label "Work"**, then the links in order: Work Centre (`/`), Inbox
-  [count], Upload, Cases (`/cases`) [count], Search (`/search`).
+- **Nav label "Work"**, then the links in order: Work Centre (`/`), Inbox,
+  Upload, Cases (`/cases`), Search (`/search`).
 - **Nav label "Manage"**, then Administration — rendered for Administrators
   only, absent for everyone else.
 - **Rail foot** — the health line (dot and "Current · HH:MM") and the user
