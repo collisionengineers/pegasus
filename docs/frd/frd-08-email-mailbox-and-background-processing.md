@@ -124,6 +124,10 @@ Unclassified too, with the candidates named; no winner is invented. Any
 classified message blocks automatic image registration: only Unclassified or
 undecided mail is eligible.
 
+Mail from every approved mailbox is classified by the one policy,
+`IMailClassificationPolicy`, built per Principal, whichever mailbox received
+it (operator ruling, 15 October 2026).
+
 Every retained received message carries a classification decision. A
 message whose sender matches no accepted route, or whose route has no
 classification policy, is recorded Unclassified under the

@@ -383,6 +383,8 @@ replays by its operation key.
 - `pegasus_unidentified_resolve` with `targetKind` Closed is **Close with
   reason**: it names no destination. `pegasus_unidentified_reopen` withdraws
   a resolution or closure with a reason.
+- The Automation Actor reads, reclassifies and links mail through the mail
+  tools in scope `automation.mail` (operator ruling, 15 October 2026).
 - `pegasus_mail_correct_classification` takes a mail category or
   Unclassified, with a reason, as the staff correction does
   ([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)).

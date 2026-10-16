@@ -328,6 +328,11 @@ The `owner`, `repairer` and `average` codes are still renderer sentences, but
 nothing derives them. Staff no longer record a separate mileage-source report
 field, and the Case page has no source to pick.
 
+Mileage evidence is classified as supplied, external or estimated. The
+sources are the table above, and the estimate is the
+[conservative MOT mileage estimation](#conservative-mot-mileage-estimation)
+(operator ruling, 15 October 2026).
+
 **No MOT history.** Sometimes the latest lookup answers for the Case's current
 registration but DVSA holds no MOT test. It answers either with an empty
 history or with its "no MOT" not-found beside the DVLA record. This happens with

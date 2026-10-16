@@ -205,8 +205,8 @@ Case. Custody and document download stay open for it. The
 and is reached from
 Unassigned Images rows, the Case Files section and upload outcomes. There
 is no separate top-level Unidentified, Organisations, Staff accounts, Roles
-or Automation Activity entry. The Engineer workbench is a set of sections on
-the Case record, not a page of its own.
+or Automation Activity entry. The Engineer sections are sections of the Case
+record, not a page of their own.
 
 ### Command palette and keyboard
 

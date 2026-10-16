@@ -185,14 +185,13 @@ exclusion.
 | EXT-11 | Versioned fee/invoice and Engineer cost/payment inputs, accounting status, and staff-role-neutral visibility | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | EXT-12 | Glass's and Audatex PDF estimate ingestion with retained source and variant proof | [Retained PDF estimates](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#retained-pdf-estimate-import) |
 | EXT-13 | Independently licensed valuation-source adapters that preserve each source observation and version | [Valuation sources](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources) |
-| AI-07 | AI Assessor as a staff-selected Engineer option | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
 | MAIL-12 | Authenticated staff reply, forward, chase and send reports by email in Pegasus | [Outbound correspondence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence) |
 | MAIL-24 | Editable e-mail templates with placeholders | [E-mail templates](frd/frd-17-administration-workspace.md#e-mail-templates) |
 | EXT-17 | Tractable capture outside Pegasus, received as an emailed PDF | [Ways intake starts](frd/frd-02-intake-and-source-identity.md#ways-intake-starts) |
 | CASE-31 | One accepted record feeds every report and fee note | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | ENG-01 | One canonical repair specification with route provenance | [Canonical repair specifications](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications) |
 | ENG-02 | Human staff-owned value, outcome and salvage drive derived figures | [Professional engineering findings and correction](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#professional-engineering-findings-and-correction) |
-| UI-15 | Engineer workbench inside the Case record sections | [Assessment](frd/frd-16-case-record-workspace.md#assessment) |
+| UI-15 | Engineer sections inside the Case record | [Assessment](frd/frd-16-case-record-workspace.md#assessment) |
 | RPT-01 | Renderer validates data, computes figures once, fixed design | [Initial renderer activation](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation) |
 | RPT-02 | Four assessment outcomes with fee note and repair breakdown | [Assessment-report outcomes](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes) |
 | RPT-03 | Audit report reuses the Inspection output with Audit provenance | [Audit report parity](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#audit-report-parity) |
@@ -266,3 +265,4 @@ statements and the `CAP-0NN` source map remain recoverable from Git history.
 | MAIL-07 | Move the confirmed message to the designated Outlook folder | 2026-10-12, operator decision ([ADR-0069](adr/0069-one-flat-mail-category.md)) |
 | MAIL-23 | Map the detailed taxonomy to operational queues and designated Outlook folders | 2026-10-12, operator decision ([ADR-0069](adr/0069-one-flat-mail-category.md)) |
 | MAIL-13 | Outlook category by allowlisted identifier | 2026-10-14, operator decision |
+| AI-07 | AI Assessor as a staff-selected Engineer option | 2026-10-15, operator decision |

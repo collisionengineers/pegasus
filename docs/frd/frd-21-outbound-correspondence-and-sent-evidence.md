@@ -75,6 +75,10 @@ viewing, copying or acknowledging a chaser or any other message is not
 evidence of sending. A staff note that says "sent" stays an assertion unless
 the exact external evidence is retained.
 
+A management event is recorded after each report or fee-note send. This is
+`MAIL-17`'s management-event clause, a ruling awaiting delivery (operator
+ruling, 15 October 2026).
+
 **Tidying the answered instruction.** A report send that replied to a retained
 instruction is due for one move once its Sent item is confirmed. The Worker
 moves that instruction to the Deleted Items folder of the mailbox it sits in,

@@ -195,10 +195,12 @@ four active types and there is no generic Case type.
 
 **What a Case owns.** Its identity, Principal, reference and type. Its
 accepted source links. Its snapshotted parties and addresses. Its vehicle
-identity. Its work state and due work. Its documents, correspondence,
-findings, decisions, action history and closure history. Its assigned
-Engineer and Sign-off Engineer. Its one Case Notes history. Its storage
-location and inspect-at choice.
+identity. Its typed Principal, claimant, claim, vehicle, accident, contact,
+instruction and inspection data (operator ruling, 15 October 2026). Its work
+state and due work. Its documents, correspondence, findings, decisions,
+action history and closure history. Its assigned Engineer and Sign-off
+Engineer. Its one Case Notes history. Its storage location and inspect-at
+choice.
 
 **The Inspection and the Audit.** The working values of a Case (Case data,
 assessment, damage, estimates, valuations, decisions and report wording)
