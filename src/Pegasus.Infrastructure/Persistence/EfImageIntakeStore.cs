@@ -908,7 +908,7 @@ public sealed class EfImageIntakeStore(
             context, cancellationToken);
         if (rows.Count == 0)
         {
-            // The sweep runs every few seconds and usually nothing is waiting:
+            // The sweep runs every minute and usually nothing is waiting:
             // that is one read, with no Case, lease, archive or association read.
             return [];
         }

@@ -764,8 +764,7 @@ compilation proves syntax and type consistency only.
 Refresh read-only Azure inventory immediately before a cloud decision; read-only
 inventory does not require a new per-target grant. External writes require
 authorization for the actual operation and targets. The current monitoring state and deployed end state
-are recorded in [operations](operations.md) and
-[operations § Production environment](operations.md);
+are recorded in [operations](operations.md);
 dated names are not current identity proof.
 
 ### Runtime diagnostics
@@ -1023,8 +1022,9 @@ are Debug lines.
 ## Recovery
 
 Current recovery state is recorded in
-[operations § Recovery](operations.md). The procedures below are the
-accepted method for a future exercise, not evidence that one has run.
+[operations](operations.md#retained-evidence-and-recovery-basis). The
+procedures below are the accepted method for a future exercise, not evidence
+that one has run.
 
 ### Local recovery
 
@@ -1112,8 +1112,8 @@ its exact-target, Worker maintenance and reference-preservation constraints.
 ## Point-in-time restore commands
 
 
-These commands implement contract steps 2–7 above for the production
-database `pegasus` on server `pegasus-prod-sql-252ow37gij`
+These commands implement recovery exercise steps 2–7 above for the
+production database `pegasus` on server `pegasus-prod-sql-252ow37gij`
 (`rg-pegasus-prod`, subscription `e6076573-23a5-46a8-acef-7e22d264e5db`). The
 server is Entra-only (`azureAdOnlyAuthentication: true`); every step below
 authenticates with the caller's own `az` identity token, matching
@@ -1160,20 +1160,21 @@ Invoke-Sqlcmd -ServerInstance "tcp:pegasus-prod-sql-252ow37gij.database.windows.
 ```
 
 - `__EFMigrationsHistory` head must match the migration identity recorded for
-  the deployed application package at the restore point (contract step 2).
+  the deployed application package at the restore point (recovery exercise
+  step 2).
 - Row counts on `Cases` (and any other representative tables named by the
   exercise) must be consistent with the source database's activity up to the
   restore point, within the RPO's expected data-loss window.
 - Point the deployed application's connection string at the restored database
   in a disposable/isolated configuration only, and run the named real-caller
-  smoke journey (contract step 6) — never point production traffic at the
-  restore target.
+  smoke journey (recovery exercise step 6) — never point production traffic
+  at the restore target.
 
 **4. Record and retain.** Capture wall-clock time from restore command start
 to `status: Online`, the restored database's row counts/`__EFMigrationsHistory`
-head, and any data-loss window versus the requested restore time (contract
-step 7). Retain the restore target until diagnosis is complete (contract step
-8); do not delete it as part of the same exercise.
+head, and any data-loss window versus the requested restore time (recovery
+exercise step 7). Retain the restore target until diagnosis is complete
+(recovery exercise step 8); do not delete it as part of the same exercise.
 
 **5. Reclaim.** Dropping `pegasus-restore-drill-<date>` is itself an Azure
 write requiring the same exact-target approval as the restore. It is not

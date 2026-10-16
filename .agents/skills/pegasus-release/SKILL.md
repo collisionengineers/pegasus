@@ -42,10 +42,11 @@ affected operation.
 
 The Web plan and Web App sit in the platform region unless
 `PEGASUS_WEB_LOCATION` places them elsewhere (section 8). Every other resource
-stays in the platform region. Until the first App Service release completes,
-the retired Container App `pegasus-prod-web-252ow37gij` in the Container Apps
-environment and the registry `pegasusprodacr252ow37gij` still exist; the
-[cutover section](#12-one-time-cutover-from-the-container-app) owns them.
+stays in the platform region. Until the first App Service release (Release 50,
+[record](../../../docs/operations.md#release-50--14-september-2026-historical-app-service-cutover))
+completed, the retired Container App `pegasus-prod-web-252ow37gij` in the
+Container Apps environment and the registry `pegasusprodacr252ow37gij` existed;
+the [cutover section](#12-one-time-cutover-from-the-container-app) owned them.
 
 Read-only GitHub and Azure checks need no approval. A `dev` to `main` update
 needs fresh `MERGE AUTH GRANTED` immediately before the push. Every Azure or
@@ -77,8 +78,8 @@ Inspect `origin/main..origin/dev` before doing anything else.
 - **Full release:** any deployable application, infrastructure, migration,
   dependency, or runtime-configuration change. Follow the one applicable route
   selected in section 6.
-- **First App Service release:** a full release that also executes
-  [section 12](#12-one-time-cutover-from-the-container-app) once.
+- **First App Service release:** Release 50, a full release that also
+  executed [section 12](#12-one-time-cutover-from-the-container-app) once.
 - **Rollback or diagnosis:** read
   [references/troubleshooting.md](references/troubleshooting.md) only when the
   normal route fails or rollback is requested.
@@ -115,8 +116,9 @@ az functionapp config appsettings list --subscription $subscriptionId `
   --query "[?contains(name,'Schedule') || starts_with(name,'AzureWebJobs.')].{name:name,value:value}" --output json
 ```
 
-Before the first App Service release the Web App does not exist and
-`az webapp show` fails; read the Container App instead as section 12 describes.
+Before the first App Service release (Release 50) the Web App did not exist and
+`az webapp show` failed; the Container App was read instead, as section 12
+describes.
 
 For a promotion-only change, obtain fresh `MERGE AUTH GRANTED`, perform section
 3, verify both remote refs, and stop without building or writing Azure state.
@@ -131,9 +133,9 @@ concrete approved short-outage window; after actual release it must be outside
 typical usage, but this procedure does not invent standing hours. Approval later
 binds that recorded route, exact manifest, exact targets and, for destructive
 containment, the exact source SHA the old serving Web workload reports at
-`/diagnostics/version` immediately before containment. For a first App Service
-destructive cutover, that workload is the Container App and approval also names
-all of its active revisions.
+`/diagnostics/version` immediately before containment. For the first App
+Service destructive cutover (Release 50), that workload was the Container App
+and approval also named all of its active revisions.
 
 ## 3. Promote the reviewed exact SHA
 
@@ -291,9 +293,9 @@ and runtime grants finish before provisioning Web or deploying Worker.
 Choose exactly one route. An unchanged identity, or an additive identity after
 that recipe succeeds, executes section 8 and then section 11. A destructive
 identity with an existing Web App executes section 7, the migration recipe,
-section 9, section 10, and then section 11. A first App Service destructive
-cutover executes section 12.3's dedicated route instead. Do not execute the
-other route's deployment steps.
+section 9, section 10, and then section 11. The first App Service destructive
+cutover (Release 50) executed section 12.3's dedicated route instead. Do not
+execute the other route's deployment steps.
 
 For a destructive migration, obtain approval for a short Web and Worker outage,
 the exact manifest and exact targets. After actual release, the approved window
@@ -306,9 +308,9 @@ strategy, or inventory drift stops the operation.
 For a destructive route with an existing Web App, before any write re-read the
 exact target inventory, require the Web App `Running` on `DOTNETCORE|10.0`, and
 bind the source SHA it reports to the exact `$approvedOldWebSourceSha` named in
-the approval. The first App Service destructive cutover has no Web App to read:
-it must not run this App Service precondition or section 7's Web App containment
-block, and instead follows section 12.3.
+the approval. The first App Service destructive cutover had no Web App to read:
+it did not run this App Service precondition or section 7's Web App containment
+block, and instead followed section 12.3.
 
 The destructive route has one bounded staging exception: while the old schema is
 still intact, install the approved **new** Worker package with every Worker
@@ -640,12 +642,14 @@ and any source-structure change is reflected in current-architecture.
 
 ## 12. One-time cutover from the Container App
 
-The first App Service release replaces the Container App with the Web App
-under the same public-origin dependencies. Execute this section once, inside
-that release, with the normal route of section 8 (or the destructive route
-when the candidate also carries a destructive migration). Every write below
-needs explicit operator approval naming the exact target and operation; the
-list is the approval request, not the grant.
+The first App Service release, Release 50
+([record](../../../docs/operations.md#release-50--14-september-2026-historical-app-service-cutover)),
+replaced the Container App with the Web App under the same public-origin
+dependencies. This section was executed once, inside that release, with the
+normal route of section 8 (or the destructive route when the candidate also
+carried a destructive migration). Every write below needed explicit operator
+approval naming the exact target and operation; the list was the approval
+request, not the grant.
 
 ### 12.1 Pre-flight: App Service quota
 
