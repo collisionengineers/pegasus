@@ -183,7 +183,6 @@ operator sees, not on how the code is named.
 | Domain term | Interface term |
 | --- | --- |
 | Intake receipt | Received file (an Intake log row) |
-| Intake queues | E-mail activity |
 | Image intake | Vehicle images |
 | Image Intake Reference | Image reference |
 | State (case filter) | Case stage |

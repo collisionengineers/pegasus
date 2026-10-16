@@ -381,10 +381,9 @@ Open in Box, over two tabs. **Documents** lists the documents with view and
 download, or the empty state. **Correspondence** is the Case record's
 Correspondence table: the request e-mail and every retained e-mail
 associated with the Triage, each opened in the message dialog. Above it are
-the latest send status (with Reconcile status when it is Unknown), the
-in-flight notice when a send has not finished, and the Send chaser or Reply
-with finding button. Exact response evidence, when there is any to show or
-link, follows the table.
+the latest send status, the in-flight notice when a send has not finished,
+and the Send chaser or Reply with finding button. Exact response evidence,
+when there is any to show or link, follows the table.
 
 **Notes** merges durable events with append-only attributable notes in time
 order. A correction is a new note. There is no note edit and no note delete.

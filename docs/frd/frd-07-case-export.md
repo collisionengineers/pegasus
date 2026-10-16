@@ -26,7 +26,7 @@ are owned by [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md).
 
 **Where it is.** **Export case** is an item in the Case page's Actions menu
 ([FRD-16](frd-16-case-record-workspace.md#actions-menu)). It is shown on
-every standard Case, whatever its state, Closed and Completed included.
+every standard Case, whatever its state, Closed included.
 Any staff member who may do casework may use it. It needs no Sign-off
 Engineer, no readiness item and no Principal setting. A Triage Case answers
 Not found on the export route

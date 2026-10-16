@@ -1,6 +1,6 @@
 # FRD-11: Reports and correspondence
 
-> Owner capabilities: CASE-23, CASE-31, EXT-08, EXT-11, RPT-01 to RPT-07 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: CASE-31, EXT-08, EXT-11, RPT-01 to RPT-07, RPT-09 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -774,7 +774,7 @@ Deployment and live acceptance are separate evidence tiers
 
 ## Links
 
-- Capabilities: `CASE-23`, `CASE-31`, `EXT-08`, `EXT-11`, `RPT-01`–`RPT-07` in
+- Capabilities: `CASE-31`, `EXT-08`, `EXT-11`, `RPT-01`–`RPT-07`, `RPT-09` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-04](frd-04-parties-accounts-and-access.md),
