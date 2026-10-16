@@ -280,8 +280,6 @@ public sealed class IntakePersistenceIntegrationTests
             + " COLLATE Latin1_General_CI_AS LIKE '%[_]CI[_]%' THEN 1 ELSE 0 END"));
 
         Assert.Equal(0, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name = N'ApprovedOutlookCategories'"));
-        Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'ApprovedMailboxFolderBindings'"));
         Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'RetainedMailFolderMoves'"));

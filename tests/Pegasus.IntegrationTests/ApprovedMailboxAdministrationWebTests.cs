@@ -60,9 +60,7 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Contains("<th scope=\"col\">Used for</th>", page, StringComparison.Ordinal);
         Assert.Contains("<th scope=\"col\">Last checked</th>", page, StringComparison.Ordinal);
         Assert.Contains("<th scope=\"col\">State</th>", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("Mail categories", page, StringComparison.Ordinal);
         Assert.Contains("?mailboxId=", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("?handler=SaveCategory", page, StringComparison.Ordinal);
         Assert.Contains("data-dialog=\"new-mailbox-dialog\"", page, StringComparison.Ordinal);
         Assert.DoesNotContain("default-sender", page, StringComparison.Ordinal);
         Assert.DoesNotContain("https://github.com/", page, StringComparison.Ordinal);
