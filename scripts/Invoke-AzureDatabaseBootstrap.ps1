@@ -311,12 +311,12 @@ function Get-MigrationPermissionMatrix {
     # table's permission rows with it, so the matrix expects nothing. The
     # migration is named here because it still carries a GRANT, which
     # Test-AzureDeploymentPlan.ps1 requires this script to account for.
-    # 20260820114412_ApprovedOutlookCategoryCatalogue: Web administrators
-    # maintain the global allowlist; disable replaces deletion. Worker has no caller.
-    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
-        $expected.Add("pegasus_web_runtime_role|G|$permission|ApprovedOutlookCategories")
-    }
-    $expected.Add('pegasus_web_runtime_role|D|DELETE|ApprovedOutlookCategories')
+    # 20260820114412_ApprovedOutlookCategoryCatalogue granted the Web role
+    # SELECT/INSERT/UPDATE on ApprovedOutlookCategories and denied it DELETE;
+    # 20261014220000_DropApprovedOutlookCategories dropped the table with its
+    # permission rows, so the matrix expects nothing. The migration is named
+    # here because it still carries a GRANT, which Test-AzureDeploymentPlan.ps1
+    # requires this script to account for.
     # 20260820144004_RetainedMailFolderMoves granted the Web role
     # SELECT/INSERT/UPDATE on RetainedMailFolderMoves and denied both roles
     # DELETE; 20261012180000_FlatMailCategory dropped the table with its

@@ -12,7 +12,6 @@ public enum StaffAccessRight
     ManageOrganizationsAndPrincipals,
     ManageWorkflowConfiguration,
     ManageApprovedMailboxes,
-    ManageApprovedOutlookCategories,
     ManageAutomationClients,
     ViewOperationalReports,
     PublishReleaseNotes,
@@ -46,7 +45,6 @@ public static class StaffAuthorization
             StaffAccessRight.ManageOrganizationsAndPrincipals or
             StaffAccessRight.ManageWorkflowConfiguration or
             StaffAccessRight.ManageApprovedMailboxes or
-            StaffAccessRight.ManageApprovedOutlookCategories or
             StaffAccessRight.ManageAutomationClients or
             StaffAccessRight.ViewOperationalReports or
             StaffAccessRight.PublishReleaseNotes or

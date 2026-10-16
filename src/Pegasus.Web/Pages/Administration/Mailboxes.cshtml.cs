@@ -17,9 +17,7 @@ public sealed class MailboxesModel(
     IApprovedMailboxSubscriptionStore subscriptionStore,
     IResolveApprovedMailboxIdentity resolveApprovedMailboxIdentity,
     ICheckApprovedMailboxAccess checkApprovedMailboxAccess,
-    TimeProvider timeProvider,
-    ListApprovedOutlookCategories listCategories,
-    UpdateApprovedOutlookCategory updateCategory)
+    TimeProvider timeProvider)
     : AdministrationPageModel
 {
     public IReadOnlyList<ApprovedMailbox> Mailboxes { get; private set; } = [];
@@ -28,27 +26,16 @@ public sealed class MailboxesModel(
 
     public IReadOnlyList<ApprovedMailboxSubscription> Subscriptions { get; private set; } = [];
 
-    public IReadOnlyList<ApprovedOutlookCategory> Categories { get; private set; } = [];
-
     public bool AutomationComposed { get; private set; }
 
     public Guid NewMailboxId { get; private set; }
 
     public string NewMailboxOperationKey { get; private set; } = NewOperationKey();
 
-    public Guid NewCategoryId { get; private set; }
-
-    public string NewCategoryOperationKey { get; private set; } = NewOperationKey();
-
     public bool IsNewMailboxEditorOpen { get; private set; }
-
-    public bool IsNewCategoryEditorOpen { get; private set; }
 
     [BindProperty]
     public MailboxFormInput? MailboxForm { get; set; }
-
-    [BindProperty]
-    public CategoryFormInput? CategoryForm { get; set; }
 
     public async Task<IActionResult> OnGetAsync(
         Guid? mailboxId,
@@ -97,8 +84,8 @@ public sealed class MailboxesModel(
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedMailboxes);
         await LoadMailboxesAsync(actor, cancellationToken);
-        var input = RequireForm(MailboxForm, value => MailboxForm = value);
-        ValidateForm(input, nameof(MailboxForm));
+        var input = RequireMailboxForm();
+        ValidateMailboxForm(input);
         var routeScopes = ParseRouteScopes(input.SelectedRouteScopes);
         if (!Enum.TryParse<ApprovedMailboxState>(
                 input.SelectedState,
@@ -214,67 +201,6 @@ public sealed class MailboxesModel(
         return Page();
     }
 
-    public async Task<IActionResult> OnPostSaveCategoryAsync(
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedOutlookCategories);
-        var input = RequireForm(CategoryForm, value => CategoryForm = value);
-        ValidateForm(input, nameof(CategoryForm));
-        if (!Enum.TryParse<ApprovedOutlookCategoryState>(
-                input.SelectedState,
-                ignoreCase: false,
-                out var state)
-            || !Enum.IsDefined(state))
-        {
-            ModelState.AddModelError(
-                nameof(CategoryFormInput.SelectedState),
-                "Select a supported state.");
-        }
-        if (input.CategoryId == Guid.Empty || !IsOperationKeyValid(input.OperationKey))
-        {
-            ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
-        }
-
-        if (ModelState.IsValid)
-        {
-            try
-            {
-                var saved = await updateCategory.ExecuteAsync(
-                    new(
-                        input.CategoryId,
-                        input.DisplayName,
-                        state,
-                        input.ExpectedVersion,
-                        actor,
-                        input.OperationKey),
-                    cancellationToken);
-                TempData["AdministrationStatus"] =
-                    $"The mail category {saved.DisplayName} was saved.";
-                return RedirectToPage();
-            }
-            catch (ApprovedOutlookCategoryUpdateException exception)
-            {
-                ModelState.AddModelError(string.Empty, CategoryErrorMessage(exception));
-            }
-            catch (ArgumentException)
-            {
-                ModelState.AddModelError(
-                    nameof(CategoryFormInput.DisplayName),
-                    "Enter a supported display name.");
-            }
-        }
-
-        IsNewCategoryEditorOpen = input.ExpectedVersion == 0;
-        await LoadAsync(actor, cancellationToken);
-        PrepareFormState();
-        return Page();
-    }
-
     public string AddressFor(ApprovedMailbox mailbox) =>
         MailboxForm is { ExpectedVersion: > 0 } input && input.MailboxId == mailbox.Id
             ? input.Address
@@ -344,52 +270,19 @@ public sealed class MailboxesModel(
         return Presentation.OperatorLabels.MailSettings.SubscriptionStatus(subscription);
     }
 
-    public string CategoryDisplayNameFor(ApprovedOutlookCategory category) =>
-        CategoryForm is { ExpectedVersion: > 0 } input && input.CategoryId == category.Id
-            ? input.DisplayName
-            : category.DisplayName;
-
-    public int ExpectedCategoryVersionFor(ApprovedOutlookCategory category) =>
-        CategoryForm is { ExpectedVersion: > 0 } input && input.CategoryId == category.Id
-            ? input.ExpectedVersion
-            : category.Version;
-
-    public string CategoryOperationKeyFor(ApprovedOutlookCategory category) =>
-        CategoryForm is { ExpectedVersion: > 0 } input && input.CategoryId == category.Id
-            ? input.OperationKey
-            : NewOperationKey();
-
-    public bool IsCategoryStateSelected(
-        ApprovedOutlookCategory category,
-        ApprovedOutlookCategoryState state) =>
-        CategoryForm is { ExpectedVersion: > 0 } input && input.CategoryId == category.Id
-            ? input.SelectedState == state.ToString()
-            : category.State == state;
-
-    public string NewCategoryDisplayName =>
-        CategoryForm is { ExpectedVersion: 0 } input ? input.DisplayName : string.Empty;
-
-    public bool IsNewCategoryStateSelected(ApprovedOutlookCategoryState state) =>
-        CategoryForm is { ExpectedVersion: 0 } input
-            ? input.SelectedState == state.ToString()
-            : state == ApprovedOutlookCategoryState.Active;
-
-    private TForm RequireForm<TForm>(TForm? form, Action<TForm> assign)
-        where TForm : class, new()
+    private MailboxFormInput RequireMailboxForm()
     {
-        if (form is not null)
+        if (MailboxForm is not null)
         {
-            return form;
+            return MailboxForm;
         }
 
         ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
-        var created = new TForm();
-        assign(created);
-        return created;
+        MailboxForm = new();
+        return MailboxForm;
     }
 
-    private void ValidateForm<TForm>(TForm form, string prefix)
-        where TForm : class
+    private void ValidateMailboxForm(MailboxFormInput form)
     {
         var validationResults = new List<ValidationResult>();
         if (Validator.TryValidateObject(
@@ -406,7 +299,9 @@ public sealed class MailboxesModel(
             var members = result.MemberNames.DefaultIfEmpty(string.Empty);
             foreach (var member in members)
             {
-                var key = string.IsNullOrEmpty(member) ? prefix : $"{prefix}.{member}";
+                var key = string.IsNullOrEmpty(member)
+                    ? nameof(MailboxForm)
+                    : $"{nameof(MailboxForm)}.{member}";
                 ModelState.AddModelError(key, result.ErrorMessage ?? "The value is not valid.");
             }
         }
@@ -468,7 +363,6 @@ public sealed class MailboxesModel(
         await LoadMailboxesAsync(actor, cancellationToken);
         PollStatuses = await pollStatusQueries.ListAsync(cancellationToken);
         Subscriptions = await subscriptionStore.ListAsync(cancellationToken);
-        Categories = await listCategories.ExecuteAsync(actor, cancellationToken);
     }
 
     private void PrepareFormState()
@@ -476,10 +370,6 @@ public sealed class MailboxesModel(
         if (MailboxForm is { } mailboxInput && !IsOperationKeyValid(mailboxInput.OperationKey))
         {
             mailboxInput.OperationKey = NewOperationKey();
-        }
-        if (CategoryForm is { } categoryInput && !IsOperationKeyValid(categoryInput.OperationKey))
-        {
-            categoryInput.OperationKey = NewOperationKey();
         }
 
         NewMailboxId = MailboxForm is { ExpectedVersion: 0 } newMailbox
@@ -489,14 +379,6 @@ public sealed class MailboxesModel(
         NewMailboxOperationKey = MailboxForm is { ExpectedVersion: 0 } newMailboxForm
             && IsOperationKeyValid(newMailboxForm.OperationKey)
             ? newMailboxForm.OperationKey
-            : NewOperationKey();
-        NewCategoryId = CategoryForm is { ExpectedVersion: 0 } newCategory
-            && newCategory.CategoryId != Guid.Empty
-            ? newCategory.CategoryId
-            : Guid.NewGuid();
-        NewCategoryOperationKey = CategoryForm is { ExpectedVersion: 0 } newCategoryForm
-            && IsOperationKeyValid(newCategoryForm.OperationKey)
-            ? newCategoryForm.OperationKey
             : NewOperationKey();
     }
 
@@ -523,20 +405,6 @@ public sealed class MailboxesModel(
             _ => "The approved-mailbox change was not accepted."
         };
 
-    private static string CategoryErrorMessage(
-        ApprovedOutlookCategoryUpdateException exception) => exception.Error switch
-    {
-        ApprovedOutlookCategoryUpdateError.DuplicateDisplayName =>
-            "That display name is already configured.",
-        ApprovedOutlookCategoryUpdateError.VersionConflict =>
-            "The category policy changed. Your change was not applied; reload and review the current row before retrying.",
-        ApprovedOutlookCategoryUpdateError.OperationConflict =>
-            "This form was already used for another change. Review and retry.",
-        ApprovedOutlookCategoryUpdateError.NotFound =>
-            "The category policy no longer exists.",
-        _ => "The category policy was not saved."
-    };
-
     [ValidateNever]
     public sealed class MailboxFormInput
     {
@@ -554,24 +422,5 @@ public sealed class MailboxesModel(
         public int ExpectedVersion { get; set; }
 
         public string OperationKey { get; set; } = string.Empty;
-    }
-
-    [ValidateNever]
-    public sealed class CategoryFormInput
-    {
-        public Guid CategoryId { get; set; }
-
-        [Required, StringLength(255, MinimumLength = 1)]
-        public string DisplayName { get; set; } = string.Empty;
-
-        [Required]
-        public string SelectedState { get; set; } =
-            ApprovedOutlookCategoryState.Active.ToString();
-
-        [Range(0, int.MaxValue)]
-        public int ExpectedVersion { get; set; }
-
-        public string OperationKey { get; set; } = string.Empty;
-
     }
 }

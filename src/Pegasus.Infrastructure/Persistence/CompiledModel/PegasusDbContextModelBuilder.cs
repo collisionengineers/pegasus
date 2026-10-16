@@ -13,7 +13,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
     public partial class PegasusDbContextModel
     {
         private PegasusDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("361af3ae-0791-496b-908a-542f52b32907"), entityTypeCount: 119)
+            : base(skipDetectChanges: false, modelId: new Guid("361af3ae-0791-496b-908a-542f52b32907"), entityTypeCount: 118)
         {
         }
 
@@ -36,7 +36,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             var approvedInboxPollStateEntity = ApprovedInboxPollStateEntityEntityType.Create(this);
             var approvedMailboxEntity = ApprovedMailboxEntityEntityType.Create(this);
             var approvedMailboxSubscriptionEntity = ApprovedMailboxSubscriptionEntityEntityType.Create(this);
-            var approvedOutlookCategoryEntity = ApprovedOutlookCategoryEntityEntityType.Create(this);
             var approvedSentPollOutcomeEntity = ApprovedSentPollOutcomeEntityEntityType.Create(this);
             var approvedSentPollStateEntity = ApprovedSentPollStateEntityEntityType.Create(this);
             var caseAssessmentFieldEntity = CaseAssessmentFieldEntityEntityType.Create(this);
@@ -290,7 +289,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             ApprovedInboxPollStateEntityEntityType.CreateAnnotations(approvedInboxPollStateEntity);
             ApprovedMailboxEntityEntityType.CreateAnnotations(approvedMailboxEntity);
             ApprovedMailboxSubscriptionEntityEntityType.CreateAnnotations(approvedMailboxSubscriptionEntity);
-            ApprovedOutlookCategoryEntityEntityType.CreateAnnotations(approvedOutlookCategoryEntity);
             ApprovedSentPollOutcomeEntityEntityType.CreateAnnotations(approvedSentPollOutcomeEntity);
             ApprovedSentPollStateEntityEntityType.CreateAnnotations(approvedSentPollStateEntity);
             CaseAssessmentFieldEntityEntityType.CreateAnnotations(caseAssessmentFieldEntity);
