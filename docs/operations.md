@@ -4,6 +4,38 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 108 - 16 October 2026 (deployment live)
+
+Release 108 deployed [PR 1357](https://github.com/collisionengineers/pegasus/pull/1357)
+(the combine of wave 1 of the release-readiness programme: [PR 1338](https://github.com/collisionengineers/pegasus/pull/1338)
+daily dependency advisories, [PR 1339](https://github.com/collisionengineers/pegasus/pull/1339),
+[PR 1343](https://github.com/collisionengineers/pegasus/pull/1343) and
+[PR 1345](https://github.com/collisionengineers/pegasus/pull/1345) docs following the code,
+[PR 1340](https://github.com/collisionengineers/pegasus/pull/1340) Hold, Return to Review and Close
+guards, [PR 1341](https://github.com/collisionengineers/pegasus/pull/1341) no rail counts,
+[PR 1342](https://github.com/collisionengineers/pegasus/pull/1342) the anchor check,
+[PR 1344](https://github.com/collisionengineers/pegasus/pull/1344) open tasks block Archive only,
+[PR 1346](https://github.com/collisionengineers/pegasus/pull/1346) every closed Case reads Closed
+with a required reason, [PR 1347](https://github.com/collisionengineers/pegasus/pull/1347) the
+Review gate in FRD-23 and [PR 1348](https://github.com/collisionengineers/pegasus/pull/1348) the
+capability clauses of #1212) with [PR 1358](https://github.com/collisionengineers/pegasus/pull/1358),
+the Release 107 record.
+
+The route was the normal App Service route with the migration identity unchanged. Web and Worker
+are Running on the approved release and full production smoke passed first time.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `947c03ea5c3fd915fe42920b6e70347646de77f2`, the merge of PR 1358 into `dev`; `main` and `dev` both read it back. Manifest SHA-256 `EC125EB99E9D62C69580DF74A2D49A91A6AA859573DC83907D714C8B07B657DA` (schema 3, clean, `win-x64`/`efbundle.exe`); `web.zip` `6485016E7373C28612B852B12E985FB40D61F37B91A69AACDDA07DB5E3FD3C7F`; `worker.zip` `AC0A59ED606703170DE7183ED133D9C64480913FCD019C106F507B73F96952F4`; `classifier.zip` `C70790B934B4DAF419076A98069BE629D9CDBBF84E9887E27D3A70833B3AB83A` (built, not deployed: no classifier Function App exists); `efbundle.exe` `4C5E4899A8BD10E1E0A8BFF79F2EAF13AC219462E40718FBBA4E7994D1D6C924` (not run). Built 22:37-22:50Z in a detached worktree at the release SHA; Local and Artifact plan validations passed. Tools: .NET SDK 10.0.302, Node v24.15.0, npm 11.14.1, az 2.88.0, azd 1.34.1. |
+| Review and promotion | PR 1357's head tree equals the release tree less the PR 1358 record; its checks passed (run 38973650514: unit, six `sql-integration` shards, coverage, invariants, classifier, infrastructure) and its lost-work audit was explained in its body; PR 1358 passed its documentation lane. One promotion from `main` `eff3ad287` at 22:37:05Z, under the operator's authorisation of 16 October for the programme's landings, promotions and deployments. |
+| Schema and grants | Unchanged: head `20261014220000_DropApprovedOutlookCategories` (222 applied), as Release 107. No bundle, grant or bootstrap run. |
+| Deployment | Serving Web before the release read `eff3ad287` (Release 107). PreDeploy 22:51:22Z; PreProvision passed (B1 quota in `uksouth` 3); provision 22:54:13Z found no changes; `web.zip` deployed with `--clean true --restart true` 22:58:15Z, exact release read back 22:58:42Z; `worker.zip` deployed 23:00:21Z. |
+| Production smoke | Passed 23:01:12Z: Worker activation `approved-live-worker`; Web Running on `DOTNETCORE\|10.0`; deployment record `5bd855e0-a103-4772-b699-0016d0de7d1e` (OneDeploy, 22:54:40Z); active package `20261016225422.zip` SHA-256 equals the approved `web.zip`; intake liveness passed (last poll 23:00:00Z; Graph subscription expires 2026-10-18 17:10:00Z); all five Disabled settings `false`. |
+| Query Store | State `READ_WRITE`. Before snapshot (24 h to 22:50Z, 84 statements) at ignored `artifacts/performance/query-store-release-108-before-20261016T2250Z.csv`, taken because PR 1341 removes the rail count reads and PR 1344 changes the Close, Unlink and replacement stores. The after snapshot is owed after a day of use, with Release 107's. |
+| Still owed | Live proof signed in: the Actions menu on a Report sent Case offers no Place on Hold and no Close; Close, Correct principal and Unlink on a Case holding an open task proceed and the replacement cancels the original's open tasks; every closed Case reads Closed and the Close dialog requires a reason; the shell rail shows no counts. One `gh workflow run dependency-advisories.yml` on `main` and its run read. Release 107's owed items stand. |
+| PR states | PRs 1338 to 1348, 1357 and 1358 read Merged with their heads in `main` and `dev`. #1212 was closed at landing; its follow-ups #1349 to #1356 stay open. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-108-947c03ea`; the stage driver, its log and the build log at `artifacts/releases/release-108-driver`. |
+
 ## Release 107 - 16 October 2026 (deployment live)
 
 Release 107 deployed [PR 1337](https://github.com/collisionengineers/pegasus/pull/1337)
