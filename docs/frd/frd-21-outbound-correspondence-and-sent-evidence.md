@@ -200,7 +200,10 @@ A reply opened on an AI draft (**Reply with AI draft**,
 opens with the draft as its Message and one line above it, marked AI, saying
 when and by which client the draft was written and that staff edit it before
 sending; the send carries the job, and a send the provider accepts completes
-it. A job that is no longer that message's Draft ready reply prefills nothing.
+it. A send that has gone but leaves the job as it was shows "The AI draft job
+was not completed by this send: {reason}." beside its send status (operator,
+16 October 2026). A job that is no longer that message's Draft ready reply
+prefills nothing.
 The one Case / PO field searches as staff type, by Case / PO,
 registration, claimant, claim number or Principal; choosing a Case from its
 list is the server action that fixes the Case and its version for the send,

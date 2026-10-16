@@ -285,22 +285,30 @@ public static class AiJobPolicy
     }
 
     /// <summary>
+    /// Whether <paramref name="job"/> is the Query response job answering
+    /// <paramref name="messageId"/> on <paramref name="caseId"/>, whatever its
+    /// state.
+    /// </summary>
+    public static bool IsQueryResponseFor(AiJobRecord job, Guid messageId, Guid caseId)
+    {
+        ArgumentNullException.ThrowIfNull(job);
+        return job.Kind == AiJobKind.QueryResponse
+            && job.SubjectKind == AiJobSubjectKind.Case
+            && job.SubjectId == caseId
+            && QueryResponseMessageId(job) == messageId;
+    }
+
+    /// <summary>
     /// Whether <paramref name="job"/> is, as of <paramref name="now"/>, a
     /// Draft ready reply to <paramref name="messageId"/> on
     /// <paramref name="caseId"/> with text to offer the composer (FRD-27: a
     /// drafted reply is text offered to the composer). A job with no text, on
     /// another Case or for another message prefills nothing.
     /// </summary>
-    public static bool IsDraftReplyFor(AiJobRecord job, Guid messageId, Guid caseId, DateTimeOffset now)
-    {
-        ArgumentNullException.ThrowIfNull(job);
-        return EffectiveState(job, now) == AiJobState.DraftReady
-            && job.Kind == AiJobKind.QueryResponse
-            && job.SubjectKind == AiJobSubjectKind.Case
-            && job.SubjectId == caseId
-            && !string.IsNullOrWhiteSpace(job.ResultText)
-            && QueryResponseMessageId(job) == messageId;
-    }
+    public static bool IsDraftReplyFor(AiJobRecord job, Guid messageId, Guid caseId, DateTimeOffset now) =>
+        IsQueryResponseFor(job, messageId, caseId)
+        && EffectiveState(job, now) == AiJobState.DraftReady
+        && !string.IsNullOrWhiteSpace(job.ResultText);
 
     /// <summary>The instruction an Estimate job carries when its caller gives no direction.</summary>
     public static string DefaultEstimateInstruction(string caseReference) =>

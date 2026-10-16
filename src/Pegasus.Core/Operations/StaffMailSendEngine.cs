@@ -202,9 +202,9 @@ public sealed class StaffMailSend(
     IStaffMailTransport transport,
     TimeProvider timeProvider,
     IStaffMailExecutionLock executionLock,
-    IAutomationIngressStatusQueries? automationIngress = null,
-    IAiJobStore? aiJobs = null,
-    IConfirmAiJob? confirmAiJob = null) : IStaffMailSend
+    IAiJobStore aiJobs,
+    IConfirmAiJob confirmAiJob,
+    IAutomationIngressStatusQueries? automationIngress = null) : IStaffMailSend
 {
     public async Task<StaffMailOperation> SendAsync(
         StaffMailSendCommand command, CancellationToken cancellationToken)
@@ -215,56 +215,44 @@ public sealed class StaffMailSend(
             throw new InvalidOperationException("Case-report mail must pass the frozen report-readiness boundary.");
         }
         var operation = await SendValidatedAsync(command, _ => Task.CompletedTask, cancellationToken);
-        await CompleteDraftReplyJobAsync(command, operation, cancellationToken);
-        return operation;
+        return await CompleteDraftReplyJobAsync(command, operation, cancellationToken);
     }
 
     /// <summary>
     /// A reply composed on an AI draft completes its Query response job once
     /// the provider has the send (FRD-27): the staff act that consumes the
-    /// draft is the send, as **Use repair spec** is for an Estimate job. Only
-    /// a Submitted or Sent operation counts; a refused, cancelled or Unknown
-    /// send leaves the job Draft ready. The job must still be the Draft ready
-    /// reply to this message on this Case; anything else is left as it is,
-    /// and a confirmation the ledger refuses (the job changed under us) is an
-    /// outcome, not a fault: the mail has gone, and the job stays on the Work
-    /// Centre for Complete job by hand.
+    /// draft is the send, as **Use repair spec** is for an Estimate job, and
+    /// both make the one confirm (<see cref="AiJobConsumption"/>). Only a
+    /// Submitted or Sent operation counts; a refused, cancelled or Unknown
+    /// send leaves the job Draft ready, and a job that is not this message's
+    /// Query response on this Case is not the send's to complete. The mail has
+    /// gone whatever the ledger answers, so a refused confirm is carried on
+    /// the returned operation (operator, 16 October 2026); any other failure
+    /// propagates.
     /// </summary>
-    private async Task CompleteDraftReplyJobAsync(
+    private async Task<StaffMailOperation> CompleteDraftReplyJobAsync(
         StaffMailSendCommand command,
         StaffMailOperation operation,
         CancellationToken cancellationToken)
     {
         if (command.AiJobId is not { } jobId
-            || aiJobs is null
-            || confirmAiJob is null
             || operation.State is not (StaffMailState.Submitted or StaffMailState.Sent)
             || command.OriginalMessage is not { } original)
         {
-            return;
+            return operation;
         }
         var job = await aiJobs.GetAsync(jobId, cancellationToken);
         if (job is null
-            || !AiJobPolicy.IsDraftReplyFor(job, original.RetainedMessageId, command.ContextId, timeProvider.GetUtcNow()))
+            || !AiJobPolicy.IsQueryResponseFor(job, original.RetainedMessageId, command.ContextId))
         {
-            return;
+            return operation;
         }
-        // Derived from the send's operation key so a replayed send replays the
-        // confirmation too; kept inside the ledger's own 100-character key limit.
-        var jobOperationKey = string.Concat(
-            command.OperationKey.AsSpan(0, Math.Min(command.OperationKey.Length, 96)),
-            ":job");
-        try
+        return operation with
         {
-            await confirmAiJob.ExecuteAsync(
-                new ConfirmAiJobCommand(job.JobId, job.Version, command.Actor, jobOperationKey),
-                cancellationToken);
-        }
-        catch (InvalidOperationException)
-        {
-            // The job moved on (cancelled, completed by hand, version changed)
-            // between the read above and the confirm: leave it as the ledger has it.
-        }
+            AiJobRefusal = await AiJobConsumption.ConfirmAsync(
+                aiJobs, confirmAiJob, job, command.Actor, command.OperationKey,
+                timeProvider.GetUtcNow(), cancellationToken)
+        };
     }
 
     internal async Task<StaffMailOperation> SendValidatedAsync(

@@ -1110,15 +1110,17 @@ public sealed class StaffCorrespondenceWebTests
     /// <summary>
     /// A composer opened on an AI draft (FRD-27, FRD-21) holds the draft as
     /// its Message, says so above it with the AI word, starts Also resolve
-    /// query ticked, and carries the job to the send command. A job that is
-    /// not this message's Draft ready reply prefills nothing and is forgotten.
+    /// query ticked, and carries the job to the send command; a send that
+    /// leaves the job as it was says why beside its send status (operator,
+    /// 16 October 2026). A job that is not this message's Draft ready reply
+    /// prefills nothing and is forgotten.
     /// </summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public async Task TheComposerOpenedOnAnAiDraftPrefillsTheMessageAndCarriesTheJobToTheSend(bool forThisMessage)
     {
-        var send = new RecordingStaffMailSend();
+        var send = new RecordingStaffMailSend { NextAiJobRefusal = AiJobConfirmRefusal.Cancelled };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
         var caseId = await SeedSupportedCaseAsync(
@@ -1156,6 +1158,11 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(caseId, command.ContextId);
         Assert.True(command.ResolvesCaseQueries);
         Assert.Equal(forThisMessage ? job.JobId : (Guid?)null, command.AiJobId);
+
+        using var status = await client.GetAsync(response.Headers.Location);
+        var statusHtml = await status.Content.ReadAsStringAsync();
+        Assert.Equal(forThisMessage, statusHtml.Contains(
+            OperatorLabels.QueryResponseJobs.NotCompleted(AiJobConfirmRefusal.Cancelled), StringComparison.Ordinal));
     }
 
     /// <summary>A Draft ready Query response job for the message on the Case, as the Automation Actor writes one.</summary>
@@ -1600,6 +1607,12 @@ public sealed class StaffCorrespondenceWebTests
         public DateTimeOffset NextPreparedAtUtc { get; set; } = NowUtc;
 
         /// <summary>
+        /// The refused AI-job confirm a send that names a job returns; like the
+        /// engine's, it is on the returned operation only, never stored.
+        /// </summary>
+        public AiJobConfirmRefusal? NextAiJobRefusal { get; set; }
+
+        /// <summary>
         /// When set, <see cref="SendAsync"/> throws this immediately, before
         /// recording any command — simulating an offline transport
         /// (<c>UnavailableStaffMailSend</c>) or a composition invariant
@@ -1643,7 +1656,9 @@ public sealed class StaffCorrespondenceWebTests
                     command.OriginalMessage?.RetainedMessageId);
                 byOperationKey[command.OperationKey] = operation;
                 byOperationId[operation.Id] = operation;
-                return Task.FromResult(operation);
+                return Task.FromResult(command.AiJobId is null
+                    ? operation
+                    : operation with { AiJobRefusal = NextAiJobRefusal });
             }
         }
 

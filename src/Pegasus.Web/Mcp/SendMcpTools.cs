@@ -12,6 +12,7 @@ using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Pages.Cases;
 using Pegasus.Web.Pages.Mail;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Mcp;
 
@@ -37,7 +38,8 @@ internal sealed record MailSendToolResult(
     [property: Description("The Case the mail is filed against (the Triage Case for triage_reply).")] Guid CaseId,
     [property: Description("The retained message answered or forwarded; null for a chaser sent as a new message.")] Guid? MessageId,
     string OperationKey,
-    string CorrelationId);
+    string CorrelationId,
+    string? AiJobNotCompleted = null);
 
 /// <summary>
 /// Outward sending for the Automation Actor (ADR-0064 phase 4, operator
@@ -291,7 +293,10 @@ internal sealed class SendMcpTools(
                     caseId,
                     message,
                     key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    AutomationMcpAuditor.CorrelationId(context, key),
+                    operation.AiJobRefusal is { } refusal
+                        ? OperatorLabels.QueryResponseJobs.NotCompleted(refusal)
+                        : null);
             }),
             cancellationToken);
     }

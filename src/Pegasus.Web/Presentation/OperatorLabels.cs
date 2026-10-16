@@ -2322,6 +2322,29 @@ public static class OperatorLabels
             string.IsNullOrWhiteSpace(client)
                 ? $"Draft written {OfficeTime(writtenAtUtc)}. Edit before sending."
                 : $"Draft written {OfficeTime(writtenAtUtc)} by {client}. Edit before sending.";
+
+        /// <summary>
+        /// A send that has gone but left the AI draft job it was composed on as
+        /// it was (operator, 16 October 2026): the line beside the composer's
+        /// send status and in <c>pegasus_mail_send</c>'s result, then one reason.
+        /// </summary>
+        public const string NotCompletedBySend = "The AI draft job was not completed by this send";
+        public const string NotCompletedCancelled = "it was cancelled";
+        public const string NotCompletedAlreadyCompleted = "it was already completed";
+        public const string NotCompletedChanged = "it changed while the reply was being sent";
+
+        /// <summary>"The AI draft job was not completed by this send: {reason}."</summary>
+        public static string NotCompleted(Pegasus.Core.AiWork.AiJobConfirmRefusal refusal)
+        {
+            var reason = refusal switch
+            {
+                Pegasus.Core.AiWork.AiJobConfirmRefusal.Cancelled => NotCompletedCancelled,
+                Pegasus.Core.AiWork.AiJobConfirmRefusal.AlreadyCompleted => NotCompletedAlreadyCompleted,
+                Pegasus.Core.AiWork.AiJobConfirmRefusal.Changed => NotCompletedChanged,
+                _ => throw new ArgumentOutOfRangeException(nameof(refusal))
+            };
+            return $"{NotCompletedBySend}: {reason}.";
+        }
     }
 
     /// <summary>

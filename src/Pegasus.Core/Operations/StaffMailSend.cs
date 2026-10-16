@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
 
@@ -115,7 +116,16 @@ public sealed record StaffMailOperation(
     StaffMailPurpose Purpose, Guid ContextId, long ExpectedContextVersion,
     Guid? OriginalRetainedMessageId,
     string? ReconciliationContinuation = null,
-    string? DraftImmutableId = null);
+    string? DraftImmutableId = null)
+{
+    /// <summary>
+    /// Why the AI draft job a reply was composed on was left as it was once
+    /// the mail had gone (FRD-27; operator, 16 October 2026). Set only on the
+    /// operation a send returns, never stored; null when the send completed
+    /// the job or named none.
+    /// </summary>
+    public AiJobConfirmRefusal? AiJobRefusal { get; init; }
+}
 
 public interface IStaffMailSend
 {

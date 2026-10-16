@@ -236,6 +236,13 @@ public sealed class MessageModel(
     [TempData]
     public string? CorrespondenceNotice { get; set; }
 
+    /// <summary>
+    /// The line a reply composed on an AI draft returns when its send left the
+    /// job as it was, kept across the redirect to its send status.
+    /// </summary>
+    [TempData]
+    public string? AiJobNotCompletedNotice { get; set; }
+
     public RetainedMailDetail Detail { get; private set; } = null!;
 
     public IReadOnlyList<AiJobRecord> AiJobs { get; private set; } = [];
@@ -1290,6 +1297,8 @@ public sealed class MessageModel(
                 CorrespondenceNotice = "Correspondence sent.";
             else if (operation.State == StaffMailState.Failed)
                 StaffMailSendLog.Refused(logger, operation.Id, CorrespondenceMailbox!.Id, operation.FailureCode);
+            if (operation.AiJobRefusal is { } refusal)
+                AiJobNotCompletedNotice = OperatorLabels.QueryResponseJobs.NotCompleted(refusal);
         }
         catch (StaffAuthorizationException)
         {

@@ -1277,8 +1277,9 @@ public sealed class DiscardEstimate(IRepairSpecificationStore store) : IDiscardE
 /// <summary>
 /// Use repair spec. It also consumes an Estimate job's result: once the AI
 /// draft is Current, the Draft-ready job it cites is confirmed Completed
-/// (FRD-27 § AI Job List). A job in any other state is left as it is — a
-/// staff member's choice of estimate never depends on the ledger.
+/// through the one confirm (<see cref="AiJobConsumption"/>, FRD-27 § AI Job
+/// List). A job the confirm leaves as it was stays so — a staff member's
+/// choice of estimate never depends on the ledger.
 /// </summary>
 public sealed class SetCurrentEstimate(
     IRepairSpecificationStore store,
@@ -1298,19 +1299,11 @@ public sealed class SetCurrentEstimate(
             return current;
         }
         var job = await jobs.GetAsync(jobId, cancellationToken);
-        if (job is not null
-            && AiJobPolicy.EffectiveState(job.State, job.ExpiresAtUtc, job.LeaseExpiresAtUtc, timeProvider.GetUtcNow())
-                == AiJobState.DraftReady)
+        if (job is not null)
         {
-            // Derived from the case operation key so a replayed set-current
-            // replays the confirmation too; kept inside the ledger's own
-            // 100-character key limit.
-            var jobOperationKey = string.Concat(
-                request.OperationKey.AsSpan(0, Math.Min(request.OperationKey.Length, 96)),
-                ":job");
-            await confirmJob.ExecuteAsync(
-                new(job.JobId, job.Version, request.Actor, jobOperationKey),
-                cancellationToken);
+            _ = await AiJobConsumption.ConfirmAsync(
+                jobs, confirmJob, job, request.Actor, request.OperationKey,
+                timeProvider.GetUtcNow(), cancellationToken);
         }
         return current;
     }

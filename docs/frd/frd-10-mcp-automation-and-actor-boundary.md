@@ -273,7 +273,9 @@ submission is not part of it.
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)),
   and `aiJobId`, the Draft ready Query response job the reply was composed
   on: a send the provider accepts completes it, as the staff composer's Send
-  does ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)).
+  does ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)),
+  and a send that leaves it as it was returns the composer's line in
+  `aiJobNotCompleted`.
   Every mode files the mail against a Case and checks the version the
   caller observed.
   Attachments are Case files by document version, or the origin item's files

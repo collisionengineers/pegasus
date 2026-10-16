@@ -257,6 +257,14 @@
                     }
                 </div>
             </section>
+            if (Model.AiJobNotCompletedNotice is { } aiJobNotice)
+            {
+                @* The send has gone but left its AI draft job as it was (FRD-27). *@
+                <div class="notice notice--warning section-gap" role="status" data-ai-job-not-completed>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                    <span>@aiJobNotice</span>
+                </div>
+            }
         }
 
         @if (Model.CanCorrespond && Model.CorrespondenceMode is { } correspondenceMode)

@@ -4,11 +4,13 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Presentation;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
 namespace Pegasus.IntegrationTests;
@@ -360,6 +362,47 @@ public sealed class AutomationSendIngressTests
     }
 
     /// <summary>
+    /// aiJobId is the Draft ready Query response job a reply was composed on:
+    /// the reply carries it to the staff send command, and a send that leaves
+    /// the job as it was says why in aiJobNotCompleted, in the composer's
+    /// words (operator, 16 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task AReplyCarriesItsAiJobAndSaysWhenTheSendLeftItAsItWas()
+    {
+        const string graphId = "mcp-reply-ai-job";
+        const string address = "ai-replies@collisionengineers.example";
+        var mail = new RecordingMailSend { NextAiJobRefusal = AiJobConfirmRefusal.AlreadyCompleted };
+        var mailbox = OutgoingMailbox() with { Id = TestMailboxId.From(graphId), Address = address };
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithMailSend(factory, mail, mailbox);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        var messageId = await SeedRetainedMessageAsync(mcpFactory, graphId, address);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, SendScopes);
+        var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
+        var jobId = Guid.NewGuid();
+
+        using var sent = await PostMcpAsync(client, token, ToolCallPayload(42, "pegasus_mail_send", new
+        {
+            mode = "reply",
+            caseId,
+            expectedVersion = version,
+            messageId,
+            subject = "Re: The labour rate",
+            body = "The labour rate is as reported.",
+            operationKey = "mcp:mail-reply-ai-job",
+            aiJobId = jobId,
+        }));
+        var result = await ReadStructuredContentAsync(sent);
+
+        Assert.Equal(
+            OperatorLabels.QueryResponseJobs.NotCompleted(AiJobConfirmRefusal.AlreadyCompleted),
+            result.GetProperty("aiJobNotCompleted").GetString());
+        Assert.Equal(jobId, Assert.Single(mail.Commands).AiJobId);
+    }
+
+    /// <summary>
     /// A Case that arrived by an approved mailbox: mode chaser is a reply to
     /// its instruction e-mail from the mailbox it arrived in, and fromMailbox
     /// is refused rather than ignored.
@@ -568,13 +611,19 @@ public sealed class AutomationSendIngressTests
             }
         }
 
+        /// <summary>The refused AI-job confirm a send that names a job returns.</summary>
+        public AiJobConfirmRefusal? NextAiJobRefusal { get; init; }
+
         public Task<StaffMailOperation> SendAsync(StaffMailSendCommand command, CancellationToken cancellationToken)
         {
             lock (commands)
             {
                 commands.Add(command);
             }
-            return Task.FromResult(Submitted(command.Purpose, command.ContextId, command.ApprovedMailboxId));
+            return Task.FromResult(Submitted(command.Purpose, command.ContextId, command.ApprovedMailboxId) with
+            {
+                AiJobRefusal = command.AiJobId is null ? null : NextAiJobRefusal
+            });
         }
 
         public Task<StaffMailOperation?> GetAsync(ActionActor actor, Guid operationId, CancellationToken cancellationToken) =>

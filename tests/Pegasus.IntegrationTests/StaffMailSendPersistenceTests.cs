@@ -432,9 +432,9 @@ public sealed class StaffMailSendPersistenceTests
     /// <summary>
     /// A reply composed on an AI draft completes its Query response job once
     /// the provider accepts the send (FRD-27), under a key derived from the
-    /// send's so a replayed send confirms nothing twice. A refused send leaves
-    /// the job Draft ready, and a job that is not this message's draft is left
-    /// as it is.
+    /// send's so a replayed send confirms nothing twice and reports no
+    /// refusal. A refused send leaves the job Draft ready, and a job that is
+    /// not this message's draft is left as it is.
     /// </summary>
     [Theory]
     [InlineData(false, false, AiJobState.Completed)]
@@ -472,6 +472,9 @@ public sealed class StaffMailSendPersistenceTests
 
         Assert.Equal(rejected ? StaffMailState.Failed : StaffMailState.Submitted, operation.State);
         Assert.Equal(operation.Id, replay.Id);
+        // The replay reads back the send's own confirmation, which is no refusal.
+        Assert.Null(operation.AiJobRefusal);
+        Assert.Null(replay.AiJobRefusal);
         var persisted = await scope.ServiceProvider.GetRequiredService<IAiJobStore>()
             .GetAsync(job.JobId, CancellationToken.None);
         Assert.Equal(expected, persisted!.State);
