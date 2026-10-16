@@ -82,6 +82,6 @@ Enabling it in production is a separately approved live write under the
 ## Links
 
 - Behaviour: [FRD-21 § Outbound correspondence](../frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)
-  and [§ EVA-sent report detection](../frd/frd-21-outbound-correspondence-and-sent-evidence.md#eva-sent-report-detection).
+  and [§ EVA-sent report detection](../frd/frd-21-outbound-correspondence-and-sent-evidence.md#externally-sent-report-detection).
 - Mailbox identity and activation layers: [ADR-0024](0024-stable-approved-mailbox-identity-and-explicit-baseline.md).
 - Report-sent business event: [FRD-11](../frd/frd-11-reports-correspondence-and-reviewed-proposals.md).
