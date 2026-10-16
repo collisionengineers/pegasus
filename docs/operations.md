@@ -4,6 +4,30 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 106 - 15 October 2026 (deployment live)
+
+Release 106 deployed [PR 1334](https://github.com/collisionengineers/pegasus/pull/1334)
+(the combine of [PR 1329](https://github.com/collisionengineers/pegasus/pull/1329), one
+New case button in the utility bar on every page, and
+[PR 1330](https://github.com/collisionengineers/pegasus/pull/1330), the telemetry-only
+ruling for routine MCP lease renewals), with
+[PR 1328](https://github.com/collisionengineers/pegasus/pull/1328) (the Release 104 and
+105 records) and `1d06c9252` (mockup rounds moved to `pegasus-design-archive`, direct on
+`dev`). It was the first release after the 14 October history rewrite.
+
+The route was the normal App Service route with the migration identity unchanged. Web
+and Worker are Running on the approved release and full production smoke passed.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `b8124e3f08f86a023a2cc95a6fdd2ec8ae904bc0`, the merge of PR 1334 into `dev`; `main` and `dev` both read it back. Manifest SHA-256 `A6BA97C33258D77FA519013B916B898FC13EF6FCF526BAB530E45D53BE99DB2B` (schema 3, clean, `win-x64`/`efbundle.exe`); `web.zip` `BE4DDD45CEED87081A6AF748459808FE489B7E88264B472AD835981F98C74F8D`; `worker.zip` `C8E68EABE5F7197D471DFDFDAA393AF03671490CFC02FFB414A17B9C65185B0C`; `classifier.zip` `477E99958F918B20DF76914A2E0D95E2D7D626FE78873005AAF433652AA8C620` (built, not deployed: no classifier Function App exists); `efbundle.exe` `34BF9CAE34DC85EE4C574C807EDAAC5FC525DED78031DAE8657905AADC12C0BC` (not run). Tools: .NET SDK 10.0.302, Node v24.15.0, npm 11.14.1, az 2.88.0, azd 1.34.1. |
+| Review and promotion | PR 1334's head tree equals the release tree; its checks passed (unit, six `sql-integration` shards, coverage, invariants). PRs 1328 and 1330 passed their documentation lanes. One promotion under `MERGE AUTH GRANTED` from `main` `6ed368bc5` (15 October). |
+| Schema and grants | Unchanged: head `20261013100000_DropPrincipalDomainReference`, as Release 105. No bundle, grant or bootstrap run. |
+| Deployment | Serving Web before the release read `6ed368bc5`, Release 105's `c23b45012` after the history rewrite (`artifacts/sha-map-old-to-new.csv`). PreDeploy 13:48:38Z; PreProvision passed (B1 quota in `uksouth` 3); provision 13:49:05Z found no changes; `web.zip` deployed with `--clean true --restart true` 13:49:18Z, site started after 203 s, exact release read back 13:53:42Z; `worker.zip` deployed 13:53:42Z-13:55:24Z. |
+| Production smoke | Passed 13:56:13Z: Worker activation `approved-live-worker`; Web Running on `DOTNETCORE\|10.0`; deployment record `96a2495e-048c-4b13-9db1-ea358acaa82c` (OneDeploy, 13:49:55Z); active package `20261015134928.zip` SHA-256 equals the approved `web.zip`; intake liveness passed (last poll 13:45:00Z; Graph subscription expires 2026-10-18 17:10:00Z). |
+| Still owed | Live proof signed in that the utility bar shows one New case button on every page and that Unassigned Images has no separate Create Case link. Release 105's owed items stand. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-106-b8124e3f`; the deploy driver, its log and the build log at `artifacts/releases/release-106-driver`. |
+
 ## Release 105 - 14 October 2026 (deployment live)
 
 Release 105 deployed [PR 1325](https://github.com/collisionengineers/pegasus/pull/1325)
