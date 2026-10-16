@@ -89,16 +89,14 @@ bar and the page content.
 
 **The rail** carries, in order, **Work Centre** (`/`), **Inbox** (`/Inbox`),
 **Upload** (`/Upload`), **Cases** (`/Cases`), **Search** (`/Search`) and, for administrators only,
-**Administration** (`/Administration`). Inbox and Cases carry a
-count. The Cases count is the sum of Not ready, Review, With Engineer,
-Queries, Held, Triage and the open Unidentified items. A count is a page-queried figure: an absent
-count renders nothing, never `0`. The current route is marked by more than
+**Administration** (`/Administration`). No rail item carries a count
+(operator, 15 October 2026). The current route is marked by more than
 colour. The rail foot shows the freshness line and the signed-in account
 (name, role, and an account dialog with session start, idle lock and sign
 out).
 
-The rail foot also carries **Collapse**, which folds the rail to icons and
-counts (labels become titles) and back. The choice is remembered per browser
+The rail foot also carries **Collapse**, which folds the rail to icons
+(labels become titles) and back. The choice is remembered per browser
 and painted by the server on the next page. Below 980px, where the rail lies
 down, there is no collapse.
 
@@ -301,7 +299,7 @@ settings use expected-version checks as defined in
 
 ## Acceptance evidence
 
-Acceptance covers every rail route and its count, the `/Unidentified`
+Acceptance covers every rail route, the `/Unidentified`
 redirect, the removed `/Triage` routes and `/VehicleImages` list, the absence
 of any record-tab strip, the keyboard table and the breakpoints.
 Authenticated Web tests cover

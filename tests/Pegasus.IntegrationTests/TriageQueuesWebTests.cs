@@ -131,15 +131,6 @@ public sealed class TriageQueuesWebTests
         // terminal Unidentified route. Staff registration then establishes
         // Awaiting instruction without erasing that separate open exception.
         Assert.Equal(1, openUnidentifiedCount);
-        var expectedShellCount = stages.NotReady
-            + stages.Review
-            + stages.WithEngineer
-            + stages.Query
-            + stages.Held
-            + triageCount
-            + openUnidentifiedCount;
-        // Awaiting instruction intentionally is not shell work.
-        Assert.Equal(2, expectedShellCount);
 
         using var notReady = await client.GetAsync("/Cases?tab=not_ready");
         var notReadyHtml = await notReady.Content.ReadAsStringAsync();
@@ -168,15 +159,6 @@ public sealed class TriageQueuesWebTests
         // instruction and the open Unidentified items behind its Show filter
         // (operator, 13 October 2026).
         Assert.Equal(1 + openUnidentifiedCount, QueueCount(awaitingHtml, "Unassigned Images"));
-        var shellCount = Regex.Match(
-            notReadyHtml,
-            "<span>Cases</span>\\s*<span class=\"nav-count\" aria-label=\"(\\d+) outstanding\"");
-        Assert.True(shellCount.Success, "Cases shell count markup not found.");
-        // Unassigned Images' awaiting records remain pre-Case work. The shell
-        // count includes only the FRD's Case and exception queues.
-        Assert.Equal(
-            expectedShellCount,
-            int.Parse(shellCount.Groups[1].Value, CultureInfo.InvariantCulture));
 
         // The Work Centre's Not ready metric reads the same count query, so
         // it must report the identical figure — a rail count that disagrees
@@ -245,15 +227,6 @@ public sealed class TriageQueuesWebTests
         // terminal Unidentified route. Staff registration then establishes
         // Awaiting instruction without erasing that separate open exception.
         Assert.Equal(1, openUnidentifiedCount);
-        var expectedShellCount = stages.NotReady
-            + stages.Review
-            + stages.WithEngineer
-            + stages.Query
-            + stages.Held
-            + triageCount
-            + openUnidentifiedCount;
-        // Report sent and Awaiting instruction intentionally are not shell work.
-        Assert.Equal(3, expectedShellCount);
 
         using var queryResponse = await client.GetAsync("/Cases?tab=query");
         var queryHtml = await queryResponse.Content.ReadAsStringAsync();
@@ -262,7 +235,6 @@ public sealed class TriageQueuesWebTests
         Assert.DoesNotContain(sentReference, queryHtml, StringComparison.Ordinal);
         Assert.Contains("<span class=\"status status--purple\">Query</span>", queryHtml, StringComparison.Ordinal);
         Assert.Equal(1, QueueCount(queryHtml, "Queries"));
-        Assert.Equal(expectedShellCount, ShellCasesCount(queryHtml));
 
         // Issue 1046: a finished Case has no queue. The rail offers none, the
         // old route is not found and no Case queue lists the Report sent Case.
@@ -294,9 +266,9 @@ public sealed class TriageQueuesWebTests
     }
 
     /// <summary>
-    /// Issue 1044: the Triage queue and the shell count hold the active Triage
-    /// states only. A Completed or Cancelled Triage leaves both and is found
-    /// through Search, which shows its Triage state.
+    /// Issue 1044: the Triage queue holds the active Triage states only. A
+    /// Completed or Cancelled Triage leaves it and is found through Search,
+    /// which shows its Triage state.
     /// </summary>
     [Fact]
     public async Task TheTriageQueueListsActiveTriageOnlyAndSearchFindsTheCompletedAndCancelled()
@@ -331,7 +303,6 @@ public sealed class TriageQueuesWebTests
         Assert.DoesNotContain(completed.Reference, queueHtml, StringComparison.Ordinal);
         Assert.DoesNotContain(cancelled.Reference, queueHtml, StringComparison.Ordinal);
         Assert.Equal(1, QueueCount(queueHtml, "Triage"));
-        Assert.Equal(1, ShellCasesCount(queueHtml));
 
         foreach (var (record, label) in new[] { (completed, "Completed"), (cancelled, "Cancelled") })
         {
@@ -345,7 +316,7 @@ public sealed class TriageQueuesWebTests
     }
 
     [Fact]
-    public async Task CasesShellCountsOpenTriageAndUnidentifiedButExcludesClosedUnidentified()
+    public async Task UnassignedImagesOpenViewListsOpenUnidentifiedAndClosedViewListsClosedUnidentified()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -401,7 +372,6 @@ public sealed class TriageQueuesWebTests
         Assert.Contains($"href=\"/Unidentified/{open.Item.Id:D}\"", openHtml, StringComparison.Ordinal);
         Assert.DoesNotContain($"href=\"/Unidentified/{closed.Item.Id:D}\"", openHtml, StringComparison.Ordinal);
         Assert.Equal(1, QueueCount(openHtml, "Unassigned Images"));
-        Assert.Equal(2, ShellCasesCount(openHtml));
 
         using var closedResponse = await client.GetAsync("/Cases?tab=unassigned&show=closed");
         var closedHtml = await closedResponse.Content.ReadAsStringAsync();
@@ -411,7 +381,6 @@ public sealed class TriageQueuesWebTests
         // The outcome is read from the closed row itself.
         Assert.Contains("Closed &#xB7; No further action is required.", closedHtml, StringComparison.Ordinal);
         Assert.Equal(1, QueueCount(closedHtml, "Unassigned Images"));
-        Assert.Equal(2, ShellCasesCount(closedHtml));
     }
 
     /// <summary>
@@ -1356,15 +1325,6 @@ public sealed class TriageQueuesWebTests
             html,
             "scope-button[\\s\\S]*?<span>" + Regex.Escape(label) + "</span>\\s*<span>(\\d+)</span>");
         Assert.True(match.Success, $"{label} rail scope markup not found.");
-        return int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
-    }
-
-    private static int ShellCasesCount(string html)
-    {
-        var match = Regex.Match(
-            html,
-            "<span>Cases</span>\\s*<span class=\"nav-count\" aria-label=\"(\\d+) outstanding\"");
-        Assert.True(match.Success, "Cases shell count markup not found.");
         return int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
     }
 

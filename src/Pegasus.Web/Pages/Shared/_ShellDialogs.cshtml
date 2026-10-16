@@ -12,7 +12,7 @@
     var userName = User.Identity?.Name ?? string.Empty;
     var role = OperatorLabels.StaffRole(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value);
     // The bell (Work Centre D10): the person's own notifications, newest
-    // first, read once by RailCountsPageFilter. Each row is a form that opens
+    // first, read once by ShellPageFilter. Each row is a form that opens
     // the notification (marks it read, lands on its route) so no script is
     // needed; Mark all read returns here.
     var notifications = ViewData["Notifications"] as IReadOnlyList<Pegasus.Core.Notifications.StaffNotification>;
@@ -24,7 +24,7 @@
     // can land on it.
     var openOnLoad = string.Equals(Context.Request.Query["notifications"], "1", StringComparison.Ordinal) ? "true" : null;
     // What's new (FRD-12): the newest published release note this person has
-    // not acknowledged, read once by RailCountsPageFilter. It opens on load
+    // not acknowledged, read once by ShellPageFilter. It opens on load
     // until Got it is pressed; the page behind it is the one they asked for.
     var releaseNote = ViewData["ReleaseNote"] as Pegasus.Core.ReleaseNotes.ReleaseNote;
 }

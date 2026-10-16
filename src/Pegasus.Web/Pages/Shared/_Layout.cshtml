@@ -22,15 +22,8 @@
             ? "page"
             : null;
 
-    // A rail count is a real outstanding figure a page has already queried, not
-    // a number the shell invents. FRD-12 forbids a stale zero placeholder, so an
-    // absent count renders nothing at all rather than "0".
-    var railCounts = ViewData["RailCounts"] as IReadOnlyDictionary<string, int>;
-    int? CountFor(string key) =>
-        railCounts is not null && railCounts.TryGetValue(key, out var value) ? value : null;
-
     // The request time is the freshness the shell can honestly state; it is
-    // stamped by RailCountsPageFilter and falls back to now for the rare page
+    // stamped by ShellPageFilter and falls back to now for the rare page
     // that renders outside the filter.
     var renderedAt = ViewData["ShellRenderedAtUtc"] as DateTimeOffset? ?? DateTimeOffset.UtcNow;
     var clock = OperatorLabels.OfficeClock(renderedAt);
@@ -76,10 +69,6 @@
                     <a class="nav-link" asp-page="/Mail/Index" aria-current="@CurrentWhen("/Mail")">
                         <svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg>
                         <span>@OperatorLabels.Nav.Inbox</span>
-                        @if (CountFor("Inbox") is { } inboxCount)
-                        {
-                            <span class="nav-count" aria-label="@inboxCount outstanding">@inboxCount</span>
-                        }
                     </a>
                     <a class="nav-link" asp-page="/Upload" aria-current="@CurrentWhen("/Upload")">
                         <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
@@ -89,10 +78,6 @@
                 <a class="nav-link" asp-page="/Cases/Index" aria-current="@CurrentWhen("/Cases", "/Unidentified", "/ImageIntake", "/Intake")">
                     <svg class="icon" aria-hidden="true"><use href="#icon-list-checks" /></svg>
                     <span>@OperatorLabels.Nav.Cases</span>
-                    @if (CountFor("Cases") is { } casesCount)
-                    {
-                        <span class="nav-count" aria-label="@casesCount outstanding">@casesCount</span>
-                    }
                 </a>
                 <a class="nav-link" asp-page="/Search/Index" aria-current="@CurrentWhen("/Search")">
                     <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
@@ -108,7 +93,7 @@
                 }
             </nav>
             <div class="rail-spacer"></div>
-            @* The rail narrows to icons and counts (C3); site.js remembers the
+            @* The rail narrows to icons (C3); site.js remembers the
                choice per browser in the pegasus-rail cookie, which this page
                reads so the first paint is already narrow, and gives the
                collapsed links their label as a tooltip. *@

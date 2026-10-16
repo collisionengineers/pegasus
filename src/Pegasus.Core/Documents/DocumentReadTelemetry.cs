@@ -37,7 +37,6 @@ public static class DocumentReadTelemetry
         "web.case.section.resource",
         "web.case.section.result",
         "web.auth.validation",
-        "web.shell.counts",
         "web.shell.notifications",
         "report.renderer.initialize",
         "report.photos.prepare",

@@ -61,7 +61,6 @@ public sealed class ProductionCompositionTests
         "web.case.section.resource",
         "web.case.section.result",
         "web.auth.validation",
-        "web.shell.counts",
         "web.shell.notifications",
         "report.renderer.initialize",
         "web.workcentre.attention",

@@ -606,11 +606,6 @@ public partial class IndexModel(
         LoadedAtUtc = read.Snapshot.AsOfUtc;
         Attention = read.Snapshot.Attention;
         Metrics = read.Snapshot.Metrics;
-        // The rail's Case count sums the stage counts and the open Unidentified
-        // queue the snapshot has just read. The Triages metric counts every
-        // active Triage state, as the rail does, so the shell reads none again.
-        RailCountsPageFilter.SetCaseCounts(
-            HttpContext, read.Snapshot.CaseStages, read.Snapshot.Metrics.Triages, read.Snapshot.UnidentifiedCount);
         // Core counts the chips over the scope before the kind filter: one read.
         KindCounts = read.Snapshot.Attention.KindCounts;
         Selected = read.Selected;
