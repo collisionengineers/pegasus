@@ -196,7 +196,7 @@ public sealed class MailboxIntakeIntegrationTests
             Assert.Equal(0L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
             Assert.Equal(0L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeReceipts"));
             var artifactStore = scope.ServiceProvider.GetRequiredService<IIntakeArtifactStore>();
-            Assert.Empty(await artifactStore.ListStagedAsync(10, CancellationToken.None));
+            Assert.Empty((await artifactStore.ListStagedAsync(10, null, CancellationToken.None)).Items);
         }
         finally
         {

@@ -32,6 +32,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             workStore,
             new RejectingStagedArtifactAuthority(),
             new EmptyStagedArtifactStore(),
+            new StagedArtifactSweepCursor(),
             TimeProvider.System);
         var groupedImageReconciler = new ReconcileGroupedImageIntake(
             new EmptyIntakeReceiptQueries(),
@@ -109,9 +110,11 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         var state = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[0]);
         Assert.Equal(7, state["RecoveredWorkItems"]);
         Assert.Equal(0, state["Completed"]);
+        Assert.Equal(0, state["Expired"]);
         Assert.Equal(0, state["Retained"]);
         Assert.Equal(0, state["Orphans"]);
         Assert.Equal(0, state["Unmatched"]);
+        Assert.Equal(0, state["UnmatchedKept"]);
         Assert.Equal(0, state["Failures"]);
 
         // The settle pass runs straight after the pending-custody reconciliation.
@@ -217,7 +220,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         var receipts = new EmptyIntakeReceiptQueries();
         var function = new StagedArtifactReconciliationFunction(
             new ReconcileStagedArtifacts(workStore, new RejectingStagedArtifactAuthority(),
-                new EmptyStagedArtifactStore(), TimeProvider.System),
+                new EmptyStagedArtifactStore(), new StagedArtifactSweepCursor(), TimeProvider.System),
             new EmptyCacheCleanup(),
             new ReconcilePendingArtifactCustody(contextFactory, new EmptyDocumentContentStore(), new EmptyStagedArtifactStore()),
             settlement ?? new EfSettleFiledCaseReportArtifacts(contextFactory, TimeProvider.System),

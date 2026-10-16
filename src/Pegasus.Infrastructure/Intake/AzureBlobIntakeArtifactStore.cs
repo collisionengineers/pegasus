@@ -320,40 +320,46 @@ public sealed class AzureBlobIntakeArtifactStore
         }
     }
 
-    public async Task<IReadOnlyList<StagedArtifactInventoryItem>> ListStagedAsync(
+    public async Task<StagedArtifactInventoryPage> ListStagedAsync(
         int maximumItems,
+        string? continuation,
         CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         await EnsureContainerExistsAsync(cancellationToken);
 
-        var items = new List<StagedArtifactInventoryItem>(maximumItems);
-        await foreach (var blob in container.GetBlobsAsync(
-                           BlobTraits.Metadata | BlobTraits.Tags,
-                           BlobStates.None,
-                           StagingPrefix,
-                           cancellationToken))
+        await foreach (var page in container.GetBlobsAsync(
+                               BlobTraits.Metadata | BlobTraits.Tags,
+                               BlobStates.None,
+                               StagingPrefix,
+                               cancellationToken)
+                           .AsPages(continuation, maximumItems))
         {
-            if (!TryGetStagedStorageKeyHash(blob.Name, out var hash))
+            var items = new List<StagedArtifactInventoryItem>(page.Values.Count);
+            foreach (var blob in page.Values)
             {
-                continue;
+                if (!TryGetStagedStorageKeyHash(blob.Name, out var hash))
+                {
+                    continue;
+                }
+
+                items.Add(MapStaged(
+                    blob.Name,
+                    hash,
+                    blob.Properties.ContentLength ?? 0,
+                    blob.Properties.CreatedOn ?? DateTimeOffset.UnixEpoch,
+                    blob.Properties.ETag ?? default,
+                    blob.Metadata,
+                    blob.Tags));
             }
 
-            items.Add(MapStaged(
-                blob.Name,
-                hash,
-                blob.Properties.ContentLength ?? 0,
-                blob.Properties.CreatedOn ?? DateTimeOffset.UnixEpoch,
-                blob.Properties.ETag ?? default,
-                blob.Metadata,
-                blob.Tags));
-            if (items.Count == maximumItems)
-            {
-                break;
-            }
+            // The service ends the listing with an empty marker.
+            return new(
+                items,
+                string.IsNullOrEmpty(page.ContinuationToken) ? null : page.ContinuationToken);
         }
 
-        return items;
+        return new([], null);
     }
 
     public async Task<StagedArtifactInventoryItem?> TrySetStagedDispositionAsync(
@@ -438,32 +444,77 @@ public sealed class AzureBlobIntakeArtifactStore
         }
     }
 
-    public async Task<bool> DeleteCompletedStagedAsync(
+    public async Task<bool> DeleteStagedAsync(
         string storageKey,
         string expectedConcurrencyToken,
+        StagedArtifactDisposition expectedDisposition,
         CancellationToken cancellationToken)
     {
-        // Validates the key shape; the delete's ETag and Completed tag conditions guard the rest.
+        // Validates the key shape; the delete's ETag and tag conditions guard the rest.
         _ = GetStagedStorageKeyHash(storageKey);
         if (string.IsNullOrWhiteSpace(expectedConcurrencyToken))
         {
             return false;
         }
 
-        var expected = new ETag(expectedConcurrencyToken);
+        // The caller holds the item it just read or set. The ETag and the
+        // disposition tag condition on the delete itself reject a blob that
+        // changed or carries another disposition, so no re-read is needed.
+        return await DeleteIfUnchangedAsync(
+            container.GetBlobClient(storageKey),
+            new ETag(expectedConcurrencyToken),
+            expectedDisposition,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Three operations: read the ETag, tag the blob Completed under it, and
+    /// delete it under the same ETag and the Completed tag. A delete refused
+    /// here leaves a Completed tag over Pending metadata, which lists as
+    /// Unmatched and the reconciliation sweep repairs.
+    /// </summary>
+    public async Task<bool> TryCompleteStagedAsync(
+        string storageKey,
+        CancellationToken cancellationToken)
+    {
+        _ = GetStagedStorageKeyHash(storageKey);
         var blob = container.GetBlobClient(storageKey);
         try
         {
-            // The caller holds the item it just read or set Completed. The ETag
-            // and the Completed tag condition on the delete itself reject a
-            // blob that changed or is not Completed, so no re-read is needed.
+            var properties = await blob.GetPropertiesAsync(
+                cancellationToken: cancellationToken);
+            var etag = properties.Value.ETag;
+            await blob.SetTagsAsync(
+                CreateDispositionTags(StagedArtifactDisposition.Completed),
+                new BlobRequestConditions { IfMatch = etag },
+                cancellationToken);
+            return await DeleteIfUnchangedAsync(
+                blob,
+                etag,
+                StagedArtifactDisposition.Completed,
+                cancellationToken);
+        }
+        catch (RequestFailedException exception) when (exception.Status is 404 or 412)
+        {
+            return false;
+        }
+    }
+
+    private static async Task<bool> DeleteIfUnchangedAsync(
+        BlobClient blob,
+        ETag expected,
+        StagedArtifactDisposition expectedDisposition,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
             var deleted = await blob.DeleteIfExistsAsync(
                 DeleteSnapshotsOption.IncludeSnapshots,
                 new BlobRequestConditions
                 {
                     IfMatch = expected,
                     TagConditions = BuildDispositionTagCondition(
-                        StagedArtifactDisposition.Completed.ToString())
+                        expectedDisposition.ToString())
                 },
                 cancellationToken);
             return deleted.Value;

@@ -62,7 +62,7 @@ public sealed class EfIntakeWorkStore(
                     staged,
                     cancellationToken)
                     ? StagedArtifactAuthorityState.Completed
-                    : StagedArtifactAuthorityState.Unmatched,
+                    : StagedArtifactAuthorityState.CompletedSourceNotRetained,
                 "pending" or "dispatching" or "dispatched" or "processing" or "retry_scheduled"
                     => StagedArtifactAuthorityState.Pending,
                 _ => StagedArtifactAuthorityState.Unmatched

@@ -58,7 +58,14 @@ public enum StagedArtifactAuthorityState
     Pending = 0,
     Failed = 1,
     Completed = 2,
-    Unmatched = 3
+    Unmatched = 3,
+
+    /// <summary>
+    /// The work item completed, but no source asset is retained under another
+    /// key, so the staging blob may be the only copy of the source. It reads
+    /// as Unmatched and is kept at any age (operator, 16 October 2026).
+    /// </summary>
+    CompletedSourceNotRetained = 4
 }
 
 public sealed record StagedArtifactAuthority(
@@ -74,12 +81,22 @@ public interface IStagedArtifactAuthority
         CancellationToken cancellationToken);
 }
 
+/// <param name="Expired">
+/// Orphan and Unmatched blobs deleted once past
+/// <see cref="ReconcileStagedArtifacts.ExpiryGracePeriod"/>.
+/// </param>
+/// <param name="UnmatchedKept">
+/// The part of <paramref name="Unmatched"/> kept at any age because the
+/// blob may be the only copy of a completed item's source.
+/// </param>
 public sealed record ReconcileStagedArtifactsResult(
     int RecoveredWorkItems,
     int Completed,
+    int Expired,
     int Retained,
     int Orphans,
     int Unmatched,
+    int UnmatchedKept,
     int Failures);
 
 public sealed record ReceivedIntake(Guid StagedReceiptId, bool IsDuplicate);
@@ -1338,33 +1355,9 @@ public sealed class ProcessQueuedIntake(
         string storageKey,
         CancellationToken cancellationToken)
     {
-
         try
         {
-            var staged = await artifactStore.GetStagedAsync(
-                storageKey,
-                cancellationToken);
-            if (staged is null)
-            {
-                return;
-            }
-
-            if (staged.Disposition != StagedArtifactDisposition.Completed)
-            {
-                staged = await artifactStore.TrySetStagedDispositionAsync(
-                    staged.StorageKey,
-                    staged.ConcurrencyToken,
-                    StagedArtifactDisposition.Completed,
-                    cancellationToken);
-            }
-
-            if (staged is not null)
-            {
-                await artifactStore.DeleteCompletedStagedAsync(
-                    staged.StorageKey,
-                    staged.ConcurrencyToken,
-                    cancellationToken);
-            }
+            await artifactStore.TryCompleteStagedAsync(storageKey, cancellationToken);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
@@ -1478,12 +1471,31 @@ public sealed class ReconcilePoisonedIntakeWork(
         workStore.MarkPoisonedAsync(stagedReceiptId, timeProvider.GetUtcNow(), cancellationToken);
 }
 
+/// <summary>
+/// Where the staged-artifact sweep resumes its listing, so blobs that are
+/// never deleted cannot hold the first page for good. A singleton, because
+/// the Worker builds the timer's function afresh for every tick; a restart
+/// begins the listing again.
+/// </summary>
+public sealed class StagedArtifactSweepCursor
+{
+    public string? Continuation { get; set; }
+}
+
 public sealed class ReconcileStagedArtifacts(
     IIntakeWorkStore workStore,
     IStagedArtifactAuthority authority,
     IIntakeArtifactStore artifactStore,
+    StagedArtifactSweepCursor cursor,
     TimeProvider timeProvider)
 {
+    /// <summary>
+    /// How long after it was first seen an Orphan or Unmatched staging blob is
+    /// kept before the sweep deletes it (operator, 16 October 2026). It covers
+    /// the window between staging a blob and committing its receipt.
+    /// </summary>
+    public static readonly TimeSpan ExpiryGracePeriod = TimeSpan.FromHours(24);
+
     public async Task<ReconcileStagedArtifactsResult> ExecuteAsync(
         int maximumItems,
         CancellationToken cancellationToken = default)
@@ -1496,21 +1508,33 @@ public sealed class ReconcileStagedArtifacts(
             nowUtc - TimeSpan.FromMinutes(1),
             maximumItems,
             cancellationToken);
-        var items = await artifactStore.ListStagedAsync(maximumItems, cancellationToken);
+        var page = await artifactStore.ListStagedAsync(
+            maximumItems,
+            cursor.Continuation,
+            cancellationToken);
+        cursor.Continuation = page.NextContinuation;
         var completed = 0;
+        var expired = 0;
         var retained = 0;
         var orphans = 0;
         var unmatched = 0;
+        var unmatchedKept = 0;
         var failures = 0;
 
-        foreach (var item in items)
+        foreach (var item in page.Items)
         {
             try
             {
                 var durable = await authority.FindAsync(item.StorageKey, cancellationToken);
-                var target = Classify(item, durable);
+                var (target, kept) = Classify(item, durable);
+                var expires = target is StagedArtifactDisposition.Orphan or StagedArtifactDisposition.Unmatched
+                    && !kept
+                    && nowUtc - item.FirstSeenAtUtc >= ExpiryGracePeriod;
                 var current = item;
-                if (current.Disposition != target)
+                // An expiring blob is set even when it lists with its target: a
+                // listed Unmatched may carry another tag, which the delete's tag
+                // condition would refuse on every run.
+                if (current.Disposition != target || expires)
                 {
                     current = await artifactStore.TrySetStagedDispositionAsync(
                         item.StorageKey,
@@ -1527,16 +1551,22 @@ public sealed class ReconcileStagedArtifacts(
                 switch (target)
                 {
                     case StagedArtifactDisposition.Completed:
-                        if (await artifactStore.DeleteCompletedStagedAsync(
+                    case StagedArtifactDisposition.Orphan or StagedArtifactDisposition.Unmatched when expires:
+                        if (!await artifactStore.DeleteStagedAsync(
                                 current.StorageKey,
                                 current.ConcurrencyToken,
+                                target,
                                 cancellationToken))
                         {
-                            completed++;
+                            failures++;
+                        }
+                        else if (expires)
+                        {
+                            expired++;
                         }
                         else
                         {
-                            failures++;
+                            completed++;
                         }
                         break;
                     case StagedArtifactDisposition.Orphan:
@@ -1544,6 +1574,10 @@ public sealed class ReconcileStagedArtifacts(
                         break;
                     case StagedArtifactDisposition.Unmatched:
                         unmatched++;
+                        if (kept)
+                        {
+                            unmatchedKept++;
+                        }
                         break;
                     case StagedArtifactDisposition.Pending:
                     case StagedArtifactDisposition.Failed:
@@ -1563,19 +1597,25 @@ public sealed class ReconcileStagedArtifacts(
         return new(
             recoveredWorkItems,
             completed,
+            expired,
             retained,
             orphans,
             unmatched,
+            unmatchedKept,
             failures);
     }
 
-    private static StagedArtifactDisposition Classify(
+    /// <summary>
+    /// The blob's target disposition, and whether it is kept at any age
+    /// because it may be the only copy of a completed item's source.
+    /// </summary>
+    private static (StagedArtifactDisposition Target, bool Kept) Classify(
         StagedArtifactInventoryItem item,
         StagedArtifactAuthority? durable)
     {
         if (durable is null)
         {
-            return StagedArtifactDisposition.Orphan;
+            return (StagedArtifactDisposition.Orphan, false);
         }
 
         if (!string.Equals(
@@ -1584,15 +1624,16 @@ public sealed class ReconcileStagedArtifacts(
                 StringComparison.Ordinal)
             || item.ContentLength != durable.ExpectedContentLength)
         {
-            return StagedArtifactDisposition.Unmatched;
+            return (StagedArtifactDisposition.Unmatched, false);
         }
 
         return durable.State switch
         {
-            StagedArtifactAuthorityState.Pending => StagedArtifactDisposition.Pending,
-            StagedArtifactAuthorityState.Failed => StagedArtifactDisposition.Failed,
-            StagedArtifactAuthorityState.Completed => StagedArtifactDisposition.Completed,
-            StagedArtifactAuthorityState.Unmatched => StagedArtifactDisposition.Unmatched,
+            StagedArtifactAuthorityState.Pending => (StagedArtifactDisposition.Pending, false),
+            StagedArtifactAuthorityState.Failed => (StagedArtifactDisposition.Failed, false),
+            StagedArtifactAuthorityState.Completed => (StagedArtifactDisposition.Completed, false),
+            StagedArtifactAuthorityState.Unmatched => (StagedArtifactDisposition.Unmatched, false),
+            StagedArtifactAuthorityState.CompletedSourceNotRetained => (StagedArtifactDisposition.Unmatched, true),
             _ => throw new InvalidOperationException(
                 $"Unknown staged artifact authority state '{(int)durable.State}'.")
         };

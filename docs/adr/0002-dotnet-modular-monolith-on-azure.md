@@ -278,7 +278,9 @@ The file path is:
 6. Record the Box file ID, version ID, hash, and folder association in SQL.
 7. Delete the transient Blob copy only after the Box version is confirmed. A
    lifecycle rule removes completed transient objects after seven days; failed
-   or unmatched items remain visible for recovery rather than silently expiring.
+   items remain visible for recovery. An orphaned or unmatched transient copy
+   is deleted 24 hours after it was first seen, except a completed item's copy
+   whose source is not retained elsewhere (operator ruling, 16 October 2026).
 
 Box is authoritative for original case files. SQL is authoritative for workflow,
 relationships, processing state, permanent action history, and the Box identifiers needed to locate

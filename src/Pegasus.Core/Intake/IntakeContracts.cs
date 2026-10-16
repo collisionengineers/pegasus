@@ -946,6 +946,13 @@ public sealed record StagedArtifactInventoryItem(
     StagedArtifactDisposition Disposition,
     string ConcurrencyToken);
 
+/// <param name="NextContinuation">
+/// Where the next page of the listing starts; null at the end of the listing.
+/// </param>
+public sealed record StagedArtifactInventoryPage(
+    IReadOnlyList<StagedArtifactInventoryItem> Items,
+    string? NextContinuation);
+
 public sealed record IntakeQuarantineArtifact(
     string StorageKey,
     string ContentHash,
@@ -1008,10 +1015,15 @@ public interface IIntakeArtifactStore
         CancellationToken cancellationToken) =>
         Task.FromResult<StagedArtifactInventoryItem?>(null);
 
-    Task<IReadOnlyList<StagedArtifactInventoryItem>> ListStagedAsync(
+    /// <summary>
+    /// At most <paramref name="maximumItems"/> staged artifacts, starting where
+    /// <paramref name="continuation"/> left off, or at the start when it is null.
+    /// </summary>
+    Task<StagedArtifactInventoryPage> ListStagedAsync(
         int maximumItems,
+        string? continuation,
         CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<StagedArtifactInventoryItem>>([]);
+        Task.FromResult(new StagedArtifactInventoryPage([], null));
 
     Task<StagedArtifactInventoryItem?> TrySetStagedDispositionAsync(
         string storageKey,
@@ -1020,9 +1032,25 @@ public interface IIntakeArtifactStore
         CancellationToken cancellationToken) =>
         Task.FromResult<StagedArtifactInventoryItem?>(null);
 
-    Task<bool> DeleteCompletedStagedAsync(
+    /// <summary>
+    /// Deletes the staged artifact only while it still has
+    /// <paramref name="expectedConcurrencyToken"/> and
+    /// <paramref name="expectedDisposition"/>; false otherwise.
+    /// </summary>
+    Task<bool> DeleteStagedAsync(
         string storageKey,
         string expectedConcurrencyToken,
+        StagedArtifactDisposition expectedDisposition,
+        CancellationToken cancellationToken) =>
+        Task.FromResult(false);
+
+    /// <summary>
+    /// Marks a durably completed item's staged artifact Completed and deletes
+    /// it. False when it is already gone or changed meanwhile, in which case
+    /// the reconciliation sweep finishes it.
+    /// </summary>
+    Task<bool> TryCompleteStagedAsync(
+        string storageKey,
         CancellationToken cancellationToken) =>
         Task.FromResult(false);
 }

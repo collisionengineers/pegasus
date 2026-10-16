@@ -40,10 +40,10 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         var container = new StubBlobContainerClient(malformed, second);
         var store = CreateStore(container);
 
-        var listed = await store.ListStagedAsync(1, CancellationToken.None);
+        var listed = await store.ListStagedAsync(1, null, CancellationToken.None);
         var fetched = await store.GetStagedAsync(StorageKey, CancellationToken.None);
 
-        var item = Assert.Single(listed);
+        var item = Assert.Single(listed.Items);
         Assert.Equal(StorageKey, item.StorageKey);
         Assert.Equal(Hash, item.ContentHash);
         Assert.Equal(17, item.ContentLength);
@@ -52,8 +52,32 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         Assert.Equal(StagedArtifactDisposition.Unmatched, fetched.Disposition);
         Assert.Equal(BlobTraits.Metadata | BlobTraits.Tags, container.LastListTraits);
         Assert.Equal("staging/", container.LastListPrefix);
+        Assert.Equal(1, container.LastPageSizeHint);
         Assert.Equal(0, malformed.DownloadCount);
         Assert.Equal(0, second.DownloadCount);
+    }
+
+    [Fact]
+    public async Task InventoryResumesFromTheContinuationAndEndsWithNone()
+    {
+        var blobs = Enumerable.Range(1, 3)
+            .Select(index => StagedStub(
+                $"{index}0213243",
+                StagedArtifactDisposition.Pending,
+                new ETag($"\"etag-{index}\"")))
+            .ToArray();
+        var container = new StubBlobContainerClient(blobs);
+        var store = CreateStore(container);
+
+        var first = await store.ListStagedAsync(2, null, CancellationToken.None);
+        var second = await store.ListStagedAsync(2, first.NextContinuation, CancellationToken.None);
+
+        Assert.Equal(new[] { blobs[0].Name, blobs[1].Name }, first.Items.Select(item => item.StorageKey));
+        Assert.NotNull(first.NextContinuation);
+        Assert.Equal(first.NextContinuation, container.LastContinuation);
+        Assert.Equal(2, container.LastPageSizeHint);
+        Assert.Equal(blobs[2].Name, Assert.Single(second.Items).StorageKey);
+        Assert.Null(second.NextContinuation);
     }
 
     [Fact]
@@ -94,34 +118,26 @@ public sealed class AzureBlobIntakeArtifactStoreTests
     }
 
     [Fact]
-    public async Task DeleteRequiresCompletedTagUnderTheExpectedETagWithoutRereadingTheBlob()
+    public async Task DeleteRequiresTheExpectedTagUnderTheExpectedETagWithoutRereadingTheBlob()
     {
         var etag = new ETag("\"etag-1\"");
-        var pending = new StubBlobClient(
-            StorageKey,
-            Hash,
-            17,
-            FirstSeenAtUtc,
-            StagedArtifactDisposition.Pending,
-            etag);
-        var completedKey = StorageKey.Replace("10213243", "20213243", StringComparison.Ordinal);
-        var completed = new StubBlobClient(
-            completedKey,
-            Hash,
-            17,
-            FirstSeenAtUtc,
-            StagedArtifactDisposition.Completed,
-            etag);
-        var store = CreateStore(new StubBlobContainerClient(pending, completed));
+        var pending = StagedStub("10213243", StagedArtifactDisposition.Pending, etag);
+        var completed = StagedStub("20213243", StagedArtifactDisposition.Completed, etag);
+        var orphan = StagedStub("30213243", StagedArtifactDisposition.Orphan, etag);
+        var unmatched = StagedStub("40213243", StagedArtifactDisposition.Unmatched, etag);
+        var stale = StagedStub("50213243", StagedArtifactDisposition.Orphan, new ETag("\"etag-2\""));
+        var store = CreateStore(new StubBlobContainerClient(pending, completed, orphan, unmatched, stale));
 
-        var pendingDeleted = await store.DeleteCompletedStagedAsync(
-            StorageKey,
-            etag.ToString(),
-            CancellationToken.None);
-        var completedDeleted = await store.DeleteCompletedStagedAsync(
-            completedKey,
-            etag.ToString(),
-            CancellationToken.None);
+        var pendingDeleted = await store.DeleteStagedAsync(
+            pending.Name, etag.ToString(), StagedArtifactDisposition.Completed, CancellationToken.None);
+        var completedDeleted = await store.DeleteStagedAsync(
+            completed.Name, etag.ToString(), StagedArtifactDisposition.Completed, CancellationToken.None);
+        var orphanDeleted = await store.DeleteStagedAsync(
+            orphan.Name, etag.ToString(), StagedArtifactDisposition.Orphan, CancellationToken.None);
+        var unmatchedDeleted = await store.DeleteStagedAsync(
+            unmatched.Name, etag.ToString(), StagedArtifactDisposition.Unmatched, CancellationToken.None);
+        var staleDeleted = await store.DeleteStagedAsync(
+            stale.Name, etag.ToString(), StagedArtifactDisposition.Orphan, CancellationToken.None);
 
         Assert.False(pendingDeleted);
         Assert.Equal(0, pending.DeleteCount);
@@ -131,10 +147,73 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         Assert.Equal(
             "\"PegasusDisposition\" = 'Completed'",
             completed.LastDeleteConditions?.TagConditions);
-        Assert.Equal(0, pending.DownloadCount);
-        Assert.Equal(0, completed.DownloadCount);
-        Assert.Equal(0, pending.ReadCount);
-        Assert.Equal(0, completed.ReadCount);
+        Assert.True(orphanDeleted);
+        Assert.Equal(1, orphan.DeleteCount);
+        Assert.Equal(etag, orphan.LastDeleteConditions?.IfMatch);
+        Assert.Equal(
+            "\"PegasusDisposition\" = 'Orphan'",
+            orphan.LastDeleteConditions?.TagConditions);
+        Assert.True(unmatchedDeleted);
+        Assert.Equal(1, unmatched.DeleteCount);
+        Assert.Equal(
+            "\"PegasusDisposition\" = 'Unmatched'",
+            unmatched.LastDeleteConditions?.TagConditions);
+        Assert.False(staleDeleted);
+        Assert.Equal(0, stale.DeleteCount);
+        Assert.All(
+            new[] { pending, completed, orphan, unmatched, stale },
+            blob =>
+            {
+                Assert.Equal(0, blob.DownloadCount);
+                Assert.Equal(0, blob.ReadCount);
+            });
+    }
+
+    [Fact]
+    public async Task CompletingAStagedBlobTakesThreeOperationsUnderTheETagItRead()
+    {
+        var etag = new ETag("\"etag-1\"");
+        var blob = StagedStub("10213243", StagedArtifactDisposition.Pending, etag);
+        var store = CreateStore(new StubBlobContainerClient(blob));
+
+        var completed = await store.TryCompleteStagedAsync(blob.Name, CancellationToken.None);
+
+        Assert.True(completed);
+        Assert.Equal(3, blob.Operations);
+        Assert.Equal(etag, blob.LastSetTagsConditions?.IfMatch);
+        Assert.Equal("Completed", blob.Tags["PegasusDisposition"]);
+        Assert.Equal(1, blob.DeleteCount);
+        Assert.Equal(etag, blob.LastDeleteConditions?.IfMatch);
+        Assert.Equal(
+            "\"PegasusDisposition\" = 'Completed'",
+            blob.LastDeleteConditions?.TagConditions);
+    }
+
+    [Fact]
+    public async Task CompletingAMissingStagedBlobStopsAfterOneOperation()
+    {
+        var blob = StagedStub("10213243", StagedArtifactDisposition.Pending, new ETag("\"etag-1\""));
+        blob.Missing = true;
+        var store = CreateStore(new StubBlobContainerClient(blob));
+
+        Assert.False(await store.TryCompleteStagedAsync(blob.Name, CancellationToken.None));
+        Assert.Equal(1, blob.Operations);
+        Assert.Equal(0, blob.DeleteCount);
+    }
+
+    [Fact]
+    public async Task CompletingAStagedBlobThatChangedBeforeTheDeleteLeavesIt()
+    {
+        var blob = StagedStub("10213243", StagedArtifactDisposition.Pending, new ETag("\"etag-1\""));
+        blob.ETagBeforeDelete = new ETag("\"etag-2\"");
+        var store = CreateStore(new StubBlobContainerClient(blob));
+
+        Assert.False(await store.TryCompleteStagedAsync(blob.Name, CancellationToken.None));
+        Assert.Equal(3, blob.Operations);
+        Assert.Equal(0, blob.DeleteCount);
+        // The Completed tag over Pending metadata lists as Unmatched for the sweep.
+        Assert.Equal("Completed", blob.Tags["PegasusDisposition"]);
+        Assert.Equal("Pending", blob.Metadata["disposition"]);
     }
 
     [Fact]
@@ -191,6 +270,18 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         Assert.Equal(1, blob.DownloadCount);
     }
 
+    private static StubBlobClient StagedStub(
+        string receiptPrefix,
+        StagedArtifactDisposition disposition,
+        ETag etag) =>
+        new(
+            StorageKey.Replace("10213243", receiptPrefix, StringComparison.Ordinal),
+            Hash,
+            17,
+            FirstSeenAtUtc,
+            disposition,
+            etag);
+
     private static StubBlobClient StubFor(string key, string hash, byte[] content) =>
         new(
             key,
@@ -220,6 +311,8 @@ public sealed class AzureBlobIntakeArtifactStoreTests
 
         internal BlobTraits? LastListTraits { get; private set; }
         internal string? LastListPrefix { get; private set; }
+        internal string? LastContinuation { get; private set; }
+        internal int? LastPageSizeHint { get; private set; }
 
         public override BlobClient GetBlobClient(string blobName) => blobs[blobName];
 
@@ -231,9 +324,37 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         {
             LastListTraits = traits;
             LastListPrefix = prefix;
-            var values = blobs.Values.Select(blob => blob.ToBlobItem()).ToArray();
-            return AsyncPageable<BlobItem>.FromPages(
-                [Page<BlobItem>.FromValues(values, null, new StubResponse())]);
+            return new StubPageable(
+                this,
+                blobs.Values
+                    .Select(blob => blob.ToBlobItem())
+                    .OrderBy(blob => blob.Name, StringComparer.Ordinal)
+                    .ToArray());
+        }
+
+        /// <summary>
+        /// Lists in name order from the continuation (the last name returned),
+        /// one page of the hinted size, ending with the service's empty marker.
+        /// </summary>
+        private sealed class StubPageable(
+            StubBlobContainerClient owner,
+            BlobItem[] items) : AsyncPageable<BlobItem>
+        {
+            public override IAsyncEnumerable<Page<BlobItem>> AsPages(
+                string? continuationToken = null,
+                int? pageSizeHint = null)
+            {
+                owner.LastContinuation = continuationToken;
+                owner.LastPageSizeHint = pageSizeHint;
+                var remaining = items
+                    .Where(item => continuationToken is null
+                        || string.CompareOrdinal(item.Name, continuationToken) > 0)
+                    .ToArray();
+                var values = remaining.Take(pageSizeHint ?? remaining.Length).ToArray();
+                var next = values.Length < remaining.Length ? values[^1].Name : string.Empty;
+                return AsyncPageable<BlobItem>.FromPages(
+                    [Page<BlobItem>.FromValues(values, next, new StubResponse())]).AsPages();
+            }
         }
     }
 
@@ -279,6 +400,16 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         internal byte[] Body { get; init; } = [];
         internal int DeleteCount { get; private set; }
         internal int ReadCount { get; private set; }
+
+        /// <summary>Every Blob operation sent to this blob.</summary>
+        internal int Operations { get; private set; }
+
+        /// <summary>Every operation answers 404, as for a blob already gone.</summary>
+        internal bool Missing { get; set; }
+
+        /// <summary>Another writer changes the blob just before a delete.</summary>
+        internal ETag? ETagBeforeDelete { get; set; }
+
         internal BlobRequestConditions? LastConditionalGetPropertiesConditions { get; private set; }
         internal BlobRequestConditions? LastSetMetadataConditions { get; private set; }
         internal BlobRequestConditions? LastSetTagsConditions { get; private set; }
@@ -288,12 +419,15 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             BlobRequestConditions? conditions = null,
             CancellationToken cancellationToken = default)
         {
+            Operations++;
             ReadCount++;
+            ThrowIfMissing();
             if (conditions is not null)
             {
                 LastConditionalGetPropertiesConditions = conditions;
             }
 
+            ThrowIfETagDiffers(conditions);
             return Task.FromResult(Response.FromValue(
                 BlobsModelFactory.BlobProperties(
                     lastModified: CreatedOn,
@@ -308,7 +442,9 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             BlobRequestConditions? conditions = null,
             CancellationToken cancellationToken = default)
         {
+            Operations++;
             ReadCount++;
+            ThrowIfMissing();
             return Task.FromResult(Response.FromValue(
                 BlobsModelFactory.GetBlobTagResult(Tags),
                 new StubResponse()));
@@ -319,7 +455,10 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             BlobRequestConditions? conditions = null,
             CancellationToken cancellationToken = default)
         {
+            Operations++;
+            ThrowIfMissing();
             LastSetMetadataConditions = conditions;
+            ThrowIfETagDiffers(conditions);
             Metadata = new Dictionary<string, string>(metadata, StringComparer.OrdinalIgnoreCase);
             etag = NextMetadataETag;
             return Task.FromResult(Response.FromValue(
@@ -332,7 +471,11 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             BlobRequestConditions? conditions = null,
             CancellationToken cancellationToken = default)
         {
+            Operations++;
+            ThrowIfMissing();
             LastSetTagsConditions = conditions;
+            ThrowIfETagDiffers(conditions);
+            ThrowIfTagDiffers(conditions);
             Tags = new Dictionary<string, string>(tags, StringComparer.Ordinal);
             return Task.FromResult<Response>(new StubResponse());
         }
@@ -342,20 +485,53 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             BlobRequestConditions? conditions = null,
             CancellationToken cancellationToken = default)
         {
+            Operations++;
+            if (Missing)
+            {
+                return Task.FromResult(Response.FromValue(false, new StubResponse()));
+            }
+
+            if (ETagBeforeDelete is { } changed)
+            {
+                etag = changed;
+            }
+
             LastDeleteConditions = conditions;
+            ThrowIfETagDiffers(conditions);
+            ThrowIfTagDiffers(conditions);
+            DeleteCount++;
+            return Task.FromResult(Response.FromValue(true, new StubResponse()));
+        }
+
+        private void ThrowIfMissing()
+        {
+            if (Missing)
+            {
+                throw new RequestFailedException(404, "Blob not found.");
+            }
+        }
+
+        private void ThrowIfETagDiffers(BlobRequestConditions? conditions)
+        {
+            if (conditions?.IfMatch is { } expected && expected != etag)
+            {
+                throw new RequestFailedException(412, "ETag condition not met.");
+            }
+        }
+
+        private void ThrowIfTagDiffers(BlobRequestConditions? conditions)
+        {
             if (conditions?.TagConditions is { } tagCondition
                 && !tagCondition.Contains($"'{Tags["PegasusDisposition"]}'", StringComparison.Ordinal))
             {
                 throw new RequestFailedException(412, "Tag condition not met.");
             }
-
-            DeleteCount++;
-            return Task.FromResult(Response.FromValue(true, new StubResponse()));
         }
 
         public override Task<Response<BlobDownloadResult>> DownloadContentAsync(
             CancellationToken cancellationToken)
         {
+            Operations++;
             DownloadCount++;
             if (DownloadFailure is not null)
             {
@@ -370,6 +546,7 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             BlobUploadOptions options,
             CancellationToken cancellationToken = default)
         {
+            Operations++;
             UploadCount++;
             if (UploadFailure is not null)
             {
@@ -395,6 +572,7 @@ public sealed class AzureBlobIntakeArtifactStoreTests
 
         private Response<BlobDownloadStreamingResult> StreamBody()
         {
+            Operations++;
             DownloadCount++;
             return Response.FromValue(
                 BlobsModelFactory.BlobDownloadStreamingResult(
