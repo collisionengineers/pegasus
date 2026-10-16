@@ -4,15 +4,20 @@
     message, with Open message and Reply; a staff-logged query shows its
     channel and details. When none is open the section says so in the
     operator's one sentence. No edit session: Log query and Resolve query are
-    the Actions menu's and the Next action's.
+    the Actions menu's and the Next action's. An open mail query also carries
+    its AI draft (FRD-27): Draft reply with AI starts one, the row reads
+    "AI draft · Queued" while it is worked, and Reply with AI draft opens the
+    composer on the draft once it is ready.
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
+@using Pegasus.Core.Notifications
 @using Pegasus.Core.Workflow
 @using Pegasus.Web.Presentation
 @using QueryLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Queries
 @{
     var section = Model.QueriesSection;
     var workflow = section?.Frame.Workflow ?? Model.Case!.Workflow;
+    var caseId = workflow.CaseId;
     var reference = workflow.Identity.Reference;
     var queries = section?.Queries ?? [];
     var open = queries.Where(query => query.IsOpen).ToArray();
@@ -83,10 +88,46 @@
                                 <td class="row-actions nowrap">
                                     @if (query.Message is { } row)
                                     {
+                                        var draft = query.IsOpen ? Model.QueryDraftFor(row.RetainedMessageId) : null;
                                         <a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" data-dialog-open="case-message-@row.RetainedMessageId.ToString("N")">@OperatorLabels.CaseWorkspace.OpenMessage</a>
-                                        @if (query.IsOpen && Model.StaffMailAvailable)
+                                        @if (draft is { IsReady: true } ready && Model.StaffMailAvailable)
                                         {
-                                            <a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" asp-route-compose="reply" asp-route-correspondenceCaseReference="@reference" data-query-reply="@row.RetainedMessageId">@OperatorLabels.StaffMail.Reply</a>
+                                            <a class="btn btn--small btn--primary" href="@StaffNotificationPolicy.MessageReplyRoute(row.RetainedMessageId, reference, ready.Job.JobId)" data-query-reply="@row.RetainedMessageId" data-query-ai-draft="@ready.Job.JobId">
+                                                <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                                                <span>@OperatorLabels.QueryResponseJobs.ReplyWithDraft</span>
+                                            </a>
+                                        }
+                                        else if (query.IsOpen)
+                                        {
+                                            if (Model.StaffMailAvailable)
+                                            {
+                                                <a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" asp-route-compose="reply" asp-route-correspondenceCaseReference="@reference" data-query-reply="@row.RetainedMessageId">@OperatorLabels.StaffMail.Reply</a>
+                                            }
+                                            if (draft is { } pending)
+                                            {
+                                                <span class="muted" data-query-ai-pending="@pending.Job.JobId">@OperatorLabels.QueryResponseJobs.Pending(pending.State)</span>
+                                            }
+                                            else if (Model.QueryDraftCondition is null)
+                                            {
+                                                <form method="post" asp-page="/Cases/Details" asp-page-handler="DraftQueryReply" asp-route-id="@caseId" data-query-ai-draft-start="@row.RetainedMessageId">
+                                                    <input type="hidden" name="messageId" value="@row.RetainedMessageId" />
+                                                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                                    <input type="hidden" name="view" value="@Model.ViewRoute" />
+                                                    <button class="btn btn--small" type="submit" data-busy-label="@OperatorLabels.Busy.Drafting">
+                                                        <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                                                        <span>@OperatorLabels.QueryResponseJobs.Create</span>
+                                                    </button>
+                                                </form>
+                                            }
+                                            else
+                                            {
+                                                <span class="gated" data-condition="@Model.QueryDraftCondition">
+                                                    <button class="btn btn--small" type="button" disabled aria-disabled="true">
+                                                        <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                                                        <span>@OperatorLabels.QueryResponseJobs.Create</span>
+                                                    </button>
+                                                </span>
+                                            }
                                         }
                                     }
                                 </td>

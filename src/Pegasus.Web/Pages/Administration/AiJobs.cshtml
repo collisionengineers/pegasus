@@ -36,7 +36,7 @@
                                 <strong>@OperatorLabels.AiJobs.Kind(job.Kind)</strong>
                                 @if (!string.IsNullOrWhiteSpace(job.Instruction))
                                 {
-                                    <small class="admin-job-detail">@job.Instruction</small>
+                                    <small class="admin-job-detail">@OperatorLabels.AiJobs.Instruction(job)</small>
                                 }
                             </td>
                             <td class="mono">@(job.SubjectKind == AiJobSubjectKind.Queue ? OperatorLabels.AiJobs.QueueRecord : job.SubjectReference)</td>

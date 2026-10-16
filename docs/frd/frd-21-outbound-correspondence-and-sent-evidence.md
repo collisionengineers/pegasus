@@ -156,7 +156,9 @@ decision is [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md).
 **Also resolve query.** A Reply or Reply all filed against a Case that holds
 an open query offers one tick, **Also resolve query** (operator, 11 October
 2026). It is ticked by default only when the composer was opened from the
-Case's Resolve query Next action. The tick is kept on the send; when the
+Case's Resolve query Next action or on an AI draft
+([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)).
+The tick is kept on the send; when the
 Sent item is observed, every open query on the Case resolves
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
 A reply without it resolves nothing. Forward and Send chaser take no tick.
@@ -193,6 +195,15 @@ shows its sender read-only. There is no default sender.
 per-mailbox limit.
 
 **What the composer carries.** To, Subject, Message, Case / PO and From.
+A reply opened on an AI draft (**Reply with AI draft**,
+[FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list))
+opens with the draft as its Message and one line above it, marked AI, saying
+when and by which client the draft was written and that staff edit it before
+sending; the send carries the job, and a send the provider accepts completes
+it. A send that has gone but leaves the job as it was shows "The AI draft job
+was not completed by this send: {reason}." beside its send status (operator,
+16 October 2026). A job that is no longer that message's Draft ready reply
+prefills nothing.
 The one Case / PO field searches as staff type, by Case / PO,
 registration, claimant, claim number or Principal; choosing a Case from its
 list is the server action that fixes the Case and its version for the send,

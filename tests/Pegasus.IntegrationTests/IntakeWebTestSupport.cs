@@ -34,7 +34,7 @@ namespace Pegasus.IntegrationTests;
 
 public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
 {
-    private static readonly DateTimeOffset FixedUtcNow = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+    internal static readonly DateTimeOffset FixedUtcNow = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
     private readonly string environment;
     private readonly bool? localIntakeEnabled;
     private readonly TimeProvider timeProvider;

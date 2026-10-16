@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
@@ -426,6 +427,90 @@ public sealed class StaffMailSendPersistenceTests
                 return (null, exception);
             }
         }
+    }
+
+    /// <summary>
+    /// A reply composed on an AI draft completes its Query response job once
+    /// the provider accepts the send (FRD-27), under a key derived from the
+    /// send's so a replayed send confirms nothing twice and reports no
+    /// refusal. A refused send leaves the job Draft ready, and a job that is
+    /// not this message's draft is left as it is.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false, AiJobState.Completed)]
+    [InlineData(true, false, AiJobState.DraftReady)]
+    [InlineData(false, true, AiJobState.DraftReady)]
+    public async Task AReplyComposedOnAnAiDraftCompletesItsJobOnlyWhenTheProviderAcceptsTheSend(
+        bool rejected, bool otherMessage, AiJobState expected)
+    {
+        var transport = new RecordingStaffMailTransport { RejectSendWith = rejected ? "graph_rejected_403" : null };
+        var mailboxId = Guid.NewGuid();
+        await using var database = await CreateDatabaseAsync(services =>
+        {
+            services.AddSingleton<IApprovedStaffSendMailboxQueries>(
+                new ApprovedMailboxQueries(mailboxId));
+            services.AddSingleton<IReadLogicalDocumentVersion, UnusedLogicalDocumentReader>();
+            services.AddSingleton<IStaffMailTransport>(transport);
+            services.AddScoped<StaffMailSend>();
+        });
+        var retainedMessageId = Guid.NewGuid();
+        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
+        var actor = await SeedStaffAsync(database, "mail.ai.draft");
+        var caseId = Guid.NewGuid();
+        var job = await SeedDraftReplyJobAsync(
+            database, caseId, otherMessage ? Guid.NewGuid() : retainedMessageId, actor);
+        var command = ReplyCommand(actor, mailboxId, retainedMessageId, "ai-draft-reply") with
+        {
+            ContextId = caseId,
+            AiJobId = job.JobId
+        };
+        await using var scope = database.CreateAsyncScope();
+        var send = scope.ServiceProvider.GetRequiredService<StaffMailSend>();
+
+        var operation = await send.SendAsync(command, CancellationToken.None);
+        var replay = await send.SendAsync(command, CancellationToken.None);
+
+        Assert.Equal(rejected ? StaffMailState.Failed : StaffMailState.Submitted, operation.State);
+        Assert.Equal(operation.Id, replay.Id);
+        // The replay reads back the send's own confirmation, which is no refusal.
+        Assert.Null(operation.AiJobRefusal);
+        Assert.Null(replay.AiJobRefusal);
+        var persisted = await scope.ServiceProvider.GetRequiredService<IAiJobStore>()
+            .GetAsync(job.JobId, CancellationToken.None);
+        Assert.Equal(expected, persisted!.State);
+        Assert.Equal(expected == AiJobState.Completed ? job.Version + 1 : job.Version, persisted.Version);
+    }
+
+    /// <summary>
+    /// A Draft ready Query response job for <paramref name="retainedMessageId"/>
+    /// on <paramref name="caseId"/>, written as the Automation Actor writes one.
+    /// </summary>
+    private static async Task<AiJobRecord> SeedDraftReplyJobAsync(
+        LocalDbTestDatabase database, Guid caseId, Guid retainedMessageId, ActionActor starter)
+    {
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IAiJobStore>();
+        // The lease is read against the container's clock, whatever it is set to.
+        var now = (scope.ServiceProvider.GetService<TimeProvider>() ?? TimeProvider.System).GetUtcNow();
+        var client = ActionActor.Automation("draft-client");
+        var queued = await store.CreateAsync(
+            new NewAiJob(
+                AiJobKind.QueryResponse, AiJobSubjectKind.Case, caseId, "QRY260001",
+                retainedMessageId.ToString("D"), null, null, starter,
+                $"query-response:{Guid.NewGuid():N}", AiJobPolicy.DefaultExpiry),
+            CancellationToken.None);
+        var taken = await store.TransitionAsync(
+            new AiJobTransition(
+                queued.JobId, queued.Version, AiJobState.Taken, client, $"mcp:{Guid.NewGuid():N}",
+                LeaseExpiresAtUtc: now + AiJobPolicy.LeaseDuration),
+            CancellationToken.None);
+        return await store.TransitionAsync(
+            new AiJobTransition(
+                taken.JobId, taken.Version, AiJobState.DraftReady, client, $"mcp:{Guid.NewGuid():N}",
+                Result: new AiJobResult(
+                    AiJobResultKind.DraftReply, retainedMessageId.ToString("D"),
+                    "Dear Ms Patel, thank you for your e-mail.")),
+            CancellationToken.None);
     }
 
     [Theory]
@@ -2017,6 +2102,9 @@ public sealed class StaffMailSendPersistenceTests
         public int CreateDraftCount => Volatile.Read(ref this.createDraftCount);
         public int SendDraftCount => Volatile.Read(ref this.sendDraftCount);
 
+        /// <summary>When set, the provider refuses every send with this failure code.</summary>
+        public string? RejectSendWith { get; init; }
+
         public Task ValidateEncodedSizeAsync(
             ApprovedStaffSendMailbox mailbox, StaffMailOperation operation,
             StaffMailSendCommand command, IReadOnlyList<StaffMailAttachmentContent> attachments,
@@ -2045,6 +2133,10 @@ public sealed class StaffMailSendPersistenceTests
             CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref this.sendDraftCount);
+            if (RejectSendWith is { } failureCode)
+            {
+                throw new StaffMailTransportRejectedException(failureCode);
+            }
             return Task.FromResult(new StaffMailSubmitResult(DateTimeOffset.UtcNow));
         }
     }

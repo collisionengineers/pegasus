@@ -22,6 +22,7 @@ using Pegasus.Core.Reports;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Glass;
+using Pegasus.Web.Presentation;
 using Pegasus.Infrastructure.Email;
 using EstimateVatLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateVat;
 using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession;
@@ -102,6 +103,7 @@ public sealed partial class DetailsModel(
     GlassRepairEstimateAvailability glassAvailability,
     ICreateAudit createAudit,
     IAiJobQueries aiJobs,
+    IStartQueryResponse startQueryResponse,
     IStartMarketResearch startMarketResearch,
     IFetchGuideValuation fetchGuideValuation,
     IListValuationPresets listValuationPresets,
@@ -1617,6 +1619,7 @@ public sealed partial class DetailsModel(
                     {
                         return FragmentNotFound();
                     }
+                    await LoadQueryDraftsAsync(id, QueriesSection, cancellationToken);
                     break;
                 case "files":
                     FilesSection = await getCaseFilesSection.ExecuteAsync(new(id, actor), cancellationToken);
@@ -1886,6 +1889,11 @@ public sealed partial class DetailsModel(
         var jobs = await caseAiJobs;
         AiDrafts = AiDraftPolicy.Drafts(jobs, details.Data.RequiredAiDraftTargetDays);
         PendingMarketResearch = MarketResearchPolicy.PendingOf(jobs);
+        CaseAiJobs = jobs;
+        if (QueriesSection is { } queriesSection)
+        {
+            QueryDraftCondition = await QueryDraftConditionAsync(queriesSection, cancellationToken);
+        }
     }
 
     public Task<IActionResult> OnPostClaimLeaseAsync(
