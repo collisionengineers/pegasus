@@ -445,11 +445,12 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         // The Exchange-tenant-permission explanation and mailbox_access_denied
         // failure mode are operational documentation, owned by docs/runbook.md's
         // "Approved mailbox estate" section, not UI copy (design authority:
-        // docs/design/README.md line 160, no lede/subtitle narration).
+        // docs/design/README.md "Design principles", no lede/subtitle narration).
         Assert.DoesNotContain("does not grant Exchange access", page, StringComparison.Ordinal);
         Assert.DoesNotContain("mailbox_access_denied", page, StringComparison.Ordinal);
         // No internal identifier is ever asked for or shown, for any role
-        // (docs/design/README.md line 168; operator statement 2026-08-20).
+        // (docs/design/README.md "Enforced presentation rules", "No raw identifiers";
+        // operator statement 2026-08-20).
         Assert.DoesNotContain("Mailbox identity", page, StringComparison.Ordinal);
         Assert.DoesNotContain("Inbox folder identity", page, StringComparison.Ordinal);
         Assert.DoesNotContain("Sent folder identity", page, StringComparison.Ordinal);
