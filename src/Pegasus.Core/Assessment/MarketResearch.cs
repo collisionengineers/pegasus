@@ -39,7 +39,7 @@ public static class MarketResearchPolicy
 
     /// <summary>
     /// A market research job is pending while a client may still be working it. Once
-    /// its files and figures are attached the card is filled, so a Draft ready job
+    /// its files and figures are attached the card is filled, so a Completed job
     /// neither shows as pending nor blocks a run for another month.
     /// </summary>
     public static bool IsPending(AiJobRecord job)

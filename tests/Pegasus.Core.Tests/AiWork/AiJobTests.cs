@@ -30,6 +30,16 @@ public sealed class AiJobTests
         Assert.Equal(legal, AiJobPolicy.IsLegalTransition(from, to));
 
     [Fact]
+    public void MarketResearchCompletesOnlyFromTakenAndCompletedHasNoExit()
+    {
+        foreach (var state in Enum.GetValues<AiJobState>())
+        {
+            Assert.Equal(state == AiJobState.Taken, AiJobPolicy.IsLegalMarketResearchCompletion(state));
+            Assert.False(AiJobPolicy.IsLegalTransition(AiJobState.Completed, state));
+        }
+    }
+
+    [Fact]
     public void ALapsedLeaseReadsAsQueuedAndAnUntakenJobPastExpiryReadsAsExpired()
     {
         var expires = Now + AiJobPolicy.DefaultExpiry;
