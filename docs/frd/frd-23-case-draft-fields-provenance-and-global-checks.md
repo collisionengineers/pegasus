@@ -55,9 +55,6 @@ replacement Case
 A Confirmed value supersedes an earlier Fact or Suggestion for current use
 without erasing it from history.
 
-The draft shows its section blockers, missing values and contradictions
-(operator ruling, 16 October 2026).
-
 ### Vehicle details and mileage evidence
 
 Vehicle lookup and valuation are features of a Case, not gates. Review needs

@@ -224,11 +224,12 @@ specifications stay separate capabilities.
 
 **What is looked up.** Every Case carries vehicle identity and
 specification; where the instruction omits them, the lookup supplies them.
-An accepted DVLA/DVSA caller supplies make, model, manufacture year, engine
-capacity, fuel type, colour, tax due date, available MOT history and mileage
-observations for the registration. Once active, DVSA runs for every Case.
-Until then, approved local replay returns its preserved result, and with no
-replay evidence the value is source-labelled `Unavailable`.
+Where the instruction omits vehicle facts, an accepted DVLA/DVSA caller
+supplies make, model, manufacture year, engine capacity, fuel type, colour,
+tax due date, available MOT history and mileage observations for the
+registration. Once active, DVSA runs for every Case. Until then, approved
+local replay returns its preserved result, and with no replay evidence the
+value is source-labelled `Unavailable`.
 
 The mileage tiers and discrepancy rule are in
 [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#vehicle-details-and-mileage-evidence).
