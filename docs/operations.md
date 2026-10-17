@@ -7,7 +7,7 @@ procedures are reached through [the runbook](runbook.md).
 ## Reference-data load (REF-04) - 17 October 2026 (production applied)
 
 The reference-data load (REF-04; R16, R17, R18, R21 and R23) was applied to production on 17 October
-2026, after Release 112 was live and smoked. The operator ran the one-off loader
+2026, after Release 112 was live and smoked. The programme's lead ran the one-off loader
 `scripts/reference-data-loader/` ([PR 1397](https://github.com/collisionengineers/pegasus/pull/1397),
 live since Release 111), not the application: a read-only `dry-run`, then `apply` with the dry-run's
 plan hash, as the Administrator `alex`, under the operator's authorisation of 16 October that the
