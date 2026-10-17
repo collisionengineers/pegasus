@@ -38,7 +38,7 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0014](0014-local-to-production-deployment.md) | Local-to-production deployment only | accepted | — | — |
 | [ADR-0015](0015-host-web-on-container-apps-consumption.md) | Host Pegasus Web on Azure Container Apps Consumption | superseded | ADR-0049 | — |
 | [ADR-0016](0016-standalone-desktop-email-evaluator.md) | Standalone local desktop email evaluator | superseded | — | — |
-| [ADR-0018](0018-provider-inspection-mode-database-setting.md) | Provider-determined inspection mode as a database setting | accepted | — | — |
+| [ADR-0018](0018-provider-inspection-mode-database-setting.md) | Provider-determined inspection mode as a database setting | accepted | ADR-0076 (DATA-02 deferral; decision 5) | — |
 | [ADR-0019](0019-in-process-onnx-vrm-recognition.md) | In-process ONNX VRM recognition engine | accepted | — | — |
 | [ADR-0020](0020-accepted-qdos-case-association-predicates.md) | Accepted QDOS automatic case-association predicates | superseded | — | — |
 | [ADR-0021](0021-automation-actor-direct-write-assessment-contract.md) | Automation Actor direct-write assessment contract and the Send to AI transport slice | superseded | ADR-0031, ADR-0064 | — |
@@ -96,6 +96,7 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0073](0073-send-to-ai-hand-off-record-retired.md) | The Send to AI hand-off record is retired | accepted | — | AI-10, AI-09 |
 | [ADR-0074](0074-read-committed-default-transaction-isolation.md) | Read committed is the default transaction isolation | accepted | — | — |
 | [ADR-0075](0075-staff-take-over-of-an-automation-lease.md) | Staff may take over an Automation lease | accepted | — | CASE-27, MCP-01 |
+| [ADR-0076](0076-reviewed-register-is-the-contact-directory-data-contract.md) | The reviewed register is the Contacts directory data contract | accepted | — | DATA-02, ACC-05 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

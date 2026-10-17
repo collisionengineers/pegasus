@@ -3,7 +3,7 @@ id: ADR-0018
 status: accepted
 date: 2026-08-03
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0076]
 related_capabilities: []
 related_frd: [frd-02, frd-06]
 tags: [intake, config]
@@ -20,6 +20,14 @@ tags: [intake, config]
 ## Current applicability
 
 The persisted Principal inspection-mode setting remains the technical choice. Current Administrator behavior is owned by FRD-04; the former manual-SQL-until-UI procedure is no longer the operational owner.
+
+[ADR-0076](0076-reviewed-register-is-the-contact-directory-data-contract.md)
+(15 October 2026) replaces the Deferred-capability impact clause that
+DATA-02's inspection-address reference-data pipeline remains deferred: the
+pipeline is the reviewed register and its operator-run loader. It also
+replaces decision 5: an existing Principal's mode changes through the
+Contacts directory save, with no dedicated operation. The rest of this
+decision stands.
 
 ## Context
 

@@ -73,7 +73,7 @@ The following product exclusions are owned here. The capability registry links t
 - no synthetic historical-case reconstruction;
 - no local Outlook or Box mutation outside an exact separately approved target and operation;
 - no model, skill, prompt, or external source issuing an accepted case, engineering, economic, legal, or report outcome;
-- no broad production-data import from raw reference workbooks or evidence.
+- no production-data import from raw reference workbooks or evidence; the reviewed register, loaded under operator authorisation, is the accepted data contract (operator, 15 October 2026).
 
 ## Acceptance model
 
