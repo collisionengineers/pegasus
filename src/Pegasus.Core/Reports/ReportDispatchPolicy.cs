@@ -81,6 +81,14 @@ public sealed record ReportDispatchFacts(
     /// </summary>
     public CaseWorkKind? ReportWork { get; init; }
 
+    /// <summary>
+    /// Whether another Case of the same Principal with the same vehicle
+    /// registration already has a sent report, which "Previous job"
+    /// conditions read (operator, 16 October 2026). The dispatch facts query
+    /// looks it up when a rule names one.
+    /// </summary>
+    public bool PreviousJob { get; init; }
+
     /// <summary>The effective sender of the instruction, however the Case holds it.</summary>
     public string? Sender => Instruction?.EffectiveSender ?? OriginalSender;
 
@@ -153,7 +161,7 @@ public sealed record ReportDispatchPlan(
 }
 
 /// <summary>
-/// The one owner of how a report dispatch is planned (Report Sending SOP v5,
+/// The one owner of how a report dispatch is planned (Report Sending SOP v8,
 /// rule R12): who the report goes to, what must go with it, what holds or
 /// stops it, and what staff do after sending. Which mailbox it leaves from is
 /// <see cref="ResolveCaseMailSender"/>'s. Pure: it reads the facts and staff's
@@ -162,6 +170,7 @@ public sealed record ReportDispatchPlan(
 public static class ReportDispatchPolicy
 {
     public const string GarageFiguresTask = "Send the figures to the garage.";
+    public const string RateCardTask = "Check the report's estimate against the Connexus Repair Rate Card.";
     public const string NoFiledEstimateWarning = "No recognised estimate is filed on this Case.";
     public const string NoSeparateFeeNoteWarning =
         "This Principal expects the fee note as a separate document and none is confirmed.";
@@ -332,20 +341,40 @@ public static class ReportDispatchPolicy
         }
         holds.AddRange(applied.Select(index => ruleList[index].Then.Hold).OfType<string>());
 
+        // A rule's Rate card is the reminder to check the report's estimate
+        // against the card, after that rule's own reminder.
         var tasks = new List<string>();
         tasks.AddRange(rules.Reminders);
-        tasks.AddRange(applied.Select(index => ruleList[index].Then.Remind).OfType<string>());
+        foreach (var index in applied)
+        {
+            if (ruleList[index].Then.Remind is { } remind)
+            {
+                tasks.Add(remind);
+            }
+            if (ruleList[index].Then.RateCard)
+            {
+                tasks.Add(RateCardTask);
+            }
+        }
         if (rules.GarageFigures && string.Equals(facts.Outcome, "repairable", StringComparison.Ordinal))
         {
             tasks.Add(GarageFiguresTask);
         }
 
+        // Each applied rule's attach override replaces the flags it names, in
+        // rule order, so a later rule wins. The report itself was generated
+        // from the Principal's own Report images.
+        var attach = applied
+            .Select(index => ruleList[index].Then.Attach)
+            .OfType<ReportSendingAttachOverride>()
+            .Aggregate(rules.Attach, (current, named) => named.Over(current));
+
         var required = new List<CaseReportArtifactKind>();
-        if (rules.Attach.VehicleImagesDocument)
+        if (attach.VehicleImagesDocument)
         {
             required.Add(CaseReportArtifactKind.ImagePack);
         }
-        if (rules.Attach.FigureBreakdown)
+        if (attach.FigureBreakdown)
         {
             required.Add(CaseReportArtifactKind.RepairSpecification);
         }
@@ -356,16 +385,16 @@ public static class ReportDispatchPolicy
         StaffMailAttachment[] filed =
         [
             .. facts.FiledEstimates
-                .Where(estimate => IsAudatex(estimate) ? rules.Attach.Audatex : rules.Attach.Estimate)
+                .Where(estimate => IsAudatex(estimate) ? attach.Audatex : attach.Estimate)
                 .Select(estimate => estimate.Attachment)
         ];
 
         var warnings = new List<string>();
-        if ((rules.Attach.Estimate || rules.Attach.Audatex) && filed.Length == 0)
+        if ((attach.Estimate || attach.Audatex) && filed.Length == 0)
         {
             warnings.Add(NoFiledEstimateWarning);
         }
-        if (rules.Attach.FeeNoteSeparate
+        if (attach.FeeNoteSeparate
             && !facts.ConfirmedArtifacts.Contains(CaseReportArtifactKind.FeeNote))
         {
             warnings.Add(NoSeparateFeeNoteWarning);
@@ -510,6 +539,9 @@ public static class ReportDispatchPolicy
             ReportSendingConditionKind.Mentions => string.IsNullOrWhiteSpace(facts.InstructionText)
                 ? null
                 : Mentions(facts.InstructionText, condition.Values),
+            ReportSendingConditionKind.RefPrefix => condition.Values.Any(prefix =>
+                facts.CaseReference.StartsWith($"{prefix}.", StringComparison.OrdinalIgnoreCase)),
+            ReportSendingConditionKind.PreviousJob => facts.PreviousJob,
             _ => null
         };
         if (fact is not null)
@@ -587,6 +619,8 @@ public static class ReportDispatchPolicy
             ReportSendingConditionKind.ImagesFrom => $"Images from {string.Join(" or ", condition.Values)}",
             ReportSendingConditionKind.BodyshopMentions => $"Bodyshop mentions {string.Join(" or ", condition.Values)}",
             ReportSendingConditionKind.CaseType => $"Case type {string.Join(" or ", condition.Values.Select(CaseTypeWords))}",
+            ReportSendingConditionKind.RefPrefix => $"Reference prefix {string.Join(" or ", condition.Values)}",
+            ReportSendingConditionKind.PreviousJob => "Previous job",
             _ => $"Mentions {string.Join(" or ", condition.Values)}"
         });
         return $"Rule {index + 1}: {string.Join(", ", parts)}";

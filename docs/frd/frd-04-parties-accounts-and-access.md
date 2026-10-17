@@ -176,9 +176,9 @@ The Principal section of a Contact carries:
   rule and keeps the typed rows. No Principal starts with one, and a
   successor code inherits its predecessor's;
 - the report sending rules (operator, 5 and 6 October 2026), from the Report
-  Sending SOP v5 (2 October 2026). Every Principal has them. They say where a
-  report goes, from where, who is copied, what goes with it and what holds or
-  stops it:
+  Sending SOP v8 (15 October 2026). Every Principal has them. They say where
+  a report goes, from where, who is copied, what goes with it and what holds
+  or stops it:
   - Send from: the Outgoing mailbox the send form chooses to start with for
     a new message, when there is no instruction e-mail to reply from; staff
     may change it. A reply always leaves from the mailbox the instruction
@@ -198,12 +198,21 @@ The Principal section of a Contact carries:
     file name with `{ref}`, `{reg}` and `{outcome}`, once for a first
     send and once for a re-send;
   - Rules add Cc or remove Cc, remind, hold or stop when their conditions
-    hold. A rule matches All or Any of its conditions. A condition reads the
+    hold. A rule may also set the five Attach choices other than report
+    images for that send, each As the Principal, Attach or Do not attach;
+    a later rule wins. A rule's Rate card adds the after-sending task "Check
+    the report's estimate against the Connexus Repair Rate Card."; no
+    estimate is checked against a card (operator, 15 and 16 October 2026).
+    A rule matches All or Any of its conditions. A condition reads the
     Case's Claim Source or Repairer (a Contact of that type), the recorded
     outcome, the Case type (Inspection, Audit or Inspection and audit;
     operator, 13 October 2026), who sent the instruction, or words: "Instruction mentions" is
     searched for in the instruction e-mail and asked only when the Case
-    holds no instruction text. Several values in one condition are
+    holds no instruction text. Reference prefix holds when the report's
+    reference starts with its letters and a dot (`a.PCH26118` has the
+    prefix `a`). Previous job holds when another Case of the same Principal
+    with the same vehicle registration already has a sent report. Neither is
+    asked (operator, 16 October 2026). Several values in one condition are
     alternatives. A Case type of Inspection or Audit matches the report being
     sent, which on an Inspection + Audit Case is its Inspection or Audit view
     (a send carrying both reports is the view it is sent from), and Inspection

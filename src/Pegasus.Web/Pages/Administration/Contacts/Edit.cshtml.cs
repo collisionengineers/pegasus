@@ -518,6 +518,7 @@ public sealed class EditModel(
         string? Text(string name) => form[name].ToString() is { Length: > 0 } value && !string.IsNullOrWhiteSpace(value) ? value.Trim() : null;
         string[] Many(string name) => [.. form[name].Select(value => value ?? string.Empty)];
         bool Flag(string name) => form.ContainsKey(name);
+        bool? Choice(string name) => form[name].ToString() switch { "true" => true, "false" => false, _ => null };
         static string[] Split(string? value, params char[] separators) =>
             (value ?? string.Empty).Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         char[] addressSeparators = [',', ';', ' ', '\r', '\n'];
@@ -541,6 +542,7 @@ public sealed class EditModel(
                     ReportSendingConditionKind.Outcome => Many($"{field}Outcome"),
                     ReportSendingConditionKind.CaseType => Many($"{field}CaseType"),
                     ReportSendingConditionKind.SenderNot => Split(Text($"{field}Text"), addressSeparators),
+                    ReportSendingConditionKind.PreviousJob => [],
                     _ => Split(Text($"{field}Text"), textSeparators)
                 };
                 conditions.Add(new(kind, values));
@@ -550,7 +552,14 @@ public sealed class EditModel(
                 Split(Text($"{prefix}CcRemove"), addressSeparators),
                 Text($"{prefix}Remind"),
                 Text($"{prefix}Hold"),
-                Text($"{prefix}Stop"));
+                Text($"{prefix}Stop"),
+                Flag($"{prefix}RateCard"),
+                new ReportSendingAttachOverride(
+                    Choice($"{prefix}AttachFeeNoteSeparate"),
+                    Choice($"{prefix}AttachEstimate"),
+                    Choice($"{prefix}AttachAudatex"),
+                    Choice($"{prefix}AttachVehicleImagesDocument"),
+                    Choice($"{prefix}AttachFigureBreakdown")));
             // A row left entirely blank is the spare row; it is not a rule.
             if (conditions.Count == 0 && actions.IsEmpty) continue;
             var match = Enum.TryParse<ReportSendingRuleMatch>(form[$"{prefix}Match"].ToString(), out var parsed)
@@ -625,6 +634,7 @@ public sealed class EditModel(
             ReportSendingRulesRule.UnknownContact => $"{where}: choose a contact from the list.",
             ReportSendingRulesRule.UnknownOutcome => $"{where}: choose an outcome from the list.",
             ReportSendingRulesRule.UnknownCaseType => $"{where}: choose a case type from the list.",
+            ReportSendingRulesRule.InvalidRefPrefix => OperatorLabels.PrincipalAdministration.RefPrefixLettersOnly,
             ReportSendingRulesRule.EmptyRule => $"{where}: add at least one condition.",
             ReportSendingRulesRule.EmptyCondition => $"{where}: a condition needs a value.",
             ReportSendingRulesRule.EmptyActions => $"{where}: add at least one action.",

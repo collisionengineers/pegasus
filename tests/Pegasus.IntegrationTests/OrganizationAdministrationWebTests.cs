@@ -5,8 +5,10 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Reports;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -255,7 +257,7 @@ public sealed partial class OrganizationAdministrationWebTests
     }
 
     /// <summary>
-    /// The Principal's report sending rules (Report Sending SOP v5): the tab
+    /// The Principal's report sending rules (Report Sending SOP v8): the tab
     /// follows Report generation, a refused save names the rule and keeps what
     /// was typed, and a good save is kept and shown again.
     /// </summary>
@@ -298,8 +300,11 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Equal(1, Regex.Count(html, "name=\"RuleIndex\""));
         Assert.Contains(">Car 2 Go</option>", html, StringComparison.Ordinal);
         Assert.Contains("<option value=\"BodyshopMentions\">Bodyshop mentions</option>", html, StringComparison.Ordinal);
-        // Case type is the last condition, a choice of the types that send a report (13 October 2026).
-        Assert.Matches(@"<option value=""BodyshopMentions"">Bodyshop mentions</option>\s*<option value=""CaseType"">Case type</option>\s*</select>", html);
+        // Case type follows Bodyshop mentions, a choice of the types that send a report (13 October 2026);
+        // Reference prefix and Previous job follow it (Report Sending SOP v8).
+        Assert.Matches(
+            $@"<option value=""BodyshopMentions"">Bodyshop mentions</option>\s*<option value=""CaseType"">Case type</option>\s*<option value=""RefPrefix"">{OperatorLabels.PrincipalAdministration.ConditionKind(ReportSendingConditionKind.RefPrefix)}</option>\s*<option value=""PreviousJob"">{OperatorLabels.PrincipalAdministration.ConditionKind(ReportSendingConditionKind.PreviousJob)}</option>\s*</select>",
+            html);
         Assert.Matches(@"<option value=""Inspection"">Inspection</option>\s*<option value=""Audit"">Audit</option>\s*<option value=""InspectionAndAudit"">Inspection and audit</option>", html);
         Assert.Contains("Send is refused; staff may override with a reason.", html, StringComparison.Ordinal);
         // The texts have no length limit.
@@ -366,6 +371,64 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Contains("value=\"{reg} Initial\"", reloaded, StringComparison.Ordinal);
         // The saved rule and one spare blank rule.
         Assert.Equal(2, Regex.Count(reloaded, "name=\"RuleIndex\""));
+
+        // Report Sending SOP v8: a non-letter reference prefix is refused and kept as typed.
+        using var badPrefix = await client.PostAsync(
+            $"{path}?handler=UpdateReportSending",
+            SendingForm(reloaded,
+            [
+                new("RuleIndex", "0"), new("Rule0Match", "All"),
+                new("Rule0Cond0Kind", "RefPrefix"), new("Rule0Cond0Text", "a1"), new("Rule0CcRemove", "x@example.com")
+            ]));
+        Assert.Equal(HttpStatusCode.OK, badPrefix.StatusCode);
+        var badPrefixHtml = await badPrefix.Content.ReadAsStringAsync();
+        AssertInsidePanel(badPrefixHtml, "principal-sending-title", OperatorLabels.PrincipalAdministration.RefPrefixLettersOnly);
+        Assert.Contains("value=\"a1\"", badPrefixHtml, StringComparison.Ordinal);
+        Assert.Equal(versionBefore + 1, await factory.Database.ScalarAsync<long>(principalVersion));
+
+        // A reference prefix, a previous job with no value, a Rate card and two
+        // named attach choices are kept; an unnamed one stays As the Principal.
+        using var v8 = await client.PostAsync(
+            $"{path}?handler=UpdateReportSending",
+            SendingForm(reloaded,
+            [
+                new("RsReplyAll", "true"), new("RsFeeNoteSeparate", "true"), new("RsReportImages", "true"),
+                new("RuleIndex", "0"), new("Rule0Match", "Any"),
+                new("Rule0Cond0Kind", "RefPrefix"), new("Rule0Cond0Text", "a"),
+                new("Rule0Cond1Kind", "PreviousJob"), new("Rule0Cond1Text", "ignored"),
+                new("Rule0CcRemove", "x@example.com"), new("Rule0RateCard", "true"),
+                new("Rule0AttachEstimate", "true"), new("Rule0AttachFigureBreakdown", "false"), new("Rule0AttachAudatex", "")
+            ]));
+        Assert.True(
+            v8.StatusCode == HttpStatusCode.Redirect,
+            $"Expected a redirect but got {v8.StatusCode}. Validation errors: {await DescribeValidationErrorsAsync(v8)}");
+        string RuleValue(string jsonPath) =>
+            $"SELECT JSON_VALUE(ReportSendingRulesJson, '$.rules[0].{jsonPath}') FROM Principals WHERE Id = '{principalId:D}';";
+        Assert.Equal("a", await factory.Database.ScalarAsync<string>(RuleValue("if[0].values[0]")));
+        Assert.Equal("PreviousJob", await factory.Database.ScalarAsync<string>(RuleValue("if[1].kind")));
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM OPENJSON((SELECT ReportSendingRulesJson FROM Principals WHERE Id = '{principalId:D}'), '$.rules[0].if[1].values');"));
+        Assert.Equal("true", await factory.Database.ScalarAsync<string>(RuleValue("then.rateCard")));
+        Assert.Equal("true", await factory.Database.ScalarAsync<string>(RuleValue("then.attach.estimate")));
+        Assert.Equal("false", await factory.Database.ScalarAsync<string>(RuleValue("then.attach.figureBreakdown")));
+        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM OPENJSON((SELECT ReportSendingRulesJson FROM Principals WHERE Id = '{principalId:D}'), '$.rules[0].then.attach');"));
+
+        var shown = await EditContactAsync(client, path, "report-sending");
+        Assert.Contains("value=\"a\"", shown, StringComparison.Ordinal);
+        Assert.Contains("name=\"Rule0RateCard\" value=\"true\" checked=\"checked\"", shown, StringComparison.Ordinal);
+        Assert.Contains(
+            $"name=\"Rule0AttachEstimate\"><option value=\"\">{OperatorLabels.PrincipalAdministration.AttachAsThePrincipal}</option><option value=\"true\" selected=\"selected\">{OperatorLabels.PrincipalAdministration.AttachOverrideOn}</option>",
+            shown,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"<option value=\"false\" selected=\"selected\">{OperatorLabels.PrincipalAdministration.AttachOverrideOff}</option>",
+            shown,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"name=\"Rule0AttachAudatex\"><option value=\"\">{OperatorLabels.PrincipalAdministration.AttachAsThePrincipal}</option><option value=\"true\">",
+            shown,
+            StringComparison.Ordinal);
     }
 
     [Fact]

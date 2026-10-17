@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -10,7 +11,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// Reads the report dispatch facts of a Case: the Principal and its report
 /// sending rules, the retained instruction e-mail and the mailbox holding it,
 /// the Case's Claim Source, Repairer, type and outcome, the work whose report
-/// is being sent, and the filed estimates.
+/// is being sent, the filed estimates, and whether the vehicle is a previous
+/// job.
 /// </summary>
 public sealed class EfReportRecipientSuggestionQueries(
     IDbContextFactory<PegasusDbContext> contextFactory) : IReportRecipientSuggestionQueries
@@ -32,6 +34,7 @@ public sealed class EfReportRecipientSuggestionQueries(
                          where @case.Id == caseId
                          select new
                          {
+                             @case.PrincipalId,
                              @case.Reference,
                              @case.AuditReference,
                              @case.Type,
@@ -127,6 +130,11 @@ public sealed class EfReportRecipientSuggestionQueries(
             .Select(field => field.Value)
             .FirstOrDefaultAsync(cancellationToken);
 
+        // "Previous job" is read only when a rule names it.
+        var previousJob = rules.Rules.Any(rule => rule.If.Any(condition => condition.Kind == ReportSendingConditionKind.PreviousJob))
+            && CaseRegistration.Normalize(registration) is { } vehicle
+            && await PreviousJobAsync(context, caseId, row.PrincipalId, vehicle, cancellationToken);
+
         // The names of the contacts the Case chose and the rules mention.
         var contactIds = rules.Rules
             .SelectMany(rule => rule.If)
@@ -160,8 +168,41 @@ public sealed class EfReportRecipientSuggestionQueries(
             ReportWork = workKind,
             InstructionText = instructionText,
             FiledEstimates = await EfFiledEstimateAttachmentQueries.ReadAsync(context, caseId, cancellationToken),
-            ContactNames = names
+            ContactNames = names,
+            PreviousJob = previousJob
         };
+    }
+
+    /// <summary>
+    /// Whether another Case of the Principal whose accepted registration is
+    /// <paramref name="vehicle"/> (compared without spaces, hyphens or case,
+    /// as the Cases search compares it) has a report send that left: one
+    /// accepted or observed in Sent, as the send history counts it.
+    /// </summary>
+    private static Task<bool> PreviousJobAsync(
+        PegasusDbContext context, Guid caseId, Guid principalId, string vehicle, CancellationToken cancellationToken)
+    {
+        var sameVehicle =
+            from work in context.CaseWorks.AsNoTracking()
+            join field in context.CaseDataFields.AsNoTracking() on work.Id equals field.WorkId
+            where work.CaseId != caseId
+                && field.FieldName == CaseDataFieldNames.VehicleRegistration
+                && (field.ValueKind == CaseDataCodes.Confirmed
+                    || (field.ValueKind == CaseDataCodes.Fact
+                        && !context.CaseDataFields.Any(confirmed => confirmed.WorkId == field.WorkId
+                            && confirmed.FieldName == CaseDataFieldNames.VehicleRegistration
+                            && confirmed.ValueKind == CaseDataCodes.Confirmed)))
+                && field.Value.Replace(" ", "").Replace("-", "") == vehicle
+            select work.CaseId;
+        return (from send in context.Set<StaffMailSendOperationEntity>().AsNoTracking()
+                join generation in context.Set<CaseReportGenerationEntity>().AsNoTracking() on send.ContextId equals generation.Id
+                join other in context.Cases.AsNoTracking() on generation.CaseId equals other.Id
+                where send.Purpose == StaffMailPurpose.CaseReport
+                    && (send.State == StaffMailState.Submitted || send.State == StaffMailState.Sent)
+                    && other.PrincipalId == principalId
+                    && sameVehicle.Contains(other.Id)
+                select send.Id)
+            .AnyAsync(cancellationToken);
     }
 
     private static Guid? ContactId(string? value) =>
