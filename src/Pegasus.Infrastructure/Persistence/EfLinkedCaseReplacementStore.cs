@@ -23,11 +23,10 @@ public sealed class EfLinkedCaseReplacementStore(
         ArgumentNullException.ThrowIfNull(request);
         var requestHash = RequestHash(request);
 
-        return await CaseAllocationRetry.ExecuteAsync(
+        return await StoreConcurrencyRetry.ExecuteAsync(
             token => CreateOnceAsync(request, requestHash, token),
-            token => FindReplayAsync(request, requestHash, token),
-            exception => exception,
-            cancellationToken);
+            cancellationToken,
+            findCommitted: token => FindReplayAsync(request, requestHash, token));
     }
 
     private async Task<CaseAcceptanceOutcome> CreateOnceAsync(

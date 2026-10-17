@@ -64,7 +64,7 @@ public sealed class EfSettleFiledCaseReportArtifacts(
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
                 settled++;
             }
-            catch (Exception exception) when (CaseAllocationRetry.IsRetryable(exception))
+            catch (Exception exception) when (StoreConcurrencyRetry.IsRetryable(exception))
             {
                 // A retry of Generate report reached the same artifact and
                 // the database ended this transaction; the next pass reads the

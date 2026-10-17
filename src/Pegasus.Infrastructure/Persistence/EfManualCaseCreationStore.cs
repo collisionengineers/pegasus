@@ -37,13 +37,12 @@ public sealed class EfManualCaseCreationStore(
         CancellationToken cancellationToken)
     {
         var fingerprint = Fingerprint(request);
-        return await CaseAllocationRetry.ExecuteAsync(
+        return await StoreConcurrencyRetry.ExecuteAsync(
             token => CreateOnceAsync(request, fingerprint, token),
-            async token => await FindReplayAsync(request.OperationKey, fingerprint, token) is { } replay
+            cancellationToken,
+            findCommitted: async token => await FindReplayAsync(request.OperationKey, fingerprint, token) is { } replay
                 ? new ManualCaseCreationOutcome(replay, null)
-                : null,
-            exception => exception,
-            cancellationToken);
+                : null);
     }
 
     private async Task<ManualCaseCreationOutcome> CreateOnceAsync(

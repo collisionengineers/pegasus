@@ -142,14 +142,21 @@ public sealed class EfRepairSpecificationStore(
 
     public Task<RepairSpecificationVersion> SaveEstimateAsync(
         SaveEstimateRequest request, CancellationToken cancellationToken) =>
-        PersistEstimateAsync(request, importedDocument: false, cancellationToken);
+        StoreConcurrencyRetry.ExecuteAsync(
+            token => PersistEstimateAsync(request, importedDocument: false, token),
+            cancellationToken);
 
     /// <summary>
     /// The Estimate Apply command: the saved Draft and both scaling snapshots
     /// share this one transaction and one operation key. The page
     /// saves the specification with the Case before it asks.
     /// </summary>
-    public async Task<RepairSpecificationVersion> ScaleAsync(
+    public Task<RepairSpecificationVersion> ScaleAsync(
+        ScaleRepairSpecificationRequest request,
+        CancellationToken cancellationToken) =>
+        StoreConcurrencyRetry.ExecuteAsync(token => ScaleOnceAsync(request, token), cancellationToken);
+
+    private async Task<RepairSpecificationVersion> ScaleOnceAsync(
         ScaleRepairSpecificationRequest request,
         CancellationToken cancellationToken)
     {
@@ -223,7 +230,12 @@ public sealed class EfRepairSpecificationStore(
     }
 
     /// <summary>Restores a frozen version and both restore marks in one transaction.</summary>
-    public async Task<RepairSpecificationVersion> RestoreSnapshotAsync(
+    public Task<RepairSpecificationVersion> RestoreSnapshotAsync(
+        RestoreRepairSpecificationSnapshotRequest request,
+        CancellationToken cancellationToken) =>
+        StoreConcurrencyRetry.ExecuteAsync(token => RestoreSnapshotOnceAsync(request, token), cancellationToken);
+
+    private async Task<RepairSpecificationVersion> RestoreSnapshotOnceAsync(
         RestoreRepairSpecificationSnapshotRequest request,
         CancellationToken cancellationToken)
     {
@@ -308,7 +320,12 @@ public sealed class EfRepairSpecificationStore(
     }
 
     /// <summary>Restores the latest scale pair and records terminal removal in the same transaction.</summary>
-    public async Task<RepairSpecificationVersion> RemoveScalingAsync(
+    public Task<RepairSpecificationVersion> RemoveScalingAsync(
+        RemoveRepairSpecificationScalingRequest request,
+        CancellationToken cancellationToken) =>
+        StoreConcurrencyRetry.ExecuteAsync(token => RemoveScalingOnceAsync(request, token), cancellationToken);
+
+    private async Task<RepairSpecificationVersion> RemoveScalingOnceAsync(
         RemoveRepairSpecificationScalingRequest request,
         CancellationToken cancellationToken)
     {
@@ -395,7 +412,9 @@ public sealed class EfRepairSpecificationStore(
 
     public Task<RepairSpecificationVersion> SaveImportedEstimateAsync(
         SaveEstimateRequest request, CancellationToken cancellationToken) =>
-        PersistEstimateAsync(EstimatePolicy.ValidateImportedSave(request), importedDocument: true, cancellationToken);
+        StoreConcurrencyRetry.ExecuteAsync(
+            token => PersistEstimateAsync(EstimatePolicy.ValidateImportedSave(request), importedDocument: true, token),
+            cancellationToken);
 
     private async Task<RepairSpecificationVersion> PersistEstimateAsync(
         SaveEstimateRequest request,
@@ -633,7 +652,12 @@ public sealed class EfRepairSpecificationStore(
             beforeLines, afterLines, replacedCurrent);
     }
 
-    public async Task<RepairSpecificationVersion> DuplicateEstimateAsync(
+    public Task<RepairSpecificationVersion> DuplicateEstimateAsync(
+        DuplicateEstimateRequest request,
+        CancellationToken cancellationToken) =>
+        StoreConcurrencyRetry.ExecuteAsync(token => DuplicateEstimateOnceAsync(request, token), cancellationToken);
+
+    private async Task<RepairSpecificationVersion> DuplicateEstimateOnceAsync(
         DuplicateEstimateRequest request,
         CancellationToken cancellationToken)
     {
@@ -689,7 +713,12 @@ public sealed class EfRepairSpecificationStore(
         return Map(entity);
     }
 
-    public async Task DiscardEstimateAsync(
+    public Task DiscardEstimateAsync(
+        DiscardEstimateRequest request,
+        CancellationToken cancellationToken) =>
+        StoreConcurrencyRetry.ExecuteAsync(token => DiscardEstimateOnceAsync(request, token), cancellationToken);
+
+    private async Task DiscardEstimateOnceAsync(
         DiscardEstimateRequest request,
         CancellationToken cancellationToken)
     {
@@ -724,7 +753,12 @@ public sealed class EfRepairSpecificationStore(
         await transaction.CommitAsync(cancellationToken);
     }
 
-    public async Task<RepairSpecificationVersion> SetCurrentEstimateAsync(
+    public Task<RepairSpecificationVersion> SetCurrentEstimateAsync(
+        SetCurrentEstimateRequest request,
+        CancellationToken cancellationToken) =>
+        StoreConcurrencyRetry.ExecuteAsync(token => SetCurrentEstimateOnceAsync(request, token), cancellationToken);
+
+    private async Task<RepairSpecificationVersion> SetCurrentEstimateOnceAsync(
         SetCurrentEstimateRequest request,
         CancellationToken cancellationToken)
     {

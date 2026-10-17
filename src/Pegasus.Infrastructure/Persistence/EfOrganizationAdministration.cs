@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
@@ -747,35 +746,7 @@ public sealed class EfOrganizationAdministration(
     private static Task<T> ExecuteWithConcurrencyRetryAsync<T>(
         Func<CancellationToken, Task<T>> operation,
         CancellationToken cancellationToken) =>
-        ExecuteWithConcurrencyRetryAsync(operation, IsRetryableConcurrencyFailure, cancellationToken);
-
-    /// <summary>
-    /// Three attempts, 25 ms × attempt apart, for the failures the caller
-    /// names as concurrency races; shared with the principal credential store.
-    /// </summary>
-    internal static async Task<T> ExecuteWithConcurrencyRetryAsync<T>(
-        Func<CancellationToken, Task<T>> operation,
-        Func<Exception, bool> isRetryable,
-        CancellationToken cancellationToken)
-    {
-        for (var attempt = 1; attempt <= 3; attempt++)
-        {
-            try
-            {
-                return await operation(cancellationToken);
-            }
-            catch (Exception exception) when (
-                attempt < 3
-                && isRetryable(exception))
-            {
-                await Task.Delay(
-                    TimeSpan.FromMilliseconds(25 * attempt),
-                    cancellationToken);
-            }
-        }
-
-        throw new UnreachableException();
-    }
+        StoreConcurrencyRetry.ExecuteAsync(operation, cancellationToken, IsRetryableConcurrencyFailure);
 
     private static bool IsRetryableConcurrencyFailure(Exception exception) =>
         exception switch

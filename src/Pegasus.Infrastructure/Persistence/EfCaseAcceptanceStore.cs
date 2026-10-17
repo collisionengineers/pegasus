@@ -95,13 +95,19 @@ public sealed class EfCaseAcceptanceStore(
         var principalCode = CasePrincipalCode.Normalize(request.PrincipalCode);
         var command = CreateAcceptanceCommand(request, principalCode);
 
-        return await CaseAllocationRetry.ExecuteAsync(
-            token => AcceptOnceAsync(request, principalCode, command, token),
-            async token => await FindAcceptedAsync(request, principalCode, command, token) is { } duplicate
-                ? duplicate with { IsDuplicate = true }
-                : null,
-            _ => new IntakeVersionConflictException(),
-            cancellationToken);
+        try
+        {
+            return await StoreConcurrencyRetry.ExecuteAsync(
+                token => AcceptOnceAsync(request, principalCode, command, token),
+                cancellationToken,
+                findCommitted: async token => await FindAcceptedAsync(request, principalCode, command, token) is { } duplicate
+                    ? duplicate with { IsDuplicate = true }
+                    : null);
+        }
+        catch (Exception exception) when (StoreConcurrencyRetry.IsRetryable(exception))
+        {
+            throw new IntakeVersionConflictException();
+        }
     }
 
     private async Task<CaseAcceptanceOutcome> AcceptOnceAsync(

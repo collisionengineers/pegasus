@@ -1,7 +1,5 @@
-using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -30,25 +28,10 @@ public sealed class EfCaseReportSentEvidenceStore(
 
         var requestHash = Hash(normalized);
 
-        for (var attempt = 1; attempt <= 3; attempt++)
-        {
-            try
-            {
-                return await RetainOnceAsync(normalized, requestHash, cancellationToken);
-            }
-            catch (Exception exception) when (attempt < 3 && IsRetryableConcurrencyFailure(exception))
-            {
-                var replay = await FindReplayAsync(normalized, requestHash, cancellationToken);
-                if (replay is not null)
-                {
-                    return replay;
-                }
-
-                await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt), cancellationToken);
-            }
-        }
-
-        throw new UnreachableException();
+        return await StoreConcurrencyRetry.ExecuteAsync(
+            token => RetainOnceAsync(normalized, requestHash, token),
+            cancellationToken,
+            findCommitted: token => FindReplayAsync(normalized, requestHash, token));
     }
 
     private async Task<RetainedApprovedMailboxReportSentEvidence> RetainOnceAsync(
@@ -224,14 +207,5 @@ public sealed class EfCaseReportSentEvidenceStore(
         nameof(ActorKind.SystemWorker) => ActionActor.SystemWorker(subjectId),
         _ => throw new InvalidDataException(
             "Retained approved-mailbox evidence contains an unsupported discovery actor.")
-    };
-
-    private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch
-    {
-        DbUpdateConcurrencyException => true,
-        SqlException { Number: 1205 or 2601 or 2627 } => true,
-        DbUpdateException { InnerException: { } innerException } =>
-            IsRetryableConcurrencyFailure(innerException),
-        _ => false
     };
 }

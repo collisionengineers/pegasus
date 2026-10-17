@@ -34,10 +34,18 @@ public sealed class EfCaseWorkspaceStore(
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<SaveCaseWorkspaceResult> SaveAsync(
+    public Task<SaveCaseWorkspaceResult> SaveAsync(
         SaveCaseWorkspaceRequest request,
         CancellationToken cancellationToken,
-        IReadOnlyList<SignOffEngineerProfile>? signOffProfiles = null)
+        IReadOnlyList<SignOffEngineerProfile>? signOffProfiles = null) =>
+        StoreConcurrencyRetry.ExecuteAsync(
+            token => SaveOnceAsync(request, signOffProfiles, token),
+            cancellationToken);
+
+    private async Task<SaveCaseWorkspaceResult> SaveOnceAsync(
+        SaveCaseWorkspaceRequest request,
+        IReadOnlyList<SignOffEngineerProfile>? signOffProfiles,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         request = CaseWorkspacePolicy.ValidateAndNormalize(request);

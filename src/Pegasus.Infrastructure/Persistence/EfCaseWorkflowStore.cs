@@ -741,12 +741,21 @@ public sealed class EfCaseWorkflowStore(
             }
         }, cancellationToken);
 
-    public async Task<LinkReportEvidenceResult> LinkReportEvidenceAsync(
+    public Task<LinkReportEvidenceResult> LinkReportEvidenceAsync(
+        LinkReportEvidenceRequest request,
+        CancellationToken cancellationToken) =>
+        StoreConcurrencyRetry.ExecuteAsync(
+            token => LinkReportEvidenceOnceAsync(request, token),
+            cancellationToken);
+
+    // The created tasks are the attempt's own, so a retry never answers with
+    // the tasks of an attempt that rolled back.
+    private async Task<LinkReportEvidenceResult> LinkReportEvidenceOnceAsync(
         LinkReportEvidenceRequest request,
         CancellationToken cancellationToken)
     {
         IReadOnlyList<CaseTaskRecord> tasksCreated = [];
-        var linked = await MutateAsync(request, "report_evidence_linked", async (context, workflow, now) =>
+        var linked = await MutateOnceAsync(request, "report_evidence_linked", async (context, workflow, now) =>
         {
             var pastWork = await PastWorkAsync(context, workflow.CaseId, request.Work, cancellationToken);
             var evaluation = await EvaluateReportEvidenceLinkAsync(
@@ -1218,7 +1227,17 @@ public sealed class EfCaseWorkflowStore(
             }));
     }
 
-    private async Task<CaseWorkflowRecord> MutateAsync(
+    private Task<CaseWorkflowRecord> MutateAsync(
+        CaseMutationRequest request,
+        string eventType,
+        Func<PegasusDbContext, CaseWorkflowEntity, DateTimeOffset, Task> apply,
+        CancellationToken cancellationToken,
+        string? discriminator = null) =>
+        StoreConcurrencyRetry.ExecuteAsync(
+            token => MutateOnceAsync(request, eventType, apply, token, discriminator),
+            cancellationToken);
+
+    private async Task<CaseWorkflowRecord> MutateOnceAsync(
         CaseMutationRequest request,
         string eventType,
         Func<PegasusDbContext, CaseWorkflowEntity, DateTimeOffset, Task> apply,

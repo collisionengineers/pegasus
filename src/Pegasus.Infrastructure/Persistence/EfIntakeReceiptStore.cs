@@ -2,7 +2,6 @@
 using Pegasus.Core.Intake;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -13,31 +12,24 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     private const int JsonVersion = 1;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<IntakeReceipt> StoreAsync(
+    public Task<IntakeReceipt> StoreAsync(
         IntakeReceiptDraft draft,
-        CancellationToken cancellationToken)
-    {
-        for (var attempt = 1; attempt <= 3; attempt++)
-        {
-            try
+        CancellationToken cancellationToken) =>
+        StoreConcurrencyRetry.ExecuteAsync(
+            token => StoreOnceAsync(draft, token),
+            cancellationToken,
+            StoreConcurrencyRetry.IsDeadlockOrKeyCollision,
+            async token =>
             {
-                return await StoreOnceAsync(draft, cancellationToken);
-            }
-            catch (Exception exception) when (attempt < 3 && IsRetryableConcurrencyFailure(exception))
-            {
-                var duplicate = await FindBySourceIdentityAsync(draft.SourceIdentity, cancellationToken);
-                if (duplicate is not null)
+                var duplicate = await FindBySourceIdentityAsync(draft.SourceIdentity, token);
+                if (duplicate is null)
                 {
-                    EnsureMatchingContent(duplicate.SourceHash, draft.SourceHash);
-                    return duplicate with { IsDuplicate = true };
+                    return null;
                 }
 
-                await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt), cancellationToken);
-            }
-        }
-
-        throw new InvalidOperationException("The intake receipt could not be stored after the concurrency retry limit.");
-    }
+                EnsureMatchingContent(duplicate.SourceHash, draft.SourceHash);
+                return duplicate with { IsDuplicate = true };
+            });
     public async Task<IntakeReceipt> ReplaceEvaluationAsync(
         IntakeReceiptDraft draft,
         CancellationToken cancellationToken)
@@ -1381,13 +1373,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             throw new IntakeSourceIdentityConflictException();
         }
     }
-
-    private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch
-    {
-        SqlException { Number: 1205 or 2601 or 2627 } => true,
-        _ when exception.InnerException is not null => IsRetryableConcurrencyFailure(exception.InnerException),
-        _ => false
-    };
 
     private sealed record VersionedEnvelope<T>(int Version, T Data);
     private sealed record PersistedEvidence(
