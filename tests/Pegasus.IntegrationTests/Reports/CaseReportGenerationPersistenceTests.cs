@@ -1990,9 +1990,10 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
             ReportGenerationDatabase database, bool ownsDatabase, StaffRole staffRole, int supportingImages)
         {
             var factory = database.Factory;
-            var seeded = await SeedCaseAsync(database);
+            ReportGenerationDatabase.SeededCase? seeded = null;
             try
             {
+                seeded = await SeedCaseAsync(database);
                 var caseId = seeded.CaseId;
                 var staffActor = ActionActor.Staff(Guid.NewGuid(), [staffRole]);
                 var closeUp = await SeedDocumentAsync(factory, caseId, "close-up.png", "image/png", 1);
@@ -2030,10 +2031,15 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
             }
         }
 
-        /// <summary>Ends a harness: drops the database it made, or removes its Case from the shared one.</summary>
+        /// <summary>
+        /// Ends a harness: drops the database it made, or removes its Case from
+        /// the shared one. A Case that was never seeded left no rows to remove.
+        /// </summary>
         private static Task ReleaseAsync(
-            ReportGenerationDatabase database, bool ownsDatabase, ReportGenerationDatabase.SeededCase seeded) =>
-            ownsDatabase ? database.DisposeAsync() : database.RemoveCaseAsync(seeded);
+            ReportGenerationDatabase database, bool ownsDatabase, ReportGenerationDatabase.SeededCase? seeded) =>
+            ownsDatabase ? database.DisposeAsync()
+            : seeded is null ? Task.CompletedTask
+            : database.RemoveCaseAsync(seeded);
 
         public GenerateCaseReport Generate(
             RecordingCustody custody,
