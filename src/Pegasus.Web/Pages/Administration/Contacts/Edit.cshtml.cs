@@ -472,7 +472,8 @@ public sealed class EditModel(
     {
         if (Principal is null) return;
         PrincipalCode = Principal.Code;
-        PrincipalInspectionMode = Principal.InspectionMode;
+        // The mode the save compares with: the current Principal's, the one without a successor.
+        PrincipalInspectionMode = Contact?.PrincipalInspectionMode ?? Principal.InspectionMode;
         PrincipalExpectedVersion = Principal.Version;
         ReplacementExpectedVersion = Principal.Version;
         DefaultFee = Principal.DefaultFee;

@@ -455,6 +455,73 @@ public sealed partial class ContactIndexWebTests
             $"SELECT PrincipalId FROM ContactPrincipalLinks WHERE OrganizationId = '{repairerId:D}';"));
     }
 
+    /// <summary>
+    /// R118: the page posts the mode of the Principal its save writes, the one
+    /// without a successor, even when the replaced predecessor is the one shown.
+    /// </summary>
+    [Fact]
+    public async Task APageSavePostsTheModeOfThePrincipalWithoutASuccessor()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var contactId = Guid.NewGuid();
+        Guid successorId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var administration = services.GetRequiredService<IContactDirectoryAdministration>();
+            var request = new SaveContactRequest(
+                Administrator, contactId, 0, "Replaced Mode Fixture Principal", null, null, null, null, null, true,
+                ContactRole.Principal, "RMFA1", CaseInspectionMode.PhysicalAddress, [], "contact-edit:replaced-mode");
+            var created = await administration.SaveAsync(request, default);
+            var predecessorId = created.OwnPrincipalIds!.Single();
+            var predecessor = await services.GetRequiredService<IGetPrincipal>()
+                .ExecuteAsync(Administrator, predecessorId, default);
+            successorId = (await services.GetRequiredService<IReplacePrincipal>().ExecuteAsync(
+                new(predecessorId, predecessor!.Principal.Version, "RMFB1", Administrator,
+                    "contact-edit:replaced-mode:replace", null, created.Version), default)).Id;
+            var replaced = await services.GetRequiredService<IContactDirectoryQueries>()
+                .GetAsync(Administrator, contactId, default);
+            var imageBased = await administration.SaveAsync(request with
+            {
+                ExpectedVersion = replaced!.Version,
+                PrincipalInspectionMode = CaseInspectionMode.ImageBasedAssessment,
+                OperationKey = "contact-edit:replaced-mode:image-based"
+            }, default);
+            await administration.SaveAsync(request with
+            {
+                ExpectedVersion = imageBased.Version,
+                Active = false,
+                PrincipalInspectionMode = CaseInspectionMode.ImageBasedAssessment,
+                OperationKey = "contact-edit:replaced-mode:disable"
+            }, default);
+        }
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var path = $"/Administration/Contacts/Edit/{contactId:D}";
+        var editor = await IntakeWebDriver.GetHtmlAsync(client, path);
+        // Both Principals are inactive, so the page shows the predecessor's code.
+        Assert.Equal("RMFA1", InputValue(editor, "PrincipalCode"));
+        var inspectionMode = InputValue(editor, "PrincipalInspectionMode");
+        Assert.Equal(nameof(CaseInspectionMode.ImageBasedAssessment), inspectionMode);
+
+        using var saved = await client.PostAsync(
+            $"{path}?handler=Save",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(editor, "__RequestVerificationToken"),
+                ["ContactId"] = InputValue(editor, "ContactId"),
+                ["ExpectedVersion"] = InputValue(editor, "ExpectedVersion"),
+                ["OperationKey"] = InputValue(editor, "OperationKey"),
+                ["Name"] = InputValue(editor, "Name"),
+                ["PrincipalCode"] = InputValue(editor, "PrincipalCode"),
+                ["PrincipalInspectionMode"] = inspectionMode,
+                ["Active"] = bool.TrueString
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        Assert.Equal(PrincipalInspectionModePolicy.ImageBasedAssessmentCode, await factory.Database.ScalarAsync<string>(
+            $"SELECT InspectionMode FROM Principals WHERE Id = '{successorId:D}';"));
+    }
+
     [GeneratedRegex(
         "<input type=\"checkbox\" name=\"LinkedPrincipalIds\" value=\"(?<id>[^\"]+)\" checked",
         RegexOptions.CultureInvariant)]
