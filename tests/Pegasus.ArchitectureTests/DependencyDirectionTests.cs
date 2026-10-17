@@ -208,7 +208,7 @@ public sealed class DependencyDirectionTests
             selectorConstructor.GetParameters().Select(parameter => parameter.ParameterType));
 
         // One policy per instruction profile, so the SET is not frozen - the
-        // profile catalogue adds fourteen more beside QDOS. What must hold is where they live
+        // profile catalogue adds more beside QDOS. What must hold is where they live
         // and what reaches them: every implementation is Core's, none is
         // duplicated in Infrastructure, while the selector owns their
         // collection boundary.

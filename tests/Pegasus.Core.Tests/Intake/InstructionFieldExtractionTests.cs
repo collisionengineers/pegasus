@@ -5,7 +5,7 @@ namespace Pegasus.Core.Tests.Intake;
 /// <summary>
 /// The provider-neutral extraction engine's structured binding.
 ///
-/// The layouts exercised here are the three shapes the fifteen instruction
+/// The layouts exercised here are the three shapes the instruction
 /// profiles actually meet — an OAK-shaped header row above aligned value cells,
 /// an ALS-shaped label column beside paired party columns, and a DFD-shaped PDF
 /// form — reproduced structurally with non-domain values. No genuine
