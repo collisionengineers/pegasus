@@ -1,4 +1,5 @@
 using Pegasus.Core.Cases;
+using Pegasus.Core.Vehicle;
 
 namespace Pegasus.Core.Tests.Cases;
 
@@ -35,6 +36,30 @@ public sealed class CaseVehicleMileageSourcePolicyTests
             "online_data",
             CaseVehicleMileageSourcePolicy.Resolve(CaseDataSourceKind.StaffCorrection, hasMileage: true));
         Assert.Equal("online_data", CaseVehicleMileageSourcePolicy.Resolve(null, hasMileage: true));
+    }
+
+    [Fact]
+    public void AnEstimatedLookupIsRecognisedAndStillResolvesToOnlineData()
+    {
+        var estimated = new CaseDataSource(
+            CaseDataSourceKind.VehicleLookup,
+            "vehicle-lookup",
+            "vehicle lookup",
+            MotMileageEstimationPolicy.MethodKey,
+            MotMileageEstimationPolicy.MethodVersion);
+
+        Assert.True(CaseVehicleMileageSourcePolicy.IsEstimated(estimated));
+        Assert.Equal("online_data", CaseVehicleMileageSourcePolicy.Resolve(estimated.Kind, hasMileage: true));
+
+        // An exact MOT reading, a staff figure or no source is not an estimate.
+        Assert.False(CaseVehicleMileageSourcePolicy.IsEstimated(estimated with
+        {
+            PolicyKey = VehicleMileagePolicy.MethodKey,
+            PolicyVersion = VehicleMileagePolicy.MethodVersion
+        }));
+        Assert.False(CaseVehicleMileageSourcePolicy.IsEstimated(
+            estimated with { Kind = CaseDataSourceKind.StaffCorrection }));
+        Assert.False(CaseVehicleMileageSourcePolicy.IsEstimated(null));
     }
 
     [Theory]
