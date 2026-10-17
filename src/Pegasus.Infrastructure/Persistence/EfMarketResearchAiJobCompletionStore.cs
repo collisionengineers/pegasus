@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -48,9 +47,8 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
         var completionHash = Hash(command, contentHash);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, command.CaseId, cancellationToken);
         var job = await context.AiJobs.SingleOrDefaultAsync(
             item => item.JobId == command.JobId,
             cancellationToken)

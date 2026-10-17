@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -21,7 +20,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Every write is a short serializable transaction and none of them holds a
+/// Every write is a short transaction and none of them holds a
 /// lock through the renderer or Box: the freeze writes the snapshot and one
 /// Pending artifact row, rendering and custody happen outside, and a second
 /// short transaction records what custody actually did. This is deliberately
@@ -118,8 +117,9 @@ public sealed class EfCaseReportGenerationStore(
             }
         }
 
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken)
+            .ConfigureAwait(false);
 
         if (await ResolveReplayAsync().ConfigureAwait(false) is { } concurrentReplay)
         {
@@ -160,9 +160,10 @@ public sealed class EfCaseReportGenerationStore(
         }
 
         // Automatic custody does not consume a staff edit lease or advance its
-        // Case version. Recheck all source membership/metadata under this same
-        // serializable transaction so a newly confirmed or removed source
-        // cannot slip between the outside projection and the frozen snapshot.
+        // Case version. Recheck all source membership/metadata under the
+        // Case's workflow lock, which custody's confirmation also takes, so a
+        // newly confirmed or removed source cannot slip between the outside
+        // projection and the frozen snapshot.
         var confirmed = await EfAssessmentReportProjectionSource.ConfirmedDocumentsAsync(
             context, request.CaseId, cancellationToken);
         var currentSources = EfAssessmentReportProjectionSource.ReportSources(confirmed);
@@ -455,8 +456,9 @@ public sealed class EfCaseReportGenerationStore(
         ConfirmCaseReportArtifactRequest request, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken)
+            .ConfigureAwait(false);
 
         if (await ConfirmArtifactAsync(context, request, cancellationToken).ConfigureAwait(false))
         {
@@ -590,8 +592,9 @@ public sealed class EfCaseReportGenerationStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken)
+            .ConfigureAwait(false);
 
         var (generation, artifact) = await RequireArtifactAsync(
             context, request.CaseId, request.GenerationId, request.ArtifactId, cancellationToken)
@@ -784,8 +787,9 @@ public sealed class EfCaseReportGenerationStore(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reasonCode);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, caseId, cancellationToken)
+            .ConfigureAwait(false);
         var marked = await MarkStaleAsync(
             context, caseId, reasonCode, timeProvider.GetUtcNow(), cancellationToken)
             .ConfigureAwait(false);

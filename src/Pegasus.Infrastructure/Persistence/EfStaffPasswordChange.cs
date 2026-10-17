@@ -1,4 +1,3 @@
-using System.Data;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
@@ -17,9 +16,7 @@ public sealed class EfStaffPasswordChange(
         ChangeStaffPasswordRequest request,
         CancellationToken cancellationToken)
     {
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var replay = await context.SecurityEvents.SingleOrDefaultAsync(
             item => item.CorrelationId == request.OperationKey,
             cancellationToken);

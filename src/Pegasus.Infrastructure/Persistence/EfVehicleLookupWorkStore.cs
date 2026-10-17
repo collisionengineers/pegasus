@@ -1,4 +1,3 @@
-using System.Data;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -132,9 +131,8 @@ internal sealed class EfVehicleLookupWorkStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfExternalWorkStore.LockAsync(context, workItemId, cancellationToken);
         var work = await context.ExternalWorkItems
             .SingleOrDefaultAsync(item => item.Id == workItemId, cancellationToken)
             ?? throw new InvalidOperationException("The vehicle lookup work item is unavailable.");

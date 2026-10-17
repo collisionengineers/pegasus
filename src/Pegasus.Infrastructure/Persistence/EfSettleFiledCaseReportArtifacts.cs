@@ -1,4 +1,3 @@
-using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -36,8 +35,9 @@ public sealed class EfSettleFiledCaseReportArtifacts(
             try
             {
                 await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-                await using var transaction = await context.Database.BeginTransactionAsync(
-                    IsolationLevel.Serializable, cancellationToken);
+                await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+                await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, file.CaseId, cancellationToken)
+                    .ConfigureAwait(false);
                 if (!await EfCaseReportGenerationStore.ConfirmArtifactAsync(
                         context,
                         new ConfirmCaseReportArtifactRequest(

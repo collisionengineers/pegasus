@@ -1,4 +1,3 @@
-using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Identity;
@@ -34,8 +33,11 @@ public sealed class EfSendToAiControlStore(
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The switch's row, or the gap its first set would fill, is the first
+        // lock, so a concurrent first set waits instead of inserting it twice.
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [SendToAiControl] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {SendToAiControlEntity.SingletonId}",
             cancellationToken);
         var control = await context.SendToAiControl
             .SingleOrDefaultAsync(

@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -112,9 +111,10 @@ public sealed class EfCaseAcceptanceStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The receipt is the first lock, so a second acceptance of it waits
+        // for the first and replays it below.
+        await EfIntakeReceiptStore.LockAsync(context, request.IntakeReceiptId, cancellationToken);
 
         var existingLink = await context.CaseIntakeLinks
             .AsNoTracking()
@@ -146,8 +146,6 @@ public sealed class EfCaseAcceptanceStore(
         }
         CaseDataPolicy.ValidateCompleteness(request.Completeness);
 
-        // The Case number is allocated before the receipt is read, so the
-        // sequence row is locked before any row this creation writes.
         var principal = await context.Principals
             .Include(item => item.Organization)
             .SingleOrDefaultAsync(

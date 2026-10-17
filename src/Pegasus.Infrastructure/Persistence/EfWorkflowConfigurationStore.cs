@@ -1,4 +1,3 @@
-using System.Data;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
@@ -47,9 +46,7 @@ public sealed class EfWorkflowConfigurationStore(
         if (request.TargetDays().Any(target => target.Days is < CaseWorkflowConfiguration.MinimumTargetDays or > CaseWorkflowConfiguration.MaximumTargetDays))
             throw new ArgumentOutOfRangeException(nameof(request));
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
 
         var replay = await context.ActionHistory
             .AsNoTracking()

@@ -1,5 +1,4 @@
-﻿using System.Data;
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -21,7 +20,12 @@ public sealed class EfUnidentifiedStore(
         var operationKey = request.OperationKey.Trim();
         var fingerprint = Fingerprint(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The sequence row is the first lock, so registrations queue on it and
+        // each reads the one before it (pattern CaseIdentityAllocator).
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [UnidentifiedSequences] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = 1",
+            cancellationToken);
 
         var byOperation = await context.Set<UnidentifiedItemEntity>().SingleOrDefaultAsync(
             item => item.RegistrationOperationKey == operationKey, cancellationToken);
@@ -107,7 +111,7 @@ public sealed class EfUnidentifiedStore(
         UnidentifiedValidation.ValidateResolve(request);
         var operationKey = request.OperationKey.Trim();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
 
         var replay = await context.Set<UnidentifiedHistoryEntity>().SingleOrDefaultAsync(
             item => item.OperationKey == operationKey, cancellationToken);
@@ -174,7 +178,7 @@ public sealed class EfUnidentifiedStore(
         UnidentifiedValidation.ValidateReopen(request);
         var operationKey = request.OperationKey.Trim();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
 
         var replay = await context.Set<UnidentifiedHistoryEntity>().SingleOrDefaultAsync(
             item => item.OperationKey == operationKey, cancellationToken);

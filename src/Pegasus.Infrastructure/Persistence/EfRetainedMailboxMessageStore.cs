@@ -1,4 +1,3 @@
-using System.Data;
 using System.Linq.Expressions;
 using System.Security.Cryptography;
 using System.Text;
@@ -601,8 +600,7 @@ internal sealed class EfRetainedMailboxMessageStore(
     {
         var packedActor = MailClassificationActor.Format(actor);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var retained = await context.RetainedMailboxMessages
             .SingleOrDefaultAsync(item => item.Id == messageId, cancellationToken)
             ?? throw new InvalidOperationException("The retained message no longer exists.");

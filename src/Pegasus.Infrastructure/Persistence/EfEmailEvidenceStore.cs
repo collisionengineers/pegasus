@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -30,8 +29,11 @@ public sealed class EfEmailEvidenceStore(
             $"sent|{request.CaseId:N}|{request.ExpectedTriageVersion}|{messageIdentity}|{subject}|{mimeSha256}|{request.SentAtUtc:O}|{request.ChaseDueAtUtc:O}|{request.Actor.Trim()}|{string.Join('\n', recipients)}");
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The Triage row is the first lock, so a second record of the Case's
+        // send under the key or the message waits and replays or is refused.
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [Triage] WITH (UPDLOCK, HOLDLOCK) WHERE [CaseId] = {request.CaseId}",
             cancellationToken);
 
         var replay = await context.SentEmailEvidence
@@ -137,9 +139,8 @@ public sealed class EfEmailEvidenceStore(
             ]));
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfSentEvidencePollStore.LockStateAsync(context, mailboxId, cancellationToken);
 
         var replay = await context.EmailResponseEvidence
             .AsNoTracking()

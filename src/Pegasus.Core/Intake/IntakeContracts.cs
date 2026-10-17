@@ -1264,8 +1264,8 @@ public sealed record ReverseIntakeLinkRequest(
 
 /// <summary>
 /// The pipeline's automatic Image-intake association: a system-worker actor,
-/// no staff edit lease, and the same serializable replay-protected
-/// association write as the manual link. The store must enforce Image-intake
+/// no staff edit lease, and the same replay-protected association write as
+/// the manual link. The store must enforce Image-intake
 /// case eligibility inside the transaction.
 /// </summary>
 public sealed record AutomaticIntakeLinkRequest(

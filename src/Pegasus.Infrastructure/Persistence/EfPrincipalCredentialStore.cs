@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -13,7 +12,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>
 /// API-04 persistence. The verifier is the same PBKDF2
 /// <see cref="PasswordHasher{TUser}"/> that hashes staff passwords; every
-/// command runs in a Serializable transaction, replays through the shared
+/// command runs in one transaction, replays through the shared
 /// administration operation receipts (the receipt carries the record, never
 /// the secret), and writes permanent <c>principal_credential_*</c> action
 /// history whose JSON never includes the hash.
@@ -116,9 +115,7 @@ public sealed class EfPrincipalCredentialStore(
         const string commandKind = "issue_principal_credential";
         var requestHash = HashRequest(request, commandKind);
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var receipt = await FindReceiptAsync(context, request.OperationKey, cancellationToken);
         if (receipt is not null)
         {
@@ -180,9 +177,7 @@ public sealed class EfPrincipalCredentialStore(
             {
                 var requestHash = HashRequest(request, commandKind);
                 await using var context = await _contextFactory.CreateDbContextAsync(token);
-                await using var transaction = await context.Database.BeginTransactionAsync(
-                    IsolationLevel.Serializable,
-                    token);
+                await using var transaction = await context.Database.BeginReadCommittedAsync(token);
                 var receipt = await FindReceiptAsync(context, request.OperationKey, token);
                 if (receipt is not null)
                 {

@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using Pegasus.Core.Identity;
@@ -25,9 +24,8 @@ internal sealed class EfApprovedInboxPollStore(
         var approvedMailboxId = mailbox.ApprovedMailboxId;
         var mailboxAddress = mailbox.Address;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await LockStateAsync(context, approvedMailboxId, cancellationToken);
 
         // Re-assert approval inside the claiming transaction rather than before it, so a
         // disable committed between listing and claiming cannot slip a poll through. A
@@ -162,9 +160,7 @@ internal sealed class EfApprovedInboxPollStore(
         ValidatePoisonMessage(message);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var state = await GetOwnedStateAsync(
             context,
             approvedMailboxId,
@@ -287,9 +283,7 @@ internal sealed class EfApprovedInboxPollStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var state = await GetOwnedStateAsync(
             context,
             approvedMailboxId,
@@ -306,12 +300,29 @@ internal sealed class EfApprovedInboxPollStore(
         Guid approvedMailboxId,
         string leaseToken,
         string operation,
+        CancellationToken cancellationToken)
+    {
+        await LockStateAsync(context, approvedMailboxId, cancellationToken);
+        return await context.ApprovedInboxPollStates.SingleOrDefaultAsync(
+                item => item.ApprovedMailboxId == approvedMailboxId && item.LeaseToken == leaseToken,
+                cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"The approved-inbox lease was lost before {operation}.");
+    }
+
+    /// <summary>
+    /// Takes the mailbox's poll state row <c>UPDLOCK, HOLDLOCK</c> for the rest
+    /// of the transaction. A poll state has no concurrency token, so a claim
+    /// and a write under its lease lock it before reading it; an absent state
+    /// locks its key.
+    /// </summary>
+    private static async Task LockStateAsync(
+        PegasusDbContext context,
+        Guid approvedMailboxId,
         CancellationToken cancellationToken) =>
-        await context.ApprovedInboxPollStates.SingleOrDefaultAsync(
-            item => item.ApprovedMailboxId == approvedMailboxId && item.LeaseToken == leaseToken,
-            cancellationToken)
-        ?? throw new InvalidOperationException(
-            $"The approved-inbox lease was lost before {operation}.");
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [ApprovedInboxPollStates] WITH (UPDLOCK, HOLDLOCK) WHERE [ApprovedMailboxId] = {approvedMailboxId}",
+            cancellationToken);
 
     private static void ValidateIdentity(Guid approvedMailboxId, string leaseToken)
     {

@@ -7,10 +7,10 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>
 /// Allocates the permanent portion of a Case identity. Every Case creator —
 /// receipt-backed, receiptless, replacement and Triage — shares the same
-/// Principal lineage and annual sequence, and each calls this first inside its
-/// Serializable transaction so the sequence row is locked before anything
-/// else. The allocation stays in memory until <c>SaveChanges</c>, so a creator
-/// that returns early releases the number.
+/// Principal lineage and annual sequence, and each calls this inside its own
+/// transaction before it writes the Case, so creators on one lineage queue on
+/// the sequence row. The allocation stays in memory until <c>SaveChanges</c>,
+/// so a creator that returns early releases the number.
 /// </summary>
 internal static class CaseIdentityAllocator
 {

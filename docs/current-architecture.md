@@ -8,9 +8,11 @@ plan, App Service configuration and managed identity; the release route deploys
 the package with `az webapp deploy`. Both hosts configure SQL Server through
 `Pegasus.Infrastructure.Persistence.PegasusSqlServer.Configure`, whose
 execution strategy retries transient faults outside a store transaction and
-runs once inside one (Release 52). Refresh this document when source
-structure changes. [Operations](operations.md) owns dated deployed observations
-and exact runtime identities.
+runs once inside one (Release 52). A store opens its transaction through
+`PegasusTransactions`: read committed, or serializable where the store names
+the override ([ADR-0074](adr/0074-read-committed-default-transaction-isolation.md)).
+Refresh this document when source structure changes. [Operations](operations.md)
+owns dated deployed observations and exact runtime identities.
 
 The corrective change updates intake OCR, estimate import, Contacts, edit
 ownership and Case/report workflows; it retains the dependency direction below.

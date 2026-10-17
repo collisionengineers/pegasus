@@ -1264,8 +1264,8 @@ public sealed class AutomaticImageIntakeTests
 
         /// <summary>
         /// Simulates a member's registration losing a transient concurrency
-        /// race (e.g. the shared VRM-sequence row under Serializable
-        /// isolation) — a recoverable exception the caller is expected to
+        /// race (e.g. the shared VRM-sequence row) — a recoverable exception
+        /// the caller is expected to
         /// report back as pending rather than silently absorb.
         /// </summary>
         public HashSet<Guid> FailForReceiptIds { get; } = [];
