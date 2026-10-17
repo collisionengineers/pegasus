@@ -316,11 +316,11 @@ internal sealed class EfApprovedInboxPollStore(
     /// and a write under its lease lock it before reading it; an absent state
     /// locks its key.
     /// </summary>
-    private static Task LockStateAsync(
+    private static async Task LockStateAsync(
         PegasusDbContext context,
         Guid approvedMailboxId,
         CancellationToken cancellationToken) =>
-        context.Database.ExecuteSqlAsync(
+        await context.Database.ExecuteSqlAsync(
             $"SELECT 1 FROM [ApprovedInboxPollStates] WITH (UPDLOCK, HOLDLOCK) WHERE [ApprovedMailboxId] = {approvedMailboxId}",
             cancellationToken);
 

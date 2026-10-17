@@ -181,11 +181,11 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
     /// write that compares the prior subscription locks it first; an absent
     /// row locks its key.
     /// </summary>
-    private static Task LockSubscriptionAsync(
+    private static async Task LockSubscriptionAsync(
         PegasusDbContext context,
         Guid approvedMailboxId,
         CancellationToken cancellationToken) =>
-        context.Database.ExecuteSqlAsync(
+        await context.Database.ExecuteSqlAsync(
             $"SELECT 1 FROM [ApprovedMailboxSubscriptions] WITH (UPDLOCK, HOLDLOCK) WHERE [ApprovedMailboxId] = {approvedMailboxId}",
             cancellationToken);
 

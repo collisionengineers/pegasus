@@ -262,8 +262,8 @@ internal sealed class EfPreCaseImagePreparationStore(
     /// the transaction, so a crop or tag of one image waits for the one before
     /// it and reads what it left.
     /// </summary>
-    private static Task LockImageAsync(PegasusDbContext context, Guid intakeAssetId, CancellationToken cancellationToken) =>
-        context.Database.ExecuteSqlAsync(
+    private static async Task LockImageAsync(PegasusDbContext context, Guid intakeAssetId, CancellationToken cancellationToken) =>
+        await context.Database.ExecuteSqlAsync(
             $"SELECT 1 FROM [IntakeAssets] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {intakeAssetId}",
             cancellationToken);
 

@@ -22,7 +22,7 @@ public sealed class TransactionIsolationContractTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(new[] { Owner }, naming);
+        Assert.Equal([Owner], naming);
     }
 
     private static string FindRepositoryRoot()
