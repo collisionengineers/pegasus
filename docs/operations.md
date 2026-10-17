@@ -4,6 +4,35 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 112 - 17 October 2026 (deployment live)
+
+Release 112 deployed [PR 1400](https://github.com/collisionengineers/pegasus/pull/1400) (REF-06 B):
+the live report sending rules and the repository SOP copy brought to Report Sending SOP v8 (R34).
+Its migration `20261017120000_ReportSendingSopV8` is data only and forward-only: it overwrites the
+report sending rules of CS, DFD, FW, KBS, MP, PCH, RJS, SBL, WALKER and YML with v8's, creates FRZ
+inactive with its v8 rules, matches or creates the claim sources the rules name (iRevolution Repair
+Network is new), renames PCH "PCH / Connexus" and sets OAK's TL threshold to 65 % in its notes;
+SWADE keeps its rules for its existing Cases. The overwritten v5 rules come back only from a
+database restore, so the route was the destructive one: the Worker and the Web App were stopped and
+read back unserved before SQL, the new Web package went onto the stopped site, and activation
+followed. The outage ran 19:45:11Z to 19:54:26Z on a Friday evening, outside typical usage, under
+the operator's authorisation of 16 October for the programme's landings, promotions and
+deployments. Both are Running on the approved release and full production smoke passed first time.
+No reference data was loaded by this release; the loader's production run follows it.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `f563547406d08e6ef4daa05ca61b2b7e7e6a6113`, the merge of PR 1400 into `dev`; `main` and `dev` both read it back. Manifest SHA-256 `C30450E9D16D3924A43867621A5B1E526CDE16E77AE54731A0D4137ECA87FB32` (schema 3, clean, `win-x64`/`efbundle.exe`); `web.zip` `60CFF5D3E99E9BA614A4A4C7DCDFB79D7C37CCADEC01654D76848EF2A544C230`; `worker.zip` `16C443C920F1CE95DACF23B9704079EC6D640B04EC8FA0BEF4CC9E07D9F16DD8`; `classifier.zip` `F965150E524A0D997966F4C561170BF0F3538693D91D9E37E41DB72DFBA5F0AA` (built, not deployed: no classifier Function App exists); `efbundle.exe` `83D805811D543919191BA43AA6C44662D47807215CE0BA7F2ED30CAE4A7058AC`. Built 19:33-19:40Z in a detached worktree at the release SHA; Local and Artifact plan validations passed. Tools: .NET SDK 10.0.302, Node v24.15.0, npm 11.14.1, az 2.88.0, azd 1.34.1. |
+| Review and promotion | PR 1400 was CI-green at its head `c9658d9e4` (unit, six `sql-integration` shards, coverage, invariants, infrastructure) and independently reviewed with no defect; it landed alone with a merge commit at 19:29:47Z, so the candidate over `main` `9f893a717` was that merge and the Release 111 record. Migration classified destructive before promotion (data-only rule overwrite, forward-only, affected capability report sending for ten Principals). One promotion at 19:32:58Z. |
+| Containment | PreDeploy 19:41:50Z; Worker Flex `siteUpdateStrategy` read `Recreate`; the Web App reported the approved old SHA `9f893a717` Running on `DOTNETCORE\|10.0` 19:41:59Z; live head `20261017110000_InspectionLocations` (225 applied), 53 Principals. The five-member Disabled census was set `true` 19:42:14Z and smoked 19:42:30Z; the approved `worker.zip` was staged with the census disabled 19:44:29Z and smoked again 19:44:38Z. Worker Stopped 19:45:01Z; Web Stopped and unserved (`/health/live` 403) 19:45:11Z; fresh pre-SQL read-back 19:45:18Z and again 19:45:35Z. |
+| Schema and data | Destructive, data only. PreMigration gate 19:45:49Z; bundle applied 19:45:50-19:45:56Z; bootstrap passed 19:46:12Z (688 catalogued permission/denial rows, 482 effective runtime DML rows, unchanged from Release 111); head `20261017120000_ReportSendingSopV8` (226 applied) verified 19:46:14Z. Read back read-only after activation: 54 Principals (53 active; FRZ `Fraz` inactive, physical address, fee 180, send-to `Ontrack789@gmail.com`), 65 organisations, 11 claim sources (Car 2 Go, SMC, CarClaims, Expert Claims and Rapid Rental Solutions at the fixed ids `f001` to `f005`, iRevolution Repair Network created at `f00b`); PCH named "PCH / Connexus" with `replyAll` false and the audit rule on `ref_prefix` a / `previous_job` with the rate-card reminder; OAK's notes open "TL threshold: 65%"; CS sends to `accounts@claimsspecialists.co.uk` too; DFD copies `richard.pownall`; SWADE active with its rules; no inspection location yet. |
+| Deployment | Census read back all `true` and Worker Stopped 19:46:36Z; `web.zip` deployed to the stopped site with `--restart false --track-status false` 19:47:16Z, still Stopped; PreProvision (Worker disabled) 19:47:32Z (B1 quota in `uksouth` 3); provision 19:48:53Z; post-provision disabled smoke 19:49:02Z; Web Stopped and Worker Stopped read back 19:49:10Z. |
+| Activation and smoke | PreProvision (Worker `approved-live-worker`, live disabled) 19:49:38Z; provision 19:51:07Z; Web start 19:51:12Z, exact release ready 19:54:26Z; Worker Running 19:54:34Z; all five Disabled settings `false` 19:54:42Z. Full smoke passed 19:55:25Z: deployment record `dd565f3a-a3a8-4521-a71e-09483d0cb150` (OneDeploy, 19:47:01Z); active package `20261017194645.zip` SHA-256 equals the approved `web.zip`; intake liveness passed (last poll 19:55:02Z; Graph subscription expires 2026-10-18 17:10:00Z, a Disabled mailbox's row as the Release 110 record explains). |
+| Query Store | State `READ_WRITE`. Before snapshot (24 h to 19:32Z, 205 statements) at ignored `artifacts/performance/query-store-release-112-before-20261017T1932Z.csv`. The after snapshots for Releases 107 to 112 are owed after a day of use. |
+| Still owed | Live proof signed in: a PCH Case's Report sending form reads the v8 rules (Rate card tick, attach override, the audit removal) and FRZ appears inactive in Administration. The production reference-data load (REF-04: 15 inactive Principals, 35 claim sources, 222 repairers, 50 storage and recovery, 18 engineers, 1328 inspection locations, 269 links, five inspection modes, SWADE deactivated) follows this release under the same authorisation and is recorded by its own PR; FRZ's route and profile wait for the #1059 chain. Release 108 to 111 owed items stand. |
+| PR states | PR 1400 reads Merged with its head in `main` and `dev`. No issue was linked. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-112-f5635474`; the stage drivers (A to D) and their logs at `artifacts/releases/release-112-driver`. |
+
 ## Release 111 - 17 October 2026 (deployment live)
 
 Release 111 deployed [PR 1398](https://github.com/collisionengineers/pegasus/pull/1398), the second
