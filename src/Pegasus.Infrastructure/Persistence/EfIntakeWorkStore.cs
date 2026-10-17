@@ -136,9 +136,7 @@ public sealed class EfIntakeWorkStore(
     {
         var channel = EfIntakeReceiptStore.ToCode(receipt.SourceIdentity.Channel);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.ReadCommitted,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
 
         var existing = await context.IntakeStagedReceipts
             .Include(item => item.WorkItem)

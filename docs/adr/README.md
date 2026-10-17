@@ -94,6 +94,7 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0071](0071-move-answered-instruction-to-deleted-items.md) | Move the answered instruction to Deleted Items after a confirmed report send | accepted | — | MAIL-25 |
 | [ADR-0072](0072-only-images-become-unidentified-and-no-case-found-mail.md) | Only images become Unidentified, and mail with no Case is No Case Found | accepted | — | INT-23, MAIL-02, UI-14, UI-18 |
 | [ADR-0073](0073-send-to-ai-hand-off-record-retired.md) | The Send to AI hand-off record is retired | accepted | — | AI-10, AI-09 |
+| [ADR-0074](0074-read-committed-default-transaction-isolation.md) | Read committed is the default transaction isolation | accepted | — | — |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

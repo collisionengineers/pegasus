@@ -1076,6 +1076,11 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         command.CommandText = $"CREATE DATABASE [{DatabaseName}]";
         command.CommandTimeout = LifecycleCommandTimeoutSeconds;
         await command.ExecuteNonQueryAsync();
+        // Azure SQL Database has read-committed snapshot on by default and
+        // LocalDB has it off (ADR-0074). The template is created here too, so
+        // every restore carries the setting.
+        command.CommandText = $"ALTER DATABASE [{DatabaseName}] SET READ_COMMITTED_SNAPSHOT ON";
+        await command.ExecuteNonQueryAsync();
     }
 
     private async Task RestoreFromTemplateAsync(LocalDbTemplateSnapshot template)

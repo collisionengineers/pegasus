@@ -46,7 +46,7 @@ internal sealed class EfDocumentCustodyStore(
         var contentHash = ComputeSha256(command.Content.Span);
 
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
 
         var replayOccurrence = await context.Set<DocumentOccurrenceEntity>()
             .SingleOrDefaultAsync(
@@ -311,7 +311,7 @@ internal sealed class EfDocumentCustodyStore(
         ArgumentException.ThrowIfNullOrWhiteSpace(command.OperationKey);
 
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var occurrence = await context.Set<DocumentOccurrenceEntity>()
             .SingleOrDefaultAsync(
                 value => value.CaseId == command.CaseId && value.Id == command.OccurrenceId,
@@ -757,7 +757,7 @@ internal sealed class EfDocumentCustodyStore(
         var operationKey = ValidateOperationKey(command.OperationKey);
 
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var occurrence = await RequireOccurrenceAsync(
             context, command.CaseId, command.OccurrenceId, cancellationToken);
         var tag = await context.Set<ImageTagEntity>()
@@ -854,7 +854,7 @@ internal sealed class EfDocumentCustodyStore(
         var operationKey = ValidateOperationKey(command.OperationKey);
 
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var occurrence = await RequireOccurrenceAsync(
             context, command.CaseId, command.OccurrenceId, cancellationToken);
         var tag = await context.Set<ImageTagEntity>()
@@ -927,7 +927,7 @@ internal sealed class EfDocumentCustodyStore(
             new ImageInReportHistoryValue(command.OccurrenceId, command.InReport));
 
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         if (await FindDocumentHistoryAsync(context, operationKey, cancellationToken) is { } history)
         {
             DocumentActionHistory.RequireExactReplay(
