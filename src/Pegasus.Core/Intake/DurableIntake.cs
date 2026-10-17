@@ -914,7 +914,8 @@ public sealed class ProcessQueuedIntake(
                             stagedReceipt.StorageKey,
                             stagedReceipt.SourceHash,
                             cancellationToken);
-                        durableStorageKey = await artifactStore.StoreAsync(
+                        durableStorageKey = await artifactStore.PromoteStagedAsync(
+                            stagedReceipt.StorageKey,
                             stagedReceipt.SourceHash,
                             content,
                             cancellationToken);

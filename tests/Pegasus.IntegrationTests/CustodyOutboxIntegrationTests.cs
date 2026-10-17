@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
@@ -175,6 +176,49 @@ public sealed class CustodyOutboxIntegrationTests
     }
 
     [Fact]
+    public async Task StagedSourceIsPromotedToItsContentAddressedKeyWithoutAStoreCall()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(registrations =>
+            {
+                registrations.RemoveAll<IIntakeArtifactStore>();
+                registrations.AddSingleton<IIntakeArtifactStore>(provider =>
+                    new PromotionRecordingArtifactStore(
+                        provider.GetRequiredService<Pegasus.Infrastructure.Intake.FileSystemIntakeArtifactStore>()));
+            }));
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var artifactStore = Assert.IsType<PromotionRecordingArtifactStore>(
+            services.GetRequiredService<IIntakeArtifactStore>());
+        var source = CreatePreCaseReevaluationSource();
+        var hash = Convert.ToHexString(SHA256.HashData(source.Content));
+        var received = await services.GetRequiredService<ReceiveIntake>().ExecuteAsync(
+            source.Source,
+            $"promote-staged-source:{Guid.NewGuid():N}",
+            CancellationToken.None);
+
+        var evaluation = await DrainStagedAsync(
+            services,
+            received.StagedReceiptId,
+            CancellationToken.None);
+
+        var promotion = Assert.Single(artifactStore.Promotions);
+        Assert.Equal($"staging/{received.StagedReceiptId:D}/{hash}", promotion.StagingKey);
+        Assert.Equal(hash, promotion.ContentHash);
+        Assert.DoesNotContain(hash, artifactStore.StoredHashes);
+        var receipt = Assert.IsType<IntakeReceipt>(await services
+            .GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(evaluation.ProcessedReceiptId, CancellationToken.None));
+        var sourceAsset = Assert.Single(receipt.AssetRecords, asset =>
+            asset.Kind == IntakeAssetKind.Source
+            && asset.Disposition == IntakeAssetDisposition.Source);
+        Assert.Equal($"sha256/{hash[..2]}/{hash}", sourceAsset.StorageKey);
+        var retained = await artifactStore.ReadAsync(sourceAsset.StorageKey, CancellationToken.None);
+        Assert.Equal(source.Content, retained!.Value.ToArray());
+    }
+
+    [Fact]
     public async Task AFirstHoldingFailureIsRetriedOnItsRecordedEvaluation()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -234,6 +278,68 @@ public sealed class CustodyOutboxIntegrationTests
             }
             return inner.RetainAsync(request, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// The composed file store, recording what Core asks of it: the promotions,
+    /// and the hashes stored from bytes in hand.
+    /// </summary>
+    private sealed class PromotionRecordingArtifactStore(IIntakeArtifactStore inner) : IIntakeArtifactStore
+    {
+        public List<(string StagingKey, string ContentHash)> Promotions { get; } = [];
+
+        public List<string> StoredHashes { get; } = [];
+
+        public Task<string> StoreAsync(
+            string contentHash, ReadOnlyMemory<byte> content, CancellationToken cancellationToken)
+        {
+            StoredHashes.Add(contentHash);
+            return inner.StoreAsync(contentHash, content, cancellationToken);
+        }
+
+        public Task<string> PromoteStagedAsync(
+            string stagingKey, string contentHash, ReadOnlyMemory<byte> verifiedContent,
+            CancellationToken cancellationToken)
+        {
+            Promotions.Add((stagingKey, contentHash));
+            return inner.PromoteStagedAsync(stagingKey, contentHash, verifiedContent, cancellationToken);
+        }
+
+        public Task<StagedArtifactInventoryItem> StageAsync(
+            Guid stagedReceiptId, string contentHash, Stream content, long contentLength,
+            DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken) =>
+            inner.StageAsync(
+                stagedReceiptId, contentHash, content, contentLength, firstSeenAtUtc, cancellationToken);
+
+        public Task<StagedArtifactInventoryItem> StageAsync(
+            Guid stagedReceiptId, string contentHash, ReadOnlyMemory<byte> content,
+            DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken) =>
+            inner.StageAsync(stagedReceiptId, contentHash, content, firstSeenAtUtc, cancellationToken);
+
+        public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken) =>
+            inner.ReadAsync(storageKey, cancellationToken);
+
+        public Task<StagedArtifactInventoryItem?> GetStagedAsync(
+            string storageKey, CancellationToken cancellationToken) =>
+            inner.GetStagedAsync(storageKey, cancellationToken);
+
+        public Task<StagedArtifactInventoryPage> ListStagedAsync(
+            int maximumItems, string? continuation, CancellationToken cancellationToken) =>
+            inner.ListStagedAsync(maximumItems, continuation, cancellationToken);
+
+        public Task<StagedArtifactInventoryItem?> TrySetStagedDispositionAsync(
+            string storageKey, string expectedConcurrencyToken, StagedArtifactDisposition disposition,
+            CancellationToken cancellationToken) =>
+            inner.TrySetStagedDispositionAsync(
+                storageKey, expectedConcurrencyToken, disposition, cancellationToken);
+
+        public Task<bool> DeleteStagedAsync(
+            string storageKey, string expectedConcurrencyToken, StagedArtifactDisposition expectedDisposition,
+            CancellationToken cancellationToken) =>
+            inner.DeleteStagedAsync(storageKey, expectedConcurrencyToken, expectedDisposition, cancellationToken);
+
+        public Task<bool> TryCompleteStagedAsync(string storageKey, CancellationToken cancellationToken) =>
+            inner.TryCompleteStagedAsync(storageKey, cancellationToken);
     }
 
     [Fact]

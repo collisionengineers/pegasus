@@ -18,6 +18,11 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         "staging/10213243-5465-7687-98a9-bacbdcedfe0f/" + Hash;
     private static readonly DateTimeOffset FirstSeenAtUtc =
         new(2026, 7, 30, 8, 15, 0, TimeSpan.Zero);
+    private static readonly byte[] PromotedContent = "promoted bytes"u8.ToArray();
+    private static readonly string PromotedHash = Convert.ToHexString(SHA256.HashData(PromotedContent));
+    private static readonly string PromotedStagingKey =
+        $"staging/10213243-5465-7687-98a9-bacbdcedfe0f/{PromotedHash}";
+    private static readonly string PromotedKey = $"sha256/{PromotedHash[..2]}/{PromotedHash}";
 
     [Fact]
     public async Task InventoryIsBoundedAndMalformedMetadataMapsToUnmatchedWithoutBodyDownload()
@@ -270,6 +275,159 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         Assert.Equal(1, blob.DownloadCount);
     }
 
+    [Fact]
+    public async Task PromoteStagedCopiesOnTheServiceWithoutUploadingOrDownloading()
+    {
+        var (staging, destination, store) = PromotionOf();
+        destination.CopiedLength = PromotedContent.Length;
+
+        var key = await store.PromoteStagedAsync(
+            PromotedStagingKey, PromotedHash, PromotedContent, CancellationToken.None);
+
+        Assert.Equal(PromotedKey, key);
+        Assert.Equal(1, destination.CopyStartCount);
+        Assert.Equal(staging.Uri, destination.LastCopySource);
+        var options = Assert.IsType<BlobCopyFromUriOptions>(destination.LastCopyOptions);
+        Assert.Equal(ETag.All, options.DestinationConditions?.IfNoneMatch);
+        var metadata = Assert.Single(options.Metadata!);
+        Assert.Equal("sha256", metadata.Key);
+        Assert.Equal(PromotedHash, metadata.Value);
+        Assert.Null(options.Tags);
+        Assert.All(
+            new[] { staging, destination },
+            blob =>
+            {
+                Assert.Equal(0, blob.UploadCount);
+                Assert.Equal(0, blob.DownloadCount);
+            });
+    }
+
+    [Theory]
+    [InlineData(409)]
+    [InlineData(412)]
+    public async Task PromoteStagedOfAnExistingDestinationVerifiesAndDoesNotOverwrite(int status)
+    {
+        var (staging, destination, store) = PromotionOf();
+        destination.CopyStartFailure = new RequestFailedException(status, "Blob exists.");
+
+        var key = await store.PromoteStagedAsync(
+            PromotedStagingKey, PromotedHash, PromotedContent, CancellationToken.None);
+
+        Assert.Equal(PromotedKey, key);
+        Assert.Equal(1, destination.CopyStartCount);
+        Assert.Equal(1, destination.DownloadCount);
+        Assert.Equal(0, destination.UploadCount);
+        Assert.Equal(0, destination.DeleteCount);
+        Assert.Equal(0, staging.DownloadCount);
+    }
+
+    [Fact]
+    public async Task PromoteStagedOfAnExistingDestinationWithDifferentBytesIsAnIntegrityFailure()
+    {
+        var staging = StubFor(PromotedStagingKey, PromotedHash, PromotedContent);
+        var destination = StubFor(PromotedKey, PromotedHash, "different bytes"u8.ToArray());
+        destination.CopyStartFailure = new RequestFailedException(412, "Blob exists.");
+        var store = CreateStore(new StubBlobContainerClient(staging, destination));
+
+        await Assert.ThrowsAsync<IntakeArtifactIntegrityException>(
+            () => store.PromoteStagedAsync(
+                PromotedStagingKey, PromotedHash, PromotedContent, CancellationToken.None));
+
+        Assert.Equal(1, destination.DownloadCount);
+        Assert.Equal(0, destination.DeleteCount);
+    }
+
+    [Fact]
+    public async Task PromoteStagedWaitsForAPendingCopyOfTheSameHashBeforeVerifying()
+    {
+        var (_, destination, store) = PromotionOf();
+        destination.CopyStartFailure = new RequestFailedException(409, "A copy is pending.");
+        destination.CopyId = "copy-1";
+        destination.CopyStatus = CopyStatus.Success;
+        destination.PendingReads = 1;
+
+        var key = await store.PromoteStagedAsync(
+            PromotedStagingKey, PromotedHash, PromotedContent, CancellationToken.None);
+
+        Assert.Equal(PromotedKey, key);
+        Assert.Equal(0, destination.PendingReads);
+        Assert.Equal(1, destination.DownloadCount);
+        Assert.Equal(0, destination.DeleteCount);
+    }
+
+    [Theory]
+    // A copy left Failed or Aborted by a crashed process, then our own copy that fails.
+    [InlineData(409, CopyStatus.Failed)]
+    [InlineData(412, CopyStatus.Aborted)]
+    [InlineData(202, CopyStatus.Failed)]
+    public async Task PromoteStagedDeletesTheEmptyDestinationOfAFailedCopyAndReportsDependencyUnavailable(
+        int startStatus,
+        CopyStatus status)
+    {
+        var (_, destination, store) = PromotionOf();
+        destination.CopyStartFailure = startStatus == 202
+            ? null
+            : new RequestFailedException(startStatus, "Blob exists.");
+        destination.CopyId = "copy-1";
+        destination.CopyStatus = status;
+        var etag = new ETag("\"etag-1\"");
+
+        await Assert.ThrowsAsync<IntakeDependencyUnavailableException>(
+            () => store.PromoteStagedAsync(
+                PromotedStagingKey, PromotedHash, PromotedContent, CancellationToken.None));
+
+        Assert.Equal(1, destination.DeleteCount);
+        Assert.Equal(etag, destination.LastDeleteConditions?.IfMatch);
+        Assert.Equal(0, destination.UploadCount);
+        Assert.Equal(0, destination.DownloadCount);
+    }
+
+    [Fact]
+    public async Task PromoteStagedRefusesAStagingKeyWhoseHashIsNotTheContentHash()
+    {
+        var (_, destination, store) = PromotionOf();
+
+        await Assert.ThrowsAsync<IntakeArtifactIntegrityException>(
+            () => store.PromoteStagedAsync(
+                StorageKey, PromotedHash, PromotedContent, CancellationToken.None));
+
+        Assert.Equal(0, destination.CopyStartCount);
+    }
+
+    [Fact]
+    public async Task PromoteStagedOfAMissingStagedBlobIsAnIntegrityFailure()
+    {
+        var (_, destination, store) = PromotionOf();
+        destination.CopyStartFailure = new RequestFailedException(404, "Blob not found.");
+
+        await Assert.ThrowsAsync<IntakeArtifactIntegrityException>(
+            () => store.PromoteStagedAsync(
+                PromotedStagingKey, PromotedHash, PromotedContent, CancellationToken.None));
+
+        Assert.Equal(0, destination.DownloadCount);
+    }
+
+    [Fact]
+    public async Task PromoteStagedTranslatesAnyOtherServiceFaultToDependencyUnavailable()
+    {
+        var (_, destination, store) = PromotionOf();
+        destination.CopyStartFailure = new RequestFailedException(503, "Controlled unavailable dependency.");
+
+        var exception = await Assert.ThrowsAsync<IntakeDependencyUnavailableException>(
+            () => store.PromoteStagedAsync(
+                PromotedStagingKey, PromotedHash, PromotedContent, CancellationToken.None));
+
+        Assert.IsType<RequestFailedException>(exception.InnerException);
+    }
+
+    private static (StubBlobClient Staging, StubBlobClient Destination, AzureBlobIntakeArtifactStore Store)
+        PromotionOf()
+    {
+        var staging = StubFor(PromotedStagingKey, PromotedHash, PromotedContent);
+        var destination = StubFor(PromotedKey, PromotedHash, PromotedContent);
+        return (staging, destination, CreateStore(new StubBlobContainerClient(staging, destination)));
+    }
+
     private static StubBlobClient StagedStub(
         string receiptPrefix,
         StagedArtifactDisposition disposition,
@@ -388,6 +546,7 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         }
 
         public override string Name { get; }
+        public override Uri Uri => new($"https://account.blob.core.windows.net/container/{Name}");
         internal long ContentLength { get; }
         internal DateTimeOffset CreatedOn { get; }
         internal Dictionary<string, string> Metadata { get; private set; }
@@ -410,6 +569,29 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         /// <summary>Another writer changes the blob just before a delete.</summary>
         internal ETag? ETagBeforeDelete { get; set; }
 
+        /// <summary>
+        /// What the service reports of the copy that wrote this blob. A blob
+        /// that was never copied reads as Pending with no copy id.
+        /// </summary>
+        internal CopyStatus CopyStatus { get; set; }
+        internal string? CopyId { get; set; }
+
+        /// <summary>
+        /// The reads that still find the copy running: they report Pending,
+        /// and the blob is empty until they are used up.
+        /// </summary>
+        internal int PendingReads { get; set; }
+
+        /// <summary>Refuses the start of a copy onto this blob.</summary>
+        internal RequestFailedException? CopyStartFailure { get; set; }
+
+        /// <summary>The length a copy onto this blob reports when it finishes.</summary>
+        internal long CopiedLength { get; set; }
+
+        internal int CopyStartCount { get; private set; }
+        internal Uri? LastCopySource { get; private set; }
+        internal BlobCopyFromUriOptions? LastCopyOptions { get; private set; }
+
         internal BlobRequestConditions? LastConditionalGetPropertiesConditions { get; private set; }
         internal BlobRequestConditions? LastSetMetadataConditions { get; private set; }
         internal BlobRequestConditions? LastSetTagsConditions { get; private set; }
@@ -428,13 +610,21 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             }
 
             ThrowIfETagDiffers(conditions);
+            var copyStatus = PendingReads > 0 ? CopyStatus.Pending : CopyStatus;
+            if (PendingReads > 0)
+            {
+                PendingReads--;
+            }
+
             return Task.FromResult(Response.FromValue(
                 BlobsModelFactory.BlobProperties(
                     lastModified: CreatedOn,
                     contentLength: ContentLength,
                     eTag: etag,
                     metadata: Metadata,
-                    createdOn: CreatedOn),
+                    createdOn: CreatedOn,
+                    blobCopyStatus: copyStatus,
+                    copyId: CopyId),
                 new StubResponse()));
         }
 
@@ -558,6 +748,23 @@ public sealed class AzureBlobIntakeArtifactStoreTests
                 new StubResponse()));
         }
 
+        public override Task<CopyFromUriOperation> StartCopyFromUriAsync(
+            Uri source,
+            BlobCopyFromUriOptions options,
+            CancellationToken cancellationToken = default)
+        {
+            Operations++;
+            CopyStartCount++;
+            LastCopySource = source;
+            LastCopyOptions = options;
+            if (CopyStartFailure is not null)
+            {
+                throw CopyStartFailure;
+            }
+
+            return Task.FromResult<CopyFromUriOperation>(new StubCopyOperation(CopiedLength));
+        }
+
         public override Task<Response<BlobDownloadStreamingResult>> DownloadStreamingAsync(
             BlobDownloadOptions? options = null,
             CancellationToken cancellationToken = default) =>
@@ -574,10 +781,11 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         {
             Operations++;
             DownloadCount++;
+            var body = PendingReads > 0 ? Array.Empty<byte>() : Body;
             return Response.FromValue(
                 BlobsModelFactory.BlobDownloadStreamingResult(
-                    new MemoryStream(Body),
-                    BlobsModelFactory.BlobDownloadDetails(contentLength: Body.Length)),
+                    new MemoryStream(body),
+                    BlobsModelFactory.BlobDownloadDetails(contentLength: body.Length)),
                 new StubResponse());
         }
 
@@ -591,6 +799,17 @@ public sealed class AzureBlobIntakeArtifactStoreTests
                     createdOn: CreatedOn),
                 metadata: Metadata,
                 tags: Tags);
+    }
+
+    /// <summary>
+    /// A finished copy; the service reports a failed or aborted one as
+    /// finished too, with a length of zero.
+    /// </summary>
+    private sealed class StubCopyOperation(long length) : CopyFromUriOperation
+    {
+        public override ValueTask<Response<long>> WaitForCompletionAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(Response.FromValue(length, new StubResponse()));
     }
 
     private sealed class StubResponse : Response
