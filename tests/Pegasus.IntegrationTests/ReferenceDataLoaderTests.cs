@@ -59,7 +59,7 @@ public sealed class ReferenceDataLoaderTests
             plan.GetProperty("hygiene").EnumerateArray().Select(drop => drop.GetProperty("column").GetString()).ToArray());
         Assert.Equal(
             ["telephone=0161 496 0001", "email=second;third@loader.example.invalid"],
-            plan.GetProperty("restListed").EnumerateArray().Select(rest => rest.GetProperty("entry").GetString()).ToArray());
+            plan.GetProperty("restListed").EnumerateArray().Select(rest => rest.GetProperty("entry").GetString()!).ToArray());
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public sealed class ReferenceDataLoaderTests
                 .ToArray());
         Assert.Equal(
             ["P0001", "R0001"],
-            plan.GetProperty("contactWrites").EnumerateArray().Select(write => write.GetProperty("rowId").GetString()).ToArray());
+            plan.GetProperty("contactWrites").EnumerateArray().Select(write => write.GetProperty("rowId").GetString()!).ToArray());
         var location = Assert.Single(plan.GetProperty("locationWrites").EnumerateArray());
         Assert.Equal("X0002", location.GetProperty("rowId").GetString());
     }
