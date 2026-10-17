@@ -24,11 +24,11 @@ public sealed class MailboxIntakeIntegrationTests
     /// The mailbox envelope bound these tests run against.
     /// </summary>
     /// <remarks>
-    /// The shipped bound is deliberately permissive, and writing a file of
-    /// that size to prove the boundary would cost more than the boundary is
-    /// worth. The adapter and the poll take their bound as a parameter for
-    /// exactly this reason, so both sides of it stay covered here while
-    /// production keeps <see cref="IntakeEnvelopeLimits.MaximumMailboxContentLength"/>.
+    /// The shipped bound is 150 MiB, and writing a file of that size to
+    /// prove the boundary would cost more than the boundary is worth. The
+    /// adapter and the poll take their bound as a parameter for exactly this
+    /// reason, so both sides of it stay covered here while production keeps
+    /// <see cref="IntakeEnvelopeLimits.MaximumMailboxContentLength"/>.
     /// </remarks>
     private const long TestMailboxContentLength = 256 * 1024;
 

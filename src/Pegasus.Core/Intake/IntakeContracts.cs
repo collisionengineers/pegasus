@@ -35,15 +35,16 @@ public static class IntakeEnvelopeLimits
     /// forward was rejected as <c>message_too_large</c> on 2026-08-05, against
     /// the 10 MiB one-file bound then in force, without ever being read.
     ///
-    /// This bound is deliberately permissive rather than a capacity claim.
-    /// Exchange Online will not carry a message anywhere near it, the reader
-    /// still enforces its own nesting, entity and decoded-byte limits, and
-    /// the poll materializes a message in memory — so the practical ceiling
-    /// is far lower and is set by the Worker instance, not by this number.
-    /// It exists so that a genuine instruction is read and decided rather
-    /// than refused at the door.
+    /// This bound is Exchange Online's largest message, 150 MiB
+    /// (157,286,400 bytes; operator, 15 October 2026); a larger message is
+    /// quarantined as <c>message_too_large</c>. The reader still enforces its
+    /// own nesting, entity and decoded-byte limits, and the poll
+    /// materializes a message in memory — so the practical ceiling can be
+    /// lower and is set by the Worker instance, not by this number. It
+    /// exists so that a genuine instruction is read and decided rather than
+    /// refused at the door.
     /// </remarks>
-    public const long MaximumMailboxContentLength = 750L * 1024 * 1024;
+    public const long MaximumMailboxContentLength = 150L * 1024 * 1024;
 
     /// <summary>
     /// The most files one staff Upload submission may select as a single
