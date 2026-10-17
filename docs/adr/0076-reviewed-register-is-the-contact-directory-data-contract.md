@@ -41,10 +41,8 @@ ADR-0018 left DATA-02's pipeline deferred. The Contacts directory has one
 writer, `IContactDirectoryAdministration.SaveAsync`, which an Administrator
 calls from the Contact page.
 
-The operator reviewed a register of the organisations, codes and addresses
-the evidence names, kept outside the repository
-(`artifacts/pegasus-release-readiness/entities/register/`). Two rulings of
-15 October 2026 govern the evidence behind each row:
+Two rulings of 15 October 2026 govern the evidence behind the reviewed
+register:
 
 - Principal code conflicts: "find evidence to support any aliases and cite
   this", checking the SOP details in the report-dispatch skill
