@@ -382,7 +382,7 @@ public sealed partial class OrganizationAdministrationWebTests
             ]));
         Assert.Equal(HttpStatusCode.OK, badPrefix.StatusCode);
         var badPrefixHtml = await badPrefix.Content.ReadAsStringAsync();
-        AssertInsidePanel(badPrefixHtml, "principal-sending-title", OperatorLabels.PrincipalAdministration.RefPrefixLettersOnly);
+        AssertInsidePanel(badPrefixHtml, "principal-sending-title", $"Rule 1: {OperatorLabels.PrincipalAdministration.RefPrefixLettersOnly}");
         Assert.Contains("value=\"a1\"", badPrefixHtml, StringComparison.Ordinal);
         Assert.Equal(versionBefore + 1, await factory.Database.ScalarAsync<long>(principalVersion));
 

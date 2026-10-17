@@ -634,7 +634,7 @@ public sealed class EditModel(
             ReportSendingRulesRule.UnknownContact => $"{where}: choose a contact from the list.",
             ReportSendingRulesRule.UnknownOutcome => $"{where}: choose an outcome from the list.",
             ReportSendingRulesRule.UnknownCaseType => $"{where}: choose a case type from the list.",
-            ReportSendingRulesRule.InvalidRefPrefix => OperatorLabels.PrincipalAdministration.RefPrefixLettersOnly,
+            ReportSendingRulesRule.InvalidRefPrefix => $"{where}: {OperatorLabels.PrincipalAdministration.RefPrefixLettersOnly}",
             ReportSendingRulesRule.EmptyRule => $"{where}: add at least one condition.",
             ReportSendingRulesRule.EmptyCondition => $"{where}: a condition needs a value.",
             ReportSendingRulesRule.EmptyActions => $"{where}: add at least one action.",
