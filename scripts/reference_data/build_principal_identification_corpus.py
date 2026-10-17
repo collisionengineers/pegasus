@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build or verify the versioned principal-identification evidence corpus."""
+"""Build or verify the versioned principal-identification evidence corpus, or list one Principal's buckets."""
 
 from __future__ import annotations
 
@@ -259,6 +259,16 @@ QDOS_VOLUME_RESULTS = {
     "claimTokenCoverage": {"withToken": 47, "acceptedRoutes": 47},
 }
 
+# The v5 volume evaluation ran over the corpus/emailevals cohort, which the
+# <CODE>/<type>/<category> layout retired; its recorded inventory hash is kept.
+QDOS_VOLUME_SOURCE_SHA256 = "dc4824c136f6a640976e24be9680280c1d196420cbabfe6d031e6f61022ff973"
+
+# corpus/<CODE>/<type>/<category>/: each <CODE> folder holds one Principal's
+# samples. The underscore-prefixed folders (_reference, _duplicates, ...) and
+# holding/ are not Principal folders and are never read.
+CODE_FOLDER = re.compile(r"^[A-Z][A-Z0-9]*$")
+EVIDENCE_SUFFIXES = frozenset({".eml", ".msg", ".pdf", ".doc", ".docx", ".rtf"})
+
 QDOS_ACCEPTED_CLASSIFICATION = (
     ("subject.automatic-reply", "subject", "Automatic reply:", "general"),
     ("subject.reply-prefix", "subject", "RE: family", "reply-context-only"),
@@ -312,11 +322,18 @@ CELL_REFERENCE = re.compile(r"^([A-Z]+)([1-9][0-9]*)$")
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository-root", required=True, type=Path)
-    parser.add_argument("--collision-spike-root", required=True, type=Path)
+    parser.add_argument("--collision-spike-root", type=Path)
     parser.add_argument("--corpus-root", required=True, type=Path)
     parser.add_argument("--package-path", type=Path)
     parser.add_argument("--verify", action="store_true")
-    return parser.parse_args()
+    parser.add_argument("--principal", help="list one Principal's development and holdout buckets")
+    parser.add_argument("--manifest-path", type=Path)
+    args = parser.parse_args()
+    if args.principal and not args.manifest_path:
+        parser.error("--manifest-path is required with --principal")
+    if not args.principal and not args.collision_spike_root:
+        parser.error("--collision-spike-root is required unless --principal is given")
+    return args
 
 
 def normalized_text_bytes(path: Path) -> bytes:
@@ -1089,15 +1106,27 @@ def email_metadata(path: Path) -> dict[str, Any]:
         }
 
 
+def principal_evidence_paths(corpus_root: Path, code: str | None = None) -> list[Path]:
+    if code is None:
+        folders = sorted(
+            child for child in corpus_root.iterdir() if child.is_dir() and CODE_FOLDER.fullmatch(child.name)
+        )
+    elif CODE_FOLDER.fullmatch(code) and (corpus_root / code).is_dir():
+        folders = [corpus_root / code]
+    else:
+        raise ValueError(f"no corpus/{code}/ Principal folder under {corpus_root}")
+    return [
+        path
+        for folder in folders
+        for path in folder.rglob("*")
+        if path.is_file() and path.suffix.casefold() in EVIDENCE_SUFFIXES
+    ]
+
+
 def evidence_files(collision_root: Path, corpus_root: Path) -> list[dict[str, Any]]:
-    locations: list[tuple[str, Path, Path]] = []
-    for directory_name in ("emailevals", "qdos-email-corpus"):
-        directory = corpus_root / directory_name
-        if not directory.is_dir():
-            continue
-        for path in directory.rglob("*"):
-            if path.is_file() and path.suffix.casefold() in {".eml", ".msg", ".pdf", ".doc", ".docx", ".rtf"}:
-                locations.append(("pegasus-local-corpus", corpus_root, path))
+    locations: list[tuple[str, Path, Path]] = [
+        ("pegasus-local-corpus", corpus_root, path) for path in principal_evidence_paths(corpus_root)
+    ]
 
     collision_email_root = collision_root / "emailevals"
     if collision_email_root.is_dir():
@@ -1108,7 +1137,10 @@ def evidence_files(collision_root: Path, corpus_root: Path) -> list[dict[str, An
         for path in fixture_root.iterdir():
             if path.is_file():
                 locations.append(("collisionspike", collision_root, path))
+    return evidence_items(locations)
 
+
+def evidence_items(locations: list[tuple[str, Path, Path]]) -> list[dict[str, Any]]:
     deduplicated: dict[str, dict[str, Any]] = {}
     for repository, root, path in locations:
         content_hash = sha256_file(path)
@@ -1152,24 +1184,21 @@ def evidence_files(collision_root: Path, corpus_root: Path) -> list[dict[str, An
     return sorted(result, key=lambda item: item["sha256"])
 
 
-def cohort_source(corpus_root: Path, relative_path: str) -> dict[str, Any]:
-    root = corpus_root / relative_path
-    files = sorted(
-        (path for path in root.rglob("*.eml") if path.is_file()),
-        key=lambda path: (
-            path.relative_to(corpus_root).as_posix().casefold(),
-            path.relative_to(corpus_root).as_posix(),
-        ),
+def principal_buckets(corpus_root: Path, code: str) -> dict[str, Any]:
+    items = evidence_items(
+        [("pegasus-local-corpus", corpus_root, path) for path in principal_evidence_paths(corpus_root, code)]
     )
-    inventory = [
-        f"{path.relative_to(corpus_root).as_posix()}\t{sha256_file(path)}"
-        for path in files
-    ]
     return {
-        "repository": "pegasus-local-corpus",
-        "relativePath": relative_path,
-        "fileCount": len(files),
-        "aggregateSha256": sha256_text("\n".join(inventory)),
+        "principalCode": code,
+        "files": [
+            {
+                "sha256": item["sha256"],
+                "bytes": item["bytes"],
+                "sourceLocations": [location["relativePath"] for location in item["sourceLocations"]],
+                "grouping": item["grouping"],
+            }
+            for item in items
+        ],
     }
 
 
@@ -1294,47 +1323,33 @@ def build_package(repository_root: Path, collision_root: Path, corpus_root: Path
     )
 
     evidence = evidence_files(collision_root, corpus_root)
-    qdos_evidence_count = sum(
-        1
+    qdos_evidence = [
+        item
         for item in evidence
         if any(
-            location["repository"] == "pegasus-local-corpus"
-            and location["relativePath"].startswith("qdos-email-corpus/")
+            location["repository"] == "pegasus-local-corpus" and location["relativePath"].startswith("QDOS/")
             for location in item["sourceLocations"]
         )
-    )
+    ]
     source_snapshots.append(
         {
             "id": "qdos-local-email-evidence",
             "repository": "pegasus-local-corpus",
-            "relativePath": "qdos-email-corpus",
+            "relativePath": "QDOS",
             "mediaKind": "evidence-cohort",
-            "recordCount": qdos_evidence_count,
-            "aggregateSha256": sha256_text(
-                "\n".join(
-                    item["sha256"]
-                    for item in evidence
-                    if any(
-                        location["repository"] == "pegasus-local-corpus"
-                        and location["relativePath"].startswith("qdos-email-corpus/")
-                        for location in item["sourceLocations"]
-                    )
-                )
-            ),
+            "recordCount": len(qdos_evidence),
+            "aggregateSha256": sha256_text("\n".join(item["sha256"] for item in qdos_evidence)),
         }
     )
-    qdos_volume_source = cohort_source(corpus_root, "emailevals")
-    if qdos_volume_source["fileCount"] != QDOS_VOLUME_RESULTS["processed"]:
-        raise ValueError(
-            "QDOS volume cohort count drift: "
-            f"expected {QDOS_VOLUME_RESULTS['processed']}, found {qdos_volume_source['fileCount']}"
-        )
     source_snapshots.append(
         {
             "id": "qdos-policy-v5-volume-source",
             "mediaKind": "evidence-cohort",
-            **qdos_volume_source,
-            "recordCount": qdos_volume_source["fileCount"],
+            "repository": "pegasus-local-corpus",
+            "relativePath": "emailevals",
+            "fileCount": QDOS_VOLUME_RESULTS["processed"],
+            "aggregateSha256": QDOS_VOLUME_SOURCE_SHA256,
+            "recordCount": QDOS_VOLUME_RESULTS["processed"],
         }
     )
 
@@ -1440,8 +1455,19 @@ def publish(path: Path, package_bytes: bytes, verify: bool) -> str:
 def main() -> int:
     args = parse_args()
     repository_root = args.repository_root.resolve()
-    collision_root = args.collision_spike_root.resolve()
     corpus_root = args.corpus_root.resolve()
+    if args.principal:
+        manifest = principal_buckets(corpus_root, args.principal)
+        manifest_path = args.manifest_path.resolve()
+        status = publish(manifest_path, canonical_json_bytes(manifest), False)
+        cohorts = [file["grouping"]["cohort"] for file in manifest["files"]]
+        print(
+            f"status={status} principal={args.principal} files={len(cohorts)} "
+            f"development={cohorts.count('development')} holdout={cohorts.count('holdout')} "
+            f"manifest={manifest_path.as_posix()}"
+        )
+        return 0
+    collision_root = args.collision_spike_root.resolve()
     package_path = (
         args.package_path.resolve()
         if args.package_path

@@ -1,9 +1,13 @@
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = "Package")]
 param(
-    [Parameter(Mandatory)] [string]$CollisionSpikeRoot,
-    [Parameter(Mandatory)] [string]$CorpusRoot,
+    [Parameter(Mandatory, ParameterSetName = "Package")] [string]$CollisionSpikeRoot,
+    [Parameter(Mandatory, ParameterSetName = "Package")]
+    [Parameter(Mandatory, ParameterSetName = "Principal")] [string]$CorpusRoot,
+    [Parameter(ParameterSetName = "Package")]
     [string]$PackagePath = "reference/workproviders-and-repairers/principal-identification-corpus.v1.json",
-    [switch]$Verify
+    [Parameter(ParameterSetName = "Package")] [switch]$Verify,
+    [Parameter(Mandatory, ParameterSetName = "Principal")] [string]$PrincipalCode,
+    [Parameter(ParameterSetName = "Principal")] [string]$ManifestPath
 )
 
 Set-StrictMode -Version Latest
@@ -23,14 +27,9 @@ function Resolve-RepositoryPath {
 }
 
 $RepositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
-$ResolvedCollisionSpikeRoot = [System.IO.Path]::GetFullPath($CollisionSpikeRoot)
 $ResolvedCorpusRoot = [System.IO.Path]::GetFullPath($CorpusRoot)
-$ResolvedPackagePath = Resolve-RepositoryPath -Path $PackagePath -RepositoryRoot $RepositoryRoot
 $HelperPath = Join-Path $RepositoryRoot "scripts/reference_data/build_principal_identification_corpus.py"
 
-if (-not (Test-Path -LiteralPath $ResolvedCollisionSpikeRoot -PathType Container)) {
-    throw "CollisionSpike root not found: $ResolvedCollisionSpikeRoot"
-}
 if (-not (Test-Path -LiteralPath $ResolvedCorpusRoot -PathType Container)) {
     throw "Immutable Pegasus corpus root not found: $ResolvedCorpusRoot"
 }
@@ -40,12 +39,29 @@ if (-not (Test-Path -LiteralPath $HelperPath -PathType Leaf)) {
 
 $helperArguments = @(
     "--repository-root", $RepositoryRoot,
-    "--collision-spike-root", $ResolvedCollisionSpikeRoot,
-    "--corpus-root", $ResolvedCorpusRoot,
-    "--package-path", $ResolvedPackagePath
+    "--corpus-root", $ResolvedCorpusRoot
 )
-if ($Verify) {
-    $helperArguments += "--verify"
+if ($PSCmdlet.ParameterSetName -eq "Principal") {
+    if (-not $ManifestPath) {
+        $ManifestPath = "artifacts/evaluation/principal-identification-$PrincipalCode-buckets.json"
+    }
+    $helperArguments += @(
+        "--principal", $PrincipalCode,
+        "--manifest-path", (Resolve-RepositoryPath -Path $ManifestPath -RepositoryRoot $RepositoryRoot)
+    )
+}
+else {
+    $ResolvedCollisionSpikeRoot = [System.IO.Path]::GetFullPath($CollisionSpikeRoot)
+    if (-not (Test-Path -LiteralPath $ResolvedCollisionSpikeRoot -PathType Container)) {
+        throw "CollisionSpike root not found: $ResolvedCollisionSpikeRoot"
+    }
+    $helperArguments += @(
+        "--collision-spike-root", $ResolvedCollisionSpikeRoot,
+        "--package-path", (Resolve-RepositoryPath -Path $PackagePath -RepositoryRoot $RepositoryRoot)
+    )
+    if ($Verify) {
+        $helperArguments += "--verify"
+    }
 }
 
 & python $HelperPath @helperArguments
