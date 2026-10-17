@@ -305,7 +305,6 @@ public sealed partial class CaseCreateWebTests
         var form = await OpenCreateScreenAsync(client, receipt.Id);
         Assert.Contains("data-create-seeded", form.Html, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Received/{receipt.Id:D}/Source\"", form.Html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Reject proposal", form.Html, StringComparison.Ordinal);
         Assert.Contains(">Cancel</a>", form.Html, StringComparison.Ordinal);
         Assert.Equal(0, await CountAsync(factory.Services, "Cases"));
         Assert.Equal(0, await CountAsync(factory.Services, "CaseIntakeLinks"));

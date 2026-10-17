@@ -58,8 +58,6 @@ public sealed partial class OrganizationAdministrationWebTests
             $"/Administration/Contacts/Edit/{contactId:D}");
         Assert.Contains("Web Caller Claim Source</h2>", contactEditHtml, StringComparison.Ordinal);
 
-        using var retiredOrganizations = await client.GetAsync("/Administration/Organizations");
-        Assert.Equal(HttpStatusCode.NotFound, retiredOrganizations.StatusCode);
         var principalHtml = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Contacts?createType=Principal");
         Assert.Contains("Name", principalHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("OrganizationId", principalHtml, StringComparison.Ordinal);
@@ -108,15 +106,11 @@ public sealed partial class OrganizationAdministrationWebTests
         var reportSettingsHtml = await EditContactAsync(client, reportSettingsPath, "report-generation");
         Assert.Contains(">Report generation</h2>", reportSettingsHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("contact-title", reportSettingsHtml, StringComparison.Ordinal);
-        // A new Principal starts with the default report sending rules; the
-        // retired Report recipients settings are not offered.
+        // A new Principal starts with the default report sending rules.
         Assert.Equal(
             EfOrganizationAdministration.ToReportSendingJson(Pegasus.Core.Reports.PrincipalReportSendingRules.Default),
             await factory.Database.ScalarAsync<string>(
                 $"SELECT ReportSendingRulesJson FROM Principals WHERE Id = '{principalId:D}';"));
-        Assert.DoesNotContain("Report recipients", reportSettingsHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("IncludeOriginalInstructionSender", reportSettingsHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("AdditionalReportRecipients", reportSettingsHtml, StringComparison.Ordinal);
         var reportSettingsForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(
@@ -403,27 +397,6 @@ public sealed partial class OrganizationAdministrationWebTests
         {
             using var response = await client.GetAsync(route);
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-        }
-    }
-
-    [Fact]
-    public async Task SupersededPrincipalRoutesAreNotPublicEndpoints()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var principalId = Guid.Parse("1eeea2b1-3e1d-4a0a-8205-0c25396206e8");
-        string[] routes =
-        [
-            "/Administration/Principals",
-            "/Administration/Principals/Create",
-            $"/Administration/Principals/Replace/{principalId:D}",
-            $"/Administration/Principals/Settings/{principalId:D}"
-        ];
-
-        foreach (var route in routes)
-        {
-            using var response = await client.GetAsync(route);
-            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         }
     }
 

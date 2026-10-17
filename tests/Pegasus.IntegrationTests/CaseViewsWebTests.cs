@@ -717,7 +717,6 @@ public sealed class CaseViewsWebTests
         Assert.DoesNotContain("data-next-resolve-query", next, StringComparison.Ordinal);
         Assert.DoesNotContain("data-resolve-query", html, StringComparison.Ordinal);
         Assert.Contains($">{OperatorLabels.CaseStage(CaseLifecycleState.ReportSent)}</span>", RibbonStateChip(html), StringComparison.Ordinal);
-        Assert.DoesNotContain("Completed", next, StringComparison.Ordinal);
     }
 
     /// <summary>

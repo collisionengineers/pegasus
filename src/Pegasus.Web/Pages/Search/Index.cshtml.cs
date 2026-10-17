@@ -18,11 +18,9 @@ namespace Pegasus.Web.Pages.Search;
 /// <remarks>
 /// The grid's ten fields map 1:1 onto the existing search parameters; the
 /// pre-port parameters this design does not draw (<c>case</c>,
-/// <c>receivedDate</c>, <c>kind</c>) stay bound and pager-preserved, so the
-/// <c>/Cases</c> bookmarks the shell redirects here keep working with their
-/// values intact. The preview pane is built from
-/// the row projection plus one batched Engineer-name resolve rather than a
-/// per-row Case read: the wave-1 selection script needs a preview template
+/// <c>receivedDate</c>, <c>kind</c>) stay bound and pager-preserved. The preview pane is built
+/// from the row projection plus one batched Engineer-name resolve rather than
+/// a per-row Case read: the wave-1 selection script needs a preview template
 /// per row regardless, and this keeps the page at its two queries.
 /// Closed Cases render their "Closed" chip here — this is the one work view
 /// that lists them.

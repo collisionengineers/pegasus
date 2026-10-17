@@ -34,9 +34,7 @@ namespace Pegasus.Web.Pages.Cases;
 /// lists a Blocked receipt or links to a received item (received file D1, D2).
 ///
 /// The queue is <c>?tab=</c>; the earlier <c>?queue=</c> is accepted as
-/// an alias and hyphenated spellings normalise to the same keys. A request
-/// carrying a search-only parameter belongs to <c>/Search</c> and is
-/// redirected there permanently with its values intact.
+/// an alias and hyphenated spellings normalise to the same keys.
 /// </remarks>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -115,16 +113,6 @@ public sealed class IndexModel(
         new("query", "Queries", "icon-reply"),
         new("triage", "Triage", "icon-file-text"),
         new("held", OperatorLabels.CaseStage(CaseLifecycleState.Held), "icon-pause")
-    ];
-
-    /// <summary>
-    /// The query parameters that belong to <c>/Search</c> and never to this
-    /// page. Their presence means an old <c>/Cases</c> search link.
-    /// </summary>
-    private static readonly string[] SearchOnlyParameters =
-    [
-        "case", "registration", "claimant", "claimNumber", "engineerId",
-        "receivedDate", "fromDate", "toDate", "query"
     ];
 
     /// <summary>
@@ -336,11 +324,6 @@ public sealed class IndexModel(
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
-        if (SearchOnlyParameters.Any(parameter => Request.Query.ContainsKey(parameter)))
-        {
-            return RedirectPermanent("/Search" + Request.QueryString.Value);
-        }
-
         if (!TryGetActor(out var actor))
         {
             return Forbid();

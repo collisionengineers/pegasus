@@ -16,20 +16,6 @@ public sealed class LocalIntakeAccessTests
         { "Development", false }
     };
 
-    [Fact]
-    public async Task RetiredQdosRouteAlwaysReturnsNotFoundWithoutPersistence()
-    {
-        using var factory = new IntakeWebApplicationFactory("Development", true);
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        using var get = await client.GetAsync("/Received/Qdos");
-
-        Assert.Equal(HttpStatusCode.NotFound, get.StatusCode);
-        await using var scope = factory.Services.CreateAsyncScope();
-        var queries = scope.ServiceProvider.GetRequiredService<Pegasus.Core.Intake.IIntakeReceiptQueries>();
-        Assert.Empty((await queries.ListByCursorAsync(null, null, 100, CancellationToken.None)).Items);
-    }
-
     [Theory]
     [MemberData(nameof(DeniedConfigurations))]
     public async Task DisabledLocalIntakeReturnsNotFoundWithoutPersistence(

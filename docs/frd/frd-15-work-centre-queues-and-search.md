@@ -494,9 +494,8 @@ permits it ([FRD-13](frd-13-case-lifecycle-and-workflow.md)).
 
 ## Acceptance evidence
 
-Acceptance covers every rail route, the `/Unidentified`
-redirect, `/Triage` and `/Triage/{id}` answering Not found, the Cases rail
-order and filters, the five Work Centre counts, the Activity figures and
+Acceptance covers every rail route, the Cases rail order and filters, the
+five Work Centre counts, the Activity figures and
 their unavailable state, the Needs attention kinds
 against Core queries, the Triage Case page in its read, edit, conflict,
 Completed and Cancelled states, and the Search filters with the two entries

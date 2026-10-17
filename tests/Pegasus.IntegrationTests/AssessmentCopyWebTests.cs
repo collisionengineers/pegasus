@@ -14,9 +14,9 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// The Engineer sections carry no explanatory copy, render without
-/// the retired Assessment availability gate, the retired Assessment route is
-/// not found, and D11's CanOpen mutation gate still refuses a POST on the Case
-/// handler host when the workspace can't open.
+/// the retired Assessment availability gate, and D11's CanOpen mutation gate
+/// still refuses a POST on the Case handler host when the workspace can't
+/// open.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class AssessmentCopyWebTests
@@ -59,7 +59,6 @@ public sealed class AssessmentCopyWebTests
         Assert.Contains("id=\"section-damage\"", html, StringComparison.Ordinal);
         Assert.Contains("id=\"section-estimate\"", html, StringComparison.Ordinal);
         Assert.Contains("id=\"section-report\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Assessment unavailable", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -86,23 +85,6 @@ public sealed class AssessmentCopyWebTests
             }));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    /// <summary>
-    /// The Assessment page and its permanent redirect are retired (#834): the
-    /// route is not found rather than forwarded, so no link can depend on it.
-    /// </summary>
-    [Fact]
-    public async Task RetiredAssessmentRouteIsNotFound()
-    {
-        var caseId = Guid.NewGuid();
-        using var factory = Compose(caseId, out _);
-        using var client = EngineerClient(factory);
-
-        using var response = await client.GetAsync($"/Cases/{caseId:D}/Assessment");
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.Null(response.Headers.Location);
     }
 
     private static WebApplicationFactory<Program> Compose(

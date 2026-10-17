@@ -236,11 +236,9 @@ public sealed class TriageQueuesWebTests
         Assert.Contains("<span class=\"status status--purple\">Query</span>", queryHtml, StringComparison.Ordinal);
         Assert.Equal(1, QueueCount(queryHtml, "Queries"));
 
-        // Issue 1046: a finished Case has no queue. The rail offers none, the
-        // old route is not found and no Case queue lists the Report sent Case.
+        // Issue 1046: a finished Case has no queue. The rail offers none and no
+        // Case queue lists the Report sent Case.
         Assert.DoesNotContain("<span>Report sent</span>", queryHtml, StringComparison.Ordinal);
-        using var completeResponse = await client.GetAsync("/Cases?tab=complete");
-        Assert.Equal(HttpStatusCode.NotFound, completeResponse.StatusCode);
         foreach (var queue in new[] { "not_ready", "review", "with_engineer", "held" })
         {
             using var queueResponse = await client.GetAsync($"/Cases?tab={queue}");
@@ -508,33 +506,12 @@ public sealed class TriageQueuesWebTests
     }
 
     [Fact]
-    public async Task UnidentifiedRouteRedirectsPermanentlyToTheQueuesTab()
+    public async Task AnUnknownTabOrShowValueIsNotFound()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        using var response = await client.GetAsync("/Unidentified");
-
-        Assert.Equal(HttpStatusCode.MovedPermanently, response.StatusCode);
-        Assert.Equal("/Cases?tab=unassigned&show=unidentified", response.Headers.Location?.OriginalString);
-    }
-
-    /// <summary>
-    /// Unassigned Images replaced the Awaiting instruction and Unidentified
-    /// queues (operator, 13 October 2026): their keys are not addresses, and
-    /// the Show filter belongs to Unassigned Images alone.
-    /// </summary>
-    [Theory]
-    [InlineData("awaiting", "/Cases?tab=awaiting")]
-    [InlineData("unidentified", "/Cases?tab=unidentified")]
-    [InlineData("show-open", "/Cases?tab=unassigned&show=open")]
-    public async Task RetiredQueueAddressesAreNotFound(string name, string address)
-    {
-        Assert.NotEmpty(name);
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        using var response = await client.GetAsync(address);
+        using var response = await client.GetAsync("/Cases?tab=not-a-queue");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }

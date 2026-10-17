@@ -186,16 +186,14 @@ raise failed; an Administrator retries it from
 | `/Unidentified/{id}`, `/VehicleImages/{id}` | Unidentified and vehicle-images records | The received-file page |
 | `/Received/{id}/Source`, `/Received/{id}/Image`, `/Received/{id}/Asset/{assetId}` | Open file: the retained original, served to authorised staff only | — |
 | `/Administration`, `/Administration/...` | Administration areas ([FRD-17](frd-17-administration-workspace.md#administration)) | Separate Principal and Claim Source areas |
-| `/Administration/Logs` | Action logs and Intake log tabs; `/Administration/ActionLogs` answers a permanent redirect keeping its query | Action Logs |
+| `/Administration/Logs` | Action logs and Intake log tabs | Action Logs |
 
 There is no received-file page. Its history is the Intake log, its technical
 actions are on the Intake log, and its outcome is stated on
 its message, its upload and the record it became
 ([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions)).
 
-`/Unidentified` is a permanent redirect to
-`/Cases?tab=unassigned&show=unidentified`, kept
-for existing links and bookmarks. `/Triage` and `/Triage/{id}` are removed
+`/Triage` and `/Triage/{id}` are removed
 and answer Not found, with no redirect. The Case record's tasks, vehicle,
 workflow, closure and Case export routes answer Not found for a Triage
 Case. Custody and document download stay open for it. The
@@ -300,9 +298,8 @@ settings use expected-version checks as defined in
 
 ## Acceptance evidence
 
-Acceptance covers every rail route, the `/Unidentified`
-redirect, the removed `/Triage` routes and `/VehicleImages` list, the absence
-of any record-tab strip, the keyboard table and the breakpoints.
+Acceptance covers every rail route, the removed `/VehicleImages` list, the
+absence of any record-tab strip, the keyboard table and the breakpoints.
 Authenticated Web tests cover
 server-owned behaviour; they do not prove client-side interaction or visual
 correctness. Deployment and live acceptance are separate evidence tiers

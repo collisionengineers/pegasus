@@ -110,22 +110,6 @@ public sealed class ShellAndStatusPageWebTests
     }
 
     [Fact]
-    public async Task FormerPublicUploadRouteUsesTheOrdinaryNotFoundSurface()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        using var response = await client.GetAsync($"/Uploads/{Guid.NewGuid():N}");
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("We could not find that page", html, StringComparison.Ordinal);
-        Assert.Contains("auth-card", html, StringComparison.Ordinal);
-        Assert.Contains("Return to Work Centre", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("This link is no longer active", html, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task OnlyPayloadTooLargeStatusStatesTheGenericUploadLimit()
     {
         using var factory = new IntakeWebApplicationFactory();

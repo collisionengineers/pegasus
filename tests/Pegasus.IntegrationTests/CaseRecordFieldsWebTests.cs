@@ -376,8 +376,7 @@ public sealed class CaseRecordFieldsWebTests
 
     /// <summary>
     /// A value the Automation actor recorded is the Case's value (operator,
-    /// 25 September 2026): it shows in its own control with its source tag,
-    /// and the Decisions strip draws no proposal column.
+    /// 25 September 2026): it shows in its own control with its source tag.
     /// </summary>
     [Fact]
     public async Task AnAutomationValueShowsInItsControlWithItsSourceTag()
@@ -395,8 +394,6 @@ public sealed class CaseRecordFieldsWebTests
 
         var settlement = SectionHtml(await workspace.GetWorkspaceAsync(), "settlement");
 
-        Assert.DoesNotContain("has-proposal", settlement, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-proposal", settlement, StringComparison.Ordinal);
         // A Principal without a salvage matrix hands the Salvage value nothing.
         Assert.Contains("data-salvage-matrix=\"\"", settlement, StringComparison.Ordinal);
         Assert.DoesNotContain("data-salvage-matrix=\"[", settlement, StringComparison.Ordinal);

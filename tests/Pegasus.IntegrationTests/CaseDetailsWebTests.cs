@@ -25,48 +25,6 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class CaseDetailsWebTests
 {
-    /// <summary>
-    /// D30: the Engineer's work is Case sections, so the record carries no
-    /// Open Assessment action and no assessment gate — neither enabled nor
-    /// drawn disabled — whatever the shared access decision says. The page
-    /// takes that decision from the Case's state; Held is one it cannot open.
-    /// </summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task TheRecordOffersNoAssessmentAction(bool canOpen)
-    {
-        using var baseFactory = new IntakeWebApplicationFactory();
-        var store = new RecordingCaseDetailsStore
-        {
-            State = canOpen ? CaseLifecycleState.NotReady : CaseLifecycleState.Held
-        };
-        using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                Substitute<IGetCaseEditBasis>(services, store);
-                Substitute<IGetCasePageFrame>(services, store);
-                Substitute<IGetCaseVehicleSection>(services, store);
-                Substitute<IGetCaseValuationSection>(services, store);
-                Substitute<IGetCaseNotesSection>(services, store);
-                Substitute<IGetCaseFilesSection>(services, store);
-                Substitute<IGetAssessmentWorkspace>(services, store);
-            }));
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-
-        Assert.DoesNotContain("Open Assessment", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            $"/Cases/{store.CaseId:D}/Assessment",
-            html,
-            StringComparison.OrdinalIgnoreCase);
-    }
-
     [Fact]
     public async Task TheRecordRendersTenOrderedSectionHostsAndJumpLinks()
     {

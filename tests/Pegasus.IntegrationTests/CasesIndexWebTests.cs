@@ -231,6 +231,18 @@ public sealed class CasesIndexWebTests
         Assert.Equal("Email", query.Filters.Origin);
         Assert.Equal("needle", query.Filters.Query);
         Assert.Contains($"href=\"/Cases/{search.CaseId:D}\"", html, StringComparison.Ordinal);
+        foreach (var (field, value) in new[]
+                 {
+                     ("search-query", "needle"), ("search-registration", "AB12CDE"),
+                     ("search-claimant", "Claimant"), ("search-claim-number", "CLM42"),
+                     ("search-principal", "QDOS"), ("search-from-date", "2031-04-01"),
+                     ("search-to-date", "2031-05-31"), ("search-origin", "Email")
+                 })
+        {
+            Assert.Matches(
+                $"id=\"{field}\"[^>]*value=\"{Regex.Escape(value)}\"",
+                html);
+        }
 
         // The ported page: selectable rows, a server-rendered Selected Case
         // pane, and the Closed chip on the closed result (operator, 15 October

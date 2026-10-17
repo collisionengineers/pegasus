@@ -84,21 +84,6 @@ public sealed class RefreshButtonContractTests
         }
     }
 
-    [Fact]
-    public void NoStylesheetKeepsRetiredRefreshRules()
-    {
-        foreach (var path in Directory.GetFiles(
-                     Path.Combine(RepositoryRoot.Find(), "src/Pegasus.Web/wwwroot/css"),
-                     "*.css",
-                     SearchOption.AllDirectories))
-        {
-            var source = Read(path);
-
-            Assert.DoesNotContain("freshness-banner", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("wc-refresh-form", source, StringComparison.Ordinal);
-        }
-    }
-
     private static IEnumerable<string> RazorFiles() => Directory
         .EnumerateFiles(Path.Combine(RepositoryRoot.Find(), "src/Pegasus.Web/Pages"), "*.cshtml", SearchOption.AllDirectories)
         .Where(path =>

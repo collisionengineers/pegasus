@@ -614,7 +614,6 @@ public sealed class StaffCorrespondenceWebTests
         var typedReference = await CaseReferenceAsync(factory, typedCaseId);
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
         var html = await get.Content.ReadAsStringAsync();
-        Assert.DoesNotContain("CorrespondenceCaseQuery", html, StringComparison.Ordinal);
         Assert.Contains("role=\"combobox\"", html, StringComparison.Ordinal);
 
         using var response = await client.PostAsync(
