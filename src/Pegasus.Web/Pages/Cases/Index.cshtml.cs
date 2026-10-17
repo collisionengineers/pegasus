@@ -34,9 +34,7 @@ namespace Pegasus.Web.Pages.Cases;
 /// lists a Blocked receipt or links to a received item (received file D1, D2).
 ///
 /// The queue is <c>?tab=</c>; the earlier <c>?queue=</c> is accepted as
-/// an alias and hyphenated spellings normalise to the same keys. A request
-/// carrying a search-only parameter belongs to <c>/Search</c> and is
-/// redirected there permanently with its values intact.
+/// an alias and hyphenated spellings normalise to the same keys.
 /// </remarks>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
