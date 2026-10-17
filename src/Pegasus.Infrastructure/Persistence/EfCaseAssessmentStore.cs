@@ -66,7 +66,12 @@ public sealed class EfCaseAssessmentStore(
         return Map(workflow, fields, lines, caseDataFields, originReceivedAtUtc);
     }
 
-    public async Task<CaseAssessmentProjection> SaveAsync(
+    public Task<CaseAssessmentProjection> SaveAsync(
+        SaveAssessmentRequest request,
+        CancellationToken cancellationToken) =>
+        StoreConcurrencyRetry.ExecuteAsync(token => SaveOnceAsync(request, token), cancellationToken);
+
+    private async Task<CaseAssessmentProjection> SaveOnceAsync(
         SaveAssessmentRequest request,
         CancellationToken cancellationToken)
     {

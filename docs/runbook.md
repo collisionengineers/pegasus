@@ -820,7 +820,7 @@ bounds.
   `report.renderer.initialize`, which is kept and fires once per process.
   Query: the phase query above with those names.
 - **Deadlocks.** A command that loses a deadlock (SQL error 1205) logs a
-  warning with its statement and how long it ran, once. Nothing is retried.
+  warning with its statement and how long it ran, once.
   Query:
   `AppTraces | where Message startswith "SQL deadlock victim" | project TimeGenerated, AppRoleName, Message`.
 

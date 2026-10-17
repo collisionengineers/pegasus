@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -29,25 +28,10 @@ internal sealed class EfVehicleWorkflowStore(
         CaseDataFieldNames.VehicleMileageUnit
     ];
 
-    public async Task<RequestedVehicleLookup> RequestAsync(
+    public Task<RequestedVehicleLookup> RequestAsync(
         RequestVehicleLookupCommand command,
-        CancellationToken cancellationToken)
-    {
-        for (var attempt = 1; attempt <= 3; attempt++)
-        {
-            try
-            {
-                return await RequestOnceAsync(command, cancellationToken);
-            }
-            catch (Exception exception)
-                when (attempt < 3 && IsRetryableConcurrencyFailure(exception))
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt), cancellationToken);
-            }
-        }
-
-        throw new UnreachableException();
-    }
+        CancellationToken cancellationToken) =>
+        StoreConcurrencyRetry.ExecuteAsync(token => RequestOnceAsync(command, token), cancellationToken);
 
     private async Task<RequestedVehicleLookup> RequestOnceAsync(
         RequestVehicleLookupCommand command,
@@ -740,15 +724,6 @@ internal sealed class EfVehicleWorkflowStore(
         SqlException { Number: 2601 or 2627 } => true,
         DbUpdateException { InnerException: { } innerException } =>
             IsDuplicateKeyFailure(innerException),
-        _ => false
-    };
-
-    private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch
-    {
-        DbUpdateConcurrencyException => true,
-        SqlException { Number: 1205 or 2601 or 2627 } => true,
-        DbUpdateException { InnerException: { } innerException } =>
-            IsRetryableConcurrencyFailure(innerException),
         _ => false
     };
 }
