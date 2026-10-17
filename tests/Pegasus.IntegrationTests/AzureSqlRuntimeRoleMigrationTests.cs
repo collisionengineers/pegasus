@@ -574,6 +574,48 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
                 """));
     }
 
+    // 20261017110000_InspectionLocations: the Case page reads the reviewed
+    // locations and their links, and a Principal's replacement in the Web
+    // copies its links to the successor. The register loader writes as the
+    // operator, outside both runtime roles, and neither role deletes a row.
+    [Fact]
+    public async Task LatestMigrationGivesInspectionLocationsTheirExactRuntimePermissions()
+    {
+        var database = fixture.Database;
+
+        Assert.Equal(
+            [
+                $"InspectionLocationPrincipalLinks:{WebRole}:D:DELETE",
+                $"InspectionLocationPrincipalLinks:{WebRole}:G:INSERT",
+                $"InspectionLocationPrincipalLinks:{WebRole}:G:SELECT",
+                $"InspectionLocationPrincipalLinks:{WorkerRole}:D:DELETE",
+                $"InspectionLocations:{WebRole}:D:DELETE",
+                $"InspectionLocations:{WebRole}:G:SELECT",
+                $"InspectionLocations:{WorkerRole}:D:DELETE"
+            ],
+            await ReadValuesAsync(
+                database,
+                $"""
+                SELECT CONCAT(
+                    tableObject.name COLLATE DATABASE_DEFAULT,
+                    N':',
+                    principal.name COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.[state] COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.permission_name COLLATE DATABASE_DEFAULT)
+                FROM sys.database_permissions AS permission
+                INNER JOIN sys.objects AS tableObject
+                    ON tableObject.object_id = permission.major_id
+                INNER JOIN sys.database_principals AS principal
+                    ON principal.principal_id = permission.grantee_principal_id
+                WHERE tableObject.name IN (N'InspectionLocations', N'InspectionLocationPrincipalLinks')
+                  AND permission.class = 1
+                  AND permission.minor_id = 0
+                  AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
+                """));
+    }
+
     // 20260924180000_CaseWorksAndTriageCases: Web and Worker both create Cases
     // (and so their primary work); Web updates a work (Create audit moves the
     // Inspection report's evidence onto it), and since

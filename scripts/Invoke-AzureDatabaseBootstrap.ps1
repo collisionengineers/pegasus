@@ -631,6 +631,19 @@ function Get-MigrationPermissionMatrix {
     # on the lookup observation, which Web could only read. The grant is
     # table-level (the audit rejects column grants).
     $expected.Add('pegasus_web_runtime_role|G|UPDATE|VehicleLookupObservations')
+    # 20261017110000_InspectionLocations: Web reads the reviewed inspection
+    # locations for the Case page and copies a replaced Principal's links to
+    # its successor. The register loader writes outside both runtime roles;
+    # the Worker has no caller. Neither role deletes a row.
+    $expected.Add('pegasus_web_runtime_role|G|SELECT|InspectionLocations')
+    foreach ($permission in @('SELECT', 'INSERT')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|InspectionLocationPrincipalLinks")
+    }
+    foreach ($role in @('pegasus_web_runtime_role', 'pegasus_worker_runtime_role')) {
+        foreach ($table in @('InspectionLocations', 'InspectionLocationPrincipalLinks')) {
+            $expected.Add("$role|D|DELETE|$table")
+        }
+    }
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier
     # migrations this matrix reads still name them, and SQL Server keeps a
     # table's permission rows across a rename, so the rows read here are the

@@ -488,6 +488,17 @@ public sealed class EfOrganizationAdministration(
         var predecessorAfter = replacement.Predecessor;
         var now = _timeProvider.GetUtcNow();
         context.Principals.Add(successor);
+        // The successor offers the predecessor's reviewed inspection locations;
+        // the predecessor keeps its links, so its open Cases keep their list.
+        var inspectionLocationIds = await context.InspectionLocationPrincipalLinks.AsNoTracking()
+            .Where(link => link.PrincipalId == predecessor.Id)
+            .Select(link => link.InspectionLocationId)
+            .ToArrayAsync(cancellationToken);
+        foreach (var inspectionLocationId in inspectionLocationIds)
+        {
+            context.InspectionLocationPrincipalLinks.Add(
+                new() { PrincipalId = successor.Id, InspectionLocationId = inspectionLocationId });
+        }
         AddReceipt(
             context,
             request.OperationKey,

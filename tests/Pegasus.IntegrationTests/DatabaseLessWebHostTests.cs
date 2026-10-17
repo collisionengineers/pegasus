@@ -115,6 +115,8 @@ public sealed class DatabaseLessWebHostTests
                 .GetForOccurrenceAsync(caseId, Guid.NewGuid(), none)),
             ("previous inspection addresses", async services => await services
                 .GetRequiredService<IInspectionAddressChoicesQueries>().GetPreviousAddressesAsync(caseId, none)),
+            ("reviewed inspection locations", async services => await services
+                .GetRequiredService<IInspectionAddressChoicesQueries>().GetDirectoryLocationsAsync(caseId, none)),
             ("AI jobs", async services =>
                 await services.GetRequiredService<IAiJobQueries>().ListForSubjectAsync(caseId, none)),
             ("pending market research", async services =>

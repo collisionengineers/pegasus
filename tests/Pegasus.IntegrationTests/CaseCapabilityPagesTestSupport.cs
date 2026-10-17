@@ -898,6 +898,9 @@ internal static partial class CaseWebTestSupport
         public IReadOnlyList<string> PreviousInspectionAddresses { get; init; } =
             ["2 Previous Street", "1 Older Avenue"];
 
+        /// <summary>The reviewed inspection locations linked to the Case's Principal.</summary>
+        public IReadOnlyList<DirectoryInspectionLocation> DirectoryInspectionLocations { get; init; } = [];
+
         /// <summary>The Case's recorded repairer, which Inspect at offers as a location.</summary>
         public string? RepairerAddress { get; init; }
 
@@ -1091,6 +1094,12 @@ internal static partial class CaseWebTestSupport
             Guid caseId,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<string>>(caseId == CaseId ? PreviousInspectionAddresses : []);
+
+        Task<IReadOnlyList<DirectoryInspectionLocation>> IInspectionAddressChoicesQueries.GetDirectoryLocationsAsync(
+            Guid caseId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<DirectoryInspectionLocation>>(
+                caseId == CaseId ? DirectoryInspectionLocations : []);
 
         /// <summary>
         /// The case as it currently stands, so a refused editor's proposed values have something to

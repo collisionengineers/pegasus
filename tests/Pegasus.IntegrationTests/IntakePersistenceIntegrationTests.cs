@@ -251,7 +251,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261013100000_DropPrincipalDomainReference",
                 "20261014220000_DropApprovedOutlookCategories",
                 "20261017090000_ApprovedInboxPendingWake",
-                "20261017100000_VehicleLookupMileageEstimate"
+                "20261017100000_VehicleLookupMileageEstimate",
+                "20261017110000_InspectionLocations"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());

@@ -64,6 +64,8 @@
             ? OperatorLabels.CaseWorkspace.RepairerLocation
             : $"{OperatorLabels.CaseWorkspace.RepairerLocation} · {choice.SourceLabel}",
         InspectionAddressChoiceKind.StorageLocation => OperatorLabels.CaseWorkspace.StorageLocation,
+        // A reviewed location reads as its own name (operator, 16 October 2026).
+        InspectionAddressChoiceKind.DirectoryLocation => choice.SourceLabel!,
         InspectionAddressChoiceKind.PreviousAddress => $"{OperatorLabels.CaseWorkspace.PreviousAddress} · {choice.Address}",
         InspectionAddressChoiceKind.ManualEntry => OperatorLabels.CaseWorkspace.ManualEntry,
         _ => throw new InvalidOperationException("The inspection-address choice is invalid.")

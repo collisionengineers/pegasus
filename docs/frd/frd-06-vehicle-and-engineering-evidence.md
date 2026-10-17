@@ -80,7 +80,8 @@ history event.
 
 **Inspect at.** The Case record's Inspection section offers a quick choice:
 `Image Based Assessment`, Claimant address, Repairer location, Storage
-location, the previous addresses used for this Principal, and Manual entry.
+location, the Principal's reviewed locations, the previous addresses used
+for this Principal, and Manual entry.
 An option whose value is not on the Case is disabled, never shown empty. The
 Case stores its storage location as its own field. Choosing an option records
 that value under the source and reason rules above. The choice never invents

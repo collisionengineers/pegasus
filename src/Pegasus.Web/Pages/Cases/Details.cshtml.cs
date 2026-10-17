@@ -1823,9 +1823,10 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// The record's remaining reads: the directory choices, the Principal's
-    /// previous addresses, the Files galleries, the frame's names and Engineer
-    /// choices, the lease holder, and the Case's AI jobs, read once for both
-    /// the Next action's drafts and the Valuation section's pending research.
+    /// previous addresses and reviewed inspection locations, the Files
+    /// galleries, the frame's names and Engineer choices, the lease holder,
+    /// and the Case's AI jobs, read once for both the Next action's drafts
+    /// and the Valuation section's pending research.
     /// </summary>
     private async Task LoadExtrasAsync(Guid id, ActionActor actor, CancellationToken cancellationToken)
     {
@@ -1849,6 +1850,9 @@ public sealed partial class DetailsModel(
         var previousAddresses = inspectionRendered
             ? reads.Start(token => inspectionAddressChoicesQueries.GetPreviousAddressesAsync(id, token))
             : null;
+        var directoryLocations = inspectionRendered
+            ? reads.Start(token => inspectionAddressChoicesQueries.GetDirectoryLocationsAsync(id, token))
+            : null;
         var repairers = inspectionRendered && canEditCaseData
             ? reads.Start(token => contactDirectory.ListByRoleAsync(actor, ContactRole.Repairer, token))
             : null;
@@ -1870,10 +1874,10 @@ public sealed partial class DetailsModel(
         {
             ClaimSourceChoices = await claimSources;
         }
-        if (previousAddresses is not null)
+        if (previousAddresses is not null && directoryLocations is not null)
         {
             InspectionAddressChoices = Pegasus.Core.Address.InspectionAddressChoices.Resolve(
-                InspectionAddressChoicesData.Of(details.Data, await previousAddresses));
+                InspectionAddressChoicesData.Of(details.Data, await previousAddresses, await directoryLocations));
         }
         if (repairers is not null)
         {

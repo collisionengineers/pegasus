@@ -114,6 +114,45 @@ public sealed class CaseDataOperationsTests
         Assert.All(choices.Where((_, index) => index != 2), choice => Assert.True(choice.IsAvailable));
     }
 
+    /// <summary>
+    /// The Principal's reviewed inspection locations are offered by their own
+    /// names, in the order given, between Storage location and the previous
+    /// addresses (operator, 16 October 2026).
+    /// </summary>
+    [Fact]
+    public void ReviewedLocationsFollowStorageAndPrecedePreviousAddresses()
+    {
+        var choices = InspectionAddressChoices.Resolve(new(
+            "1 Claimant Road",
+            RepairerAddress: null,
+            "3 Storage Way",
+            ["2 Previous Street"],
+            DirectoryLocations:
+            [
+                new(Guid.NewGuid(), "Alpha Body Centre", "1 Test Street, Testtown TE1 1ST"),
+                new(Guid.NewGuid(), "Beta Yard", "2 Test Street, Testtown TE2 2ST")
+            ]));
+
+        Assert.Equal(
+            [
+                InspectionAddressChoiceKind.ImageBasedAssessment,
+                InspectionAddressChoiceKind.ClaimantAddress,
+                InspectionAddressChoiceKind.RepairerLocation,
+                InspectionAddressChoiceKind.StorageLocation,
+                InspectionAddressChoiceKind.DirectoryLocation,
+                InspectionAddressChoiceKind.DirectoryLocation,
+                InspectionAddressChoiceKind.PreviousAddress,
+                InspectionAddressChoiceKind.ManualEntry
+            ],
+            choices.Select(choice => choice.Kind));
+        var locations = choices.Where(choice => choice.Kind == InspectionAddressChoiceKind.DirectoryLocation).ToArray();
+        Assert.Equal(["Alpha Body Centre", "Beta Yard"], locations.Select(choice => choice.SourceLabel));
+        Assert.Equal(
+            ["1 Test Street, Testtown TE1 1ST", "2 Test Street, Testtown TE2 2ST"],
+            locations.Select(choice => choice.Address));
+        Assert.All(locations, choice => Assert.True(choice.IsAvailable));
+    }
+
     [Fact]
     public void NormalizeRequiresMileageAndUnitTogether()
     {

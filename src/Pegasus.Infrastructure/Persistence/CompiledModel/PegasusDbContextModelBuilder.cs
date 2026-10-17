@@ -13,7 +13,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
     public partial class PegasusDbContextModel
     {
         private PegasusDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("361af3ae-0791-496b-908a-542f52b32907"), entityTypeCount: 118)
+            : base(skipDetectChanges: false, modelId: new Guid("5921973f-5eb0-4054-9f7c-e8df9b99375d"), entityTypeCount: 120)
         {
         }
 
@@ -81,6 +81,8 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             var imageIntakeSequenceEntity = ImageIntakeSequenceEntityEntityType.Create(this);
             var imageTagEntity = ImageTagEntityEntityType.Create(this);
             var imageVrmSuggestionEntity = ImageVrmSuggestionEntityEntityType.Create(this);
+            var inspectionLocationEntity = InspectionLocationEntityEntityType.Create(this);
+            var inspectionLocationPrincipalLinkEntity = InspectionLocationPrincipalLinkEntityEntityType.Create(this);
             var instructionDraftEntity = InstructionDraftEntityEntityType.Create(this);
             var intakeAllocationAttemptEntity = IntakeAllocationAttemptEntityEntityType.Create(this);
             var intakeAssetEntity = IntakeAssetEntityEntityType.Create(this);
@@ -217,6 +219,8 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             ImageIntakeLifecycleEventEntityEntityType.CreateForeignKey1(imageIntakeLifecycleEventEntity, imageIntakeEntity);
             ImageVrmSuggestionEntityEntityType.CreateForeignKey1(imageVrmSuggestionEntity, intakeAssetEntity);
             ImageVrmSuggestionEntityEntityType.CreateForeignKey2(imageVrmSuggestionEntity, intakeReceiptEntity);
+            InspectionLocationPrincipalLinkEntityEntityType.CreateForeignKey1(inspectionLocationPrincipalLinkEntity, inspectionLocationEntity);
+            InspectionLocationPrincipalLinkEntityEntityType.CreateForeignKey2(inspectionLocationPrincipalLinkEntity, principalEntity);
             InstructionDraftEntityEntityType.CreateForeignKey1(instructionDraftEntity, intakeReceiptEntity);
             IntakeAllocationAttemptEntityEntityType.CreateForeignKey1(intakeAllocationAttemptEntity, intakeReceiptEntity);
             IntakeAssetEntityEntityType.CreateForeignKey1(intakeAssetEntity, intakeReceiptEntity);
@@ -334,6 +338,8 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             ImageIntakeSequenceEntityEntityType.CreateAnnotations(imageIntakeSequenceEntity);
             ImageTagEntityEntityType.CreateAnnotations(imageTagEntity);
             ImageVrmSuggestionEntityEntityType.CreateAnnotations(imageVrmSuggestionEntity);
+            InspectionLocationEntityEntityType.CreateAnnotations(inspectionLocationEntity);
+            InspectionLocationPrincipalLinkEntityEntityType.CreateAnnotations(inspectionLocationPrincipalLinkEntity);
             InstructionDraftEntityEntityType.CreateAnnotations(instructionDraftEntity);
             IntakeAllocationAttemptEntityEntityType.CreateAnnotations(intakeAllocationAttemptEntity);
             IntakeAssetEntityEntityType.CreateAnnotations(intakeAssetEntity);

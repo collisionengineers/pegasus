@@ -44,4 +44,24 @@ public sealed class InspectionAddressChoicesQueries(
             .Select(candidate => candidate.Value.Trim())
             .ToArray();
     }
+
+    public async Task<IReadOnlyList<DirectoryInspectionLocation>> GetDirectoryLocationsAsync(
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        if (caseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(caseId));
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var principalIds = context.Cases.Where(item => item.Id == caseId).Select(item => item.PrincipalId);
+        return await context.InspectionLocations.AsNoTracking()
+            .Where(location => location.Active
+                && location.PrincipalLinks.Any(link => principalIds.Contains(link.PrincipalId)))
+            .OrderBy(location => location.Name)
+            .ThenBy(location => location.Id)
+            .Select(location => new DirectoryInspectionLocation(location.Id, location.Name, location.Address))
+            .ToArrayAsync(cancellationToken);
+    }
 }

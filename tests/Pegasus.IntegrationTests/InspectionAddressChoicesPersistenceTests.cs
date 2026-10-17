@@ -62,6 +62,63 @@ public sealed class InspectionAddressChoicesPersistenceTests
         Assert.DoesNotContain(Ext18InspectionAddressPolicy.ImageBasedAssessment, previous);
     }
 
+    /// <summary>
+    /// A Case offers the active reviewed inspection locations linked to its
+    /// Principal, ordered by name alone (FRD-06: reference data "may rank
+    /// suggestions but never choose an address").
+    /// </summary>
+    [Fact]
+    public async Task ReviewedLocationsAreThePrincipalsActiveLinkedRowsInNameOrder()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = AutomationMcpTestSupport.WithAutomationMcp(baseFactory);
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        Guid casePrincipalId;
+        Guid otherPrincipalId;
+        await using (var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            casePrincipalId = await context.Cases.Where(item => item.Id == caseId)
+                .Select(item => item.PrincipalId).SingleAsync();
+            otherPrincipalId = await context.Principals.Where(item => item.Id != casePrincipalId)
+                .OrderBy(item => item.Code).Select(item => item.Id).FirstAsync();
+        }
+        var locations = services.GetRequiredService<IInspectionLocationAdministration>();
+        var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        async Task<Guid> SaveLocationAsync(string name, string address, bool active, Guid principalId) =>
+            (await locations.SaveAsync(
+                new(
+                    administrator,
+                    name,
+                    address,
+                    "TE1 1ST",
+                    active,
+                    "register",
+                    $"row-{name}",
+                    new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero),
+                    [principalId],
+                    $"inspection-location:{name}"),
+                CancellationToken.None)).Id;
+        var charlie = await SaveLocationAsync("Charlie Yard", "3 Test Street, Testtown", true, casePrincipalId);
+        var alpha = await SaveLocationAsync("Alpha Body Centre", "1 Test Street, Testtown", true, casePrincipalId);
+        await SaveLocationAsync("Bravo Garage", "2 Test Street, Testtown", false, casePrincipalId);
+        await SaveLocationAsync("Delta Depot", "4 Test Street, Testtown", true, otherPrincipalId);
+
+        var offered = await services.GetRequiredService<IInspectionAddressChoicesQueries>()
+            .GetDirectoryLocationsAsync(caseId, CancellationToken.None);
+
+        Assert.Equal(
+            [
+                new DirectoryInspectionLocation(alpha, "Alpha Body Centre", "1 Test Street, Testtown"),
+                new DirectoryInspectionLocation(charlie, "Charlie Yard", "3 Test Street, Testtown")
+            ],
+            offered);
+        await Assert.ThrowsAsync<ArgumentException>(() => services.GetRequiredService<IInspectionAddressChoicesQueries>()
+            .GetDirectoryLocationsAsync(Guid.Empty, CancellationToken.None));
+    }
+
     [Fact]
     public async Task AutomationDetailsUpdatePreservesStorageLocation()
     {

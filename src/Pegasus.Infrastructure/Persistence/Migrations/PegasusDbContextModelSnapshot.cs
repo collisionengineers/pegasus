@@ -4129,6 +4129,81 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("ImageVrmSuggestions", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.InspectionLocationEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Active")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Postcode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset>("ReviewedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("SourceRecordId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Source", "SourceRecordId")
+                        .IsUnique();
+
+                    b.ToTable("InspectionLocations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_InspectionLocations_Address", "[Address] <> ''");
+
+                            t.HasCheckConstraint("CK_InspectionLocations_Name", "[Name] <> ''");
+
+                            t.HasCheckConstraint("CK_InspectionLocations_Postcode", "[Postcode] <> ''");
+
+                            t.HasCheckConstraint("CK_InspectionLocations_Version", "[Version] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.InspectionLocationPrincipalLinkEntity", b =>
+                {
+                    b.Property<Guid>("PrincipalId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("InspectionLocationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("PrincipalId", "InspectionLocationId");
+
+                    b.HasIndex("InspectionLocationId");
+
+                    b.ToTable("InspectionLocationPrincipalLinks", (string)null);
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.InstructionDraftEntity", b =>
                 {
                     b.Property<Guid>("IntakeReceiptId")
@@ -8421,6 +8496,25 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("IntakeReceipt");
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.InspectionLocationPrincipalLinkEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.InspectionLocationEntity", "InspectionLocation")
+                        .WithMany("PrincipalLinks")
+                        .HasForeignKey("InspectionLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Pegasus.Infrastructure.Persistence.PrincipalEntity", "Principal")
+                        .WithMany()
+                        .HasForeignKey("PrincipalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("InspectionLocation");
+
+                    b.Navigation("Principal");
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.InstructionDraftEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.IntakeReceiptEntity", "IntakeReceipt")
@@ -8950,6 +9044,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseWorkflowEntity", b =>
                 {
                     b.Navigation("DueWork");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.InspectionLocationEntity", b =>
+                {
+                    b.Navigation("PrincipalLinks");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeMailClassificationDecisionEntity", b =>

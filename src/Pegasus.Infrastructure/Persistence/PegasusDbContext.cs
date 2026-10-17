@@ -14,6 +14,9 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<PrincipalSequenceLineageEntity> PrincipalSequenceLineages =>
         Set<PrincipalSequenceLineageEntity>();
     internal DbSet<PrincipalEntity> Principals => Set<PrincipalEntity>();
+    internal DbSet<InspectionLocationEntity> InspectionLocations => Set<InspectionLocationEntity>();
+    internal DbSet<InspectionLocationPrincipalLinkEntity> InspectionLocationPrincipalLinks =>
+        Set<InspectionLocationPrincipalLinkEntity>();
     internal DbSet<CaseSequenceEntity> CaseSequences => Set<CaseSequenceEntity>();
     internal DbSet<CaseEntity> Cases => Set<CaseEntity>();
     internal DbSet<CaseWorkEntity> CaseWorks => Set<CaseWorkEntity>();
@@ -211,6 +214,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         AdministrationPolicyModelConfiguration.Configure(builder);
         EditScopeModelConfiguration.Configure(builder);
         ContactDirectoryModelConfiguration.Configure(builder);
+        InspectionLocationModelConfiguration.Configure(builder);
         CaseDataModelConfiguration.Configure(builder);
         CaseMatchModelConfiguration.Configure(builder);
         VehicleModelConfiguration.Configure(builder);
