@@ -22,6 +22,7 @@ public sealed class PrincipalMailRoutePolicyTests
     [InlineData("RJS", "instructions@robertjameslaw.co.uk")]
     [InlineData("SBL", "Claims@smartbusinesslink.com")]
     [InlineData("SWAN", "instructions@swansolicitors.co.uk")]
+    [InlineData("TEN", "instructions@tenlegal.co.uk")]
     [InlineData("YML", "networkhduk@gmail.com")]
     public void EvidencedIdentityHasTheSamePrincipalDirectAndStaffForwarded(string principal, string address)
     {

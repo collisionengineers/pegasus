@@ -38,6 +38,7 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
             ["RJS"] = ["robertjameslaw.co.uk"],
             ["SBL"] = ["smartbusinesslink.com"],
             ["SWAN"] = ["swansolicitors.co.uk"],
+            ["TEN"] = ["tenlegal.co.uk"],
             ["YML"] = ["networkhduk@gmail.com"]
         }.ToImmutableDictionary(StringComparer.Ordinal);
 
