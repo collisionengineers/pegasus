@@ -368,15 +368,26 @@ public sealed class CaseWorkspacePersistenceTests
         await using var blocking = await blocker.Database.BeginTransactionAsync();
         await blocker.Database.ExecuteSqlAsync(
             $"SELECT 1 FROM [CaseWorkflows] WITH (UPDLOCK, HOLDLOCK) WHERE [CaseId] = {harness.CaseId}");
-        var blockerSession = await blocker.Database
-            .SqlQuery<short>($"SELECT CAST(@@SPID AS smallint) AS [Value]")
-            .SingleAsync();
+        var gate = new LockStatementGate(expected: 2);
+        var store = new EfCaseWorkspaceStore(
+            new PooledDbContextFactory<PegasusDbContext>(new DbContextOptionsBuilder<PegasusDbContext>()
+                .UseSqlServer(blocker.Database.GetConnectionString())
+                .AddInterceptors(gate)
+                .Options),
+            harness.TimeProvider);
         var saves = new[]
         {
-            Task.Run(() => harness.WorkspaceStore.SaveAsync(request, CancellationToken.None)),
-            Task.Run(() => harness.WorkspaceStore.SaveAsync(request, CancellationToken.None))
+            Task.Run(() => store.SaveAsync(request, CancellationToken.None)),
+            Task.Run(() => store.SaveAsync(request, CancellationToken.None))
         };
-        await WaitForBlockedSessionsAsync(harness, blockerSession, 2);
+        var first = await Task.WhenAny(gate.Reached.Task, Task.WhenAny(saves), Task.Delay(TimeSpan.FromMinutes(2)));
+        if (first != gate.Reached.Task)
+        {
+            // A save that ended before it reached the lock reports its own failure.
+            await Task.WhenAll(saves);
+        }
+        Assert.True(gate.Reached.Task.IsCompleted, "The saves never reached the workflow lock.");
+        await Task.Delay(TimeSpan.FromMilliseconds(500));
         await blocking.CommitAsync();
 
         var results = await Task.WhenAll(saves);
@@ -2398,17 +2409,29 @@ public sealed class CaseWorkspacePersistenceTests
         null,
         null);
 
-    private static async Task WaitForBlockedSessionsAsync(Harness harness, short blockingSession, int count)
+    /// <summary>
+    /// Completes once <paramref name="expected"/> lock statements have been
+    /// sent, so a test knows its saves are waiting on the workflow lock.
+    /// </summary>
+    private sealed class LockStatementGate(int expected) : DbCommandInterceptor
     {
-        await using var context = await harness.Factory.CreateDbContextAsync();
-        var deadline = DateTime.UtcNow.AddSeconds(30);
-        while (await context.Database
-                   .SqlQuery<int>(
-                       $"SELECT COUNT(*) AS [Value] FROM sys.dm_exec_requests WHERE [blocking_session_id] = {blockingSession}")
-                   .SingleAsync() < count)
+        private int sent;
+
+        public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
         {
-            Assert.True(DateTime.UtcNow < deadline, "The saves never waited on the workflow lock.");
-            await Task.Delay(50);
+            if (command.CommandText.Contains("UPDLOCK", StringComparison.Ordinal)
+                && Interlocked.Increment(ref sent) == expected)
+            {
+                Reached.TrySetResult();
+            }
+
+            return ValueTask.FromResult(result);
         }
     }
 
