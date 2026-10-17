@@ -8,6 +8,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
@@ -196,13 +197,6 @@ public sealed class LogsWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
-
-    private static async Task<string> GetHtmlAsync(HttpClient client, string route)
-    {
-        using var response = await client.GetAsync(route);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await response.Content.ReadAsStringAsync();
-    }
 
     private static string ActionForm(string html, string action)
     {

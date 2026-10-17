@@ -837,13 +837,6 @@ public sealed class CaseEditModeWebTests
         }
     }
 
-    /// <summary>
-    /// A lazy Files request is an asynchronous read that can run beside a
-    /// Claim, Save or release redirect. Without the page's render-only header,
-    /// it does not restore edit state or reissue the cookie-backed TempData
-    /// lease token.
-    /// </summary>
-
     [Fact]
     public async Task WrongHolderProjectionClearsProtectedLeaseAuthorityAndTheHolderResumes()
     {
@@ -2031,12 +2024,6 @@ public sealed class CaseEditModeWebTests
         }
     }
 
-    /// <summary>
-    /// The vocabulary `docs/ui-work/ui-standards-and-review.md` bans from operator copy, including
-    /// identifiers. Applied to this feature's own panels; GUID debt elsewhere on the case page
-    /// (the Engineer field) predates this work and belongs to the queued case-container rework.
-    /// </summary>
-
     [Fact]
     public async Task AnAutomationHeldCaseIsReadOnlyToStaffAndAPostedClaimIsRefused()
     {
@@ -2089,14 +2076,11 @@ public sealed class CaseEditModeWebTests
     }
 
     /// <summary>
-    /// Review point 12: the adverse disposition is not a step in the workflow.
-    /// It stands alone at the end of the record bar, away from the progression
-    /// actions, and offers only the outcomes Core will actually accept from
-    /// the Case's current state. Created in error and Source email unlinked
-    /// each have their own action, so neither is ever in the chooser, and
-    /// post-report completion is progression rather than an adverse disposition.
+    /// The vocabulary `docs/design/README.md` bans from operator copy, including
+    /// identifiers ("Voice, labels and necessary copy"). Applied to this feature's own panels;
+    /// GUID debt elsewhere on the case page (the Engineer field) predates this work and belongs
+    /// to the queued case-container rework.
     /// </summary>
-
     private static void AssertNoBannedVocabulary(string sectionHtml)
     {
         var visible = VisibleText(sectionHtml);
@@ -2136,15 +2120,6 @@ public sealed class CaseEditModeWebTests
         Assert.True(end > start, "The proposed-values panel is not closed.");
         return html[start..end];
     }
-
-    /// <summary>The Files section's upload-requests sub-panel (v26): the table of links.</summary>
-
-    /// <summary>
-    /// While the Automation Actor holds the lease, the workspace is read-only to
-    /// staff — the holder is disclosed from its retained kind through the real descriptor, no
-    /// claim control is rendered, and a claim posted anyway is refused without the page
-    /// pretending edit mode was entered. The refusal is the shared owner's own conflict.
-    /// </summary>
 
     private sealed class StubEditAuthorityHolders(string? displayName, bool isAutomation = false)
         : IDescribeCaseEditAuthorityHolder

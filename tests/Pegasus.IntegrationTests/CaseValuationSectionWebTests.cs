@@ -35,7 +35,7 @@ namespace Pegasus.IntegrationTests;
 /// (operator, 28 September 2026).
 /// </summary>
 [Trait("Category", "SqlServer")]
-public sealed class CaseValuationV26WebTests
+public sealed class CaseValuationSectionWebTests
 {
     private static readonly (string Slug, string Name)[] GuideSources =
     [

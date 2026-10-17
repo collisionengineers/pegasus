@@ -81,7 +81,7 @@ public sealed class DependencyDirectionTests
     [Fact]
     public void CoreProjectHasNoForbiddenDirectDependencies()
     {
-        var root = FindRepositoryRoot();
+        var root = RepositoryRoot.Find();
         var document = XDocument.Load(Path.Combine(root, "src/Pegasus.Core/Pegasus.Core.csproj"));
 
         Assert.Empty(ForbiddenDirectDependencies(document));
@@ -111,7 +111,7 @@ public sealed class DependencyDirectionTests
     [Fact]
     public void ProjectReferencesFollowTheModularMonolithDirection()
     {
-        var root = FindRepositoryRoot();
+        var root = RepositoryRoot.Find();
 
         Assert.Empty(ProjectReferences(root, "src/Pegasus.Core/Pegasus.Core.csproj"));
         Assert.Equal(
@@ -128,7 +128,7 @@ public sealed class DependencyDirectionTests
     [Fact]
     public void ApplicationSolutionExcludesSourceWorkspaces()
     {
-        var root = FindRepositoryRoot();
+        var root = RepositoryRoot.Find();
         var solution = XDocument.Load(Path.Combine(root, "Pegasus.slnx"));
         var projectPaths = solution
             .Descendants("Project")
@@ -156,7 +156,7 @@ public sealed class DependencyDirectionTests
     [Fact]
     public void ApplicationProjectsDoNotReferenceSourceWorkspaces()
     {
-        var root = FindRepositoryRoot();
+        var root = RepositoryRoot.Find();
         var solution = XDocument.Load(Path.Combine(root, "Pegasus.slnx"));
 
         foreach (var projectPath in solution
@@ -227,7 +227,7 @@ public sealed class DependencyDirectionTests
     [Fact]
     public void PrincipalReferenceRuntimeKeepsWorkbookAuthoringOutsideApplicationProjects()
     {
-        var root = FindRepositoryRoot();
+        var root = RepositoryRoot.Find();
         var runtimeProjects = new[]
         {
             "src/Pegasus.Core/Pegasus.Core.csproj",
@@ -406,7 +406,7 @@ public sealed class DependencyDirectionTests
     [Fact]
     public void WebPagesHaveOneStaffActorAndOperationKeyOwnerPerConcept()
     {
-        var pagesRoot = Path.Combine(FindRepositoryRoot(), "src", "Pegasus.Web", "Pages");
+        var pagesRoot = Path.Combine(RepositoryRoot.Find(), "src", "Pegasus.Web", "Pages");
         var sources = Directory
             .EnumerateFiles(pagesRoot, "*.cs", SearchOption.AllDirectories)
             .Select(path => new
@@ -454,7 +454,7 @@ public sealed class DependencyDirectionTests
             parameter => parameter.ParameterType == typeof(CustodyRetryPolicyAuthority));
         Assert.Empty(typeof(CustodyRetryPolicyAuthority).GetConstructors());
 
-        var repositoryRoot = FindRepositoryRoot();
+        var repositoryRoot = RepositoryRoot.Find();
         var exportPersistence = File.ReadAllText(Path.Combine(
             repositoryRoot,
             "src",
@@ -510,7 +510,7 @@ public sealed class DependencyDirectionTests
     public void WorkerFunctionAppUsesItsAssignedIdentityForKeyVaultReferences()
     {
         var platformBicep = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
+            RepositoryRoot.Find(),
             "infra",
             "modules",
             "platform.bicep"));
@@ -532,7 +532,7 @@ public sealed class DependencyDirectionTests
     public void TransientIntakeTagLifecycleUsesContainerScopedBlobDataOwner()
     {
         var platformBicep = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
+            RepositoryRoot.Find(),
             "infra",
             "modules",
             "platform.bicep"));
@@ -587,17 +587,5 @@ public sealed class DependencyDirectionTests
             .Cast<string>()
             .Order(StringComparer.Ordinal)
             .ToArray();
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Pegasus.slnx")))
-        {
-            directory = directory.Parent;
-        }
-
-        return directory?.FullName ?? throw new InvalidOperationException("Could not locate Pegasus.slnx.");
     }
 }

@@ -20,7 +20,7 @@ namespace Pegasus.IntegrationTests;
 /// to me, Create audit, the Notes band, and a Save that asks for no reason.
 /// </summary>
 [Trait("Category", "SqlServer")]
-public sealed class CaseRecordFrameV26WebTests
+public sealed class CaseActionsMenuWebTests
 {
     /// <summary>
     /// The Actions menu offers exactly the items the state permits inside an

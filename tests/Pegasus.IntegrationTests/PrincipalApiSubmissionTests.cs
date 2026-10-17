@@ -52,7 +52,7 @@ public sealed class PrincipalApiSubmissionTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var api = WithPrincipalApi(factory);
-        using var client = CreateClient(api);
+        using var client = IntakeWebDriver.CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
         using (var anonymous = await client.GetAsync($"{Submissions}/{Guid.NewGuid():D}"))
@@ -105,7 +105,7 @@ public sealed class PrincipalApiSubmissionTests
             TimeProvider.System,
             mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
         using var api = WithPrincipalApi(factory);
-        using var client = CreateClient(api);
+        using var client = IntakeWebDriver.CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
         // A forwarded instruction whose sender is not a QDOS route: only the
         // credential binds it to QDOS.
@@ -195,7 +195,7 @@ public sealed class PrincipalApiSubmissionTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var api = WithPrincipalApi(factory);
-        using var client = CreateClient(api);
+        using var client = IntakeWebDriver.CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
         using var created = await SubmitAsync(
@@ -248,7 +248,7 @@ public sealed class PrincipalApiSubmissionTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var api = WithPrincipalApi(factory);
-        using var client = CreateClient(api);
+        using var client = IntakeWebDriver.CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
         using var created = await SubmitAsync(
@@ -313,7 +313,7 @@ public sealed class PrincipalApiSubmissionTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var api = WithPrincipalApi(factory);
-        using var client = CreateClient(api);
+        using var client = IntakeWebDriver.CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
         using var created = await SubmitAsync(
@@ -358,7 +358,7 @@ public sealed class PrincipalApiSubmissionTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var api = WithPrincipalApi(factory);
-        using var client = CreateClient(api);
+        using var client = IntakeWebDriver.CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
         using var created = await SubmitAsync(client, secret, "order-2", [("note.pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
@@ -388,7 +388,7 @@ public sealed class PrincipalApiSubmissionTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var api = WithPrincipalApi(factory);
-        using var client = CreateClient(api);
+        using var client = IntakeWebDriver.CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
         await PauseQdosCredentialAsync(api);
@@ -414,7 +414,7 @@ public sealed class PrincipalApiSubmissionTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var api = WithPrincipalApi(factory);
-        using var client = CreateClient(api);
+        using var client = IntakeWebDriver.CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
         using (var oversize = await SubmitAsync(
@@ -445,7 +445,7 @@ public sealed class PrincipalApiSubmissionTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var api = WithPrincipalApi(factory);
-        using var client = CreateClient(api);
+        using var client = IntakeWebDriver.CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
         using var unsupported = await SubmitAsync(client, secret, "unsupported-file",
@@ -467,7 +467,7 @@ public sealed class PrincipalApiSubmissionTests
     {
         using var factory = new IntakeWebApplicationFactory("Development", true, TimeProvider.System);
         using var api = WithPrincipalApi(factory);
-        using var client = CreateClient(api);
+        using var client = IntakeWebDriver.CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
         using var created = await SubmitAsync(
@@ -501,7 +501,7 @@ public sealed class PrincipalApiSubmissionTests
     {
         using var factory = new IntakeWebApplicationFactory("Development", true, TimeProvider.System);
         using var api = WithPrincipalApi(factory);
-        using var client = CreateClient(api);
+        using var client = IntakeWebDriver.CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
         // Files are optional for every kind, an Audit included (operator,
@@ -547,7 +547,7 @@ public sealed class PrincipalApiSubmissionTests
     {
         using var factory = new IntakeWebApplicationFactory("Development", true, TimeProvider.System);
         using var api = WithPrincipalApi(factory);
-        using var client = CreateClient(api);
+        using var client = IntakeWebDriver.CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
         using var created = await SubmitAsync(
@@ -578,7 +578,7 @@ public sealed class PrincipalApiSubmissionTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var api = WithPrincipalApi(factory);
-        using var client = CreateClient(api);
+        using var client = IntakeWebDriver.CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
         using var badType = await SubmitAsync(
@@ -605,7 +605,7 @@ public sealed class PrincipalApiSubmissionTests
             TimeProvider.System,
             mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
         using var api = WithPrincipalApi(factory);
-        using var client = CreateClient(api);
+        using var client = IntakeWebDriver.CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
         var email = IntakeTestEvidence.CreateEmail(
             "instruction.eml",
@@ -666,13 +666,6 @@ public sealed class PrincipalApiSubmissionTests
             OperatorLabels.SourceTag(claimantName.Source));
     }
 
-    private static HttpClient CreateClient(WebApplicationFactory<Program> api) =>
-        api.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost:7139")
-        });
-
     /// <summary>
     /// H13: API-01 is create-only. A second declared instruction naming the
     /// same claim as an existing Case is durably received (201, its own
@@ -685,7 +678,7 @@ public sealed class PrincipalApiSubmissionTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var api = WithPrincipalApi(factory);
-        using var client = CreateClient(api);
+        using var client = IntakeWebDriver.CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
         // Statement 1: the first, unmatched submission creates exactly one Case
@@ -780,7 +773,7 @@ public sealed class PrincipalApiSubmissionTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var api = WithPrincipalApi(factory);
-        using var client = CreateClient(api);
+        using var client = IntakeWebDriver.CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
         using var created = await SubmitAsync(
@@ -877,7 +870,7 @@ public sealed class PrincipalApiSubmissionTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var api = WithPrincipalApi(factory);
-        using var client = CreateClient(api);
+        using var client = IntakeWebDriver.CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
 
         using var first = await SubmitAsync(

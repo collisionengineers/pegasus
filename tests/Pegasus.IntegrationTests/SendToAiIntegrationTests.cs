@@ -12,6 +12,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
@@ -243,22 +244,6 @@ public sealed partial class SendToAiIntegrationTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
-
-    private static async Task<string> GetHtmlAsync(HttpClient client, string path)
-    {
-        using var response = await client.GetAsync(path);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await response.Content.ReadAsStringAsync();
-    }
-
-    private static FormUrlEncodedContent Form(
-        string antiforgeryToken,
-        params (string Name, string Value)[] values)
-    {
-        var fields = values.ToDictionary(item => item.Name, item => item.Value, StringComparer.Ordinal);
-        fields["__RequestVerificationToken"] = antiforgeryToken;
-        return new(fields);
-    }
 
     /// <summary>
     /// v26: the Estimate section's controls render inside the page-wide edit

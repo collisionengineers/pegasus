@@ -14,8 +14,6 @@ namespace Pegasus.ArchitectureTests;
 /// </summary>
 public sealed partial class BusyButtonContractTests
 {
-    private static readonly string RepositoryRoot = FindRepositoryRoot();
-
     // A tag and its attributes; a quoted value may hold '>' (a Razor lambda).
     [GeneratedRegex("""<form\b((?:[^>"]|"[^"]*")*)>""", RegexOptions.Singleline)]
     private static partial Regex FormTag();
@@ -217,23 +215,11 @@ public sealed partial class BusyButtonContractTests
         Regex.IsMatch(attributes, $@"(?<![\w-]){Regex.Escape(name)}(?![\w-])");
 
     private static IEnumerable<string> RazorFiles() => Directory
-        .EnumerateFiles(Path.Combine(RepositoryRoot, "src/Pegasus.Web/Pages"), "*.cshtml", SearchOption.AllDirectories);
+        .EnumerateFiles(Path.Combine(RepositoryRoot.Find(), "src/Pegasus.Web/Pages"), "*.cshtml", SearchOption.AllDirectories);
 
     private static string Read(string relativePath) =>
-        File.ReadAllText(Path.Combine(RepositoryRoot, relativePath));
+        File.ReadAllText(Path.Combine(RepositoryRoot.Find(), relativePath));
 
     private static string Relative(string path) =>
-        Path.GetRelativePath(RepositoryRoot, path);
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Pegasus.slnx")))
-        {
-            directory = directory.Parent;
-        }
-
-        return directory?.FullName ?? throw new InvalidOperationException("Could not locate Pegasus.slnx.");
-    }
+        Path.GetRelativePath(RepositoryRoot.Find(), path);
 }

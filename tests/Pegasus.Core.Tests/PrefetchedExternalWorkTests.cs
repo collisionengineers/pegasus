@@ -1,6 +1,6 @@
 using Pegasus.Infrastructure.Persistence;
 
-namespace Pegasus.IntegrationTests;
+namespace Pegasus.Core.Tests;
 
 public sealed class PrefetchedExternalWorkTests
 {

@@ -4,7 +4,6 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Azure.Core;
 using Azure.Identity;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -17,6 +16,7 @@ using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
@@ -48,7 +48,7 @@ public sealed class MailWorkspaceWebTests
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var messageId = Assert.Single(await SeedAsync(
             factory, FirstMailboxId, FirstMailboxAddress, count: 1));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         var html = await GetHtmlAsync(client, "/Inbox");
         Assert.Contains("data-mail-preview-workspace", html, StringComparison.Ordinal);
@@ -129,7 +129,7 @@ public sealed class MailWorkspaceWebTests
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var messageId = Assert.Single(await SeedAsync(
             factory, FirstMailboxId, FirstMailboxAddress, count: 1));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         bool readBefore;
         int classificationHistoryBefore;
@@ -214,7 +214,7 @@ public sealed class MailWorkspaceWebTests
                 services.RemoveAll<IRetainedMailClassificationStore>();
                 services.AddScoped<IRetainedMailClassificationStore>(_ => classificationStore);
             }));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         // Open the list, filter it every way the workspace contract names,
         // preview a row, then open and return from the full message —
@@ -318,7 +318,7 @@ public sealed class MailWorkspaceWebTests
             factory, FirstMailboxId, FirstMailboxAddress, count: 1));
         await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
         var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         // This receipt's own acceptance creates the case, so unlinking it takes
         // the case's only source away.
@@ -371,7 +371,7 @@ public sealed class MailWorkspaceWebTests
         await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
         var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
         _ = await AcceptReceiptAsync(factory, receiptId);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         // The first request of each page pays one-off work; the count is the second.
         _ = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
         _ = await GetHtmlAsync(client, "/Inbox");
@@ -453,7 +453,7 @@ public sealed class MailWorkspaceWebTests
             factory.Services, receiptId, "MAIL31001", nameof(Pegasus.Core.Workflow.CaseLifecycleState.Review));
         var replacementCaseId = await ImageIntakeTestData.SeedCaseAsync(
             factory.Services, replacementOriginId, "MAIL31002", nameof(Pegasus.Core.Workflow.CaseLifecycleState.Review));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         var search = await GetHtmlAsync(
             client,
@@ -552,7 +552,7 @@ public sealed class MailWorkspaceWebTests
     public async Task LinkedPostReportMessageCreatesAQueryResponseJobAndShowsCaseJobs()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var (messageId, caseId, linked) = await SeedLinkedPostReportQueryAsync(factory, client);
         Assert.Contains("handler=CreateQueryResponse", linked, StringComparison.Ordinal);
         Assert.Contains(">Draft reply with AI</span>", linked, StringComparison.Ordinal);
@@ -619,7 +619,7 @@ public sealed class MailWorkspaceWebTests
     public async Task TheCaseQueriesRowStartsAQueryResponseJobAndReadsItsState()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var (messageId, caseId, _) = await SeedLinkedPostReportQueryAsync(factory, client);
 
         var queries = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=queries");
@@ -728,7 +728,7 @@ public sealed class MailWorkspaceWebTests
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var messageId = Assert.Single(await SeedAsync(
             factory, FirstMailboxId, FirstMailboxAddress, count: 1));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var page = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
 
         Assert.DoesNotContain("handler=CreateQueryResponse", page, StringComparison.Ordinal);
@@ -762,7 +762,7 @@ public sealed class MailWorkspaceWebTests
         var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
         var caseId = await ImageIntakeTestData.SeedCaseAsync(
             factory.Services, receiptId, "MAIL31999", nameof(Pegasus.Core.Workflow.CaseLifecycleState.Review));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var target = await GetHtmlAsync(
             client,
             $"/Inbox/{messageId:D}?caseQuery=MAIL31999&targetCaseId={caseId:D}");
@@ -828,7 +828,7 @@ public sealed class MailWorkspaceWebTests
         var receiptB = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
         var caseId = await ImageIntakeTestData.SeedCaseAsync(
             factory.Services, receiptA, "MAIL-BIND", nameof(CaseLifecycleState.Review));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         var targetA = await GetHtmlAsync(
             client,
@@ -910,7 +910,7 @@ public sealed class MailWorkspaceWebTests
                         services.GetRequiredService<ILeaseCaseForEdit>(),
                         releaseFailures));
             }));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var target = await GetHtmlAsync(
             client,
             $"/Inbox/{messageId:D}?caseQuery=MAIL-RELEASE&targetCaseId={caseId:D}");
@@ -969,7 +969,7 @@ public sealed class MailWorkspaceWebTests
     public async Task CaseSearchResultIsOneFocusableLinkWhoseNameContainsEveryVisibleIdentityFact()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
             factory, client, "AB12 CDE", "MAIL-A11Y");
         var caseReference = await CaseReferenceAsync(factory, caseId);
@@ -1051,7 +1051,7 @@ public sealed class MailWorkspaceWebTests
                 services.AddSingleton<Pegasus.Core.Operations.IStaffMailSend>(
                     new CaseWebTestSupport.OfferedStaffMailSend());
             }));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         var html = await GetHtmlAsync(client, $"/Inbox?selected={sendingId:D}");
 
@@ -1089,7 +1089,7 @@ public sealed class MailWorkspaceWebTests
         using var factory = new IntakeWebApplicationFactory();
         var messageId = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
         await MakeSendReadyAsync(factory, FirstMailboxId);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         var html = await GetHtmlAsync(client, $"/Inbox?selected={messageId:D}");
 
@@ -1624,7 +1624,7 @@ public sealed class MailWorkspaceWebTests
                 services.RemoveAll<IDeletedMailSearchSource>();
                 services.AddSingleton<IDeletedMailSearchSource>(source);
             }));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         var firstPage = await GetHtmlAsync(
             client,
@@ -1677,7 +1677,7 @@ public sealed class MailWorkspaceWebTests
                 services.RemoveAll<IDeletedMailSearchSource>();
                 services.AddSingleton<IDeletedMailSearchSource>(source);
             }));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         var html = await GetHtmlAsync(
             client,
@@ -1711,7 +1711,7 @@ public sealed class MailWorkspaceWebTests
                 services.RemoveAll<IDeletedMailSearchSource>();
                 services.AddSingleton<IDeletedMailSearchSource>(source);
             }));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         var html = await GetHtmlAsync(
             client,
@@ -1801,7 +1801,7 @@ public sealed class MailWorkspaceWebTests
             "MAIL-VIEWS-LINK",
             nameof(CaseLifecycleState.Review));
         await MailboxIntakeTestData.LinkReceiptAsync(factory.Services, linkedReceiptId, linkedCaseId);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         var receiving = await GetHtmlAsync(client, "/Inbox?queue=new-instruction");
         // Category, not Queue (Inbox, 13 September).
@@ -1902,7 +1902,7 @@ public sealed class MailWorkspaceWebTests
             unlinkReceiptId,
             "MAIL-CONTEXT-UNLINK",
             nameof(CaseLifecycleState.Review));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         string Forge(string action)
         {
@@ -2137,7 +2137,7 @@ public sealed class MailWorkspaceWebTests
         var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
         var caseId = await ImageIntakeTestData.SeedCaseAsync(
             factory.Services, receiptId, "MAIL-DESTINATION", nameof(CaseLifecycleState.Review));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         var target = await GetHtmlAsync(
             client,
@@ -2154,7 +2154,7 @@ public sealed class MailWorkspaceWebTests
 
         // The linking session retains its confirmation context on the Case tab.
         // A fresh viewer checks the persisted message destination independently.
-        using var viewer = CreateClient(factory);
+        using var viewer = IntakeWebDriver.CreateClient(factory);
         var linked = await GetHtmlAsync(viewer, $"/Inbox/{linkedMessageId:D}");
         // FRD-08 case-state classification: linked to a Review Case, the
         // unclassified message becomes a Case update.
@@ -2257,7 +2257,7 @@ public sealed class MailWorkspaceWebTests
         using var factory = new IntakeWebApplicationFactory();
         var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
         await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var route = $"/Inbox/{ids[0]:D}?handler=CorrectClassification";
 
         var page = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
@@ -2479,7 +2479,7 @@ public sealed class MailWorkspaceWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var dismissedId = ids[0];
 
         var list = await GetHtmlAsync(client, "/Inbox");
@@ -2544,7 +2544,7 @@ public sealed class MailWorkspaceWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         var messageId = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         var record = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
         Assert.Contains("data-message-dismissal=\"dismiss\"", record, StringComparison.Ordinal);
@@ -2601,13 +2601,6 @@ public sealed class MailWorkspaceWebTests
         return WebUtility.HtmlDecode(Regex.Match(tag.Value, "value=\"(?<value>[^\"]*)\"").Groups["value"].Value);
     }
 
-    private static async Task<string> GetHtmlAsync(HttpClient client, string route)
-    {
-        using var response = await client.GetAsync(route);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await response.Content.ReadAsStringAsync();
-    }
-
     private static async Task PostNotFoundAsync(
         HttpClient client,
         string route,
@@ -2648,13 +2641,6 @@ public sealed class MailWorkspaceWebTests
             StringComparison.Ordinal);
         Assert.Contains("search=needle", nonmatching, StringComparison.Ordinal);
     }
-
-    private static HttpClient CreateClient(WebApplicationFactory<Program> factory) =>
-        factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost:7139")
-        });
 
     private static int CountOccurrences(string text, string value)
     {

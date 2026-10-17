@@ -27,7 +27,7 @@ public sealed partial class StaffAuthorityStampRotationTests
     [Fact]
     public void OnlyTheKnownOwnersChangeStaffAuthority()
     {
-        var root = FindRepositoryRoot();
+        var root = RepositoryRoot.Find();
         var offenders = Directory
             .EnumerateFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories)
             .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/'))
@@ -48,7 +48,7 @@ public sealed partial class StaffAuthorityStampRotationTests
     [Fact]
     public void EachOwnerRotatesTheStamp()
     {
-        var root = FindRepositoryRoot();
+        var root = RepositoryRoot.Find();
         Assert.All(AllowedFiles, relativePath =>
             Assert.Matches(StampRotation(), File.ReadAllText(Path.Combine(root, relativePath))));
     }
@@ -67,20 +67,4 @@ public sealed partial class StaffAuthorityStampRotationTests
         @"UpdateSecurityStampAsync\(|[Uu]serManager\s*\.\s*(ResetPasswordAsync|ChangePasswordAsync)\(|\bSecurityStamp\s*=[^=>]",
         RegexOptions.CultureInvariant)]
     private static partial Regex StampRotation();
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Pegasus.slnx")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate the Pegasus repository root.");
-    }
 }

@@ -356,7 +356,7 @@ invent a second breakpoint just for one Case feature.
 Any Case UI change should be checked against:
 
 - the v26 Case frame contract;
-- `CaseRecordFrameV26WebTests` and the most local affected Web tests;
+- `CaseActionsMenuWebTests` and the most local affected Web tests;
 - 1580px and smaller-desktop rendered views;
 - read and edit modes when the feature is editable;
 - colleague-editing / blocked state when the change touches edit authority;

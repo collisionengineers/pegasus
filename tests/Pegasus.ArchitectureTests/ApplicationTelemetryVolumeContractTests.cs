@@ -13,7 +13,7 @@ public sealed class ApplicationTelemetryVolumeContractTests
     public void WebSuppressesSuccessfulEntityFrameworkCommandLogs()
     {
         using var configuration = JsonDocument.Parse(File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
+            RepositoryRoot.Find(),
             "src",
             "Pegasus.Web",
             "appsettings.json")));
@@ -50,7 +50,7 @@ public sealed class ApplicationTelemetryVolumeContractTests
     [Fact]
     public void WebComposesTheCounterListTheQuietRowFilterAndTheHeartbeat()
     {
-        var program = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src", "Pegasus.Web", "Program.cs"));
+        var program = File.ReadAllText(Path.Combine(RepositoryRoot.Find(), "src", "Pegasus.Web", "Program.cs"));
 
         Assert.Contains("ConfigureTelemetryModule<EventCounterCollectionModule>", program, StringComparison.Ordinal);
         Assert.Contains("RuntimeCounters.Apply(module)", program, StringComparison.Ordinal);
@@ -63,7 +63,7 @@ public sealed class ApplicationTelemetryVolumeContractTests
     public void TheHeartbeatTraceReachesApplicationInsightsAtInformation()
     {
         using var configuration = JsonDocument.Parse(File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
+            RepositoryRoot.Find(),
             "src",
             "Pegasus.Web",
             "appsettings.json")));
@@ -86,7 +86,7 @@ public sealed class ApplicationTelemetryVolumeContractTests
     public void WorkerHostDropsItsOwnChatterAtSourceAndKeepsRequests()
     {
         using var host = JsonDocument.Parse(File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
+            RepositoryRoot.Find(),
             "src",
             "Pegasus.Worker",
             "host.json")));
@@ -145,7 +145,7 @@ public sealed class ApplicationTelemetryVolumeContractTests
     public void WorkerProgramComposesAndStartsTheSpanBridgeBeforeTheHostRuns()
     {
         var program = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
+            RepositoryRoot.Find(),
             "src",
             "Pegasus.Worker",
             "Program.cs"));
@@ -174,7 +174,7 @@ public sealed class ApplicationTelemetryVolumeContractTests
     public void WebHidesTheAntiforgeryCacheHeaderWarningFromBothLogProviders()
     {
         using var configuration = JsonDocument.Parse(File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
+            RepositoryRoot.Find(),
             "src",
             "Pegasus.Web",
             "appsettings.json")));
@@ -188,21 +188,5 @@ public sealed class ApplicationTelemetryVolumeContractTests
             "Error",
             logging.GetProperty("ApplicationInsights").GetProperty("LogLevel")
                 .GetProperty("Microsoft.AspNetCore.Antiforgery").GetString());
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Pegasus.slnx")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate the Pegasus repository root.");
     }
 }

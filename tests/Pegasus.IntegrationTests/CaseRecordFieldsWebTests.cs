@@ -29,7 +29,7 @@ namespace Pegasus.IntegrationTests;
 /// DVLA/DVSA lookup records, which read Lookup and never edit.
 /// </summary>
 [Trait("Category", "SqlServer")]
-public sealed class CaseRecordGapsV26WebTests
+public sealed class CaseRecordFieldsWebTests
 {
     [Fact]
     public async Task NotesFromClientSitBesideTheAccidentCircumstancesAndTravelWithTheSave()

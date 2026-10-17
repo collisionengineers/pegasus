@@ -13,6 +13,7 @@ using Pegasus.Web.Authentication;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Presentation;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
@@ -384,22 +385,6 @@ public sealed partial class AutomationAdministrationWebTests
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
         Assert.True(match.Success, $"The action-log row for '{operation}' must render.");
         return match.Value;
-    }
-
-    private static async Task<string> GetHtmlAsync(HttpClient client, string path)
-    {
-        using var response = await client.GetAsync(path);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await response.Content.ReadAsStringAsync();
-    }
-
-    private static FormUrlEncodedContent Form(
-        string antiforgeryToken,
-        params (string Name, string Value)[] values)
-    {
-        var fields = values.ToDictionary(item => item.Name, item => item.Value, StringComparer.Ordinal);
-        fields["__RequestVerificationToken"] = antiforgeryToken;
-        return new(fields);
     }
 
     /// <summary>The value of one `fact` or `definition` cell, by its label.</summary>

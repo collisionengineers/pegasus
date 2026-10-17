@@ -17,6 +17,7 @@ using Pegasus.Core.Workflow;
 using Pegasus.Web.Authentication;
 using Pegasus.Web.Pages.Cases;
 using Pegasus.Web.Presentation;
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
@@ -1953,17 +1954,10 @@ public sealed partial class AssessmentEstimateImportWebTests
         WebApplicationFactory<Program> factory,
         StaffRole role = StaffRole.Engineer)
     {
-        var client = CreateClient(factory);
+        var client = IntakeWebDriver.CreateClient(factory);
         client.DefaultRequestHeaders.Add("X-Test-Roles", role.ToString());
         return client;
     }
-
-    private static HttpClient CreateClient(WebApplicationFactory<Program> factory) =>
-        factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost:7139"),
-        });
 
     /// <summary>
     /// Pass the lease token rendered by an edit page, or null when testing a read-mode upload.
@@ -2021,14 +2015,6 @@ public sealed partial class AssessmentEstimateImportWebTests
         ("expectedVersion", InputValue(form, "expectedVersion")),
         ("operationKey", InputValue(form, "operationKey")),
         ("editLeaseToken", InputValue(form, "editLeaseToken")));
-
-    internal static FormUrlEncodedContent Form(
-        string antiforgeryToken, params (string Name, string Value)[] values)
-    {
-        var fields = values.ToDictionary(item => item.Name, item => item.Value, StringComparer.Ordinal);
-        fields["__RequestVerificationToken"] = antiforgeryToken;
-        return new(fields);
-    }
 
     /// <summary>A form that preserves repeated keys (the editor's line rows).</summary>
     internal static IEnumerable<KeyValuePair<string, string>> NewEnumerable(
@@ -2100,13 +2086,6 @@ public sealed partial class AssessmentEstimateImportWebTests
 
     private static string PercentField(decimal fraction) =>
         (fraction * 100m).ToString(CultureInfo.InvariantCulture);
-
-    internal static async Task<string> GetHtmlAsync(HttpClient client, string path)
-    {
-        using var response = await client.GetAsync(path);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await response.Content.ReadAsStringAsync();
-    }
 
     internal static string AntiforgeryValue(string html)
     {
