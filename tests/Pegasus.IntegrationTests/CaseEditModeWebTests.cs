@@ -886,7 +886,7 @@ public sealed class CaseEditModeWebTests
         // The holder is the staff member, not the window: their own lease is resumed, never
         // offered to them as a takeover of themselves.
         Assert.Equal(store.LeaseToken, InputValue(recoveryHtml, "editLeaseToken"));
-        Assert.DoesNotContain("Take over", RecordBar(recoveryHtml), StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Frame.TakeOver, RecordBar(recoveryHtml), StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"takeOver\"", recoveryHtml, StringComparison.Ordinal);
         Assert.Single(store.Claims);
     }
@@ -1015,7 +1015,7 @@ public sealed class CaseEditModeWebTests
         // the Case as it now stands: the refused values stay beside it for comparison only, and
         // the holder is never asked to take over their own lease.
         Assert.Equal(store.LeaseToken, InputValue(refusedHtml, "editLeaseToken"));
-        Assert.DoesNotContain("Take over", RecordBar(refusedHtml), StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Frame.TakeOver, RecordBar(refusedHtml), StringComparison.Ordinal);
         Assert.Single(store.Claims);
     }
 
@@ -1118,7 +1118,7 @@ public sealed class CaseEditModeWebTests
 
         Assert.Equal(store.LeaseToken, InputValue(returnedHtml, "editLeaseToken"));
         Assert.Contains("data-case-release-beacon", returnedHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("Take over", RecordBar(returnedHtml), StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Frame.TakeOver, RecordBar(returnedHtml), StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"takeOver\"", returnedHtml, StringComparison.Ordinal);
         Assert.Equal(resumesBeforeLeaving + 1, store.Resumes.Count);
         Assert.Equal(store.CaseId, store.Resumes[^1].CaseId);
@@ -2002,7 +2002,7 @@ public sealed class CaseEditModeWebTests
         {
             var recoverHtml = await GetHtmlAsync(recoveryClient, $"/Cases/{store.CaseId:D}");
             Assert.Equal(store.LeaseToken, InputValue(recoverHtml, "editLeaseToken"));
-            Assert.DoesNotContain("Take over", RecordBar(recoverHtml), StringComparison.Ordinal);
+            Assert.DoesNotContain(CaseWorkspaceLabels.Frame.TakeOver, RecordBar(recoverHtml), StringComparison.Ordinal);
             AssertNoBannedVocabulary(RecordBar(recoverHtml));
         }
 
