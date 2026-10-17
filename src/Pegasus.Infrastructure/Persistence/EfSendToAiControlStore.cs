@@ -1,4 +1,3 @@
-using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Identity;
@@ -34,9 +33,7 @@ public sealed class EfSendToAiControlStore(
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var control = await context.SendToAiControl
             .SingleOrDefaultAsync(
                 item => item.Id == SendToAiControlEntity.SingletonId,

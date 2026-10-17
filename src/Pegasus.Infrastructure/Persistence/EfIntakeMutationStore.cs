@@ -1,4 +1,3 @@
-using System.Data;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -48,8 +47,7 @@ internal sealed class EfIntakeMutationStore(
             request.HasSelectedPhotographs
         }));
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         await AcquireCaseQueryLockAsync(
             context, transaction, request.CaseId, request.IntakeReceiptId, cancellationToken);
 
@@ -163,11 +161,10 @@ internal sealed class EfIntakeMutationStore(
         }));
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         await AcquireCaseQueryLockAsync(
             context, transaction, request.CaseId, request.ReceiptId, cancellationToken);
+        await EfIntakeReceiptStore.LockAsync(context, request.ReceiptId, cancellationToken);
 
         var replay = await context.IntakeMutationHistory
             .AsNoTracking()
@@ -284,9 +281,10 @@ internal sealed class EfIntakeMutationStore(
         var requestHash = RequestHash("intake_case_linked_automatic", request);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        // Serializable: the matching evidence names the one Case among every
+        // Case with the registration, and the thread's Cases; no one row
+        // covers them, and the write abstains when they change (FRD-08).
+        await using var transaction = await context.Database.BeginSerializableAsync(cancellationToken);
         await AcquireCaseQueryLockAsync(
             context, transaction, request.CaseId, request.IntakeReceiptId, cancellationToken);
 
@@ -734,9 +732,10 @@ internal sealed class EfIntakeMutationStore(
         var requestHash = RequestHash(eventType, request);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        // Serializable: the link is decided on the one eligible Case among
+        // every Case with the registration, and on each group member's
+        // association; no one row covers them.
+        await using var transaction = await context.Database.BeginSerializableAsync(cancellationToken);
         var replay = await context.IntakeMutationHistory
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.OperationKey == operationKey, cancellationToken);
@@ -964,9 +963,7 @@ internal sealed class EfIntakeMutationStore(
         operationKey = operationKey.Trim();
         reason = reason?.Trim();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         if (expectedCaseId is { } lockedCaseId)
         {
             await AcquireCaseQueryLockAsync(

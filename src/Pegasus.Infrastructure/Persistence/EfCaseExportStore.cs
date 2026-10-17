@@ -1,5 +1,4 @@
-﻿using System.Data;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.CaseExport;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
@@ -88,9 +87,7 @@ public sealed class EfCaseExportStore(
         CaseExportBundle bundle,
         CancellationToken cancellationToken)
     {
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         if (!await LockCaseWorkflowAsync(context, request.CaseId, cancellationToken))
         {
             throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");

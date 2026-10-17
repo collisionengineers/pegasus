@@ -1,4 +1,3 @@
-using System.Data;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Address;
@@ -48,9 +47,8 @@ public sealed class InspectionAddressResolutionStore(
         Validate(request);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfIntakeReceiptStore.LockAsync(context, request.IntakeReceiptId, cancellationToken);
         var receipt = await context.IntakeReceipts
             .Include(item => item.InstructionDraft)
             .SingleOrDefaultAsync(item => item.Id == request.IntakeReceiptId, cancellationToken)

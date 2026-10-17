@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Data.SqlClient;
@@ -58,9 +57,7 @@ public sealed class EfCaseReportSentEvidenceStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
 
         var existing = await context.CaseReportSentEvidence
             .SingleOrDefaultAsync(

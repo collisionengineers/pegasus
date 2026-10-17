@@ -1,4 +1,3 @@
-using System.Data;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Reports;
@@ -7,7 +6,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// Persists the shared Case list presets (MI-04) the way valuation presets
-/// are kept: serializable writes, an operation key that replays, a version
+/// are kept: an operation key that replays, a version
 /// check and a soft removal recorded in action history.
 /// </summary>
 internal sealed class EfCaseListPresetStore(
@@ -37,7 +36,7 @@ internal sealed class EfCaseListPresetStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
 
         var replay = await ReplayAsync(context, request.OperationKey, cancellationToken);
         if (replay is not null)
@@ -118,7 +117,7 @@ internal sealed class EfCaseListPresetStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
 
         var replay = await ReplayAsync(context, request.OperationKey, cancellationToken);
         if (replay is not null)

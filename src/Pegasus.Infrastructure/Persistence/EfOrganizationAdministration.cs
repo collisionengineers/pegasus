@@ -1,5 +1,4 @@
-﻿using System.Data;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -120,9 +119,7 @@ public sealed class EfOrganizationAdministration(
         });
 
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var receipt = await FindReceiptAsync(context, request.OperationKey, cancellationToken);
         if (receipt is not null)
         {
@@ -195,9 +192,7 @@ public sealed class EfOrganizationAdministration(
         });
 
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var receipt = await FindReceiptAsync(context, request.OperationKey, cancellationToken);
         if (receipt is not null)
         {
@@ -268,9 +263,7 @@ public sealed class EfOrganizationAdministration(
         });
 
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var receipt = await FindReceiptAsync(context, request.OperationKey, cancellationToken);
         if (receipt is not null)
         {
@@ -349,9 +342,7 @@ public sealed class EfOrganizationAdministration(
         });
 
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var receipt = await FindReceiptAsync(context, request.OperationKey, cancellationToken);
         if (receipt is not null)
         {
@@ -444,9 +435,7 @@ public sealed class EfOrganizationAdministration(
         });
 
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var receipt = await FindReceiptAsync(context, request.OperationKey, cancellationToken);
         if (receipt is not null)
         {

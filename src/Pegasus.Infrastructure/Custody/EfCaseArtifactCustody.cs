@@ -151,8 +151,7 @@ internal sealed class EfCaseArtifactCustody(
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var initialWriteTransaction = request.IsAutomaticIntakeEvidencePromotion
-            ? await db.Database.BeginTransactionAsync(
-                System.Data.IsolationLevel.Serializable, cancellationToken)
+            ? await db.Database.BeginSerializableAsync(cancellationToken)
             : null;
         var existing = await (
             from persistedOccurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
@@ -300,8 +299,10 @@ internal sealed class EfCaseArtifactCustody(
                 "Confirmed artifact custody requires exact Box file and version identities.");
         }
         var capturedRoot = address.CaseRootRemoteId!;
-        await using var confirmation = await db.Database.BeginTransactionAsync(
-            System.Data.IsolationLevel.Serializable, cancellationToken);
+        await using var confirmation = await db.Database.BeginSerializableAsync(cancellationToken);
+        // The Case's workflow lock first, as the report freeze takes it: a
+        // source confirmed here is in the frozen census or marks it stale.
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(db, caseId, cancellationToken);
         // Rechecked inside the serializable confirmation, so a Case that moved
         // while the bytes were being written is caught before the version is
         // confirmed against it.
@@ -1074,8 +1075,9 @@ public sealed partial class ReconcilePendingArtifactCustody
                     throw new InvalidDataException("Recovered custody omitted the exact Box identity.");
                 }
                 await using var update = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-                await using var confirmation = await update.Database.BeginTransactionAsync(
-                    System.Data.IsolationLevel.Serializable, cancellationToken);
+                await using var confirmation = await update.Database.BeginSerializableAsync(cancellationToken);
+                await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(
+                    update, candidate.Case.Id, cancellationToken);
                 if (automaticPromotion is { } promotion
                     && !await IntakePromotionTarget.IsCurrentAsync(
                         update, candidate.Case.Id, promotion.ReceiptId, promotion.ExpectedCaseVersion,

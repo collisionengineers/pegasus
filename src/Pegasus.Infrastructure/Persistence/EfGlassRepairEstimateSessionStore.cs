@@ -1,4 +1,3 @@
-using System.Data;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -84,7 +83,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// caller that reads, changes and saves keeps them without restating them.
 /// </para>
 /// <para>
-/// Every write is a short serializable transaction, the shape
+/// Every write is a short transaction, the shape
 /// <c>EfCaseReportGenerationStore</c> uses, and concurrency is the row's own
 /// <c>Version</c> and <c>ConcurrencyToken</c> rather than the Case's.
 /// </para>
@@ -160,8 +159,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
         ArgumentException.ThrowIfNullOrEmpty(material.ProtectedProviderState);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
 
         // The insert goes first and nothing reads the operation key ahead of
         // it. A serializable read of a key that is not there takes RangeS-S
@@ -228,8 +226,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
         ArgumentException.ThrowIfNullOrEmpty(material.ProtectedProviderState);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
 
         var entity = await context.Set<GlassRepairEstimateSessionEntity>()
             .SingleOrDefaultAsync(item => item.Id == session.Id, cancellationToken)
@@ -431,8 +428,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var entity = await context.Set<GlassRepairEstimateSessionEntity>()
             .SingleAsync(item => item.Id == request.SessionId, cancellationToken);
         if (entity.Version != request.ExpectedVersion)
@@ -470,8 +466,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
         ArgumentNullException.ThrowIfNull(actor);
         ArgumentException.ThrowIfNullOrWhiteSpace(providerVehicleId);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         // The staff member's own session is theirs to continue, and is never
         // ended here.
         var own = Guid.TryParse(actor.SubjectId, out var staffId) ? staffId : Guid.Empty;

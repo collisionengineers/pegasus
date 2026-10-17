@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -129,8 +128,8 @@ public sealed class EfIntakeSubmissionGroupStore(
 
     // Same concurrent-insert window as AddMemberWithRetryAsync below: two
     // requests replaying the same (channel, token) can both read "no
-    // existing group" under Serializable isolation and race the unique
-    // (SourceChannel, SubmissionToken) index at commit.
+    // existing group" and race the unique (SourceChannel, SubmissionToken)
+    // index at commit.
     private async Task<IntakeSubmissionGroup> GetOrCreateWithRetryAsync(
         Guid groupId,
         IntakeSourceChannel channel,
@@ -177,9 +176,7 @@ public sealed class EfIntakeSubmissionGroupStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var existing = await context.IntakeSubmissionGroups
             .SingleOrDefaultAsync(
                 item => item.SourceChannel == EfIntakeReceiptStore.ToCode(channel)
@@ -254,9 +251,7 @@ public sealed class EfIntakeSubmissionGroupStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var group = await context.IntakeSubmissionGroups.SingleOrDefaultAsync(
             item => item.Id == groupId,
             cancellationToken)
@@ -310,9 +305,10 @@ public sealed class EfIntakeSubmissionGroupStore(
         var operationKey = $"upload-discard:{request.OperationId:N}";
         var fingerprint = DiscardFingerprint(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        // Serializable: the discard is decided on every member receipt's
+        // associations, Case links, allocations and Image intakes, and no one
+        // row covers them.
+        await using var transaction = await context.Database.BeginSerializableAsync(cancellationToken);
 
         var group = await context.IntakeSubmissionGroups
             .Include(item => item.Members)
@@ -430,9 +426,7 @@ public sealed class EfIntakeSubmissionGroupStore(
         ArgumentException.ThrowIfNullOrWhiteSpace(staffSubjectId);
         var operationKey = $"image-match-decline:{groupId:N}";
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var group = await context.IntakeSubmissionGroups
             .SingleOrDefaultAsync(item => item.Id == groupId, cancellationToken);
         if (group is null || group.DiscardedAtUtc is not null || group.ImageMatchDeclinedAtUtc is not null)

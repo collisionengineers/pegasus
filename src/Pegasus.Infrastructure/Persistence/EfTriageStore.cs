@@ -1,4 +1,3 @@
-using System.Data;
 using System.Data.SqlTypes;
 using System.Linq.Expressions;
 using System.Security.Cryptography;
@@ -103,8 +102,9 @@ public sealed class EfTriageStore(
         var operationKey = $"triage-auto-link:{candidate.CaseId:N}:{candidate.TriageVersion}";
         var requestHash = Hash($"{AutomaticLinkEvent}|{candidate.CaseId:N}|{candidate.TriageVersion}|{candidate.InstructionCaseId:N}|{candidate.InstructionCaseVersion}|{candidate.MatchPolicyKey}|{candidate.MatchPolicyVersion}|{actor.Kind}|{actor.SubjectId}");
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
+        // Serializable: the link is decided on the one Case the match index
+        // answers among every Case of the Principal, and no one row covers them.
+        await using var transaction = await context.Database.BeginSerializableAsync(cancellationToken);
         if (await FindReplayAsync(context, operationKey, cancellationToken) is { } replay)
         {
             EnsureReplay(replay, AutomaticLinkEvent, requestHash, candidate.CaseId);
@@ -323,7 +323,7 @@ public sealed class EfTriageStore(
         var sourceToken = origin.ExternalReceiptToken;
         var sourceHash = origin.SourceHash;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
 
         // The Triage Case takes the receipt's established Principal, and its
         // number is allocated first, so the Case sequence row is this
@@ -629,9 +629,7 @@ public sealed class EfTriageStore(
         var requestHash = LinkResponseRequestHash(request);
         var operationKey = request.OperationKey.Trim();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var replay = await FindReplayAsync(context, operationKey, cancellationToken);
         if (replay is not null)
         {
@@ -790,9 +788,7 @@ public sealed class EfTriageStore(
         var requestHash = UnlinkResponseRequestHash(request);
         var operationKey = request.OperationKey.Trim();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var replay = await FindReplayAsync(context, operationKey, cancellationToken);
         if (replay is not null)
         {
@@ -1209,7 +1205,7 @@ public sealed class EfTriageStore(
         var eventType = FindingEventType(superseding);
         var requestHash = FindingRequestHash(request, eventType);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var replay = await FindReplayAsync(context, request.OperationKey.Trim(), cancellationToken);
         if (replay is not null)
         {
@@ -1318,7 +1314,7 @@ public sealed class EfTriageStore(
         ValidateMutation(triageId, expectedVersion, actor, operationKey, reason);
         operationKey = operationKey.Trim();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var replay = await FindReplayAsync(context, operationKey, cancellationToken);
         if (replay is not null)
         {
@@ -1370,9 +1366,9 @@ public sealed class EfTriageStore(
             $"{eventType}|{request.CaseId:N}|{request.ExpectedTriageVersion}|{request.InstructionCaseId:N}|{request.ExpectedCaseVersion}|{request.Actor.Kind}|{request.Actor.SubjectId}|{actorRolesJson}|{request.Reason.Trim()}");
         var operationKey = request.OperationKey.Trim();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(
+            context, request.InstructionCaseId, cancellationToken);
 
         var replay = await FindReplayAsync(context, operationKey, cancellationToken);
         if (replay is not null)

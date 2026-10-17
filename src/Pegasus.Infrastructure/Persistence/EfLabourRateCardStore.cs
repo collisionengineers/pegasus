@@ -1,4 +1,3 @@
-using System.Data;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
@@ -22,7 +21,7 @@ public sealed class EfLabourRateCardStore(
     {
         request = LabourRateCardAdministration.Validate(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var replay = await context.ActionHistory.AsNoTracking().SingleOrDefaultAsync(
             x => x.AggregateType == "labour_rate_card" && x.CorrelationId == request.OperationKey, cancellationToken);
         if (replay is not null)

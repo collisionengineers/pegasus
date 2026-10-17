@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -55,7 +54,8 @@ internal sealed class EfStandaloneAuditEvidenceStore(
         var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
             $"{request.IntakeReceiptId:N}|{request.OriginalReportAssetId:N}|{request.Assessment}"))).ToLowerInvariant();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfIntakeReceiptStore.LockAsync(context, request.IntakeReceiptId, cancellationToken);
         var existing = await context.Set<StandaloneAuditEvidenceEntity>()
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.IntakeReceiptId == request.IntakeReceiptId, cancellationToken);

@@ -1,5 +1,4 @@
-﻿using System.Data;
-using System.Text.Json;
+﻿using System.Text.Json;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -46,8 +45,16 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         ArgumentNullException.ThrowIfNull(draft);
         var channelCode = ToCode(draft.SourceIdentity.Channel);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The receipt row is the first lock, so a staff change to it waits for
+        // the re-evaluation or is read by it. SELECT * reads the row itself,
+        // so the lock is on the row and not only on the source-identity index.
+        await context.Database.ExecuteSqlAsync(
+            $"""
+            SELECT * FROM [IntakeReceipts] WITH (UPDLOCK, HOLDLOCK)
+            WHERE [SourceChannel] = {channelCode}
+              AND [ExternalReceiptToken] = {draft.SourceIdentity.ExternalReceiptToken}
+            """,
             cancellationToken);
         var receipt = await context.IntakeReceipts
             .Include(item => item.Assets)
@@ -397,9 +404,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     {
         var channelCode = ToCode(draft.SourceIdentity.Channel);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
 
         var existingQuery = context.IntakeReceipts
             .AsNoTracking()
@@ -545,6 +550,19 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         await transaction.CommitAsync(cancellationToken);
         return Map(receipt, false);
     }
+
+    /// <summary>
+    /// Takes the receipt's row <c>UPDLOCK, HOLDLOCK</c> for the rest of the
+    /// caller's transaction, so writes that decide from the receipt's state
+    /// queue on it.
+    /// </summary>
+    internal static Task LockAsync(
+        PegasusDbContext context,
+        Guid receiptId,
+        CancellationToken cancellationToken) =>
+        context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [IntakeReceipts] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {receiptId}",
+            cancellationToken);
 
     internal static IntakeReceipt Map(
         IntakeReceiptEntity entity,

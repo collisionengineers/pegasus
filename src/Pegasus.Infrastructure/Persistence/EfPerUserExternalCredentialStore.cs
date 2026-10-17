@@ -169,9 +169,7 @@ public sealed class EfPerUserExternalCredentialStore(
             MaximumExternalPasswordLength,
             nameof(password),
             trim: false);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            System.Data.IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var user = await RequireUserAsync(pegasusUserId, requireEnabled: true, cancellationToken);
         EnsureVersion(user.Version, expectedStaffAccountVersion);
 
@@ -236,9 +234,7 @@ public sealed class EfPerUserExternalCredentialStore(
         CancellationToken cancellationToken)
     {
         RequireAdministrator(actor, pegasusUserId);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            System.Data.IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var user = await RequireUserAsync(pegasusUserId, requireEnabled: false, cancellationToken);
         EnsureVersion(user.Version, expectedStaffAccountVersion);
         var entity = await context.Set<UserExternalCredentialEntity>()

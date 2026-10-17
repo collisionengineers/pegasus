@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
@@ -30,9 +29,7 @@ public sealed class EfStaffAccountAdministration(
         CancellationToken cancellationToken)
     {
         var normalizedUserName = NormalizeUserName(request.UserName);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var replay = await FindOperationAsync(request.OperationKey, cancellationToken);
         if (replay is not null)
         {
@@ -97,9 +94,9 @@ public sealed class EfStaffAccountAdministration(
         DisableStaffAccountRequest request,
         CancellationToken cancellationToken)
     {
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        // Serializable: the last enabled Administrator is a rule over every
+        // account, and no one row covers it.
+        await using var transaction = await context.Database.BeginSerializableAsync(cancellationToken);
         var replay = await FindOperationAsync(request.OperationKey, cancellationToken);
         if (replay is not null)
         {
@@ -200,9 +197,9 @@ public sealed class EfStaffAccountAdministration(
         UpdateStaffAccountSettingsRequest request,
         CancellationToken cancellationToken)
     {
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        // Serializable: the last enabled Administrator is a rule over every
+        // account, and no one row covers it.
+        await using var transaction = await context.Database.BeginSerializableAsync(cancellationToken);
         var replay = await FindOperationAsync(request.OperationKey, cancellationToken);
         if (replay is not null)
         {
@@ -320,9 +317,7 @@ public sealed class EfStaffAccountAdministration(
         EnableStaffAccountRequest request,
         CancellationToken cancellationToken)
     {
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var replay = await FindOperationAsync(request.OperationKey, cancellationToken);
         if (replay is not null)
         {
@@ -378,9 +373,7 @@ public sealed class EfStaffAccountAdministration(
         ForceStaffLogoutRequest request,
         CancellationToken cancellationToken)
     {
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var replay = await FindOperationAsync(request.OperationKey, cancellationToken);
         if (replay is not null)
         {
@@ -429,9 +422,7 @@ public sealed class EfStaffAccountAdministration(
         ResetStaffPasswordRequest request,
         CancellationToken cancellationToken)
     {
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         if (await FindOperationAsync(request.OperationKey, cancellationToken) is not null)
         {
             // The generated value is deliberately never persisted, so it cannot be
@@ -492,9 +483,10 @@ public sealed class EfStaffAccountAdministration(
         DeleteStaffAccountRequest request,
         CancellationToken cancellationToken)
     {
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        // Serializable: the last enabled Administrator and the open Cases the
+        // account is Engineer on are rules over many rows, and no one row
+        // covers them.
+        await using var transaction = await context.Database.BeginSerializableAsync(cancellationToken);
         var replay = await FindOperationAsync(request.OperationKey, cancellationToken);
         if (replay is not null)
         {

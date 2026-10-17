@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -29,9 +28,7 @@ public sealed class EfAiJobStore(
     {
         AiJobPolicy.ValidateNew(job);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var requestHash = CreateHash(job);
         var existing = await context.AiJobs.AsNoTracking()
             .SingleOrDefaultAsync(item => item.OperationKey == job.OperationKey, cancellationToken);
@@ -124,9 +121,7 @@ public sealed class EfAiJobStore(
     {
         AiJobPolicy.ValidateTransition(transition);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var entity = await context.AiJobs
             .SingleOrDefaultAsync(item => item.JobId == transition.JobId, cancellationToken)
             ?? throw new KeyNotFoundException("The AI job was not found.");

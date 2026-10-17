@@ -191,9 +191,8 @@ public sealed class ImageIntakePersistenceTests
         var firstReceiptId = await UploadImageAsync(factory, client);
         var secondReceiptId = await UploadImageAsync(factory, client);
 
-        // Both registrations race the same per-VRM sequence row under
-        // serializable isolation. The winner commits; a loser may deadlock or
-        // hit a serialization failure, must surface that failure rather than
+        // Both registrations race the same per-VRM sequence row. The winner
+        // commits; a loser that fails must surface that failure rather than
         // reuse or skip a reference, and must succeed cleanly when retried.
         var outcomes = await Task.WhenAll(
             Task.Run(() => TryRegisterAsync(

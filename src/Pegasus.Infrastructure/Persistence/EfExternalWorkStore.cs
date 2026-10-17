@@ -1,4 +1,3 @@
-using System.Data;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -15,8 +14,6 @@ internal sealed class EfExternalWorkStore(
     PrefetchedExternalWork? prefetched = null)
     : IExternalWorkStore, IQueuedExternalWorkReader, ICustodyRecoveryPersistence
 {
-    private const int CandidateBatchSize = 256;
-
     public async Task<bool> HoldsProcessingLeaseAsync(
         Guid workItemId,
         string leaseToken,
@@ -44,9 +41,8 @@ internal sealed class EfExternalWorkStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken);
         var replay = await context.CaseWorkflowEvents
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.CaseId == request.CaseId
@@ -411,9 +407,8 @@ internal sealed class EfExternalWorkStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await LockAsync(context, workItemId, cancellationToken);
         var work = await context.ExternalWorkItems
             .Include(item => item.Case)
             .Include(item => item.ImageIntake)
@@ -575,9 +570,8 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
         ArgumentException.ThrowIfNullOrWhiteSpace(failureReason);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await LockAsync(context, workItemId, cancellationToken);
         var work = await context.ExternalWorkItems
             .Include(item => item.Case)
             .Include(item => item.ImageIntake)
@@ -797,45 +791,52 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
         work.FailureReason = failureReason;
     }
 
+    /// <summary>
+    /// The earliest available item, from two one-row reads: the earliest due
+    /// pending item, and the dispatching item whose lease ran out first. A
+    /// dispatching item with no lease expiry sorts first, so it is available
+    /// at once.
+    /// </summary>
     private static async Task<DispatchCandidate?> FindNextCandidateAsync(
         PegasusDbContext context,
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
-        DispatchCandidate? next = null;
-        for (var offset = 0; ; offset += CandidateBatchSize)
+        var pending = await context.ExternalWorkItems
+            .AsNoTracking()
+            .Where(item => item.State == ExternalWorkStatePersistence.Pending
+                && item.DueAtUtc <= nowUtc)
+            .OrderBy(item => item.DueAtUtc)
+            .ThenBy(item => item.Id)
+            .Select(item => new DispatchCandidate(
+                item.Id,
+                item.State,
+                item.DueAtUtc,
+                item.LeaseToken,
+                item.LeaseExpiresAtUtc))
+            .Take(1)
+            .ToListAsync(cancellationToken);
+        var expired = await context.ExternalWorkItems
+            .AsNoTracking()
+            .Where(item => item.State == ExternalWorkStatePersistence.Dispatching
+                && (item.LeaseExpiresAtUtc == null || item.LeaseExpiresAtUtc <= nowUtc))
+            .OrderBy(item => item.LeaseExpiresAtUtc)
+            .ThenBy(item => item.Id)
+            .Select(item => new DispatchCandidate(
+                item.Id,
+                item.State,
+                item.DueAtUtc,
+                item.LeaseToken,
+                item.LeaseExpiresAtUtc))
+            .Take(1)
+            .ToListAsync(cancellationToken);
+        DispatchCandidate? next = pending.Count == 0 ? null : pending[0];
+        if (expired.Count != 0 && (next is null || Compare(expired[0], next.Value) < 0))
         {
-            var batch = await context.ExternalWorkItems
-                .AsNoTracking()
-                .Where(item => item.State == ExternalWorkStatePersistence.Pending
-                    || item.State == ExternalWorkStatePersistence.Dispatching)
-                .OrderBy(item => item.Id)
-                .Skip(offset)
-                .Take(CandidateBatchSize)
-                .Select(item => new DispatchCandidate(
-                    item.Id,
-                    item.State,
-                    item.DueAtUtc,
-                    item.LeaseToken,
-                    item.LeaseExpiresAtUtc))
-                .ToListAsync(cancellationToken);
-            foreach (var candidate in batch)
-            {
-                var availableAtUtc = candidate.State == ExternalWorkStatePersistence.Pending
-                    ? candidate.DueAtUtc
-                    : candidate.LeaseExpiresAtUtc ?? DateTimeOffset.MinValue;
-                if (availableAtUtc <= nowUtc
-                    && (next is null || Compare(candidate, next.Value) < 0))
-                {
-                    next = candidate;
-                }
-            }
-
-            if (batch.Count < CandidateBatchSize)
-            {
-                return next;
-            }
+            next = expired[0];
         }
+
+        return next;
     }
 
     private static int Compare(DispatchCandidate left, DispatchCandidate right)
@@ -849,6 +850,19 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
         var comparison = leftAvailableAtUtc.CompareTo(rightAvailableAtUtc);
         return comparison != 0 ? comparison : left.Id.CompareTo(right.Id);
     }
+
+    /// <summary>
+    /// Takes the work item's row <c>UPDLOCK, HOLDLOCK</c> for the rest of the
+    /// caller's transaction. A work item has no concurrency token, so a
+    /// lease-guarded write locks it before reading it.
+    /// </summary>
+    internal static Task LockAsync(
+        PegasusDbContext context,
+        Guid workItemId,
+        CancellationToken cancellationToken) =>
+        context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [ExternalWorkItems] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {workItemId}",
+            cancellationToken);
 
     private static async Task EnsureWorkExistsAsync(
         PegasusDbContext context,

@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -40,9 +39,8 @@ internal sealed partial class EfVehicleCaptureFill(
         try
         {
             await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-            await using var transaction = await context.Database.BeginTransactionAsync(
-                IsolationLevel.Serializable,
-                cancellationToken);
+            await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+            await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, caseId, cancellationToken);
             var workflow = await context.CaseWorkflows
                 .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
             if (workflow is null

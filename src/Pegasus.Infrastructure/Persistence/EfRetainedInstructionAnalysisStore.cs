@@ -1,5 +1,4 @@
-﻿using System.Data;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -47,8 +46,9 @@ public sealed class EfRetainedInstructionAnalysisStore(
         ArgumentNullException.ThrowIfNull(analysis);
         var key = analysis.OperationKey.Trim();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
+        // Serializable: one key binds one analysis across every receipt and
+        // asset, and no index or row covers that.
+        await using var transaction = await context.Database.BeginSerializableAsync(cancellationToken);
 
         // Probed on the same (receipt, asset, key) triple the unique index
         // covers, so the probe asserts exactly the uniqueness the database

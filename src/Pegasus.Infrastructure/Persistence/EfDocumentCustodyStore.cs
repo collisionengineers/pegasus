@@ -372,9 +372,8 @@ internal sealed class EfDocumentCustodyStore(
         }));
 
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            System.Data.IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, command.CaseId, cancellationToken);
         if (await CaseOperationReplay.FindAsync(
                 context,
                 command.CaseId,
@@ -513,9 +512,8 @@ internal sealed class EfDocumentCustodyStore(
         }));
 
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            System.Data.IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, command.CaseId, cancellationToken);
         if (await CaseOperationReplay.FindAsync(
                 context,
                 command.CaseId,

@@ -2666,6 +2666,199 @@ public sealed class CustodyOutboxIntegrationTests
             CancellationToken cancellationToken) => throw Failure();
     }
 
+    private static readonly DateTimeOffset SeekNowUtc = new(2031, 6, 1, 9, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public async Task ExternalDispatchClaimTakesTheEarliestDueItemAndNeverOneNotYetDue()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var later = await SeedExternalWorkAsync(database, ExternalWorkStatePersistence.Pending, SeekNowUtc.AddMinutes(-1));
+        var earlier = await SeedExternalWorkAsync(database, ExternalWorkStatePersistence.Pending, SeekNowUtc.AddMinutes(-5));
+        var notDue = await SeedExternalWorkAsync(database, ExternalWorkStatePersistence.Pending, SeekNowUtc.AddMinutes(5));
+        var store = await SeekStoreAsync(database);
+
+        Assert.Equal(earlier, (await ClaimAtSeekNowAsync(store))?.WorkItemId);
+        Assert.Equal(later, (await ClaimAtSeekNowAsync(store))?.WorkItemId);
+        Assert.Null(await ClaimAtSeekNowAsync(store));
+        Assert.Equal(ExternalWorkStatePersistence.Pending, (await ExternalWorkAsync(database, notDue)).State);
+    }
+
+    [Fact]
+    public async Task ExternalDispatchClaimFindsADueItemBehind300NotDueOnesInOneRowReads()
+    {
+        var counter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter));
+        var store = await SeekStoreAsync(database);
+        await SeedNotDueExternalWorkAsync(database, 3);
+        var first = await SeedExternalWorkAsync(database, ExternalWorkStatePersistence.Pending, SeekNowUtc.AddMinutes(-1));
+        counter.Reset();
+        Assert.Equal(first, (await ClaimAtSeekNowAsync(store))?.WorkItemId);
+        var statementsBehindThree = counter.Count;
+        AssertOneRowReads(counter, "[ExternalWorkItems]");
+
+        await SeedNotDueExternalWorkAsync(database, 297);
+        var second = await SeedExternalWorkAsync(database, ExternalWorkStatePersistence.Pending, SeekNowUtc.AddMinutes(-1));
+        counter.Reset();
+        Assert.Equal(second, (await ClaimAtSeekNowAsync(store))?.WorkItemId);
+
+        Assert.Equal(statementsBehindThree, counter.Count);
+        AssertOneRowReads(counter, "[ExternalWorkItems]");
+    }
+
+    [Fact]
+    public async Task ExternalDispatchClaimTakesAnUnleasedOrExpiredDispatchingItemAndSkipsALiveLease()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var live = await SeedExternalWorkAsync(
+            database, ExternalWorkStatePersistence.Dispatching, SeekNowUtc.AddMinutes(-10), SeekNowUtc.AddMinutes(1));
+        var expired = await SeedExternalWorkAsync(
+            database, ExternalWorkStatePersistence.Dispatching, SeekNowUtc.AddMinutes(-10), SeekNowUtc.AddMinutes(-1));
+        var unleased = await SeedExternalWorkAsync(
+            database, ExternalWorkStatePersistence.Dispatching, SeekNowUtc.AddMinutes(-10));
+        var store = await SeekStoreAsync(database);
+
+        Assert.Equal(unleased, (await ClaimAtSeekNowAsync(store))?.WorkItemId);
+        Assert.Equal(expired, (await ClaimAtSeekNowAsync(store))?.WorkItemId);
+        Assert.Null(await ClaimAtSeekNowAsync(store));
+        Assert.Equal(SeekLeaseToken, (await ExternalWorkAsync(database, live)).LeaseToken);
+    }
+
+    [Theory]
+    [InlineData("a", true)]
+    [InlineData("b", false)]
+    public async Task ExternalDispatchClaimWeighsAnExpiredLeaseAgainstAPendingDueTime(string row, bool expiredFirst)
+    {
+        Assert.NotEmpty(row);
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var expired = await SeedExternalWorkAsync(
+            database,
+            ExternalWorkStatePersistence.Dispatching,
+            SeekNowUtc.AddMinutes(-30),
+            SeekNowUtc.AddMinutes(expiredFirst ? -5 : -1));
+        var pending = await SeedExternalWorkAsync(
+            database, ExternalWorkStatePersistence.Pending, SeekNowUtc.AddMinutes(expiredFirst ? -1 : -5));
+
+        Assert.Equal(
+            expiredFirst ? expired : pending,
+            (await ClaimAtSeekNowAsync(await SeekStoreAsync(database)))?.WorkItemId);
+    }
+
+    [Fact]
+    public async Task ExternalDispatchClaimBreaksADueTimeTieInSqlUniqueidentifierOrder()
+    {
+        var low = Guid.Parse("00000001-0000-0000-0000-000000000002");
+        var high = Guid.Parse("00000002-0000-0000-0000-000000000001");
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedExternalWorkAsync(database, ExternalWorkStatePersistence.Pending, SeekNowUtc.AddMinutes(-1), id: low);
+        await SeedExternalWorkAsync(database, ExternalWorkStatePersistence.Pending, SeekNowUtc.AddMinutes(-1), id: high);
+        Guid sqlFirst;
+        await using (var context = await database.CreateContextAsync())
+        {
+            sqlFirst = await context.Set<ExternalWorkItemEntity>()
+                .AsNoTracking()
+                .Where(item => item.Id == low || item.Id == high)
+                .OrderBy(item => item.DueAtUtc)
+                .ThenBy(item => item.Id)
+                .Select(item => item.Id)
+                .FirstAsync();
+        }
+
+        // SQL compares a uniqueidentifier's last six bytes first, so the two
+        // orders disagree and the claim shows which one it follows.
+        Assert.True(low.CompareTo(high) < 0);
+        Assert.Equal(high, sqlFirst);
+        Assert.Equal(sqlFirst, (await ClaimAtSeekNowAsync(await SeekStoreAsync(database)))?.WorkItemId);
+    }
+
+    [Fact]
+    public async Task TwoConcurrentExternalDispatchClaimsOfOneItemClaimItOnce()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var workItemId = await SeedExternalWorkAsync(
+            database, ExternalWorkStatePersistence.Pending, SeekNowUtc.AddMinutes(-1));
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var claims = new[] { await SeekStoreAsync(database), await SeekStoreAsync(database) }
+            .Select(store => Task.Run(async () =>
+            {
+                await gate.Task;
+                return await ClaimAtSeekNowAsync(store);
+            }))
+            .ToArray();
+
+        gate.SetResult();
+        var results = await Task.WhenAll(claims);
+
+        var winner = Assert.Single(results, result => result is not null)!;
+        Assert.Equal(workItemId, winner.WorkItemId);
+        Assert.Equal(winner.LeaseToken, (await ExternalWorkAsync(database, workItemId)).LeaseToken);
+    }
+
+    private const string SeekLeaseToken = "seek-lease";
+
+    private static async Task<EfExternalWorkStore> SeekStoreAsync(LocalDbTestDatabase database)
+    {
+        await using var scope = database.CreateAsyncScope();
+        return new(
+            scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+            TimeProvider.System);
+    }
+
+    private static Task<ExternalWorkDispatchClaim?> ClaimAtSeekNowAsync(EfExternalWorkStore store) =>
+        store.ClaimDispatchAsync(SeekNowUtc, TimeSpan.FromMinutes(1), CancellationToken.None);
+
+    private static async Task<Guid> SeedExternalWorkAsync(
+        LocalDbTestDatabase database,
+        string state,
+        DateTimeOffset dueAtUtc,
+        DateTimeOffset? leaseExpiresAtUtc = null,
+        Guid? id = null)
+    {
+        var workItemId = id ?? Guid.NewGuid();
+        await using var context = await database.CreateContextAsync();
+        context.Set<ExternalWorkItemEntity>().Add(SeekWorkItem(workItemId, state, dueAtUtc, leaseExpiresAtUtc));
+        await context.SaveChangesAsync();
+        return workItemId;
+    }
+
+    private static async Task SeedNotDueExternalWorkAsync(LocalDbTestDatabase database, int count)
+    {
+        await using var context = await database.CreateContextAsync();
+        context.Set<ExternalWorkItemEntity>().AddRange(Enumerable.Range(0, count).Select(_ =>
+            SeekWorkItem(Guid.NewGuid(), ExternalWorkStatePersistence.Pending, SeekNowUtc.AddHours(1), null)));
+        await context.SaveChangesAsync();
+    }
+
+    private static ExternalWorkItemEntity SeekWorkItem(
+        Guid id,
+        string state,
+        DateTimeOffset dueAtUtc,
+        DateTimeOffset? leaseExpiresAtUtc) => new()
+    {
+        Id = id,
+        Kind = ExternalWorkKinds.IntakeOcr,
+        OperationKey = $"seek:{id:N}",
+        State = state,
+        DueAtUtc = dueAtUtc,
+        LeaseToken = leaseExpiresAtUtc is null ? null : SeekLeaseToken,
+        LeaseExpiresAtUtc = leaseExpiresAtUtc
+    };
+
+    private static async Task<ExternalWorkItemEntity> ExternalWorkAsync(LocalDbTestDatabase database, Guid id)
+    {
+        await using var context = await database.CreateContextAsync();
+        return await context.Set<ExternalWorkItemEntity>().AsNoTracking().SingleAsync(item => item.Id == id);
+    }
+
+    private static void AssertOneRowReads(SqlStatementCounter counter, string table)
+    {
+        var reads = counter.Reads
+            .Where(read => read.CommandText.Contains(table, StringComparison.Ordinal))
+            .ToArray();
+        Assert.NotEmpty(reads);
+        Assert.All(reads, read => Assert.True(read.Rows <= 1, $"{read.Rows} rows: {read.CommandText}"));
+    }
+
     private sealed record SourceFixture(IntakeSource Source, byte[] Content);
 
     private sealed record AcceptedSource(

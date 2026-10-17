@@ -1,4 +1,3 @@
-using System.Data;
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -19,9 +18,9 @@ namespace Pegasus.Infrastructure.Persistence;
 /// 2026). Case facts, assessment fields, the damage impacts, the repair
 /// specification the editor shows, the guide cards, an applied valuation,
 /// the two factual completeness controls and the sign-off Engineer are
-/// written together inside a single serializable transaction that commits
-/// once, so a Case save either records the whole authorized snapshot or none
-/// of it. It owns that transaction outright: it never calls the case-data,
+/// written together inside a single transaction that commits once, under the
+/// Case's workflow lock, so a Case save either records the whole authorized
+/// snapshot or none of it. It owns that transaction outright: it never calls the case-data,
 /// assessment, estimate or valuation stores' commands, because each of those
 /// owns a transaction of its own and composing them would make a partial
 /// write possible again. It writes through their transaction-local routines.
@@ -43,9 +42,11 @@ public sealed class EfCaseWorkspaceStore(
         ArgumentNullException.ThrowIfNull(request);
         request = CaseWorkspacePolicy.ValidateAndNormalize(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The same lock every claim, heartbeat and lifecycle write takes, and
+        // taken before the replay probe, so a second save under one operation
+        // key waits for the first and replays it.
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken);
 
         var requestHash = RequestHash(request);
         if (await CaseOperationReplay.FindAsync(
@@ -68,9 +69,6 @@ public sealed class EfCaseWorkspaceStore(
                 cancellationToken);
         }
 
-        // The same lock every claim, heartbeat and lifecycle write takes, so
-        // none of them interleaves with this save's read of the workflow.
-        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken);
         var workflow = await context.CaseWorkflows
             .Include(item => item.DueWork)
             .Include(item => item.Case)
@@ -230,7 +228,7 @@ public sealed class EfCaseWorkspaceStore(
         {
             // This is deliberately the preparation store's transaction-local
             // routine, rather than its public command. The workspace owns the
-            // serializable transaction, the single Case version increment and
+            // transaction, the single Case version increment and
             // the single history entry for all of the submitted changes.
             beforePreparedImages = await EfCaseAssetPreparationStore.LoadCurrentAsync(
                 context, request.CaseId, cancellationToken);

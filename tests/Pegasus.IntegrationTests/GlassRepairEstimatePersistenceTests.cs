@@ -674,7 +674,7 @@ public sealed class GlassRepairEstimatePersistenceTests
     /// <summary>
     /// Two Glass's accounts are two calculations, so two Pegasus processes
     /// launching them at the same instant both get a session. Each runs on its
-    /// own context factory, connection and serializable transaction.
+    /// own context factory, connection and transaction.
     /// </summary>
     [Fact]
     public async Task TwoAccountsLaunchingAtOnceBothGetASession()
@@ -1000,8 +1000,8 @@ public sealed class GlassRepairEstimatePersistenceTests
 
     /// <summary>
     /// What actually came back from a concurrent launch, spelled out, so a
-    /// Serializable range-lock deadlock is read as its own SQL error rather
-    /// than as some unnamed wrong exception.
+    /// deadlock is read as its own SQL error rather than as some unnamed wrong
+    /// exception.
     /// </summary>
     private static string Describe(Exception? error) => error switch
     {
@@ -1014,7 +1014,7 @@ public sealed class GlassRepairEstimatePersistenceTests
 
     /// <summary>
     /// Both launches wait on one gate, so they are inside the store's
-    /// serializable transactions at the same time rather than merely started
+    /// transactions at the same time rather than merely started
     /// from the same statement.
     /// </summary>
     private static Task<LaunchOutcome>[] LaunchTogether(
