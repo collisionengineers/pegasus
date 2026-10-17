@@ -909,7 +909,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task TheDeliveryFormFollowsThePrincipalsRules()
     {
-        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
         var facts = new ReportDispatchFacts(
             "QDOS26001", "PK12TMZ", "Principal Ltd",
@@ -1020,7 +1020,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task AStopThatAppliesIsStatedAndItsOverrideReasonIsRequired()
     {
-        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
         var claimSourceId = Guid.NewGuid();
         var estimate = new StaffMailAttachment(

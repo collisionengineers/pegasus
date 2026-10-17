@@ -73,7 +73,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task UserCanPreviewTheReportDraftThroughTheCaseHandler()
     {
-        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var baseFactory = new IntakeWebApplicationFactory();
         var caseId = Guid.NewGuid();
         var pdfBytes = new byte[] { 4, 3, 2, 1 };
         using var factory = Compose(
@@ -613,7 +613,7 @@ public sealed partial class AssessmentReportDraftWebTests
         };
         var source = new FakeProjectionSource(input);
         var renderer = new FakeRenderer([4, 3, 2, 1]);
-        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = Compose(baseFactory, new FakeGetCase(harness.CaseId), persisted, source, renderer)
             .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
             {

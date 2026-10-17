@@ -543,7 +543,7 @@ public sealed class CaseDetailsWebTests
         store.FocusedAssessment = assessment;
         var assessmentWorkspace = new CountingAssessmentWorkspace(
             AssessmentWorkspaceTestData.Create(assessment));
-        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
