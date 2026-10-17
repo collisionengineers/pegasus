@@ -19,7 +19,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.ApprovedInboxPollStateEntity",
                 typeof(ApprovedInboxPollStateEntity),
                 baseEntityType,
-                propertyCount: 12,
+                propertyCount: 13,
                 navigationCount: 1,
                 foreignKeyCount: 1,
                 unnamedIndexCount: 2,
@@ -107,6 +107,14 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 fieldInfo: typeof(ApprovedInboxPollStateEntity).GetField("<MailboxAddress>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 maxLength: 320);
             mailboxAddress.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var pendingWakeAtUtc = runtimeEntityType.AddProperty(
+                "PendingWakeAtUtc",
+                typeof(DateTimeOffset?),
+                propertyInfo: typeof(ApprovedInboxPollStateEntity).GetProperty("PendingWakeAtUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ApprovedInboxPollStateEntity).GetField("<PendingWakeAtUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            pendingWakeAtUtc.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var scopeFingerprint = runtimeEntityType.AddProperty(
                 "ScopeFingerprint",

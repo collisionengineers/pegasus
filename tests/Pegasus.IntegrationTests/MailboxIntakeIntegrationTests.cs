@@ -1393,6 +1393,129 @@ public sealed class MailboxIntakeIntegrationTests
         }
     }
 
+    /// <summary>
+    /// A notification that finds another poll holding the mailbox's lease is
+    /// recorded, not dropped. Once the holder completes, the pending-wake poll reads
+    /// the delta, ingests the message once and clears the record.
+    /// </summary>
+    [Fact]
+    public Task ANotificationThatFindsTheLeaseHeldIsRecordedAndIngestedOnceAfterTheHolderCompletes() =>
+        WithPendingWakeDatabaseAsync(
+            "Pegasus.MailboxPendingWakeHeldLeaseIntegrationTests",
+            async (database, clock, inboxSource) =>
+            {
+                var mailboxId = TestMailboxId.From("instructions");
+                var generation = await database.ScalarAsync<long>(
+                    $"SELECT MailboxGeneration FROM ApprovedMailboxes WHERE Id = '{mailboxId:D}'");
+                var actor = ActionActor.SystemWorker("approved-inbox-poller");
+                await using var scope = database.CreateAsyncScope();
+                var pollStore = scope.ServiceProvider.GetRequiredService<IApprovedInboxPollStore>();
+                var poll = scope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+                var holder = Assert.IsType<ApprovedInboxPollLease>(await pollStore.ClaimAsync(
+                    await PollableMailboxAsync(scope.ServiceProvider), ApprovedInboxClaimKind.Sweep,
+                    clock.GetUtcNow(), TimeSpan.FromMinutes(1), CancellationToken.None));
+
+                Assert.Equal(0, await poll.ExecuteNotificationAsync(
+                    mailboxId, generation, WakeThenDeltaApprovedInboxSource.ImmutableMessageId,
+                    actor, CancellationToken.None));
+                Assert.Equal([mailboxId], await pollStore.ListPendingWakeAsync(CancellationToken.None));
+                Assert.Equal(0, inboxSource.MimeReads);
+
+                await pollStore.CompleteAsync(
+                    mailboxId, holder.LeaseToken, "holder-cursor", clock.GetUtcNow(), CancellationToken.None);
+                Assert.Equal(1, await poll.ExecutePendingWakesAsync(10, actor, CancellationToken.None));
+                Assert.Equal(0, await poll.ExecutePendingWakesAsync(10, actor, CancellationToken.None));
+
+                Assert.Empty(await pollStore.ListPendingWakeAsync(CancellationToken.None));
+                Assert.Equal(1, inboxSource.MimeReads);
+                Assert.Equal(
+                    1L,
+                    await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
+            });
+
+    /// <summary>
+    /// A wake within the retry delay of a failed poll finds the mailbox not yet due.
+    /// It is recorded, and the pending-wake poll answers it once the clock passes the
+    /// mailbox's due time.
+    /// </summary>
+    [Fact]
+    public Task AWakeThatFindsTheMailboxNotYetDueIsRecordedAndPolledOnceItIsDue() =>
+        WithPendingWakeDatabaseAsync(
+            "Pegasus.MailboxPendingWakeNotDueIntegrationTests",
+            async (database, clock, inboxSource) =>
+            {
+                var mailboxId = TestMailboxId.From("instructions");
+                var actor = ActionActor.SystemWorker("approved-inbox-poller");
+                await using var scope = database.CreateAsyncScope();
+                var pollStore = scope.ServiceProvider.GetRequiredService<IApprovedInboxPollStore>();
+                var poll = scope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+                var failed = Assert.IsType<ApprovedInboxPollLease>(await pollStore.ClaimAsync(
+                    await PollableMailboxAsync(scope.ServiceProvider), ApprovedInboxClaimKind.Sweep,
+                    clock.GetUtcNow(), TimeSpan.FromMinutes(1), CancellationToken.None));
+                await pollStore.ReleaseAsync(
+                    mailboxId, failed.LeaseToken, clock.GetUtcNow().AddSeconds(30),
+                    "mailbox_poll_failure", CancellationToken.None);
+
+                Assert.Equal(0, await poll.ExecuteMailboxAsync(mailboxId, 10, actor, CancellationToken.None));
+                Assert.Equal(0, await poll.ExecutePendingWakesAsync(10, actor, CancellationToken.None));
+                Assert.Equal([mailboxId], await pollStore.ListPendingWakeAsync(CancellationToken.None));
+
+                clock.Advance(TimeSpan.FromSeconds(31));
+                Assert.Equal(1, await poll.ExecutePendingWakesAsync(10, actor, CancellationToken.None));
+
+                Assert.Empty(await pollStore.ListPendingWakeAsync(CancellationToken.None));
+                Assert.Equal(1, inboxSource.MimeReads);
+            });
+
+    /// <summary>
+    /// What the claim records, in the store itself: a blocked sweep records nothing,
+    /// a blocked wake records itself, a granted message read leaves the record (it
+    /// reads no delta), and a Graph scope rebind clears it with the cursor.
+    /// </summary>
+    [Fact]
+    public Task ABlockedSweepRecordsNothingAGrantedMessageWakeKeepsTheRecordAndARebindClearsIt() =>
+        WithPendingWakeDatabaseAsync(
+            "Pegasus.MailboxPendingWakeStoreIntegrationTests",
+            async (database, clock, _) =>
+            {
+                var nowUtc = clock.GetUtcNow();
+                var leaseDuration = TimeSpan.FromMinutes(1);
+                await using var scope = database.CreateAsyncScope();
+                var pollStore = scope.ServiceProvider.GetRequiredService<IApprovedInboxPollStore>();
+                var mailbox = await PollableMailboxAsync(scope.ServiceProvider);
+                var holder = Assert.IsType<ApprovedInboxPollLease>(await pollStore.ClaimAsync(
+                    mailbox, ApprovedInboxClaimKind.Sweep, nowUtc, leaseDuration, CancellationToken.None));
+
+                Assert.Null(await pollStore.ClaimAsync(
+                    mailbox, ApprovedInboxClaimKind.Sweep, nowUtc, leaseDuration, CancellationToken.None));
+                Assert.Empty(await pollStore.ListPendingWakeAsync(CancellationToken.None));
+                Assert.Null(await pollStore.ClaimAsync(
+                    mailbox, ApprovedInboxClaimKind.MailboxWake, nowUtc, leaseDuration, CancellationToken.None));
+                Assert.Equal(
+                    [mailbox.ApprovedMailboxId],
+                    await pollStore.ListPendingWakeAsync(CancellationToken.None));
+
+                await pollStore.CompleteNotificationAsync(
+                    mailbox.ApprovedMailboxId, holder.LeaseToken, CancellationToken.None);
+                var messageRead = Assert.IsType<ApprovedInboxPollLease>(await pollStore.ClaimAsync(
+                    mailbox, ApprovedInboxClaimKind.MessageWake, nowUtc, leaseDuration, CancellationToken.None));
+                await pollStore.CompleteNotificationAsync(
+                    mailbox.ApprovedMailboxId, messageRead.LeaseToken, CancellationToken.None);
+                Assert.Equal(
+                    [mailbox.ApprovedMailboxId],
+                    await pollStore.ListPendingWakeAsync(CancellationToken.None));
+
+                await database.ExecuteAsync($"""
+                    UPDATE ApprovedMailboxes
+                    SET InboxFolderIdentity = 'rebound-inbox', MailboxGeneration = MailboxGeneration + 1
+                    WHERE Id = '{mailbox.ApprovedMailboxId:D}';
+                    """);
+                Assert.IsType<ApprovedInboxPollLease>(await pollStore.ClaimAsync(
+                    await PollableMailboxAsync(scope.ServiceProvider), ApprovedInboxClaimKind.MessageWake,
+                    nowUtc, leaseDuration, CancellationToken.None));
+                Assert.Empty(await pollStore.ListPendingWakeAsync(CancellationToken.None));
+            });
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -1849,6 +1972,55 @@ public sealed class MailboxIntakeIntegrationTests
                 Content = new MimeContent(new MemoryStream(bytes))
             };
     }
+
+    /// <summary>
+    /// Real intake, retention and poll stores over an activated mailbox whose delta
+    /// lists one message, with a clock the test moves. Only the Graph read is a double.
+    /// </summary>
+    private static async Task WithPendingWakeDatabaseAsync(
+        string workingFolder,
+        Func<LocalDbTestDatabase, AdjustableTimeProvider, WakeThenDeltaApprovedInboxSource, Task> test)
+    {
+        var workingRoot = Path.Combine(Path.GetTempPath(), workingFolder, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(workingRoot);
+        var content = CreateForwardedProtocolMessage("<pending-wake@example.invalid>");
+        var inboxSource = new WakeThenDeltaApprovedInboxSource(
+            content,
+            WakeThenDeltaApprovedInboxSource.ImmutableMessageId,
+            content,
+            "<pending-wake@example.invalid>");
+        var clock = new AdjustableTimeProvider(RecordedAtUtc);
+
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => Path.Combine(workingRoot, "artifacts"),
+                configureServices: services =>
+                {
+                    services.AddSingleton<TimeProvider>(clock);
+                    services.AddScoped<IIntakeWorkStore, EfIntakeWorkStore>();
+                    services.AddScoped<ReceiveIntake>();
+                    services.AddLocalApprovedInbox(_ => new(
+                        LocalApprovedInboxOptions.RequiredRuntimeProfile,
+                        workingRoot));
+                    services.AddSingleton<IApprovedInboxSource>(inboxSource);
+                });
+            await ActivateMailboxAsync(database, DateTimeOffset.UnixEpoch);
+            await test(database, clock, inboxSource);
+        }
+        finally
+        {
+            if (Directory.Exists(workingRoot))
+            {
+                Directory.Delete(workingRoot, recursive: true);
+            }
+        }
+    }
+
+    private static async Task<ApprovedIntakeMailbox> PollableMailboxAsync(IServiceProvider services) =>
+        Assert.IsType<ApprovedIntakeMailbox>(await services
+            .GetRequiredService<IApprovedIntakeMailboxes>()
+            .GetPollableAsync(TestMailboxId.From("instructions"), CancellationToken.None));
 
     private static Task ActivateMailboxAsync(
         LocalDbTestDatabase database,

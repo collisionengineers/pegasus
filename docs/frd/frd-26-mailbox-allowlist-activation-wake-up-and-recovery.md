@@ -130,7 +130,10 @@ retention, the shared intake call and the retry outcome. A creation
 notification with an immutable message ID fetches and processes that exact
 message only, still subject to the receive-time cutoff. It does not scan the
 Inbox or move the recovery cursor. Duplicate notifications are safe. A
-notification may name a message the mail source cannot show yet, because
+notification that arrives while another poll holds the mailbox's lease is
+still answered before the next five-minute fallback poll (operator ruling of
+15 October 2026).
+A notification may name a message the mail source cannot show yet, because
 the tenant accepted it before replicating it to the folder the delta reads.
 That empty read is not a failure: the cursor stays where it was, the message
 is still ahead of the next delta sweep, and the mailbox-scoped source

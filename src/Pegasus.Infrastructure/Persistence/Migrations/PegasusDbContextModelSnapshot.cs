@@ -772,6 +772,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("nvarchar(320)");
 
+                    b.Property<DateTimeOffset?>("PendingWakeAtUtc")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<string>("ScopeFingerprint")
                         .IsRequired()
                         .HasMaxLength(64)

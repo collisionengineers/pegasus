@@ -18,8 +18,9 @@ namespace Pegasus.ArchitectureTests;
 
 /// <summary>
 /// The one-minute recovery timer also runs the due-work sweep and the approved-inbox
-/// recovery on every fifth minute, so they use its warm instance. Each test names the
-/// ports the five steps read first, so the order of the steps is the order of the calls.
+/// recovery on every fifth minute, so they use its warm instance, and the pending-wake
+/// poll on the other minutes. Each test names the ports the steps read first, so the
+/// order of the steps is the order of the calls.
 /// A step that throws never stops the others, and after all have run it fails the
 /// invocation, so the failed request reaches the exception alert.
 /// </summary>
@@ -31,6 +32,7 @@ public sealed class PendingWorkRecoveryFunctionTests
     private const string SubscriptionMaintenance = "IApprovedMailboxSubscriptionStore.ListMaintenanceCandidatesAsync";
     private const string InboxPoll = "IApprovedIntakeMailboxes.ListPollableAsync";
     private const string InstructionTidy = "ISentReportInstructionTidyStore.ListDueAsync";
+    private const string PendingWakePoll = "IApprovedInboxPollStore.ListPendingWakeAsync";
 
     [Fact]
     public void InfrastructureRegistersOneScopedDueChaserStoreAndCoreUseCase()
@@ -73,13 +75,34 @@ public sealed class PendingWorkRecoveryFunctionTests
     [InlineData(4)]
     [InlineData(6)]
     [InlineData(59)]
-    public async Task OtherMinutesRunTheDispatchAlone(int minute)
+    public async Task OtherMinutesRunTheDispatchThenThePendingWakePoll(int minute)
     {
         using var rig = new Rig(minute);
 
         await rig.Function.RunAsync(null!, default);
 
-        Assert.Equal([IntakeDispatch, ExternalDispatch], rig.Calls);
+        Assert.Equal([IntakeDispatch, ExternalDispatch, PendingWakePoll], rig.Calls);
+        // No wake was recorded, so the minute writes no inbox line.
+        Assert.DoesNotContain(rig.Logger.Entries, entry =>
+            entry.Message.Contains("approved-inbox messages", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AFailingPendingWakePollFailsTheInvocationAfterTheDispatch()
+    {
+        using var rig = new Rig(1);
+        rig.PollStore.Answer("ListPendingWakeAsync", _ =>
+            Task.FromException<IReadOnlyList<Guid>>(new InvalidOperationException("poll store is down")));
+
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => rig.Function.RunAsync(null!, default));
+
+        Assert.Equal("poll store is down", failure.Message);
+        Assert.Equal([IntakeDispatch, ExternalDispatch, PendingWakePoll], rig.Calls);
+        Assert.Contains(rig.Logger.Entries, entry =>
+            entry.Level == LogLevel.Error
+            && entry.Exception is InvalidOperationException { Message: "poll store is down" }
+            && entry.Message.Contains("pending-wake poll", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -351,6 +374,7 @@ public sealed class PendingWorkRecoveryFunctionTests
         public readonly PortRecorder IntakeWork;
         public readonly PortRecorder DueQueries;
         public readonly PortRecorder Mailboxes;
+        public readonly PortRecorder PollStore;
         public readonly PortRecorder TidyStore;
         public readonly RecordingLogger<PendingWorkRecoveryFunction> Logger = new();
         public readonly PendingWorkRecoveryFunction Function;
@@ -365,6 +389,7 @@ public sealed class PendingWorkRecoveryFunctionTests
             var dueStore = PortRecorder.Of<ICaseDueChaserStore>(Log, out _);
             var subscriptions = PortRecorder.Of<IApprovedMailboxSubscriptionStore>(Log, out _);
             var mailboxes = PortRecorder.Of<IApprovedIntakeMailboxes>(Log, out Mailboxes);
+            var pollStore = PortRecorder.Of<IApprovedInboxPollStore>(Log, out PollStore);
             var tidyStore = PortRecorder.Of<ISentReportInstructionTidyStore>(Log, out TidyStore);
             var configuration = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
@@ -390,7 +415,7 @@ public sealed class PendingWorkRecoveryFunctionTests
                     Clock,
                     NullLogger<MaintainMailboxChangeSubscriptions>.Instance),
                 new PollApprovedInbox(
-                    mailboxes, null!, null!, null!, null!, null!, null!, null!, Clock),
+                    mailboxes, null!, pollStore, null!, null!, null!, null!, null!, Clock),
                 new TidySentReportInstructions(tidyStore, new AvailableMover(), Clock),
                 Clock,
                 Logger);
