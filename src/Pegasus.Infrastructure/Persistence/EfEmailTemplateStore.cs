@@ -39,6 +39,12 @@ public sealed class EfEmailTemplateStore(
         var purpose = request.Purpose.ToString();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The purpose's row, or the gap its first save would fill, is the
+        // first lock, so a concurrent save waits, then replays or meets the
+        // version check.
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [EmailTemplates] WITH (UPDLOCK, HOLDLOCK) WHERE [Purpose] = {purpose}",
+            cancellationToken);
 
         var replay = await context.ActionHistory
             .AsNoTracking()

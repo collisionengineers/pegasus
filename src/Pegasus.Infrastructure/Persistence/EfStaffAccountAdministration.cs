@@ -30,6 +30,12 @@ public sealed class EfStaffAccountAdministration(
     {
         var normalizedUserName = NormalizeUserName(request.UserName);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The user name's row, or the gap a new one would fill, is the first
+        // lock, so a second create of the name waits, then replays or is
+        // refused as a duplicate.
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [AspNetUsers] WITH (UPDLOCK, HOLDLOCK) WHERE [NormalizedUserName] = {normalizedUserName}",
+            cancellationToken);
         var replay = await FindOperationAsync(request.OperationKey, cancellationToken);
         if (replay is not null)
         {

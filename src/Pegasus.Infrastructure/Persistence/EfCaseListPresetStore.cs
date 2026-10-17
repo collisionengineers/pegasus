@@ -37,6 +37,12 @@ internal sealed class EfCaseListPresetStore(
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The name's live row, or the gap a new one would fill, is the first
+        // lock, so a second save of the name waits, then replays or is
+        // refused as a duplicate.
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [CaseListPresets] WITH (UPDLOCK, HOLDLOCK) WHERE [Name] = {request.Name} AND [RemovedAtUtc] IS NULL",
+            cancellationToken);
 
         var replay = await ReplayAsync(context, request.OperationKey, cancellationToken);
         if (replay is not null)
