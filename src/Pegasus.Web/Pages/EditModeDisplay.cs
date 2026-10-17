@@ -72,7 +72,7 @@ public static class EditModeDisplay
     {
         ArgumentNullException.ThrowIfNull(holder);
         return holder.IsAutomation
-            ? "AI"
+            ? CaseEditAuthorityHolder.AutomationName
             : string.IsNullOrWhiteSpace(holder.DisplayName)
                 ? "Another member of staff"
                 : holder.DisplayName!;
@@ -85,7 +85,7 @@ public static class EditModeDisplay
     /// </summary>
     private static string Editor(CaseEditAuthorityHolder holder) =>
         holder.IsAutomation
-            ? "AI"
+            ? CaseEditAuthorityHolder.AutomationName
             : string.IsNullOrWhiteSpace(holder.DisplayName)
                 ? "another member of staff"
                 : holder.DisplayName;

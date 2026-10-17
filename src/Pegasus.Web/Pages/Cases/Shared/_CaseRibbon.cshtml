@@ -183,11 +183,12 @@
                 <span>@Frame.Done</span>
             </button>
         }
-        else if (details.ActiveEditLease is null || details.ActiveEditLease.HolderKind == Pegasus.Core.Identity.ActorKind.Staff)
+        else if (details.ActiveEditLease is null || details.ActiveEditLease.HolderKind == Pegasus.Core.Identity.ActorKind.Staff || Model.ViewerMayTakeOver)
         {
-            @* A colleague's staff lease can be taken over by an authorised
-               editor; the operation rotates its token and records the prior
-               holder. The viewer's own lease is resumed, never taken over.
+            @* A colleague's staff lease, or one the Automation Actor holds,
+               can be taken over by an authorised member of staff (operator,
+               15 October 2026); the operation rotates its token and records
+               the prior holder. The viewer's own lease is resumed, never taken over.
                Both views offer Edit (operator, 2 October 2026), a Report sent
                Case included (operator, 11 October 2026). A colleague's lease
                is offered Take over (operator, 29 September 2026), since the

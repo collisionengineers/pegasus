@@ -993,13 +993,13 @@ public sealed class AutomationAssessmentIngressTests
     }
 
     /// <summary>
-    /// The reported direction: the Automation Actor holds the lease over real HTTP,
-    /// the staff claim through the same Core port the workspace posts to is refused, the
-    /// workspace renders the case read-only with no claim control, and the holder still ends
-    /// its own lease afterwards — after which staff claim normally.
+    /// The reported direction: the Automation Actor holds the lease over real HTTP, the plain
+    /// staff claim through the same Core port the workspace posts to is refused, the workspace
+    /// renders the case read-only and offers Take over (operator, 15 October 2026), and the
+    /// holder still ends its own lease afterwards — after which staff claim normally.
     /// </summary>
     [Fact]
-    public async Task AnAutomationHeldLeaseRefusesTheStaffClaimAndLeavesTheWorkspaceReadOnly()
+    public async Task AnAutomationHeldLeaseRefusesThePlainStaffClaimAndOffersTakeOver()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
@@ -1024,10 +1024,11 @@ public sealed class AutomationAssessmentIngressTests
         using var page = await staffClient.GetAsync($"/Cases/{caseId:D}");
         Assert.Equal(HttpStatusCode.OK, page.StatusCode);
         var html = await page.Content.ReadAsStringAsync();
-        // v26: the holder is named by the ribbon's colleague chip, with no claim control.
+        // v26: the holder is named by the ribbon's colleague chip, beside Take over.
         Assert.Contains("data-edit-authority", html, StringComparison.Ordinal);
         Assert.Contains("AI is editing", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=ClaimLease", html, StringComparison.Ordinal);
+        Assert.Contains("handler=ClaimLease", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"takeOver\" value=\"true\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain(ClientId, html, StringComparison.OrdinalIgnoreCase);
 
@@ -1053,6 +1054,65 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(0, await GetWorkflowVersionAsync(mcpFactory, caseId));
     }
 
+    /// <summary>
+    /// A member of staff takes over the Case lease the Automation Actor holds over real HTTP
+    /// (operator, 15 October 2026): Take over through the Core port the workspace posts to passes
+    /// the lease to them, the Actor's next write under its old token is refused with the
+    /// held-by-another-actor mapping and writes nothing, and the one history line is the staff
+    /// member's, taken over from AI (operator, 16 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task AStaffTakeOverEndsTheAutomationLeaseAndItsNextWriteIsRefused()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+        var automationLease = await BeginEditAsync(client, token, caseId, 0, rpcId: 43);
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+
+        var staffLease = await ClaimAsStaffAsync(mcpFactory, caseId, staff, takeOver: true);
+        Assert.Equal(staff.SubjectId, staffLease.Holder);
+        Assert.NotEqual(automationLease.LeaseToken, staffLease.Token);
+
+        await AssertRefusedByAnotherHolderAsync(
+            client,
+            token,
+            ToolCallPayload(
+                44,
+                "pegasus_assessment_update",
+                new
+                {
+                    caseId,
+                    expectedVersion = 0,
+                    editLeaseToken = automationLease.LeaseToken,
+                    operationKey = "mcp:taken-over-write",
+                    reason = "Automation wrote after a staff takeover.",
+                    fields = new Dictionary<string, string?> { ["vehicle.condition"] = "good" }
+                }));
+
+        Assert.Equal(0, await GetWorkflowVersionAsync(mcpFactory, caseId));
+        Assert.Equal(
+            "Staff",
+            await factory.Database.ScalarAsync<string>(
+                $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM CaseWorkflowEvents
+            WHERE CaseId = '{caseId:D}'
+              AND EventType = N'edit_lease_taken_over'
+              AND ActorKind = N'Staff'
+              AND Reason = N'Edit lease taken over from AI.'
+            """));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM CaseWorkflowEvents
+            WHERE CaseId = '{caseId:D}'
+              AND EventType = N'edit_lease_taken_over'
+            """));
+    }
+
     private static async Task SetWorkflowStateAsync(IServiceProvider services, Guid caseId, CaseLifecycleState state)
     {
         await using var scope = services.CreateAsyncScope();
@@ -1066,11 +1126,12 @@ public sealed class AutomationAssessmentIngressTests
         WebApplicationFactory<Program> factory,
         Guid caseId,
         ActionActor staff,
-        long expectedVersion = 0)
+        long expectedVersion = 0,
+        bool takeOver = false)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
-            new(caseId, expectedVersion, staff, Guid.NewGuid().ToString("N")),
+            new(caseId, expectedVersion, staff, Guid.NewGuid().ToString("N")) { TakeOver = takeOver },
             CancellationToken.None);
     }
 

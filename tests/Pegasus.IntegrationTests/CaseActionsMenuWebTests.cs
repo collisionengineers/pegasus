@@ -96,6 +96,34 @@ public sealed class CaseActionsMenuWebTests
     }
 
     /// <summary>
+    /// A lease the Automation Actor holds is offered Take over like a colleague's (operator,
+    /// 15 October 2026): the chip names AI, the menu keeps only Export case and Tasks, and the
+    /// Actor's grant id appears nowhere on the page.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomationHeldCaseOffersTakeOverAndKeepsTheMenuToExportAndTasks()
+    {
+        var grantId = $"grant:{Guid.NewGuid():N}";
+        var html = await ReadCaseAsync(new RecordingCaseDetailsStore
+        {
+            LeaseHolder = grantId,
+            LeaseHolderKind = ActorKind.Automation
+        });
+        var bar = RecordBar(html);
+
+        Assert.Contains("data-case-export", bar, StringComparison.Ordinal);
+        Assert.Equal(1, Occurrences(bar, "data-dialog-open"));
+        Assert.Contains("data-dialog-open=\"case-tasks-dialog\"", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"case-hold-dialog\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-edit-authority", html, StringComparison.Ordinal);
+        Assert.Contains("AI is editing", html, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkspaceLabels.Frame.TakeOver, bar, StringComparison.Ordinal);
+        Assert.Contains("handler=ClaimLease", bar, StringComparison.Ordinal);
+        Assert.Contains("name=\"takeOver\" value=\"true\"", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain(grantId, html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// A Report sent Case, with or without an open query, is editable like a
     /// With Engineer Case (operator, 11 October 2026): it offers Edit Case,
     /// and a colleague's lease on it is offered Take over (operator, 29

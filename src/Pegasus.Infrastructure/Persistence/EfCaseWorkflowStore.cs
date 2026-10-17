@@ -202,7 +202,7 @@ public sealed class EfCaseWorkflowStore(
                 : null;
 
         var previousName = previousHolder is not null
-            ? await LeaseHolderNameAsync(context, previousHolder, cancellationToken)
+            ? await LeaseHolderNameAsync(context, previousHolderKind, previousHolder, cancellationToken)
             : null;
         ClearLease(workflow);
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
@@ -1953,8 +1953,9 @@ public sealed class EfCaseWorkflowStore(
         }));
 
     private static async Task<string> LeaseHolderNameAsync(
-        PegasusDbContext context, string holder, CancellationToken cancellationToken)
+        PegasusDbContext context, ActorKind? holderKind, string holder, CancellationToken cancellationToken)
     {
+        if (holderKind == ActorKind.Automation) return CaseEditAuthorityHolder.AutomationName;
         if (!Guid.TryParse(holder, out var staffId)) return holder;
         var name = await context.Users.AsNoTracking()
             .Where(item => item.Id == staffId)
