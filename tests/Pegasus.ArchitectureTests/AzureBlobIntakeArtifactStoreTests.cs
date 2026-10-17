@@ -577,10 +577,14 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         internal string? CopyId { get; set; }
 
         /// <summary>
-        /// The reads that still find the copy running: they report Pending,
-        /// and the blob is empty until they are used up.
+        /// The reads that still find the copy running. Each reports Pending,
+        /// and the blob stays empty from the first of them until a later read
+        /// finds the copy finished, so a verify that skips the wait sees an
+        /// empty blob.
         /// </summary>
         internal int PendingReads { get; set; }
+
+        private bool copyRunning;
 
         /// <summary>Refuses the start of a copy onto this blob.</summary>
         internal RequestFailedException? CopyStartFailure { get; set; }
@@ -610,8 +614,9 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             }
 
             ThrowIfETagDiffers(conditions);
-            var copyStatus = PendingReads > 0 ? CopyStatus.Pending : CopyStatus;
-            if (PendingReads > 0)
+            copyRunning = PendingReads > 0;
+            var copyStatus = copyRunning ? CopyStatus.Pending : CopyStatus;
+            if (copyRunning)
             {
                 PendingReads--;
             }
@@ -781,7 +786,7 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         {
             Operations++;
             DownloadCount++;
-            var body = PendingReads > 0 ? Array.Empty<byte>() : Body;
+            var body = copyRunning ? Array.Empty<byte>() : Body;
             return Response.FromValue(
                 BlobsModelFactory.BlobDownloadStreamingResult(
                     new MemoryStream(body),
