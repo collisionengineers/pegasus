@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
@@ -129,6 +130,102 @@ public sealed class ContactDirectoryPersistenceTests
             .Where(item => item.OrganizationId == request.OrganizationId && item.SuccessorId == null)
             .Select(item => item.IsActive)
             .SingleAsync());
+    }
+
+    /// <summary>
+    /// R118: a save sets an existing Principal's inspection mode; the same mode
+    /// changes nothing and leaves the version, and a new one is the contact's
+    /// history event with the mode before and after.
+    /// </summary>
+    [Fact]
+    public async Task SaveSetsAnExistingPrincipalsInspectionModeOnlyWhenItDiffers()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var request = NewPrincipal("Mode principal", "CPM01");
+        var created = await SaveAsync(database, request);
+        Assert.Equal(CaseInspectionMode.PhysicalAddress, created.PrincipalInspectionMode);
+
+        var unchanged = await SaveAsync(database, request with
+        {
+            ExpectedVersion = created.Version,
+            OperationKey = Guid.NewGuid().ToString("N")
+        });
+        Assert.Equal(created.Version, unchanged.Version);
+        Assert.Equal(CaseInspectionMode.PhysicalAddress, unchanged.PrincipalInspectionMode);
+
+        var changedKey = Guid.NewGuid().ToString("N");
+        var changed = await SaveAsync(database, request with
+        {
+            ExpectedVersion = unchanged.Version,
+            PrincipalInspectionMode = CaseInspectionMode.ImageBasedAssessment,
+            OperationKey = changedKey
+        });
+        Assert.Equal(unchanged.Version + 1, changed.Version);
+        Assert.Equal(CaseInspectionMode.ImageBasedAssessment, changed.PrincipalInspectionMode);
+
+        await using var scope = database.CreateAsyncScope();
+        var reread = await scope.ServiceProvider.GetRequiredService<IContactDirectoryQueries>()
+            .GetAsync(Administrator, request.OrganizationId, CancellationToken.None);
+        Assert.Equal(CaseInspectionMode.ImageBasedAssessment, reread!.PrincipalInspectionMode);
+        await using var context = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        Assert.Equal(
+            PrincipalInspectionModePolicy.ImageBasedAssessmentCode,
+            await context.Principals
+                .Where(item => item.OrganizationId == request.OrganizationId)
+                .Select(item => item.InspectionMode)
+                .SingleAsync());
+        var history = await context.ActionHistory.SingleAsync(item => item.CorrelationId == changedKey);
+        Assert.Equal(("contact", request.OrganizationId.ToString("D"), "contact_saved"), (history.AggregateType, history.AggregateId, history.EventKind));
+        Assert.Equal(CaseInspectionMode.PhysicalAddress, HistoryRecord(history.BeforeJson).PrincipalInspectionMode);
+        Assert.Equal(CaseInspectionMode.ImageBasedAssessment, HistoryRecord(history.AfterJson).PrincipalInspectionMode);
+    }
+
+    /// <summary>
+    /// R119: a contact may link an inactive Principal, and the Principal choices
+    /// offer an inactive one only to the contact that already links it.
+    /// </summary>
+    [Fact]
+    public async Task ALinkMayNameAnInactivePrincipalWhichOnlyItsContactIsOffered()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var activePrincipal = await SaveAsync(database, NewPrincipal("Linked active principal", "CPL01"));
+        var inactiveRequest = NewPrincipal("Linked inactive principal", "CPL02");
+        var inactivePrincipal = await SaveAsync(database, inactiveRequest);
+        _ = await SaveAsync(database, inactiveRequest with
+        {
+            ExpectedVersion = inactivePrincipal.Version,
+            Active = false,
+            OperationKey = Guid.NewGuid().ToString("N")
+        });
+        var activeId = activePrincipal.OwnPrincipalIds!.Single();
+        var inactiveId = inactivePrincipal.OwnPrincipalIds!.Single();
+        Guid[] linked = [.. new[] { activeId, inactiveId }.Order()];
+
+        var linking = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with
+        {
+            Name = "Inactive link repairer",
+            Role = ContactRole.Repairer,
+            LinkedPrincipalIds = linked
+        });
+        var other = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with
+        {
+            Name = "Unlinked repairer",
+            Role = ContactRole.Repairer
+        });
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IContactDirectoryQueries>();
+        Assert.Equal(linked, (await queries.GetAsync(Administrator, linking.OrganizationId, CancellationToken.None))!.LinkedPrincipalIds);
+        async Task<Guid[]> FixtureChoices(Guid? contactId) =>
+            [.. (await queries.ListPrincipalChoicesAsync(Administrator, contactId, CancellationToken.None))
+                .Select(choice => choice.Principal.Id)
+                .Where(id => linked.Contains(id))
+                .Order()];
+        Assert.Equal(linked, await FixtureChoices(linking.OrganizationId));
+        Assert.Equal([activeId], await FixtureChoices(other.OrganizationId));
+        Assert.Equal([activeId], await FixtureChoices(null));
     }
 
     [Fact]
@@ -327,6 +424,9 @@ public sealed class ContactDirectoryPersistenceTests
         [],
         Guid.NewGuid().ToString("N"),
         string.Empty);
+
+    private static ContactDirectoryRecord HistoryRecord(string? json) =>
+        JsonSerializer.Deserialize<ContactDirectoryRecord>(json!, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
 
     private static async Task<ContactDirectoryRecord> SaveAsync(
         LocalDbTestDatabase database,

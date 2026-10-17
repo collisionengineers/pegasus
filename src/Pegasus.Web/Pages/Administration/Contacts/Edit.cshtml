@@ -33,6 +33,8 @@
         <form method="post" asp-page-handler="Save" asp-route-id="@Model.ContactId" class="panel-body stack contact-editor">
             @{ await PanelMessages(false); }
             <input asp-for="ContactId" type="hidden" /><input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input asp-for="OperationKey" type="hidden" />
+            @* Save posts the Principal's current inspection mode, so a contact save leaves the mode as it is (operator, 16 October 2026). *@
+            @if (isPrincipal) { <input type="hidden" name="PrincipalInspectionMode" value="@Model.PrincipalInspectionMode" /> }
             <fieldset class="stack">
             <div class="form-grid form-grid--2">
                 <div class="field field-wide"><label class="req" asp-for="Name">Organisation name</label><input asp-for="Name" autocomplete="organization" /><span asp-validation-for="Name"></span></div>

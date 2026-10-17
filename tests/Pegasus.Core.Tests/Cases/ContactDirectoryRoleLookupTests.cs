@@ -61,7 +61,7 @@ public sealed class ContactDirectoryRoleLookupTests
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<PrincipalAdministrationDetails>> ListPrincipalChoicesAsync(
-            ActionActor actor, CancellationToken cancellationToken) =>
+            ActionActor actor, Guid? contactId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }
 }

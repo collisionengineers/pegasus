@@ -400,6 +400,66 @@ public sealed partial class ContactIndexWebTests
             $"SELECT Name FROM Organizations WHERE Id = '{secondId:D}';"));
     }
 
+    /// <summary>
+    /// R119: a contact's link to an inactive Principal is offered, ticked, in
+    /// Linked principals on its page, so saving the page keeps the link.
+    /// </summary>
+    [Fact]
+    public async Task APageSaveKeepsALinkToAnInactivePrincipal()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var repairerId = Guid.NewGuid();
+        Guid inactivePrincipalId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var administration = scope.ServiceProvider.GetRequiredService<IContactDirectoryAdministration>();
+            var principal = new SaveContactRequest(
+                Administrator, Guid.NewGuid(), 0, "Inactive Link Fixture Principal", null, null, null, null, null, true,
+                ContactRole.Principal, "ILFP1", CaseInspectionMode.PhysicalAddress, [], "contact-edit:inactive-principal");
+            var created = await administration.SaveAsync(principal, default);
+            await administration.SaveAsync(principal with
+            {
+                ExpectedVersion = created.Version,
+                Active = false,
+                OperationKey = "contact-edit:inactive-principal:disable"
+            }, default);
+            inactivePrincipalId = created.OwnPrincipalIds!.Single();
+            await administration.SaveAsync(new(
+                Administrator, repairerId, 0, "Inactive Link Fixture Repairer", null, null, null, null, null, true,
+                ContactRole.Repairer, null, CaseInspectionMode.PhysicalAddress, [inactivePrincipalId],
+                "contact-edit:inactive-link"), default);
+        }
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var path = $"/Administration/Contacts/Edit/{repairerId:D}";
+        var editor = await IntakeWebDriver.GetHtmlAsync(client, path);
+        var ticked = Assert.Single(CheckedLinkRegex().Matches(editor)).Groups["id"].Value;
+        Assert.Equal(inactivePrincipalId.ToString("D"), ticked);
+
+        using var saved = await client.PostAsync(
+            $"{path}?handler=Save",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(editor, "__RequestVerificationToken"),
+                ["ContactId"] = InputValue(editor, "ContactId"),
+                ["ExpectedVersion"] = InputValue(editor, "ExpectedVersion"),
+                ["OperationKey"] = InputValue(editor, "OperationKey"),
+                ["Name"] = "Inactive Link Fixture Repairer renamed",
+                ["Active"] = bool.TrueString,
+                ["LinkedPrincipalIds"] = ticked
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        Assert.Equal("Inactive Link Fixture Repairer renamed", await factory.Database.ScalarAsync<string>(
+            $"SELECT Name FROM Organizations WHERE Id = '{repairerId:D}';"));
+        Assert.Equal(inactivePrincipalId, await factory.Database.ScalarAsync<Guid>(
+            $"SELECT PrincipalId FROM ContactPrincipalLinks WHERE OrganizationId = '{repairerId:D}';"));
+    }
+
+    [GeneratedRegex(
+        "<input type=\"checkbox\" name=\"LinkedPrincipalIds\" value=\"(?<id>[^\"]+)\" checked",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex CheckedLinkRegex();
+
     private const string RepairerPrefix = "Paged Fixture Repairer";
     private const string ClaimsPrefix = "Paged Fixture Claims";
 

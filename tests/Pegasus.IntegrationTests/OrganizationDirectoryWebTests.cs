@@ -217,9 +217,10 @@ public sealed partial class OrganizationDirectoryWebTests
         Assert.Matches("""<input id="principal-inspection-mode" value="[^"]+" readonly""", editor);
         Assert.DoesNotContain("Guidance for new Cases", editor, StringComparison.Ordinal);
 
+        // R118: the form posts the Principal's current mode, so QDOS stays Image Based Assessment.
+        var inspectionMode = InputValue(editor, "PrincipalInspectionMode");
+        Assert.Equal(nameof(Pegasus.Core.Cases.CaseInspectionMode.ImageBasedAssessment), inspectionMode);
         // Save posts only the contact form: the Replace dialog's fields are absent.
-        var inspectionMode = await factory.Database.ScalarAsync<string>(
-            "SELECT InspectionMode FROM Principals WHERE Id = '" + principalId + "';");
         using var saved = await client.PostAsync(
             $"{path}?handler=Save",
             new FormUrlEncodedContent(new Dictionary<string, string>
@@ -230,7 +231,7 @@ public sealed partial class OrganizationDirectoryWebTests
                 ["OperationKey"] = InputValue(editor, "OperationKey"),
                 ["Name"] = InputValue(editor, "Name"),
                 ["PrincipalCode"] = InputValue(editor, "PrincipalCode"),
-                ["PrincipalInspectionMode"] = inspectionMode == "image_based_assessment" ? "ImageBasedAssessment" : "PhysicalAddress",
+                ["PrincipalInspectionMode"] = inspectionMode,
                 ["NotesOnEveryCase"] = "Ring the claimant before inspection.",
                 ["Active"] = bool.TrueString
             }));
@@ -243,6 +244,10 @@ public sealed partial class OrganizationDirectoryWebTests
             "Ring the claimant before inspection.",
             await factory.Database.ScalarAsync<string>(
                 $"SELECT NotesOnEveryCase FROM Organizations WHERE Id = '{contactId:D}';"));
+        Assert.Equal(
+            Pegasus.Core.Cases.PrincipalInspectionModePolicy.ImageBasedAssessmentCode,
+            await factory.Database.ScalarAsync<string>(
+                $"SELECT InspectionMode FROM Principals WHERE Id = '{principalId:D}';"));
     }
 
     [Fact]

@@ -117,7 +117,7 @@ public sealed class EditModel(
         await LoadPrincipalAsync(actor, cancellationToken);
         InitializePrincipalSettings();
         await LoadReportSendingChoicesAsync(actor, cancellationToken);
-        PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, cancellationToken);
+        PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, ContactId, cancellationToken);
         return Page();
     }
 
@@ -416,7 +416,7 @@ public sealed class EditModel(
             InitializePrincipalSettings();
             await LoadReportSendingChoicesAsync(actor, cancellationToken);
         }
-        PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, cancellationToken);
+        PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, ContactId, cancellationToken);
     }
 
     // The mailboxes a new message may leave from (the Outgoing ones that can
