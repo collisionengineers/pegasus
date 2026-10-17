@@ -431,7 +431,7 @@ public sealed class MailWorkspaceWebTests
             "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
         var selectedId = (await SeedAcceptedMessagesAsync(
             factory, FirstMailboxId, FirstMailboxAddress, count: 3))[0];
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var route = $"/Inbox?selected={selectedId:D}";
         // The first request pays one-off work; the counts are later ones.
         _ = await GetHtmlAsync(client, route);
