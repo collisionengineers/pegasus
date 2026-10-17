@@ -11,7 +11,7 @@ public sealed class TransactionIsolationContractTests
     [Fact]
     public void OnlyTheTransactionOwnerNamesAnIsolationLevel()
     {
-        var root = FindRepositoryRoot();
+        var root = RepositoryRoot.Find();
         var naming = Directory
             .EnumerateFiles(Path.Combine(root, "src", "Pegasus.Infrastructure"), "*.cs", SearchOption.AllDirectories)
             .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/'))
@@ -23,21 +23,5 @@ public sealed class TransactionIsolationContractTests
             .ToArray();
 
         Assert.Equal([Owner], naming);
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Pegasus.slnx")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate the Pegasus repository root.");
     }
 }
