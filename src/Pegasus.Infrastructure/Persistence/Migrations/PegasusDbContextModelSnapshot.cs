@@ -7483,6 +7483,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<int?>("ManufactureYear")
                         .HasColumnType("int");
 
+                    b.Property<string>("MileageEstimateJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("MileageMethodKey")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");

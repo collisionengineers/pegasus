@@ -87,6 +87,7 @@ public sealed class VehicleNoMotHistoryTests
             null,
             tests,
             null,
+            null,
             failureCode is null ? null : new(failureCode, Retryable: false),
             at);
     }

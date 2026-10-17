@@ -19,7 +19,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.VehicleLookupObservationEntity",
                 typeof(VehicleLookupObservationEntity),
                 baseEntityType,
-                propertyCount: 32,
+                propertyCount: 33,
                 navigationCount: 1,
                 foreignKeyCount: 1,
                 unnamedIndexCount: 2,
@@ -118,6 +118,14 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 fieldInfo: typeof(VehicleLookupObservationEntity).GetField("<ManufactureYear>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 nullable: true);
             manufactureYear.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var mileageEstimateJson = runtimeEntityType.AddProperty(
+                "MileageEstimateJson",
+                typeof(string),
+                propertyInfo: typeof(VehicleLookupObservationEntity).GetProperty("MileageEstimateJson", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(VehicleLookupObservationEntity).GetField("<MileageEstimateJson>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            mileageEstimateJson.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var mileageMethodKey = runtimeEntityType.AddProperty(
                 "MileageMethodKey",

@@ -227,7 +227,7 @@ public sealed class VehicleWorkflowTerminalTests
         await workStore.RecordOutcomeAsync(
             workItemId,
             claimed.LeaseToken!,
-            new(result, VehicleMileagePolicy.Calculate(result.MotTests)),
+            VehicleLookupProcessedOutcome.Derive(result),
             VehicleLookupWorkState.Completed,
             null,
             FixedUtcNow,

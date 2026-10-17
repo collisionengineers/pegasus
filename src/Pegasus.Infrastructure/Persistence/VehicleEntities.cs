@@ -47,6 +47,15 @@ internal sealed class VehicleLookupObservationEntity
     public string? MileageMethodKey { get; set; }
     public int? MileageMethodVersion { get; set; }
     public int? MileageSupportingObservationCount { get; set; }
+
+    /// <summary>
+    /// The MOT mileage estimate for the retrieval date and the staff
+    /// disposition of the Case mileage it filled, as one versioned envelope;
+    /// null on an answer with no evidence and on one recorded before the
+    /// estimate existed.
+    /// </summary>
+    public string? MileageEstimateJson { get; set; }
+
     public string? FailureCode { get; set; }
     public bool? FailureRetryable { get; set; }
     public long? FailureRetryAfterTicks { get; set; }

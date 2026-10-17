@@ -124,9 +124,10 @@ public sealed class EfCaseWorkspaceStore(
         var beforeMileageField = CaseDataFieldValues.CurrentField(
             snapshot.Fields,
             CaseDataFieldNames.VehicleMileage);
-        CaseDataSourceKind? beforeMileageProvenance = beforeMileageField is null
+        // Read before the save rewrites the row in place.
+        var beforeMileageOrigin = beforeMileageField is null
             ? null
-            : EfCaseDataStore.ParseSourceKind(beforeMileageField.SourceKind);
+            : EfCaseDataStore.Source(beforeMileageField);
         var beforeCompleteness = Completeness(snapshot);
         var data = CaseDataPolicy.Normalize(
             CaseWorkspacePolicy.Overlay(beforeData, request));
@@ -214,8 +215,8 @@ public sealed class EfCaseWorkspaceStore(
             snapshot.Fields,
             CaseDataFieldNames.VehicleMileage);
         var beforeMileageSource = CaseVehicleMileageSourcePolicy.Resolve(
-            beforeMileageProvenance,
-            beforeMileageField is not null);
+            beforeMileageOrigin?.Kind,
+            beforeMileageOrigin is not null);
         var afterMileageSource = CaseVehicleMileageSourcePolicy.Resolve(
             afterMileageField is null
                 ? null
@@ -430,6 +431,15 @@ public sealed class EfCaseWorkspaceStore(
             afterJson,
             $"{CaseWorkspacePolicy.PolicyKey}/v{CaseWorkspacePolicy.PolicyVersion}",
             now);
+        await EfVehicleLookupWorkStore.RecordEstimateDispositionAsync(
+            context,
+            workflow,
+            beforeMileageOrigin,
+            afterMileageField,
+            request.Actor,
+            beforeVersion,
+            now,
+            cancellationToken);
         var freshness = CaseReportFreshness.ClassifyWorkspace(
             beforeReportData,
             afterReportData,
