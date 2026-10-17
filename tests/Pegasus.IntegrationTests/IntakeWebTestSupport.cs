@@ -65,7 +65,6 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     private readonly bool initializeDevelopmentOffline;
     private readonly LocalDbTestDatabase? database;
     private readonly DatabaseOpenGuard? databaseOpenGuard;
-    private readonly DatabaseLessCaseReads? caseReads;
     private bool databaseOpenAttemptsReported;
     private readonly string workingDirectory = Path.Combine(
         Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
@@ -122,14 +121,13 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         database = LocalDbTestDatabase.CreateAsync().GetAwaiter().GetResult();
     }
 
-    private IntakeWebApplicationFactory(DatabaseOpenGuard databaseOpenGuard, DatabaseLessCaseReads caseReads)
+    private IntakeWebApplicationFactory(DatabaseOpenGuard databaseOpenGuard)
     {
         environment = "Development";
         localIntakeEnabled = true;
         timeProvider = new TestTimeProvider(FixedUtcNow);
         useIntegrationTestAuthentication = true;
         this.databaseOpenGuard = databaseOpenGuard;
-        this.caseReads = caseReads;
     }
 
     /// <summary>
@@ -141,11 +139,9 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     /// and refuses and records every connection it is asked to open. Its
     /// disposal reports the record, so a test that reached the database fails
     /// even where the page swallowed the refusal. A test's own substitution
-    /// still replaces a default. The first call in a test run reads the seeded
-    /// reference rows from a restored database of its own, once.
+    /// still replaces a default.
     /// </summary>
-    internal static IntakeWebApplicationFactory WithoutDatabase() =>
-        new(new DatabaseOpenGuard(), DatabaseLessCaseReads.Instance);
+    internal static IntakeWebApplicationFactory WithoutDatabase() => new(new DatabaseOpenGuard());
 
     internal LocalDbTestDatabase Database => database
         ?? throw new InvalidOperationException(
@@ -197,12 +193,12 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                     options => options.AddInterceptors(commandInterceptor),
                     ServiceLifetime.Singleton);
             }
-            if (databaseOpenGuard is not null && caseReads is not null)
+            if (databaseOpenGuard is not null)
             {
                 services.ConfigureDbContext<PegasusDbContext>(
                     options => options.AddInterceptors(databaseOpenGuard),
                     ServiceLifetime.Singleton);
-                SubstituteDatabaseLessReads(services, caseReads);
+                SubstituteDatabaseLessReads(services);
             }
             // Program.cs configures data protection only on the Production
             // branch, so a Development host would otherwise fall back to the
@@ -269,7 +265,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     /// The reads a database-less host answers itself, registered before any
     /// test's own substitution so that one still replaces them.
     /// </summary>
-    private static void SubstituteDatabaseLessReads(IServiceCollection services, DatabaseLessCaseReads reads)
+    private static void SubstituteDatabaseLessReads(IServiceCollection services)
     {
         CaseWebTestSupport.Substitute<IMyStaffNotifications>(services, new EmptyStaffNotifications());
         CaseWebTestSupport.Substitute<IMyReleaseNotes>(services, new NoReleaseNotes());
@@ -279,6 +275,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             DevelopmentOfflineIdentity.AdministratorId,
             DevelopmentOfflineIdentity.UserName,
             StaffRole.Administrator));
+        var reads = new DatabaseLessCaseReads();
         CaseWebTestSupport.Substitute<ICaseKindQueries>(services, reads);
         CaseWebTestSupport.Substitute<ICaseAssetPreparationQueries>(services, reads);
         CaseWebTestSupport.Substitute<IInspectionAddressChoicesQueries>(services, reads);

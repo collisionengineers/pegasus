@@ -1,4 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Address;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
@@ -8,7 +7,6 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
-using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests.Support;
 
@@ -21,15 +19,13 @@ namespace Pegasus.IntegrationTests.Support;
 /// A recording-store test serves its Case from the store, so these are the
 /// reads it used to send to a restored database: no kind, preparation,
 /// previous address, AI job, estimate, saved unroadworthy reason, salvage
-/// matrix, report, valuation, image intake or lease to resume; Send to AI
-/// switched on, because no row says otherwise; and the reference rows the
-/// migrations seed (the labour-rate cards, the valuation presets, the image-tag
-/// vocabulary, the claim sources and the repairers). Those rows are read once
-/// per test run from a restored, initialised database (<see cref="Instance"/>),
-/// so no copy of a seed drifts from it; no database-less host opens that
-/// connection. <c>DatabaseLessWebHostTests</c> holds every answer to the
-/// migrated database's. A read the Case page does not make is refused rather
-/// than guessed.
+/// matrix, report, valuation, repairer, image intake or lease to resume; Send
+/// to AI switched on, because no row says otherwise; and the reference rows the
+/// migrations seed (the labour-rate cards, the valuation presets, the built-in
+/// image tags and the claim sources). <c>DatabaseLessWebHostTests</c> compares
+/// every answer with the migrated database's, so a seed copied here that
+/// drifts from its migration fails there. A read the Case page does not make
+/// is refused rather than guessed.
 /// </remarks>
 internal sealed class DatabaseLessCaseReads :
     ICaseKindQueries,
@@ -51,45 +47,54 @@ internal sealed class DatabaseLessCaseReads :
     IReadImageTagVocabulary,
     IImageIntakeQueries
 {
-    private static readonly Lazy<Task<DatabaseLessCaseReads>> Shared = new(() => Task.Run(ReadSeededRowsAsync));
+    /// <summary>The built-in cards <c>20261013090000_LabourRateBuiltInCards</c> seeds.</summary>
+    private static readonly IReadOnlyList<LabourRateCard> LabourRateCards =
+    [
+        new(new Guid("5b0f3c1e-8f4a-4d2b-9a57-1c3e2f6a7b01"), LabourRateCardAdministration.Standard, 83.28m, 1),
+        new(new Guid("5b0f3c1e-8f4a-4d2b-9a57-1c3e2f6a7b02"), LabourRateCardAdministration.PrestigeAluminium, 103.06m, 1),
+    ];
 
-    private readonly IReadOnlyList<LabourRateCard> labourRateCards;
-    private readonly IReadOnlyList<ValuationPreset> valuationPresets;
-    private readonly IReadOnlyList<ImageTag> imageTags;
-    private readonly IReadOnlyList<ContactDirectoryRecord> claimSources;
-    private readonly IReadOnlyList<ContactDirectoryRecord> repairers;
+    /// <summary>The presets <c>20260906054658_V1PlatformFoundation</c> seeds, in the store's label order.</summary>
+    private static readonly IReadOnlyList<ValuationPreset> ValuationPresets =
+    [
+        SeededPreset("00000000-0000-4000-8000-00000000f004", "Camper conversion", 0.00m),
+        SeededPreset("00000000-0000-4000-8000-00000000f003", "Decals", 500.00m),
+        SeededPreset("00000000-0000-4000-8000-00000000f005", "Driving tuition", 500.00m),
+        SeededPreset("00000000-0000-4000-8000-00000000f002", "PCO plated", 1500.00m),
+        SeededPreset("00000000-0000-4000-8000-00000000f001", "Tow bar", 300.00m),
+    ];
 
-    private DatabaseLessCaseReads(
-        IReadOnlyList<LabourRateCard> labourRateCards,
-        IReadOnlyList<ValuationPreset> valuationPresets,
-        IReadOnlyList<ImageTag> imageTags,
-        IReadOnlyList<ContactDirectoryRecord> claimSources,
-        IReadOnlyList<ContactDirectoryRecord> repairers)
-    {
-        this.labourRateCards = labourRateCards;
-        this.valuationPresets = valuationPresets;
-        this.imageTags = imageTags;
-        this.claimSources = claimSources;
-        this.repairers = repairers;
-    }
+    /// <summary>
+    /// The built-in tags <c>20260910120000_CaseImageTags</c> seeds, in the
+    /// reader's name order (<c>20261007140000_MarketResearchDocumentRole</c>
+    /// removed the fifth).
+    /// </summary>
+    private static readonly IReadOnlyList<ImageTag> ImageTags =
+    [
+        new(ImageTagVocabulary.CloseUpId, "Close-up", ImageTagColour.Green, true, 1),
+        new(ImageTagVocabulary.OverviewId, "Overview", ImageTagColour.Blue, true, 1),
+        new(ImageTagVocabulary.ReflectionId, "Reflection", ImageTagColour.Navy, true, 1),
+        new(ImageTagVocabulary.ThirdPartyId, "Third party", ImageTagColour.Amber, true, 1),
+    ];
 
-    /// <summary>The run's one instance; the first use reads the seeded rows.</summary>
-    public static DatabaseLessCaseReads Instance => Shared.Value.GetAwaiter().GetResult();
-
-    private static async Task<DatabaseLessCaseReads> ReadSeededRowsAsync()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        await using var scope = factory.Services.CreateAsyncScope();
-        var services = scope.ServiceProvider;
-        var administrator = ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
-        var contacts = services.GetRequiredService<IContactDirectoryQueries>();
-        return new(
-            await services.GetRequiredService<ILabourRateCardStore>().ListAsync(CancellationToken.None),
-            await services.GetRequiredService<IValuationPresetStore>().ListAsync(CancellationToken.None),
-            await services.GetRequiredService<IReadImageTagVocabulary>().ListAsync(CancellationToken.None),
-            await contacts.ListByRoleAsync(administrator, ContactRole.ClaimSource, CancellationToken.None),
-            await contacts.ListByRoleAsync(administrator, ContactRole.Repairer, CancellationToken.None));
-    }
+    /// <summary>
+    /// The claim sources <c>20261012190000_PrincipalReportSendingRules</c>
+    /// (slots 01 to 05) and <c>20261013091000_ContactSopSeed</c> (06 to 0a)
+    /// seed, in the store's name order. No migration seeds a repairer.
+    /// </summary>
+    private static readonly IReadOnlyList<ContactDirectoryRecord> ClaimSources =
+    [
+        SeededClaimSource("00000000-0000-4000-8000-00000000f001", "Car 2 Go"),
+        SeededClaimSource("00000000-0000-4000-8000-00000000f003", "CarClaims"),
+        SeededClaimSource("00000000-0000-4000-8000-00000000f006", "Easdons"),
+        SeededClaimSource("00000000-0000-4000-8000-00000000f004", "Expert Claims"),
+        SeededClaimSource("00000000-0000-4000-8000-00000000f007", "Guardian Accident Claims"),
+        SeededClaimSource("00000000-0000-4000-8000-00000000f008", "Hackney Solutions"),
+        SeededClaimSource("00000000-0000-4000-8000-00000000f009", "James Claims"),
+        SeededClaimSource("00000000-0000-4000-8000-00000000f005", "Rapid Rental Solutions"),
+        SeededClaimSource("00000000-0000-4000-8000-00000000f002", "SMC"),
+        SeededClaimSource("00000000-0000-4000-8000-00000000f00a", "Swinton"),
+    ];
 
     Task<CaseType?> ICaseKindQueries.GetAsync(Guid caseId, CancellationToken cancellationToken) =>
         Task.FromResult<CaseType?>(null);
@@ -137,7 +142,7 @@ internal sealed class DatabaseLessCaseReads :
         Task.FromResult<IReadOnlyList<RepairSpecificationVersion>>([]);
 
     Task<IReadOnlyList<LabourRateCard>> ILabourRateCardStore.ListAsync(CancellationToken cancellationToken) =>
-        Task.FromResult(labourRateCards);
+        Task.FromResult(LabourRateCards);
 
     Task<LabourRateCard> ILabourRateCardStore.SaveAsync(
         SaveLabourRateCardRequest request, CancellationToken cancellationToken) =>
@@ -215,7 +220,7 @@ internal sealed class DatabaseLessCaseReads :
         Task.FromResult<IReadOnlyList<AppliedValuation>>([]);
 
     Task<IReadOnlyList<ValuationPreset>> IValuationPresetStore.ListAsync(CancellationToken cancellationToken) =>
-        Task.FromResult(valuationPresets);
+        Task.FromResult(ValuationPresets);
 
     Task<ValuationPreset> IValuationPresetStore.SaveAsync(
         SaveValuationPresetRequest request, CancellationToken cancellationToken) =>
@@ -229,8 +234,8 @@ internal sealed class DatabaseLessCaseReads :
     Task<IReadOnlyList<ContactDirectoryRecord>> IContactDirectoryQueries.ListByRoleAsync(
         ActionActor actor, ContactRole role, CancellationToken cancellationToken) => role switch
         {
-            ContactRole.ClaimSource => Task.FromResult(claimSources),
-            ContactRole.Repairer => Task.FromResult(repairers),
+            ContactRole.ClaimSource => Task.FromResult(ClaimSources),
+            ContactRole.Repairer => Task.FromResult<IReadOnlyList<ContactDirectoryRecord>>([]),
             _ => Refused<IReadOnlyList<ContactDirectoryRecord>>(nameof(IContactDirectoryQueries)),
         };
 
@@ -255,7 +260,7 @@ internal sealed class DatabaseLessCaseReads :
         Task.FromResult<CaseEditLease?>(null);
 
     Task<IReadOnlyList<ImageTag>> IReadImageTagVocabulary.ListAsync(CancellationToken cancellationToken) =>
-        Task.FromResult(imageTags);
+        Task.FromResult(ImageTags);
 
     Task<IReadOnlyList<ImageIntakeSummary>> IImageIntakeQueries.ListForCaseAsync(
         Guid caseId, CancellationToken cancellationToken) =>
@@ -287,6 +292,13 @@ internal sealed class DatabaseLessCaseReads :
     Task<IReadOnlyList<ImageIntakeSummary>> IImageIntakeQueries.SearchByRegistrationAsync(
         string normalizedVehicleRegistration, CancellationToken cancellationToken) =>
         Refused<IReadOnlyList<ImageIntakeSummary>>(nameof(IImageIntakeQueries));
+
+    private static ValuationPreset SeededPreset(string id, string label, decimal suggestedAmount) =>
+        new(new Guid(id), label, suggestedAmount, true, 1, "system:v1-foundation", DateTimeOffset.UnixEpoch);
+
+    /// <summary>An active claim source as the seed writes it: a name and nothing else, at version 0.</summary>
+    private static ContactDirectoryRecord SeededClaimSource(string id, string name) =>
+        new(new Guid(id), name, null, null, null, null, null, true, ContactRole.ClaimSource, 0, null, null, [], []);
 
     private static Task<T> Refused<T>(string port) =>
         Task.FromException<T>(new NotSupportedException(
