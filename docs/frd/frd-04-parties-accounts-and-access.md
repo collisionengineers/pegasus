@@ -227,11 +227,12 @@ The Principal section of a Contact carries:
   the problem and keeps what was typed. A Principal the SOP does not name,
   and every Principal created later, has the default rules: reply to the
   original sender and keep the instruction's Cc. A successor code inherits
-  its predecessor's rules. The rules were imported once from the SOP (the
+  its predecessor's rules. The rules were imported from the SOP (the
   supplied
-  [report_sending_sop.v5.yaml](../principal-profiles/sop-guides/report_sending_sop.v5.yaml)),
-  with the SOP's TL thresholds and QCL's contract repair line appended to
-  Notes on every Case. The
+  [report_sending_sop.v5.yaml](../principal-profiles/sop-guides/report_sending_sop.v5.yaml),
+  which keeps its v5 name and holds version 8, 15 October 2026; operator,
+  16 October 2026), with the SOP's TL thresholds and QCL's contract repair
+  line appended to Notes on every Case. The
   delivery behaviour is owned by
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md);
 - the Principal API credential (API-04): issue, reset, revoke, pause and
