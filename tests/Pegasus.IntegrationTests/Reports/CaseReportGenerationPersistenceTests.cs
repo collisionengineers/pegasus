@@ -204,7 +204,7 @@ public sealed class CaseReportGenerationPersistenceTests
         // Change persisted evidence independently, without a staff Case edit.
         await harness.ChangeConfirmedSourceAsync(change);
         await using var context = await harness.Factory.CreateDbContextAsync();
-        var workflow = await context.CaseWorkflows.SingleAsync();
+        var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == harness.CaseId);
         CaseMutationGuard.Require(workflow, harness.StaffActor, 1, harness.Lease.Token, Harness.StartUtc);
 
         var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Store.FreezeAsync(
@@ -391,9 +391,9 @@ public sealed class CaseReportGenerationPersistenceTests
             await using var transaction = await context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
             await EfCaseArtifactCustody.RecordConfirmedSourceChangeAsync(
                 context, harness.CaseId, Harness.OperationKey, Harness.StartUtc, default);
-            Assert.Equal(1, (await context.CaseWorkflows.SingleAsync()).Version);
+            Assert.Equal(1, (await context.CaseWorkflows.SingleAsync(item => item.CaseId == harness.CaseId)).Version);
             Assert.Equal(nameof(CaseReportGenerationState.Confirmed),
-                (await context.Set<CaseReportGenerationEntity>().SingleAsync()).State);
+                (await context.Set<CaseReportGenerationEntity>().SingleAsync(item => item.CaseId == harness.CaseId)).State);
 
             await EfCaseArtifactCustody.RecordConfirmedSourceChangeAsync(
                 context, harness.CaseId, "glass-estimate-source", Harness.StartUtc, default);
@@ -405,7 +405,7 @@ public sealed class CaseReportGenerationPersistenceTests
         }
 
         Assert.Equal(CaseReportGenerationState.Stale, Assert.Single(await harness.GenerationRowsAsync()).State);
-        var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync();
+        var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == harness.CaseId);
         Assert.Equal(1, workflow.Version);
         CaseMutationGuard.Require(workflow, harness.StaffActor, 1, harness.Lease.Token, Harness.StartUtc);
         Assert.Equal(harness.Lease.ExpiresAtUtc, workflow.EditLeaseExpiresAtUtc);
