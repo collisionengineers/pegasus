@@ -18,7 +18,7 @@ namespace Pegasus.IntegrationTests.Support;
 /// <remarks>
 /// A recording-store test serves its Case from the store, so these are the
 /// reads it used to send to a restored database: no kind, preparation,
-/// previous address, AI job, estimate, saved unroadworthy reason, salvage
+/// previous address, reviewed inspection location, AI job, estimate, saved unroadworthy reason, salvage
 /// matrix, report, valuation, repairer, image intake or lease to resume; Send
 /// to AI switched on, because no row says otherwise; and the reference rows the
 /// migrations seed (the labour-rate cards, the valuation presets, the built-in
@@ -110,6 +110,10 @@ internal sealed class DatabaseLessCaseReads :
     Task<IReadOnlyList<string>> IInspectionAddressChoicesQueries.GetPreviousAddressesAsync(
         Guid caseId, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<string>>([]);
+
+    Task<IReadOnlyList<DirectoryInspectionLocation>> IInspectionAddressChoicesQueries.GetDirectoryLocationsAsync(
+        Guid caseId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<DirectoryInspectionLocation>>([]);
 
     Task<IReadOnlyList<AiJobRecord>> IAiJobQueries.ListForSubjectAsync(
         Guid subjectId, CancellationToken cancellationToken) =>
@@ -243,16 +247,16 @@ internal sealed class DatabaseLessCaseReads :
         ActionActor actor, Guid organizationId, CancellationToken cancellationToken) =>
         Refused<ContactDirectoryRecord?>(nameof(IContactDirectoryQueries));
 
-    Task<IReadOnlyList<ContactDirectoryRecord>> IContactDirectoryQueries.ListAsync(
+    Task<ContactDirectoryPage> IContactDirectoryQueries.ListAsync(
         ContactDirectoryQuery query, CancellationToken cancellationToken) =>
-        Refused<IReadOnlyList<ContactDirectoryRecord>>(nameof(IContactDirectoryQueries));
+        Refused<ContactDirectoryPage>(nameof(IContactDirectoryQueries));
 
     Task<IReadOnlyList<ContactDirectoryRecord>> IContactDirectoryQueries.FindPossibleMatchesAsync(
         ActionActor actor, string name, CancellationToken cancellationToken) =>
         Refused<IReadOnlyList<ContactDirectoryRecord>>(nameof(IContactDirectoryQueries));
 
     Task<IReadOnlyList<PrincipalAdministrationDetails>> IContactDirectoryQueries.ListPrincipalChoicesAsync(
-        ActionActor actor, CancellationToken cancellationToken) =>
+        ActionActor actor, Guid? contactId, CancellationToken cancellationToken) =>
         Refused<IReadOnlyList<PrincipalAdministrationDetails>>(nameof(IContactDirectoryQueries));
 
     Task<CaseEditLease?> IResumeCaseEditLease.ExecuteAsync(

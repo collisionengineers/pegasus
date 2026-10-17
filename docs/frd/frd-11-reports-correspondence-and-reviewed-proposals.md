@@ -401,11 +401,11 @@ displayed times use Europe/London.
 ### Report sending rules
 
 Every Principal has report sending rules (set on the Principal contact, see
-[FRD-17](frd-17-administration-workspace.md); supplied as Report Sending SOP
-v5). One Core plan reads them with the Case's facts. The page makes the plan
-when it loads, and Send report makes it again with staff's answers and follows
-it. Everything below is answered on the one delivery form, in the same click
-as Send report.
+[FRD-17](frd-17-administration-workspace.md); Report Sending SOP v8, 15
+October 2026). One Core plan reads them with the Case's facts. The page makes
+the plan when it loads, and Send report makes it again with staff's answers
+and follows it. Everything below is answered on the one delivery form, in the
+same click as Send report.
 
 - **Mode.** Where the report leaves from is **From and subject** above: a
   reply in the instruction's thread from the mailbox it arrived in while that
@@ -425,6 +425,10 @@ as Send report.
   instruction e-mail's subject and text, ignoring case and spaces, and is
   undecided only when the Case holds no instruction text. "Images from" and
   "Bodyshop mentions" have no Case fact, so they are always undecided.
+  "Reference prefix" reads the report's reference (`a.PCH26118` has the
+  prefix `a`), and "Previous job" whether another Case of the same Principal
+  with the same vehicle registration already has a sent report; neither is
+  ever undecided (operator, 16 October 2026).
 - **Questions.** Each undecided condition of an undecided rule is a Yes or No
   question on the delivery form. An answer settles it for that send only, and
   never overrides a fact the Case holds. Send report is refused until every
@@ -436,6 +440,10 @@ as Send report.
   unless staff with casework give a reason to override it. The send records the
   Stop and the reason. Nothing else is a Stop: a send with no To address or no
   usable mailbox is simply refused until it has one.
+- **Attach overrides.** A rule that holds replaces the Attach choices it
+  names for that send, in rule order, so a later rule wins; the ones it
+  leaves As the Principal keep the Principal's (operator, 16 October 2026).
+  The companions, filed estimates and fee note below follow the result.
 - **Required companions.** A Principal may require the images document, the
   figure breakdown (the Repair Spec) or both. A required companion is ticked
   and cannot be unticked, and Send report is withheld while it is not
@@ -451,9 +459,11 @@ as Send report.
 - **Fee note.** A confirmed separate fee note is offered ticked under Attach. A
   Principal that expects one gets a warning when none is confirmed.
 - **After sending.** The Principal's reminders, the reminders of each rule that
-  holds, and "Send the figures to the garage." for a repairable outcome when the
-  Principal asks for it are shown on the form and recorded with the send. They
-  become Case tasks when Report sent is recorded
+  holds, each followed by "Check the report's estimate against the Connexus
+  Repair Rate Card." when that rule has Rate card (operator, 15 and 16
+  October 2026), and "Send the figures to the garage." for a repairable
+  outcome when the Principal asks for it are shown on the form and recorded
+  with the send. They become Case tasks when Report sent is recorded
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)).
 - **Name.** A Principal may set the report's name: one pattern for a first send
   and one for every later send, using {ref}, {reg} and {outcome}. Without one,

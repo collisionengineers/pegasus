@@ -33,6 +33,8 @@
         <form method="post" asp-page-handler="Save" asp-route-id="@Model.ContactId" class="panel-body stack contact-editor">
             @{ await PanelMessages(false); }
             <input asp-for="ContactId" type="hidden" /><input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input asp-for="OperationKey" type="hidden" />
+            @* Save posts the Principal's current inspection mode, so a contact save leaves the mode as it is (operator, 16 October 2026). *@
+            @if (isPrincipal) { <input type="hidden" name="PrincipalInspectionMode" value="@Model.PrincipalInspectionMode" /> }
             <fieldset class="stack">
             <div class="form-grid form-grid--2">
                 <div class="field field-wide"><label class="req" asp-for="Name">Organisation name</label><input asp-for="Name" autocomplete="organization" /><span asp-validation-for="Name"></span></div>
@@ -88,7 +90,7 @@
         }
         if (tab == EditModel.ReportSendingTab)
         {
-            @* Report sending rules (Report Sending SOP v5): who the report goes to and from, who is copied, what goes with it, and what holds or stops delivery.
+            @* Report sending rules (Report Sending SOP v8): who the report goes to and from, who is copied, what goes with it, and what holds or stops delivery.
                A rule row left blank is ignored, so the list keeps one spare row to type into. *@
                 var sending = Model.ReportSendingRules;
                 var sendFromChoices = Model.SendFromChoices.ToList();
@@ -103,6 +105,11 @@
                         if (!options.Any(option => string.Equals(option.Item1, id, StringComparison.OrdinalIgnoreCase))) options.Add((id, id));
                     }
                     return options;
+                }
+                // One attach flag of a rule: left unnamed it keeps the Principal value (Report Sending SOP v8, rule R14).
+                async Task AttachOverride(int index, string flag, string label, bool? value)
+                {
+                    <div class="field"><label for="Rule@(index)Attach@(flag)">@label</label><select id="Rule@(index)Attach@(flag)" name="Rule@(index)Attach@(flag)"><option value="">@OperatorLabels.PrincipalAdministration.AttachAsThePrincipal</option><option value="true" selected="@(value == true)">@OperatorLabels.PrincipalAdministration.AttachOverrideOn</option><option value="false" selected="@(value == false)">@OperatorLabels.PrincipalAdministration.AttachOverrideOff</option></select></div>
                 }
             <section class="panel" aria-labelledby="principal-sending-title"><div class="panel-head"><h2 id="principal-sending-title">@OperatorLabels.PrincipalAdministration.ReportSending</h2></div><form method="post" asp-page-handler="UpdateReportSending" asp-route-id="@Model.ContactId" class="panel-body stack" data-report-sending-editor>@{ await PanelMessages(true); }<input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input type="hidden" name="PrincipalExpectedVersion" value="@Model.PrincipalExpectedVersion" /><input asp-for="ReportSendingOperationKey" type="hidden" /><fieldset class="stack">
                 <div class="form-grid form-grid--2">
@@ -131,7 +138,7 @@
                             {
                                 var condition = s < rule.If.Count ? rule.If[s] : null;
                                 var values = condition?.Values ?? [];
-                                var isText = condition is not null && condition.Kind is ReportSendingConditionKind.ImagesFrom or ReportSendingConditionKind.Mentions or ReportSendingConditionKind.BodyshopMentions or ReportSendingConditionKind.SenderNot;
+                                var isText = condition is not null && condition.Kind is ReportSendingConditionKind.ImagesFrom or ReportSendingConditionKind.Mentions or ReportSendingConditionKind.BodyshopMentions or ReportSendingConditionKind.SenderNot or ReportSendingConditionKind.RefPrefix;
                                 <div class="form-grid form-grid--2" data-rs-condition>
                                     <div class="field"><label for="Rule@(r)Cond@(s)Kind">@OperatorLabels.PrincipalAdministration.Condition</label><select id="Rule@(r)Cond@(s)Kind" name="Rule@(r)Cond@(s)Kind" data-rs-kind><option value="">@OperatorLabels.PrincipalAdministration.NoCondition</option>@foreach (var kind in Enum.GetValues<ReportSendingConditionKind>()) { <option value="@kind" selected="@(condition?.Kind == kind)">@OperatorLabels.PrincipalAdministration.ConditionKind(kind)</option> }</select></div>
                                     <div class="field" data-rs-value="ClaimSource" hidden="@(condition is not null && condition.Kind != ReportSendingConditionKind.ClaimSource)"><label for="Rule@(r)Cond@(s)ClaimSource">@OperatorLabels.PrincipalAdministration.ConditionKind(ReportSendingConditionKind.ClaimSource)</label><select id="Rule@(r)Cond@(s)ClaimSource" name="Rule@(r)Cond@(s)ClaimSource" multiple size="3">@foreach (var option in ContactOptions(Model.ClaimSourceChoices, condition?.Kind == ReportSendingConditionKind.ClaimSource ? values : [])) { <option value="@option.Id" selected="@(condition?.Kind == ReportSendingConditionKind.ClaimSource && values.Contains(option.Id, StringComparer.OrdinalIgnoreCase))">@option.Name</option> }</select></div>
@@ -147,6 +154,8 @@
                                 <div class="field"><label for="Rule@(r)Remind">@OperatorLabels.PrincipalAdministration.ActionRemind</label><input id="Rule@(r)Remind" name="Rule@(r)Remind" value="@rule.Then.Remind" autocomplete="off" /></div>
                                 <div class="field"><label for="Rule@(r)Hold">@OperatorLabels.PrincipalAdministration.ActionHold</label><input id="Rule@(r)Hold" name="Rule@(r)Hold" value="@rule.Then.Hold" autocomplete="off" /></div>
                                 <div class="field field-wide"><label for="Rule@(r)Stop">@OperatorLabels.PrincipalAdministration.ActionStop</label><input id="Rule@(r)Stop" name="Rule@(r)Stop" value="@rule.Then.Stop" autocomplete="off" /><p class="hint">@OperatorLabels.PrincipalAdministration.ActionStopHint</p></div>
+                                <div class="field"><label class="choice"><input type="checkbox" name="Rule@(r)RateCard" value="true" checked="@rule.Then.RateCard" /> <span>@OperatorLabels.PrincipalAdministration.ActionRateCard</span></label></div>
+                                <fieldset class="field field-wide"><legend>@OperatorLabels.PrincipalAdministration.Attach</legend><div class="form-grid form-grid--2">@{ var named = rule.Then.Attach; await AttachOverride(r,"FeeNoteSeparate", OperatorLabels.PrincipalAdministration.FeeNoteSeparate, named?.FeeNoteSeparate); await AttachOverride(r,"Estimate", OperatorLabels.PrincipalAdministration.AttachEstimate, named?.Estimate); await AttachOverride(r,"Audatex", OperatorLabels.PrincipalAdministration.AttachAudatex, named?.Audatex); await AttachOverride(r,"VehicleImagesDocument", OperatorLabels.PrincipalAdministration.VehicleImagesDocument, named?.VehicleImagesDocument); await AttachOverride(r,"FigureBreakdown", OperatorLabels.PrincipalAdministration.FigureBreakdown, named?.FigureBreakdown); }</div></fieldset>
                             </div>
                             <div class="button-row"><button type="button" class="btn btn--small" data-remove-rs-rule>@OperatorLabels.PrincipalAdministration.RemoveRule</button></div>
                         </fieldset>

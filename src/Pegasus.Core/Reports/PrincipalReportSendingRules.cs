@@ -22,6 +22,12 @@ namespace Pegasus.Core.Reports;
 /// Inspection and Audit name the report being sent, so on an Inspection +
 /// Audit Case they match its Inspection and its Audit report; InspectionAndAudit
 /// matches either (<see cref="ReportDispatchFacts.ReportWork"/>).
+/// <see cref="RefPrefix"/> holds when the report's reference starts with one
+/// of its values and a dot (<c>a.PCH26118</c> has the prefix <c>a</c>).
+/// <see cref="PreviousJob"/> takes no value and holds when another Case of the
+/// same Principal with the same vehicle registration already has a sent
+/// report (<see cref="ReportDispatchFacts.PreviousJob"/>). Neither is ever
+/// asked (Report Sending SOP v8, 15 October 2026).
 /// </remarks>
 public enum ReportSendingConditionKind
 {
@@ -32,7 +38,9 @@ public enum ReportSendingConditionKind
     SenderNot,
     Outcome,
     BodyshopMentions,
-    CaseType
+    CaseType,
+    RefPrefix,
+    PreviousJob
 }
 
 public enum ReportSendingRuleMatch
@@ -47,18 +55,52 @@ public sealed record ReportSendingCondition(
     IReadOnlyList<string> Values);
 
 /// <summary>What a rule does when its conditions hold.</summary>
+/// <param name="RateCard">Staff check the report's estimate against the rate card after sending.</param>
+/// <param name="Attach">The attach flags this rule replaces for the send.</param>
 public sealed record ReportSendingActions(
     IReadOnlyList<string> CcAdd,
     IReadOnlyList<string> CcRemove,
     string? Remind = null,
     string? Hold = null,
-    string? Stop = null)
+    string? Stop = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool RateCard = false,
+    ReportSendingAttachOverride? Attach = null)
 {
     public static ReportSendingActions None { get; } = new([], []);
 
     [JsonIgnore]
     public bool IsEmpty =>
-        CcAdd.Count == 0 && CcRemove.Count == 0 && Remind is null && Hold is null && Stop is null;
+        CcAdd.Count == 0 && CcRemove.Count == 0 && Remind is null && Hold is null && Stop is null
+        && !RateCard && Attach is not { IsEmpty: false };
+}
+
+/// <summary>
+/// A rule's attach override (Report Sending SOP v8, rule R14): each flag it
+/// names replaces the Principal's for this send, and one it leaves null keeps
+/// the Principal's. Report images is not among them, since the report is
+/// generated before the rules are read.
+/// </summary>
+public sealed record ReportSendingAttachOverride(
+    bool? FeeNoteSeparate = null,
+    bool? Estimate = null,
+    bool? Audatex = null,
+    bool? VehicleImagesDocument = null,
+    bool? FigureBreakdown = null)
+{
+    [JsonIgnore]
+    public bool IsEmpty =>
+        FeeNoteSeparate is null && Estimate is null && Audatex is null
+        && VehicleImagesDocument is null && FigureBreakdown is null;
+
+    /// <summary><paramref name="attach"/> with the flags this override names replaced.</summary>
+    public ReportSendingAttachments Over(ReportSendingAttachments attach) => attach with
+    {
+        FeeNoteSeparate = FeeNoteSeparate ?? attach.FeeNoteSeparate,
+        Estimate = Estimate ?? attach.Estimate,
+        Audatex = Audatex ?? attach.Audatex,
+        VehicleImagesDocument = VehicleImagesDocument ?? attach.VehicleImagesDocument,
+        FigureBreakdown = FigureBreakdown ?? attach.FigureBreakdown
+    };
 }
 
 public sealed record ReportSendingRule(
@@ -107,6 +149,7 @@ public enum ReportSendingRulesRule
     UnknownContact,
     UnknownOutcome,
     UnknownCaseType,
+    InvalidRefPrefix,
     EmptyRule,
     EmptyCondition,
     EmptyActions,
@@ -125,7 +168,7 @@ public sealed class ReportSendingRulesException(
 }
 
 /// <summary>
-/// A Principal's report sending rules (Report Sending SOP v5, 2 October 2026):
+/// A Principal's report sending rules (Report Sending SOP v8, 15 October 2026):
 /// who the report goes to and from, who is copied, what goes with it, what
 /// holds or stops the delivery, and what staff must do after sending. Every
 /// Principal has them; one the SOP does not name has <see cref="Default"/>.
@@ -177,7 +220,9 @@ public sealed record PrincipalReportSendingRules(
             Addresses(rule.Then.CcRemove),
             rule.Then.Remind,
             rule.Then.Hold,
-            rule.Then.Stop));
+            rule.Then.Stop,
+            rule.Then.RateCard,
+            rule.Then.Attach));
         return string.Join("\u001f",
             SendFromMailbox?.ToUpperInvariant(),
             Addresses(SendTo),
@@ -197,8 +242,9 @@ public sealed record PrincipalReportSendingRules(
     /// <summary>
     /// The one shape stored rules take: addresses trimmed, valid and unique
     /// without case; texts trimmed and present where given; contact ids
-    /// parseable; outcome codes known; every rule with a condition and an
-    /// action; name tokens known.
+    /// parseable; outcome codes known; reference prefixes letters only; every
+    /// rule with a condition and an action, and an attach override only when
+    /// it names a flag; name tokens known.
     /// </summary>
     public static PrincipalReportSendingRules Normalize(PrincipalReportSendingRules rules)
     {
@@ -247,7 +293,9 @@ public sealed record PrincipalReportSendingRules(
             AddressList(then.CcRemove, nameof(ReportSendingActions.CcRemove), index),
             OptionalText(then.Remind, nameof(ReportSendingActions.Remind), index),
             OptionalText(then.Hold, nameof(ReportSendingActions.Hold), index),
-            OptionalText(then.Stop, nameof(ReportSendingActions.Stop), index));
+            OptionalText(then.Stop, nameof(ReportSendingActions.Stop), index),
+            then.RateCard,
+            then.Attach is { IsEmpty: false } attach ? attach : null);
         if (actions.IsEmpty)
         {
             throw new ReportSendingRulesException(ReportSendingRulesRule.EmptyActions, nameof(ReportSendingRule.Then), index);
@@ -257,6 +305,10 @@ public sealed record PrincipalReportSendingRules(
 
     private static ReportSendingCondition NormalizeCondition(ReportSendingCondition condition, int index)
     {
+        if (condition.Kind == ReportSendingConditionKind.PreviousJob)
+        {
+            return new(condition.Kind, []);
+        }
         var field = condition.Kind.ToString();
         var values = (condition.Values ?? [])
             .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -284,6 +336,11 @@ public sealed record PrincipalReportSendingRules(
                     : throw new ReportSendingRulesException(ReportSendingRulesRule.UnknownCaseType, field, index))
                     .Distinct(StringComparer.Ordinal).ToArray(),
             ReportSendingConditionKind.SenderNot => AddressList(values, field, index),
+            ReportSendingConditionKind.RefPrefix =>
+                values.Select(value => value.All(char.IsAsciiLetter)
+                    ? value
+                    : throw new ReportSendingRulesException(ReportSendingRulesRule.InvalidRefPrefix, field, index))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             _ => values.Select(value => RequiredText(value, field, index)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
         };
         return new(condition.Kind, normalized);

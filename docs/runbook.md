@@ -598,6 +598,50 @@ multiple candidates remain review-only. A new runtime policy still requires
 the operator to select one principal and accept its development and untouched
 holdout outcomes.
 
+## Reference-data load
+
+The reviewed register reaches the Contacts directory through a "one-off
+operator-run loader through `IContactDirectoryAdministration.SaveAsync` from
+reviewed CSVs under `artifacts/`", with the "prod run under separate
+authorisation" (operator, 15 October 2026). The loader is
+`scripts/reference-data-loader/`. It reads the load files in
+`artifacts/pegasus-release-readiness/entities/load/`, loads only rows whose
+`review` is `approved`, and writes through the Contacts directory and
+inspection-location writers as an enabled Administrator. Its plan hash holds
+no clock: `apply` recomputes it from the stored state and the files and writes
+nothing unless it equals the approved one and `--target` names the connection
+string's server and database. `--reviewed-at` is the review date each
+inspection location is stored with; a stored location reviewed no earlier is
+kept as it is.
+
+```powershell
+$env:ConnectionStrings__Pegasus = "<connection string>"
+dotnet run --project ./scripts/reference-data-loader -- dry-run `
+  --data artifacts/pegasus-release-readiness/entities/load `
+  --actor-staff-id <administrator staff id> --batch <batch> `
+  --reviewed-at <yyyy-MM-dd> `
+  --report artifacts/reference-data-load/<batch>-dry-run.json
+dotnet run --project ./scripts/reference-data-loader -- apply `
+  <the dry-run's options, with its own --report> `
+  --target <server>/<database> --approved-report-sha256 <plan hash>
+```
+
+1. Rehearse on a disposable LocalDB database from
+   `Invoke-LocalDevelopment.ps1`, never the production connection: `dry-run`,
+   `apply`, then a new batch's `dry-run` and `apply`, which writes nothing.
+2. Enumerate the exact target and inspect the baseline read-only under the
+   intended identity: a production `dry-run`. Its report gives the target, the
+   baseline, the counts, the rejects and every stored value it overwrites.
+3. Confirm that the operator's separate authorisation covers the operation:
+   the server and database, the loader commit, the SHA-256 of every file and
+   of the approved report, the actor staff id and the window.
+4. Run `apply` with the approved plan hash. Stop if observed targets or
+   consequences differ from the plan.
+5. Read back read-only, before any test-estate wipe: the counts, links,
+   inspection modes and fees, untouched records at their versions, and
+   `ActionHistory` rows whose correlation id starts `ref04:<batch>:`, which
+   equal the apply report's writes.
+
 ## Approved mailbox estate
 
 The v1 source implements mailbox onboarding in `/Administration/Mailboxes`.

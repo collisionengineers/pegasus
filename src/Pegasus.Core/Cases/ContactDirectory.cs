@@ -30,13 +30,21 @@ public sealed record ContactDirectoryRecord(
     IReadOnlyList<Guid>? LinkedPrincipalIds = null,
     IReadOnlyList<Guid>? OwnPrincipalIds = null,
     string? NotesOnEveryCase = null,
-    string? PrincipalCode = null);
+    string? PrincipalCode = null,
+    CaseInspectionMode? PrincipalInspectionMode = null);
 
 public sealed record ContactDirectoryQuery(
     ActionActor Actor,
-    ContactRole? Role,
+    ContactRole Role,
     string? Search = null,
-    int Limit = 200);
+    int PageNumber = 1);
+
+/// <summary>One page of one type's contacts, in name order. <paramref name="HasNextPage"/>
+/// is true only when a further contact follows this page.</summary>
+public sealed record ContactDirectoryPage(
+    IReadOnlyList<ContactDirectoryRecord> Items,
+    int PageNumber,
+    bool HasNextPage);
 
 public sealed record SaveContactRequest(
     ActionActor Actor,
@@ -59,7 +67,7 @@ public sealed record SaveContactRequest(
 public interface IContactDirectoryQueries
 {
     Task<ContactDirectoryRecord?> GetAsync(ActionActor actor, Guid organizationId, CancellationToken cancellationToken);
-    Task<IReadOnlyList<ContactDirectoryRecord>> ListAsync(ContactDirectoryQuery query, CancellationToken cancellationToken);
+    Task<ContactDirectoryPage> ListAsync(ContactDirectoryQuery query, CancellationToken cancellationToken);
     /// <summary>
     /// Every active directory organisation holding one role, for the case
     /// screens that let a member of staff link one to a Case. Casework
@@ -69,8 +77,13 @@ public interface IContactDirectoryQueries
         ActionActor actor, ContactRole role, CancellationToken cancellationToken);
     Task<IReadOnlyList<ContactDirectoryRecord>> FindPossibleMatchesAsync(
         ActionActor actor, string name, CancellationToken cancellationToken);
+    /// <summary>
+    /// The Principals a contact may link: every active one and, for
+    /// <paramref name="contactId"/>, the inactive ones it already links, so a
+    /// save of that contact keeps them (operator, 16 October 2026).
+    /// </summary>
     Task<IReadOnlyList<PrincipalAdministrationDetails>> ListPrincipalChoicesAsync(
-        ActionActor actor, CancellationToken cancellationToken);
+        ActionActor actor, Guid? contactId, CancellationToken cancellationToken);
 }
 
 public static class ContactDirectoryQueriesExtensions
@@ -121,7 +134,12 @@ public static partial class ContactDirectoryPolicy
     public const int MaximumPostcodeLength = 20;
     public const int MaximumNotesOnEveryCaseLength = 2000;
     public const int MaximumOperationKeyLength = 100;
-    public const int MaximumListLimit = 200;
+    public const int PageSize = 50;
+    public const int MaximumPage = int.MaxValue / PageSize;
+
+    /// <summary>The page a list is asked for, held within 1 to <see cref="MaximumPage"/>
+    /// so the offset of its first row always fits an <see cref="int"/>.</summary>
+    public static int NormalizePage(int pageNumber) => Math.Clamp(pageNumber, 1, MaximumPage);
 
     public static SaveContactRequest Normalize(SaveContactRequest request)
     {

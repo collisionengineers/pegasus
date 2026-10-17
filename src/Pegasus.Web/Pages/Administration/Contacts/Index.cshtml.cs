@@ -13,11 +13,15 @@ public sealed class IndexModel(
     IContactDirectoryAdministration administration) : AdministrationPageModel
 {
     public IReadOnlyList<ContactDirectoryRecord> Contacts { get; private set; } = [];
+    /// <summary>The types whose list has a page after the one shown.</summary>
+    public IReadOnlySet<ContactRole> TypesWithNextPage { get; private set; } = new HashSet<ContactRole>();
     public IReadOnlyList<ContactDirectoryRecord> PossibleMatches { get; private set; } = [];
     public IReadOnlyList<PrincipalAdministrationDetails> PrincipalChoices { get; private set; } = [];
 
     [BindProperty(SupportsGet = true)] public ContactRole? Type { get; set; }
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
+    // PageModel.Page() takes the name Page.
+    [BindProperty(SupportsGet = true)] public int PageNumber { get; set; } = 1;
     [BindProperty(SupportsGet = true)] public ContactRole? CreateType { get; set; }
 
     [BindProperty] public Guid ContactId { get; set; }
@@ -141,8 +145,14 @@ public sealed class IndexModel(
     // The Principal choices serve the create dialog and the Linked principals column.
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, cancellationToken);
-        Contacts = await contacts.ListAsync(new(actor, Type, Search), cancellationToken);
+        PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, contactId: null, cancellationToken);
+        // The selected type opens at the requested page; with no type every panel shows its first page.
+        PageNumber = Type is null ? 1 : ContactDirectoryPolicy.NormalizePage(PageNumber);
+        var roles = Type is { } selected ? new[] { selected } : Enum.GetValues<ContactRole>();
+        var pages = await Task.WhenAll(roles.Select(role =>
+            contacts.ListAsync(new(actor, role, Search, PageNumber), cancellationToken)));
+        Contacts = [.. pages.SelectMany(page => page.Items)];
+        TypesWithNextPage = roles.Zip(pages).Where(read => read.Second.HasNextPage).Select(read => read.First).ToHashSet();
     }
 
     /// <summary>The codes of the active Principals a contact is linked to, in the choices' order.</summary>

@@ -728,10 +728,19 @@ delivery became one step; they are on the next design sign-off.
 
 A Report sending rule offers its conditions in one order: Claim Source,
 Repairer, Images from, Instruction mentions, Sender is not, Outcome, Bodyshop
-mentions, then Case type (operator, 13 October 2026). Outcome and Case type
-are each a choice of their values; Case type names them as the Cases list
-does: Inspection, Audit, Inspection and audit. A refused rule says "choose a
-case type from the list", as it says "choose an outcome from the list".
+mentions, then Case type (operator, 13 October 2026), then Reference prefix
+and Previous job (Report Sending SOP v8; operator, 16 October 2026). Outcome
+and Case type are each a choice of their values; Case type names them as the
+Cases list does: Inspection, Audit, Inspection and audit. A refused rule says
+"choose a case type from the list", as it says "choose an outcome from the
+list". The v8 words are the operator's (16 October 2026): the action Rate
+card, a rule's five Attach choices As the Principal, Attach and Do not
+attach, and these two sentences, the refusal of a non-letter reference
+prefix and the after-sending task a rule's Rate card adds.
+
+> A reference prefix is letters only.
+
+> Check the report's estimate against the Connexus Repair Rate Card.
 
 The valuation sentence is the operator's own wording (23 September 2026) for Get valuation
 on a source with no working provider, shown in that source's card from the

@@ -28,7 +28,7 @@ public sealed record Principal(
     decimal DefaultFee = PrincipalDefaultFeePolicy.Standard)
 {
     /// <summary>
-    /// The Principal's report sending rules (Report Sending SOP v5). Every
+    /// The Principal's report sending rules (Report Sending SOP v8). Every
     /// Principal has them; one built without naming them has the defaults.
     /// </summary>
     public PrincipalReportSendingRules ReportSending { get; init; } =

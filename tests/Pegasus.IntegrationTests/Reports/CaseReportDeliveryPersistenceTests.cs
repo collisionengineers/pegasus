@@ -55,6 +55,17 @@ public sealed class CaseReportDeliveryPersistenceTests
         ]
     };
 
+    /// <summary>A Principal whose one rule removes a copy on a previous job (Report Sending SOP v8).</summary>
+    private static readonly PrincipalReportSendingRules PreviousJobRules = PrincipalReportSendingRules.Default with
+    {
+        Rules =
+        [
+            new(ReportSendingRuleMatch.All,
+                [new(ReportSendingConditionKind.PreviousJob, [])],
+                new([], ["repairs@garage.example"]))
+        ]
+    };
+
     [Fact]
     public async Task SendHandsTheTransportTheConfirmedArtifactAndTheReviewedRecipients()
     {
@@ -324,6 +335,34 @@ public sealed class CaseReportDeliveryPersistenceTests
         Assert.Equal("AB12CDE", (await harness.FactsAsync())!.Registration);
         var command = await harness.SendAsync(harness.Request());
         Assert.Equal("AB12CDE Report", command.Mail.Subject);
+    }
+
+    /// <summary>
+    /// "Previous job" (operator, 16 October 2026) is another Case of the same
+    /// Principal whose accepted registration is this vehicle's, compared
+    /// without spaces or case, with a report send that left. The Case's own
+    /// send, a send still being prepared, another registration and another
+    /// Principal's Case do not count.
+    /// </summary>
+    [Fact]
+    public async Task APreviousJobIsAnotherCaseOfThePrincipalForTheVehicleWithASentReport()
+    {
+        await using var harness = await Harness.CreateAsync(PreviousJobRules);
+        await harness.SeedRegistrationAsync(fact: "AB12 CDE", suggestion: "ZZ99 ZZZ");
+        var later = await harness.SeedOtherCaseAsync(2, "ab12cde");
+        var otherVehicle = await harness.SeedOtherCaseAsync(3, "XY34 ZZZ");
+        var otherPrincipal = await harness.SeedOtherCaseAsync(4, "AB12 CDE", samePrincipal: false);
+
+        Assert.False((await harness.FactsOfAsync(later)).PreviousJob);
+
+        await harness.SeedReportSendAsync(StaffMailState.Prepared);
+        Assert.False((await harness.FactsOfAsync(later)).PreviousJob);
+
+        await harness.SeedReportSendAsync(StaffMailState.Sent);
+        Assert.True((await harness.FactsOfAsync(later)).PreviousJob);
+        Assert.False((await harness.FactsOfAsync(harness.CaseId)).PreviousJob);
+        Assert.False((await harness.FactsOfAsync(otherVehicle)).PreviousJob);
+        Assert.False((await harness.FactsOfAsync(otherPrincipal)).PreviousJob);
     }
 
     /// <summary>
@@ -688,6 +727,10 @@ public sealed class CaseReportDeliveryPersistenceTests
         public Task<ReportDispatchFacts?> FactsAsync(CaseWorkSelector work = CaseWorkSelector.Current) =>
             new EfReportRecipientSuggestionQueries(Factory).GetAsync(CaseId, work, CancellationToken.None);
 
+        /// <summary>The dispatch facts of any Case in this database.</summary>
+        public async Task<ReportDispatchFacts> FactsOfAsync(Guid caseId) =>
+            (await new EfReportRecipientSuggestionQueries(Factory).GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None))!;
+
         /// <summary>The fingerprint a delivery form drawn now carries.</summary>
         public async Task<string> FingerprintAsync(CaseWorkSelector work = CaseWorkSelector.Current) =>
             (await FactsAsync(work))!.Fingerprint;
@@ -884,9 +927,107 @@ public sealed class CaseReportDeliveryPersistenceTests
             await context.SaveChangesAsync();
         }
 
-        private CaseDataFieldEntity Registration(string kind, string value) => new()
+        /// <summary>
+        /// Another Case, of this Case's Principal or of one of its own with the
+        /// same rules, whose intake fact is <paramref name="registration"/>.
+        /// </summary>
+        public async Task<Guid> SeedOtherCaseAsync(int sequence, string registration, bool samePrincipal = true)
         {
-            WorkId = CaseId,
+            await using var context = await Factory.CreateDbContextAsync();
+            var principal = await context.Principals.AsNoTracking().SingleAsync(item => item.Code == "DVRP");
+            var principalId = principal.Id;
+            var lineageId = principal.SequenceLineageId;
+            if (!samePrincipal)
+            {
+                var organizationId = Guid.NewGuid();
+                principalId = Guid.NewGuid();
+                lineageId = Guid.NewGuid();
+                context.AddRange(
+                    new OrganizationEntity { Role = "principal", Id = organizationId, Name = "Other delivery test", Version = 0 },
+                    new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = StartUtc },
+                    new PrincipalEntity
+                    {
+                        Id = principalId,
+                        OrganizationId = organizationId,
+                        SequenceLineageId = lineageId,
+                        Code = "DVRQ",
+                        IsActive = true,
+                        ReportSendingRulesJson = principal.ReportSendingRulesJson,
+                        Version = 0
+                    });
+            }
+            var caseId = Guid.NewGuid();
+            context.AddRange(
+                new CaseEntity
+                {
+                    Id = caseId,
+                    PrincipalId = principalId,
+                    SequenceLineageId = lineageId,
+                    Year = 2031,
+                    Sequence = sequence,
+                    Reference = $"DVR-3100{sequence}",
+                    Type = "inspection",
+                    InitialState = "NotReady",
+                    CustodyState = "confirmed",
+                    CreatedAtUtc = StartUtc,
+                    Version = 1,
+                    ConcurrencyToken = Guid.NewGuid()
+                },
+                new CaseWorkflowEntity
+                {
+                    CaseId = caseId,
+                    State = "ReportPreparation",
+                    Version = 1,
+                    ConcurrencyToken = Guid.NewGuid()
+                },
+                new CaseDataSnapshotEntity
+                {
+                    WorkId = caseId,
+                    CompletenessPolicyKey = "delivery-test",
+                    CompletenessPolicyVersion = 1,
+                    CompletenessPolicySatisfied = true,
+                    AcceptedAtUtc = StartUtc,
+                    Fields = [Registration(CaseDataCodes.Fact, registration, caseId)]
+                });
+            await context.SaveChangesAsync();
+            return caseId;
+        }
+
+        /// <summary>A send of this Case's report in <paramref name="state"/>.</summary>
+        public async Task SeedReportSendAsync(StaffMailState state)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var id = Guid.NewGuid();
+            context.Set<StaffMailSendOperationEntity>().Add(new()
+            {
+                Id = id,
+                ActorSubjectId = Staff.SubjectId,
+                MailboxId = ChosenMailboxId,
+                MailboxGeneration = 1,
+                OperationKey = $"send:{id:N}",
+                PayloadHash = new string('2', 64),
+                Purpose = StaffMailPurpose.CaseReport,
+                ContextId = GenerationId,
+                ContextVersion = 1,
+                ComposeMode = StaffMailComposeMode.New,
+                RecipientsJson = "[]",
+                Subject = "report",
+                Body = "report",
+                AttachmentsJson = "[]",
+                State = state,
+                CorrelationMarker = $"mail:{id:N}",
+                CreatedAtUtc = StartUtc,
+                RequestedAtUtc = StartUtc,
+                ObservedSentAtUtc = state == StaffMailState.Sent ? StartUtc : null,
+                Version = 1,
+                ConcurrencyToken = Guid.NewGuid()
+            });
+            await context.SaveChangesAsync();
+        }
+
+        private CaseDataFieldEntity Registration(string kind, string value, Guid? workId = null) => new()
+        {
+            WorkId = workId ?? CaseId,
             FieldName = CaseDataFieldNames.VehicleRegistration,
             ValueKind = kind,
             ValueType = CaseDataCodes.Text,

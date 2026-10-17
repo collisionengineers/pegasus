@@ -317,6 +317,56 @@ public sealed class OrganizationAdministrationPersistenceTests
         Assert.Equal(OrganizationAdministrationError.StaleVersion, stale.Error);
     }
 
+    /// <summary>
+    /// The successor offers the predecessor's reviewed inspection locations,
+    /// and the predecessor keeps its own links, so its open Cases keep their
+    /// list.
+    /// </summary>
+    [Fact]
+    public async Task ReplacementCarriesTheInspectionLocationLinks()
+    {
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await using var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var predecessor = await context.Principals.AsNoTracking()
+            .Where(item => item.Code == QdosPrincipal.Code)
+            .Select(item => new { item.Id, item.Version, ContactVersion = item.Organization.Version })
+            .SingleAsync();
+        var location = await services.GetRequiredService<IInspectionLocationAdministration>().SaveAsync(
+            new(
+                Administrator,
+                "Test Body Centre",
+                "1 Test Street, Testtown",
+                "TE1 1ST",
+                true,
+                "register",
+                "row-1",
+                RecordedAtUtc,
+                [predecessor.Id],
+                "inspection-location:replacement"),
+            default);
+
+        var successor = await services.GetRequiredService<IReplacePrincipal>().ExecuteAsync(
+            new(
+                predecessor.Id,
+                predecessor.Version,
+                "QDOSNEXT",
+                Administrator,
+                "principal:replace:locations",
+                "The Principal issued a successor code",
+                predecessor.ContactVersion),
+            default);
+
+        Assert.Equal(
+            new[] { predecessor.Id, successor.Id }.Order(),
+            (await context.InspectionLocationPrincipalLinks.AsNoTracking()
+                .Where(link => link.InspectionLocationId == location.Id)
+                .Select(link => link.PrincipalId)
+                .ToArrayAsync()).Order());
+    }
+
     private static async Task<IntakeReceipt> CreateReadyReceiptAsync(IServiceProvider services)
     {
         var token = Guid.NewGuid().ToString("N");

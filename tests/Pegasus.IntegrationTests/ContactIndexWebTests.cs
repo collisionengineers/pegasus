@@ -1,9 +1,15 @@
+using System.Collections.Specialized;
+using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
+using System.Web;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -232,6 +238,122 @@ public sealed partial class ContactIndexWebTests
     }
 
     /// <summary>
+    /// R128: a panel shows 50 contacts, and in the all-types view its Next opens
+    /// that type's own list at page 2; a panel that fits one page has no pager,
+    /// and the all-types view ignores a page number.
+    /// </summary>
+    [Fact]
+    public async Task AMoreThanFiftyTypeShowsItsFirstPageAndLinksToTheNext()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedContactsAsync(factory, "repairer", RepairerPrefix, first: 0, count: 120);
+        await SeedContactsAsync(factory, "claim_source", ClaimsPrefix, first: 0, count: 3);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        foreach (var path in new[] { "/Administration/Contacts?search=Paged%20Fixture", "/Administration/Contacts?search=Paged%20Fixture&pageNumber=2" })
+        {
+            var html = await IntakeWebDriver.GetHtmlAsync(client, path);
+
+            Assert.Equal(Enumerable.Range(0, 50), RowNumbers(html, RepairerPrefix));
+            Assert.Equal(Enumerable.Range(0, 3), RowNumbers(html, ClaimsPrefix));
+            var pager = Assert.Single(Pagers(html));
+            Assert.StartsWith(OperatorLabels.Contacts.Plural(ContactRole.Repairer), pager.Label, StringComparison.Ordinal);
+            Assert.Equal(1, pager.Page);
+            var next = Assert.Single(pager.Links);
+            Assert.Equal("/Administration/Contacts", next.Path);
+            Assert.Equal("Repairer", next.Query["type"]);
+            Assert.Equal("Paged Fixture", next.Query["search"]);
+            Assert.Equal("2", next.Query["pageNumber"]);
+        }
+    }
+
+    /// <summary>
+    /// A type's own view walks its rows 50 at a time: every row once, in name
+    /// order; Previous and Next appear only where they apply and keep the type
+    /// and the search; a page past the end shows the empty state; the toolbar
+    /// returns to page 1 and Add contact keeps the page.
+    /// </summary>
+    [Fact]
+    public async Task ThePagedTypeViewWalksEveryRowOnce()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedContactsAsync(factory, "repairer", RepairerPrefix, first: 0, count: 120);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        const string typeView = "/Administration/Contacts?type=Repairer&search=Paged%20Fixture";
+
+        var walked = new List<int>();
+        foreach (var (page, expectedRows, expectedLinkPages) in new[] { (1, 50, new[] { 2 }), (2, 50, new[] { 1, 3 }), (3, 20, new[] { 2 }) })
+        {
+            var html = await IntakeWebDriver.GetHtmlAsync(client, $"{typeView}&pageNumber={page}");
+
+            var rows = RowNumbers(html, RepairerPrefix);
+            walked.AddRange(rows);
+            Assert.Equal(expectedRows, rows.Count);
+            var pager = Assert.Single(Pagers(html));
+            Assert.Equal(page, pager.Page);
+            Assert.Equal(expectedLinkPages, pager.Links.Select(link => int.Parse(link.Query["pageNumber"]!, CultureInfo.InvariantCulture)));
+            Assert.All(pager.Links, link =>
+            {
+                Assert.Equal("Repairer", link.Query["type"]);
+                Assert.Equal("Paged Fixture", link.Query["search"]);
+            });
+            Assert.DoesNotContain("pageNumber", ToolbarForm(html), StringComparison.OrdinalIgnoreCase);
+            var addContacts = AddContactLinks(html);
+            Assert.NotEmpty(addContacts);
+            Assert.All(addContacts, link =>
+            {
+                Assert.Equal("Repairer", link.Query["type"]);
+                Assert.Equal("Paged Fixture", link.Query["search"]);
+                Assert.Equal(page.ToString(CultureInfo.InvariantCulture), link.Query["pageNumber"]);
+            });
+        }
+        Assert.Equal(Enumerable.Range(0, 120), walked);
+
+        // A page number below 1 opens page 1; a page past the end has nothing to show.
+        Assert.Equal(1, Assert.Single(Pagers(await IntakeWebDriver.GetHtmlAsync(client, $"{typeView}&pageNumber=-3"))).Page);
+        var beyond = await IntakeWebDriver.GetHtmlAsync(client, $"{typeView}&pageNumber=4");
+        Assert.Empty(RowNumbers(beyond, RepairerPrefix));
+        Assert.Empty(Pagers(beyond));
+        Assert.Contains("<div class=\"empty\">", beyond, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The list reads no panel once per row: with the same types present, six
+    /// contacts send the same SQL commands as three (R25).
+    /// </summary>
+    [Fact]
+    public async Task TheContactsListReadsTheSameForThreeRowsAndSixRows()
+    {
+        var counter = new CommandCountingInterceptor();
+        using var factory = new IntakeWebApplicationFactory("Development", true, commandInterceptor: counter);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        const string path = "/Administration/Contacts?search=Paged%20Fixture";
+        await SeedContactsAsync(factory, "repairer", RepairerPrefix, first: 0, count: 2);
+        await SeedContactsAsync(factory, "claim_source", ClaimsPrefix, first: 0, count: 1);
+        // The first load pays one-off work; the counts are later ones.
+        _ = await IntakeWebDriver.GetHtmlAsync(client, path);
+
+        counter.Reset();
+        var withThreeHtml = await IntakeWebDriver.GetHtmlAsync(client, path);
+        var withThreeRows = counter.Count;
+        var withThreeDescription = counter.Describe();
+
+        await SeedContactsAsync(factory, "repairer", RepairerPrefix, first: 2, count: 2);
+        await SeedContactsAsync(factory, "claim_source", ClaimsPrefix, first: 1, count: 1);
+        counter.Reset();
+        var withSixHtml = await IntakeWebDriver.GetHtmlAsync(client, path);
+        var withSixRows = counter.Count;
+
+        Assert.True(withThreeRows > 0, "The interceptor observed no commands at all.");
+        Assert.Equal(3, RowNumbers(withThreeHtml, RepairerPrefix).Count + RowNumbers(withThreeHtml, ClaimsPrefix).Count);
+        Assert.Equal(6, RowNumbers(withSixHtml, RepairerPrefix).Count + RowNumbers(withSixHtml, ClaimsPrefix).Count);
+        Assert.True(
+            withThreeRows == withSixRows,
+            $"The Contacts list grew with the rows: {withThreeRows} commands for three and {withSixRows} for six."
+            + Environment.NewLine + withThreeDescription);
+    }
+
+    /// <summary>
     /// Names are unique per type: the contact's page refuses a second contact
     /// of the same type and name with the one sentence the list's Add uses. The
     /// page carries its type as a greyed box and Linked principals as one list.
@@ -277,6 +399,196 @@ public sealed partial class ContactIndexWebTests
         Assert.Equal("Duplicate Fixture Two", await factory.Database.ScalarAsync<string>(
             $"SELECT Name FROM Organizations WHERE Id = '{secondId:D}';"));
     }
+
+    /// <summary>
+    /// R119: a contact's link to an inactive Principal is offered, ticked, in
+    /// Linked principals on its page, so saving the page keeps the link.
+    /// </summary>
+    [Fact]
+    public async Task APageSaveKeepsALinkToAnInactivePrincipal()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var repairerId = Guid.NewGuid();
+        Guid inactivePrincipalId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var administration = scope.ServiceProvider.GetRequiredService<IContactDirectoryAdministration>();
+            var principal = new SaveContactRequest(
+                Administrator, Guid.NewGuid(), 0, "Inactive Link Fixture Principal", null, null, null, null, null, true,
+                ContactRole.Principal, "ILFP1", CaseInspectionMode.PhysicalAddress, [], "contact-edit:inactive-principal");
+            var created = await administration.SaveAsync(principal, default);
+            await administration.SaveAsync(principal with
+            {
+                ExpectedVersion = created.Version,
+                Active = false,
+                OperationKey = "contact-edit:inactive-principal:disable"
+            }, default);
+            inactivePrincipalId = created.OwnPrincipalIds!.Single();
+            await administration.SaveAsync(new(
+                Administrator, repairerId, 0, "Inactive Link Fixture Repairer", null, null, null, null, null, true,
+                ContactRole.Repairer, null, CaseInspectionMode.PhysicalAddress, [inactivePrincipalId],
+                "contact-edit:inactive-link"), default);
+        }
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var path = $"/Administration/Contacts/Edit/{repairerId:D}";
+        var editor = await IntakeWebDriver.GetHtmlAsync(client, path);
+        var ticked = Assert.Single(CheckedLinkRegex().Matches(editor)).Groups["id"].Value;
+        Assert.Equal(inactivePrincipalId.ToString("D"), ticked);
+
+        using var saved = await client.PostAsync(
+            $"{path}?handler=Save",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(editor, "__RequestVerificationToken"),
+                ["ContactId"] = InputValue(editor, "ContactId"),
+                ["ExpectedVersion"] = InputValue(editor, "ExpectedVersion"),
+                ["OperationKey"] = InputValue(editor, "OperationKey"),
+                ["Name"] = "Inactive Link Fixture Repairer renamed",
+                ["Active"] = bool.TrueString,
+                ["LinkedPrincipalIds"] = ticked
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        Assert.Equal("Inactive Link Fixture Repairer renamed", await factory.Database.ScalarAsync<string>(
+            $"SELECT Name FROM Organizations WHERE Id = '{repairerId:D}';"));
+        Assert.Equal(inactivePrincipalId, await factory.Database.ScalarAsync<Guid>(
+            $"SELECT PrincipalId FROM ContactPrincipalLinks WHERE OrganizationId = '{repairerId:D}';"));
+    }
+
+    /// <summary>
+    /// R118: the page posts the mode of the Principal its save writes, the one
+    /// without a successor, even when the replaced predecessor is the one shown.
+    /// </summary>
+    [Fact]
+    public async Task APageSavePostsTheModeOfThePrincipalWithoutASuccessor()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var contactId = Guid.NewGuid();
+        Guid successorId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var administration = services.GetRequiredService<IContactDirectoryAdministration>();
+            var request = new SaveContactRequest(
+                Administrator, contactId, 0, "Replaced Mode Fixture Principal", null, null, null, null, null, true,
+                ContactRole.Principal, "RMFA1", CaseInspectionMode.PhysicalAddress, [], "contact-edit:replaced-mode");
+            var created = await administration.SaveAsync(request, default);
+            var predecessorId = created.OwnPrincipalIds!.Single();
+            var predecessor = await services.GetRequiredService<IGetPrincipal>()
+                .ExecuteAsync(Administrator, predecessorId, default);
+            successorId = (await services.GetRequiredService<IReplacePrincipal>().ExecuteAsync(
+                new(predecessorId, predecessor!.Principal.Version, "RMFB1", Administrator,
+                    "contact-edit:replaced-mode:replace", null, created.Version), default)).Id;
+            var replaced = await services.GetRequiredService<IContactDirectoryQueries>()
+                .GetAsync(Administrator, contactId, default);
+            var imageBased = await administration.SaveAsync(request with
+            {
+                ExpectedVersion = replaced!.Version,
+                PrincipalInspectionMode = CaseInspectionMode.ImageBasedAssessment,
+                OperationKey = "contact-edit:replaced-mode:image-based"
+            }, default);
+            await administration.SaveAsync(request with
+            {
+                ExpectedVersion = imageBased.Version,
+                Active = false,
+                PrincipalInspectionMode = CaseInspectionMode.ImageBasedAssessment,
+                OperationKey = "contact-edit:replaced-mode:disable"
+            }, default);
+        }
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var path = $"/Administration/Contacts/Edit/{contactId:D}";
+        var editor = await IntakeWebDriver.GetHtmlAsync(client, path);
+        // Both Principals are inactive, so the page shows the predecessor's code.
+        Assert.Equal("RMFA1", InputValue(editor, "PrincipalCode"));
+        var inspectionMode = InputValue(editor, "PrincipalInspectionMode");
+        Assert.Equal(nameof(CaseInspectionMode.ImageBasedAssessment), inspectionMode);
+
+        using var saved = await client.PostAsync(
+            $"{path}?handler=Save",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(editor, "__RequestVerificationToken"),
+                ["ContactId"] = InputValue(editor, "ContactId"),
+                ["ExpectedVersion"] = InputValue(editor, "ExpectedVersion"),
+                ["OperationKey"] = InputValue(editor, "OperationKey"),
+                ["Name"] = InputValue(editor, "Name"),
+                ["PrincipalCode"] = InputValue(editor, "PrincipalCode"),
+                ["PrincipalInspectionMode"] = inspectionMode,
+                ["Active"] = bool.TrueString
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        Assert.Equal(PrincipalInspectionModePolicy.ImageBasedAssessmentCode, await factory.Database.ScalarAsync<string>(
+            $"SELECT InspectionMode FROM Principals WHERE Id = '{successorId:D}';"));
+    }
+
+    [GeneratedRegex(
+        "<input type=\"checkbox\" name=\"LinkedPrincipalIds\" value=\"(?<id>[^\"]+)\" checked",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex CheckedLinkRegex();
+
+    private const string RepairerPrefix = "Paged Fixture Repairer";
+    private const string ClaimsPrefix = "Paged Fixture Claims";
+
+    /// <summary>Adds <paramref name="count"/> contacts of one type in one save, named
+    /// "{prefix} 000" onward from <paramref name="first"/>, so name order is number order.</summary>
+    private static async Task SeedContactsAsync(
+        IntakeWebApplicationFactory factory, string typeCode, string prefix, int first, int count)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        await using var context = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        context.Organizations.AddRange(Enumerable.Range(first, count).Select(number => new OrganizationEntity
+        {
+            Id = Guid.NewGuid(),
+            Name = $"{prefix} {number:D3}",
+            Role = typeCode,
+            Active = true,
+            Version = 0
+        }));
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>The numbers in the names of the listed contacts, in page order.</summary>
+    private static List<int> RowNumbers(string html, string prefix) =>
+    [.. Regex.Matches(html, $"<td>{Regex.Escape(prefix)} (?<number>\\d{{3}})</td>")
+        .Select(match => int.Parse(match.Groups["number"].Value, CultureInfo.InvariantCulture))];
+
+    private sealed record PageLink(string Path, NameValueCollection Query);
+
+    private sealed record Pager(string Label, int Page, IReadOnlyList<PageLink> Links);
+
+    private static PageLink ToLink(string href)
+    {
+        var parts = WebUtility.HtmlDecode(href).Split('?', 2);
+        return new(parts[0], HttpUtility.ParseQueryString(parts.Length > 1 ? parts[1] : string.Empty));
+    }
+
+    private static List<PageLink> LinksIn(string html, string cssClass) =>
+    [.. Regex.Matches(html, $"<a\\b(?=[^>]*\\bclass=\"{Regex.Escape(cssClass)}\")[^>]*\\bhref=\"(?<href>[^\"]*)\"")
+        .Select(match => ToLink(match.Groups["href"].Value))];
+
+    private static List<Pager> Pagers(string html) =>
+    [.. PagerRegex().Matches(html).Select(match => new Pager(
+        WebUtility.HtmlDecode(match.Groups["label"].Value),
+        int.Parse(PageRegex().Match(match.Groups["body"].Value).Groups["page"].Value, CultureInfo.InvariantCulture),
+        LinksIn(match.Groups["body"].Value, "btn btn--small")))];
+
+    private static List<PageLink> AddContactLinks(string html) => LinksIn(html, "contact-kind");
+
+    private static string ToolbarForm(string html) => ToolbarRegex().Match(html).Value;
+
+    [GeneratedRegex(
+        "<div class=\"panel-foot\">\\s*<nav class=\"pagination\" aria-label=\"(?<label>[^\"]*)\">(?<body>.*?)</nav>",
+        RegexOptions.CultureInvariant | RegexOptions.Singleline)]
+    private static partial Regex PagerRegex();
+
+    [GeneratedRegex("<span>Page (?<page>\\d+)</span>", RegexOptions.CultureInvariant)]
+    private static partial Regex PageRegex();
+
+    [GeneratedRegex("<form\\b[^>]*class=\"contact-toolbar\".*?</form>", RegexOptions.CultureInvariant | RegexOptions.Singleline)]
+    private static partial Regex ToolbarRegex();
 
     private static string InputValue(string html, string name)
     {

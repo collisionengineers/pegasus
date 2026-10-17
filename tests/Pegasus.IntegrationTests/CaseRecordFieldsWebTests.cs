@@ -586,9 +586,9 @@ public sealed class CaseRecordFieldsWebTests
             ActionActor actor, Guid organizationId, CancellationToken cancellationToken) =>
             Task.FromResult(ClaimSources.FirstOrDefault(item => item.OrganizationId == organizationId));
 
-        Task<IReadOnlyList<ContactDirectoryRecord>> IContactDirectoryQueries.ListAsync(
+        Task<ContactDirectoryPage> IContactDirectoryQueries.ListAsync(
             ContactDirectoryQuery query, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ContactDirectoryRecord>>([.. ClaimSources]);
+            Task.FromResult<ContactDirectoryPage>(new([.. ClaimSources], 1, false));
 
         Task<IReadOnlyList<ContactDirectoryRecord>> IContactDirectoryQueries.ListByRoleAsync(
             ActionActor actor, ContactRole role, CancellationToken cancellationToken) =>
@@ -600,7 +600,7 @@ public sealed class CaseRecordFieldsWebTests
             Task.FromResult<IReadOnlyList<ContactDirectoryRecord>>([]);
 
         Task<IReadOnlyList<PrincipalAdministrationDetails>> IContactDirectoryQueries.ListPrincipalChoicesAsync(
-            ActionActor actor, CancellationToken cancellationToken) =>
+            ActionActor actor, Guid? contactId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<PrincipalAdministrationDetails>>([]);
     }
 

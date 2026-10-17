@@ -466,7 +466,8 @@ nothing: the cell stays as it was, blank or holding the verdict.
 
 Inspection shows the recorded inspect-at value with its fast-update choice:
 Image Based Assessment, Claimant address, Repairer location, Storage
-location, previous addresses used for this principal, Manual entry. An option
+location, the Principal's reviewed locations, previous addresses used for
+this principal, Manual entry. An option
 without a value is disabled. Reading and editing show one row per fact
 not already implied by the row above it: Inspection type (the mode, read
 once), Inspection date (the date the report says the damage was assessed,

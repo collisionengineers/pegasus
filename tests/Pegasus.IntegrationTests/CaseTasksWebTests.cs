@@ -141,6 +141,57 @@ public sealed class CaseTasksWebTests
     }
 
     /// <summary>
+    /// The Principal's reviewed inspection locations are offered at Inspect at
+    /// by their own names, between Storage location and the previous
+    /// addresses (operator, 16 October 2026). Nothing is chosen for staff: no
+    /// location is selected and the address input keeps the recorded address.
+    /// </summary>
+    [Fact]
+    public async Task ReviewedLocationsAreOfferedByNameBetweenStorageAndPreviousAndNeverPreselected()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            DirectoryInspectionLocations =
+            [
+                new(Guid.NewGuid(), "Alpha Body Centre", "1 Test Street, Testtown TE1 1ST"),
+                new(Guid.NewGuid(), "Beta Yard", "2 Test Street, Testtown TE2 2ST")
+            ]
+        };
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<Pegasus.Core.Address.IInspectionAddressChoicesQueries>(services, store));
+
+        var page = await GetHtmlAsync(
+            workspace.Client,
+            $"/Cases/{store.CaseId:D}?section=inspection");
+
+        var storage = page.IndexOf("value=\"StorageLocation\"", StringComparison.Ordinal);
+        var alpha = page.IndexOf("value=\"DirectoryLocation\"", StringComparison.Ordinal);
+        var beta = page.IndexOf("value=\"DirectoryLocation\"", alpha + 1, StringComparison.Ordinal);
+        var previous = page.IndexOf("value=\"PreviousAddress\"", StringComparison.Ordinal);
+        Assert.True(storage >= 0 && storage < alpha && alpha < beta && beta < previous);
+        string Option(int start) => WebUtility.HtmlDecode(
+            page[start..(page.IndexOf("</option>", start, StringComparison.Ordinal) + "</option>".Length)]);
+        foreach (var (start, name, address) in new[]
+        {
+            (alpha, "Alpha Body Centre", "1 Test Street, Testtown TE1 1ST"),
+            (beta, "Beta Yard", "2 Test Street, Testtown TE2 2ST")
+        })
+        {
+            var option = Option(start);
+            Assert.Contains($"data-address=\"{address}\"", option, StringComparison.Ordinal);
+            Assert.EndsWith($">{name}</option>", option, StringComparison.Ordinal);
+            Assert.DoesNotContain("selected", option, StringComparison.Ordinal);
+        }
+        var manual = page.IndexOf("value=\"ManualEntry\"", StringComparison.Ordinal);
+        Assert.Contains("selected=\"selected\"", Option(manual), StringComparison.Ordinal);
+        var input = page.IndexOf("id=\"inspection-address\"", StringComparison.Ordinal);
+        Assert.Contains(
+            "value=\"1 Depot Road\"",
+            page[input..page.IndexOf("/>", input, StringComparison.Ordinal)],
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The Overview editor writes the same editable values, so it must carry the
     /// claimant's own contact number and address too: the Case save replaces the
     /// submitted section whole, so anything the form omits would be cleared.
