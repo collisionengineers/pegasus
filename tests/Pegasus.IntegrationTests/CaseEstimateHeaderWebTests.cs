@@ -62,7 +62,7 @@ public sealed class CaseEstimateHeaderWebTests
         if (editing)
         {
             using var workspace = await EnterEngineerEditModeAsync(store, services =>
-                Substitute<IListCaseEstimates>(services, estimates), StaffRole.User);
+                Substitute<IListCaseEstimates>(services, estimates), StaffRole.User, keepDatabase: true);
             var html = await GetHtmlAsync(
                 workspace.Client,
                 $"/Cases/{store.CaseId:D}?section=estimate&estimate={estimates.Estimate.SpecificationId:D}");
@@ -111,7 +111,7 @@ public sealed class CaseEstimateHeaderWebTests
 
         string editing;
         using (var workspace = await EnterEngineerEditModeAsync(store, services =>
-            Substitute<IListCaseEstimates>(services, estimates), StaffRole.User))
+            Substitute<IListCaseEstimates>(services, estimates), StaffRole.User, keepDatabase: true))
         {
             editing = WebUtility.HtmlDecode(EstimateSection(await GetHtmlAsync(workspace.Client, path)));
         }

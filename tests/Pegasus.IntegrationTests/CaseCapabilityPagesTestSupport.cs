@@ -63,18 +63,50 @@ internal static partial class CaseWebTestSupport
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
-        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        using var claim = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
-            Form(
-                AntiforgeryValue(initial),
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", InputValue(initial, "operationKey"))));
-        AssertPrg(claim, store.CaseId);
-        var leased = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Equal(store.LeaseToken, InputValue(leased, "editLeaseToken"));
-        return new(baseFactory, factory, client, store, AntiforgeryValue(leased));
+        return await ClaimEditModeAsync(baseFactory, factory, client, store);
+    }
+
+    /// <summary>
+    /// Enters edit mode on the Case and reads the leased record. A failed entry
+    /// disposes the hosts, so a database-less host names the connection it
+    /// refused in place of the failure that refusal caused.
+    /// </summary>
+    private static async Task<LeasedWorkspace> ClaimEditModeAsync(
+        IntakeWebApplicationFactory baseFactory,
+        WebApplicationFactory<Program> factory,
+        HttpClient client,
+        RecordingCaseDetailsStore store)
+    {
+        try
+        {
+            var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+            using var claim = await client.PostAsync(
+                $"/Cases/{store.CaseId:D}?handler=ClaimLease",
+                Form(
+                    AntiforgeryValue(initial),
+                    ("id", store.CaseId.ToString("D")),
+                    ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                    ("operationKey", InputValue(initial, "operationKey"))));
+            AssertPrg(claim, store.CaseId);
+            var leased = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+            Assert.Equal(store.LeaseToken, InputValue(leased, "editLeaseToken"));
+            return new(baseFactory, factory, client, store, AntiforgeryValue(leased));
+        }
+        catch
+        {
+            DisposeHosts(client, factory, baseFactory);
+            throw;
+        }
+    }
+
+    private static void DisposeHosts(
+        HttpClient client,
+        WebApplicationFactory<Program> factory,
+        IntakeWebApplicationFactory baseFactory)
+    {
+        client.Dispose();
+        factory.Dispose();
+        baseFactory.Dispose();
     }
 
     internal static void Substitute<T>(IServiceCollection services, T instance)
@@ -192,12 +224,7 @@ internal static partial class CaseWebTestSupport
             params (string Name, string Value)[] fields) =>
             LifecycleForm(AntiforgeryToken, Store, operationKey, reason, fields);
 
-        public void Dispose()
-        {
-            Client.Dispose();
-            factory.Dispose();
-            baseFactory.Dispose();
-        }
+        public void Dispose() => DisposeHosts(Client, factory, baseFactory);
     }
 
     internal sealed partial class RecordingCaseDetailsStore
@@ -1305,8 +1332,16 @@ internal static partial class CaseWebTestSupport
         bool keepDatabase = false)
     {
         var (baseFactory, factory, client) = EngineerClient(store, substitutePorts, role, keepDatabase);
-        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        return new(baseFactory, factory, client, store, AntiforgeryValue(initial));
+        try
+        {
+            var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+            return new(baseFactory, factory, client, store, AntiforgeryValue(initial));
+        }
+        catch
+        {
+            DisposeHosts(client, factory, baseFactory);
+            throw;
+        }
     }
 
     /// <param name="keepDatabase">Builds the restored-database host, for a test that needs a read no database-less default answers.</param>
@@ -1317,18 +1352,7 @@ internal static partial class CaseWebTestSupport
         bool keepDatabase = false)
     {
         var (baseFactory, factory, client) = EngineerClient(store, substitutePorts, role, keepDatabase);
-        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        using var claim = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
-            Form(
-                AntiforgeryValue(initial),
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", InputValue(initial, "operationKey"))));
-        AssertPrg(claim, store.CaseId);
-        var leased = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Equal(store.LeaseToken, InputValue(leased, "editLeaseToken"));
-        return new(baseFactory, factory, client, store, AntiforgeryValue(leased));
+        return await ClaimEditModeAsync(baseFactory, factory, client, store);
     }
 
     /// <summary>
