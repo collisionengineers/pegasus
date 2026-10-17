@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using DocumentFormat.OpenXml;
@@ -6,6 +7,7 @@ using DocumentFormat.OpenXml.Wordprocessing;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.IntegrationTests.DocumentExtraction;
+using SkiaSharp;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
 
@@ -82,6 +84,106 @@ public sealed class StructuredIntakeSourceReaderTests
             fragment.SourceLabel == "uploaded report.pdf, page 2"
             && fragment.Text.Contains("Second page of the report", StringComparison.Ordinal));
         Assert.Empty(result.AssetCandidates);
+    }
+
+    /// <summary>
+    /// Issue #989: a photograph filling a page whose image PdfPig hands over as
+    /// neither a JPEG nor a PNG is read by the third decode path, kept as an
+    /// image and not sent to OCR.
+    /// </summary>
+    [Theory]
+    [InlineData(FallbackJpeg, "image/jpeg")]
+    [InlineData(FallbackPng, "image/png")]
+    public async Task AFullPagePhotographOnlyTheFallbackCanDecodeIsKeptAndNotSentToOcr(
+        string fallback,
+        string mediaType)
+    {
+        var result = await ReadAsync(new TestEmail(
+            "photographs.pdf",
+            "application/pdf",
+            BuildPdf(new PdfFixturePage(null, FallbackOnlyImage(fallback, PhotographPixels(12), FullPage)))));
+
+        var photograph = Assert.Single(result.AssetCandidates);
+        Assert.Equal(IntakeAssetKind.EmbeddedImage, photograph.Kind);
+        Assert.Equal(mediaType, photograph.MediaType);
+        Assert.Equal(PhotoWidth, photograph.WidthPixels);
+        Assert.Equal(PhotoHeight, photograph.HeightPixels);
+        using var decoded = SKBitmap.Decode(photograph.Content.Span);
+        Assert.NotNull(decoded);
+        Assert.Equal(PhotoWidth, decoded.Width);
+        Assert.Equal(PhotoHeight, decoded.Height);
+        Assert.True(photograph.Content.Length >= InstructionEvidenceImages.EmbeddedPhotographMinimumBytes);
+        Assert.Empty(result.ScannedPdfPages);
+        Assert.False(result.RequiresOcr);
+        Assert.Contains(result.Issues, issue => issue.Code == "scan-page-photograph");
+        Assert.DoesNotContain(result.Issues, issue => issue.Code == "pdf-image-decode-failure");
+    }
+
+    /// <summary>
+    /// The same page in paper white is a scanned document page: the recovered
+    /// raster is measured, the page goes to OCR and keeps no image.
+    /// </summary>
+    [Theory]
+    [InlineData(FallbackJpeg)]
+    [InlineData(FallbackPng)]
+    public async Task AScannedPageOnlyTheFallbackCanDecodeStillGoesToOcrWithAMeasurement(string fallback)
+    {
+        var result = await ReadAsync(new TestEmail(
+            "scan.pdf",
+            "application/pdf",
+            BuildPdf(new PdfFixturePage(null, FallbackOnlyImage(fallback, PaperWhitePixels(), FullPage)))));
+
+        var candidate = Assert.Single(result.ScannedPdfPages);
+        Assert.Equal(1, candidate.PageNumber);
+        Assert.Empty(result.AssetCandidates);
+        var verdict = Assert.Single(result.Issues, issue => issue.Code == "scan-page-document");
+        Assert.Contains("(near-white ", verdict.Reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A full-page raster the third path cannot read either keeps today's
+    /// path: a document page, unmeasured, that goes to OCR (ADR-0061).
+    /// </summary>
+    [Fact]
+    public async Task AFullPageRasterTheFallbackAlsoRefusesStaysADocumentPage()
+    {
+        var result = await ReadAsync(new TestEmail(
+            "scan.pdf",
+            "application/pdf",
+            BuildPdf(new PdfFixturePage(null, UnreadableImage(FullPage)))));
+
+        var candidate = Assert.Single(result.ScannedPdfPages);
+        Assert.Equal(1, candidate.PageNumber);
+        Assert.Empty(result.AssetCandidates);
+        var verdict = Assert.Single(result.Issues, issue => issue.Code == "scan-page-document");
+        Assert.Equal(
+            "uploaded scan.pdf, page 1 is a full-page raster read as a scanned document page "
+            + "(raster not decodable, read as a document page); it keeps no image and goes to OCR.",
+            verdict.Reason);
+    }
+
+    /// <summary>
+    /// On a page with readable text each image stands alone: the one the third
+    /// path reads is kept, the one it cannot is named in its own issue.
+    /// </summary>
+    [Fact]
+    public async Task OnAReadablePageTheFallbackKeepsWhatItRecoversAndReportsWhatItCannot()
+    {
+        var result = await ReadAsync(new TestEmail(
+            "letter.pdf",
+            "application/pdf",
+            BuildPdf(new PdfFixturePage(
+                "This instruction letter carries a photograph of the damage and a second picture beneath its text.",
+                FallbackOnlyImage(FallbackJpeg, PhotographPixels(13), "100 0 0 100 20 20"),
+                UnreadableImage("100 0 0 100 200 20")))));
+
+        Assert.Empty(result.ScannedPdfPages);
+        var recovered = Assert.Single(result.AssetCandidates);
+        Assert.Equal("page-1-image-1.jpg", recovered.FileName);
+        var failure = Assert.Single(result.Issues, issue => issue.Code == "pdf-image-decode-failure");
+        Assert.Equal(
+            "uploaded letter.pdf, page 1, image 2 could not be converted to a reviewable image stream.",
+            failure.Reason);
     }
 
     private const string ForwardedBody =
@@ -450,29 +552,123 @@ public sealed class StructuredIntakeSourceReaderTests
                 new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, Guid.NewGuid().ToString("N"))),
             CancellationToken.None);
 
+    private const int PhotoWidth = 210;
+    private const int PhotoHeight = 297;
+    private const string FullPage = "612 0 0 792 0 0";
+    private const string FallbackJpeg = "wrapped-jpeg";
+    private const string FallbackPng = "long-samples";
+
+    /// <summary>
+    /// A raster PdfPig hands over as neither a JPEG nor a PNG: a JPEG behind
+    /// <c>/FlateDecode</c>, which has no decoded samples, or samples one row
+    /// longer than the declared size, which PdfPig refuses as a PNG.
+    /// </summary>
+    private static PdfFixtureImage FallbackOnlyImage(string fallback, byte[] rgb, string placement) => fallback switch
+    {
+        FallbackJpeg => new(
+            PhotoWidth,
+            PhotoHeight,
+            "/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/FlateDecode /DCTDecode]",
+            Deflate(Jpeg(rgb)),
+            placement),
+        FallbackPng => new(
+            PhotoWidth,
+            PhotoHeight,
+            "/ColorSpace /DeviceRGB /BitsPerComponent 8",
+            [.. rgb, .. rgb[..(PhotoWidth * 3)]],
+            placement),
+        _ => throw new ArgumentOutOfRangeException(nameof(fallback))
+    };
+
+    /// <summary>A JPEG 2000 filter over bytes that are not JPEG 2000: nothing reads it.</summary>
+    private static PdfFixtureImage UnreadableImage(string placement) => new(
+        PhotoWidth,
+        PhotoHeight,
+        "/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode",
+        new byte[64],
+        placement);
+
+    private static byte[] PhotographPixels(int seed)
+    {
+        var pixels = new byte[PhotoWidth * PhotoHeight * 3];
+        new Random(seed).NextBytes(pixels);
+        return pixels;
+    }
+
+    private static byte[] PaperWhitePixels() => Enumerable.Repeat((byte)0xff, PhotoWidth * PhotoHeight * 3).ToArray();
+
+    private static byte[] Jpeg(byte[] rgb)
+    {
+        using var bitmap = new SKBitmap(PhotoWidth, PhotoHeight, SKColorType.Rgba8888, SKAlphaType.Opaque);
+        for (var pixel = 0; pixel < PhotoWidth * PhotoHeight; pixel++)
+        {
+            bitmap.SetPixel(
+                pixel % PhotoWidth,
+                pixel / PhotoWidth,
+                new SKColor(rgb[pixel * 3], rgb[(pixel * 3) + 1], rgb[(pixel * 3) + 2]));
+        }
+
+        using var jpeg = bitmap.Encode(SKEncodedImageFormat.Jpeg, 90);
+        return jpeg.ToArray();
+    }
+
+    private static byte[] Deflate(byte[] bytes)
+    {
+        using var output = new MemoryStream();
+        using (var zlib = new ZLibStream(output, CompressionLevel.Optimal))
+        {
+            zlib.Write(bytes);
+        }
+
+        return output.ToArray();
+    }
+
     /// <summary>
     /// Two text pages, each placing one image: page one an image declared at
     /// 10,001 by 10,000 samples (never decoded), page two an ordinary 2 by 2
     /// image that would otherwise be extracted.
     /// </summary>
-    private static byte[] BuildTwoPagePdfOverThePixelBudget(string firstPageText, string secondPageText)
+    private static byte[] BuildTwoPagePdfOverThePixelBudget(string firstPageText, string secondPageText) =>
+        BuildPdf(
+            new(firstPageText, RawRgbImage(10_001, 10_000, [0xff, 0xff, 0xff])),
+            new(secondPageText, RawRgbImage(2, 2, [.. Enumerable.Range(0, 12).Select(value => (byte)(value * 20))])));
+
+    private static PdfFixtureImage RawRgbImage(int width, int height, byte[] pixels) =>
+        new(width, height, "/ColorSpace /DeviceRGB /BitsPerComponent 8", pixels, "100 0 0 100 20 20");
+
+    /// <summary>
+    /// A letter-size PDF from object bodies: each page places its images
+    /// (declared size, the rest of the image dictionary, the encoded stream)
+    /// and, when it has any, one line of text.
+    /// </summary>
+    private static byte[] BuildPdf(params PdfFixturePage[] pages)
     {
+        var fontObject = pages.Length + 3;
         var objectBodies = new List<byte[]>
         {
             Encoding.ASCII.GetBytes("<< /Type /Catalog /Pages 2 0 R >>"),
-            Encoding.ASCII.GetBytes("<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>"),
             Encoding.ASCII.GetBytes(
-                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
-                + "/Resources << /XObject << /Im1 5 0 R >> /Font << /F1 7 0 R >> >> /Contents 8 0 R >>"),
-            Encoding.ASCII.GetBytes(
-                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
-                + "/Resources << /XObject << /Im1 6 0 R >> /Font << /F1 7 0 R >> >> /Contents 9 0 R >>"),
-            ImageObject(10_001, 10_000, [0xff, 0xff, 0xff]),
-            ImageObject(2, 2, [.. Enumerable.Range(0, 12).Select(value => (byte)(value * 20))]),
-            Encoding.ASCII.GetBytes("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
-            ContentObject(firstPageText),
-            ContentObject(secondPageText)
+                $"<< /Type /Pages /Kids [{string.Join(' ', pages.Select((_, index) => $"{index + 3} 0 R"))}] "
+                + $"/Count {pages.Length} >>")
         };
+        var pageObjects = new List<byte[]>();
+        foreach (var page in pages)
+        {
+            var firstImageObject = fontObject + 1 + pageObjects.Count;
+            var contentObject = firstImageObject + page.Images.Length;
+            var images = string.Join(
+                ' ',
+                page.Images.Select((_, index) => $"/Im{index + 1} {firstImageObject + index} 0 R"));
+            objectBodies.Add(Encoding.ASCII.GetBytes(
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+                + $"/Resources << /XObject << {images} >> /Font << /F1 {fontObject} 0 R >> >> "
+                + $"/Contents {contentObject} 0 R >>"));
+            pageObjects.AddRange(page.Images.Select(ImageObject));
+            pageObjects.Add(ContentObject(page));
+        }
+
+        objectBodies.Add(Encoding.ASCII.GetBytes("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"));
+        objectBodies.AddRange(pageObjects);
 
         using var output = new MemoryStream();
         output.Write(Encoding.ASCII.GetBytes("%PDF-1.4\n"));
@@ -496,19 +692,20 @@ public sealed class StructuredIntakeSourceReaderTests
             $"trailer\n<< /Size {objectBodies.Count + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n"));
         return output.ToArray();
 
-        static byte[] ImageObject(int width, int height, byte[] pixels) =>
+        static byte[] ImageObject(PdfFixtureImage image) =>
         [
             .. Encoding.ASCII.GetBytes(
-                $"<< /Type /XObject /Subtype /Image /Width {width} /Height {height} "
-                + $"/ColorSpace /DeviceRGB /BitsPerComponent 8 /Length {pixels.Length} >>\nstream\n"),
-            .. pixels,
+                $"<< /Type /XObject /Subtype /Image /Width {image.Width} /Height {image.Height} "
+                + $"{image.Dictionary} /Length {image.Stream.Length} >>\nstream\n"),
+            .. image.Stream,
             .. Encoding.ASCII.GetBytes("\nendstream")
         ];
 
-        static byte[] ContentObject(string text)
+        static byte[] ContentObject(PdfFixturePage page)
         {
             var operators = Encoding.ASCII.GetBytes(
-                $"q\n100 0 0 100 20 20 cm\n/Im1 Do\nQ\nBT /F1 12 Tf 72 720 Td ({text}) Tj ET");
+                string.Concat(page.Images.Select((image, index) => $"q\n{image.Placement} cm\n/Im{index + 1} Do\nQ\n"))
+                + (page.Text is null ? string.Empty : $"BT /F1 12 Tf 72 720 Td ({page.Text}) Tj ET"));
             return
             [
                 .. Encoding.ASCII.GetBytes($"<< /Length {operators.Length} >>\nstream\n"),
@@ -517,6 +714,13 @@ public sealed class StructuredIntakeSourceReaderTests
             ];
         }
     }
+
+    /// <param name="Text">One line of text, or none for a page that is only its images.</param>
+    private sealed record PdfFixturePage(string? Text, params PdfFixtureImage[] Images);
+
+    /// <param name="Dictionary">The image dictionary beyond its type, size and length.</param>
+    /// <param name="Placement">The matrix that places the image on the page.</param>
+    private sealed record PdfFixtureImage(int Width, int Height, string Dictionary, byte[] Stream, string Placement);
 
     private static byte[] BuildLabelledTableDocx() => BuildDocx(
         BuildTable(["Claim Number", "Registration"], ["CLM-9003", "AB12 CDE"]));
