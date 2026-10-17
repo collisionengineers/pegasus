@@ -43,26 +43,30 @@ public sealed class EfContactDirectoryAdministration(
         return ToRecord(entity, latest);
     }
 
-    public async Task<IReadOnlyList<ContactDirectoryRecord>> ListAsync(ContactDirectoryQuery query, CancellationToken cancellationToken)
+    public async Task<ContactDirectoryPage> ListAsync(ContactDirectoryQuery query, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(query);
         StaffAuthorization.Require(query.Actor, StaffAccessRight.ManageOrganizationsAndPrincipals);
-        var limit = Math.Clamp(query.Limit, 1, ContactDirectoryPolicy.MaximumListLimit);
+        var pageNumber = ContactDirectoryPolicy.NormalizePage(query.PageNumber);
         var prefix = query.Search?.Trim();
-        var role = query.Role is { } selectedRole ? ToCode(selectedRole) : null;
+        var role = ToCode(query.Role);
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        var contacts = context.Organizations.AsNoTracking().AsQueryable();
+        var contacts = context.Organizations.AsNoTracking().Where(item => item.Role == role);
         if (!string.IsNullOrWhiteSpace(prefix)) contacts = contacts.Where(item => item.Name.StartsWith(prefix));
-        if (role is not null) contacts = contacts.Where(item => item.Role == role);
-        // Each panel of the list is ordered by name (operator, 13 October 2026).
-        var ordered = contacts.OrderBy(item => item.Name).ThenBy(item => item.Id).Select(item => item.Id);
-        var pageIds = await ordered.Take(limit).ToArrayAsync(cancellationToken);
+        // Each panel of the list is ordered by name (operator, 13 October 2026). One row more
+        // than the page is read, so a following page is known without a count.
+        var ids = await contacts.OrderBy(item => item.Name).ThenBy(item => item.Id).Select(item => item.Id)
+            .Skip((pageNumber - 1) * ContactDirectoryPolicy.PageSize)
+            .Take(ContactDirectoryPolicy.PageSize + 1)
+            .ToArrayAsync(cancellationToken);
+        var pageIds = ids.Take(ContactDirectoryPolicy.PageSize).ToArray();
         var pageLatest = pageIds.Length == 0
             ? new Dictionary<Guid, LatestCaseRow>()
             : await LatestCaseRows(context)
                 .Where(item => pageIds.Contains(item.OrganizationId))
                 .ToDictionaryAsync(item => item.OrganizationId, cancellationToken);
-        return await LoadRecordsAsync(context, pageIds, pageLatest, cancellationToken);
+        var items = await LoadRecordsAsync(context, pageIds, pageLatest, cancellationToken);
+        return new(items, pageNumber, ids.Length > ContactDirectoryPolicy.PageSize);
     }
 
     public async Task<IReadOnlyList<ContactDirectoryRecord>> FindPossibleMatchesAsync(ActionActor actor, string name, CancellationToken cancellationToken)

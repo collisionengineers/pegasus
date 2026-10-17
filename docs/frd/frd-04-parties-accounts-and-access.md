@@ -108,8 +108,10 @@ access.
 **Contacts** lists the external organisations in one panel per type, in the
 order Principals, Claim Sources, Repairers, Storage, Third Party Engineers,
 each sorted by name; a type with no matching contact is absent. Search runs
-across every panel, and the Type filter narrows the list to one panel. A
-panel's columns follow its type: Principals show Principal code, name,
+across every panel, and the Type filter narrows the list to one panel. Each
+panel shows 50 contacts at a time; where a type has more, Previous and Next
+open that type's list one page at a time. A panel's columns follow its type:
+Principals show Principal code, name,
 contact person, email, phone, last Case and state; Claim Sources and Third
 Party Engineers show name, contact person, email, phone, linked Principals
 (their codes), last Case and state; Repairers and Storage show postcode

@@ -43,6 +43,17 @@ public sealed class ContactDirectoryPolicyTests
         Assert.StartsWith("Telephone must be digits.", exception.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(-5, 1)]
+    [InlineData(0, 1)]
+    [InlineData(1, 1)]
+    [InlineData(7, 7)]
+    [InlineData(int.MaxValue, ContactDirectoryPolicy.MaximumPage)]
+    public void ThePageNumberIsClampedIntoRange(int requested, int expected)
+    {
+        Assert.Equal(expected, ContactDirectoryPolicy.NormalizePage(requested));
+    }
+
     private static SaveContactRequest RequestWith(string? telephone) => new(
         Administrator,
         Guid.NewGuid(),

@@ -247,9 +247,9 @@ internal sealed class DatabaseLessCaseReads :
         ActionActor actor, Guid organizationId, CancellationToken cancellationToken) =>
         Refused<ContactDirectoryRecord?>(nameof(IContactDirectoryQueries));
 
-    Task<IReadOnlyList<ContactDirectoryRecord>> IContactDirectoryQueries.ListAsync(
+    Task<ContactDirectoryPage> IContactDirectoryQueries.ListAsync(
         ContactDirectoryQuery query, CancellationToken cancellationToken) =>
-        Refused<IReadOnlyList<ContactDirectoryRecord>>(nameof(IContactDirectoryQueries));
+        Refused<ContactDirectoryPage>(nameof(IContactDirectoryQueries));
 
     Task<IReadOnlyList<ContactDirectoryRecord>> IContactDirectoryQueries.FindPossibleMatchesAsync(
         ActionActor actor, string name, CancellationToken cancellationToken) =>
