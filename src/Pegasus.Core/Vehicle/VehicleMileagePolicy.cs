@@ -9,6 +9,15 @@ public sealed record VehicleMileageCalculation(
     int MethodVersion,
     int SupportingObservationCount);
 
+/// <summary>Why an MOT test gives no usable odometer reading.</summary>
+public enum MotReadingUnusableReason
+{
+    NoMileage,
+    NoUnit,
+    UndefinedUnit,
+    NegativeMileage
+}
+
 /// <summary>
 /// Produces only the latest exact MOT odometer observation. It performs no extrapolation,
 /// unit conversion, cohort inference, or valuation. Conflicting readings on the latest date
@@ -61,6 +70,18 @@ public static class VehicleMileagePolicy
             new string(registration.ToUpperInvariant().Where(char.IsAsciiLetterOrDigit).ToArray()),
             StringComparison.Ordinal);
 
+    /// <summary>
+    /// Why <paramref name="observation"/> gives no usable odometer reading, or
+    /// null when it gives one. The one usable-reading test: <see cref="Calculate"/>
+    /// skips such a test and <see cref="MotMileageEstimationPolicy"/> sets it aside.
+    /// </summary>
+    public static MotReadingUnusableReason? UnusableReason(MotTestObservation observation) =>
+        observation.Mileage is not { } value ? MotReadingUnusableReason.NoMileage
+        : observation.MileageUnit is not { } unit ? MotReadingUnusableReason.NoUnit
+        : !Enum.IsDefined(unit) ? MotReadingUnusableReason.UndefinedUnit
+        : value < 0 ? MotReadingUnusableReason.NegativeMileage
+        : null;
+
     public static VehicleMileageCalculation? Calculate(
         IReadOnlyList<MotTestObservation> observations)
     {
@@ -73,10 +94,7 @@ public static class VehicleMileagePolicy
 
         foreach (var observation in observations)
         {
-            if (observation.Mileage is not { } value
-                || observation.MileageUnit is not { } unit
-                || value < 0
-                || !Enum.IsDefined(unit))
+            if (UnusableReason(observation) is not null)
             {
                 continue;
             }
@@ -84,7 +102,7 @@ public static class VehicleMileagePolicy
             // Compared in miles, so the same reading recorded once in miles
             // and once in kilometres agrees with itself instead of reading
             // as a conflict and abstaining.
-            var miles = ToMiles(value, unit);
+            var miles = ToMiles(observation.Mileage!.Value, observation.MileageUnit!.Value);
 
             if (latestDate is null || observation.TestDate > latestDate.Value)
             {

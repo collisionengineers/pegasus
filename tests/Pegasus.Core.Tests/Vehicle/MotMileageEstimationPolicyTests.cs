@@ -78,10 +78,10 @@ public sealed class MotMileageEstimationPolicyTests
         Assert.Equal(history, evidence.Observations);
         MotMileageSetAsideObservation[] setAside =
         [
-            new(history[1], MotMileageSetAsideReason.NoMileage),
-            new(history[2], MotMileageSetAsideReason.NoUnit),
-            new(history[3], MotMileageSetAsideReason.UndefinedUnit),
-            new(history[4], MotMileageSetAsideReason.NegativeMileage)
+            new(history[1], MotReadingUnusableReason.NoMileage),
+            new(history[2], MotReadingUnusableReason.NoUnit),
+            new(history[3], MotReadingUnusableReason.UndefinedUnit),
+            new(history[4], MotReadingUnusableReason.NegativeMileage)
         ];
         Assert.Equal(setAside, evidence.SetAsideObservations);
         MotMileageReading[] readings =
@@ -179,26 +179,43 @@ public sealed class MotMileageEstimationPolicyTests
         Assert.Equal(MotMileageSetAsideReason.NegativeDelta, replaced.Intervals[1].SetAsideReason);
         Assert.All(replaced.Readings, reading => Assert.Null(reading.SetAsideReason));
 
-        // 6,000 then 70,000: the reading after the drop is back on the old odometer.
-        var mistyped = MotMileageEstimationPolicy.Estimate(
+        // 6,000 then 70,000: the next reading is at or above the post-drop
+        // reading, so the drop is corroborated however far the next one climbs.
+        var climbing = MotMileageEstimationPolicy.Estimate(
             [Passed(0, 50_000), Passed(365, 60_000), Passed(730, 6_000), Passed(1_095, 70_000)],
             On(1_200)).Evidence;
 
-        MotMileagePoint[] continued = [new(On(0), 50_000), new(On(365), 60_000), new(On(1_095), 70_000)];
-        Assert.Equal(continued, Assert.Single(mistyped.Segments).Readings);
-        Assert.Equal(
-            new MotMileageReading(On(730), On(730), 6_000, MotMileageSetAsideReason.UncorroboratedDrop),
-            mistyped.Readings[2]);
-        MotMileageSetAsideReason?[] reasons = [null, MotMileageSetAsideReason.NegativeDelta, null];
-        Assert.Equal(reasons, mistyped.Intervals.Select(interval => interval.SetAsideReason));
-        Assert.Equal(730, mistyped.Intervals[2].Days);
+        Assert.Equal(2, climbing.Segments.Count);
+        MotMileagePoint[] fromTheDrop = [new(On(730), 6_000), new(On(1_095), 70_000)];
+        Assert.Equal(fromTheDrop, climbing.Segments[1].Readings);
+        Assert.All(climbing.Readings, reading => Assert.Null(reading.SetAsideReason));
 
-        // A drop nothing follows is not corroborated either.
-        var lastDrop = MotMileageEstimationPolicy.Estimate(
-            [Passed(0, 50_000), Passed(365, 60_000), Passed(730, 6_000)],
-            On(800)).Evidence;
-        Assert.Single(lastDrop.Segments);
-        Assert.Equal(MotMileageSetAsideReason.UncorroboratedDrop, lastDrop.Readings[2].SetAsideReason);
+        // 6,000 then 5,000, which nothing follows: neither drop is
+        // corroborated, so both are set aside and the segment continues from
+        // 60,000.
+        var lone = MotMileageEstimationPolicy.Estimate(
+            [Passed(0, 50_000), Passed(365, 60_000), Passed(730, 6_000), Passed(1_095, 5_000)],
+            On(1_200)).Evidence;
+
+        MotMileagePoint[] kept = [new(On(0), 50_000), new(On(365), 60_000)];
+        Assert.Equal(kept, Assert.Single(lone.Segments).Readings);
+        MotMileageSetAsideReason?[] readingReasons =
+        [
+            null,
+            null,
+            MotMileageSetAsideReason.UncorroboratedDrop,
+            MotMileageSetAsideReason.UncorroboratedDrop
+        ];
+        Assert.Equal(readingReasons, lone.Readings.Select(reading => reading.SetAsideReason));
+        MotMileageSetAsideReason?[] intervalReasons =
+        [
+            null,
+            MotMileageSetAsideReason.NegativeDelta,
+            MotMileageSetAsideReason.NegativeDelta
+        ];
+        Assert.Equal(intervalReasons, lone.Intervals.Select(interval => interval.SetAsideReason));
+        Assert.Equal(60_000L, lone.Intervals[2].StartMiles);
+        Assert.Equal(730, lone.Intervals[2].Days);
     }
 
     [Fact]

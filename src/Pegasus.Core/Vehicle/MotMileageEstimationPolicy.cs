@@ -28,18 +28,13 @@ public enum MotMileageAbstentionReason
     ConflictingReadings
 }
 
-/// <summary>Why an observation, reading or interval takes no part in the rate.</summary>
+/// <summary>Why a reading or interval takes no part in the rate.</summary>
 public enum MotMileageSetAsideReason
 {
-    NoMileage,
-    NoUnit,
-    UndefinedUnit,
-    NegativeMileage,
-
     /// <summary>The episode's last same-day readings disagree after conversion.</summary>
     ConflictingReadings,
 
-    /// <summary>A drop the next reading does not confirm: the post-drop reading.</summary>
+    /// <summary>A drop the next reading is not at or above: the post-drop reading.</summary>
     UncorroboratedDrop,
 
     NegativeDelta,
@@ -50,7 +45,7 @@ public enum MotMileageSetAsideReason
 /// <summary>An MOT test the unit filter set aside; it is kept, never deleted.</summary>
 public sealed record MotMileageSetAsideObservation(
     MotTestObservation Observation,
-    MotMileageSetAsideReason Reason);
+    MotReadingUnusableReason Reason);
 
 /// <summary>
 /// One episode (a test, or a failed test and its retests) read as its last
@@ -197,7 +192,7 @@ public static class MotMileageEstimationPolicy
         var setAside = new List<MotMileageSetAsideObservation>();
         foreach (var observation in ordered)
         {
-            if (SetAsideReason(observation) is { } reason)
+            if (VehicleMileagePolicy.UnusableReason(observation) is { } reason)
             {
                 setAside.Add(new(observation, reason));
             }
@@ -235,7 +230,8 @@ public static class MotMileageEstimationPolicy
 
         // A usable test on the date that still gives no exact reading
         // disagrees with itself; so does a history whose every episode does.
-        return Array.Exists(onDate, IsUsable) || segments.Count == 0
+        return Array.Exists(onDate, test => VehicleMileagePolicy.UnusableReason(test) is null)
+            || segments.Count == 0
             ? Abstain(asOf, MotMileageAbstentionReason.ConflictingReadings, evidence)
             : FromSegments(segments, asOf, evidence);
     }
@@ -313,7 +309,7 @@ public static class MotMileageEstimationPolicy
             }
 
             var episode = ordered[start..end];
-            var usable = Array.FindAll(episode, IsUsable);
+            var usable = Array.FindAll(episode, test => VehicleMileagePolicy.UnusableReason(test) is null);
             if (usable.Length > 0)
             {
                 // The latest exact reading, and none when that day disagrees.
@@ -354,11 +350,10 @@ public static class MotMileageEstimationPolicy
             {
                 intervals.Add(interval with { SetAsideReason = MotMileageSetAsideReason.NegativeDelta });
 
-                // Corroborated only when the next reading stays on the new,
-                // lower odometer: at or above the post-drop reading and below
-                // the pre-drop one.
+                // Corroborated only when the next reading is at or above the
+                // post-drop reading.
                 var following = position + 1 < read.Length ? readings[read[position + 1]].Miles : null;
-                if (following >= point.Miles && following < previous.Miles)
+                if (following >= point.Miles)
                 {
                     groups.Add((new List<MotMileagePoint> { point }, new List<int>()));
                     previous = point;
@@ -480,15 +475,6 @@ public static class MotMileageEstimationPolicy
         string.Equals(test.TestStatus, FailedTestStatus, StringComparison.OrdinalIgnoreCase)
             ? test.TestDate.AddDays(RetestWindowDays)
             : current;
-
-    private static bool IsUsable(MotTestObservation observation) => SetAsideReason(observation) is null;
-
-    private static MotMileageSetAsideReason? SetAsideReason(MotTestObservation observation) =>
-        observation.Mileage is not { } value ? MotMileageSetAsideReason.NoMileage
-        : observation.MileageUnit is not { } unit ? MotMileageSetAsideReason.NoUnit
-        : !Enum.IsDefined(unit) ? MotMileageSetAsideReason.UndefinedUnit
-        : value < 0 ? MotMileageSetAsideReason.NegativeMileage
-        : null;
 
     /// <summary>Rounds as <see cref="VehicleMileagePolicy.ToMiles"/> does.</summary>
     private static long Round(decimal miles) => (long)Math.Round(miles, MidpointRounding.AwayFromZero);
