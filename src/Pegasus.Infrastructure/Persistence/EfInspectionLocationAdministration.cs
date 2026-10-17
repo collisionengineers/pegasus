@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
@@ -26,8 +25,7 @@ public sealed class EfInspectionLocationAdministration(
         CancellationToken cancellationToken)
     {
         var normalized = InspectionLocationPolicy.Normalize(request);
-        return EfOrganizationAdministration.ExecuteWithConcurrencyRetryAsync(
-            token => SaveOnceAsync(normalized, token), IsRetryable, cancellationToken);
+        return StoreConcurrencyRetry.ExecuteAsync(token => SaveOnceAsync(normalized, token), cancellationToken);
     }
 
     private async Task<InspectionLocationSaveResult> SaveOnceAsync(
@@ -136,10 +134,6 @@ public sealed class EfInspectionLocationAdministration(
             entity.ReviewedAtUtc,
             entity.Version,
             principalIds.Order().ToArray());
-
-    private static bool IsRetryable(Exception error) =>
-        error is DbUpdateConcurrencyException or SqlException { Number: 1205 or 2601 or 2627 }
-        || error.InnerException is not null && IsRetryable(error.InnerException);
 
     private sealed record InspectionLocationHistory(
         Guid Id,
