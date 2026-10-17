@@ -31,7 +31,7 @@ public sealed class CaseEstimateScalingWebTests
         {
             WorkingEstimate = AssessmentEstimateImportWebTests.DraftSpecification(caseId),
         };
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = AssessmentEstimateImportWebTests.Compose(baseFactory, store);
         using var client = AssessmentEstimateImportWebTests.CreateEngineerClient(factory);
         var html = await AssessmentEstimateImportWebTests.EnterEditModeAsync(
@@ -103,7 +103,7 @@ public sealed class CaseEstimateScalingWebTests
             },
             OtherEstimate = baseEstimate,
         };
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = AssessmentEstimateImportWebTests.Compose(baseFactory, store);
         using var client = AssessmentEstimateImportWebTests.CreateEngineerClient(factory);
 
@@ -190,7 +190,7 @@ public sealed class CaseEstimateScalingWebTests
                     Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
             },
         };
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = AssessmentEstimateImportWebTests.Compose(baseFactory, store);
         using var client = AssessmentEstimateImportWebTests.CreateEngineerClient(factory);
         var html = await AssessmentEstimateImportWebTests.EnterEditModeAsync(
@@ -288,7 +288,7 @@ public sealed class CaseEstimateScalingWebTests
             WorkingEstimate = AssessmentEstimateImportWebTests.DraftSpecification(caseId),
             DataOverride = RegionalData(caseId, repairerAddress: "Repairer Yard, SW1A 1AA", inspectionAddress: "Workshop, B1 1AA")
         };
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = AssessmentEstimateImportWebTests.Compose(baseFactory, store);
         using var client = AssessmentEstimateImportWebTests.CreateEngineerClient(factory);
 
@@ -337,7 +337,7 @@ public sealed class CaseEstimateScalingWebTests
                         Pegasus.Core.Assessment.RepairerVatStatus.Registered)),
             },
         };
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = AssessmentEstimateImportWebTests.Compose(baseFactory, store);
         using var client = AssessmentEstimateImportWebTests.CreateEngineerClient(factory);
 

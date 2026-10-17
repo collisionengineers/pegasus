@@ -153,7 +153,7 @@ public sealed class CaseCustodyWebTests
         {
             CaseDocuments = [Document(occurrenceId, versionId, "instruction.pdf", "application/pdf")]
         };
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -226,7 +226,7 @@ public sealed class CaseCustodyWebTests
                     ])
             ]
         };
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -273,7 +273,7 @@ public sealed class CaseCustodyWebTests
     public async Task CaseFilesSectionCarriesNoExplanatoryCopyOrEmptyStatePanels()
     {
         var store = new RecordingCaseDetailsStore();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -377,7 +377,7 @@ public sealed class CaseCustodyWebTests
                     MailCategory.Query)
             ]
         };
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -441,7 +441,7 @@ public sealed class CaseCustodyWebTests
     [Fact]
     public async Task CaseFilesOmitsQueriesWhenNoLinkedQueryMailExists()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -585,7 +585,7 @@ public sealed class CaseCustodyWebTests
     [Fact]
     public async Task ExportRouteBindsAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         // Capture Review with an eligible native handoff. No external action
         // is required to assign the Engineer.
         var store = new RecordingCaseDetailsStore

@@ -36,7 +36,7 @@ public sealed class CaseWorkflowWebTests
 
     private static async Task AssertPostOnlyPageAsync(string page)
     {
-        using var factory = new IntakeWebApplicationFactory();
+        using var factory = IntakeWebApplicationFactory.WithoutDatabase();
         using var client = IntakeWebDriver.CreateClient(factory);
 
         using var response = await client.GetAsync($"/Cases/{Guid.NewGuid():D}/{page}");
@@ -169,7 +169,7 @@ public sealed class CaseWorkflowWebTests
     [InlineData(CaseLifecycleState.PrincipalCancelled)]
     public async Task ExportCaseIsOfferedInEveryState(CaseLifecycleState state)
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore { State = state };
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -210,7 +210,7 @@ public sealed class CaseWorkflowWebTests
     [Fact]
     public async Task LifecyclePostsBindHoldReleaseAndNativeHandoffToAuthenticatedLease()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>

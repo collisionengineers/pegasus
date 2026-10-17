@@ -22,7 +22,7 @@ public sealed class IntakePendingCustodyWebTests
     [InlineData("Asset")]
     public async Task ASourceOrAssetStillReachingCustodyIsReportedAsUnavailable(string route)
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {

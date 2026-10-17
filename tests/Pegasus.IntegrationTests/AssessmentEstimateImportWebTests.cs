@@ -54,7 +54,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var card = new LabourRateCard(Guid.NewGuid(), LabourRateCardAdministration.Standard, 80m, 3);
         store.RateCards.Add(new LabourRateCard(Guid.NewGuid(), LabourRateCardAdministration.PrestigeAluminium, 95m, 1));
         store.RateCards.Add(card);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory, StaffRole.User);
         var fixture = AudatexEstimateFixture.Build();
@@ -126,7 +126,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var caseId = Guid.NewGuid();
         var fixture = AudatexEstimateFixture.Build();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
@@ -177,7 +177,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             "{\"schema\":\"pegasus-estimate/1\",\"sourceVersion\":\"second\"," +
             "\"lines\":[{\"operation\":\"Replace\",\"description\":\"Front bumper\",\"price\":120.00}]}");
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
@@ -226,7 +226,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
@@ -311,7 +311,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
@@ -421,7 +421,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
@@ -494,7 +494,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
@@ -538,7 +538,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
@@ -564,7 +564,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
         // The document's own parts sub-total disagrees with its lines.
@@ -593,7 +593,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId) { FailDocumentStorage = true };
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
         var html = await EnterEditModeAsync(client, caseId);
@@ -619,7 +619,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var caseId = Guid.NewGuid();
         var fixture = AudatexEstimateFixture.Build();
         var store = new RecordingStores(caseId) { FailLeaseClaimAt = 2 };
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
         var html = await EnterEditModeAsync(client, caseId);
@@ -658,7 +658,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
@@ -695,7 +695,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
@@ -746,7 +746,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
@@ -781,7 +781,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var engineerClient = CreateEngineerClient(factory);
 
@@ -805,7 +805,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
         var html = await EnterEditModeAsync(client, caseId);
@@ -847,7 +847,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var caseId = Guid.NewGuid();
         var fixture = AudatexEstimateFixture.Build();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
@@ -893,7 +893,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var caseId = Guid.NewGuid();
         var fixture = AudatexEstimateFixture.Build();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
@@ -953,7 +953,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
@@ -975,7 +975,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory, StaffRole.User);
 
@@ -1004,7 +1004,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         store.RateCards.Add(card);
         var emailed = store.SeedCaseFile(
             "Audatex report.pdf", "application/pdf", AudatexEstimateFixture.Build(), recognisedEstimate: true);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory, StaffRole.User);
 
@@ -1065,7 +1065,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var letter = store.SeedCaseFile(
             "37765_1_LtrtoEngineerIn.pdf", "application/pdf", "%PDF-1.4 instruction letter"u8.ToArray(),
             role: DocumentSemanticRole.Instruction, recognisedEstimate: false);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
@@ -1140,7 +1140,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             custody: DocumentCustodyStatus.Pending);
         var image = store.SeedCaseFile(
             "front.jpg", "image/jpeg", [0xFF, 0xD8, 0xFF, 0xE0], DocumentSource.StaffUpload, DocumentSemanticRole.Image);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
@@ -1176,7 +1176,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var fixture = AudatexEstimateFixture.Build();
         var store = new RecordingStores(caseId);
         var emailed = store.SeedCaseFile("Audatex report.pdf", "application/pdf", fixture, recognisedEstimate: true);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
@@ -1206,7 +1206,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
@@ -1244,7 +1244,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var draft = DraftSpecification(caseId);
         var inUse = DraftSpecification(caseId) with { SpecificationId = Guid.NewGuid(), Version = 2, IsCurrent = true };
         var store = new RecordingStores(caseId) { WorkingEstimate = draft, OtherEstimate = inUse };
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory, StaffRole.User);
 
@@ -1290,7 +1290,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var store = new RecordingStores(caseId);
         var existing = DraftSpecification(caseId);
         store.WorkingEstimate = existing;
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate&estimate={existing.SpecificationId:D}");
@@ -1329,7 +1329,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             Details = draft.Details with { Vat = EstimateVatPolicy.For(RepairerVatStatus.Unknown) },
         };
         store.WorkingEstimate = existing;
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate&estimate={existing.SpecificationId:D}");
@@ -1366,7 +1366,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
@@ -1441,7 +1441,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
@@ -1521,7 +1521,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
@@ -1585,7 +1585,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var seeded = DraftSpecification(caseId);
         var draft = seeded with { Details = seeded.Details with { Vat = null } };
         var store = new RecordingStores(caseId) { WorkingEstimate = draft };
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
@@ -1620,7 +1620,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             WorkingEstimate = draft,
             OtherEstimate = current,
         };
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
@@ -1655,7 +1655,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var caseId = Guid.NewGuid();
         var draft = DraftSpecification(caseId);
         var store = new RecordingStores(caseId) { WorkingEstimate = draft };
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
@@ -1675,7 +1675,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var caseId = Guid.NewGuid();
         var draft = DraftSpecification(caseId);
         var store = new RecordingStores(caseId) { WorkingEstimate = draft };
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 

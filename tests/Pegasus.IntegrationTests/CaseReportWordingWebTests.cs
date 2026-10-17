@@ -167,7 +167,7 @@ public sealed class CaseReportWordingWebTests
     private static async Task<string> ReadCaseAsync(
         RecordingCaseDetailsStore store, Action<IServiceCollection> substitutePorts)
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {

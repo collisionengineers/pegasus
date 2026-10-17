@@ -100,7 +100,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task EnhancedPreviewReturnsATypedRefusalWhenTheReportIsNotReady()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         using var factory = Compose(
             baseFactory,
@@ -133,7 +133,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task IncompleteCaseNamesWhatIsMissingAndOffersNeitherGenerateNorPreview()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         using var factory = Compose(
             baseFactory,
@@ -164,7 +164,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task CaseOutsideTheCurrentExportedReviewCycleOffersNeitherGenerateNorPreview()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         // The page takes its access answer from the Case's state; Held is a
         // state the assessment cannot open.
@@ -192,7 +192,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [InlineData(false)]
     public async Task CaseGetUsesMetadataReadinessWithoutOpeningPreviewOrRendering(bool eligibleSignatory)
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         var source = new FakeProjectionSource(ReadyInput(caseId));
         if (!eligibleSignatory)
@@ -243,7 +243,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task EachReportBlockerLinksToTheSectionThatClearsIt()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         var source = new FakeProjectionSource(ReadyInput(caseId));
         var full = FullAssessmentProjection(caseId);
@@ -347,7 +347,7 @@ public sealed partial class AssessmentReportDraftWebTests
         // The development identity above is the Administrator; the Engineer's
         // view needs the header-authenticated factory, which reads the role
         // from the request.
-        using var engineerBase = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var engineerBase = IntakeWebApplicationFactory.WithoutDatabase();
         using var engineerFactory = Compose(
             engineerBase, new FakeGetCase(caseId), full, source, new FakeRenderer([1]));
         using var engineer = engineerFactory.CreateClient(new WebApplicationFactoryClientOptions
@@ -387,7 +387,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [InlineData(true, "[data-vat-reset]")]
     public async Task ARepairerVatBlockerOpensTheRepairSpecOnTheControlThatClearsIt(bool handPicked, string focus)
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         var ready = CurrentEstimate() with { CaseId = caseId };
         var estimate = ready with
@@ -436,7 +436,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task TheSignOffBlockerLinksCaseDetailsWhenNoOfferedAccountIsChosen()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         var source = new FakeProjectionSource(ReadyInput(caseId));
         source.Readiness = source.Readiness with
@@ -478,7 +478,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task TheCasePageLoadsAndNamesAMissingPrintedFact()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         var ready = ReadyInput(caseId);
         var input = ready with

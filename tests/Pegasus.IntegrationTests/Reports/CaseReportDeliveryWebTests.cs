@@ -21,7 +21,7 @@ public sealed partial class AssessmentReportDraftWebTests
         string handler,
         CaseReportArtifactKind expectedKind)
     {
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         var operationKey = Guid.NewGuid().ToString("N");
         var targetGenerationId = Guid.NewGuid();
@@ -67,7 +67,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task GenerateReportOffersNoFeeNoteChoice()
     {
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         var recorder = new CaseWebTestSupport.RecordingGenerateReport();
         using var factory = Compose(
@@ -109,7 +109,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task GenerateReportFormCarriesDistinctReportAndFeeNoteOperationKeys()
     {
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         using var factory = Compose(
             baseFactory,
@@ -670,7 +670,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task GenerateReportCarriesTheGenerateGlyph()
     {
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         using var factory = Compose(
             baseFactory,
@@ -694,7 +694,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task GenerateReportInEditModeCarriesNoSaveFirstMarker()
     {
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         using var factory = Compose(
             baseFactory,
@@ -814,7 +814,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task SendReportCarriesTheAnswersTheTickedHoldsAndTheOverrideReason()
     {
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         var send = new RecordingSendReport(StaffMailState.Submitted);
         using var factory = Compose(
@@ -865,7 +865,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task ARefusedSendStatesWhyOnTheCase()
     {
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         using var factory = Compose(
             baseFactory,
@@ -1129,7 +1129,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task SendReportCarriesGenerationReviewedFieldsAndServerAuthority()
     {
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         var generationId = Guid.NewGuid();
         var operationKey = Guid.NewGuid().ToString("N");
@@ -1194,7 +1194,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task SendReportCarriesTheOtherWorksReportWhenItsTickIsOn()
     {
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         var otherGenerationId = Guid.NewGuid();
         var send = new RecordingSendReport(StaffMailState.Submitted);
@@ -1238,7 +1238,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task SendReportCarriesTheDocumentsTheOperatorChose()
     {
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         var send = new RecordingSendReport(StaffMailState.Submitted);
         using var factory = Compose(
@@ -1280,7 +1280,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task SendReportRefusesABlankMessage()
     {
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
         var send = new RecordingSendReport(StaffMailState.Submitted);
         using var factory = Compose(
