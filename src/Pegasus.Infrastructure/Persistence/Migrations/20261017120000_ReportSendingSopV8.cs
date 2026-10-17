@@ -40,11 +40,11 @@ public partial class ReportSendingSopV8 : Migration
             SELECT CAST('00000000-0000-4000-8000-00000000f0' + s.Slot AS uniqueidentifier), s.Name, N'claim_source', 1, 0 FROM @src s WHERE s.OrgId IS NULL;
             UPDATE @src SET OrgId = CAST('00000000-0000-4000-8000-00000000f0' + Slot AS uniqueidentifier) WHERE OrgId IS NULL;
 
-            -- FRZ, the Principal v8 adds. Same rows a new Principal Contact saves, but inactive.
+            -- FRZ, the Principal v8 adds: the rows a new Principal Contact saved inactive writes, both flags 0.
             IF NOT EXISTS (SELECT 1 FROM dbo.Principals WHERE Code = N'FRZ')
             BEGIN
                 INSERT dbo.Organizations (Id, Name, Role, Active, Version)
-                VALUES ('00000000-0000-4000-8000-00000000d035', N'Fraz', N'principal', 1, 0);
+                VALUES ('00000000-0000-4000-8000-00000000d035', N'Fraz', N'principal', 0, 0);
                 INSERT dbo.PrincipalSequenceLineages (Id, CreatedAtUtc)
                 VALUES ('00000000-0000-4000-8000-00000000e035', SYSDATETIMEOFFSET());
                 INSERT dbo.Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, InspectionMode, Version)

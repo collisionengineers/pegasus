@@ -273,6 +273,7 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.Equal(Guid.Parse("00000000-0000-4000-8000-00000000d035"), frz.OrganizationId);
         Assert.Equal(Guid.Parse("00000000-0000-4000-8000-00000000e035"), frz.SequenceLineageId);
         Assert.Equal("Fraz", organizations[frz.OrganizationId].Name);
+        Assert.False(organizations[frz.OrganizationId].Active);
         Assert.Equal("00000000-0000-4000-8000-00000000f00b", ClaimSource("iRevolution Repair Network"));
         Assert.Equal("PCH / Connexus", organizations[principals["PCH"].Principal.OrganizationId].Name);
         Assert.Equal(["Ontrack789@gmail.com"], principals["SWADE"].Rules.SendTo.ToArray());
