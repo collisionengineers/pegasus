@@ -309,7 +309,7 @@ public sealed class PrincipalReportSendingRulesTests
             Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new([], ["b@example.com"], Remind: "Tell Andy."))]
         };
         Assert.EndsWith(
-            """"rules":[{"match":"All","if":[{"kind":"Mentions","values":["Luton"]}],"then":{"ccAdd":[],"ccRemove":["b@example.com"],"remind":"Tell Andy."}}]}""",
+            ""","rules":[{"match":"All","if":[{"kind":"Mentions","values":["Luton"]}],"then":{"ccAdd":[],"ccRemove":["b@example.com"],"remind":"Tell Andy."}}]}""",
             EfOrganizationAdministration.ToReportSendingJson(plain),
             StringComparison.Ordinal);
 
@@ -325,7 +325,7 @@ public sealed class PrincipalReportSendingRulesTests
         };
         var json = EfOrganizationAdministration.ToReportSendingJson(v8);
         Assert.EndsWith(
-            """"rules":[{"match":"Any","if":[{"kind":"RefPrefix","values":["a"]},{"kind":"PreviousJob","values":[]}],"then":{"ccAdd":[],"ccRemove":["b@example.com"],"rateCard":true,"attach":{"audatex":false}}}]}""",
+            ""","rules":[{"match":"Any","if":[{"kind":"RefPrefix","values":["a"]},{"kind":"PreviousJob","values":[]}],"then":{"ccAdd":[],"ccRemove":["b@example.com"],"rateCard":true,"attach":{"audatex":false}}}]}""",
             json,
             StringComparison.Ordinal);
         Assert.Equal(v8, EfOrganizationAdministration.ReadReportSending(json));
