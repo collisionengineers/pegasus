@@ -1011,6 +1011,20 @@ public interface IIntakeArtifactStore
             string.Empty);
     }
 
+    /// <summary>
+    /// The content-addressed key <see cref="StoreAsync"/> returns for
+    /// <paramref name="verifiedContent"/>, whose staged copy at
+    /// <paramref name="stagingKey"/> the caller has just read and hashed. A
+    /// store that can copy the staged bytes within itself does that; the
+    /// default stores them.
+    /// </summary>
+    Task<string> PromoteStagedAsync(
+        string stagingKey,
+        string contentHash,
+        ReadOnlyMemory<byte> verifiedContent,
+        CancellationToken cancellationToken) =>
+        StoreAsync(contentHash, verifiedContent, cancellationToken);
+
     Task<StagedArtifactInventoryItem?> GetStagedAsync(
         string storageKey,
         CancellationToken cancellationToken) =>
