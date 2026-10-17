@@ -488,9 +488,8 @@ public sealed partial class GlassCredentialAdministrationWebTests
     }
 
     /// <summary>
-    /// The credential is published at exactly one surface: the Accounts page's
-    /// <c>?glassStaffId=</c> deep link. The retired standalone
-    /// <c>/Administration/Glass</c> routes are not addressable.
+    /// The credential is published at the Accounts page's
+    /// <c>?glassStaffId=</c> deep link.
     /// </summary>
     [Fact]
     public async Task TheCredentialIsPublishedOnTheAccountsDeepLink()
