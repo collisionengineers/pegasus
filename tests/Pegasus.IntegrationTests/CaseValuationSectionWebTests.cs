@@ -1274,7 +1274,7 @@ public sealed class CaseValuationSectionWebTests
         RecordingCaseDetailsStore store,
         RecordingValuationSection valuation)
     {
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {

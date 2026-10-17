@@ -53,4 +53,6 @@ documentation are removed; git history retains them.
   an email, PDF, Office document, image, fixture, workbook, or CollisionSpike
   file.
 - Any future import or directory use requires operator review, an accepted data
-  contract, and separately authorized target operations.
+  contract, and separately authorized target operations. The accepted data
+  contract is the reviewed register, loaded by the operator-run loader
+  ([ADR-0076](../docs/adr/0076-reviewed-register-is-the-contact-directory-data-contract.md)).

@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -339,25 +338,16 @@ public sealed class EfPrincipalCredentialStore(
         }
     }
 
-    private static Task<T> ExecuteWithConcurrencyRetryAsync<T>(
-        Func<CancellationToken, Task<T>> operation,
-        CancellationToken cancellationToken) =>
-        EfOrganizationAdministration.ExecuteWithConcurrencyRetryAsync(
-            operation,
-            IsRetryableConcurrencyFailure,
-            cancellationToken);
-
     // A deadlock or a unique-key race (two first submissions of one
     // operation key, or two concurrent issues for one Principal) is retried;
     // the retry then finds the receipt or the row and answers from it.
-    private static bool IsRetryableConcurrencyFailure(Exception exception) =>
-        exception switch
-        {
-            SqlException { Number: 1205 or 2601 or 2627 } => true,
-            _ when exception.InnerException is not null =>
-                IsRetryableConcurrencyFailure(exception.InnerException),
-            _ => false
-        };
+    private static Task<T> ExecuteWithConcurrencyRetryAsync<T>(
+        Func<CancellationToken, Task<T>> operation,
+        CancellationToken cancellationToken) =>
+        StoreConcurrencyRetry.ExecuteAsync(
+            operation,
+            cancellationToken,
+            StoreConcurrencyRetry.IsDeadlockOrKeyCollision);
 
     private DateTimeOffset UtcNow()
     {

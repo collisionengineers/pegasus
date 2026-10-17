@@ -23,8 +23,8 @@ public sealed class EfContactDirectoryAdministration(
     public Task<ContactDirectoryRecord> SaveAsync(SaveContactRequest request, CancellationToken cancellationToken)
     {
         var normalized = ContactDirectoryPolicy.Normalize(request);
-        return EfOrganizationAdministration.ExecuteWithConcurrencyRetryAsync(
-            token => SaveOnceAsync(normalized, token), IsRetryable, cancellationToken);
+        return StoreConcurrencyRetry.ExecuteAsync(
+            token => SaveOnceAsync(normalized, token), cancellationToken, IsRetryable);
     }
 
     public async Task<ContactDirectoryRecord?> GetAsync(ActionActor actor, Guid organizationId, CancellationToken cancellationToken)

@@ -141,7 +141,7 @@ exclusion.
 | OPS-24 | Direct production deployment from an authorised terminal using committed Bicep through `azd` | [ADR-0007 decision](adr/0007-direct-terminal-azure-deployment.md#decision) |
 | OPS-23 | Operator acceptance against the real end-to-end workflow | [Acceptance model](prd/pegasus-product.md#acceptance-model) |
 | OPS-25 | Collision Engineers management approval before production release | [Acceptance model](prd/pegasus-product.md#acceptance-model) |
-| DATA-02 | Prepare inspection-address / repairer reference data from separately approved spreadsheets | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
+| DATA-02 | Prepare inspection-address / repairer reference data from the reviewed register | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address); [ADR-0076](adr/0076-reviewed-register-is-the-contact-directory-data-contract.md) |
 | INT-04 | Activate additional Principals through the shared workflow | [Principal and intermediary routes](frd/frd-09-principal-and-intermediary-routes.md#principal-and-intermediary-routes) |
 | INT-05 | Automatic ingestion from `desk@collisionengineers.co.uk` | [Mailbox allowlist, activation and wipe](frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#mailbox-allowlist-activation-and-wipe) |
 | INT-06 | Automatic ingestion from `engineers@collisionengineers.co.uk` | [Mailbox allowlist, activation and wipe](frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#mailbox-allowlist-activation-and-wipe) |

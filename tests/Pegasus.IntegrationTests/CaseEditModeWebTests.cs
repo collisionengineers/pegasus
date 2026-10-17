@@ -839,7 +839,7 @@ public sealed class CaseEditModeWebTests
     [Fact]
     public async Task WrongHolderProjectionClearsProtectedLeaseAuthorityAndTheHolderResumes()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -895,7 +895,7 @@ public sealed class CaseEditModeWebTests
     [Fact]
     public async Task ARefusedSaveKeepsTheProposedValuesForComparisonAndOffersNoApplyControl()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -957,7 +957,7 @@ public sealed class CaseEditModeWebTests
     [Fact]
     public async Task AStaleVersionRefusalKeepsTheValuesAndResumesTheHoldersLease()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -1023,7 +1023,7 @@ public sealed class CaseEditModeWebTests
     [Fact]
     public async Task ARefusalOnOneCaseSurvivesAVisitToAnother()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         var otherStore = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
@@ -1074,7 +1074,7 @@ public sealed class CaseEditModeWebTests
     [Fact]
     public async Task ReturningFromAnotherCaseResumesEditModeWithoutATakeover()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         var otherStore = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
@@ -1148,7 +1148,7 @@ public sealed class CaseEditModeWebTests
     [Fact]
     public async Task ALazySectionUnderAColleaguesLeaseOffersNoEdit()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -1874,7 +1874,7 @@ public sealed class CaseEditModeWebTests
     [Fact]
     public async Task RefusedRetentionKeepsEditorialValuesAndNeverIdentifiersOrRoutingFields()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -1927,7 +1927,7 @@ public sealed class CaseEditModeWebTests
     [Fact]
     public async Task ARetainedValueTooLongToKeepIsReportedRatherThanTrimmedQuietly()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -1966,7 +1966,7 @@ public sealed class CaseEditModeWebTests
     public async Task ANonHolderSeesTheEditingStaffAccountByNameAndNeverItsIdentifier()
     {
         var holderId = Guid.Parse("0d3b5a41-6f3f-4a1e-9f0b-2c5d7e8a9b01");
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore { LeaseHolder = holderId.ToString("D") };
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -2000,7 +2000,7 @@ public sealed class CaseEditModeWebTests
     public async Task AnUnresolvableHolderIsStillDisclosedWithoutAnIdentifier()
     {
         var holderId = Guid.Parse("0d3b5a41-6f3f-4a1e-9f0b-2c5d7e8a9b01");
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore { LeaseHolder = holderId.ToString("D") };
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -2039,7 +2039,7 @@ public sealed class CaseEditModeWebTests
     [Fact]
     public async Task AnAutomationHolderIsNamedAsAiAndNeverAsAMemberOfStaff()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore
         {
             LeaseHolder = "pegasus-automation",
@@ -2076,7 +2076,7 @@ public sealed class CaseEditModeWebTests
     [Fact]
     public async Task EditModeCopyAvoidsBannedOperatorVocabularyInEveryState()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -2164,7 +2164,7 @@ public sealed class CaseEditModeWebTests
     [Fact]
     public async Task AnAutomationHeldCaseOffersStaffTakeOverAndAPlainClaimIsStillRefused()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore
         {
             LeaseHolder = "pegasus-automation",

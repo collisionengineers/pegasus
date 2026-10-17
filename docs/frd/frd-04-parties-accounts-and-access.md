@@ -41,11 +41,20 @@ Third Party Engineer Contact is directory information only: no Case field,
 report or reader uses one today.
 Staff accounts are not Contacts.
 
+An intermediary is a Claim Source Contact. An organisation that is also a
+Principal has two Contacts, its Principal Contact and a separate Claim Source
+Contact: Sixways, ACSP and CS each have both. Contacts loaded from the
+reviewed register are linked to Principals on cited evidence, and a link may
+name an inactive Principal (operator, 15 and 16 October 2026;
+[ADR-0076](../adr/0076-reviewed-register-is-the-contact-directory-data-contract.md)).
+
 A repairer, broker, agent, client, legal representative, provider, vehicle
 keeper or other contact may play different roles on different Cases. The
 reusable directory record is separate from the inspection address and party
 roles each Case keeps. Raw provider or contact workbooks are evidence, not
-import authority.
+import authority; the reviewed register is the accepted data contract
+(operator, 15 October 2026;
+[ADR-0076](../adr/0076-reviewed-register-is-the-contact-directory-data-contract.md)).
 
 The Repairer directory records each repairer's name, full address and
 contacts. A Repairer may relate to several Principals and a Principal to
@@ -393,4 +402,5 @@ acceptance are separate evidence tiers
   [FRD-17](frd-17-administration-workspace.md).
 - Technical constraints:
   [ADR-0004](../adr/0004-provider-api-and-staff-mcp-authentication.md),
-  [ADR-0048](../adr/0048-principal-report-generation-policies.md).
+  [ADR-0048](../adr/0048-principal-report-generation-policies.md),
+  [ADR-0076](../adr/0076-reviewed-register-is-the-contact-directory-data-contract.md).

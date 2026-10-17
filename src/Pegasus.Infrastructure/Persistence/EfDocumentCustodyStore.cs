@@ -350,7 +350,15 @@ internal sealed class EfDocumentCustodyStore(
         await transaction.CommitAsync(cancellationToken);
     }
 
-    async Task<OriginalReportRecorded> IMarkAsOriginalReportStore.MarkAsOriginalReportAsync(
+    Task<OriginalReportRecorded> IMarkAsOriginalReportStore.MarkAsOriginalReportAsync(
+        MarkAsOriginalReportCommand command,
+        OriginalReportReading? reading,
+        CancellationToken cancellationToken) =>
+        StoreConcurrencyRetry.ExecuteAsync(
+            token => MarkAsOriginalReportOnceAsync(command, reading, token),
+            cancellationToken);
+
+    private async Task<OriginalReportRecorded> MarkAsOriginalReportOnceAsync(
         MarkAsOriginalReportCommand command,
         OriginalReportReading? reading,
         CancellationToken cancellationToken)
@@ -491,7 +499,15 @@ internal sealed class EfDocumentCustodyStore(
             ]);
     }
 
-    async Task<OriginalReportRecorded?> IRecogniseOriginalReportStore.RecordRecognisedAsync(
+    Task<OriginalReportRecorded?> IRecogniseOriginalReportStore.RecordRecognisedAsync(
+        RecordRecognisedOriginalReport command,
+        OriginalReportReading reading,
+        CancellationToken cancellationToken) =>
+        StoreConcurrencyRetry.ExecuteAsync<OriginalReportRecorded?>(
+            token => RecordRecognisedOnceAsync(command, reading, token),
+            cancellationToken);
+
+    private async Task<OriginalReportRecorded?> RecordRecognisedOnceAsync(
         RecordRecognisedOriginalReport command,
         OriginalReportReading reading,
         CancellationToken cancellationToken)

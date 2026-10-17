@@ -95,7 +95,7 @@ public sealed class CaseImagesWindowWebTests
         // The route filter answers before the page: the ports the page would
         // read are the store's, and the Case's kind is Triage.
         var store = new PreparedImages().Store();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {

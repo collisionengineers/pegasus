@@ -47,7 +47,7 @@ public sealed class CaseDocumentDownloadWebTests
     public async Task AnInlinePreviewIsCacheableByContentHashAndIsNotAnAuditedDownload()
     {
         var ports = new DocumentPorts();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
@@ -76,7 +76,7 @@ public sealed class CaseDocumentDownloadWebTests
     public async Task APdfPreviewIsCacheableByContentHash()
     {
         var ports = new DocumentPorts { PreviewMediaType = "application/pdf", PreviewFileName = "estimate.pdf" };
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
@@ -98,7 +98,7 @@ public sealed class CaseDocumentDownloadWebTests
     public async Task APreviewTheBrowserAlreadyHoldsIsAnsweredWithNotModified()
     {
         var ports = new DocumentPorts();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
@@ -118,7 +118,7 @@ public sealed class CaseDocumentDownloadWebTests
     public async Task TheThumbnailVariantServesTheDerivedRenderingUnderItsOwnValidator()
     {
         var ports = new DocumentPorts();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
@@ -149,7 +149,7 @@ public sealed class CaseDocumentDownloadWebTests
     public async Task AThumbnailThatCannotBeRenderedFallsBackToTheFullImageWithoutCachingIt()
     {
         var ports = new DocumentPorts { Thumbnail = null };
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
@@ -173,7 +173,7 @@ public sealed class CaseDocumentDownloadWebTests
     public async Task AThumbnailRequestIsNotSatisfiedByTheFullImageValidator()
     {
         var ports = new DocumentPorts();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
@@ -192,7 +192,7 @@ public sealed class CaseDocumentDownloadWebTests
     public async Task AThumbnailTheBrowserAlreadyHoldsIsAnsweredWithNotModified()
     {
         var ports = new DocumentPorts();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
@@ -217,7 +217,7 @@ public sealed class CaseDocumentDownloadWebTests
         {
             Preparation = PreparationFor(7, CaseAssetRotation.Clockwise90, crop)
         };
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
@@ -242,7 +242,7 @@ public sealed class CaseDocumentDownloadWebTests
         {
             Preparation = PreparationFor(7, CaseAssetRotation.Clockwise90, crop)
         };
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
@@ -269,7 +269,7 @@ public sealed class CaseDocumentDownloadWebTests
         {
             Preparation = PreparationFor(1, CaseAssetRotation.Half, CaseAssetCrop.Full)
         };
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
@@ -285,7 +285,7 @@ public sealed class CaseDocumentDownloadWebTests
     public async Task AThumbnailWithoutAPreparationAddressIsNeverCacheableOrNotModified()
     {
         var ports = new DocumentPorts();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
@@ -306,7 +306,7 @@ public sealed class CaseDocumentDownloadWebTests
     public async Task MissingOrOldThumbnailRendererIdentitiesAreNeverCacheableOrNotModified(string? renderer)
     {
         var ports = new DocumentPorts();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
@@ -331,7 +331,7 @@ public sealed class CaseDocumentDownloadWebTests
     public async Task MalformedOrNegativeThumbnailPreparationValuesAreRejectedWithoutReadingContent(string prep)
     {
         var ports = new DocumentPorts();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
@@ -353,7 +353,7 @@ public sealed class CaseDocumentDownloadWebTests
             ReadFailure = new HttpRequestException(
                 "Box version download returned 429.", null, HttpStatusCode.TooManyRequests)
         };
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
@@ -368,7 +368,7 @@ public sealed class CaseDocumentDownloadWebTests
     public async Task AVersionStillReachingCustodyIsRetriableRatherThanMissing()
     {
         var ports = new DocumentPorts { CustodyStatus = DocumentCustodyStatus.Pending };
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
@@ -383,7 +383,7 @@ public sealed class CaseDocumentDownloadWebTests
     public async Task AnUnknownOccurrenceIsStillMissing()
     {
         var ports = new DocumentPorts { Preview = false };
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
@@ -396,7 +396,7 @@ public sealed class CaseDocumentDownloadWebTests
     public async Task SavingADocumentStaysTheAuditedReadAndIsNeverCached()
     {
         var ports = new DocumentPorts();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
@@ -422,7 +422,7 @@ public sealed class CaseDocumentDownloadWebTests
             ReadFailure = new HttpRequestException(
                 "Box version download returned 503.", null, HttpStatusCode.ServiceUnavailable)
         };
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 

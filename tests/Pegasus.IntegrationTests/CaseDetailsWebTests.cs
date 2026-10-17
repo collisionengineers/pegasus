@@ -28,7 +28,7 @@ public sealed class CaseDetailsWebTests
     [Fact]
     public async Task TheRecordRendersTenOrderedSectionHostsAndJumpLinks()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -89,7 +89,7 @@ public sealed class CaseDetailsWebTests
         string query,
         string currentSection)
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -120,7 +120,7 @@ public sealed class CaseDetailsWebTests
     [Fact]
     public async Task HiddenOriginalReportSectionFallsBackToOverview()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -154,7 +154,7 @@ public sealed class CaseDetailsWebTests
     [InlineData("valuation")]
     public async Task TheSectionFragmentReturnsOnlyThatSectionBody(string key)
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -192,7 +192,7 @@ public sealed class CaseDetailsWebTests
     [Fact]
     public async Task EverySectionClosesInsideTheMainColumnInReadAndEditMode()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -237,7 +237,7 @@ public sealed class CaseDetailsWebTests
     [InlineData("nonsense")]
     public async Task TheSectionFragmentRefusesKeysItDoesNotServe(string key)
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -277,7 +277,7 @@ public sealed class CaseDetailsWebTests
     public async Task AFragmentOfAnUnknownCaseAnswersWithAnEmptyBodyWhileTheFullPageKeepsTheStatusPage(
         string fragment)
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -667,7 +667,7 @@ public sealed class CaseDetailsWebTests
     [Fact]
     public async Task CaseHistoryShowsResolvedActorNamesAndNeverARawSubjectId()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var staffSubjectId = Guid.NewGuid().ToString("D");
         var automationSubjectId = Guid.NewGuid().ToString("D");
         var store = new RecordingCaseDetailsStore
@@ -732,7 +732,7 @@ public sealed class CaseDetailsWebTests
         bool hasIntakeEvidence,
         bool requirementExpected)
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore
         {
             SummaryCaseType = caseType,

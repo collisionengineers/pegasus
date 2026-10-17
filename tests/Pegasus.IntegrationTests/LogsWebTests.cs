@@ -52,7 +52,7 @@ public sealed class LogsWebTests
     public async Task TheIntakeLogListsRowsOpensTheDrawerAndRunsItsThreeActions()
     {
         var log = new RecordingIntakeLog();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Configure(baseFactory, log);
         using var client = CreateClient(factory);
 

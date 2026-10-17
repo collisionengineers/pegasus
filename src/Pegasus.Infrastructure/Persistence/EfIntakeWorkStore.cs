@@ -1,5 +1,4 @@
 using Pegasus.Core.Intake;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -103,30 +102,14 @@ public sealed class EfIntakeWorkStore(
         CancellationToken cancellationToken) =>
         ReceiveWithRetryAsync(receipt, operationKey, cancellationToken);
 
-    private async Task<ReceivedIntake> ReceiveWithRetryAsync(
+    private Task<ReceivedIntake> ReceiveWithRetryAsync(
         IntakeStagedReceipt receipt,
         string operationKey,
-        CancellationToken cancellationToken)
-    {
-        for (var attempt = 1; attempt <= 3; attempt++)
-        {
-            try
-            {
-                return await ReceiveCoreAsync(
-                    receipt,
-                    operationKey,
-                    cancellationToken);
-            }
-            catch (Exception exception)
-                when (attempt < 3 && IsRetryableConcurrencyFailure(exception))
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt), cancellationToken);
-            }
-        }
-
-        throw new InvalidOperationException(
-            "The staged intake receipt could not be stored after the concurrency retry limit.");
-    }
+        CancellationToken cancellationToken) =>
+        StoreConcurrencyRetry.ExecuteAsync(
+            token => ReceiveCoreAsync(receipt, operationKey, token),
+            cancellationToken,
+            StoreConcurrencyRetry.IsDeadlockOrKeyCollision);
 
     private async Task<ReceivedIntake> ReceiveCoreAsync(
         IntakeStagedReceipt receipt,
@@ -750,12 +733,4 @@ public sealed class EfIntakeWorkStore(
         "failed" => IntakeWorkState.Failed,
         _ => throw new InvalidDataException($"Unknown persisted intake work state '{value}'.")
     };
-    private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch
-    {
-        SqlException { Number: 1205 or 2601 or 2627 } => true,
-        _ when exception.InnerException is not null =>
-            IsRetryableConcurrencyFailure(exception.InnerException),
-        _ => false
-    };
-
 }

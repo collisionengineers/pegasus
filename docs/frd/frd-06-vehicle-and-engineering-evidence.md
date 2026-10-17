@@ -86,10 +86,12 @@ Case stores its storage location as its own field. Choosing an option records
 that value under the source and reason rules above. The choice never invents
 an address.
 
-**Reference addresses.** When `DATA-02` activates, its separately approved
-reference-data pipeline accepts only reviewed full addresses. It keeps each
-complete display address with a normalised postcode, keeps operator-confirmed
-rows across refreshes, and is deterministic and auditable. Frequency,
+**Reference addresses.** The `DATA-02` reference-data pipeline is the
+reviewed register and its operator-run loader
+([ADR-0076](../adr/0076-reviewed-register-is-the-contact-directory-data-contract.md)).
+It accepts only reviewed full addresses. It keeps each complete display
+address with a normalised postcode, keeps operator-confirmed rows across
+refreshes, and is deterministic and auditable. Frequency,
 recency, proximity, accepted Principal, Repairer, Image Source and normalised
 search text may rank suggestions but never choose an address. Nothing here
 activates a spreadsheet import, route or caller before its own acceptance
@@ -434,4 +436,5 @@ DVLA/DVSA and recognition evidence are separate tiers
   [ADR-0012](../adr/0012-conservative-mot-mileage-estimation.md)
   (superseded; rule now here),
   [ADR-0018](../adr/0018-provider-inspection-mode-database-setting.md),
-  [ADR-0019](../adr/0019-in-process-onnx-vrm-recognition.md).
+  [ADR-0019](../adr/0019-in-process-onnx-vrm-recognition.md),
+  [ADR-0076](../adr/0076-reviewed-register-is-the-contact-directory-data-contract.md).

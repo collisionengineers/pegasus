@@ -282,14 +282,13 @@ public sealed class EfTriageStore(
             sourceToken,
             sourceHash,
             request.Origin.EvaluationRevisionId);
-        return await CaseAllocationRetry.ExecuteAsync(
+        return await StoreConcurrencyRetry.ExecuteAsync(
             token => CreateOnceAsync(
                 request, origin, vrm, operationKey, requestHash,
                 $"Created from accepted Triage matcher {matcherKey} v{acceptedMatch.MatcherVersion} ({matchSignal})",
                 token),
-            token => FindCommittedCreationAsync(operationKey, requestHash, token),
-            exception => exception,
-            cancellationToken);
+            cancellationToken,
+            findCommitted: token => FindCommittedCreationAsync(operationKey, requestHash, token));
     }
 
     private async Task<TriageRecord?> FindCommittedCreationAsync(

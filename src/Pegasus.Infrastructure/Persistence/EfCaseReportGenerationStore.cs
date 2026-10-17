@@ -443,7 +443,7 @@ public sealed class EfCaseReportGenerationStore(
         {
             return await ConfirmInTransactionAsync(request, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception exception) when (CaseAllocationRetry.IsRetryable(exception))
+        catch (Exception exception) when (StoreConcurrencyRetry.IsRetryable(exception))
         {
             // The Worker's settle pass reached the same artifact and the
             // database ended one of the two transactions. Confirming is
