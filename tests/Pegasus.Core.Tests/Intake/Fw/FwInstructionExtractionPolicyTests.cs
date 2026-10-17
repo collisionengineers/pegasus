@@ -2,6 +2,7 @@ using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Tests.Intake.Fw;
 
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed class FwInstructionExtractionPolicyTests
 {
     [Fact]

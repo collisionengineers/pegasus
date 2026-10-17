@@ -4,6 +4,7 @@ using Pegasus.Core.Tests.Support;
 
 namespace Pegasus.Core.Tests.Intake.Mp;
 
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed class MpInstructionExtractionPolicyTests
 {
     [ReferencePackTheory]

@@ -2,6 +2,7 @@ using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Tests.Intake.Qdos;
 
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed class QdosInstructionExtractionPolicyTests
 {
     [Fact]

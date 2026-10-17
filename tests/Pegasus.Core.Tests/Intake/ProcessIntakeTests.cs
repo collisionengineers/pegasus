@@ -9,6 +9,7 @@ using Pegasus.Core.PrincipalApi;
 
 namespace Pegasus.Core.Tests.Intake;
 
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed class ProcessIntakeTests
 {
     private static readonly DateTimeOffset ProcessedAtUtc = new(2031, 4, 5, 9, 30, 0, TimeSpan.Zero);

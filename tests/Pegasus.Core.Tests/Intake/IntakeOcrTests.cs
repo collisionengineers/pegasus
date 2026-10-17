@@ -11,6 +11,7 @@ namespace Pegasus.Core.Tests.Intake;
 /// reached: the fake here is structural, and nothing in it stands in for a real
 /// reading of a real document.
 /// </summary>
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed class IntakeOcrTests
 {
     private static readonly DateTimeOffset Now = new(2026, 4, 1, 10, 0, 0, TimeSpan.Zero);

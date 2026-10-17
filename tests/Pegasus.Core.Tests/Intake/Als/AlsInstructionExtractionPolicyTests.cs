@@ -5,6 +5,7 @@ using Pegasus.Core.Tests.Support;
 
 namespace Pegasus.Core.Tests.Intake.Als;
 
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed class AlsInstructionExtractionPolicyTests
 {
     [ReferencePackTheory]

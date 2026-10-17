@@ -9,6 +9,7 @@ namespace Pegasus.Core.Tests.Intake.Pch;
 /// that names two firms, and rows for a driver, an insurer and a hire company
 /// that are three parties and not the claimant.
 /// </summary>
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed class PchInstructionExtractionPolicyTests
 {
     private static readonly DateTimeOffset ProcessedAtUtc =
