@@ -6,10 +6,11 @@ namespace Pegasus.Infrastructure.Email;
 
 /// <summary>
 /// One pass of Microsoft Graph change-subscription maintenance over the approved
-/// mailbox estate: create a missing subscription, renew one that is inside its
-/// renewal window, and record a failure against the one mailbox without stopping
-/// the pass. The Worker runs it before the approved-inbox fallback poll. Without a
-/// Graph adapter (the offline profile) it does nothing.
+/// mailbox estate: write a Graph subscription for each mailbox the store reports
+/// due, and record a failure against the one mailbox without stopping the pass. A
+/// pass with nothing due makes no Graph call and no write. The Worker runs it
+/// before the approved-inbox fallback poll. Without a Graph adapter (the offline
+/// profile) it does nothing.
 /// </summary>
 /// <remarks>
 /// The notification address and client state are read when the pass starts, not
@@ -22,8 +23,6 @@ public sealed partial class MaintainMailboxChangeSubscriptions(
     TimeProvider timeProvider,
     ILogger<MaintainMailboxChangeSubscriptions> logger)
 {
-    private static readonly TimeSpan RenewalWindow = TimeSpan.FromHours(48);
-
     public async Task ExecuteAsync(CancellationToken cancellationToken)
     {
         var now = timeProvider.GetUtcNow();
@@ -46,21 +45,12 @@ public sealed partial class MaintainMailboxChangeSubscriptions(
         {
             try
             {
-                var maintained = GraphMailboxChangeSubscriptions.RequiresWrite(
+                var maintained = await graphSubscriptions.MaintainAsync(
                     candidate,
+                    callbackUri,
+                    clientState,
                     now,
-                    now.Add(RenewalWindow))
-                    ? await graphSubscriptions.MaintainAsync(
-                        candidate,
-                        callbackUri,
-                        clientState,
-                        now,
-                        cancellationToken)
-                    : candidate.Subscription! with
-                    {
-                        LastMaintainedAtUtc = now,
-                        LastMaintenanceFailureCode = null
-                    };
+                    cancellationToken);
                 await subscriptions.SaveAsync(
                     maintained,
                     candidate.Subscription?.SubscriptionId,

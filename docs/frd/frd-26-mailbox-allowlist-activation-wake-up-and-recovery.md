@@ -147,13 +147,14 @@ Lifecycle `missed`, `subscriptionRemoved` and reauthorization events
 schedule the same delta resynchronisation; they are not another processing
 route.
 
-Subscription maintenance runs every six hours and renews an enabled Inbox
-before it comes within 48 hours of expiry. A failure is visible per mailbox
-and leaves the five-minute per-mailbox fallback poll running. That fallback
-runs inside the Worker's one-minute recovery timer, on every fifth minute. It
-moves the same cursor and is recovery only: it creates no second receipt and
-does not bypass the fresh-start boundary. Disabling a mailbox stops
-notification work at claim time as well as its next fallback poll.
+Subscription maintenance is checked every five minutes. An enabled Inbox is
+renewed when it comes within 48 hours of expiry, and nothing is written when
+nothing is due. A failure is visible per mailbox and leaves the five-minute
+per-mailbox fallback poll running. That fallback runs inside the Worker's
+one-minute recovery timer, on every fifth minute. It moves the same cursor
+and is recovery only: it creates no second receipt and does not bypass the
+fresh-start boundary. Disabling a mailbox stops notification work at claim
+time as well as its next fallback poll.
 
 Before activation, an Outlook/Graph route must:
 
