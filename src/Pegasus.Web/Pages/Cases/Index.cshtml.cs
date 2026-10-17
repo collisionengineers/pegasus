@@ -58,8 +58,9 @@ public sealed class IndexModel(
     private const int PageSize = 25;
 
     /// <summary>
-    /// Not ready and the Unidentified lists are read whole rather than paged —
-    /// the bounded exception-queue trade-off, not a second convention.
+    /// Not ready and Closed items are one read of the newest 100 — the bounded
+    /// exception-queue trade-off, not a second convention. The Identified and
+    /// Unidentified lists are paged at <see cref="PageSize"/>.
     /// </summary>
     private const int MergedPageSize = 100;
 
@@ -150,7 +151,10 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true, Name = "show")]
     public string? ShowFilter { get; set; }
 
-    [BindProperty(SupportsGet = true, Name = "page")]
+    // "page" is also the Razor Pages route value naming this page, which
+    // outranks the query string; bind the list's page from the query.
+    [FromQuery(Name = "page")]
+    [BindProperty(SupportsGet = true)]
     public int CurrentPage { get; set; } = 1;
 
     /// <summary>The row the quick-detail pane is showing; the first row when unset.</summary>
@@ -508,14 +512,43 @@ public sealed class IndexModel(
 
     private async Task<IReadOnlyList<QueueRow>> LoadAwaitingAsync(CancellationToken cancellationToken)
     {
-        var images = await _imageIntakeQueries.ListAsync(
-            associated: false,
-            ImageInitiatedCaseState.AwaitingInstruction,
-            cancellationToken);
+        var images = await ReadAwaitingWindowAsync(cancellationToken);
+        if (SelectedId is { } selectedId
+            && !Request.Query.ContainsKey("page")
+            && images.All(item => item.Id != selectedId)
+            && await _imageIntakeQueries.ListPositionAsync(
+                associated: false,
+                ImageInitiatedCaseState.AwaitingInstruction,
+                selectedId,
+                cancellationToken) is { } position)
+        {
+            // A link that names a record without a page opens the page that holds it.
+            CurrentPage = (position / PageSize) + 1;
+            images = await ReadAwaitingWindowAsync(cancellationToken);
+        }
+
+        SetPager(AwaitingInstructionCount);
         var configuration = await _workflowConfiguration.GetCurrentAsync(cancellationToken);
         return images
             .Select(item => ImageRow(item, configuration.ChaseIntervalDays))
             .ToArray();
+    }
+
+    private Task<IReadOnlyList<ImageIntakeSummary>> ReadAwaitingWindowAsync(CancellationToken cancellationToken) =>
+        _imageIntakeQueries.ListWindowAsync(
+            associated: false,
+            ImageInitiatedCaseState.AwaitingInstruction,
+            WindowSkip,
+            PageSize,
+            cancellationToken);
+
+    private int WindowSkip => (CurrentPage - 1) * PageSize;
+
+    /// <summary>The pager flags for a list of <paramref name="total"/> rows paged at <see cref="PageSize"/>.</summary>
+    private void SetPager(int total)
+    {
+        HasPreviousPage = CurrentPage > 1;
+        HasNextPage = CurrentPage * PageSize < total;
     }
 
     private async Task<IReadOnlyList<QueueRow>> LoadTriageAsync(ActionActor actor, CancellationToken cancellationToken)
@@ -543,10 +576,12 @@ public sealed class IndexModel(
             .Select(ClosedUnidentifiedRow)
             .ToArray();
 
-    private async Task<IReadOnlyList<QueueRow>> LoadOpenUnidentifiedAsync(CancellationToken cancellationToken) =>
-        (await _unidentifiedStore.ListQueueAsync(null, cancellationToken))
-            .Select(UnidentifiedRow)
-            .ToArray();
+    private async Task<IReadOnlyList<QueueRow>> LoadOpenUnidentifiedAsync(CancellationToken cancellationToken)
+    {
+        var rows = await _unidentifiedStore.ListQueueWindowAsync(null, WindowSkip, PageSize, cancellationToken);
+        SetPager(UnidentifiedCount);
+        return rows.Select(UnidentifiedRow).ToArray();
+    }
 
     private async Task<IReadOnlyDictionary<Guid, string>> EngineerNamesAsync(
         IEnumerable<CaseSearchItem> items,

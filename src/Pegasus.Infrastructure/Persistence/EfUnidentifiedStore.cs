@@ -416,6 +416,37 @@ public sealed class EfUnidentifiedStore(
         CancellationToken cancellationToken = default)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await ReadQueueRowsAsync(
+            context,
+            OpenQueue(context, mediaKind, newestFirst: false),
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueWindowAsync(
+        UnidentifiedMediaKind? mediaKind,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(skip);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(take);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await ReadQueueRowsAsync(
+            context,
+            OpenQueue(context, mediaKind, newestFirst: true).Skip(skip).Take(take),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// The open items with their origins, optionally narrowed to one media
+    /// kind, in (CreatedAtUtc, Sequence) order: the one owner of the open
+    /// filter and of the queue's order, oldest first or newest first.
+    /// </summary>
+    private static IOrderedQueryable<UnidentifiedQueueJoin> OpenQueue(
+        PegasusDbContext context,
+        UnidentifiedMediaKind? mediaKind,
+        bool newestFirst)
+    {
         var openState = UnidentifiedState.Open.ToString();
 
         var joined = JoinOrigins(
@@ -426,10 +457,9 @@ public sealed class EfUnidentifiedStore(
             joined = joined.Where(MediaKindPredicate(requested));
         }
 
-        return await ReadQueueRowsAsync(
-            context,
-            joined.OrderBy(row => row.Item.CreatedAtUtc).ThenBy(row => row.Item.Sequence),
-            cancellationToken);
+        return newestFirst
+            ? joined.OrderByDescending(row => row.Item.CreatedAtUtc).ThenByDescending(row => row.Item.Sequence)
+            : joined.OrderBy(row => row.Item.CreatedAtUtc).ThenBy(row => row.Item.Sequence);
     }
 
     public async Task<int> CountOpenAsync(CancellationToken cancellationToken = default)

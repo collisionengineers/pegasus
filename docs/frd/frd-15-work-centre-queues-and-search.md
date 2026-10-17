@@ -235,7 +235,10 @@ never shown in a Case queue
 ([FRD-19](frd-19-image-led-intake-and-pairing.md#image-initiated-case-projection));
 **Unidentified** (`&show=unidentified`) lists the open Unidentified items;
 **Closed items** (`&show=closed`) lists the closed ones. Its count is the
-identified records plus the open Unidentified items.
+identified records plus the open Unidentified items. The Identified and
+Unidentified lists are paged with numbered pages, newest first, as the Triage
+queue is, and a link to an Identified record opens the page that holds it
+(operator, 15 and 16 October 2026).
 Queries lists every open Case that holds an open query, whatever its state
 (operator, 11 October 2026); the tab and its list heading read Queries,
 while a Case's stage chip and Search's State filter still read Query.

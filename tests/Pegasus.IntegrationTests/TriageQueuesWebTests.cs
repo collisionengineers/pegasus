@@ -747,6 +747,116 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    /// <summary>
+    /// The open Unidentified list is paged at 25, newest first: page 1 holds the
+    /// 25 newest with a Next link, page 2 the oldest with a Previous link, and
+    /// the Unassigned Images count reads every open item on both pages.
+    /// </summary>
+    [Fact]
+    public async Task OpenUnidentifiedListPagesAtTwentyFiveNewestFirst()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var register = services.GetRequiredService<IRegisterUnidentified>();
+        var firstReceivedAt = services.GetRequiredService<TimeProvider>().GetUtcNow();
+        var itemIds = new List<Guid>();
+        for (var index = 0; index < 26; index++)
+        {
+            var registered = await register.ExecuteAsync(
+                new(
+                    UnidentifiedOrigin.Receipt(
+                        await StoreMinimalReceiptAsync(services, $"paged-unidentified-{index}.pdf")),
+                    UnidentifiedReasonCode.UnreadableOrCorruptContent,
+                    "The item pages the open Unidentified list.",
+                    ActionActor.SystemWorker("test-worker"),
+                    $"paged-unidentified:{Guid.NewGuid():N}",
+                    firstReceivedAt.AddMinutes(index)),
+                CancellationToken.None);
+            itemIds.Add(registered.Item.Id);
+        }
+        var oldestId = itemIds[0];
+        var newestId = itemIds[^1];
+
+        using var firstPage = await client.GetAsync("/Cases?tab=unassigned&show=unidentified");
+        var firstHtml = await firstPage.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, firstPage.StatusCode);
+        Assert.Equal(25, Regex.Count(firstHtml, "data-cases-row=\""));
+        Assert.Contains($"href=\"/Unidentified/{newestId:D}\"", firstHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain($"href=\"/Unidentified/{oldestId:D}\"", firstHtml, StringComparison.Ordinal);
+        Assert.Matches("href=\"[^\"]*page=2[^\"]*\">Next</a>", firstHtml);
+        Assert.DoesNotContain(">Previous</a>", firstHtml, StringComparison.Ordinal);
+        Assert.Equal(26, QueueCount(firstHtml, "Unassigned Images"));
+
+        using var secondPage = await client.GetAsync("/Cases?tab=unassigned&show=unidentified&page=2");
+        var secondHtml = await secondPage.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, secondPage.StatusCode);
+        Assert.Equal(1, Regex.Count(secondHtml, "data-cases-row=\""));
+        Assert.Contains($"href=\"/Unidentified/{oldestId:D}\"", secondHtml, StringComparison.Ordinal);
+        Assert.Contains(">Previous</a>", secondHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Next</a>", secondHtml, StringComparison.Ordinal);
+        Assert.Equal(26, QueueCount(secondHtml, "Unassigned Images"));
+    }
+
+    /// <summary>
+    /// The Awaiting list is paged the same way, and a link that names the
+    /// oldest record without a page opens the page that holds it, with that
+    /// row selected. A request that names a page opens that page only.
+    /// </summary>
+    [Fact]
+    public async Task AwaitingListPagesAtTwentyFiveNewestFirstAndADeepLinkOpensItsPage()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var records = new List<ImageIntakeRecord>();
+        for (var index = 0; index < 26; index++)
+        {
+            records.Add(await RegisterImageIntakeAsync(factory, client, services, $"PG{index:00}AGE"));
+        }
+        var oldest = records[0];
+        var oldestReceivedAt = services.GetRequiredService<TimeProvider>().GetUtcNow().AddDays(-1);
+        await using (var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE ImageIntakes SET CreatedAtUtc = {oldestReceivedAt} WHERE Id = {oldest.Id}");
+        }
+        var openUnidentifiedCount = await services.GetRequiredService<IUnidentifiedStore>()
+            .CountOpenAsync(CancellationToken.None);
+
+        using var firstPage = await client.GetAsync("/Cases?tab=unassigned");
+        var firstHtml = await firstPage.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, firstPage.StatusCode);
+        Assert.Equal(25, Regex.Count(firstHtml, "data-cases-row=\""));
+        Assert.DoesNotContain($"href=\"/VehicleImages/{oldest.Id:D}\"", firstHtml, StringComparison.Ordinal);
+        Assert.Matches("href=\"[^\"]*page=2[^\"]*\">Next</a>", firstHtml);
+        Assert.DoesNotContain(">Previous</a>", firstHtml, StringComparison.Ordinal);
+        Assert.Equal(26 + openUnidentifiedCount, QueueCount(firstHtml, "Unassigned Images"));
+
+        using var secondPage = await client.GetAsync("/Cases?tab=unassigned&page=2");
+        var secondHtml = await secondPage.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, secondPage.StatusCode);
+        Assert.Equal(1, Regex.Count(secondHtml, "data-cases-row=\""));
+        Assert.Contains($"href=\"/VehicleImages/{oldest.Id:D}\"", secondHtml, StringComparison.Ordinal);
+        Assert.Contains(">Previous</a>", secondHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Next</a>", secondHtml, StringComparison.Ordinal);
+        Assert.Equal(26 + openUnidentifiedCount, QueueCount(secondHtml, "Unassigned Images"));
+
+        using var deepLink = await client.GetAsync($"/Cases?tab=unassigned&selected={oldest.Id:D}");
+        var deepHtml = await deepLink.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, deepLink.StatusCode);
+        Assert.Equal(1, Regex.Count(deepHtml, "data-cases-row=\""));
+        Assert.Matches($"data-cases-row=\"{oldest.Id:D}\"[^>]*aria-selected=\"true\"", deepHtml);
+        Assert.Contains(">Previous</a>", deepHtml, StringComparison.Ordinal);
+
+        using var namedPage = await client.GetAsync($"/Cases?tab=unassigned&page=1&selected={oldest.Id:D}");
+        Assert.Equal(HttpStatusCode.NotFound, namedPage.StatusCode);
+    }
+
     [Fact]
     public async Task AwaitingAttachMovesTheImageIntakeToAnExistingCase()
     {

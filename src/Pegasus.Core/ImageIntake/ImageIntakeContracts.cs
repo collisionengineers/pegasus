@@ -260,6 +260,35 @@ public interface IImageIntakeQueries
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// One offset window of <see cref="ListAsync"/>: <paramref name="take"/>
+    /// rows after <paramref name="skip"/> in the same newest-first order. The
+    /// database applies the filter and the window, so rows outside it are
+    /// never read. Default: unsupported.
+    /// </summary>
+    Task<IReadOnlyList<ImageIntakeSummary>> ListWindowAsync(
+        bool? associated,
+        ImageInitiatedCaseState? state,
+        int skip,
+        int take,
+        CancellationToken cancellationToken) =>
+        Task.FromException<IReadOnlyList<ImageIntakeSummary>>(
+            new NotSupportedException("Image intake offset windows are not available."));
+
+    /// <summary>
+    /// The zero-based place of <paramref name="id"/> in the
+    /// <see cref="ListAsync"/> order for the same filter, or
+    /// <see langword="null"/> when that list does not hold it. Default:
+    /// unsupported.
+    /// </summary>
+    Task<int?> ListPositionAsync(
+        bool? associated,
+        ImageInitiatedCaseState? state,
+        Guid id,
+        CancellationToken cancellationToken) =>
+        Task.FromException<int?>(
+            new NotSupportedException("Image intake list positions are not available."));
+
+    /// <summary>
     /// The registered image receipts this Image intake covers — its origin
     /// plus, for a group registration, every durable image-only member —
     /// ordered by the submission ordinal and restricted to image media. A
