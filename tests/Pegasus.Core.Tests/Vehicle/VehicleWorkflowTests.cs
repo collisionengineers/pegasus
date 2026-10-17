@@ -164,6 +164,58 @@ public sealed class VehicleWorkflowTests
         }
     }
 
+    /// <summary>
+    /// The processor hands the store the MOT mileage estimate for the day the
+    /// answer was retrieved (operator, 16 October 2026) beside the latest
+    /// exact reading; an answer with no evidence carries none.
+    /// </summary>
+    [Fact]
+    public async Task ProcessorCarriesTheEstimateForTheRetrievalDate()
+    {
+        // Invented yearly tests; the answer is retrieved a year after the last.
+        MotTestObservation[] history =
+        [
+            new(new DateOnly(2027, 5, 6), "PASSED", null, 10_000, VehicleMileageUnit.Miles),
+            new(new DateOnly(2028, 5, 6), "PASSED", null, 19_000, VehicleMileageUnit.Miles),
+            new(new DateOnly(2029, 5, 6), "PASSED", null, 29_000, VehicleMileageUnit.Miles),
+            new(new DateOnly(2030, 5, 6), "PASSED", null, 38_500, VehicleMileageUnit.Miles)
+        ];
+        var retrievedOn = DateOnly.FromDateTime(FixedUtcNow.UtcDateTime);
+
+        var answered = await ProcessAsync(Result(
+            VehicleLookupOutcome.Current,
+            vehicle: new("Example", "Model", 2020, 1600, "Petrol"),
+            motTests: history));
+        var notFound = await ProcessAsync(Result(VehicleLookupOutcome.NotFound));
+
+        var estimate = Assert.IsType<MotMileageEstimate>(answered.Estimate);
+        Assert.Equal(MotMileageEstimateKind.Estimate, estimate.Kind);
+        Assert.Equal(retrievedOn, estimate.AsOf);
+        Assert.Equal(MotMileageEstimationPolicy.Estimate(history, retrievedOn).Miles, estimate.Miles);
+        Assert.Equal(VehicleMileagePolicy.Calculate(history), answered.Mileage);
+        Assert.Null(notFound.Estimate);
+
+        static async Task<VehicleLookupProcessedOutcome> ProcessAsync(VehicleLookupResult result)
+        {
+            var workId = Guid.NewGuid();
+            var store = new RecordingWorkStore(new(
+                workId,
+                Guid.NewGuid(),
+                "AB12CDE",
+                "vehicle-request",
+                VehicleLookupWorkState.Processing,
+                1,
+                FixedUtcNow,
+                "lease-token",
+                FixedUtcNow.AddMinutes(5)));
+            await new ProcessQueuedVehicleLookup(
+                store,
+                new StubLookupAdapter(result),
+                new FixedTimeProvider(FixedUtcNow)).ExecuteAsync(workId, CancellationToken.None);
+            return Assert.Single(store.Recorded).Outcome;
+        }
+    }
+
     [Fact]
     public async Task TypedDispatcherInvokesExactlyOneHandlerAndDeniesUnknownKinds()
     {

@@ -263,15 +263,19 @@ public sealed class EfCaseDataStore(
         return new(
             parse(value.Value),
             ParseValueKind(value.ValueKind),
-            new(
-                ParseSourceKind(value.SourceKind),
-                value.SourceIdentity,
-                value.SourceLabel,
-                value.PolicyKey,
-                value.PolicyVersion),
+            Source(value),
             value.ConfirmedByActor,
             value.ConfirmedAtUtc);
     }
+
+    /// <summary>Where a persisted case-data row came from.</summary>
+    internal static CaseDataSource Source(CaseDataFieldEntity field) =>
+        new(
+            ParseSourceKind(field.SourceKind),
+            field.SourceIdentity,
+            field.SourceLabel,
+            field.PolicyKey,
+            field.PolicyVersion);
 
     private static CaseLifecycleState ParseLifecycleState(string value) =>
         Enum.TryParse<CaseLifecycleState>(value, out var state)

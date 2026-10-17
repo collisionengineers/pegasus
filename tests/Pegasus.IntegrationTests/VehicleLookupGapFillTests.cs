@@ -24,6 +24,9 @@ public sealed class VehicleLookupGapFillTests
     private static readonly DateTimeOffset FixedUtcNow =
         new(2026, 8, 22, 18, 47, 0, TimeSpan.Zero);
 
+    /// <summary>The day every fixture answer is retrieved, which its MOT mileage estimate stands for.</summary>
+    private static readonly DateOnly FixtureRetrievedOn = DateOnly.FromDateTime(FixedUtcNow.UtcDateTime);
+
     private static readonly ActionActor Staff =
         ActionActor.Staff(Guid.Parse("33333333-3333-3333-3333-333333333333"), [StaffRole.User]);
 
@@ -53,15 +56,22 @@ public sealed class VehicleLookupGapFillTests
         (AssessmentVocabulary.VehicleMotExpiry, "2026-09-24")
     ];
 
+    /// <summary>
+    /// An empty Case mileage takes the MOT mileage estimate for the day the
+    /// answer was retrieved (operator, 16 October 2026), under the estimate's
+    /// own key and version.
+    /// </summary>
     [Fact]
     public async Task ALookupFillsAMileageTheDocumentsNeverCarried()
     {
         await using var database = await CreateDatabaseAsync();
         var caseId = await SeedCaseAsync(database);
+        var estimate = MotMileageEstimationPolicy.Estimate(FixtureMotHistory(), FixtureRetrievedOn);
+        Assert.Equal(MotMileageEstimateKind.Estimate, estimate.Kind);
 
         await RecordLookupAsync(database, caseId);
 
-        Assert.Equal("121823", await database.ScalarAsync<string>(
+        Assert.Equal(estimate.Miles?.ToString(CultureInfo.InvariantCulture), await database.ScalarAsync<string>(
             $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
         Assert.Equal("Miles", await database.ScalarAsync<string>(
             $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage_unit' AND ValueKind = 'fact'"));
@@ -69,9 +79,156 @@ public sealed class VehicleLookupGapFillTests
         // report's mileage-source sentence is derived from.
         Assert.Equal("vehicle_lookup", await database.ScalarAsync<string>(
             $"SELECT SourceKind FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
+        Assert.Equal(MotMileageEstimationPolicy.MethodKey, await database.ScalarAsync<string>(
+            $"SELECT PolicyKey FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
+        Assert.Equal(MotMileageEstimationPolicy.MethodVersion, await database.ScalarAsync<int>(
+            $"SELECT PolicyVersion FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
         // Nothing is left at the suggestion tier for anyone to accept.
         Assert.Equal(0, await database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND ValueKind = 'suggestion'"));
+    }
+
+    /// <summary>
+    /// Bounds and an abstention carry no figure, so the Case mileage stays
+    /// empty; the observation still keeps the answer and the latest exact
+    /// reading.
+    /// </summary>
+    [Theory]
+    [InlineData("range", MotMileageEstimateKind.QualifiedRange)]
+    [InlineData("no-mot-history", MotMileageEstimateKind.Abstention)]
+    public async Task ARangeOrAnAbstentionFillsNoMileage(string row, MotMileageEstimateKind kind)
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        MotTestObservation[] history = row == "range"
+            ? [new(new(2025, 9, 25), "PASSED", FixtureMotExpiry, 121_823, VehicleMileageUnit.Miles)]
+            : [];
+
+        await RecordLookupAsync(database, caseId, motHistory: history);
+
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName IN ('vehicle_mileage', 'vehicle_mileage_unit')"));
+        var observation = await LatestObservationAsync(database, caseId);
+        Assert.Equal(kind, observation.Estimate?.Kind);
+        Assert.Equal(VehicleMileagePolicy.Calculate(history), observation.Mileage);
+    }
+
+    /// <summary>
+    /// A Case mileage staff already hold is never overwritten, and the
+    /// observation still stores the estimate it would have been compared with.
+    /// </summary>
+    [Fact]
+    public async Task AStaffMileageIsKeptAndTheEstimateIsStillStored()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using (var context = await database.CreateContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_mileage"}, {"confirmed"}, {"integer"}, {"50000"}, {"staff_correction"}, {"staff"}, {"staff case-data correction"}, {"case-data-edit"}, {1}, {"staff"}, {FixedUtcNow})");
+        }
+
+        await RecordLookupAsync(database, caseId);
+
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage'"));
+        Assert.Equal("50000", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'confirmed'"));
+        var estimate = Assert.IsType<MotMileageEstimate>((await LatestObservationAsync(database, caseId)).Estimate);
+        Assert.Equal(MotMileageEstimateKind.Estimate, estimate.Kind);
+        Assert.Equal(FixtureRetrievedOn, estimate.AsOf);
+        Assert.Equal(MotMileageEstimationPolicy.Estimate(FixtureMotHistory(), FixtureRetrievedOn).Miles, estimate.Miles);
+    }
+
+    /// <summary>
+    /// The store derives the estimate again and refuses one that differs,
+    /// recording nothing.
+    /// </summary>
+    [Fact]
+    public async Task ASuppliedEstimateThatDiffersFromTheDerivedOneIsRefused()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => RecordLookupAsync(
+            database,
+            caseId,
+            supplied: derived => derived with
+            {
+                Estimate = MotMileageEstimationPolicy.Estimate(derived.Result.MotTests, FixtureRetrievedOn.AddDays(-1))
+            }));
+
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM VehicleLookupObservations WHERE WorkItemId IN (SELECT WorkItemId FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}')"));
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage'"));
+    }
+
+    /// <summary>
+    /// A staff save that replaces an estimated Case mileage records the
+    /// disposition beside the observation, and one Case history event; the
+    /// staff figure is the Case's. Over an exact MOT reading it records
+    /// neither (operator, 16 October 2026).
+    /// </summary>
+    [Theory]
+    [InlineData("estimate", true)]
+    [InlineData("exact", false)]
+    public async Task AStaffFigureOverAnEstimateRecordsItsDisposition(string row, bool disposes)
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        // An MOT test on the day of the lookup is read exactly, not estimated.
+        MotTestObservation[] history = disposes
+            ? FixtureMotHistory()
+            : [.. FixtureMotHistory(), new(FixtureRetrievedOn, "PASSED", null, 132_500, VehicleMileageUnit.Miles)];
+        await RecordLookupAsync(database, caseId, motHistory: history);
+        var filled = Assert.IsType<MotMileageEstimate>((await LatestObservationAsync(database, caseId)).Estimate);
+        Assert.Equal(disposes ? MotMileageEstimateKind.Estimate : MotMileageEstimateKind.Exact, filled.Kind);
+        var version = await database.ScalarAsync<long>(
+            $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'");
+
+        await using (var scope = database.CreateAsyncScope())
+        {
+            var lease = await scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
+                new(caseId, version, Staff, $"staff-mileage-lease-{row}"),
+                CancellationToken.None);
+            await scope.ServiceProvider.GetRequiredService<ICaseWorkspaceStore>().SaveAsync(
+                new SaveCaseWorkspaceRequest(caseId, version, Staff, $"staff-mileage-{row}", null, lease.Token)
+                {
+                    Vehicle = new(
+                        FixtureRegistration,
+                        "RENAULT",
+                        "CAPTUR",
+                        new CaseWorkspaceOdometer(140_000, CaseOdometerUnit.Miles, null),
+                        null)
+                },
+                CancellationToken.None);
+        }
+
+        Assert.Equal("staff_correction", await database.ScalarAsync<string>(
+            $"SELECT SourceKind FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'confirmed' AND Value = '140000'"));
+        Assert.Equal(disposes ? 1 : 0, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseHistory WHERE CaseId = '{caseId:D}' AND EventType = 'case_mileage_estimate_disposed'"));
+        var disposition = (await LatestObservationAsync(database, caseId)).EstimateDisposition;
+        if (disposes)
+        {
+            var recorded = Assert.IsType<MotMileageEstimateDisposition>(disposition);
+            Assert.Equal(
+                new MotMileageEstimateDisposition(
+                    MotMileageEstimationPolicy.MethodKey,
+                    MotMileageEstimationPolicy.MethodVersion,
+                    FixtureRetrievedOn,
+                    filled.Miles!.Value,
+                    140_000,
+                    ActorKind.Staff,
+                    Staff.SubjectId,
+                    recorded.DisposedAtUtc),
+                recorded);
+        }
+        else
+        {
+            Assert.Null(disposition);
+        }
     }
 
     [Fact]
@@ -680,12 +837,14 @@ public sealed class VehicleLookupGapFillTests
         await using var database = await CreateDatabaseAsync();
         var caseId = await SeedCaseAsync(database);
 
+        var first = MotMileageEstimationPolicy.Estimate(FixtureMotHistory(), FixtureRetrievedOn).Miles;
+
         await RecordLookupAsync(database, caseId);
         await RecordLookupAsync(database, caseId, mileage: 999_999);
 
         Assert.Equal(1, await database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage'"));
-        Assert.Equal("121823", await database.ScalarAsync<string>(
+        Assert.Equal(first?.ToString(CultureInfo.InvariantCulture), await database.ScalarAsync<string>(
             $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
     }
 
@@ -984,7 +1143,9 @@ public sealed class VehicleLookupGapFillTests
         VehicleLookupFailure? failure = null,
         string registration = FixtureRegistration,
         DateTimeOffset? recordedAtUtc = null,
-        IVehicleLookupWorkStore? store = null)
+        IVehicleLookupWorkStore? store = null,
+        IReadOnlyList<MotTestObservation>? motHistory = null,
+        Func<VehicleLookupProcessedOutcome, VehicleLookupProcessedOutcome>? supplied = null)
     {
         var now = recordedAtUtc ?? FixedUtcNow;
         var workItemId = Guid.NewGuid();
@@ -1020,7 +1181,7 @@ public sealed class VehicleLookupGapFillTests
                 TaxDueDate: clearTax ? null : FixtureTaxDueDate);
         IReadOnlyList<MotTestObservation> motTests = outcome == VehicleLookupOutcome.NotFound
             ? []
-            : [new(new(2025, 9, 25), "PASSED", clearMot ? null : FixtureMotExpiry, mileage, VehicleMileageUnit.Miles)];
+            : motHistory ?? FixtureMotHistory(mileage, clearMot);
         var result = new VehicleLookupResult(
             registration,
             outcome,
@@ -1033,14 +1194,36 @@ public sealed class VehicleLookupGapFillTests
             vehicle,
             motTests,
             failure);
+        var derived = VehicleLookupProcessedOutcome.Derive(result);
         await workStore.RecordOutcomeAsync(
             workItemId,
             claimed.LeaseToken!,
-            new(result, VehicleMileagePolicy.Calculate(result.MotTests)),
+            supplied?.Invoke(derived) ?? derived,
             VehicleLookupWorkState.Completed,
             null,
             now,
             CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Four invented yearly MOT tests ending with <paramref name="latestMileage"/>
+    /// on 25 September 2025. Looked up on 22 August 2026, inside the horizon
+    /// the history's holdout validated, the answer is an Estimate.
+    /// </summary>
+    private static MotTestObservation[] FixtureMotHistory(long latestMileage = 121_823, bool clearMot = false) =>
+    [
+        new(new(2022, 9, 25), "PASSED", null, 85_000, VehicleMileageUnit.Miles),
+        new(new(2023, 9, 25), "PASSED", null, 97_000, VehicleMileageUnit.Miles),
+        new(new(2024, 9, 25), "PASSED", null, 109_500, VehicleMileageUnit.Miles),
+        new(new(2025, 9, 25), "PASSED", clearMot ? null : FixtureMotExpiry, latestMileage, VehicleMileageUnit.Miles)
+    ];
+
+    private static async Task<VehicleLookupObservation> LatestObservationAsync(LocalDbTestDatabase database, Guid caseId)
+    {
+        await using var scope = database.CreateAsyncScope();
+        var evidence = await scope.ServiceProvider.GetRequiredService<IVehicleEvidenceQueries>()
+            .GetAsync(caseId, CancellationToken.None);
+        return Assert.IsType<VehicleLookupObservation>(evidence?.LatestObservation);
     }
 
     private static Task<LocalDbTestDatabase> CreateDatabaseAsync() =>

@@ -51,9 +51,12 @@
         ? unitWord is null ? odometer.Value.ToString("N0") : $"{odometer.Value:N0} {unitWord}"
         : noMotHistory ? VehicleLabels.NoMotHistory : null;
     // The figure's own source: a figure staff typed is Custom (operator, 12
-    // October 2026). Nothing is picked; editing the figure reads Custom at once.
+    // October 2026), and one the lookup estimated from the MOT history is
+    // Estimated (16 October 2026). Nothing is picked; editing the figure reads
+    // Custom at once.
     var mileageSourceWord = mileageValue is null ? null
         : mileageValue.Source?.Kind is null or CaseDataSourceKind.StaffCorrection ? VehicleLabels.MileageSourceCustom
+        : CaseVehicleMileageSourcePolicy.IsEstimated(mileageValue.Source) ? VehicleLabels.MileageSourceEstimated
         : OperatorLabels.SourceTag(mileageValue.Source)?.Word;
     var condition = Model.AssessmentEditorValue(AssessmentVocabulary.VehicleCondition);
     var conditionCodes = AssessmentVocabulary.Definitions[AssessmentVocabulary.VehicleCondition].Codes ?? [];

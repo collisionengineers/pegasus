@@ -1222,6 +1222,31 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 .ToArray());
     }
 
+    // 20261017100000_VehicleLookupMileageEstimate: a Case save that replaces the
+    // Case mileage the MOT mileage estimate filled records its disposition on the
+    // lookup observation as the Web role, which held SELECT only. The grant is
+    // table-level; the exact lists below prove no DELETE grant and the Worker's
+    // grants unchanged.
+    [Fact]
+    public async Task LatestMigrationGrantsWebUpdateOnVehicleLookupObservations()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(
+            ["VehicleLookupObservations:SELECT", "VehicleLookupObservations:UPDATE"],
+            (await ReadGrantedPermissionsAsync(database, WebRole))
+                .Where(value => value.StartsWith("VehicleLookupObservations:", StringComparison.Ordinal))
+                .ToArray());
+        Assert.Equal(
+            ["VehicleLookupObservations:INSERT"],
+            (await ReadGrantedPermissionsAsync(database, WorkerRole))
+                .Where(value => value.StartsWith("VehicleLookupObservations:", StringComparison.Ordinal))
+                .ToArray());
+    }
+
     // 20260929150000_GrantCaseDataSnapshotUpdate: completing a Case's images
     // (Worker) and a Case save (Web) record re-evaluated readiness on the
     // snapshot row, which both roles could only read and insert. Production

@@ -481,7 +481,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20261013091000_ContactSopSeed",
                 "20261013092000_RemoveContactGuidance",
                 "20261013100000_DropPrincipalDomainReference",
-                "20261014220000_DropApprovedOutlookCategories"
+                "20261014220000_DropApprovedOutlookCategories",
+                "20261017100000_VehicleLookupMileageEstimate"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

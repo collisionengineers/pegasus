@@ -22,7 +22,27 @@ public sealed record VehicleLookupWorkItem(
 
 public sealed record VehicleLookupProcessedOutcome(
     VehicleLookupResult Result,
-    VehicleMileageCalculation? Mileage);
+    VehicleMileageCalculation? Mileage,
+    MotMileageEstimate? Estimate)
+{
+    /// <summary>
+    /// The latest exact MOT reading and the MOT mileage estimate for the day
+    /// the answer was retrieved (operator, 16 October 2026), so the store can
+    /// derive both again; an answer with no evidence has no estimate.
+    /// </summary>
+    public static VehicleLookupProcessedOutcome Derive(VehicleLookupResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        return new(
+            result,
+            VehicleMileagePolicy.Calculate(result.MotTests),
+            result.Vehicle is null && result.MotTests.Count == 0
+                ? null
+                : MotMileageEstimationPolicy.Estimate(
+                    result.MotTests,
+                    DateOnly.FromDateTime(result.RetrievedAtUtc.UtcDateTime)));
+    }
+}
 
 public interface IVehicleLookupWorkStore
 {
@@ -128,9 +148,7 @@ public sealed class ProcessQueuedVehicleLookup(
                 retryable: true);
         }
 
-        var processedOutcome = new VehicleLookupProcessedOutcome(
-            result,
-            VehicleMileagePolicy.Calculate(result.MotTests));
+        var processedOutcome = VehicleLookupProcessedOutcome.Derive(result);
         var shouldRetry = result.Outcome == VehicleLookupOutcome.Throttled
             || result.Failure?.Retryable == true;
         if (shouldRetry && workItem.AttemptCount < MaximumApplicationAttempts)
@@ -179,9 +197,8 @@ public sealed class ProcessQueuedVehicleLookup(
         workStore.RecordOutcomeAsync(
             workItem.Id,
             workItem.LeaseToken!,
-            new(
-                CreateFailure(workItem.Registration, nowUtc, failureCode, retryable: false),
-                Mileage: null),
+            VehicleLookupProcessedOutcome.Derive(
+                CreateFailure(workItem.Registration, nowUtc, failureCode, retryable: false)),
             VehicleLookupWorkState.Failed,
             dueAtUtc: null,
             recordedAtUtc: nowUtc,

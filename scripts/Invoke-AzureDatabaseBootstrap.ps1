@@ -626,6 +626,11 @@ function Get-MigrationPermissionMatrix {
         $expected.Add("pegasus_worker_runtime_role|G|$permission|CaseTasks")
     }
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|CaseTasks')
+    # 20261017100000_VehicleLookupMileageEstimate: a Case save that replaces
+    # the Case mileage the MOT mileage estimate filled records its disposition
+    # on the lookup observation, which Web could only read. The grant is
+    # table-level (the audit rejects column grants).
+    $expected.Add('pegasus_web_runtime_role|G|UPDATE|VehicleLookupObservations')
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier
     # migrations this matrix reads still name them, and SQL Server keeps a
     # table's permission rows across a rename, so the rows read here are the

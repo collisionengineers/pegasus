@@ -10,6 +10,13 @@ public sealed record VehicleEvidenceProvenance(
     DateTimeOffset? EffectiveAtUtc,
     DateTimeOffset? SourceObservedAtUtc);
 
+/// <summary>
+/// One recorded lookup answer. <paramref name="Estimate"/> is the MOT mileage
+/// estimate for the day it was retrieved, absent on an answer with no evidence
+/// and on one recorded before the estimate existed;
+/// <paramref name="EstimateDisposition"/> is the save that set aside the Case
+/// mileage it filled.
+/// </summary>
 public sealed record VehicleLookupObservation(
     Guid Id,
     Guid WorkItemId,
@@ -21,8 +28,10 @@ public sealed record VehicleLookupObservation(
     VehicleDetails? Vehicle,
     IReadOnlyList<MotTestObservation> MotTests,
     VehicleMileageCalculation? Mileage,
+    MotMileageEstimate? Estimate,
     VehicleLookupFailure? Failure,
-    DateTimeOffset RecordedAtUtc);
+    DateTimeOffset RecordedAtUtc,
+    MotMileageEstimateDisposition? EstimateDisposition = null);
 
 public sealed record ConfirmedVehicleField<T>(
     T Value,

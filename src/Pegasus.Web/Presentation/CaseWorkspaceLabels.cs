@@ -683,6 +683,8 @@ public static class CaseWorkspaceLabels
         public const string MileageSourceLabel = "Mileage source";
         /// <summary>12 October 2026: the source of a mileage staff typed; nothing is picked.</summary>
         public const string MileageSourceCustom = "Custom";
+        /// <summary>16 October 2026: the source of a mileage the lookup estimated from the MOT history.</summary>
+        public const string MileageSourceEstimated = "Estimated";
         public const string PreIncidentCondition = "Pre-incident condition";
         public const string OdometerUnit = "Odometer unit";
         public const string Miles = "Miles";
