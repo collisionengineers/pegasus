@@ -150,6 +150,9 @@ internal sealed class EfCaseArtifactCustody(
         CancellationToken cancellationToken)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        // Serializable: an automatic promotion is decided on the receipt's
+        // association, the Case's workflow and the Case's documents; no one
+        // row covers them.
         await using var initialWriteTransaction = request.IsAutomaticIntakeEvidencePromotion
             ? await db.Database.BeginSerializableAsync(cancellationToken)
             : null;
@@ -299,6 +302,9 @@ internal sealed class EfCaseArtifactCustody(
                 "Confirmed artifact custody requires exact Box file and version identities.");
         }
         var capturedRoot = address.CaseRootRemoteId!;
+        // Serializable: the confirmation is decided on the receipt's
+        // association, the Case's workflow and the pending version; no one
+        // row covers them.
         await using var confirmation = await db.Database.BeginSerializableAsync(cancellationToken);
         // The Case's workflow lock first, as the report freeze takes it: a
         // source confirmed here is in the frozen census or marks it stale.
@@ -1075,6 +1081,9 @@ public sealed partial class ReconcilePendingArtifactCustody
                     throw new InvalidDataException("Recovered custody omitted the exact Box identity.");
                 }
                 await using var update = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+                // Serializable: the confirmation is decided on the receipt's
+                // association, the Case's workflow and the pending version;
+                // no one row covers them.
                 await using var confirmation = await update.Database.BeginSerializableAsync(cancellationToken);
                 await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(
                     update, candidate.Case.Id, cancellationToken);

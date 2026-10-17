@@ -29,6 +29,11 @@ public sealed class EfAiJobStore(
         AiJobPolicy.ValidateNew(job);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The operation key's row, or the gap a new one would fill, is the
+        // first lock, so a second create under the key waits and replays.
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [AiJobs] WITH (UPDLOCK, HOLDLOCK) WHERE [OperationKey] = {job.OperationKey}",
+            cancellationToken);
         var requestHash = CreateHash(job);
         var existing = await context.AiJobs.AsNoTracking()
             .SingleOrDefaultAsync(item => item.OperationKey == job.OperationKey, cancellationToken);

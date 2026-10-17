@@ -1914,6 +1914,11 @@ public sealed class EfImageVrmSuggestionStore(
         var operationKey = draft.OperationKey.Trim();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The operation key's row, or the gap a new one would fill, is the
+        // first lock, so a second record under the key waits and replays.
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [ImageVrmSuggestions] WITH (UPDLOCK, HOLDLOCK) WHERE [OperationKey] = {operationKey}",
+            cancellationToken);
         var existing = await context.ImageVrmSuggestions
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.OperationKey == operationKey, cancellationToken);

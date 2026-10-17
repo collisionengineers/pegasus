@@ -89,6 +89,11 @@ public sealed class EfIntakeOcrOperationStore(
         var pages = request.QualifiedPages.Order().ToArray();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The operation key's row, or the gap a new one would fill, is the
+        // first lock, so a second begin under the key waits and replays.
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [IntakeOcrOperations] WITH (UPDLOCK, HOLDLOCK) WHERE [OperationKey] = {key}",
+            cancellationToken);
 
         var existing = await context.Set<IntakeOcrOperationEntity>()
             .SingleOrDefaultAsync(item => item.OperationKey == key, cancellationToken);
