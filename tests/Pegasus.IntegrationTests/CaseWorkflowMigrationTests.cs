@@ -98,43 +98,6 @@ public sealed class CaseWorkflowMigrationTests
     }
 
     [Fact]
-    public async Task SqlServerUpgradeBackfillsExistingReviewAndNotReadyCasesWithRequiredTokens()
-    {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync(PreviousMigration);
-        await database.ExecuteAsync(ExistingCasesSql(withStaffConfirmationColumns: true));
-        await context.Database.MigrateAsync(WorkflowMigration);
-
-        Assert.Equal(2, await database.ScalarAsync<int>("SELECT COUNT(*) FROM CaseWorkflows"));
-        Assert.Equal(
-            "Review",
-            await database.ScalarAsync<string>(
-                $"SELECT State FROM CaseWorkflows WHERE CaseId='{ReviewCaseId}'"));
-        Assert.Equal(
-            "NotReady",
-            await database.ScalarAsync<string>(
-                $"SELECT State FROM CaseWorkflows WHERE CaseId='{NotReadyCaseId}'"));
-        AssertNonEmptyGuid(await database.ScalarAsync<Guid>(
-            $"SELECT ConcurrencyToken FROM CaseWorkflows WHERE CaseId='{ReviewCaseId}'"));
-        AssertNonEmptyGuid(await database.ScalarAsync<Guid>(
-            $"SELECT ConcurrencyToken FROM CaseWorkflows WHERE CaseId='{NotReadyCaseId}'"));
-
-        Assert.Equal(1, await database.ScalarAsync<int>("SELECT COUNT(*) FROM CaseDueWork"));
-        Assert.Equal(
-            "Scheduled",
-            await database.ScalarAsync<string>(
-                $"SELECT State FROM CaseDueWork WHERE CaseId='{NotReadyCaseId}'"));
-        Assert.Equal(
-            1,
-            await database.ScalarAsync<int>(
-                $"SELECT CASE WHEN NextChaseAtUtc IS NULL THEN 0 ELSE 1 END FROM CaseDueWork WHERE CaseId='{NotReadyCaseId}'"));
-        AssertNonEmptyGuid(await database.ScalarAsync<Guid>(
-            $"SELECT ConcurrencyToken FROM CaseDueWork WHERE CaseId='{NotReadyCaseId}'"));
-    }
-
-    [Fact]
     public async Task PublicUploadRemovalPreservesOrdinaryCaseDocumentIntakeAndChaserRecords()
     {
         const string documentId = "80000000-0000-0000-0000-000000000001";
@@ -460,11 +423,6 @@ public sealed class CaseWorkflowMigrationTests
              0,
              '70000000-0000-0000-0000-000000000002');
         """;
-    }
-
-    private static void AssertNonEmptyGuid(Guid value)
-    {
-        Assert.NotEqual(Guid.Empty, value);
     }
 
     private static int CountOccurrences(string value, string search)

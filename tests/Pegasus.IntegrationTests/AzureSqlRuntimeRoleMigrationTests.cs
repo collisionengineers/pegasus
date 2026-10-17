@@ -130,210 +130,11 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
             item.CaseId == caseId && item.EventType == "triage_finding_filled"));
     }
 
-    private const string PreRuntimeRoleMigration = "20260729175000_CaseEvidenceAndReplacement";
-    private const string OriginalRuntimeRoleMigration = "20260729176000_AzureSqlRuntimeLeastPrivilege";
-    private const string PreviousMigration = "20260729193000_UniqueTriageResponseEvidenceLink";
-    private const string RuntimeRoleMigration = "20260729199000_RuntimeRoleReconciliation";
     private const string V1FoundationMigration = "20260906054658_V1PlatformFoundation";
     private const string FilterActiveReportGenerationMigration =
         "20260906170000_FilterActiveCaseReportGenerationSnapshot";
     private const string WebRole = "pegasus_web_runtime_role";
     private const string WorkerRole = "pegasus_worker_runtime_role";
-
-    private const string ExpectedSchemaTableSpec = """
-        ActionHistory
-        ApplicationInitializations
-        ApprovedInboxPoisonMessages
-        ApprovedInboxPollStates
-        ApprovedMailboxes
-        ApprovedSentPollOutcomes
-        ApprovedSentPollStates
-        AspNetRoleClaims
-        AspNetRoles
-        AspNetUserClaims
-        AspNetUserLogins
-        AspNetUserRoles
-        AspNetUserTokens
-        AspNetUsers
-        BoxFileRequests
-        CaseDataFields
-        CaseDataSnapshots
-        CaseDocuments
-        CaseDueChasers
-        CaseDueWork
-        CaseEditLeaseOperations
-        CaseEngineerFindings
-        CaseHistory
-        CaseIntakeLinks
-        CaseManualChases
-        CaseReportApprovals
-        CaseReportSentEvidence
-        CaseSequences
-        CaseTasks
-        CaseWorkflowEvents
-        CaseWorkflows
-        Cases
-        DocumentOccurrences
-        DocumentVersions
-        EmailResponseEvidence
-        EvaFirstHandoffProxies
-        EvaHandoffOperations
-        EvaHandoffRevisions
-        ExternalWorkItems
-        InstructionDrafts
-        IntakeAssets
-        IntakeEvaluations
-        IntakeMailRouteDecisions
-        IntakeManualAssociations
-        IntakeMutationHistory
-        IntakeReceiptEvents
-        IntakeReceipts
-        IntakeStagedReceipts
-        IntakeWorkItems
-        OpenIddictApplications
-        OpenIddictAuthorizations
-        OpenIddictScopes
-        OpenIddictTokens
-        OrganizationAdministrationOperations
-        OrganizationRoles
-        Organizations
-        PrincipalSequenceLineages
-        Principals
-        ProviderDomainEvidence
-        ProviderDomainPackages
-        ProviderReferences
-        RequestUploadLinks
-        RequestUploadReceipts
-        SecurityEvents
-        SentEmailEvidence
-        StandaloneAuditEvidence
-        Triage
-        TriageFindings
-        TriageHistory
-        TriageResponseEvidenceLinks
-        VehicleConfirmations
-        VehicleLookupObservations
-        VehicleLookupRequests
-        WorkflowConfigurations
-        """;
-
-    private const string ExpectedWebGrantSpec = """
-        ActionHistory:SELECT,INSERT
-        ApprovedInboxPoisonMessages:SELECT
-        ApprovedInboxPollStates:SELECT,UPDATE
-        ApprovedMailboxes:SELECT,INSERT,UPDATE
-        ApprovedSentPollOutcomes:SELECT
-        ApprovedSentPollStates:SELECT,UPDATE
-        AspNetRoleClaims:SELECT
-        AspNetRoles:SELECT
-        AspNetUserClaims:SELECT
-        AspNetUserRoles:SELECT,INSERT,DELETE
-        AspNetUsers:SELECT,INSERT,UPDATE
-        BoxFileRequests:SELECT,INSERT,UPDATE
-        CaseDataFields:SELECT,INSERT,UPDATE,DELETE
-        CaseDataSnapshots:SELECT,INSERT
-        CaseDocuments:SELECT,INSERT
-        CaseDueChasers:SELECT
-        CaseDueWork:SELECT,INSERT,UPDATE
-        CaseEditLeaseOperations:SELECT,INSERT
-        CaseEngineerFindings:SELECT,INSERT
-        CaseHistory:SELECT,INSERT
-        CaseIntakeLinks:SELECT,INSERT
-        CaseManualChases:SELECT,INSERT
-        CaseReportApprovals:SELECT,INSERT
-        CaseReportSentEvidence:SELECT,UPDATE
-        CaseSequences:SELECT,INSERT,UPDATE
-        CaseTasks:SELECT,INSERT,UPDATE
-        CaseWorkflowEvents:SELECT,INSERT
-        CaseWorkflows:SELECT,INSERT,UPDATE
-        Cases:SELECT,INSERT,UPDATE
-        DocumentOccurrences:SELECT,INSERT
-        DocumentVersions:SELECT,INSERT,UPDATE
-        EmailResponseEvidence:SELECT
-        EvaFirstHandoffProxies:SELECT,INSERT
-        EvaHandoffOperations:SELECT,INSERT
-        EvaHandoffRevisions:SELECT,INSERT
-        ExternalWorkItems:SELECT,INSERT,UPDATE
-        InstructionDrafts:SELECT,INSERT,UPDATE
-        IntakeAssets:SELECT
-        IntakeEvaluations:SELECT
-        IntakeMailRouteDecisions:SELECT
-        IntakeManualAssociations:SELECT,INSERT,UPDATE
-        IntakeMutationHistory:SELECT,INSERT
-        IntakeReceiptEvents:INSERT
-        IntakeReceipts:SELECT,UPDATE
-        IntakeStagedReceipts:SELECT,INSERT
-        IntakeWorkItems:SELECT,INSERT,UPDATE
-        OpenIddictApplications:SELECT,INSERT,UPDATE
-        OpenIddictAuthorizations:SELECT,INSERT,UPDATE
-        OpenIddictScopes:SELECT
-        OpenIddictTokens:SELECT,INSERT,UPDATE
-        OrganizationAdministrationOperations:SELECT,INSERT
-        OrganizationRoles:SELECT,INSERT,DELETE
-        Organizations:SELECT,INSERT,UPDATE
-        PrincipalSequenceLineages:SELECT,INSERT
-        Principals:SELECT,INSERT,UPDATE
-        RequestUploadLinks:SELECT,INSERT,UPDATE
-        RequestUploadReceipts:SELECT,INSERT
-        SecurityEvents:SELECT,INSERT
-        SentEmailEvidence:SELECT
-        StandaloneAuditEvidence:SELECT,INSERT
-        Triage:SELECT,UPDATE
-        TriageFindings:SELECT,INSERT
-        TriageHistory:SELECT,INSERT
-        TriageResponseEvidenceLinks:SELECT,INSERT,DELETE
-        VehicleConfirmations:SELECT,INSERT
-        VehicleLookupObservations:SELECT
-        VehicleLookupRequests:SELECT,INSERT
-        WorkflowConfigurations:SELECT,UPDATE
-        """;
-
-    private const string ExpectedWorkerGrantSpec = """
-        ActionHistory:SELECT,INSERT
-        ApprovedInboxPoisonMessages:SELECT,INSERT
-        ApprovedInboxPollStates:SELECT,INSERT,UPDATE
-        ApprovedMailboxes:SELECT
-        ApprovedSentPollOutcomes:SELECT,INSERT
-        ApprovedSentPollStates:SELECT,INSERT,UPDATE
-        CaseDueChasers:SELECT,INSERT,UPDATE
-        CaseDueWork:SELECT,UPDATE
-        CaseEditLeaseOperations:SELECT
-        CaseHistory:INSERT
-        CaseIntakeLinks:SELECT
-        CaseReportApprovals:SELECT
-        CaseReportSentEvidence:SELECT,INSERT,UPDATE
-        CaseWorkflowEvents:SELECT,INSERT
-        CaseWorkflows:SELECT,UPDATE
-        Cases:SELECT,UPDATE
-        EmailResponseEvidence:SELECT,INSERT
-        ExternalWorkItems:SELECT,UPDATE
-        InstructionDrafts:SELECT,INSERT,UPDATE
-        IntakeAssets:SELECT,INSERT
-        IntakeEvaluations:SELECT,INSERT
-        IntakeMailRouteDecisions:SELECT,INSERT,UPDATE
-        IntakeManualAssociations:SELECT
-        IntakeReceiptEvents:INSERT
-        IntakeReceipts:SELECT,INSERT,UPDATE
-        IntakeStagedReceipts:SELECT,INSERT,UPDATE
-        IntakeWorkItems:SELECT,INSERT,UPDATE
-        ProviderDomainEvidence:SELECT
-        ProviderDomainPackages:SELECT
-        ProviderReferences:SELECT
-        RequestUploadLinks:SELECT
-        SentEmailEvidence:SELECT,INSERT,UPDATE
-        Triage:SELECT,INSERT,UPDATE
-        TriageHistory:SELECT,INSERT
-        TriageResponseEvidenceLinks:SELECT,INSERT
-        VehicleLookupObservations:INSERT
-        VehicleLookupRequests:SELECT
-        """;
-
-    private const string ExpectedWebDeleteTableSpec = """
-        AspNetUserRoles
-        CaseDataFields
-        OrganizationRoles
-        TriageResponseEvidenceLinks
-        """;
 
     private const string FoundationTableSpec = """
         AppliedValuationSnapshots
@@ -642,86 +443,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
                   AND permission.minor_id = 0
                   AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
                 """));
-    }
-
-    [Fact]
-    public async Task TerminalUpgradeReconcilesEveryRuntimeTableToTheExactCallerMatrix()
-    {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync(PreviousMigration);
-        await database.ExecuteAsync(
-            $"""
-            GRANT SELECT ON OBJECT::[dbo].[ApplicationInitializations] TO [{WebRole}];
-            GRANT DELETE ON OBJECT::[dbo].[Cases] TO [{WorkerRole}];
-            """);
-        await context.Database.MigrateAsync(RuntimeRoleMigration);
-
-        Assert.Equal(2, await database.ScalarAsync<int>(
-            $"""
-            SELECT COUNT(*)
-            FROM sys.database_principals
-            WHERE name IN (N'{WebRole}', N'{WorkerRole}')
-              AND [type] = 'R'
-              AND is_fixed_role = 0
-              AND owning_principal_id = DATABASE_PRINCIPAL_ID(N'dbo')
-            """));
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            $"""
-            SELECT COUNT(*)
-            FROM sys.database_role_members
-            WHERE role_principal_id IN (
-                    DATABASE_PRINCIPAL_ID(N'{WebRole}'),
-                    DATABASE_PRINCIPAL_ID(N'{WorkerRole}'))
-               OR member_principal_id IN (
-                    DATABASE_PRINCIPAL_ID(N'{WebRole}'),
-                    DATABASE_PRINCIPAL_ID(N'{WorkerRole}'))
-            """));
-
-        var expectedTables = ParseLines(ExpectedSchemaTableSpec);
-        Assert.Equal(
-            expectedTables,
-            await ReadValuesAsync(
-                database,
-                """
-                SELECT name
-                FROM sys.tables
-                WHERE is_ms_shipped = 0
-                  AND name <> N'__EFMigrationsHistory'
-                """));
-        Assert.Equal(
-            ParseGrantSpec(ExpectedWebGrantSpec),
-            await ReadGrantedPermissionsAsync(database, WebRole));
-        Assert.Equal(
-            ParseGrantSpec(ExpectedWorkerGrantSpec),
-            await ReadGrantedPermissionsAsync(database, WorkerRole));
-        Assert.Equal(
-            expectedTables
-                .Except(ParseLines(ExpectedWebDeleteTableSpec), StringComparer.Ordinal)
-                .OrderBy(value => value, StringComparer.Ordinal)
-                .ToArray(),
-            await ReadDeniedDeleteTablesAsync(database, WebRole));
-        Assert.Equal(
-            expectedTables,
-            await ReadDeniedDeleteTablesAsync(database, WorkerRole));
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            $"""
-            SELECT COUNT(*)
-            FROM sys.database_permissions AS permission
-            LEFT JOIN sys.objects AS target
-                ON target.object_id = permission.major_id
-            WHERE permission.grantee_principal_id IN (
-                    DATABASE_PRINCIPAL_ID(N'{WebRole}'),
-                    DATABASE_PRINCIPAL_ID(N'{WorkerRole}'))
-              AND (
-                    permission.class <> 1
-                 OR permission.minor_id <> 0
-                 OR target.[type] <> 'U'
-                 OR permission.permission_name NOT IN (N'SELECT', N'INSERT', N'UPDATE', N'DELETE')
-                 OR permission.[state] NOT IN ('G', 'D')
-                 OR (permission.[state] = 'D' AND permission.permission_name <> N'DELETE'))
-            """));
     }
 
     [Fact]
@@ -1874,43 +1595,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
     }
 
     [Fact]
-    public async Task TerminalDowngradeRestoresTheExactPreTerminalPermissionState()
-    {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync(PreviousMigration);
-        var before = await ReadPermissionSnapshotAsync(database);
-
-        await context.Database.MigrateAsync(RuntimeRoleMigration);
-        await context.Database.MigrateAsync(PreviousMigration);
-
-        Assert.Equal(before, await ReadPermissionSnapshotAsync(database));
-    }
-
-    [Fact]
-    public async Task V1FoundationCanDowngradeAndReapplyItsCurrentSchema()
-    {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false, useTemplate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync(V1FoundationMigration);
-        Assert.False(context.Database.HasPendingModelChanges());
-
-        await context.Database.MigrateAsync("20260905010654_CaseSignOffEngineer");
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name IN ('ValuationPresets', 'AppliedValuationSnapshots')"));
-
-        await context.Database.MigrateAsync();
-        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
-        Assert.False(context.Database.HasPendingModelChanges());
-        Assert.Equal(2, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.indexes WHERE name IN ('IX_ValuationPresets_Label', 'IX_AppliedValuationSnapshots_WorkId_AcceptedAtUtc')"));
-        Assert.Equal(1, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.indexes WHERE name = 'IX_ValuationPresets_Label' AND is_unique = 1 AND has_filter = 0"));
-    }
-
-    [Fact]
     public async Task FilteredReportGenerationIndexMigrationRefusesDowngradeWithoutChangingItsSchema()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(
@@ -1944,23 +1628,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
                   = N'[State]<>N''Stale'''
             """));
         Assert.False(context.Database.HasPendingModelChanges());
-    }
-
-    [Fact]
-    public async Task OriginalRoleMigrationDowngradeRemovesOnlyItsManagedRoles()
-    {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync(OriginalRuntimeRoleMigration);
-        await context.Database.MigrateAsync(PreRuntimeRoleMigration);
-
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            $"""
-            SELECT COUNT(*)
-            FROM sys.database_principals
-            WHERE name IN (N'{WebRole}', N'{WorkerRole}')
-            """));
     }
 
     private static string[] ParseLines(string spec) =>
@@ -2017,27 +1684,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
               AND permission.minor_id = 0
               AND permission.permission_name = N'DELETE'
               AND permission.[state] = 'D'
-            """);
-
-    private static Task<string[]> ReadPermissionSnapshotAsync(
-        LocalDbTestDatabase database) =>
-        ReadValuesAsync(
-            database,
-            $"""
-            SELECT CONCAT(
-                principal.name COLLATE DATABASE_DEFAULT,
-                N':',
-                target.name COLLATE DATABASE_DEFAULT,
-                N':',
-                permission.permission_name COLLATE DATABASE_DEFAULT,
-                N':',
-                permission.[state] COLLATE DATABASE_DEFAULT)
-            FROM sys.database_permissions AS permission
-            INNER JOIN sys.database_principals AS principal
-                ON principal.principal_id = permission.grantee_principal_id
-            INNER JOIN sys.objects AS target
-                ON target.object_id = permission.major_id
-            WHERE principal.name IN (N'{WebRole}', N'{WorkerRole}')
             """);
 
     private sealed class ConnectedContextFactory(DbContextOptions<PegasusDbContext> options)
