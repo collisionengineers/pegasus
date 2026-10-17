@@ -93,6 +93,9 @@ Assert-Flags -Case 'local-development initializer' -ChangedPath 'scripts/Initial
 Assert-Flags -Case 'local-development lifecycle' -ChangedPath 'scripts/Invoke-LocalDevelopment.ps1' -Build $false -Infrastructure $false
 Assert-Flags -Case 'prerequisite doctor' -ChangedPath 'scripts/Invoke-Doctor.ps1' -Build $false -Infrastructure $false
 Assert-Flags -Case 'standalone local tool project' -ChangedPath 'scripts/jev-mail-eval/Pegasus.JevMailEvaluation.csproj' -Build $false -Infrastructure $false
+# The reference-data loader is a scripts/ tool the integration tests reference,
+# so its source is a build input like any project file.
+Assert-Flags -Case 'reference-data loader source' -ChangedPath 'scripts/reference-data-loader/LoadPlanner.cs' -Build $true -Infrastructure $false
 Assert-Flags -Case 'no-lane path beside a build input' -ChangedPath @('scripts/Invoke-LocalDevelopment.ps1', 'src/Pegasus.Worker/local.settings.example.json') -Build $true -Infrastructure $false
 
 $forced = & $flagScript -ChangedPath 'docs/index.md' -ForceAll

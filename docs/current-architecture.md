@@ -184,7 +184,9 @@ supersession must not be mistaken for whole-record replacement.
 
 Principal generators consume supplied evidence and emit review/reference
 data. These artifacts do not activate routes. Admitted runtime policy lives in
-Core. [Reference authoring](runbook.md)
+Core. The one-off reference-data loader, `scripts/reference-data-loader/`,
+composes Core and Infrastructure, hosts nothing and owns no policy.
+[Reference authoring](runbook.md)
 owns generator commands; supplied vendor specifications live in
 [external component documents](external-component-documents/README.md).
 
