@@ -503,7 +503,7 @@ internal sealed class EfDocumentCustodyStore(
         RecordRecognisedOriginalReport command,
         OriginalReportReading reading,
         CancellationToken cancellationToken) =>
-        StoreConcurrencyRetry.ExecuteAsync(
+        StoreConcurrencyRetry.ExecuteAsync<OriginalReportRecorded?>(
             token => RecordRecognisedOnceAsync(command, reading, token),
             cancellationToken);
 
