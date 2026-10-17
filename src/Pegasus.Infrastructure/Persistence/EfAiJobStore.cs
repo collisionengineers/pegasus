@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -29,8 +28,11 @@ public sealed class EfAiJobStore(
     {
         AiJobPolicy.ValidateNew(job);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The operation key's row, or the gap a new one would fill, is the
+        // first lock, so a second create under the key waits and replays.
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [AiJobs] WITH (UPDLOCK, HOLDLOCK) WHERE [OperationKey] = {job.OperationKey}",
             cancellationToken);
         var requestHash = CreateHash(job);
         var existing = await context.AiJobs.AsNoTracking()
@@ -124,9 +126,7 @@ public sealed class EfAiJobStore(
     {
         AiJobPolicy.ValidateTransition(transition);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var entity = await context.AiJobs
             .SingleOrDefaultAsync(item => item.JobId == transition.JobId, cancellationToken)
             ?? throw new KeyNotFoundException("The AI job was not found.");

@@ -87,6 +87,13 @@ public static class AiJobPolicy
             _ => false
         };
 
+    /// <summary>
+    /// FRD-27: a Market Research job goes Taken → Completed once its files
+    /// are retained, with no Draft ready step. Only a live claim completes.
+    /// </summary>
+    public static bool IsLegalMarketResearchCompletion(AiJobState effectiveState) =>
+        effectiveState == AiJobState.Taken;
+
     public static void ValidateNew(NewAiJob job)
     {
         ArgumentNullException.ThrowIfNull(job);
@@ -718,10 +725,9 @@ public sealed class CompleteMarketResearchAiJob(
         AiJobPolicy.ValidateTransition(new(
             command.JobId,
             command.ExpectedJobVersion,
-            AiJobState.DraftReady,
+            AiJobState.Completed,
             command.Actor,
-            command.OperationKey,
-            Result: new(AiJobResultKind.MarketResearch, "pending", null)));
+            command.OperationKey));
         return store.CompleteAsync(command, cancellationToken);
     }
 }

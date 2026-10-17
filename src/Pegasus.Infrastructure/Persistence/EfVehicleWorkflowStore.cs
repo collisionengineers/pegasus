@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Data;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -57,9 +56,8 @@ internal sealed class EfVehicleWorkflowStore(
         ArgumentNullException.ThrowIfNull(command);
         var fingerprint = RequestFingerprint(command);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, command.CaseId, cancellationToken);
 
         var replay = await context.Set<VehicleLookupRequestEntity>()
             .AsNoTracking()

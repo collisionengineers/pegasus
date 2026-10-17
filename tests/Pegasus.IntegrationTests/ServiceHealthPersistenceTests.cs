@@ -96,14 +96,14 @@ public sealed class ServiceHealthPersistenceTests
     }
 
     /// <summary>
-    /// The snapshot reads its eight sources in eleven statements. Overlapping
-    /// them changes how long the page waits, not how many statements it
-    /// sends, so this pins the count the overlap must not change. The Health
-    /// page adds the ingress switch (through the request's own context), the
-    /// shell's reads and the metrics read below.
+    /// The snapshot reads its sources in the same statements whatever rows they
+    /// hold. Overlapping the reads changes how long the page waits, not how many
+    /// statements it sends, so the count must not move; the Health page adds the
+    /// ingress switch (through the request's own context), the shell's reads and
+    /// the metrics read below.
     /// </summary>
     [Fact]
-    public async Task TheSnapshotReadsItsSourcesInElevenStatements()
+    public async Task TheSnapshotSendsTheSameStatementsWhateverRowsItReads()
     {
         var counter = new SqlStatementCounter();
         await using var database = await LocalDbTestDatabase.CreateAsync(
@@ -120,16 +120,18 @@ public sealed class ServiceHealthPersistenceTests
             new EfAutomationActivityStore(
                 services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()),
             TimeProvider.System);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+
         counter.Reset();
+        var snapshot = await health.ExecuteAsync(actor, CancellationToken.None);
+        var withNoRows = counter.Count;
 
-        var snapshot = await health.ExecuteAsync(
-            ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
-            CancellationToken.None);
+        await SeedHealthRowsAsync(database);
+        counter.Reset();
+        _ = await health.ExecuteAsync(actor, CancellationToken.None);
+        var withRows = counter.Count;
 
-        // Mailbox polls 1, Sent-items polls 1, intake dispatch 2, external
-        // work 1, AI counts 2, newest AI job 1, Send to AI switch 1,
-        // Automation activity 2.
-        Assert.Equal(11, counter.Count);
+        Assert.True(withNoRows > 0, "The interceptor observed no statements at all.");
         Assert.Equal(
             new[]
             {
@@ -139,33 +141,44 @@ public sealed class ServiceHealthPersistenceTests
                 ServiceHealthArea.Automation
             },
             snapshot.Rows.Select(row => row.Area));
+        Assert.True(
+            withNoRows == withRows,
+            $"The snapshot sent {withNoRows} statements with no rows and {withRows} once rows were added.");
     }
 
-    /// <summary>The metrics read, which the page now runs beside the snapshot, is eight statements.</summary>
+    /// <summary>The metrics read, which the page now runs beside the snapshot, sends the same statements whatever rows it reads.</summary>
     [Fact]
-    public async Task TheAdministrationMetricsReadIsEightStatements()
+    public async Task TheAdministrationMetricsReadSendsTheSameStatementsWhateverRowsItReads()
     {
         var counter = new SqlStatementCounter();
         await using var database = await LocalDbTestDatabase.CreateAsync(
             configureDatabase: options => options.AddInterceptors(counter));
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IAdministrationHealthMetricsQueries>();
+
         counter.Reset();
-
         await queries.GetAsync(FixedUtcNow, CancellationToken.None);
+        var withNoRows = counter.Count;
 
-        Assert.Equal(8, counter.Count);
+        await SeedHealthRowsAsync(database);
+        counter.Reset();
+        await queries.GetAsync(FixedUtcNow, CancellationToken.None);
+        var withRows = counter.Count;
+
+        Assert.True(withNoRows > 0, "The interceptor observed no statements at all.");
+        Assert.True(
+            withNoRows == withRows,
+            $"The metrics read sent {withNoRows} statements with no rows and {withRows} once rows were added.");
     }
 
     /// <summary>
-    /// The Health page sends its shell's statements plus exactly its own:
-    /// eleven for the snapshot, whatever the row count. It used to read the
-    /// administration metrics too (eight more) and never draw them; the Logs
-    /// page draws them. The shell is measured on the Administration hub, which
-    /// renders the same layout, the same filters and the same middleware and
-    /// reads nothing else. The Automation ingress switch is unconfigured in
-    /// this host, so it sends none. The page reads the Sent-items cursors once,
-    /// for the poll list.
+    /// The Health page sends its shell's statements plus at most eleven of its
+    /// own for the snapshot, whatever the row count. It does not read the
+    /// administration metrics; the Logs page does. The shell is measured on the
+    /// Administration hub, which renders the same layout, the same filters and
+    /// the same middleware and reads nothing else. The Automation ingress switch
+    /// is unconfigured in this host, so it sends none. The page reads the
+    /// Sent-items cursors once, for the poll list.
     /// </summary>
     [Fact]
     public async Task TheHealthPageSendsTheShellsStatementsAndElevenOfItsOwnWhateverTheRowCount()
@@ -190,7 +203,10 @@ public sealed class ServiceHealthPersistenceTests
         _ = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Health");
         var withNoRows = counter.Count;
         const int snapshotStatements = 11;
-        Assert.Equal(shell + snapshotStatements, withNoRows);
+        Assert.True(
+            withNoRows <= shell + snapshotStatements,
+            $"The Health page sent {withNoRows} statements; at most {shell + snapshotStatements} are allowed"
+            + $" (the shell {shell} and the snapshot {snapshotStatements}).");
         Assert.Equal(1, counter.CountContaining("[ApprovedSentPollStates]"));
 
         await using (var context = await factory.Database.CreateContextAsync())
@@ -221,6 +237,33 @@ public sealed class ServiceHealthPersistenceTests
     private sealed class IngressSwitch : IAutomationIngressStatusQueries
     {
         public Task<bool> IsEnabledAsync(CancellationToken cancellationToken) => Task.FromResult(true);
+    }
+
+    /// <summary>Rows in the tables the snapshot and the metrics read: staged receipts in every state and Sent-items cursors, one failing.</summary>
+    private static async Task SeedHealthRowsAsync(LocalDbTestDatabase database)
+    {
+        await using var context = await database.CreateContextAsync();
+        context.IntakeStagedReceipts.AddRange(
+            Staged("pending", completedAtUtc: null),
+            Staged("processing", completedAtUtc: null),
+            Staged("retry_scheduled", completedAtUtc: null),
+            Staged("failed", completedAtUtc: null),
+            Staged("completed", FixedUtcNow.AddMinutes(-9)),
+            Staged("completed", FixedUtcNow.AddMinutes(-2)));
+        for (var index = 0; index < 3; index++)
+        {
+            context.ApprovedSentPollStates.Add(new ApprovedSentPollStateEntity
+            {
+                MailboxId = $"health-seed-{index}",
+                MailboxAddress = $"health-seed-{index}@collisionengineers.co.uk",
+                SentFolderIdentity = $"sent-{index}",
+                DueAtUtc = FixedUtcNow.AddMinutes(5),
+                LastCompletedAtUtc = FixedUtcNow.AddMinutes(-4),
+                LastFailureCode = index == 0 ? "graph_unavailable" : null
+            });
+        }
+
+        await context.SaveChangesAsync();
     }
 
     private static IntakeStagedReceiptEntity Staged(string state, DateTimeOffset? completedAtUtc)

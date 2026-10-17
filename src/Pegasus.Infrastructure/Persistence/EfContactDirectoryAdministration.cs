@@ -1,4 +1,3 @@
-using System.Data;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -113,7 +112,7 @@ public sealed class EfContactDirectoryAdministration(
             request.PrincipalInspectionMode, request.LinkedPrincipalIds, request.NotesOnEveryCase
         });
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var receipt = await EfOrganizationAdministration.FindReceiptAsync(context, request.OperationKey, cancellationToken);
         if (receipt is not null)
         {

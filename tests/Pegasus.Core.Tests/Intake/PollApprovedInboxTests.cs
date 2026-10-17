@@ -342,6 +342,114 @@ public sealed class PollApprovedInboxTests
         Assert.DoesNotContain(
             harness.Source.Reads,
             read => read.MailboxId == FirstMailbox.GraphMailboxId);
+        // A sweep asks as a sweep, so the store records no wake for the mailbox it skipped.
+        Assert.Equal(
+            [("mailbox-a", ApprovedInboxClaimKind.Sweep), ("mailbox-b", ApprovedInboxClaimKind.Sweep)],
+            harness.PollStore.Claims);
+    }
+
+    [Fact]
+    public async Task ASweepAMailboxWakeAndANotificationEachClaimAsTheirOwnKind()
+    {
+        var harness = new Harness(FirstMailbox);
+        var poll = harness.Poll();
+
+        await poll.ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+        await poll.ExecuteMailboxAsync(FirstMailbox.ApprovedMailboxId, 10, WorkerActor(), CancellationToken.None);
+        await poll.ExecuteNotificationAsync(
+            FirstMailbox.ApprovedMailboxId,
+            FirstMailbox.Generation,
+            "notified",
+            WorkerActor(),
+            CancellationToken.None);
+
+        Assert.Equal(
+            [
+                ("mailbox-a", ApprovedInboxClaimKind.Sweep),
+                ("mailbox-a", ApprovedInboxClaimKind.MailboxWake),
+                ("mailbox-a", ApprovedInboxClaimKind.MessageWake)
+            ],
+            harness.PollStore.Claims);
+    }
+
+    [Fact]
+    public async Task ANotificationThatFindsTheLeaseHeldHandlesNothingAndAskedAsAMessageWake()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.PollStore.WithholdLease(FirstMailbox.GraphMailboxId);
+        harness.Source.Notified = DisplayableMessage("notified", "not-a-scan-cursor");
+
+        var handled = await harness.Poll().ExecuteNotificationAsync(
+            FirstMailbox.ApprovedMailboxId,
+            FirstMailbox.Generation,
+            "notified",
+            WorkerActor(),
+            CancellationToken.None);
+
+        Assert.Equal(0, handled);
+        Assert.Equal([("mailbox-a", ApprovedInboxClaimKind.MessageWake)], harness.PollStore.Claims);
+        Assert.Empty(harness.PollStore.CompletedNotifications);
+        Assert.Empty(harness.Retained.Retained);
+    }
+
+    [Fact]
+    public async Task WithNoRecordedWakeThePendingWakePollNeverListsTheEstate()
+    {
+        var harness = new Harness(FirstMailbox);
+
+        var handled = await harness.Poll().ExecutePendingWakesAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Equal(0, handled);
+        Assert.Equal(0, harness.Mailboxes.Listings);
+        Assert.Empty(harness.PollStore.Claims);
+    }
+
+    [Fact]
+    public async Task ThePendingWakePollPollsOnlyTheRecordedMailboxesOldestFirstAsMailboxWakes()
+    {
+        var harness = new Harness(FirstMailbox, SecondMailbox, ThirdMailbox);
+        harness.PollStore.PendingWakes.AddRange([ThirdMailbox.ApprovedMailboxId, FirstMailbox.ApprovedMailboxId]);
+        harness.Source.Enqueue(FirstMailbox.GraphMailboxId, Message("a-1", "cursor-a1"));
+        harness.Source.Enqueue(SecondMailbox.GraphMailboxId, Message("b-1", "cursor-b1"));
+        harness.Source.Enqueue(ThirdMailbox.GraphMailboxId, Message("c-1", "cursor-c1"));
+
+        var handled = await harness.Poll().ExecutePendingWakesAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Equal(2, handled);
+        Assert.Equal(
+            [("mailbox-c", ApprovedInboxClaimKind.MailboxWake), ("mailbox-a", ApprovedInboxClaimKind.MailboxWake)],
+            harness.PollStore.Claims);
+        Assert.False(harness.PollStore.Cursors.ContainsKey("mailbox-b"));
+    }
+
+    [Fact]
+    public async Task ARecordedMailboxThatFailsDoesNotStopThePendingWakePollOfTheOthers()
+    {
+        var harness = new Harness(FirstMailbox, SecondMailbox);
+        harness.PollStore.PendingWakes.AddRange([FirstMailbox.ApprovedMailboxId, SecondMailbox.ApprovedMailboxId]);
+        harness.Source.Fail(FirstMailbox.GraphMailboxId, new InvalidDataException("bad page"));
+        harness.Source.Enqueue(SecondMailbox.GraphMailboxId, Message("b-1", "cursor-b1"));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            harness.Poll().ExecutePendingWakesAsync(10, WorkerActor(), CancellationToken.None));
+
+        Assert.Equal(
+            ("mailbox-a", "invalid_mailbox_source"),
+            Assert.Single(harness.PollStore.Releases));
+        Assert.Equal("cursor-b1", harness.PollStore.Cursors["mailbox-b"]);
+    }
+
+    [Fact]
+    public async Task ARecordedMailboxTheEstateNoLongerOffersIsSkipped()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.PollStore.PendingWakes.AddRange([SecondMailbox.ApprovedMailboxId, FirstMailbox.ApprovedMailboxId]);
+        harness.Source.Enqueue(FirstMailbox.GraphMailboxId, Message("a-1", "cursor-a1"));
+
+        var handled = await harness.Poll().ExecutePendingWakesAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Equal(1, handled);
+        Assert.Equal([("mailbox-a", ApprovedInboxClaimKind.MailboxWake)], harness.PollStore.Claims);
     }
 
     [Fact]
@@ -743,9 +851,14 @@ public sealed class PollApprovedInboxTests
 
     private sealed class MailboxEstate(List<ApprovedIntakeMailbox> mailboxes) : IApprovedIntakeMailboxes
     {
+        internal int Listings { get; private set; }
+
         public Task<IReadOnlyList<ApprovedIntakeMailbox>> ListPollableAsync(
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ApprovedIntakeMailbox>>(mailboxes);
+            CancellationToken cancellationToken)
+        {
+            Listings++;
+            return Task.FromResult<IReadOnlyList<ApprovedIntakeMailbox>>(mailboxes);
+        }
     }
 
     private sealed class MailboxPolicy(HashSet<string> approvedAddresses) : IApprovedMailboxPolicy
@@ -772,6 +885,12 @@ public sealed class PollApprovedInboxTests
 
         internal List<string> ClaimedMailboxIds { get; } = [];
 
+        /// <summary>Every claim asked for, granted or not, with the kind it asked as.</summary>
+        internal List<(string MailboxId, ApprovedInboxClaimKind Kind)> Claims { get; } = [];
+
+        /// <summary>The mailboxes the store answers as having a recorded wake, in order.</summary>
+        internal List<Guid> PendingWakes { get; } = [];
+
         internal Dictionary<string, string> Cursors { get; } = new(StringComparer.Ordinal);
 
         internal List<(string MailboxId, string FailureCode)> Releases { get; } = [];
@@ -789,10 +908,12 @@ public sealed class PollApprovedInboxTests
 
         public Task<ApprovedInboxPollLease?> ClaimAsync(
             ApprovedIntakeMailbox mailbox,
+            ApprovedInboxClaimKind kind,
             DateTimeOffset nowUtc,
             TimeSpan leaseDuration,
             CancellationToken cancellationToken)
         {
+            Claims.Add((mailbox.GraphMailboxId, kind));
             if (claimFailures.TryGetValue(mailbox.GraphMailboxId, out var failure))
             {
                 return Task.FromException<ApprovedInboxPollLease?>(failure);
@@ -815,6 +936,9 @@ public sealed class PollApprovedInboxTests
                 cursor,
                 $"lease-{mailbox.GraphMailboxId}"));
         }
+
+        public Task<IReadOnlyList<Guid>> ListPendingWakeAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Guid>>([.. PendingWakes]);
 
         public Task AdvanceAsync(
             Guid approvedMailboxId,

@@ -1,4 +1,3 @@
-using System.Data;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -44,11 +43,9 @@ internal sealed class EfStaffMailSendStore(
         CancellationToken cancellationToken)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
-        // Serializable missing-key reads can lock the same index gap even for
-        // unrelated messages. Order these short preparation transactions before
-        // any reads; the lock is released before attachment or provider work.
+        await using var transaction = await db.Database.BeginReadCommittedAsync(cancellationToken);
+        // One lock orders these short preparation transactions before any
+        // reads; it is released before attachment or provider work.
         await AcquireTransactionLockAsync(db, transaction, "staff-mail-prepare", cancellationToken);
         if (command.OriginalMessage is { } original)
         {
@@ -369,9 +366,7 @@ internal sealed class EfStaffMailSendStore(
             throw new ArgumentException("The retained Sent observation is invalid.");
         }
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await db.Database.BeginReadCommittedAsync(cancellationToken);
         await AcquireTransactionLockAsync(
             db, transaction, $"staff-mail-observed:{operationId:N}", cancellationToken);
         var entity = await db.Set<StaffMailSendOperationEntity>().SingleOrDefaultAsync(
@@ -563,8 +558,8 @@ internal sealed class EfStaffMailSendStore(
             return;
         }
 
-        // Lock before reading: a Serializable read taken first deadlocks
-        // against a Case mutation that already holds the workflow row.
+        // Lock before reading, as every Case write does, so the reads below
+        // see the Case as the last write left it.
         await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(db, mail.ContextId, cancellationToken);
         var operationKey = $"chaser-sent:{mail.Id:N}";
         if (await db.CaseManualChases.AnyAsync(

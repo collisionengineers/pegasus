@@ -191,9 +191,8 @@ public sealed class ImageIntakePersistenceTests
         var firstReceiptId = await UploadImageAsync(factory, client);
         var secondReceiptId = await UploadImageAsync(factory, client);
 
-        // Both registrations race the same per-VRM sequence row under
-        // serializable isolation. The winner commits; a loser may deadlock or
-        // hit a serialization failure, must surface that failure rather than
+        // Both registrations race the same per-VRM sequence row. The winner
+        // commits; a loser that fails must surface that failure rather than
         // reuse or skip a reference, and must succeed cleanly when retried.
         var outcomes = await Task.WhenAll(
             Task.Run(() => TryRegisterAsync(
@@ -1130,6 +1129,113 @@ public sealed class ImageIntakePersistenceTests
     }
 
     /// <summary>
+    /// The Cases page pages the Awaiting list: a window shares the list's
+    /// filter and newest-first order, so windows of any size concatenate to
+    /// the list, a record with a current Case is in none of them, and the
+    /// position read names each record's place in that order.
+    /// </summary>
+    [Fact]
+    public async Task AwaitingWindowsExcludeALinkedRecordAndPartitionTheListNewestFirst()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        string[] registrations = ["AA11AAA", "BB22BBB", "CC33CCC", "DD44DDD", "EE55EEE"];
+        var receiptIds = new List<Guid>();
+        for (var index = 0; index < registrations.Length; index++)
+        {
+            receiptIds.Add(await UploadImageAsync(factory, client));
+        }
+        var linkedReceiptId = await UploadImageAsync(factory, client);
+        var caseId = await SeedCaseAsync(
+            factory.Services,
+            await UploadCaseOriginAsync(factory, client, "CASE-WINDOW-01"),
+            "IMG26002",
+            nameof(CaseLifecycleState.Review),
+            "AB12CDE");
+        var actor = StaffActor();
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        for (var index = 0; index < registrations.Length; index++)
+        {
+            await RegisterAsync(services, receiptIds[index], registrations[index], $"window-register-{index}");
+        }
+        await RegisterAsync(services, linkedReceiptId, "AB12CDE", "window-register-linked");
+        var queries = services.GetRequiredService<IImageIntakeQueries>();
+        var lease = await ClaimLeaseAsync(factory.Services, caseId, actor, "claim-window-lease");
+        var linkedReceipt = await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(linkedReceiptId, CancellationToken.None);
+        await services.GetRequiredService<ILinkIntake>().ExecuteAsync(
+            new(
+                linkedReceiptId,
+                caseId,
+                linkedReceipt!.Version,
+                0,
+                lease.Token,
+                actor,
+                "link-window-case",
+                "The registration matches this pre-report case."),
+            CancellationToken.None);
+        var linkedId = (await queries.GetByOriginReceiptAsync(linkedReceiptId, CancellationToken.None))!.Record.Id;
+
+        // Neighbouring records share a timestamp, so the Id tie-break decides
+        // them; the linked record is the newest of all.
+        var firstRegisteredAtUtc = new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero);
+        await using (var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            for (var index = 0; index < registrations.Length; index++)
+            {
+                var recordId = (await queries.GetByOriginReceiptAsync(receiptIds[index], CancellationToken.None))!.Record.Id;
+                await context.Database.ExecuteSqlInterpolatedAsync(
+                    $"UPDATE ImageIntakes SET CreatedAtUtc = {firstRegisteredAtUtc.AddHours(index / 2)} WHERE Id = {recordId}");
+            }
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE ImageIntakes SET CreatedAtUtc = {firstRegisteredAtUtc.AddHours(3)} WHERE Id = {linkedId}");
+        }
+
+        var awaiting = ImageInitiatedCaseState.AwaitingInstruction;
+        var list = await queries.ListAsync(associated: false, awaiting, CancellationToken.None);
+        Assert.Equal(registrations.Length, list.Count);
+        Assert.DoesNotContain(list, item => item.Id == linkedId);
+        Assert.Equal(
+            list.Select(item => item.RegisteredAtUtc).OrderByDescending(at => at),
+            list.Select(item => item.RegisteredAtUtc));
+        var expected = list.Select(item => item.Id).ToArray();
+
+        foreach (var size in new[] { 1, 2, registrations.Length })
+        {
+            var windows = new List<ImageIntakeSummary>();
+            for (var skip = 0; skip < registrations.Length; skip += size)
+            {
+                windows.AddRange(await queries.ListWindowAsync(
+                    associated: false, awaiting, skip, size, CancellationToken.None));
+            }
+
+            Assert.Equal(expected, windows.Select(item => item.Id));
+        }
+        Assert.Empty(await queries.ListWindowAsync(
+            associated: false, awaiting, registrations.Length, 2, CancellationToken.None));
+
+        for (var place = 0; place < expected.Length; place++)
+        {
+            Assert.Equal(
+                place,
+                await queries.ListPositionAsync(associated: false, awaiting, expected[place], CancellationToken.None));
+        }
+        Assert.Null(await queries.ListPositionAsync(associated: false, awaiting, linkedId, CancellationToken.None));
+        Assert.Null(await queries.ListPositionAsync(associated: false, awaiting, Guid.NewGuid(), CancellationToken.None));
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => queries.ListWindowAsync(
+            associated: false, awaiting, -1, 1, CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => queries.ListWindowAsync(
+            associated: false, awaiting, 0, 0, CancellationToken.None));
+    }
+
+    /// <summary>
     /// Staff "Link to case" reaches every Case in any lifecycle state
     /// (operator, 24 September 2026): the Vehicle images record it links is
     /// merged into a Report sent or closed Case and its evidence folded into
@@ -1655,6 +1761,52 @@ public sealed class ImageIntakePersistenceTests
                 EditLeaseToken = lease.Token
             },
             CancellationToken.None));
+    }
+
+    /// <summary>
+    /// A member of staff takes over an Image Intake scope the Automation Actor holds, and the
+    /// history line names the Actor as AI, never by its grant id (operator, 15 and 16 October
+    /// 2026).
+    /// </summary>
+    [Fact]
+    public async Task StaffTakeOverOfAnAutomationHeldImageScopeNamesTheAutomationActorInHistory()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receiptId = await UploadImageAsync(factory, client);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, receiptId, "AB12CDE", "automation-scope-registration");
+        var queries = services.GetRequiredService<IImageIntakeQueries>();
+        var store = services.GetRequiredService<IImageIntakeStore>();
+        var leases = services.GetRequiredService<IEditScopeLeases>();
+        var detail = Assert.IsType<ImageIntakeDetail>(
+            await queries.GetByOriginReceiptAsync(receiptId, CancellationToken.None));
+        var automation = ActionActor.Automation($"grant:{Guid.NewGuid():N}");
+        var staff = StaffActor();
+
+        var held = await leases.ClaimAsync(
+            new(EditScopeKind.ImageIntake, detail.Record.Id, detail.LifecycleVersion, automation,
+                "image-intake-scope-automation"),
+            CancellationToken.None);
+        var taken = await leases.ClaimAsync(
+            new ClaimEditScopeRequest(EditScopeKind.ImageIntake, detail.Record.Id,
+                detail.LifecycleVersion, staff, "image-intake-scope-staff-takeover")
+            {
+                TakeOver = true
+            },
+            CancellationToken.None);
+
+        Assert.NotEqual(held.Token, taken.Token);
+        var history = Assert.Single(
+            await store.ListHistoryAsync(detail.Record.Id, CancellationToken.None),
+            entry => entry.EventType == "edit_lease_taken_over");
+        Assert.Equal(ActorKind.Staff, history.Actor.Kind);
+        Assert.Equal(staff.SubjectId, history.Actor.SubjectId);
+        Assert.Equal("Edit lease taken over from AI.", history.Reason);
     }
 
     private static async Task<Guid> UploadImageAsync(

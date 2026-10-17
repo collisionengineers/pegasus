@@ -1,4 +1,3 @@
-using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Documents;
 using Pegasus.Core.ImageIntake;
@@ -54,7 +53,8 @@ internal sealed class EfPreCaseImagePreparationStore(
             request.Crop.IsFull ? null : request.Crop));
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await LockImageAsync(context, request.IntakeAssetId, cancellationToken);
         if (await FindHistoryAsync(context, operationKey, cancellationToken) is { } replay)
         {
             DocumentActionHistory.RequireExactReplay(replay, AggregateType, assetId, CroppedEventKind, request.Actor, reason: null, afterJson);
@@ -109,7 +109,8 @@ internal sealed class EfPreCaseImagePreparationStore(
         var eventKind = request.Applied ? TaggedEventKind : UntaggedEventKind;
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await LockImageAsync(context, request.IntakeAssetId, cancellationToken);
         var tag = await context.Set<ImageTagEntity>()
             .SingleOrDefaultAsync(item => item.Id == request.TagId, cancellationToken)
             ?? throw new InvalidOperationException("The image tag is unavailable.");
@@ -255,6 +256,16 @@ internal sealed class EfPreCaseImagePreparationStore(
             throw new InvalidOperationException("Only an image can be cropped or tagged.");
         }
     }
+
+    /// <summary>
+    /// Takes the image's asset row <c>UPDLOCK, HOLDLOCK</c> for the rest of
+    /// the transaction, so a crop or tag of one image waits for the one before
+    /// it and reads what it left.
+    /// </summary>
+    private static async Task LockImageAsync(PegasusDbContext context, Guid intakeAssetId, CancellationToken cancellationToken) =>
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [IntakeAssets] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {intakeAssetId}",
+            cancellationToken);
 
     private static Task<ActionHistoryEntity?> FindHistoryAsync(
         PegasusDbContext context,

@@ -2228,13 +2228,15 @@ public sealed class GlassRepairEstimateGatewayTests
         var logger = new CapturingLogger();
         var harness = Harness.Create(logger: logger);
         var session = await harness.LaunchAsync();
+        // Not hex digits, so the session id in the log line cannot contain it.
+        const string foreign = "foreign-profile";
         var locked = GlassProviderFixture.VehicleDetail(locked: true);
         var served = page switch
         {
-            "other-profile" => GlassProviderFixture.VehicleDetail(profile: "9999", locked: true),
+            "other-profile" => GlassProviderFixture.VehicleDetail(profile: foreign, locked: true),
             "nothing-selected" => locked.Replace(" selected=\"selected\"", string.Empty, StringComparison.Ordinal),
             "two-selected" => locked.Replace(
-                "</select>", "<option value=\"9999\" selected=\"selected\">Other</option></select>", StringComparison.Ordinal),
+                "</select>", $"<option value=\"{foreign}\" selected=\"selected\">Other</option></select>", StringComparison.Ordinal),
             "enabled" => GlassProviderFixture.VehicleDetail(),
             "absent" => locked.Replace("name=\"ere_profile\"", "name=\"other_control\"", StringComparison.Ordinal),
             _ => locked + "<select name=\"ere_profile\" disabled=\"1\"><option value=\""
@@ -2252,7 +2254,7 @@ public sealed class GlassRepairEstimateGatewayTests
             $"glass.details.profile profile={flag} required={GlassProviderFixture.ProfileId}",
             settledLine,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("9999", settledLine, StringComparison.Ordinal);
+        Assert.DoesNotContain(foreign, settledLine, StringComparison.Ordinal);
         Assert.Equal(1, harness.Mva.Count("POST /ere/start-ere"));
         Assert.Equal(1, harness.Mva.Count("GET /index/get-selected-vehicle-count"));
     }
@@ -2291,9 +2293,11 @@ public sealed class GlassRepairEstimateGatewayTests
     public async Task ALaunchOnALoginThatDoesNotOfferTheConfiguredProfileIsRefusedNamingIt()
     {
         var logger = new CapturingLogger();
+        // Not hex digits, so a session id in a log line cannot contain it.
+        const string foreign = "foreign-profile";
         var harness = Harness.Create(logger: logger);
         harness.Mva.Set("GET /index/vehicle-details-value/", new(
-            HttpStatusCode.OK, GlassProviderFixture.VehicleDetail(profile: "9999")));
+            HttpStatusCode.OK, GlassProviderFixture.VehicleDetail(profile: foreign)));
 
         var session = await harness.LaunchAsync();
 
@@ -2302,7 +2306,7 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Contains(logger.Messages, message => message.Contains(
             $"settled Failed at glass.details.profile profile=not-offered required={GlassProviderFixture.ProfileId}",
             StringComparison.Ordinal));
-        Assert.DoesNotContain(logger.Messages, message => message.Contains("9999", StringComparison.Ordinal));
+        Assert.DoesNotContain(logger.Messages, message => message.Contains(foreign, StringComparison.Ordinal));
         Assert.Equal(0, harness.Mva.Count("GET /index/get-selected-vehicle-count"));
         Assert.Equal(0, harness.Mva.Count("POST /ere/start-ere"));
     }

@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Infrastructure.Persistence;
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
@@ -378,13 +379,6 @@ public sealed partial class ReleaseNotesWebTests
         }
 
         return client;
-    }
-
-    private static async Task<string> GetHtmlAsync(HttpClient client, string path)
-    {
-        using var response = await client.GetAsync(path);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await response.Content.ReadAsStringAsync();
     }
 
     private static FormUrlEncodedContent Form(string page, Dictionary<string, string> fields)

@@ -76,7 +76,7 @@ public sealed class CaseEstimateScalingWebTests
         Assert.Equal(staleVersion ? 1 : 0, store.SubmittedEstimates.Count);
         if (!staleVersion)
         {
-            var refusal = await AssessmentEstimateImportWebTests.GetHtmlAsync(
+            var refusal = await CaseWebTestSupport.GetHtmlAsync(
                 client, response.Headers.Location!.OriginalString);
             Assert.Contains("does not read as a number", refusal, StringComparison.Ordinal);
         }
@@ -142,7 +142,7 @@ public sealed class CaseEstimateScalingWebTests
         Assert.True(store.WorkingEstimate!.Details.BaseHourlyRate < 80m);
         Assert.Null(store.WorkingEstimate.Details.Rate);
 
-        var afterApply = await AssessmentEstimateImportWebTests.GetHtmlAsync(
+        var afterApply = await CaseWebTestSupport.GetHtmlAsync(
             client, response.Headers.Location!.OriginalString);
         Assert.Contains("data-case-editing=\"true\"", afterApply, StringComparison.Ordinal);
         // The scale form is not an editor: it clears no draft of the Case's.
@@ -154,7 +154,7 @@ public sealed class CaseEstimateScalingWebTests
 
         using var removeResponse = await client.PostAsync(
             $"/Cases/{caseId:D}?handler=RemoveEstimateScaling&section=estimate",
-            AssessmentEstimateImportWebTests.Form(
+            CaseWebTestSupport.Form(
                 AssessmentEstimateImportWebTests.AntiforgeryValue(afterApply),
                 ("id", caseId.ToString("D")),
                 ("operationKey", AssessmentEstimateImportWebTests.NewOperationKey()),

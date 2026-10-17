@@ -1019,6 +1019,12 @@ public sealed partial class DetailsModel(
 
     public bool ViewerHoldsEditAuthority { get; private set; }
 
+    /// <summary>
+    /// Core lets this viewer take over the live lease (<see cref="CaseEditAuthority.CanTakeOver"/>):
+    /// a colleague's, or one the Automation Actor holds.
+    /// </summary>
+    public bool ViewerMayTakeOver { get; private set; }
+
     public bool QueryFailed { get; private set; }
 
     /// <summary>
@@ -1884,6 +1890,7 @@ public sealed partial class DetailsModel(
         if (activeLease is not null)
         {
             ViewerHoldsEditAuthority = viewerHoldsLease;
+            ViewerMayTakeOver = CaseEditAuthority.CanTakeOver(activeLease.HolderKind, actor);
             EditAuthorityHolder = holder is null ? CaseEditAuthorityHolder.Unnamed : await holder;
         }
         var jobs = await caseAiJobs;

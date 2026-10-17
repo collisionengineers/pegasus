@@ -443,6 +443,24 @@ public interface IUnidentifiedStore
         UnidentifiedMediaKind? mediaKind,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// One offset window of the open queue for the Cases page, newest first:
+    /// <paramref name="take"/> items after <paramref name="skip"/> in
+    /// (CreatedAtUtc, Sequence) descending order, so windows of any size
+    /// concatenate to <see cref="ListQueueAsync"/> reversed. The store applies
+    /// the filter and the window; a connector continues with
+    /// <see cref="ListQueueByCursorAsync"/> instead.
+    ///
+    /// Default: unsupported, as for <see cref="ListClosedQueueAsync"/>.
+    /// </summary>
+    Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueWindowAsync(
+        UnidentifiedMediaKind? mediaKind,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default) =>
+        Task.FromException<IReadOnlyList<UnidentifiedQueueRow>>(
+            new NotSupportedException("This Unidentified store does not list queue windows."));
+
     /// <summary>The exact open-queue total for count wells that do not need rows.</summary>
     Task<int> CountOpenAsync(CancellationToken cancellationToken = default);
 

@@ -20,7 +20,7 @@ namespace Pegasus.IntegrationTests;
 /// to me, Create audit, the Notes band, and a Save that asks for no reason.
 /// </summary>
 [Trait("Category", "SqlServer")]
-public sealed class CaseRecordFrameV26WebTests
+public sealed class CaseActionsMenuWebTests
 {
     /// <summary>
     /// The Actions menu offers exactly the items the state permits inside an
@@ -96,6 +96,34 @@ public sealed class CaseRecordFrameV26WebTests
     }
 
     /// <summary>
+    /// A lease the Automation Actor holds is offered Take over like a colleague's (operator,
+    /// 15 October 2026): the chip names AI, the menu keeps only Export case and Tasks, and the
+    /// Actor's grant id appears nowhere on the page.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomationHeldCaseOffersTakeOverAndKeepsTheMenuToExportAndTasks()
+    {
+        var grantId = $"grant:{Guid.NewGuid():N}";
+        var html = await ReadCaseAsync(new RecordingCaseDetailsStore
+        {
+            LeaseHolder = grantId,
+            LeaseHolderKind = ActorKind.Automation
+        });
+        var bar = RecordBar(html);
+
+        Assert.Contains("data-case-export", bar, StringComparison.Ordinal);
+        Assert.Equal(1, Occurrences(bar, "data-dialog-open"));
+        Assert.Contains("data-dialog-open=\"case-tasks-dialog\"", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"case-hold-dialog\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-edit-authority", html, StringComparison.Ordinal);
+        Assert.Contains("AI is editing", html, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkspaceLabels.Frame.TakeOver, bar, StringComparison.Ordinal);
+        Assert.Contains("handler=ClaimLease", bar, StringComparison.Ordinal);
+        Assert.Contains("name=\"takeOver\" value=\"true\"", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain(grantId, html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// A Report sent Case, with or without an open query, is editable like a
     /// With Engineer Case (operator, 11 October 2026): it offers Edit Case,
     /// and a colleague's lease on it is offered Take over (operator, 29
@@ -135,167 +163,6 @@ public sealed class CaseRecordFrameV26WebTests
         Assert.DoesNotContain("id=\"case-hold-dialog\"", page, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=Hold", page, StringComparison.Ordinal);
         Assert.Contains("data-dialog-open=\"case-correct-principal-dialog\"", page, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// An Actions-menu item taken outside an edit session runs under a lease
-    /// the handler claims for it, the way Generate report does: one claim on
-    /// the Case's version, the command under that token, and nothing to
-    /// release afterwards because the command consumed the lease. The page
-    /// reads on; no session was opened.
-    /// </summary>
-    [Fact]
-    public async Task PlaceOnHoldOutsideAnEditSessionRunsUnderALeaseClaimedForIt()
-    {
-        var store = new RecordingCaseDetailsStore();
-        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
-        {
-            Substitute<IHoldCase>(services, store);
-            Substitute<IReleaseCaseEditLease>(services, store);
-        });
-        Assert.DoesNotContain("data-case-editing=\"true\"", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
-
-        using var response = await workspace.PostAsync(
-            "Workflow?handler=Hold",
-            Form(
-                workspace.AntiforgeryToken,
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", "hold-outside-a-session"),
-                ("editLeaseToken", string.Empty),
-                ("reason", "Awaiting the claimant's photographs")));
-
-        AssertPrg(response, store.CaseId);
-        var claim = Assert.Single(store.Claims);
-        Assert.Equal(store.CaseVersion, claim.ExpectedVersion);
-        var hold = Assert.Single(store.Holds);
-        Assert.Equal(store.LeaseToken, hold.EditLeaseToken);
-        Assert.Equal(store.CaseVersion, hold.ExpectedVersion);
-        Assert.Equal(claim.Actor.SubjectId, hold.Actor.SubjectId);
-        Assert.Empty(store.LeaseReleases);
-        Assert.Null(store.LeaseHolder);
-        var after = await workspace.GetWorkspaceAsync();
-        Assert.DoesNotContain("data-case-editing=\"true\"", after, StringComparison.Ordinal);
-        Assert.Contains("The case was put on hold.", after, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// A command the Case refuses frees the lease that was claimed for it, so
-    /// nothing is left holding the Case, and states the refusal.
-    /// </summary>
-    [Fact]
-    public async Task ARefusedActionOutsideAnEditSessionFreesTheLeaseItClaimed()
-    {
-        var store = new RecordingCaseDetailsStore();
-        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
-        {
-            Substitute<IHoldCase>(services, new RefusingHold());
-            Substitute<IReleaseCaseEditLease>(services, store);
-        });
-
-        using var response = await workspace.PostAsync(
-            "Workflow?handler=Hold",
-            Form(
-                workspace.AntiforgeryToken,
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", "hold-refused"),
-                ("editLeaseToken", string.Empty),
-                ("reason", "Awaiting the claimant's photographs")));
-
-        AssertPrg(response, store.CaseId);
-        Assert.Single(store.Claims);
-        Assert.Empty(store.Holds);
-        var release = Assert.Single(store.LeaseReleases);
-        Assert.Equal(store.LeaseToken, release.LeaseToken);
-        Assert.Null(store.LeaseHolder);
-        var after = await workspace.GetWorkspaceAsync();
-        Assert.DoesNotContain("data-case-editing=\"true\"", after, StringComparison.Ordinal);
-        Assert.Contains("The case action was not applied", after, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// A colleague's live lease refuses the claim with the claim's own
-    /// wording: the command never runs and nothing is released.
-    /// </summary>
-    [Fact]
-    public async Task AColleaguesLeaseRefusesAnActionOutsideAnEditSessionWithTheEditingWording()
-    {
-        var store = new RecordingCaseDetailsStore { LeaseHolder = Guid.NewGuid().ToString("D") };
-        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
-        {
-            Substitute<IHoldCase>(services, store);
-            Substitute<IReleaseCaseEditLease>(services, store);
-        });
-
-        store.NextFailure = new CaseEditLeaseConflictException(store.CaseId, store.CaseVersion);
-        using var response = await workspace.PostAsync(
-            "Workflow?handler=Hold",
-            Form(
-                workspace.AntiforgeryToken,
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", "hold-while-a-colleague-edits"),
-                ("editLeaseToken", string.Empty),
-                ("reason", "Awaiting the claimant's photographs")));
-
-        AssertPrg(response, store.CaseId);
-        Assert.Empty(store.Holds);
-        Assert.Empty(store.LeaseReleases);
-        Assert.Contains(
-            "Someone else is editing this case.",
-            await workspace.GetWorkspaceAsync(),
-            StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// A request abandoned mid-command (the browser went away) frees the
-    /// lease that was claimed for it, so the Case is not held until the
-    /// lease lapses.
-    /// </summary>
-    [Fact]
-    public async Task AnAbandonedActionOutsideAnEditSessionFreesTheLeaseItClaimed()
-    {
-        var store = new RecordingCaseDetailsStore();
-        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
-        {
-            Substitute<IHoldCase>(services, new AbandonedHold());
-            Substitute<IReleaseCaseEditLease>(services, store);
-        });
-
-        try
-        {
-            using var response = await workspace.PostAsync(
-                "Workflow?handler=Hold",
-                Form(
-                    workspace.AntiforgeryToken,
-                    ("id", store.CaseId.ToString("D")),
-                    ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                    ("operationKey", "hold-abandoned"),
-                    ("reason", "Awaiting the claimant's photographs")));
-        }
-        catch (OperationCanceledException)
-        {
-            // The host may surface the abandoned request to the caller.
-        }
-
-        Assert.Single(store.Claims);
-        Assert.Empty(store.Holds);
-        var release = Assert.Single(store.LeaseReleases);
-        Assert.Equal(store.LeaseToken, release.LeaseToken);
-        Assert.Null(store.LeaseHolder);
-    }
-
-    private sealed class RefusingHold : IHoldCase
-    {
-        public Task<CaseWorkflowRecord> ExecuteAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("The hold was refused.");
-    }
-
-    private sealed class AbandonedHold : IHoldCase
-    {
-        public Task<CaseWorkflowRecord> ExecuteAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken) =>
-            throw new OperationCanceledException("The request was abandoned.");
     }
 
     /// <summary>

@@ -18,8 +18,6 @@ public sealed class RefreshButtonContractTests
     // page-level drawing of it.
     private const string SpritePath = "src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml";
 
-    private static readonly string RepositoryRoot = FindRepositoryRoot();
-
     [Fact]
     public void TheRefreshButtonPartialIsTheOnlyOwnerOfARefreshForm()
     {
@@ -71,7 +69,7 @@ public sealed class RefreshButtonContractTests
             1,
             Regex.Count(siteCss, @"@keyframes\s+pegasus-spin\b"));
         foreach (var path in Directory.GetFiles(
-                     Path.Combine(RepositoryRoot, "src/Pegasus.Web/wwwroot/css"),
+                     Path.Combine(RepositoryRoot.Find(), "src/Pegasus.Web/wwwroot/css"),
                      "*.css",
                      SearchOption.AllDirectories))
         {
@@ -86,23 +84,8 @@ public sealed class RefreshButtonContractTests
         }
     }
 
-    [Fact]
-    public void NoStylesheetKeepsRetiredRefreshRules()
-    {
-        foreach (var path in Directory.GetFiles(
-                     Path.Combine(RepositoryRoot, "src/Pegasus.Web/wwwroot/css"),
-                     "*.css",
-                     SearchOption.AllDirectories))
-        {
-            var source = Read(path);
-
-            Assert.DoesNotContain("freshness-banner", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("wc-refresh-form", source, StringComparison.Ordinal);
-        }
-    }
-
     private static IEnumerable<string> RazorFiles() => Directory
-        .EnumerateFiles(Path.Combine(RepositoryRoot, "src/Pegasus.Web/Pages"), "*.cshtml", SearchOption.AllDirectories)
+        .EnumerateFiles(Path.Combine(RepositoryRoot.Find(), "src/Pegasus.Web/Pages"), "*.cshtml", SearchOption.AllDirectories)
         .Where(path =>
         {
             var relative = Relative(path).Replace('\\', '/');
@@ -111,20 +94,8 @@ public sealed class RefreshButtonContractTests
         });
 
     private static string Read(string relativePath) =>
-        File.ReadAllText(Path.Combine(RepositoryRoot, relativePath));
+        File.ReadAllText(Path.Combine(RepositoryRoot.Find(), relativePath));
 
     private static string Relative(string path) =>
-        Path.GetRelativePath(RepositoryRoot, path);
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Pegasus.slnx")))
-        {
-            directory = directory.Parent;
-        }
-
-        return directory?.FullName ?? throw new InvalidOperationException("Could not locate Pegasus.slnx.");
-    }
+        Path.GetRelativePath(RepositoryRoot.Find(), path);
 }

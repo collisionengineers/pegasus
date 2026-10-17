@@ -1,0 +1,27 @@
+namespace Pegasus.ArchitectureTests;
+
+/// <summary>
+/// ADR-0074: <c>PegasusTransactions</c> is the one owner of a store
+/// transaction's isolation level, so no other Infrastructure source names one.
+/// </summary>
+public sealed class TransactionIsolationContractTests
+{
+    private const string Owner = "src/Pegasus.Infrastructure/Persistence/PegasusTransactions.cs";
+
+    [Fact]
+    public void OnlyTheTransactionOwnerNamesAnIsolationLevel()
+    {
+        var root = RepositoryRoot.Find();
+        var naming = Directory
+            .EnumerateFiles(Path.Combine(root, "src", "Pegasus.Infrastructure"), "*.cs", SearchOption.AllDirectories)
+            .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/'))
+            .Where(path => !path.Contains("/bin/", StringComparison.Ordinal)
+                && !path.Contains("/obj/", StringComparison.Ordinal))
+            .Where(path => File.ReadAllText(Path.Combine(root, path))
+                .Contains("IsolationLevel.", StringComparison.Ordinal))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal([Owner], naming);
+    }
+}

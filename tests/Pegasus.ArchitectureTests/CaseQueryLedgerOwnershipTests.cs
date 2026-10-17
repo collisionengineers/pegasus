@@ -28,7 +28,7 @@ public sealed class CaseQueryLedgerOwnershipTests
     [Fact]
     public void OnlyTheLedgerWritesTheOpenQueryMarkOrAddsACaseQuery()
     {
-        var persistence = Path.Combine(FindRepositoryRoot(), "src", "Pegasus.Infrastructure", "Persistence");
+        var persistence = Path.Combine(RepositoryRoot.Find(), "src", "Pegasus.Infrastructure", "Persistence");
         var offenders = Directory
             .EnumerateFiles(persistence, "*.cs", SearchOption.AllDirectories)
             .Where(path => !IsGenerated(persistence, path))
@@ -51,21 +51,5 @@ public sealed class CaseQueryLedgerOwnershipTests
         var relative = Path.GetRelativePath(persistence, path);
         var first = relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)[0];
         return first is "Migrations" or "CompiledModel";
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Pegasus.slnx")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate the Pegasus repository root.");
     }
 }

@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
@@ -24,11 +25,11 @@ public sealed class MailboxIntakeIntegrationTests
     /// The mailbox envelope bound these tests run against.
     /// </summary>
     /// <remarks>
-    /// The shipped bound is deliberately permissive, and writing a file of
-    /// that size to prove the boundary would cost more than the boundary is
-    /// worth. The adapter and the poll take their bound as a parameter for
-    /// exactly this reason, so both sides of it stay covered here while
-    /// production keeps <see cref="IntakeEnvelopeLimits.MaximumMailboxContentLength"/>.
+    /// The shipped bound is 150 MiB, and writing a file of that size to
+    /// prove the boundary would cost more than the boundary is worth. The
+    /// adapter and the poll take their bound as a parameter for exactly this
+    /// reason, so both sides of it stay covered here while production keeps
+    /// <see cref="IntakeEnvelopeLimits.MaximumMailboxContentLength"/>.
     /// </remarks>
     private const long TestMailboxContentLength = 256 * 1024;
 
@@ -196,7 +197,7 @@ public sealed class MailboxIntakeIntegrationTests
             Assert.Equal(0L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
             Assert.Equal(0L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeReceipts"));
             var artifactStore = scope.ServiceProvider.GetRequiredService<IIntakeArtifactStore>();
-            Assert.Empty(await artifactStore.ListStagedAsync(10, CancellationToken.None));
+            Assert.Empty((await artifactStore.ListStagedAsync(10, null, CancellationToken.None)).Items);
         }
         finally
         {
@@ -1393,6 +1394,129 @@ public sealed class MailboxIntakeIntegrationTests
         }
     }
 
+    /// <summary>
+    /// A notification that finds another poll holding the mailbox's lease is
+    /// recorded, not dropped. Once the holder completes, the pending-wake poll reads
+    /// the delta, ingests the message once and clears the record.
+    /// </summary>
+    [Fact]
+    public Task ANotificationThatFindsTheLeaseHeldIsRecordedAndIngestedOnceAfterTheHolderCompletes() =>
+        WithPendingWakeDatabaseAsync(
+            "Pegasus.MailboxPendingWakeHeldLeaseIntegrationTests",
+            async (database, clock, inboxSource) =>
+            {
+                var mailboxId = TestMailboxId.From("instructions");
+                var generation = await database.ScalarAsync<long>(
+                    $"SELECT MailboxGeneration FROM ApprovedMailboxes WHERE Id = '{mailboxId:D}'");
+                var actor = ActionActor.SystemWorker("approved-inbox-poller");
+                await using var scope = database.CreateAsyncScope();
+                var pollStore = scope.ServiceProvider.GetRequiredService<IApprovedInboxPollStore>();
+                var poll = scope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+                var holder = Assert.IsType<ApprovedInboxPollLease>(await pollStore.ClaimAsync(
+                    await PollableMailboxAsync(scope.ServiceProvider), ApprovedInboxClaimKind.Sweep,
+                    clock.GetUtcNow(), TimeSpan.FromMinutes(1), CancellationToken.None));
+
+                Assert.Equal(0, await poll.ExecuteNotificationAsync(
+                    mailboxId, generation, WakeThenDeltaApprovedInboxSource.ImmutableMessageId,
+                    actor, CancellationToken.None));
+                Assert.Equal([mailboxId], await pollStore.ListPendingWakeAsync(CancellationToken.None));
+                Assert.Equal(0, inboxSource.MimeReads);
+
+                await pollStore.CompleteAsync(
+                    mailboxId, holder.LeaseToken, "holder-cursor", clock.GetUtcNow(), CancellationToken.None);
+                Assert.Equal(1, await poll.ExecutePendingWakesAsync(10, actor, CancellationToken.None));
+                Assert.Equal(0, await poll.ExecutePendingWakesAsync(10, actor, CancellationToken.None));
+
+                Assert.Empty(await pollStore.ListPendingWakeAsync(CancellationToken.None));
+                Assert.Equal(1, inboxSource.MimeReads);
+                Assert.Equal(
+                    1L,
+                    await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
+            });
+
+    /// <summary>
+    /// A wake within the retry delay of a failed poll finds the mailbox not yet due.
+    /// It is recorded, and the pending-wake poll answers it once the clock passes the
+    /// mailbox's due time.
+    /// </summary>
+    [Fact]
+    public Task AWakeThatFindsTheMailboxNotYetDueIsRecordedAndPolledOnceItIsDue() =>
+        WithPendingWakeDatabaseAsync(
+            "Pegasus.MailboxPendingWakeNotDueIntegrationTests",
+            async (database, clock, inboxSource) =>
+            {
+                var mailboxId = TestMailboxId.From("instructions");
+                var actor = ActionActor.SystemWorker("approved-inbox-poller");
+                await using var scope = database.CreateAsyncScope();
+                var pollStore = scope.ServiceProvider.GetRequiredService<IApprovedInboxPollStore>();
+                var poll = scope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+                var failed = Assert.IsType<ApprovedInboxPollLease>(await pollStore.ClaimAsync(
+                    await PollableMailboxAsync(scope.ServiceProvider), ApprovedInboxClaimKind.Sweep,
+                    clock.GetUtcNow(), TimeSpan.FromMinutes(1), CancellationToken.None));
+                await pollStore.ReleaseAsync(
+                    mailboxId, failed.LeaseToken, clock.GetUtcNow().AddSeconds(30),
+                    "mailbox_poll_failure", CancellationToken.None);
+
+                Assert.Equal(0, await poll.ExecuteMailboxAsync(mailboxId, 10, actor, CancellationToken.None));
+                Assert.Equal(0, await poll.ExecutePendingWakesAsync(10, actor, CancellationToken.None));
+                Assert.Equal([mailboxId], await pollStore.ListPendingWakeAsync(CancellationToken.None));
+
+                clock.Advance(TimeSpan.FromSeconds(31));
+                Assert.Equal(1, await poll.ExecutePendingWakesAsync(10, actor, CancellationToken.None));
+
+                Assert.Empty(await pollStore.ListPendingWakeAsync(CancellationToken.None));
+                Assert.Equal(1, inboxSource.MimeReads);
+            });
+
+    /// <summary>
+    /// What the claim records, in the store itself: a blocked sweep records nothing,
+    /// a blocked wake records itself, a granted message read leaves the record (it
+    /// reads no delta), and a Graph scope rebind clears it with the cursor.
+    /// </summary>
+    [Fact]
+    public Task ABlockedSweepRecordsNothingAGrantedMessageWakeKeepsTheRecordAndARebindClearsIt() =>
+        WithPendingWakeDatabaseAsync(
+            "Pegasus.MailboxPendingWakeStoreIntegrationTests",
+            async (database, clock, _) =>
+            {
+                var nowUtc = clock.GetUtcNow();
+                var leaseDuration = TimeSpan.FromMinutes(1);
+                await using var scope = database.CreateAsyncScope();
+                var pollStore = scope.ServiceProvider.GetRequiredService<IApprovedInboxPollStore>();
+                var mailbox = await PollableMailboxAsync(scope.ServiceProvider);
+                var holder = Assert.IsType<ApprovedInboxPollLease>(await pollStore.ClaimAsync(
+                    mailbox, ApprovedInboxClaimKind.Sweep, nowUtc, leaseDuration, CancellationToken.None));
+
+                Assert.Null(await pollStore.ClaimAsync(
+                    mailbox, ApprovedInboxClaimKind.Sweep, nowUtc, leaseDuration, CancellationToken.None));
+                Assert.Empty(await pollStore.ListPendingWakeAsync(CancellationToken.None));
+                Assert.Null(await pollStore.ClaimAsync(
+                    mailbox, ApprovedInboxClaimKind.MailboxWake, nowUtc, leaseDuration, CancellationToken.None));
+                Assert.Equal(
+                    [mailbox.ApprovedMailboxId],
+                    await pollStore.ListPendingWakeAsync(CancellationToken.None));
+
+                await pollStore.CompleteNotificationAsync(
+                    mailbox.ApprovedMailboxId, holder.LeaseToken, CancellationToken.None);
+                var messageRead = Assert.IsType<ApprovedInboxPollLease>(await pollStore.ClaimAsync(
+                    mailbox, ApprovedInboxClaimKind.MessageWake, nowUtc, leaseDuration, CancellationToken.None));
+                await pollStore.CompleteNotificationAsync(
+                    mailbox.ApprovedMailboxId, messageRead.LeaseToken, CancellationToken.None);
+                Assert.Equal(
+                    [mailbox.ApprovedMailboxId],
+                    await pollStore.ListPendingWakeAsync(CancellationToken.None));
+
+                await database.ExecuteAsync($"""
+                    UPDATE ApprovedMailboxes
+                    SET InboxFolderIdentity = 'rebound-inbox', MailboxGeneration = MailboxGeneration + 1
+                    WHERE Id = '{mailbox.ApprovedMailboxId:D}';
+                    """);
+                Assert.IsType<ApprovedInboxPollLease>(await pollStore.ClaimAsync(
+                    await PollableMailboxAsync(scope.ServiceProvider), ApprovedInboxClaimKind.MessageWake,
+                    nowUtc, leaseDuration, CancellationToken.None));
+                Assert.Empty(await pollStore.ListPendingWakeAsync(CancellationToken.None));
+            });
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -1850,6 +1974,55 @@ public sealed class MailboxIntakeIntegrationTests
             };
     }
 
+    /// <summary>
+    /// Real intake, retention and poll stores over an activated mailbox whose delta
+    /// lists one message, with a clock the test moves. Only the Graph read is a double.
+    /// </summary>
+    private static async Task WithPendingWakeDatabaseAsync(
+        string workingFolder,
+        Func<LocalDbTestDatabase, AdjustableTimeProvider, WakeThenDeltaApprovedInboxSource, Task> test)
+    {
+        var workingRoot = Path.Combine(Path.GetTempPath(), workingFolder, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(workingRoot);
+        var content = CreateForwardedProtocolMessage("<pending-wake@example.invalid>");
+        var inboxSource = new WakeThenDeltaApprovedInboxSource(
+            content,
+            WakeThenDeltaApprovedInboxSource.ImmutableMessageId,
+            content,
+            "<pending-wake@example.invalid>");
+        var clock = new AdjustableTimeProvider(RecordedAtUtc);
+
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => Path.Combine(workingRoot, "artifacts"),
+                configureServices: services =>
+                {
+                    services.AddSingleton<TimeProvider>(clock);
+                    services.AddScoped<IIntakeWorkStore, EfIntakeWorkStore>();
+                    services.AddScoped<ReceiveIntake>();
+                    services.AddLocalApprovedInbox(_ => new(
+                        LocalApprovedInboxOptions.RequiredRuntimeProfile,
+                        workingRoot));
+                    services.AddSingleton<IApprovedInboxSource>(inboxSource);
+                });
+            await ActivateMailboxAsync(database, DateTimeOffset.UnixEpoch);
+            await test(database, clock, inboxSource);
+        }
+        finally
+        {
+            if (Directory.Exists(workingRoot))
+            {
+                Directory.Delete(workingRoot, recursive: true);
+            }
+        }
+    }
+
+    private static async Task<ApprovedIntakeMailbox> PollableMailboxAsync(IServiceProvider services) =>
+        Assert.IsType<ApprovedIntakeMailbox>(await services
+            .GetRequiredService<IApprovedIntakeMailboxes>()
+            .GetPollableAsync(TestMailboxId.From("instructions"), CancellationToken.None));
+
     private static Task ActivateMailboxAsync(
         LocalDbTestDatabase database,
         DateTimeOffset activatedAtUtc) =>
@@ -1860,6 +2033,176 @@ public sealed class MailboxIntakeIntegrationTests
                 ActivatedAtUtc = '{activatedAtUtc:O}'
             WHERE Id = '{TestMailboxId.From("instructions"):D}';
             """);
+
+    private static readonly DateTimeOffset SeekNowUtc = new(2031, 6, 1, 9, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public async Task IntakeDispatchClaimTakesTheEarliestDueItemOfEitherWaitingStateAndNeverOneNotYetDue()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var pending = await SeedIntakeWorkAsync(database, "pending", SeekNowUtc.AddMinutes(-1));
+        var retry = await SeedIntakeWorkAsync(database, "retry_scheduled", SeekNowUtc.AddMinutes(-5));
+        var notDue = await SeedIntakeWorkAsync(database, "pending", SeekNowUtc.AddMinutes(5));
+        var store = await IntakeSeekStoreAsync(database);
+
+        Assert.Equal(retry, (await ClaimIntakeAtSeekNowAsync(store))?.Id);
+        Assert.Equal(pending, (await ClaimIntakeAtSeekNowAsync(store))?.Id);
+        Assert.Null(await ClaimIntakeAtSeekNowAsync(store));
+        Assert.Equal("pending", (await IntakeWorkAsync(database, notDue)).State);
+    }
+
+    [Fact]
+    public async Task IntakeDispatchClaimFindsADueItemBehind300NotDueOnesInOneRowReads()
+    {
+        var counter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter));
+        var store = await IntakeSeekStoreAsync(database);
+        await SeedNotDueIntakeWorkAsync(database, 3);
+        var first = await SeedIntakeWorkAsync(database, "pending", SeekNowUtc.AddMinutes(-1));
+        counter.Reset();
+        Assert.Equal(first, (await ClaimIntakeAtSeekNowAsync(store))?.Id);
+        var statementsBehindThree = counter.Count;
+        AssertIntakeOneRowReads(counter);
+
+        await SeedNotDueIntakeWorkAsync(database, 297);
+        var second = await SeedIntakeWorkAsync(database, "retry_scheduled", SeekNowUtc.AddMinutes(-1));
+        counter.Reset();
+        Assert.Equal(second, (await ClaimIntakeAtSeekNowAsync(store))?.Id);
+
+        Assert.Equal(statementsBehindThree, counter.Count);
+        AssertIntakeOneRowReads(counter);
+    }
+
+    [Fact]
+    public async Task IntakeDispatchClaimBreaksADueTimeTieInSqlUniqueidentifierOrder()
+    {
+        var low = Guid.Parse("00000001-0000-0000-0000-000000000002");
+        var high = Guid.Parse("00000002-0000-0000-0000-000000000001");
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedIntakeWorkAsync(database, "pending", SeekNowUtc.AddMinutes(-1), low);
+        await SeedIntakeWorkAsync(database, "retry_scheduled", SeekNowUtc.AddMinutes(-1), high);
+        Guid sqlFirst;
+        await using (var context = await database.CreateContextAsync())
+        {
+            sqlFirst = await context.IntakeWorkItems
+                .AsNoTracking()
+                .Where(item => item.Id == low || item.Id == high)
+                .OrderBy(item => item.DueAtUtc)
+                .ThenBy(item => item.Id)
+                .Select(item => item.Id)
+                .FirstAsync();
+        }
+
+        // SQL compares a uniqueidentifier's last six bytes first, so the two
+        // orders disagree and the claim shows which one it follows.
+        Assert.True(low.CompareTo(high) < 0);
+        Assert.Equal(high, sqlFirst);
+        Assert.Equal(sqlFirst, (await ClaimIntakeAtSeekNowAsync(await IntakeSeekStoreAsync(database)))?.Id);
+    }
+
+    [Theory]
+    [InlineData("a", "pending")]
+    [InlineData("b", "retry_scheduled")]
+    public async Task TwoConcurrentIntakeDispatchClaimsOfOneItemClaimItOnce(string row, string state)
+    {
+        Assert.NotEmpty(row);
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var workItemId = await SeedIntakeWorkAsync(database, state, SeekNowUtc.AddMinutes(-1));
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var claims = new[] { await IntakeSeekStoreAsync(database), await IntakeSeekStoreAsync(database) }
+            .Select(store => Task.Run(async () =>
+            {
+                await gate.Task;
+                try
+                {
+                    return (Claim: await ClaimIntakeAtSeekNowAsync(store), Error: (Exception?)null);
+                }
+                catch (Exception exception)
+                {
+                    return (Claim: (IntakeWorkItem?)null, Error: (Exception?)exception);
+                }
+            }))
+            .ToArray();
+
+        gate.SetResult();
+        var outcomes = await Task.WhenAll(claims);
+
+        var winner = Assert.Single(outcomes, outcome => outcome.Claim is not null).Claim!;
+        var loser = Assert.Single(outcomes, outcome => outcome.Claim is null);
+        // The loser finds the item claimed, or is a deadlock victim; never a second claim.
+        Assert.True(
+            loser.Error is null || loser.Error.GetBaseException() is SqlException { Number: 1205 },
+            loser.Error?.ToString());
+        Assert.Equal(workItemId, winner.Id);
+        Assert.Equal(winner.LeaseToken, (await IntakeWorkAsync(database, workItemId)).LeaseToken);
+    }
+
+    private static async Task<EfIntakeWorkStore> IntakeSeekStoreAsync(LocalDbTestDatabase database)
+    {
+        await using var scope = database.CreateAsyncScope();
+        return new(scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>());
+    }
+
+    private static Task<IntakeWorkItem?> ClaimIntakeAtSeekNowAsync(EfIntakeWorkStore store) =>
+        store.ClaimDispatchAsync(SeekNowUtc, TimeSpan.FromMinutes(1), CancellationToken.None);
+
+    private static async Task<Guid> SeedIntakeWorkAsync(
+        LocalDbTestDatabase database,
+        string state,
+        DateTimeOffset dueAtUtc,
+        Guid? id = null)
+    {
+        var workItemId = id ?? Guid.NewGuid();
+        await using var context = await database.CreateContextAsync();
+        context.AddRange(SeekIntakeRows(workItemId, state, dueAtUtc));
+        await context.SaveChangesAsync();
+        return workItemId;
+    }
+
+    private static async Task SeedNotDueIntakeWorkAsync(LocalDbTestDatabase database, int count)
+    {
+        await using var context = await database.CreateContextAsync();
+        context.AddRange(Enumerable.Range(0, count)
+            .SelectMany(index => SeekIntakeRows(
+                Guid.NewGuid(), index % 2 == 0 ? "pending" : "retry_scheduled", SeekNowUtc.AddHours(1))));
+        await context.SaveChangesAsync();
+    }
+
+    private static object[] SeekIntakeRows(Guid workItemId, string state, DateTimeOffset dueAtUtc)
+    {
+        var stagedReceiptId = Guid.NewGuid();
+        return
+        [
+            new IntakeStagedReceiptEntity
+            {
+                Id = stagedReceiptId, SourceFileName = "seek.eml", MediaType = "message/rfc822",
+                SourceLength = 3, SourceHash = new string('a', 64), SourceChannel = "manual_upload",
+                ExternalReceiptToken = $"seek:{stagedReceiptId:N}", ReceivedAtUtc = dueAtUtc,
+                Actor = "system:seek", StorageKey = $"seek/{stagedReceiptId:N}", StagedAtUtc = dueAtUtc
+            },
+            new IntakeWorkItemEntity
+            {
+                Id = workItemId, StagedReceiptId = stagedReceiptId, OperationKey = $"seek:{workItemId:N}",
+                State = state, AttemptCount = state == "retry_scheduled" ? 1 : 0, DueAtUtc = dueAtUtc
+            }
+        ];
+    }
+
+    private static async Task<IntakeWorkItemEntity> IntakeWorkAsync(LocalDbTestDatabase database, Guid id)
+    {
+        await using var context = await database.CreateContextAsync();
+        return await context.IntakeWorkItems.AsNoTracking().SingleAsync(item => item.Id == id);
+    }
+
+    private static void AssertIntakeOneRowReads(SqlStatementCounter counter)
+    {
+        var reads = counter.Reads
+            .Where(read => read.CommandText.Contains("[IntakeWorkItems]", StringComparison.Ordinal))
+            .ToArray();
+        Assert.NotEmpty(reads);
+        Assert.All(reads, read => Assert.True(read.Rows <= 1, $"{read.Rows} rows: {read.CommandText}"));
+    }
 
     private static byte[] CreateInlineForwardedProtocolMessage()
     {

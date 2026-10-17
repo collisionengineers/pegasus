@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -129,9 +128,7 @@ public sealed class EfCaseWorkflowStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         await AcquireWorkflowMutationLockAsync(
             context,
             request.CaseId,
@@ -202,7 +199,7 @@ public sealed class EfCaseWorkflowStore(
                 : null;
 
         var previousName = previousHolder is not null
-            ? await LeaseHolderNameAsync(context, previousHolder, cancellationToken)
+            ? await LeaseHolderNameAsync(context, previousHolderKind, previousHolder, cancellationToken)
             : null;
         ClearLease(workflow);
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
@@ -254,9 +251,7 @@ public sealed class EfCaseWorkflowStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         await AcquireWorkflowMutationLockAsync(
             context,
             request.CaseId,
@@ -348,9 +343,7 @@ public sealed class EfCaseWorkflowStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         await AcquireWorkflowMutationLockAsync(
             context,
             request.CaseId,
@@ -392,9 +385,7 @@ public sealed class EfCaseWorkflowStore(
         ArgumentNullException.ThrowIfNull(request);
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         await AcquireWorkflowMutationLockAsync(
             context,
             request.CaseId,
@@ -437,9 +428,7 @@ public sealed class EfCaseWorkflowStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         await AcquireWorkflowMutationLockAsync(
             context,
             request.CaseId,
@@ -497,12 +486,22 @@ public sealed class EfCaseWorkflowStore(
     public async Task<AutomationLeasesReleased> ReleaseAllAsync(CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var automation = nameof(ActorKind.Automation);
-        var workflows = await context.CaseWorkflows
+        var caseIds = await context.CaseWorkflows
+            .AsNoTracking()
             .Where(item => item.EditLeaseHolderKind == automation)
+            .OrderBy(item => item.CaseId)
+            .Select(item => item.CaseId)
+            .ToListAsync(cancellationToken);
+        // Each Case's workflow lock, in Case order, as every other lease write takes it.
+        foreach (var caseId in caseIds)
+        {
+            await AcquireWorkflowMutationLockAsync(context, caseId, cancellationToken);
+        }
+
+        var workflows = await context.CaseWorkflows
+            .Where(item => caseIds.Contains(item.CaseId) && item.EditLeaseHolderKind == automation)
             .ToListAsync(cancellationToken);
         foreach (var workflow in workflows)
         {
@@ -1079,7 +1078,7 @@ public sealed class EfCaseWorkflowStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         await AcquireWorkflowMutationLockAsync(
             context,
             request.CaseId,
@@ -1228,7 +1227,7 @@ public sealed class EfCaseWorkflowStore(
         Func<PegasusDbContext, CaseWorkflowEntity, DateTimeOffset, Task>? afterEvent = null)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         await AcquireWorkflowMutationLockAsync(
             context,
             request.CaseId,
@@ -1321,9 +1320,7 @@ public sealed class EfCaseWorkflowStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         await AcquireWorkflowMutationLockAsync(
             context,
             request.CaseId,
@@ -1953,8 +1950,9 @@ public sealed class EfCaseWorkflowStore(
         }));
 
     private static async Task<string> LeaseHolderNameAsync(
-        PegasusDbContext context, string holder, CancellationToken cancellationToken)
+        PegasusDbContext context, ActorKind? holderKind, string holder, CancellationToken cancellationToken)
     {
+        if (holderKind == ActorKind.Automation) return CaseEditAuthorityHolder.AutomationName;
         if (!Guid.TryParse(holder, out var staffId)) return holder;
         var name = await context.Users.AsNoTracking()
             .Where(item => item.Id == staffId)

@@ -1,5 +1,4 @@
-﻿using System.Data;
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Pegasus.Core.Cases;
@@ -39,9 +38,7 @@ internal sealed partial class EfIntakeAllocationStore(
         // That lock plus the unique indexes are the whole guard; Serializable
         // only added range locks that deadlocked Begins for different receipts
         // in one mailbox batch.
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.ReadCommitted,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var lockResource = $"intake-allocation:{request.Command.ReceiptId:N}";
         await context.Database.ExecuteSqlAsync(
             $"""

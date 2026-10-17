@@ -9,6 +9,7 @@ namespace Pegasus.Core.Tests.Intake.ThirdPartyReports;
 /// registration and claim reference match in the case-match index (operator,
 /// 12 October 2026). Staff still confirm; nothing here links.
 /// </summary>
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed class ThirdPartyReportCaseSuggestionsTests
 {
     private const string LairdSupplement = """

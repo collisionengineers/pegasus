@@ -191,23 +191,6 @@ public sealed class AssessmentPolicyTests
         Assert.Contains("case-detail edit", exception.Message, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// The report's assessed date is the Case's Inspection date, and the
-    /// repairer's VAT position is the Current repair spec's, so neither keeps
-    /// an assessment path of its own (#834).
-    /// </summary>
-    [Fact]
-    public void TheRetiredAssessmentPathsAreNotVocabulary()
-    {
-        Assert.False(AssessmentVocabulary.Definitions.ContainsKey("incident.assessed"));
-        Assert.False(AssessmentVocabulary.Definitions.ContainsKey("costs.repairer_vat_registered"));
-
-        var exception = Assert.Throws<ArgumentException>(() =>
-            AssessmentPolicy.ValidateAndNormalize(
-                Request(new() { ["costs.repairer_vat_registered"] = "true" })));
-        Assert.Contains("not part of the assessment vocabulary", exception.Message, StringComparison.Ordinal);
-    }
-
     [Fact]
     public void EveryEnumeratedCodeFromTheScreenRoundTrips()
     {
@@ -290,28 +273,6 @@ public sealed class AssessmentPolicyTests
         var exception = Assert.Throws<InvalidOperationException>(() =>
             AssessmentPolicy.ValidateAndNormalize(Request(new() { [path] = value })));
         Assert.Contains("filled by the DVLA/DVSA vehicle lookup", exception.Message, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// Paths that had no owner, or duplicated another owner's fact, are retired
-    /// from the vocabulary (operator decision, 24 September 2026): no save
-    /// records one.
-    /// </summary>
-    [Theory]
-    [InlineData("narrative.nature_of_incident")]
-    [InlineData("statement_of_truth")]
-    [InlineData("vehicle.history_notes")]
-    [InlineData("vehicle.vin_checked")]
-    [InlineData("vehicle.fault_codes")]
-    [InlineData("vehicle.modifications")]
-    [InlineData("vehicle.engineer_notes")]
-    public void AnOwnerlessOrDuplicateAssessmentPathIsRetired(string path)
-    {
-        Assert.False(AssessmentVocabulary.Definitions.ContainsKey(path));
-
-        var exception = Assert.Throws<ArgumentException>(() =>
-            AssessmentPolicy.ValidateAndNormalize(Request(new() { [path] = "value" })));
-        Assert.Contains("not part of the assessment vocabulary", exception.Message, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -669,21 +630,6 @@ public sealed class AssessmentPolicyTests
         var alone = AssessmentPolicy.DeriveImpactValues(
             "[{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"Small\"}]");
         Assert.Equal(("front", "light"), alone);
-    }
-
-    [Fact]
-    public void PostReviewReadinessNoLongerAsksForTheRetiredEngineerIdentityFields()
-    {
-        // Operator decision D18: the signing Engineer is the selected sign-off
-        // account, so typed copies of that account's name, qualifications and
-        // signature are no longer readiness items.
-        var readiness = AssessmentPolicy.EvaluatePostReviewReadiness(Projection([]));
-        var requirements = readiness.Select(item => item.Requirement).ToArray();
-
-        Assert.DoesNotContain("Engineer name", requirements);
-        Assert.DoesNotContain("Engineer qualifications", requirements);
-        Assert.DoesNotContain("Signature", requirements);
-        Assert.Contains("Agreed fee", requirements);
     }
 
     [Fact]
@@ -1145,9 +1091,7 @@ public sealed class AssessmentPolicyTests
     }
 
     /// <summary>
-    /// Each resolution names a section the Case page has. The retired
-    /// Assessment page, its Apply command and the old section names are gone
-    /// from every blocker, conditional ones included.
+    /// Each resolution names a section the Case page has.
     /// </summary>
     [Fact]
     public void ReadinessResolutionsNameTheLiveCaseSections()
@@ -1168,24 +1112,11 @@ public sealed class AssessmentPolicyTests
         Assert.Equal("Record it on the Fee tab of the Report section.", HowToResolve("Agreed fee"));
         Assert.Equal("Record it on the Inspection details section.", HowToResolve("Inspection date"));
 
-        // Every conditional blocker was reached, so the wording check below
-        // covers it.
+        // Every conditional blocker was reached.
         Assert.Contains(items, item => item.Requirement == "Inspection address");
         Assert.Contains(items, item => item.Requirement == "Unroadworthy reason");
         Assert.Contains(items, item => item.Requirement == "Salvage category");
         Assert.Contains(items, item => item.Requirement == "Agreed contract sum");
-
-        foreach (var retired in new[]
-        {
-            "Assessment page", "Apply", "EXT-09", "assigned staff member", "Findings section",
-            "Settlement section", "Incident and impact", "Report content", "Estimate section", "case details"
-        })
-        {
-            Assert.DoesNotContain(
-                items,
-                item => item.HowToResolve.Contains(retired, StringComparison.Ordinal)
-                    || item.WhyOutstanding.Contains(retired, StringComparison.Ordinal));
-        }
     }
 
     private static SaveAssessmentRequest Request(

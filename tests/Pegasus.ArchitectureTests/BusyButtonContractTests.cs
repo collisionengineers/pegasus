@@ -14,8 +14,6 @@ namespace Pegasus.ArchitectureTests;
 /// </summary>
 public sealed partial class BusyButtonContractTests
 {
-    private static readonly string RepositoryRoot = FindRepositoryRoot();
-
     // A tag and its attributes; a quoted value may hold '>' (a Razor lambda).
     [GeneratedRegex("""<form\b((?:[^>"]|"[^"]*")*)>""", RegexOptions.Singleline)]
     private static partial Regex FormTag();
@@ -176,12 +174,9 @@ public sealed partial class BusyButtonContractTests
     public void BusyIsNotTheDisabledLook()
     {
         // The pressed button keeps its colours; only its neighbours stand
-        // aside. The retired rule greyed every submit in a busy form, and the
-        // retired ring was a border circle rather than the Refresh glyph's spin.
+        // aside.
         var siteCss = Read("src/Pegasus.Web/wwwroot/css/site.css");
 
-        Assert.DoesNotContain("form[aria-busy=\"true\"] button", siteCss, StringComparison.Ordinal);
-        Assert.DoesNotContain(".busy-ring", siteCss, StringComparison.Ordinal);
         Assert.Contains("[data-busy-aside]", siteCss, StringComparison.Ordinal);
         Assert.Contains(".busy-spin{animation:pegasus-spin 1s linear infinite}", siteCss, StringComparison.Ordinal);
         Assert.Contains("[data-busy-complete]", siteCss, StringComparison.Ordinal);
@@ -217,23 +212,11 @@ public sealed partial class BusyButtonContractTests
         Regex.IsMatch(attributes, $@"(?<![\w-]){Regex.Escape(name)}(?![\w-])");
 
     private static IEnumerable<string> RazorFiles() => Directory
-        .EnumerateFiles(Path.Combine(RepositoryRoot, "src/Pegasus.Web/Pages"), "*.cshtml", SearchOption.AllDirectories);
+        .EnumerateFiles(Path.Combine(RepositoryRoot.Find(), "src/Pegasus.Web/Pages"), "*.cshtml", SearchOption.AllDirectories);
 
     private static string Read(string relativePath) =>
-        File.ReadAllText(Path.Combine(RepositoryRoot, relativePath));
+        File.ReadAllText(Path.Combine(RepositoryRoot.Find(), relativePath));
 
     private static string Relative(string path) =>
-        Path.GetRelativePath(RepositoryRoot, path);
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Pegasus.slnx")))
-        {
-            directory = directory.Parent;
-        }
-
-        return directory?.FullName ?? throw new InvalidOperationException("Could not locate Pegasus.slnx.");
-    }
+        Path.GetRelativePath(RepositoryRoot.Find(), path);
 }

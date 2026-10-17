@@ -55,15 +55,17 @@ public static class CaseEditAuthority
     }
 
     /// <summary>
-    /// A takeover is a casework action on a staff-held lease: a colleague's, or the Automation
-    /// Actor's, which may do anything a staff member can (operator, 7 October 2026). The Automation
-    /// Actor's own lease is never taken over; it lapses within minutes.
+    /// A takeover is a casework action. A staff-held lease may be taken over by a colleague or by
+    /// the Automation Actor, which may do anything a staff member can (operator, 7 October 2026);
+    /// a lease the Automation Actor holds, by a member of staff only (operator, 15 and 16 October
+    /// 2026).
     /// </summary>
     public static bool CanTakeOver(ActorKind? retainedLeaseHolderKind, ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(actor);
-        return retainedLeaseHolderKind == ActorKind.Staff
-            && StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework);
+        return StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework)
+            && (retainedLeaseHolderKind == ActorKind.Staff
+                || (retainedLeaseHolderKind == ActorKind.Automation && actor.Kind == ActorKind.Staff));
     }
 
     public static void RequireVersion(Guid caseId, long caseVersion, long expectedVersion)
@@ -189,6 +191,12 @@ public static class CaseEditAuthority
 /// </summary>
 public sealed record CaseEditAuthorityHolder(string? DisplayName, bool IsAutomation = false)
 {
+    /// <summary>
+    /// The one word for the Automation Actor as a holder, wherever it is named: the holder chip
+    /// and the takeover history line.
+    /// </summary>
+    public const string AutomationName = "AI";
+
     public static readonly CaseEditAuthorityHolder Unnamed = new(DisplayName: null);
 
     public static readonly CaseEditAuthorityHolder Automation =

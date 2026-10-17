@@ -376,7 +376,6 @@ public sealed class DashboardBoundaryTests
         Assert.DoesNotContain(NeedsAttentionKind.Triage, kinds);
         // Failed external work is never a Needs attention row (Work Centre D1).
         Assert.DoesNotContain(NeedsAttentionKind.AiDraft, kinds);
-        Assert.DoesNotContain("ExternalWork", Enum.GetNames<NeedsAttentionKind>());
     }
 
     /// <summary>

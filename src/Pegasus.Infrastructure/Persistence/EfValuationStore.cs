@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -907,8 +906,12 @@ public sealed class EfValuationPresetStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The label's row, or the gap a new one would fill, is the first
+        // lock, so a second save of the label waits, then replays or is
+        // refused as a duplicate.
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [ValuationPresets] WITH (UPDLOCK, HOLDLOCK) WHERE [Label] = {request.Label}",
             cancellationToken);
 
         var replay = await context.ActionHistory.AsNoTracking().SingleOrDefaultAsync(
@@ -1018,9 +1021,7 @@ public sealed class EfValuationPresetStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
 
         var replay = await context.ActionHistory.AsNoTracking().SingleOrDefaultAsync(
             item => item.AggregateType == AggregateType

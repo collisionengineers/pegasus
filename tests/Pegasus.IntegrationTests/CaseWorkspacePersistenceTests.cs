@@ -346,6 +346,59 @@ public sealed class CaseWorkspacePersistenceTests
     }
 
     /// <summary>
+    /// Two saves under one operation key that arrive together are one save.
+    /// The workflow lock comes before the replay probe, so the second waits
+    /// for the first and replays it: one workflow event, one version, no SQL
+    /// error.
+    /// </summary>
+    [Fact]
+    public async Task TwoSavesUnderOneOperationKeyAtOnceAreOneSaveAndOneReplay()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "lease-concurrent-save");
+        var request = Request(harness, initial.Version, lease.Token, "concurrent-workspace-save") with
+        {
+            Overview = Overview("Jane Example")
+        };
+
+        // A held workflow lock stops both saves at their first statement, so
+        // they meet the replay probe together once it is released.
+        await using var blocker = await harness.Factory.CreateDbContextAsync();
+        await using var blocking = await blocker.Database.BeginTransactionAsync();
+        await blocker.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [CaseWorkflows] WITH (UPDLOCK, HOLDLOCK) WHERE [CaseId] = {harness.CaseId}");
+        var gate = new LockStatementGate(expected: 2);
+        var store = new EfCaseWorkspaceStore(
+            new PooledDbContextFactory<PegasusDbContext>(new DbContextOptionsBuilder<PegasusDbContext>()
+                .UseSqlServer(blocker.Database.GetConnectionString())
+                .AddInterceptors(gate)
+                .Options),
+            harness.TimeProvider);
+        var saves = new[]
+        {
+            Task.Run(() => store.SaveAsync(request, CancellationToken.None)),
+            Task.Run(() => store.SaveAsync(request, CancellationToken.None))
+        };
+        var first = await Task.WhenAny(gate.Reached.Task, Task.WhenAny(saves), Task.Delay(TimeSpan.FromMinutes(2)));
+        if (first != gate.Reached.Task)
+        {
+            // A save that ended before it reached the lock reports its own failure.
+            await Task.WhenAll(saves);
+        }
+        Assert.True(gate.Reached.Task.IsCompleted, "The saves never reached the workflow lock.");
+        await Task.Delay(TimeSpan.FromMilliseconds(500));
+        await blocking.CommitAsync();
+
+        var results = await Task.WhenAll(saves);
+
+        Assert.Single(results, result => !result.WasReplay);
+        Assert.Single(results, result => result.WasReplay);
+        Assert.All(results, result => Assert.Equal(initial.Version + 1, result.Version));
+        Assert.Equal(1, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
+    }
+
+    /// <summary>
     /// The guide source cards are recorded by the Case save (23 September
     /// 2026): one workflow event and one version for the whole save, the same
     /// source and guide month replaces the earlier card, and a card whose
@@ -2355,6 +2408,32 @@ public sealed class CaseWorkspacePersistenceTests
         null,
         null,
         null);
+
+    /// <summary>
+    /// Completes once <paramref name="expected"/> lock statements have been
+    /// sent, so a test knows its saves are waiting on the workflow lock.
+    /// </summary>
+    private sealed class LockStatementGate(int expected) : DbCommandInterceptor
+    {
+        private int sent;
+
+        public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("UPDLOCK", StringComparison.Ordinal)
+                && Interlocked.Increment(ref sent) == expected)
+            {
+                Reached.TrySetResult();
+            }
+
+            return ValueTask.FromResult(result);
+        }
+    }
 
     private static SaveCaseWorkspaceRequest Request(
         Harness harness,

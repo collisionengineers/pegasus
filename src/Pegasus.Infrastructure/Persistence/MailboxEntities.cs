@@ -15,6 +15,7 @@ internal sealed class ApprovedInboxPollStateEntity
     public DateTimeOffset? LeaseExpiresAtUtc { get; set; }
     public DateTimeOffset? LastCompletedAtUtc { get; set; }
     public string? LastFailureCode { get; set; }
+    public DateTimeOffset? PendingWakeAtUtc { get; set; }
 }
 
 internal sealed class ApprovedInboxPoisonMessageEntity

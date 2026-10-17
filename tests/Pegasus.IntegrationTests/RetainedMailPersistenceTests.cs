@@ -1562,8 +1562,8 @@ public sealed class RetainedMailPersistenceTests
     public async Task OneCorrectionPolicyAppliesIdenticallyAndIndependentlyAcrossMailboxes()
     {
         // engineers@collisionengineers.co.uk is one of the four documented
-        // mailboxes (docs/operator-notes.md); the second mailbox identity
-        // must never be a fabricated address.
+        // mailboxes (FRD-26, "Mailbox allowlist, activation and wipe"); the
+        // second mailbox identity must never be a fabricated address.
         const string secondMailboxId = "engineers";
         const string secondMailboxAddress = "engineers@collisionengineers.co.uk";
         await using var database = await LocalDbTestDatabase.CreateAsync();

@@ -35,15 +35,16 @@ public static class IntakeEnvelopeLimits
     /// forward was rejected as <c>message_too_large</c> on 2026-08-05, against
     /// the 10 MiB one-file bound then in force, without ever being read.
     ///
-    /// This bound is deliberately permissive rather than a capacity claim.
-    /// Exchange Online will not carry a message anywhere near it, the reader
-    /// still enforces its own nesting, entity and decoded-byte limits, and
-    /// the poll materializes a message in memory — so the practical ceiling
-    /// is far lower and is set by the Worker instance, not by this number.
-    /// It exists so that a genuine instruction is read and decided rather
-    /// than refused at the door.
+    /// This bound is Exchange Online's largest message, 150 MiB
+    /// (157,286,400 bytes; operator, 15 October 2026); a larger message is
+    /// quarantined as <c>message_too_large</c>. The reader still enforces its
+    /// own nesting, entity and decoded-byte limits, and the poll
+    /// materializes a message in memory — so the practical ceiling can be
+    /// lower and is set by the Worker instance, not by this number. It
+    /// exists so that a genuine instruction is read and decided rather than
+    /// refused at the door.
     /// </remarks>
-    public const long MaximumMailboxContentLength = 750L * 1024 * 1024;
+    public const long MaximumMailboxContentLength = 150L * 1024 * 1024;
 
     /// <summary>
     /// The most files one staff Upload submission may select as a single
@@ -946,6 +947,13 @@ public sealed record StagedArtifactInventoryItem(
     StagedArtifactDisposition Disposition,
     string ConcurrencyToken);
 
+/// <param name="NextContinuation">
+/// Where the next page of the listing starts; null at the end of the listing.
+/// </param>
+public sealed record StagedArtifactInventoryPage(
+    IReadOnlyList<StagedArtifactInventoryItem> Items,
+    string? NextContinuation);
+
 public sealed record IntakeQuarantineArtifact(
     string StorageKey,
     string ContentHash,
@@ -1003,15 +1011,34 @@ public interface IIntakeArtifactStore
             string.Empty);
     }
 
+    /// <summary>
+    /// The content-addressed key <see cref="StoreAsync"/> returns for
+    /// <paramref name="verifiedContent"/>, whose staged copy at
+    /// <paramref name="stagingKey"/> the caller has just read and hashed. A
+    /// store that can copy the staged bytes within itself does that; the
+    /// default stores them.
+    /// </summary>
+    Task<string> PromoteStagedAsync(
+        string stagingKey,
+        string contentHash,
+        ReadOnlyMemory<byte> verifiedContent,
+        CancellationToken cancellationToken) =>
+        StoreAsync(contentHash, verifiedContent, cancellationToken);
+
     Task<StagedArtifactInventoryItem?> GetStagedAsync(
         string storageKey,
         CancellationToken cancellationToken) =>
         Task.FromResult<StagedArtifactInventoryItem?>(null);
 
-    Task<IReadOnlyList<StagedArtifactInventoryItem>> ListStagedAsync(
+    /// <summary>
+    /// At most <paramref name="maximumItems"/> staged artifacts, starting where
+    /// <paramref name="continuation"/> left off, or at the start when it is null.
+    /// </summary>
+    Task<StagedArtifactInventoryPage> ListStagedAsync(
         int maximumItems,
+        string? continuation,
         CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<StagedArtifactInventoryItem>>([]);
+        Task.FromResult(new StagedArtifactInventoryPage([], null));
 
     Task<StagedArtifactInventoryItem?> TrySetStagedDispositionAsync(
         string storageKey,
@@ -1020,9 +1047,25 @@ public interface IIntakeArtifactStore
         CancellationToken cancellationToken) =>
         Task.FromResult<StagedArtifactInventoryItem?>(null);
 
-    Task<bool> DeleteCompletedStagedAsync(
+    /// <summary>
+    /// Deletes the staged artifact only while it still has
+    /// <paramref name="expectedConcurrencyToken"/> and
+    /// <paramref name="expectedDisposition"/>; false otherwise.
+    /// </summary>
+    Task<bool> DeleteStagedAsync(
         string storageKey,
         string expectedConcurrencyToken,
+        StagedArtifactDisposition expectedDisposition,
+        CancellationToken cancellationToken) =>
+        Task.FromResult(false);
+
+    /// <summary>
+    /// Marks a durably completed item's staged artifact Completed and deletes
+    /// it. False when it is already gone or changed meanwhile, in which case
+    /// the reconciliation sweep finishes it.
+    /// </summary>
+    Task<bool> TryCompleteStagedAsync(
+        string storageKey,
         CancellationToken cancellationToken) =>
         Task.FromResult(false);
 }
@@ -1221,8 +1264,8 @@ public sealed record ReverseIntakeLinkRequest(
 
 /// <summary>
 /// The pipeline's automatic Image-intake association: a system-worker actor,
-/// no staff edit lease, and the same serializable replay-protected
-/// association write as the manual link. The store must enforce Image-intake
+/// no staff edit lease, and the same replay-protected association write as
+/// the manual link. The store must enforce Image-intake
 /// case eligibility inside the transaction.
 /// </summary>
 public sealed record AutomaticIntakeLinkRequest(

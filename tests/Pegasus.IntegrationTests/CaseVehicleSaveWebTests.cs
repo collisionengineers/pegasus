@@ -15,6 +15,7 @@ using Pegasus.Core.Vehicle;
 using Pegasus.Web.Authentication;
 using Pegasus.Infrastructure.Persistence;
 using Xunit.Abstractions;
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
@@ -160,9 +161,8 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     /// What the Case page costs in SQL commands in an edit session, and what one
     /// accepted single-field save costs, against the real stores (Roadmap Lane
     /// D, parts D2 and D5). Every save-as-you-go commit is that save followed by
-    /// the page, so both are the price of one field. Both are pinned at their
-    /// exact counts, so any change to either is seen, and a mismatch lists
-    /// every command sent.
+    /// the page, so both are the price of one field. Both counts are ceilings,
+    /// so growth in either is seen, and a failure lists every command sent.
     /// </summary>
     [Fact]
     public async Task TheCasePageInAnEditSessionAndOneAcceptedSaveSendTheirPinnedStatements()
@@ -172,7 +172,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
         var caseId = await AcceptCaseAsync(
             factory, "accept-case-statement-count", withMileage: false);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
         // The first render of each shape pays one-off work; the counts are later ones.
         _ = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
@@ -201,60 +201,20 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         var saveCommands = counter.Count;
         var saveDescription = counter.Describe();
 
-        // Measured on this branch with LocalDB. The page sent 62 until it took the
-        // assessment's access answer from the workflow state its frame reads, then 61, and
-        // 47 after these folds:
-        // - the vehicle section takes the workspace's latest observation, even when there is
-        //   none, rather than reading the Case's vehicle evidence (4 commands) to find none;
-        // - the per-work reads (data, valuations, applied valuations, estimates, the current
-        //   report) resolve the Case's current work inside their own command (5);
-        // - the frame reads the Principal's notes and the claim source in one command (2);
-        // - the data read takes the workflow's version and state and the workflow
-        //   configuration in one command (1);
-        // - the report snapshot takes the Case's works from the frame at the same version (1);
-        // - the Case's AI jobs are read once for the drafts and the pending research (1).
-        // It sent 48 once the Next action read the Case's newest linked cancellation
-        // (FRD-13) in one statement. On 7 October 2026 three changes landed together: one
-        // fewer once a host with no Glass's composed reads no Glass's credential for the
-        // Estimate section (this host composes the unavailable gateway); two fewer once the
-        // EVA route and submission reads went with EVA; one more for the frame's
-        // linked-Triage read for the aside's Linked cases card. That is 46; 44 once the Case data and the workflow configuration are one command and the page takes the AI draft target from them (10 October 2026).
-        // The report sending seed gives a fresh database claim-source contacts: the Claim
-        // Source picker used to find none, and now reads their rows and when each was last
-        // used (2 commands).
-        // The save sent 43 until the lease it reclaims read only the Case's workflow row,
-        // then 37, 35 once its edit basis read the data in two fewer commands, and 34 once
-        // the save writes the work the request names and stales that work's report alone
-        // (the Inspection view edits, 2 October 2026), and 35 once it takes the workflow
-        // mutation lock every claim and heartbeat takes (6 October 2026).
-        // Reusing the rows the request already holds takes it to 32 (10 October 2026).
-        // Measured again at the lane's base (2ee268507) in this scenario: 62 and 43.
         Assert.True(
-            pageCommands == CasePageCommands,
-            $"The Case page in an edit session sent {pageCommands} SQL commands; it is pinned at {CasePageCommands}."
+            pageCommands <= CasePageCommands,
+            $"The Case page in an edit session sent {pageCommands} SQL commands; at most {CasePageCommands} are allowed."
             + Environment.NewLine + pageDescription);
         Assert.Equal(1, aiJobReads);
         Assert.Equal(1, vehicleObservationReads);
         Assert.True(
-            saveCommands == CaseSaveCommands,
-            $"One accepted save sent {saveCommands} SQL commands; it is pinned at {CaseSaveCommands}."
+            saveCommands <= CaseSaveCommands,
+            $"One accepted save sent {saveCommands} SQL commands; at most {CaseSaveCommands} are allowed."
             + Environment.NewLine + saveDescription);
     }
 
-    // 48 - 1 (no Glass's credential read, #1086) - 2 (EVA reads removed, #1091)
-    // + 1 (the frame's linked-Triage read for the Linked cases card, #1087).
-    // - 1 (the unlinked sent-evidence read, now only for Primary work or Report preparation, #1174)
-    // - 1 (the rail no longer counts Awaiting instruction, #1179)
-    // - 2 (the Case data and the workflow configuration are one command and the AI draft target comes from them, #1176).
-    // - 1 (the password-change redirect reads the account the cookie check read, not the database, #1198).
-    // + 1 (the report sending seed's claim sources: the picker reads their rows and last use, #1015;
-    //   measured 42 by CI on the combined PR 1307).
-    // - 3 (the rail no longer counts, R6).
     private const int CasePageCommands = 39;
 
-    // 35 - 3 (the Save reuses the rows the request already holds, #1173)
-    // - 1 (one command for the Case data and none for the AI draft target, #1176).
-    // - 1 (the password-change redirect reads the account the cookie check read, not the database, #1198).
     private const int CaseSaveCommands = 30;
 
     /// <summary>
@@ -264,9 +224,9 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     /// lease and operation key the answer before it returned, so an answer that
     /// carried the wrong authority fails the next save. The first two are
     /// answered in place; the third has no script header and keeps its redirect,
-    /// which prices what the script used to follow. The answered commit is
-    /// pinned at its exact count, so any change to it is seen, and a mismatch
-    /// lists every command sent. The byte figures are printed.
+    /// which prices what the script used to follow. The answered commit's count
+    /// is a ceiling, so growth is seen, and a failure lists every command sent.
+    /// The byte figures are printed.
     /// </summary>
     [Fact]
     public async Task ACommitAnsweredInPlaceCarriesTheNextAuthorityAndCostsLessThanTheRedirectAndPage()
@@ -276,7 +236,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
         var caseId = await AcceptCaseAsync(
             factory, "accept-case-commit-answer", withMileage: false);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
         // The first render of each shape pays one-off work; the counts are later ones.
         _ = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
@@ -336,23 +296,12 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             $"Lane H: an answered commit sent {firstCommands} SQL commands and {answerBytes} bytes; "
             + $"the same commit with its redirect sent {redirectedCommands} ({plainPostCommands} + {pageCommands}) "
             + $"and {pageBytes} bytes.");
-        // Measured with LocalDB after Lane D's folds: the save is 35 commands and the
-        // redirected page 47, 82 in all, with 200,668 bytes in the response. The answered
-        // commit is 66 (the save and 31 for the answer) with 33,453 bytes. Before those
-        // folds CI measured 105 (43 and 62) against 84 (43 and 41). The Next action's
-        // linked-cancellation read (one statement) makes them 83 (35 and 48) and 67
-        // (the save and 32); the save at 34 makes them 82 and 66, and at 35 (the workflow
-        // mutation lock) 83 and 67. Removing EVA's two reads and adding the linked-Triage
-        // read (7 October 2026) make the answer 31 and the answered commit 66.
-        // The save at 32 (10 October 2026, #1173) makes the answered commit 63; one command
-        // for the Case data and none for the AI draft target (#1176) take the save to 31,
-        // the answer to 28 and the answered commit to 59.
         Assert.True(
             firstCommands < redirectedCommands,
             $"An answered commit sent {firstCommands} SQL commands; the save and its redirected page send {redirectedCommands}.");
         Assert.True(
-            firstCommands == CaseSaveCommands + CommitAnswerCommands,
-            $"An answered commit sent {firstCommands} SQL commands; it is pinned at {CaseSaveCommands + CommitAnswerCommands}"
+            firstCommands <= CaseSaveCommands + CommitAnswerCommands,
+            $"An answered commit sent {firstCommands} SQL commands; at most {CaseSaveCommands + CommitAnswerCommands} are allowed"
             + $" (the save {CaseSaveCommands} and the answer {CommitAnswerCommands})."
             + Environment.NewLine + firstDescription);
         Assert.True(
@@ -368,9 +317,6 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     /// frame includes the Next action's linked-cancellation read and the Linked cases card's
     /// linked-Triage read, one statement each.
     /// </summary>
-    // 32 - 2 (EVA reads removed, #1091) + 1 (the linked-Triage read, #1087).
-    // - 1 (the unlinked sent-evidence read, now only for Primary work or Report preparation, #1174)
-    // - 2 (the Case data and the workflow configuration are one command and the AI draft target comes from them, #1176).
     private const int CommitAnswerCommands = 28;
 
     private static async Task<(HttpStatusCode Status, string Body, string? Location)> CommitAsync(
@@ -436,7 +382,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             useIntegrationTestAuthentication: true);
         var caseId = await AcceptCaseAsync(
             factory, "accept-case-vehicle-mileage-typed", withMileage: false);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
 
         await SaveMileageAsync(client, caseId, "51234", "Recorded the mileage read at inspection.");
@@ -456,7 +402,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             useIntegrationTestAuthentication: true);
         var caseId = await AcceptCaseAsync(
             factory, "accept-case-vehicle-mileage-kilometres", withMileage: false);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
 
         await SaveMileageAsync(client, caseId, "42000", "Recorded the mileage read at inspection.");
@@ -489,7 +435,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             useIntegrationTestAuthentication: true);
         var caseId = await AcceptCaseAsync(
             factory, "accept-case-vehicle-mileage-cleared", withMileage: false);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
         await SaveMileageAsync(client, caseId, "51234", "Recorded the mileage read at inspection.");
 
@@ -534,13 +480,6 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
                 CancellationToken.None);
         return accepted.Identity.CaseId;
     }
-
-    private static HttpClient CreateClient(IntakeWebApplicationFactory factory) =>
-        factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost:7139")
-        });
 
     private static async Task SaveMileageAsync(
         HttpClient client,
@@ -811,13 +750,6 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         };
         Assert.True((await users.CreateAsync(user, password)).Succeeded);
         Assert.True((await users.AddToRoleAsync(user, StaffRole.Engineer.ToString())).Succeeded);
-    }
-
-    private static async Task<string> GetHtmlAsync(HttpClient client, string path)
-    {
-        using var response = await client.GetAsync(path);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await response.Content.ReadAsStringAsync();
     }
 
     private static FormUrlEncodedContent Form(

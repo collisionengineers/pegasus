@@ -233,8 +233,10 @@ not complete until every required association, allocation, Triage, and
 Unidentified write has finished. A transient destination failure keeps a
 retryable work item with the same evaluation identity and never allocates a
 second Case. A recorded unique Case match withholds new-Case allocation even
-before its association is persisted. Staging is cleaned only after durable
-completion.
+before its association is persisted. Staging is cleaned after durable
+completion. An orphaned or unmatched staging blob is also deleted 24 hours
+after it was first seen; a completed item whose source is not retained
+elsewhere keeps its staging blob (operator, 16 October 2026).
 
 A multi-image submission has one group-level destination and, when
 unresolved, one Unidentified reference with the group's reason. The bounded

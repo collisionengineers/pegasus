@@ -1,4 +1,3 @@
-using System.Data;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -18,6 +17,8 @@ internal sealed class EfVehicleLookupWorkStore(
     : IVehicleLookupWorkStore
 {
     private const int MotJsonVersion = 1;
+    private const int MileageEstimateJsonVersion = 1;
+    private const string EstimateDisposedEventType = "case_mileage_estimate_disposed";
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
 
     public async Task<VehicleLookupWorkItem?> ClaimProcessingAsync(
@@ -132,9 +133,8 @@ internal sealed class EfVehicleLookupWorkStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfExternalWorkStore.LockAsync(context, workItemId, cancellationToken);
         var work = await context.ExternalWorkItems
             .SingleOrDefaultAsync(item => item.Id == workItemId, cancellationToken)
             ?? throw new InvalidOperationException("The vehicle lookup work item is unavailable.");
@@ -161,11 +161,19 @@ internal sealed class EfVehicleLookupWorkStore(
         CaseMutationGuard.Advance(workflow);
         var lookupRequest = new VehicleLookupRequest(request.Registration);
         outcome.Result.EnsureValidFor(lookupRequest);
-        var expectedMileage = VehicleMileagePolicy.Calculate(outcome.Result.MotTests);
-        if (outcome.Mileage != expectedMileage)
+        var expected = VehicleLookupProcessedOutcome.Derive(outcome.Result);
+        if (outcome.Mileage != expected.Mileage)
         {
             throw new InvalidDataException(
                 "The vehicle mileage calculation does not match the accepted deterministic policy.");
+        }
+
+        // The estimate holds lists, so it is compared by its serialized value.
+        var estimateJson = SerializeEstimate(expected.Estimate, disposition: null);
+        if (!string.Equals(SerializeEstimate(outcome.Estimate, disposition: null), estimateJson, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "The MOT mileage estimate does not match the accepted deterministic policy.");
         }
 
         var result = outcome.Result;
@@ -200,6 +208,7 @@ internal sealed class EfVehicleLookupWorkStore(
             MileageMethodKey = outcome.Mileage?.MethodKey,
             MileageMethodVersion = outcome.Mileage?.MethodVersion,
             MileageSupportingObservationCount = outcome.Mileage?.SupportingObservationCount,
+            MileageEstimateJson = estimateJson,
             FailureCode = result.Failure?.Code,
             FailureRetryable = result.Failure?.Retryable,
             FailureRetryAfterTicks = result.Failure?.RetryAfter?.Ticks,
@@ -222,7 +231,7 @@ internal sealed class EfVehicleLookupWorkStore(
             .ToListAsync(cancellationToken);
         var beforeVehicle = ReportVehicleDependencies(caseDataFields);
         var (beforeAssessment, afterAssessment) = FillVehicleFields(
-            context, caseDataFields, assessmentRows, workId, observationId, result, outcome.Mileage, recordedAtUtc);
+            context, caseDataFields, assessmentRows, workId, observationId, result, expected.Estimate, recordedAtUtc);
         var freshness = CaseReportFreshness.ClassifyVehicle(
             beforeVehicle,
             ReportVehicleDependencies(caseDataFields));
@@ -352,7 +361,7 @@ internal sealed class EfVehicleLookupWorkStore(
         Guid workId,
         Guid observationId,
         VehicleLookupResult result,
-        VehicleMileageCalculation? mileage,
+        MotMileageEstimate? estimate,
         DateTimeOffset recordedAtUtc)
     {
         // An answer describes the vehicle it looked up. One for a registration
@@ -437,23 +446,26 @@ internal sealed class EfVehicleLookupWorkStore(
             result.Vehicle?.ManufactureYear?.ToString(CultureInfo.InvariantCulture),
             VehicleLookupFillPolicy.PolicyKey,
             VehicleLookupFillPolicy.PolicyVersion);
-        if (mileage is { } derived)
+        // The mileage is the estimate for the day of the lookup (operator, 16
+        // October 2026). Only an Exact or an Estimate carries a figure; a
+        // qualified range or an abstention fills nothing. It carries the
+        // figure's own key and version, not this rule's, because that is what
+        // classifies an exact reading apart from an estimate wherever it is
+        // later shown.
+        if (estimate is { Miles: { } miles })
         {
-            // The mileage carries the calculation's own key and version, not
-            // this rule's, because that is what classifies it as a derived
-            // estimate everywhere it is later shown.
             Fill(
                 CaseDataFieldNames.VehicleMileage,
                 CaseDataCodes.Integer,
-                derived.Value.ToString(CultureInfo.InvariantCulture),
-                VehicleMileagePolicy.MethodKey,
-                derived.MethodVersion);
+                miles.ToString(CultureInfo.InvariantCulture),
+                estimate.MethodKey,
+                estimate.MethodVersion);
             Fill(
                 CaseDataFieldNames.VehicleMileageUnit,
                 CaseDataCodes.Text,
-                derived.Unit.ToString(),
-                VehicleMileagePolicy.MethodKey,
-                derived.MethodVersion);
+                nameof(VehicleMileageUnit.Miles),
+                estimate.MethodKey,
+                estimate.MethodVersion);
         }
 
         // The Vehicle type keeps its fill rule; the facts only the lookup records
@@ -552,6 +564,7 @@ internal sealed class EfVehicleLookupWorkStore(
                 entity.FailureRetryable
                     ?? throw new InvalidDataException("Persisted vehicle failure retryability is missing."),
                 entity.FailureRetryAfterTicks is { } ticks ? TimeSpan.FromTicks(ticks) : null);
+        var estimate = DeserializeEstimate(entity.MileageEstimateJson);
         return new(
             entity.Id,
             entity.WorkItemId,
@@ -590,8 +603,10 @@ internal sealed class EfVehicleLookupWorkStore(
                         entity.TaxDueDate),
             motTests,
             mileage,
+            estimate?.Estimate,
             failure,
-            entity.RecordedAtUtc);
+            entity.RecordedAtUtc,
+            estimate?.Disposition);
     }
 
     internal static VehicleLookupWorkState MapWorkState(ExternalWorkItemEntity work) =>
@@ -627,6 +642,80 @@ internal sealed class EfVehicleLookupWorkStore(
             throw new InvalidDataException("Persisted MOT evidence has an unsupported version.");
         }
         return envelope.Observations;
+    }
+
+    private static string? SerializeEstimate(
+        MotMileageEstimate? estimate,
+        MotMileageEstimateDisposition? disposition) =>
+        estimate is null
+            ? null
+            : JsonSerializer.Serialize(
+                new MileageEstimateEnvelope(MileageEstimateJsonVersion, estimate, disposition),
+                JsonOptions);
+
+    /// <summary>The stored estimate and its disposition; none on an observation recorded before either existed.</summary>
+    private static MileageEstimateEnvelope? DeserializeEstimate(string? json)
+    {
+        if (json is null)
+        {
+            return null;
+        }
+
+        var envelope = JsonSerializer.Deserialize<MileageEstimateEnvelope>(json, JsonOptions)
+            ?? throw new InvalidDataException("Persisted MOT mileage estimate is missing.");
+        if (envelope.Version != MileageEstimateJsonVersion || envelope.Estimate is null)
+        {
+            throw new InvalidDataException("Persisted MOT mileage estimate has an unsupported version.");
+        }
+        return envelope;
+    }
+
+    /// <summary>
+    /// A save that left a Case mileage the MOT mileage estimate filled on
+    /// another source, or none, records the disposition on the observation
+    /// whose estimate it was, and one Case history event, inside the save's
+    /// own transaction (FRD-06; operator, 16 October 2026). Any other save
+    /// records nothing.
+    /// </summary>
+    internal static async Task RecordEstimateDispositionAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        CaseDataSource? before,
+        CaseDataFieldEntity? after,
+        ActionActor actor,
+        long beforeVersion,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (!MotMileageEstimateDisposition.Disposes(before, after is null ? null : EfCaseDataStore.Source(after)))
+        {
+            return;
+        }
+
+        var observationId = Guid.Parse(before!.Identity);
+        var observation = await context.Set<VehicleLookupObservationEntity>()
+            .SingleAsync(item => item.Id == observationId, cancellationToken);
+        var stored = DeserializeEstimate(observation.MileageEstimateJson)
+            ?? throw new InvalidDataException("The estimated Case mileage's observation holds no estimate.");
+        var entered = after is null
+            ? (long?)null
+            : long.Parse(after.Value, NumberStyles.None, CultureInfo.InvariantCulture);
+        observation.MileageEstimateJson = SerializeEstimate(
+            stored.Estimate,
+            MotMileageEstimateDisposition.For(stored.Estimate, entered, actor, now));
+        context.CaseHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = workflow.CaseId,
+            Case = workflow.Case,
+            EventType = EstimateDisposedEventType,
+            Actor = actor.SubjectId,
+            Reason = string.Empty,
+            OccurredAtUtc = now,
+            OperationKey = $"{EstimateDisposedEventType}:{observationId:N}:{workflow.Version.ToString(CultureInfo.InvariantCulture)}",
+            BeforeVersion = beforeVersion,
+            AfterVersion = workflow.Version
+        });
     }
 
     private static string ToCode(VehicleLookupOutcome outcome) => outcome switch
@@ -667,6 +756,11 @@ internal sealed class EfVehicleLookupWorkStore(
     }
 
     private sealed record MotTestEnvelope(int Version, MotTestObservation[] Observations);
+
+    private sealed record MileageEstimateEnvelope(
+        int Version,
+        MotMileageEstimate Estimate,
+        MotMileageEstimateDisposition? Disposition);
 
     /// <summary>
     /// The assessment values lookups, Glass's VIN fills

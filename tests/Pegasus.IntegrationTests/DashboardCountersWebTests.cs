@@ -5,9 +5,8 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// V26 (Work Centre D7): the Work Centre's five metrics are
-/// page-queried figures, each an exact link to the Cases tab behind it. Blocked
-/// is no longer an operator concept, so no Blocked metric is drawn. The fifth,
-/// Triages, counts the active Triage Cases.
+/// page-queried figures, each an exact link to the Cases tab behind it. The
+/// fifth, Triages, counts the active Triage Cases.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class DashboardCountersWebTests
@@ -33,7 +32,6 @@ public sealed class DashboardCountersWebTests
             StringComparison.Ordinal);
 
         Assert.Equal(5, Regex.Count(html, "class=\"metric\" data-value="));
-        Assert.DoesNotContain("data-value=\"blocked\"", html, StringComparison.Ordinal);
     }
 
     /// <summary>

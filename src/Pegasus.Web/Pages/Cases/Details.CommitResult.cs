@@ -159,6 +159,7 @@ public sealed partial class DetailsModel
             if (activeLease is not null)
             {
                 ViewerHoldsEditAuthority = viewerHoldsLease;
+                ViewerMayTakeOver = CaseEditAuthority.CanTakeOver(activeLease.HolderKind, actor);
                 EditAuthorityHolder = holder is null ? CaseEditAuthorityHolder.Unnamed : await holder;
             }
             if (valuation is not null)

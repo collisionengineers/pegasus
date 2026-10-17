@@ -13,6 +13,7 @@ using Pegasus.Web.Authentication;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Presentation;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
@@ -70,9 +71,6 @@ public sealed partial class AutomationAdministrationWebTests
         Assert.DoesNotContain("is not part of this deployment", html, StringComparison.Ordinal);
         Assert.DoesNotContain("refuses new tokens immediately", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Back to Administration", html, StringComparison.Ordinal);
-        // The superseded Activity page (§1.14 → Action Logs) is no longer
-        // linked from the area that replaced it.
-        Assert.DoesNotContain("/Administration/Automation/Activity", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -314,10 +312,6 @@ public sealed partial class AutomationAdministrationWebTests
         Assert.Contains(DevelopmentOfflineIdentity.UserName, staffRow, StringComparison.Ordinal);
         Assert.DoesNotContain(caseId.ToString("D"), staffRow, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(DevelopmentOfflineIdentity.AdministratorId.ToString("D"), staffRow, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("/Administration/Automation/Activity", html, StringComparison.Ordinal);
-
-        using var obsoleteActivity = await client.GetAsync($"{AutomationRoute}/Activity");
-        Assert.Equal(HttpStatusCode.NotFound, obsoleteActivity.StatusCode);
     }
 
     /// <summary>
@@ -384,22 +378,6 @@ public sealed partial class AutomationAdministrationWebTests
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
         Assert.True(match.Success, $"The action-log row for '{operation}' must render.");
         return match.Value;
-    }
-
-    private static async Task<string> GetHtmlAsync(HttpClient client, string path)
-    {
-        using var response = await client.GetAsync(path);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await response.Content.ReadAsStringAsync();
-    }
-
-    private static FormUrlEncodedContent Form(
-        string antiforgeryToken,
-        params (string Name, string Value)[] values)
-    {
-        var fields = values.ToDictionary(item => item.Name, item => item.Value, StringComparer.Ordinal);
-        fields["__RequestVerificationToken"] = antiforgeryToken;
-        return new(fields);
     }
 
     /// <summary>The value of one `fact` or `definition` cell, by its label.</summary>

@@ -11,6 +11,7 @@ namespace Pegasus.Core.Tests.Intake;
 /// form — reproduced structurally with non-domain values. No genuine
 /// correspondence is embedded, and no assertion depends on a real party's data.
 /// </summary>
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed class InstructionFieldExtractionTests
 {
     private static readonly InstructionFieldEngine.FieldDefinition ClaimNumber =

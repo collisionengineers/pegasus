@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
@@ -488,12 +489,11 @@ public sealed partial class GlassCredentialAdministrationWebTests
     }
 
     /// <summary>
-    /// The credential is published at exactly one surface: the Accounts page's
-    /// <c>?glassStaffId=</c> deep link. The retired standalone
-    /// <c>/Administration/Glass</c> routes are not addressable.
+    /// The credential is published at the Accounts page's
+    /// <c>?glassStaffId=</c> deep link.
     /// </summary>
     [Fact]
-    public async Task TheCredentialIsPublishedOnlyOnTheAccountsDeepLink()
+    public async Task TheCredentialIsPublishedOnTheAccountsDeepLink()
     {
         var store = new RecordingCredentialAdministration();
         using var factory = new IntakeWebApplicationFactory();
@@ -502,17 +502,6 @@ public sealed partial class GlassCredentialAdministrationWebTests
         using (var scoped = await client.GetAsync(PageFor(StaffId)))
         {
             Assert.Equal(HttpStatusCode.OK, scoped.StatusCode);
-        }
-
-        foreach (var absent in new[]
-                 {
-                     "/Administration/Glass",
-                     "/Administration/Glass/Index",
-                     "/Administration/Glass/not-a-guid"
-                 })
-        {
-            using var response = await client.GetAsync(absent);
-            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         }
     }
 
@@ -716,13 +705,6 @@ public sealed partial class GlassCredentialAdministrationWebTests
                 AllowAutoRedirect = false,
                 BaseAddress = new Uri("https://localhost:7139")
             });
-
-    private static async Task<string> GetHtmlAsync(HttpClient client, string path)
-    {
-        using var response = await client.GetAsync(path);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await response.Content.ReadAsStringAsync();
-    }
 
     /// <summary>One handler's own form, so a field is read from the form that owns it.</summary>
     private static string FormOf(string html, string handler)

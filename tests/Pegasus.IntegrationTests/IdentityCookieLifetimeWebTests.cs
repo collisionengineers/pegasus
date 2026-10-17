@@ -120,7 +120,7 @@ public sealed partial class IdentityCookieLifetimeWebTests
         // A ticket is still valid at its exact expiry instant, where the
         // sliding policy refreshes it. A later request beyond that boundary is
         // the idle-expiry case above.
-        using var exactIdleClient = CreateClient(factory);
+        using var exactIdleClient = IntakeWebDriver.CreateClient(factory);
         await SignInAsync(exactIdleClient);
         clock.Advance(TimeSpan.FromHours(2));
         using var exactIdleBoundary = await exactIdleClient.GetAsync("/Account/PasswordChange");
@@ -133,7 +133,7 @@ public sealed partial class IdentityCookieLifetimeWebTests
         // eight-hour absolute boundary. The sliding renewals reissue the cookie,
         // which proves the original-issue claim survives them and continues to
         // govern the session.
-        using var absoluteClient = CreateClient(factory);
+        using var absoluteClient = IntakeWebDriver.CreateClient(factory);
         await SignInAsync(absoluteClient);
         clock.Advance(TimeSpan.FromSeconds(1));
         for (var renewal = 0; renewal < 6; renewal++)
@@ -173,7 +173,7 @@ public sealed partial class IdentityCookieLifetimeWebTests
             builder.ConfigureServices(services => CountPrincipalBuilds(services, principals)));
         var staffId = await CreateUserAsync(factory, UserName, StaffRole.User);
         var administratorId = await CreateUserAsync(factory, AdministratorName, StaffRole.Administrator);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         await SignInAsync(client);
         using var before = await client.GetAsync("/Account/PasswordChange");
         Assert.Equal(HttpStatusCode.OK, before.StatusCode);
@@ -231,7 +231,7 @@ public sealed partial class IdentityCookieLifetimeWebTests
             });
         var staffId = await CreateUserAsync(factory, UserName, StaffRole.User);
         var administratorId = await CreateUserAsync(factory, AdministratorName, StaffRole.Administrator);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         await SignInAsync(client);
         using var before = await client.GetAsync("/Account/PasswordChange");
         Assert.Equal(HttpStatusCode.OK, before.StatusCode);
@@ -292,7 +292,7 @@ public sealed partial class IdentityCookieLifetimeWebTests
                     options => options.TimeProvider = clock);
             }));
         var staffId = await CreateUserAsync(factory, UserName, StaffRole.User);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         await SignInAsync(client);
         clock.Advance(TimeSpan.FromSeconds(1));
         using var before = await client.GetAsync("/Account/PasswordChange");
@@ -351,13 +351,6 @@ public sealed partial class IdentityCookieLifetimeWebTests
             return inner.CreateAsync(user);
         }
     }
-
-    private static HttpClient CreateClient(WebApplicationFactory<Program> factory) =>
-        factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost:7139")
-        });
 
     private static async Task<Guid> CreateUserAsync(
         WebApplicationFactory<Program> factory,

@@ -127,6 +127,9 @@ repeat every minute.
 
 - Network, local or Azure staging is temporary processing storage. It never
   proves Case custody.
+- An orphaned or unmatched staging blob is deleted 24 hours after it was
+  first seen; a completed item whose source is not retained elsewhere keeps
+  its staging blob (operator, 16 October 2026).
 - Box is the required custody system for accepted Case files. Every Case uses
   its permanent reference for its Box folder, and keeps its source emails,
   instruction documents, images, correspondence and reports there.
@@ -241,8 +244,11 @@ and provenance. A derived image or cache copy serves processing or
 presentation and can be rebuilt from the kept source; it is never a second
 custody owner. Reads go through the logical occurrence and version interface,
 so the current authorisation and exact version checks apply whatever the
-physical source. Staging is not erased before verified handover, and no new
-store is invented for this separation (ADR-0045).
+physical source. Staging is not erased before verified handover, except that
+an orphaned or unmatched staging blob is deleted 24 hours after it was first
+seen; a completed item whose source is not retained elsewhere keeps its
+staging blob (operator, 16 October 2026). No new store is invented for this
+separation (ADR-0045).
 
 An Inspection + Audit Case has one set of documents; its Inspection and its
 Audit share them and nothing is copied. Create audit makes Pegasus create an

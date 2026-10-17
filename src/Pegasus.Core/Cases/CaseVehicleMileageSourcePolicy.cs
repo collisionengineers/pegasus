@@ -1,3 +1,5 @@
+using Pegasus.Core.Vehicle;
+
 namespace Pegasus.Core.Cases;
 
 /// <summary>
@@ -38,4 +40,12 @@ public static class CaseVehicleMileageSourcePolicy
             _ => Principal
         };
     }
+
+    /// <summary>
+    /// The mileage is the MOT-history estimate, not an exact reading: the
+    /// lookup filled it under the estimation method's own key. It still
+    /// resolves to <see cref="OnlineData"/>.
+    /// </summary>
+    public static bool IsEstimated(CaseDataSource? source) =>
+        source is { Kind: CaseDataSourceKind.VehicleLookup, PolicyKey: MotMileageEstimationPolicy.MethodKey };
 }

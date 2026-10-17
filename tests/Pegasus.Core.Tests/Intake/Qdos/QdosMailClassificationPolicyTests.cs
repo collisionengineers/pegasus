@@ -3,6 +3,7 @@ using Pegasus.Core.Cases;
 
 namespace Pegasus.Core.Tests.Intake.Qdos;
 
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed class PrincipalMailClassificationPolicyTests
 {
     [Fact]

@@ -1,4 +1,3 @@
-using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 
@@ -7,6 +6,8 @@ namespace Pegasus.Infrastructure.Persistence;
 internal sealed class EfApprovedMailboxSubscriptionStore(
     IDbContextFactory<PegasusDbContext> contextFactory) : IApprovedMailboxSubscriptionStore
 {
+    private static readonly TimeSpan RenewalWindow = TimeSpan.FromHours(48);
+
     public async Task<ApprovedMailboxSubscription?> GetActiveAsync(
         string subscriptionId,
         DateTimeOffset nowUtc,
@@ -49,7 +50,7 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var active = ApprovedMailboxSubscriptionLifecycleState.Active.ToString();
         var approved = ApprovedMailboxState.Approved.ToString();
-        var maintenanceDueBeforeUtc = nowUtc.AddHours(-6);
+        var renewBeforeUtc = nowUtc.Add(RenewalWindow);
         var candidates = await context.ApprovedMailboxes
             .AsNoTracking()
             .Where(mailbox =>
@@ -66,8 +67,7 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
             .Where(item => item.subscription == null
                 || item.subscription.LifecycleState != active
                 || item.subscription.Generation != item.mailbox.MailboxGeneration
-                || item.subscription.LastMaintainedAtUtc == null
-                || item.subscription.LastMaintainedAtUtc <= maintenanceDueBeforeUtc)
+                || item.subscription.ExpiresAtUtc <= renewBeforeUtc)
             .OrderBy(item => item.mailbox.Id)
             .ToListAsync(cancellationToken);
         return candidates.Select(item =>
@@ -88,9 +88,8 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
         ArgumentNullException.ThrowIfNull(subscription);
         Validate(subscription);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await LockSubscriptionAsync(context, subscription.ApprovedMailboxId, cancellationToken);
         var approved = ApprovedMailboxState.Approved.ToString();
         var mailbox = await context.ApprovedMailboxes.SingleOrDefaultAsync(
             item => item.Id == subscription.ApprovedMailboxId,
@@ -149,9 +148,8 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
             throw new ArgumentException("Valid mailbox and failure identities are required.");
         }
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await LockSubscriptionAsync(context, approvedMailboxId, cancellationToken);
         var approved = ApprovedMailboxState.Approved.ToString();
         var mailbox = await context.ApprovedMailboxes.SingleOrDefaultAsync(
             item => item.Id == approvedMailboxId,
@@ -177,6 +175,20 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// Takes the mailbox's subscription row <c>UPDLOCK, HOLDLOCK</c> for the
+    /// rest of the transaction. A subscription has no concurrency token, so a
+    /// write that compares the prior subscription locks it first; an absent
+    /// row locks its key.
+    /// </summary>
+    private static async Task LockSubscriptionAsync(
+        PegasusDbContext context,
+        Guid approvedMailboxId,
+        CancellationToken cancellationToken) =>
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [ApprovedMailboxSubscriptions] WITH (UPDLOCK, HOLDLOCK) WHERE [ApprovedMailboxId] = {approvedMailboxId}",
+            cancellationToken);
 
     private static ApprovedMailboxSubscription Map(ApprovedMailboxSubscriptionEntity entity) => new(
         entity.ApprovedMailboxId,

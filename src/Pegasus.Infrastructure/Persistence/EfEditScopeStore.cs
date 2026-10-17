@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -51,10 +50,9 @@ public sealed class EfEditScopeStore(
     {
         ValidateClaim(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var now = timeProvider.GetUtcNow();
+        var scope = await FindForUpdateAsync(context, request.ScopeKind, request.RecordId, cancellationToken);
         var currentVersion = await GetCurrentVersionAsync(
             context, request.ScopeKind, request.RecordId, cancellationToken);
         if (currentVersion is null)
@@ -66,7 +64,6 @@ public sealed class EfEditScopeStore(
             throw new EditScopeVersionConflictException(
                 request.ScopeKind, request.RecordId, request.ExpectedVersion, currentVersion.Value);
         }
-        var scope = await FindAsync(context, request.ScopeKind, request.RecordId, cancellationToken);
         // A live scope refuses every claim that does not explicitly replace it, so a one-off
         // command never rotates the holder's open window. The record page's Edit replaces the
         // viewer's own scope without a takeover; only a colleague's scope is a takeover, and only
@@ -76,9 +73,11 @@ public sealed class EfEditScopeStore(
         {
             throw new EditScopeConflictException(request.ScopeKind, request.RecordId);
         }
+        ActorKind? previousHolderKind = Enum.TryParse<ActorKind>(scope?.HolderKind, out var parsedKind)
+            ? parsedKind
+            : null;
         var previousHolder = isLive
-            && !(Enum.TryParse<ActorKind>(scope!.HolderKind, out var holderKind)
-                && EditScopeAuthority.IsHolder(holderKind, scope.Holder, request.Actor))
+            && !EditScopeAuthority.IsHolder(previousHolderKind, scope!.Holder, request.Actor)
                 ? scope!.Holder
                 : null;
 
@@ -106,7 +105,7 @@ public sealed class EfEditScopeStore(
         if (previousHolder is not null)
         {
             await AddTakeoverHistoryAsync(
-                context, request, previousHolder, now, cancellationToken);
+                context, request, previousHolderKind, previousHolder, now, cancellationToken);
         }
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -128,11 +127,9 @@ public sealed class EfEditScopeStore(
     {
         ValidateHeartbeat(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var now = timeProvider.GetUtcNow();
-        var scope = await FindAsync(context, request.ScopeKind, request.RecordId, cancellationToken);
+        var scope = await FindForUpdateAsync(context, request.ScopeKind, request.RecordId, cancellationToken);
         Require(scope, request.ScopeKind, request.RecordId, request.Actor, request.LeaseToken, now);
         scope!.ExpiresAtUtc = now.Add(EditScopeAuthority.Duration);
         await context.SaveChangesAsync(cancellationToken);
@@ -155,10 +152,8 @@ public sealed class EfEditScopeStore(
     {
         ValidateRelease(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
-        var scope = await FindAsync(context, request.ScopeKind, request.RecordId, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        var scope = await FindForUpdateAsync(context, request.ScopeKind, request.RecordId, cancellationToken);
         Require(scope, request.ScopeKind, request.RecordId, request.Actor, request.LeaseToken,
             timeProvider.GetUtcNow());
         context.Remove(scope!);
@@ -216,7 +211,7 @@ public sealed class EfEditScopeStore(
                 scopeKind, recordId, expectedVersion, currentVersion);
         }
 
-        var scope = await FindAsync(context, scopeKind, recordId, cancellationToken);
+        var scope = await FindForUpdateAsync(context, scopeKind, recordId, cancellationToken);
         Require(scope, scopeKind, recordId, actor, leaseToken, now);
         if (scope!.ExpectedVersion != expectedVersion)
         {
@@ -259,6 +254,24 @@ public sealed class EfEditScopeStore(
         await context.Set<EditScopeEntity>().SingleOrDefaultAsync(item =>
             item.ScopeKind == ToCode(scopeKind) && item.RecordId == recordId,
             cancellationToken);
+
+    /// <summary>
+    /// The scope read <c>UPDLOCK, HOLDLOCK</c> for the rest of the transaction.
+    /// A scope row has no concurrency token, so a claim, a heartbeat, a
+    /// release and a write made under the scope each read it this way and
+    /// queue on it; an absent scope locks its key.
+    /// </summary>
+    private static async Task<EditScopeEntity?> FindForUpdateAsync(
+        PegasusDbContext context,
+        EditScopeKind scopeKind,
+        Guid recordId,
+        CancellationToken cancellationToken) =>
+        await context.Set<EditScopeEntity>()
+            .FromSqlInterpolated($"""
+                SELECT * FROM [EditScopes] WITH (UPDLOCK, HOLDLOCK)
+                WHERE [ScopeKind] = {ToCode(scopeKind)} AND [RecordId] = {recordId}
+                """)
+            .SingleOrDefaultAsync(cancellationToken);
 
     private static async Task<long?> GetCurrentVersionAsync(
         PegasusDbContext context,
@@ -374,12 +387,17 @@ public sealed class EfEditScopeStore(
     private static async Task AddTakeoverHistoryAsync(
         PegasusDbContext context,
         ClaimEditScopeRequest request,
+        ActorKind? previousHolderKind,
         string previousHolder,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         var name = previousHolder;
-        if (Guid.TryParse(previousHolder, out var staffId))
+        if (previousHolderKind == ActorKind.Automation)
+        {
+            name = CaseEditAuthorityHolder.AutomationName;
+        }
+        else if (Guid.TryParse(previousHolder, out var staffId))
         {
             name = await context.Users.AsNoTracking()
                 .Where(item => item.Id == staffId)

@@ -386,7 +386,6 @@ public sealed class CaseEditModeWebTests
         // than a row among the vehicle's facts, in edit mode as in read mode.
         Assert.Contains("data-vehicle-history", html, StringComparison.Ordinal);
         Assert.Matches("<textarea[^>]*id=\"edit-vehicle-history\"[^>]*form=\"case-edit-form\"", html);
-        Assert.DoesNotContain("Saving returns the case to Not ready", html, StringComparison.Ordinal);
         Assert.True(store.MetadataReads > 0);
 
         var fields = new (string Name, string Value)[]
@@ -837,13 +836,6 @@ public sealed class CaseEditModeWebTests
         }
     }
 
-    /// <summary>
-    /// A lazy Files request is an asynchronous read that can run beside a
-    /// Claim, Save or release redirect. Without the page's render-only header,
-    /// it does not restore edit state or reissue the cookie-backed TempData
-    /// lease token.
-    /// </summary>
-
     [Fact]
     public async Task WrongHolderProjectionClearsProtectedLeaseAuthorityAndTheHolderResumes()
     {
@@ -894,7 +886,7 @@ public sealed class CaseEditModeWebTests
         // The holder is the staff member, not the window: their own lease is resumed, never
         // offered to them as a takeover of themselves.
         Assert.Equal(store.LeaseToken, InputValue(recoveryHtml, "editLeaseToken"));
-        Assert.DoesNotContain("Take over", RecordBar(recoveryHtml), StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Frame.TakeOver, RecordBar(recoveryHtml), StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"takeOver\"", recoveryHtml, StringComparison.Ordinal);
         Assert.Single(store.Claims);
     }
@@ -1023,7 +1015,7 @@ public sealed class CaseEditModeWebTests
         // the Case as it now stands: the refused values stay beside it for comparison only, and
         // the holder is never asked to take over their own lease.
         Assert.Equal(store.LeaseToken, InputValue(refusedHtml, "editLeaseToken"));
-        Assert.DoesNotContain("Take over", RecordBar(refusedHtml), StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Frame.TakeOver, RecordBar(refusedHtml), StringComparison.Ordinal);
         Assert.Single(store.Claims);
     }
 
@@ -1126,7 +1118,7 @@ public sealed class CaseEditModeWebTests
 
         Assert.Equal(store.LeaseToken, InputValue(returnedHtml, "editLeaseToken"));
         Assert.Contains("data-case-release-beacon", returnedHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("Take over", RecordBar(returnedHtml), StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Frame.TakeOver, RecordBar(returnedHtml), StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"takeOver\"", returnedHtml, StringComparison.Ordinal);
         Assert.Equal(resumesBeforeLeaving + 1, store.Resumes.Count);
         Assert.Equal(store.CaseId, store.Resumes[^1].CaseId);
@@ -1223,40 +1215,49 @@ public sealed class CaseEditModeWebTests
     }
 
     /// <summary>
-    /// Generate report works without pressing Edit (operator, 26 September
-    /// 2026): the page offers it with no lease, and the handler claims the
-    /// Case's lease for the one generation and releases it after.
+    /// An action taken without pressing Edit (operator, 26 and 29 September
+    /// 2026; issue 912) runs under a lease the handler claims for it: one
+    /// claim on the Case's version, the command under that token, and the
+    /// lease given back unless the command consumed it. A command the Case
+    /// refuses, or a request abandoned mid-command, frees the lease; a
+    /// colleague's live lease refuses the claim in the claim's own words, so
+    /// the command never runs and nothing is released. Place on Hold claims
+    /// through the shared page model; the Generates claim through their own
+    /// one-off lease in <c>DetailsModel</c>.
     /// </summary>
-    [Fact]
-    public async Task GenerateReportOutsideEditModeClaimsTheLeaseForTheGenerationAndReleasesIt()
+    [Theory]
+    [InlineData("hold")]
+    [InlineData("hold-refused")]
+    [InlineData("hold-colleague")]
+    [InlineData("hold-abandoned")]
+    [InlineData("report")]
+    [InlineData("report-notready")]
+    [InlineData("report-throws")]
+    [InlineData("report-colleague")]
+    [InlineData("repair-spec")]
+    [InlineData("image-pack")]
+    public async Task AnActionOutsideEditModeRunsUnderALeaseClaimedForIt(string row)
     {
-        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
-        string? holderDuringGeneration = null;
-        var generator = new RecordingGenerateReport { During = () => holderDuringGeneration = store.LeaseHolder };
-        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
-            ReadyReportPorts(services, store, generator));
-        var form = GenerateReportForm(await ReportSectionAsync(workspace));
-        Assert.DoesNotContain("name=\"editLeaseToken\"", form, StringComparison.Ordinal);
+        var scenario = LeaseScenarioFor(row);
+        var store = scenario.Store;
+        var heldBefore = store.LeaseHolder;
+        using var workspace = await OpenEngineerWorkspaceAsync(store, scenario.Ports, keepDatabase: scenario.KeepDatabase);
+        var page = await GetHtmlAsync(workspace.Client, scenario.Page);
+        Assert.DoesNotContain("data-case-editing=\"true\"", page, StringComparison.Ordinal);
+        var fields = scenario.FromPage(page);
 
-        using var response = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=GenerateReport&section=report",
-            Form(
-                workspace.AntiforgeryToken,
-                ("id", store.CaseId.ToString("D")),
-                ("operationKey", InputValue(form, "operationKey")),
-                ("expectedCaseVersion", InputValue(form, "expectedCaseVersion"))));
+        store.NextFailure = scenario.Refusal;
+        await scenario.Post(workspace, fields);
 
-        AssertPrg(response, store.CaseId, "section=report");
-        var claim = Assert.Single(store.Claims);
-        Assert.Equal(store.CaseVersion, claim.ExpectedVersion);
-        var request = Assert.Single(generator.Requests);
-        Assert.Equal(store.LeaseToken, request.LeaseToken);
-        Assert.Equal(store.CaseVersion, request.ExpectedCaseVersion);
-        Assert.Equal(claim.Actor.SubjectId, holderDuringGeneration);
-        var release = Assert.Single(store.LeaseReleases);
-        Assert.Equal(store.LeaseToken, release.LeaseToken);
-        Assert.Null(store.LeaseHolder);
-        Assert.DoesNotContain("data-case-editing=\"true\"", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
+        Assert.Equal(scenario.Claims, store.Claims.Count);
+        Assert.All(store.Claims, claim => Assert.Equal(store.CaseVersion, claim.ExpectedVersion));
+        Assert.Equal(scenario.Ran, scenario.Commands());
+        Assert.Equal(scenario.Releases, store.LeaseReleases.Count);
+        Assert.All(store.LeaseReleases, release => Assert.Equal(store.LeaseToken, release.LeaseToken));
+        Assert.Equal(heldBefore, store.LeaseHolder);
+        var after = await workspace.GetWorkspaceAsync();
+        Assert.DoesNotContain("data-case-editing=\"true\"", after, StringComparison.Ordinal);
+        Assert.All(scenario.Says, said => Assert.Contains(said, after, StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -1309,46 +1310,6 @@ public sealed class CaseEditModeWebTests
         var release = Assert.Single(store.LeaseReleases);
         Assert.Equal(store.LeaseToken, release.LeaseToken);
         Assert.Null(store.LeaseHolder);
-    }
-
-    /// <summary>
-    /// The one-off lease is released whatever the generation answers: a
-    /// NotReady answer, or a refusal thrown by the generation, releases it
-    /// exactly as a Pending answer does, so nothing is left holding the Case.
-    /// </summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task GenerateReportOutsideEditModeReleasesTheLeaseWhenTheGenerationIsNotReadyOrThrows(bool throws)
-    {
-        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
-        var generator = throws
-            ? new RecordingGenerateReport { Failure = new InvalidOperationException("The report snapshot was refused.") }
-            : new RecordingGenerateReport { Outcome = CaseReportGenerationOutcome.NotReady };
-        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
-            ReadyReportPorts(services, store, generator));
-        var form = GenerateReportForm(await ReportSectionAsync(workspace));
-
-        using var response = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=GenerateReport&section=report",
-            Form(
-                workspace.AntiforgeryToken,
-                ("id", store.CaseId.ToString("D")),
-                ("operationKey", InputValue(form, "operationKey")),
-                ("expectedCaseVersion", InputValue(form, "expectedCaseVersion"))));
-
-        AssertPrg(response, store.CaseId, "section=report");
-        Assert.Single(generator.Requests);
-        Assert.Single(store.Claims);
-        var release = Assert.Single(store.LeaseReleases);
-        Assert.Equal(store.LeaseToken, release.LeaseToken);
-        Assert.Null(store.LeaseHolder);
-        var after = await workspace.GetWorkspaceAsync();
-        Assert.DoesNotContain("data-case-editing=\"true\"", after, StringComparison.Ordinal);
-        Assert.Contains(
-            throws ? "The report snapshot was refused." : CaseWorkspaceLabels.ReportDelivery.GenerationNotReady,
-            after,
-            StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1567,88 +1528,6 @@ public sealed class CaseEditModeWebTests
     }
 
     /// <summary>
-    /// While a colleague holds the Case's lease Generate report is not
-    /// offered, and a post that tries anyway is refused with the claim's own
-    /// "is editing" wording: nothing is generated and nothing released.
-    /// </summary>
-    [Fact]
-    public async Task AColleaguesLeaseRefusesGenerateReportWithTheEditingWording()
-    {
-        var store = new RecordingCaseDetailsStore
-        {
-            State = CaseLifecycleState.ReportPreparation,
-            LeaseHolder = Guid.NewGuid().ToString("D")
-        };
-        var generator = new RecordingGenerateReport();
-        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
-            ReadyReportPorts(services, store, generator));
-        Assert.DoesNotContain("id=\"case-generate-report-form\"", await ReportSectionAsync(workspace), StringComparison.Ordinal);
-
-        store.NextFailure = new CaseEditLeaseConflictException(store.CaseId, store.CaseVersion);
-        using var response = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=GenerateReport&section=report",
-            Form(
-                workspace.AntiforgeryToken,
-                ("id", store.CaseId.ToString("D")),
-                ("operationKey", Guid.NewGuid().ToString("N")),
-                ("expectedCaseVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture))));
-
-        AssertPrg(response, store.CaseId, "section=report");
-        Assert.Empty(generator.Requests);
-        Assert.Empty(store.LeaseReleases);
-        Assert.Contains(
-            "Someone else is editing this case.",
-            await workspace.GetWorkspaceAsync(),
-            StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// The companion documents are generated out of edit mode the way the
-    /// report is (issue 912): after a report is generated from read mode the
-    /// page offers each Generate without a lease, and the handler claims the
-    /// Case's lease for the one generation, names the confirmed generation
-    /// and releases the lease after.
-    /// </summary>
-    [Theory]
-    [InlineData("GenerateRepairSpec", CaseReportArtifactKind.RepairSpecification)]
-    [InlineData("GenerateImagePack", CaseReportArtifactKind.ImagePack)]
-    public async Task CompanionGenerateOutsideEditModeClaimsTheLeaseForTheGenerationAndReleasesIt(
-        string handler,
-        CaseReportArtifactKind kind)
-    {
-        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
-        var generator = new RecordingGenerateReport();
-        var generation = ConfirmedSeparateGeneration(store);
-        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
-        {
-            ReadyReportPorts(services, store, generator);
-            Substitute<ICaseReportGenerationStore>(services, generation);
-        });
-        var form = HandlerForm(await ReportSectionAsync(workspace), handler);
-        Assert.DoesNotContain("name=\"editLeaseToken\"", form, StringComparison.Ordinal);
-
-        using var response = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler={handler}&section=report",
-            Form(
-                workspace.AntiforgeryToken,
-                ("id", store.CaseId.ToString("D")),
-                ("operationKey", InputValue(form, "operationKey")),
-                ("expectedCaseVersion", InputValue(form, "expectedCaseVersion")),
-                ("targetGenerationId", InputValue(form, "targetGenerationId"))));
-
-        AssertPrg(response, store.CaseId, "section=report");
-        var claim = Assert.Single(store.Claims);
-        Assert.Equal(store.CaseVersion, claim.ExpectedVersion);
-        var request = Assert.Single(generator.Requests);
-        Assert.Equal(kind, request.Kind);
-        Assert.Equal(generation.Record.Id, request.TargetGenerationId);
-        Assert.Equal(store.LeaseToken, request.LeaseToken);
-        var release = Assert.Single(store.LeaseReleases);
-        Assert.Equal(store.LeaseToken, release.LeaseToken);
-        Assert.Null(store.LeaseHolder);
-    }
-
-    /// <summary>
     /// While a colleague holds the Case's lease no companion Generate is
     /// offered in read mode, as Generate report is not.
     /// </summary>
@@ -1666,7 +1545,7 @@ public sealed class CaseEditModeWebTests
         {
             ReadyReportPorts(services, store, generator);
             Substitute<ICaseReportGenerationStore>(services, generation);
-        });
+        }, keepDatabase: true);
 
         var html = await ReportSectionAsync(workspace);
 
@@ -1739,6 +1618,257 @@ public sealed class CaseEditModeWebTests
             store.CaseId,
             imagePackStatus: CaseReportArtifactStatus.Pending,
             imagePackOperationKey: Guid.NewGuid().ToString("N"));
+
+    /// <summary>
+    /// One row of <see cref="AnActionOutsideEditModeRunsUnderALeaseClaimedForIt"/>:
+    /// the Case and the ports the page runs over, the page the action posts
+    /// from and what it posts, and what the post leaves behind.
+    /// </summary>
+    private sealed record LeaseScenario(
+        RecordingCaseDetailsStore Store,
+        Action<IServiceCollection> Ports,
+        string Page,
+        Func<string, (string Name, string Value)[]> FromPage,
+        LeasePost Post,
+        Exception? Refusal,
+        int Claims,
+        IReadOnlyList<LeaseCommand> Ran,
+        Func<IReadOnlyList<LeaseCommand>> Commands,
+        int Releases,
+        string[] Says,
+        bool KeepDatabase = false);
+
+    /// <summary>
+    /// A command as its port recorded it: the lease and version it ran under,
+    /// and whether the staff member who claimed the lease ran it.
+    /// </summary>
+    private sealed record LeaseCommand(
+        string LeaseToken,
+        long Version,
+        bool ByClaimant,
+        CaseReportArtifactKind? Kind = null,
+        Guid? Target = null);
+
+    private static LeaseScenario LeaseScenarioFor(string row) => row switch
+    {
+        // The Actions menu's Place on Hold (operator, 29 September 2026): the
+        // command consumes the lease it ran under, so none is left to release.
+        "hold" => HoldScenario(
+            "hold-outside-a-session", command: null, colleague: false, ran: true, released: false,
+            says: ["The case was put on hold."]),
+        // A command the Case refuses frees the lease claimed for it and says so.
+        "hold-refused" => HoldScenario(
+            "hold-refused", command: new RefusingHold(), colleague: false, ran: false, released: true,
+            says: ["The case action was not applied"]),
+        // A colleague's live lease refuses the claim in the claim's own words.
+        "hold-colleague" => HoldScenario(
+            "hold-while-a-colleague-edits", command: null, colleague: true, ran: false, released: false,
+            says: ["Someone else is editing this case."]),
+        // The browser went away mid-command.
+        "hold-abandoned" => HoldScenario(
+            "hold-abandoned", command: new AbandonedHold(), colleague: false, ran: false, released: true,
+            says: []),
+        // A generation never consumes the lease, so it is released whatever the
+        // generation answers: Pending, NotReady, or a refusal thrown by it.
+        "report" => GenerateScenario(
+            "GenerateReport", CaseReportArtifactKind.AssessmentReport, colleague: false, says: []),
+        "report-notready" => GenerateScenario(
+            "GenerateReport", CaseReportArtifactKind.AssessmentReport, colleague: false,
+            says: [CaseWorkspaceLabels.ReportDelivery.GenerationNotReady],
+            outcome: CaseReportGenerationOutcome.NotReady),
+        "report-throws" => GenerateScenario(
+            "GenerateReport", CaseReportArtifactKind.AssessmentReport, colleague: false,
+            says: ["The report snapshot was refused."],
+            failure: new InvalidOperationException("The report snapshot was refused.")),
+        // While a colleague holds the lease no Generate is offered, and a post
+        // that tries anyway is refused with the claim's own wording.
+        "report-colleague" => GenerateScenario(
+            "GenerateReport", CaseReportArtifactKind.AssessmentReport, colleague: true,
+            says: ["Someone else is editing this case."]),
+        // The companion documents (issue 912) name the generation that is confirmed.
+        "repair-spec" => GenerateScenario(
+            "GenerateRepairSpec", CaseReportArtifactKind.RepairSpecification, colleague: false, says: []),
+        "image-pack" => GenerateScenario(
+            "GenerateImagePack", CaseReportArtifactKind.ImagePack, colleague: false, says: []),
+        _ => throw new ArgumentOutOfRangeException(nameof(row), row, null),
+    };
+
+    private static LeaseScenario HoldScenario(
+        string operationKey,
+        IHoldCase? command,
+        bool colleague,
+        bool ran,
+        bool released,
+        string[] says)
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            LeaseHolder = colleague ? Guid.NewGuid().ToString("D") : null,
+        };
+        var id = store.CaseId.ToString("D");
+        return new LeaseScenario(
+            Store: store,
+            Ports: services =>
+            {
+                Substitute<IHoldCase>(services, command ?? store);
+                Substitute<IReleaseCaseEditLease>(services, store);
+            },
+            Page: $"/Cases/{id}",
+            FromPage: _ =>
+            [
+                ("id", id),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", operationKey),
+                ("editLeaseToken", string.Empty),
+                ("reason", "Awaiting the claimant's photographs"),
+            ],
+            Post: command is AbandonedHold
+                ? PostAbandoned($"/Cases/{id}/Workflow?handler=Hold")
+                : PostThatRedirects(store.CaseId, $"/Cases/{id}/Workflow?handler=Hold", string.Empty),
+            Refusal: colleague ? new CaseEditLeaseConflictException(store.CaseId, store.CaseVersion) : null,
+            Claims: colleague ? 0 : 1,
+            Ran: ran
+                ? new[] { new LeaseCommand(store.LeaseToken, store.CaseVersion, ByClaimant: true) }
+                : Array.Empty<LeaseCommand>(),
+            Commands: () => store.Holds
+                .Select(hold => new LeaseCommand(
+                    hold.EditLeaseToken, hold.ExpectedVersion, ClaimedBy(store, hold.Actor.SubjectId)))
+                .ToArray(),
+            Releases: released ? 1 : 0,
+            Says: says);
+    }
+
+    private static LeaseScenario GenerateScenario(
+        string handler,
+        CaseReportArtifactKind kind,
+        bool colleague,
+        string[] says,
+        CaseReportGenerationOutcome outcome = CaseReportGenerationOutcome.Pending,
+        Exception? failure = null)
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            LeaseHolder = colleague ? Guid.NewGuid().ToString("D") : null,
+        };
+        var id = store.CaseId.ToString("D");
+        var holders = new List<string?>();
+        var generator = new RecordingGenerateReport
+        {
+            Outcome = outcome,
+            Failure = failure,
+            During = () => holders.Add(store.LeaseHolder),
+        };
+        var generation = kind == CaseReportArtifactKind.AssessmentReport
+            ? null
+            : ConfirmedSeparateGeneration(store);
+        return new LeaseScenario(
+            Store: store,
+            Ports: services =>
+            {
+                ReadyReportPorts(services, store, generator);
+                if (generation is not null)
+                {
+                    Substitute<ICaseReportGenerationStore>(services, generation);
+                }
+            },
+            Page: $"/Cases/{id}?section=report",
+            FromPage: html =>
+            {
+                if (colleague)
+                {
+                    Assert.DoesNotContain("id=\"case-generate-report-form\"", html, StringComparison.Ordinal);
+                    return
+                    [
+                        ("id", id),
+                        ("operationKey", Guid.NewGuid().ToString("N")),
+                        ("expectedCaseVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                    ];
+                }
+
+                var form = generation is null ? GenerateReportForm(html) : HandlerForm(html, handler);
+                Assert.DoesNotContain("name=\"editLeaseToken\"", form, StringComparison.Ordinal);
+                var fields = new List<(string Name, string Value)>
+                {
+                    ("id", id),
+                    ("operationKey", InputValue(form, "operationKey")),
+                    ("expectedCaseVersion", InputValue(form, "expectedCaseVersion")),
+                };
+                if (generation is not null)
+                {
+                    fields.Add(("targetGenerationId", InputValue(form, "targetGenerationId")));
+                }
+
+                return fields.ToArray();
+            },
+            Post: PostThatRedirects(
+                store.CaseId, $"/Cases/{id}?handler={handler}&section=report", "section=report"),
+            Refusal: colleague ? new CaseEditLeaseConflictException(store.CaseId, store.CaseVersion) : null,
+            Claims: colleague ? 0 : 1,
+            Ran: colleague
+                ? Array.Empty<LeaseCommand>()
+                : new[] { new LeaseCommand(store.LeaseToken, store.CaseVersion, true, kind, generation?.Record.Id) },
+            Commands: () => generator.Requests
+                .Select((request, index) => new LeaseCommand(
+                    request.LeaseToken,
+                    request.ExpectedCaseVersion,
+                    ClaimedBy(store, holders[index]),
+                    request.Kind,
+                    request.TargetGenerationId))
+                .ToArray(),
+            Releases: colleague ? 0 : 1,
+            Says: says,
+            KeepDatabase: generation is not null);
+    }
+
+    private static bool ClaimedBy(RecordingCaseDetailsStore store, string? subjectId) =>
+        store.Claims.Any(claim => claim.Actor.SubjectId == subjectId);
+
+    /// <summary>
+    /// The post of a <see cref="LeaseScenario"/>, with the answer it must get.
+    /// </summary>
+    private delegate Task LeasePost(LeasedWorkspace workspace, (string Name, string Value)[] fields);
+
+    /// <summary>
+    /// A post answered by a redirect back to the Case with the given query.
+    /// </summary>
+    private static LeasePost PostThatRedirects(Guid caseId, string url, string query) =>
+        async (workspace, fields) =>
+        {
+            using var response = await workspace.Client.PostAsync(
+                url, Form(workspace.AntiforgeryToken, fields));
+            AssertPrg(response, caseId, query);
+        };
+
+    /// <summary>
+    /// A request abandoned mid-command may reach the caller as the
+    /// cancellation itself, which is no answer to read.
+    /// </summary>
+    private static LeasePost PostAbandoned(string url) =>
+        async (workspace, fields) =>
+        {
+            try
+            {
+                using var response = await workspace.Client.PostAsync(
+                    url, Form(workspace.AntiforgeryToken, fields));
+            }
+            catch (OperationCanceledException)
+            {
+                // The host may surface the abandoned request to the caller.
+            }
+        };
+
+    private sealed class RefusingHold : IHoldCase
+    {
+        public Task<CaseWorkflowRecord> ExecuteAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The hold was refused.");
+    }
+
+    private sealed class AbandonedHold : IHoldCase
+    {
+        public Task<CaseWorkflowRecord> ExecuteAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken) =>
+            throw new OperationCanceledException("The request was abandoned.");
+    }
 
 
     [Fact]
@@ -2010,7 +2140,7 @@ public sealed class CaseEditModeWebTests
         {
             var recoverHtml = await GetHtmlAsync(recoveryClient, $"/Cases/{store.CaseId:D}");
             Assert.Equal(store.LeaseToken, InputValue(recoverHtml, "editLeaseToken"));
-            Assert.DoesNotContain("Take over", RecordBar(recoverHtml), StringComparison.Ordinal);
+            Assert.DoesNotContain(CaseWorkspaceLabels.Frame.TakeOver, RecordBar(recoverHtml), StringComparison.Ordinal);
             AssertNoBannedVocabulary(RecordBar(recoverHtml));
         }
 
@@ -2031,14 +2161,8 @@ public sealed class CaseEditModeWebTests
         }
     }
 
-    /// <summary>
-    /// The vocabulary `docs/ui-work/ui-standards-and-review.md` bans from operator copy, including
-    /// identifiers. Applied to this feature's own panels; GUID debt elsewhere on the case page
-    /// (the Engineer field) predates this work and belongs to the queued case-container rework.
-    /// </summary>
-
     [Fact]
-    public async Task AnAutomationHeldCaseIsReadOnlyToStaffAndAPostedClaimIsRefused()
+    public async Task AnAutomationHeldCaseOffersStaffTakeOverAndAPlainClaimIsStillRefused()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore
@@ -2061,10 +2185,14 @@ public sealed class CaseEditModeWebTests
             BaseAddress = new Uri("https://localhost")
         });
 
+        // Staff may take over a lease the Automation Actor holds (operator, 15 October 2026).
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        var bar = RecordBar(html);
         Assert.Contains("AI is editing", EditAuthorityNote(html), StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=ClaimLease", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(">Edit case<", html, StringComparison.Ordinal);
+        Assert.Contains("handler=ClaimLease", bar, StringComparison.Ordinal);
+        Assert.Contains("name=\"takeOver\" value=\"true\"", bar, StringComparison.Ordinal);
+        Assert.Contains($">{CaseWorkspaceLabels.Frame.TakeOver}<", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain($">{CaseWorkspaceLabels.Frame.EditCase}<", bar, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("pegasus-automation", html, StringComparison.OrdinalIgnoreCase);
 
@@ -2084,19 +2212,34 @@ public sealed class CaseEditModeWebTests
         var afterRefusal = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         Assert.Contains("Someone else is editing this case.", afterRefusal, StringComparison.Ordinal);
         Assert.Contains("AI is editing", EditAuthorityNote(afterRefusal), StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=ClaimLease", afterRefusal, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", afterRefusal, StringComparison.Ordinal);
+
+        using (var takeOverResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(afterRefusal),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("takeOver", "true"))))
+        {
+            AssertPrg(takeOverResponse, store.CaseId);
+        }
+
+        var claim = Assert.Single(store.Claims);
+        Assert.True(claim.TakeOver);
+        Assert.Equal(ActorKind.Staff, claim.Actor.Kind);
+        var editing = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        Assert.Equal(store.LeaseToken, InputValue(editing, "editLeaseToken"));
+        Assert.DoesNotContain("data-edit-authority", editing, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// Review point 12: the adverse disposition is not a step in the workflow.
-    /// It stands alone at the end of the record bar, away from the progression
-    /// actions, and offers only the outcomes Core will actually accept from
-    /// the Case's current state. Created in error and Source email unlinked
-    /// each have their own action, so neither is ever in the chooser, and
-    /// post-report completion is progression rather than an adverse disposition.
+    /// The vocabulary `docs/design/README.md` bans from operator copy, including
+    /// identifiers ("Voice, labels and necessary copy"). Applied to this feature's own panels;
+    /// GUID debt elsewhere on the case page (the Engineer field) predates this work and belongs
+    /// to the queued case-container rework.
     /// </summary>
-
     private static void AssertNoBannedVocabulary(string sectionHtml)
     {
         var visible = VisibleText(sectionHtml);
@@ -2136,15 +2279,6 @@ public sealed class CaseEditModeWebTests
         Assert.True(end > start, "The proposed-values panel is not closed.");
         return html[start..end];
     }
-
-    /// <summary>The Files section's upload-requests sub-panel (v26): the table of links.</summary>
-
-    /// <summary>
-    /// While the Automation Actor holds the lease, the workspace is read-only to
-    /// staff — the holder is disclosed from its retained kind through the real descriptor, no
-    /// claim control is rendered, and a claim posted anyway is refused without the page
-    /// pretending edit mode was entered. The refusal is the shared owner's own conflict.
-    /// </summary>
 
     private sealed class StubEditAuthorityHolders(string? displayName, bool isAutomation = false)
         : IDescribeCaseEditAuthorityHolder

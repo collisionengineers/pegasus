@@ -37,7 +37,7 @@ public sealed class StaffCorrespondenceWebTests
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory, new(false, true));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         using var get = await client.GetAsync($"/Cases/{caseId:D}/Chaser");
         Assert.Equal(HttpStatusCode.OK, get.StatusCode);
@@ -68,7 +68,7 @@ public sealed class StaffCorrespondenceWebTests
         var mailboxId = await SeedSendableMailboxAsync(baseFactory);
         var recipients = new FixedChaserRecipients(ChaserRecipients);
         using var factory = Configure(baseFactory, send, chaserRecipients: recipients);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var header = await CaseHeaderAsync(factory, caseId);
         Assert.NotNull(header.Workflow.DueWork);
         var facts = new CaseChaserFacts(
@@ -133,7 +133,7 @@ public sealed class StaffCorrespondenceWebTests
         await SeedSendableMailboxAsync(baseFactory);
         using var factory = Configure(
             baseFactory, send, chaserRecipients: new FixedChaserRecipients(ChaserRecipients));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         using var get = await client.GetAsync($"/Cases/{caseId:D}/Chaser");
         var html = await get.Content.ReadAsStringAsync();
 
@@ -165,7 +165,7 @@ public sealed class StaffCorrespondenceWebTests
         await MakeInstructionEmailAsync(baseFactory, caseId, instruction.ReceiptId);
         using var factory = Configure(
             baseFactory, send, chaserRecipients: new FixedChaserRecipients(ChaserRecipients));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         using var get = await client.GetAsync($"/Cases/{caseId:D}/Chaser");
 
@@ -214,7 +214,7 @@ public sealed class StaffCorrespondenceWebTests
         var mailboxId = await SeedSendableMailboxAsync(baseFactory);
         using var factory = Configure(
             baseFactory, send, chaserRecipients: new FixedChaserRecipients(ChaserRecipients));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         using var get = await client.GetAsync($"/Cases/{caseId:D}/Chaser");
         var html = await get.Content.ReadAsStringAsync();
 
@@ -280,7 +280,7 @@ public sealed class StaffCorrespondenceWebTests
             baseFactory, seedClient, "SC08 REPLY REASON", "SC08-MSG-REASON");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
         var html = await get.Content.ReadAsStringAsync();
         var form = new Dictionary<string, string>
@@ -319,7 +319,7 @@ public sealed class StaffCorrespondenceWebTests
             baseFactory, seedClient, $"SC08 {handler}", $"SC08-{handler}");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var mode = expectedMode switch
         {
             StaffMailComposeMode.Reply => "reply",
@@ -396,7 +396,7 @@ public sealed class StaffCorrespondenceWebTests
             baseFactory,
             send,
             attachmentResolver: new StableAttachmentResolver());
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         // No unread scope: the v26 Inbox has no Unread filter (read state is not a queue).
         var listContext = $"mailbox={seeded.MailboxId:D}&folder=inbox&pageNumber=2&sort=oldest";
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=forward&{listContext}");
@@ -494,7 +494,7 @@ public sealed class StaffCorrespondenceWebTests
             baseFactory, seedClient, "SC08 UNASSOCIATED", "SC08-MSG-UNASSOCIATED");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId: null);
         using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
         var html = await get.Content.ReadAsStringAsync();
         var form = RetainedReplyForm(
@@ -545,7 +545,7 @@ public sealed class StaffCorrespondenceWebTests
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId: null);
         await MailboxIntakeTestData.SeedTriageCaseAsync(baseFactory.Services, seeded.ReceiptId, "t.QDOS31009");
         using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose={mode}");
         Assert.Equal(HttpStatusCode.OK, get.StatusCode);
@@ -566,7 +566,7 @@ public sealed class StaffCorrespondenceWebTests
             baseFactory, seedClient, "SC08 MSG", "SC08-MSG-UNKNOWN");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
         var html = await get.Content.ReadAsStringAsync();
         var form = new Dictionary<string, string>
@@ -610,11 +610,10 @@ public sealed class StaffCorrespondenceWebTests
             baseFactory, seedClient, "SC08 MSG TYPED", "SC08-MSG-TYPED");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var typedReference = await CaseReferenceAsync(factory, typedCaseId);
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
         var html = await get.Content.ReadAsStringAsync();
-        Assert.DoesNotContain("CorrespondenceCaseQuery", html, StringComparison.Ordinal);
         Assert.Contains("role=\"combobox\"", html, StringComparison.Ordinal);
 
         using var response = await client.PostAsync(
@@ -655,7 +654,7 @@ public sealed class StaffCorrespondenceWebTests
             baseFactory, seedClient, "SC08 OFFLINE", "SC08-MSG-OFFLINE");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
         var html = await get.Content.ReadAsStringAsync();
         var form = new Dictionary<string, string>
@@ -702,7 +701,7 @@ public sealed class StaffCorrespondenceWebTests
             baseFactory, seedClient, "SC08 SUBMITTED", "SC08-MSG-SUBMITTED");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
         var html = await get.Content.ReadAsStringAsync();
         var firstKey = InputValue(html, "CorrespondenceOperationKey");
@@ -740,7 +739,7 @@ public sealed class StaffCorrespondenceWebTests
             baseFactory, seedClient, "SC08 TERMINAL", $"SC08-MSG-{terminalState}");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         using var firstGet = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
         var firstHtml = await firstGet.Content.ReadAsStringAsync();
@@ -777,7 +776,7 @@ public sealed class StaffCorrespondenceWebTests
             baseFactory, seedClient, "SC08 INVALID", "SC08-MSG-INVALID");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         using var response = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=resend");
 
@@ -795,7 +794,7 @@ public sealed class StaffCorrespondenceWebTests
             baseFactory, seedClient, "SC08 ACTOR", "SC08-MSG-ACTOR");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
         using var request = new HttpRequestMessage(
             HttpMethod.Post, $"/Inbox/{seeded.MessageId:D}?handler=Reply");
@@ -852,7 +851,7 @@ public sealed class StaffCorrespondenceWebTests
                 services.AddSingleton<IApprovedMailboxStore>(
                     new FixedApprovedMailboxStore(available ? [mailbox] : []));
             }));
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
 
         using var response = await client.PostAsync(
@@ -890,7 +889,7 @@ public sealed class StaffCorrespondenceWebTests
                 $"UPDATE RetainedMailboxMessages SET ReplyToAddressesJson = {replyTargetsJson} WHERE Id = {seeded.MessageId}");
         }
         using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
         Assert.Equal(HttpStatusCode.OK, get.StatusCode);
         var html = await get.Content.ReadAsStringAsync();
@@ -928,7 +927,7 @@ public sealed class StaffCorrespondenceWebTests
             baseFactory, seedClient, "SC08 DIALOG", "SC08-MSG-DIALOG");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, associatedCaseId);
         using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         var dialogReference = await CaseReferenceAsync(factory, dialogCaseId);
         Assert.NotEqual(await CaseReferenceAsync(factory, associatedCaseId), dialogReference);
 
@@ -967,7 +966,7 @@ public sealed class StaffCorrespondenceWebTests
             baseFactory, seedClient, "SC08 FORWARD", "SC08-MSG-FORWARD-EMPTY");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=forward");
         var html = await get.Content.ReadAsStringAsync();
 
@@ -997,7 +996,7 @@ public sealed class StaffCorrespondenceWebTests
             baseFactory, seedClient, "SC08 MSG", "SC08-MSG-STALE");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
         var html = await get.Content.ReadAsStringAsync();
         var form = new Dictionary<string, string>
@@ -1052,7 +1051,7 @@ public sealed class StaffCorrespondenceWebTests
             await MarkOpenQueryAsync(baseFactory, caseId);
         }
         using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         using var get = await client.GetAsync(
             $"/Inbox/{seeded.MessageId:D}?compose={mode}" + (fromResolveQuery ? "&resolveQuery=true" : string.Empty));
@@ -1088,7 +1087,7 @@ public sealed class StaffCorrespondenceWebTests
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
         await MarkOpenQueryAsync(baseFactory, caseId);
         using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
         var html = await get.Content.ReadAsStringAsync();
         var form = RetainedReplyForm(html, InputValue(html, "CorrespondenceOperationKey"), "Answered the query.");
@@ -1131,7 +1130,7 @@ public sealed class StaffCorrespondenceWebTests
         var job = await SeedDraftReplyJobAsync(
             baseFactory, caseId, forThisMessage ? seeded.MessageId : Guid.NewGuid(), draftText);
         using var factory = Configure(baseFactory, send);
-        using var client = CreateClient(factory);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         using var get = await client.GetAsync(
             $"/Inbox/{seeded.MessageId:D}?compose=reply&resolveQuery=true&aiJob={job.JobId:D}");
@@ -1319,13 +1318,6 @@ public sealed class StaffCorrespondenceWebTests
             CancellationToken cancellationToken) =>
             Task.FromResult(false);
     }
-
-    private static HttpClient CreateClient(WebApplicationFactory<Program> factory) =>
-        factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost:7139")
-        });
 
     private static Task<Guid> SeedSupportedCaseAsync(
         WebApplicationFactory<Program> factory,

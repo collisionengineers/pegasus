@@ -3,6 +3,7 @@ using Pegasus.Core.Tests.Support;
 
 namespace Pegasus.Core.Tests.Intake.Ax;
 
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed class AxInstructionExtractionPolicyTests
 {
     [ReferencePackTheory]

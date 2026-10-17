@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -25,9 +24,9 @@ internal sealed class EfSentEvidencePollStore(
         RequireUtc(nowUtc, nameof(nowUtc));
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(leaseDuration, TimeSpan.Zero);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        // Serializable: the claim chooses among every approved mailbox's poll
+        // state and adds the missing ones; no one row covers them.
+        await using var transaction = await context.Database.BeginSerializableAsync(cancellationToken);
         var approvedState = Pegasus.Core.Identity.ApprovedMailboxState.Approved.ToString();
         var mailboxes = await context.ApprovedMailboxes
             .Where(item => item.State == approvedState
@@ -124,9 +123,7 @@ internal sealed class EfSentEvidencePollStore(
         ValidateOutcome(outcome);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var state = await GetOwnedStateAsync(
             context,
             mailboxId,
@@ -215,9 +212,7 @@ internal sealed class EfSentEvidencePollStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var state = await GetOwnedStateAsync(
             context,
             mailboxId,
@@ -234,12 +229,28 @@ internal sealed class EfSentEvidencePollStore(
         string mailboxId,
         string leaseToken,
         string operation,
+        CancellationToken cancellationToken)
+    {
+        await LockStateAsync(context, mailboxId, cancellationToken);
+        return await context.ApprovedSentPollStates.SingleOrDefaultAsync(
+                item => item.MailboxId == mailboxId && item.LeaseToken == leaseToken,
+                cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"The approved-Sent lease was lost before {operation}.");
+    }
+
+    /// <summary>
+    /// Takes the mailbox's poll state row <c>UPDLOCK, HOLDLOCK</c> for the rest
+    /// of the caller's transaction. A poll state has no concurrency token, so
+    /// a write under its lease locks it before reading the lease.
+    /// </summary>
+    internal static Task LockStateAsync(
+        PegasusDbContext context,
+        string mailboxId,
         CancellationToken cancellationToken) =>
-        await context.ApprovedSentPollStates.SingleOrDefaultAsync(
-            item => item.MailboxId == mailboxId && item.LeaseToken == leaseToken,
-            cancellationToken)
-        ?? throw new InvalidOperationException(
-            $"The approved-Sent lease was lost before {operation}.");
+        context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [ApprovedSentPollStates] WITH (UPDLOCK, HOLDLOCK) WHERE [MailboxId] = {mailboxId}",
+            cancellationToken);
 
     private static ApprovedSentPollOutcomeEntity MapEntity(
         ApprovedSentPollStateEntity state,

@@ -1,4 +1,3 @@
-using System.Data;
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -12,8 +11,8 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// Creates the Audit work of an Inspection + Audit Case in one serializable
-/// transaction: the Audit work row, the Inspection report's approval and sent
+/// Creates the Audit work of an Inspection + Audit Case in one transaction
+/// under the Case's workflow lock: the Audit work row, the Inspection report's approval and sent
 /// evidence moved onto the primary work, the Case back in Report preparation
 /// with its Engineers, the <c>a.</c> Audit reference, a full copy of the
 /// primary work's data into the Audit work, and the custody work that creates
@@ -33,9 +32,7 @@ public sealed class EfCreateAuditStore(
         var request = command.Request;
         var fingerprint = Fingerprint(command);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken);
 
         if (await context.CaseEditLeaseOperations.AsNoTracking().AnyAsync(

@@ -10,8 +10,6 @@ namespace Pegasus.ArchitectureTests;
 /// </summary>
 public sealed class RowListAndGalleryScriptContractTests
 {
-    private static readonly string RepositoryRoot = FindRepositoryRoot();
-
     [Fact]
     public void TheRowSelectorCoversCasesRowsAndScopeButtons()
     {
@@ -49,17 +47,5 @@ public sealed class RowListAndGalleryScriptContractTests
     }
 
     private static string Read(string relativePath) =>
-        File.ReadAllText(Path.Combine(RepositoryRoot, relativePath));
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Pegasus.slnx")))
-        {
-            directory = directory.Parent;
-        }
-
-        return directory?.FullName ?? throw new InvalidOperationException("Could not locate Pegasus.slnx.");
-    }
+        File.ReadAllText(Path.Combine(RepositoryRoot.Find(), relativePath));
 }

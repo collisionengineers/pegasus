@@ -130,7 +130,10 @@ retention, the shared intake call and the retry outcome. A creation
 notification with an immutable message ID fetches and processes that exact
 message only, still subject to the receive-time cutoff. It does not scan the
 Inbox or move the recovery cursor. Duplicate notifications are safe. A
-notification may name a message the mail source cannot show yet, because
+notification that arrives while another poll holds the mailbox's lease is
+still answered before the next five-minute fallback poll (operator ruling of
+15 October 2026).
+A notification may name a message the mail source cannot show yet, because
 the tenant accepted it before replicating it to the folder the delta reads.
 That empty read is not a failure: the cursor stays where it was, the message
 is still ahead of the next delta sweep, and the mailbox-scoped source
@@ -147,13 +150,14 @@ Lifecycle `missed`, `subscriptionRemoved` and reauthorization events
 schedule the same delta resynchronisation; they are not another processing
 route.
 
-Subscription maintenance runs every six hours and renews an enabled Inbox
-before it comes within 48 hours of expiry. A failure is visible per mailbox
-and leaves the five-minute per-mailbox fallback poll running. That fallback
-runs inside the Worker's one-minute recovery timer, on every fifth minute. It
-moves the same cursor and is recovery only: it creates no second receipt and
-does not bypass the fresh-start boundary. Disabling a mailbox stops
-notification work at claim time as well as its next fallback poll.
+Subscription maintenance is checked every five minutes. An enabled Inbox is
+renewed when it comes within 48 hours of expiry, and nothing is written when
+nothing is due. A failure is visible per mailbox and leaves the five-minute
+per-mailbox fallback poll running. That fallback runs inside the Worker's
+one-minute recovery timer, on every fifth minute. It moves the same cursor
+and is recovery only: it creates no second receipt and does not bypass the
+fresh-start boundary. Disabling a mailbox stops notification work at claim
+time as well as its next fallback poll.
 
 Before activation, an Outlook/Graph route must:
 
@@ -190,6 +194,8 @@ The states of a retained message are owned by
   downloaded again; the cursor moves past it.
 - A different delta item that reuses a retained Internet message ID:
   downloaded; different bytes are quarantined as an identity conflict.
+- A message over 150 MiB (157,286,400 bytes), Exchange Online's largest
+  message, is quarantined as `message_too_large` (operator, 15 October 2026).
 - A tenant that has not admitted the application: that mailbox alone fails
   and says so.
 - An unknown, expired, malformed or wrongly scoped notification: refused

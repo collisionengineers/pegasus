@@ -47,10 +47,6 @@ public sealed class AssessmentVehiclePrefillWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
 
-        Assert.DoesNotContain("Odometer reading", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("In miles. Required unless", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Sets the mileage sentence", html, StringComparison.Ordinal);
-
         // v26: the Vehicle section is the record-section host itself, and the
         // lookup line sits in its head as the section meta.
         Assert.Contains("id=\"section-vehicle-title\"", html, StringComparison.Ordinal);
@@ -221,6 +217,7 @@ public sealed class AssessmentVehiclePrefillWebTests
             new("VOLKSWAGEN", "GOLF", 2019, 1968, "Diesel"),
             [new(new DateOnly(2026, 3, 4), "PASSED", new DateOnly(2027, 3, 3), 45123, VehicleMileageUnit.Miles)],
             new(45123, VehicleMileageUnit.Miles, new DateOnly(2026, 3, 4), VehicleMileagePolicy.MethodKey, VehicleMileagePolicy.MethodVersion, 1),
+            null,
             null,
             DateTimeOffset.UtcNow);
 

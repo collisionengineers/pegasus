@@ -1949,25 +1949,95 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Null(await harness.Store.ResumeAsync(new(harness.CaseId, holder), default));
     }
 
+    /// <summary>
+    /// A member of staff may take over a lease the Automation Actor holds (operator, 15 October
+    /// 2026). A plain claim is still refused; Take over hands the lease to them under a new token
+    /// and generation, and the Actor's next heartbeat, renew, write and release are refused. The
+    /// history line reads "Edit lease taken over from AI." (operator, 16 October 2026), never the
+    /// Actor's grant id, and replaying the takeover writes no second one.
+    /// </summary>
     [Fact]
-    public async Task StaffCannotTakeOverAnAutomationHeldCase()
+    public async Task StaffTakeOverOfAnAutomationHeldCaseRecordsTheAutomationActor()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
-        var automation = ActionActor.Automation("pegasus-automation");
+        var automation = ActionActor.Automation($"grant:{Guid.NewGuid():N}");
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var held = await harness.Store.ClaimAsync(
             new ClaimCaseEditLeaseRequest(harness.CaseId, 0, automation, "automation-claim"), default);
 
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
             harness.Store.ClaimAsync(
-                new ClaimCaseEditLeaseRequest(harness.CaseId, 0, staff, "staff-takeover")
+                new ClaimCaseEditLeaseRequest(harness.CaseId, 0, staff, "staff-plain-claim"), default));
+        var takeover = new ClaimCaseEditLeaseRequest(harness.CaseId, 0, staff, "staff-takeover")
+        {
+            TakeOver = true
+        };
+        var taken = await harness.Store.ClaimAsync(takeover, default);
+
+        Assert.NotEqual(held.Token, taken.Token);
+        Assert.Equal(held.Generation + 1, taken.Generation);
+        Assert.Equal(staff.SubjectId, taken.Holder);
+        var row = await harness.ReadLeaseRowAsync(harness.CaseId);
+        Assert.Equal(staff.SubjectId, row.Holder);
+        Assert.Equal(nameof(ActorKind.Staff), row.HolderKind);
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.HeartbeatAsync(
+                new HeartbeatCaseEditLeaseRequest(harness.CaseId, automation, held.Token), default));
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.RenewAsync(
+                new RenewCaseEditLeaseRequest(harness.CaseId, 0, automation, "automation-renew", held.Token),
+                default));
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.ChangeStateAsync(
+                new ChangeCaseStateRequest(
+                    harness.CaseId, 0, automation, "automation-write", "Automation wrote after the takeover", held.Token),
+                CaseLifecycleState.Review,
+                default));
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.ReleaseAsync(
+                new ReleaseCaseEditLeaseRequest(harness.CaseId, automation, "automation-release", held.Token),
+                default));
+
+        var history = Assert.Single(await harness.WorkflowEventsAsync("staff-takeover"));
+        Assert.Equal("edit_lease_taken_over", history.EventType);
+        Assert.Equal(nameof(ActorKind.Staff), history.ActorKind);
+        Assert.Equal(staff.SubjectId, history.ActorSubjectId);
+        Assert.Equal("Edit lease taken over from AI.", history.Reason);
+        Assert.Equal(taken.Version, history.BeforeVersion);
+        Assert.Equal(taken.Version, history.AfterVersion);
+
+        var replay = await harness.Store.ClaimAsync(takeover, default);
+        Assert.Equal(taken.Token, replay.Token);
+        Assert.Equal(1, await harness.WorkflowEventCountAsync("staff-takeover"));
+    }
+
+    /// <summary>
+    /// Only staff take over a lease the Automation Actor holds (operator, 16 October 2026): another
+    /// Automation session asking to take it over is refused, the lease stands and nothing is
+    /// recorded.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomationClaimCannotTakeOverAnAutomationHeldCase()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var automation = ActionActor.Automation($"grant:{Guid.NewGuid():N}");
+        var otherGrant = ActionActor.Automation($"grant:{Guid.NewGuid():N}");
+        var held = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, automation, "automation-claim"), default);
+
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.ClaimAsync(
+                new ClaimCaseEditLeaseRequest(harness.CaseId, 0, otherGrant, "automation-takeover")
                 {
                     TakeOver = true
                 }, default));
 
+        var row = await harness.ReadLeaseRowAsync(harness.CaseId);
+        Assert.Equal(automation.SubjectId, row.Holder);
+        Assert.Equal(nameof(ActorKind.Automation), row.HolderKind);
         Assert.Equal(held.Token, (await harness.Store.ClaimAsync(
             new ClaimCaseEditLeaseRequest(harness.CaseId, 0, automation, "automation-claim"), default)).Token);
-        Assert.Equal(0, await harness.WorkflowEventCountAsync("staff-takeover"));
+        Assert.Equal(0, await harness.WorkflowEventCountAsync("automation-takeover"));
     }
 
     [Fact]
@@ -3760,6 +3830,15 @@ public sealed class CaseWorkflowPersistenceTests
             return await context.Database.SqlQuery<long>(
                     $"SELECT COUNT_BIG(*) AS [Value] FROM [CaseWorkflowEvents] WHERE [OperationKey] = {operationKey}")
                 .SingleAsync();
+        }
+
+        /// <summary>The history lines one operation wrote, for who they name and what they say.</summary>
+        public async Task<IReadOnlyList<CaseWorkflowEventEntity>> WorkflowEventsAsync(string operationKey)
+        {
+            await using var context = await factory.CreateDbContextAsync();
+            return await context.CaseWorkflowEvents.AsNoTracking()
+                .Where(item => item.OperationKey == operationKey)
+                .ToListAsync();
         }
 
         public async Task<long> ActionHistoryCountAsync(

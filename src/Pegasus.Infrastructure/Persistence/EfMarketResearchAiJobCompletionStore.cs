@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -17,6 +16,7 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
     IDocumentContentCachePublisher? cachePublisher = null) : IMarketResearchAiJobCompletionStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private const string CompletedEventKind = "ai_job_completed";
 
     public async Task<MarketResearchAiJobCompletion> CompleteAsync(
         CompleteMarketResearchAiJobCommand command,
@@ -47,9 +47,8 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
         var completionHash = Hash(command, contentHash);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, command.CaseId, cancellationToken);
         var job = await context.AiJobs.SingleOrDefaultAsync(
             item => item.JobId == command.JobId,
             cancellationToken)
@@ -57,7 +56,7 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
         var isReplay = await context.ActionHistory.AsNoTracking().AnyAsync(
             item => item.AggregateType == EfAiJobStore.AggregateType
                 && item.AggregateId == job.JobId.ToString("D")
-                && item.EventKind == "ai_job_draft_ready"
+                && item.EventKind == CompletedEventKind
                 && item.CorrelationId == command.OperationKey.Trim(),
             cancellationToken);
         if (isReplay)
@@ -130,8 +129,9 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
                 before,
                 now);
 
-            job.State = nameof(AiJobState.DraftReady);
-            job.DraftReadyAtUtc = now;
+            job.State = nameof(AiJobState.Completed);
+            job.ClosedAtUtc = now;
+            job.ClosureReason = null;
             job.Version++;
             job.LastOperationKey = command.OperationKey;
             job.ResultKind = nameof(AiJobResultKind.MarketResearch);
@@ -150,7 +150,7 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             EfAiJobStore.AddHistory(
                 context,
                 job,
-                "ai_job_draft_ready",
+                CompletedEventKind,
                 command.Actor,
                 command.OperationKey,
                 reason: null,
@@ -262,10 +262,10 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             job.ExpiresAtUtc,
             job.LeaseExpiresAtUtc,
             now);
-        if (!AiJobPolicy.IsLegalTransition(current, AiJobState.DraftReady))
+        if (!AiJobPolicy.IsLegalMarketResearchCompletion(current))
         {
             throw new InvalidOperationException(
-                $"An AI job cannot move from {current} to {AiJobState.DraftReady}.");
+                $"An AI job cannot move from {current} to {AiJobState.Completed}.");
         }
         if (!string.Equals(job.TakenBy, command.Actor.SubjectId, StringComparison.Ordinal))
         {

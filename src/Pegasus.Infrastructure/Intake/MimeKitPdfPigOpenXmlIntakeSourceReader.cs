@@ -8,6 +8,7 @@ using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using MimeKit;
+using SkiaSharp;
 using System.Globalization;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.AcroForms;
@@ -15,7 +16,10 @@ using UglyToad.PdfPig.AcroForms.Fields;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Exceptions;
+using UglyToad.PdfPig.Filters;
 using UglyToad.PdfPig.Geometry;
+using UglyToad.PdfPig.Graphics.Colors;
+using UglyToad.PdfPig.Images;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
 namespace Pegasus.Infrastructure.Intake;
@@ -547,10 +551,102 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             return true;
         }
 
+        if ((long)image.WidthInSamples * image.HeightInSamples <= MaximumPdfImageSamplePixels
+            && TryReadRefusedPdfImage(image, raw, out var refused, out var isJpeg))
+        {
+            bytes = refused;
+            mediaType = isJpeg ? "image/jpeg" : "image/png";
+            extension = isJpeg ? ".jpg" : ".png";
+            return true;
+        }
+
         bytes = ReadOnlyMemory<byte>.Empty;
         mediaType = string.Empty;
         extension = string.Empty;
         return false;
+    }
+
+    /// <summary>
+    /// An image PdfPig hands over as neither a JPEG nor a PNG, read again from
+    /// its encoded bytes with PdfPig's own filters. A JPEG behind other
+    /// filters has no samples, because PdfPig does not decode DCT: undoing the
+    /// filters in front of it leaves the JPEG. Samples that run past the
+    /// declared size are refused whole: the declared width by height, read in
+    /// the image's colour space and bits per component as grey or RGB, becomes
+    /// a PNG. The samples are decoded afresh because PdfPig's own PNG attempt
+    /// may have converted its copy in place. JPEG 2000, JBIG2 and any other
+    /// colour stay unread.
+    /// </summary>
+    private static bool TryReadRefusedPdfImage(
+        IPdfImage image,
+        byte[] raw,
+        out byte[] read,
+        out bool isJpeg)
+    {
+        read = [];
+        var filterProvider = DefaultFilterProvider.Instance;
+        var filters = filterProvider.GetFilters(image.ImageDictionary);
+        var decodable = filters.TakeWhile(filter => filter.IsSupported).Count();
+        isJpeg = decodable > 0 && decodable < filters.Count && filters[decodable] is DctDecodeFilter;
+        if (isJpeg)
+        {
+            var jpeg = DecodeFilters();
+            read = jpeg.Span is [0xff, 0xd8, ..] ? jpeg.ToArray() : [];
+            return read.Length > 0;
+        }
+
+        if (decodable < filters.Count
+            || image.ColorSpaceDetails is not { } colourSpace
+            || colourSpace is UnsupportedColorSpaceDetails
+            || colourSpace.BaseNumberOfColorComponents is not (1 or 3))
+        {
+            return false;
+        }
+
+        var width = image.WidthInSamples;
+        var height = image.HeightInSamples;
+        var components = colourSpace.BaseNumberOfColorComponents;
+        var pixels = ColorSpaceDetailsByteConverter.Convert(
+            colourSpace, DecodeFilters().Span, image.BitsPerComponent, width, height, image.Decode);
+        var count = width * height;
+        if (pixels.Length < count * components)
+        {
+            return false;
+        }
+
+        using var bitmap = new SKBitmap(
+            width,
+            height,
+            components == 1 ? SKColorType.Gray8 : SKColorType.Rgba8888,
+            SKAlphaType.Opaque);
+        var target = bitmap.GetPixelSpan();
+        if (components == 1)
+        {
+            pixels[..count].CopyTo(target);
+        }
+        else
+        {
+            for (var pixel = 0; pixel < count; pixel++)
+            {
+                pixels.Slice(pixel * 3, 3).CopyTo(target.Slice(pixel * 4, 3));
+                target[(pixel * 4) + 3] = 0xff;
+            }
+        }
+
+        using var encoded = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+        read = encoded?.ToArray() ?? [];
+        return read.Length > 0;
+
+        Memory<byte> DecodeFilters()
+        {
+            Memory<byte> data = raw;
+            for (var index = 0; index < decodable; index++)
+            {
+                data = filters[index].Decode(data, image.ImageDictionary, filterProvider, index);
+            }
+
+            return data;
+        }
     }
 
     private static ReadOutcome ReadDocx(

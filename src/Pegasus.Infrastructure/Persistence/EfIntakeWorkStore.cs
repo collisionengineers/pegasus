@@ -1,4 +1,3 @@
-using System.Data;
 using Pegasus.Core.Intake;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -62,7 +61,7 @@ public sealed class EfIntakeWorkStore(
                     staged,
                     cancellationToken)
                     ? StagedArtifactAuthorityState.Completed
-                    : StagedArtifactAuthorityState.Unmatched,
+                    : StagedArtifactAuthorityState.CompletedSourceNotRetained,
                 "pending" or "dispatching" or "dispatched" or "processing" or "retry_scheduled"
                     => StagedArtifactAuthorityState.Pending,
                 _ => StagedArtifactAuthorityState.Unmatched
@@ -136,9 +135,7 @@ public sealed class EfIntakeWorkStore(
     {
         var channel = EfIntakeReceiptStore.ToCode(receipt.SourceIdentity.Channel);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.ReadCommitted,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
 
         var existing = await context.IntakeStagedReceipts
             .Include(item => item.WorkItem)
@@ -201,18 +198,16 @@ public sealed class EfIntakeWorkStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
-        var candidate = await FindNextDispatchCandidateAsync(context, nowUtc, cancellationToken);
-        if (candidate is null)
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        if (await FindNextDispatchCandidateAsync(context, nowUtc, cancellationToken) is not { } candidateId)
         {
             return null;
         }
 
-        var item = await context.IntakeWorkItems.SingleOrDefaultAsync(
-            item => item.Id == candidate.Value.Id
-                && (item.State == "pending" || item.State == "retry_scheduled"),
+        // A claim that lost the item to a concurrent one waits on its lock,
+        // then finds it no longer pending, and the tick ends at that null.
+        var item = await Locked(context, candidateId).SingleOrDefaultAsync(
+            item => item.State == "pending" || item.State == "retry_scheduled",
             cancellationToken);
         if (item is null || item.DueAtUtc > nowUtc)
         {
@@ -240,12 +235,9 @@ public sealed class EfIntakeWorkStore(
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(leaseDuration, TimeSpan.Zero);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
-        var item = await context.IntakeWorkItems.SingleOrDefaultAsync(
-            candidate => candidate.StagedReceiptId == stagedReceiptId
-                && (candidate.State == "pending" || candidate.State == "retry_scheduled")
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        var item = await LockedForReceipt(context, stagedReceiptId).SingleOrDefaultAsync(
+            candidate => (candidate.State == "pending" || candidate.State == "retry_scheduled")
                 && candidate.DueAtUtc <= nowUtc,
             cancellationToken);
         if (item is null)
@@ -294,12 +286,10 @@ public sealed class EfIntakeWorkStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
-        var item = await context.IntakeWorkItems
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        var item = await LockedForReceipt(context, stagedReceiptId)
             .Include(item => item.StagedReceipt)
-            .SingleOrDefaultAsync(item => item.StagedReceiptId == stagedReceiptId, cancellationToken);
+            .SingleOrDefaultAsync(cancellationToken);
         if (item is null || item.State is "completed" or "failed")
         {
             return null;
@@ -340,11 +330,9 @@ public sealed class EfIntakeWorkStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
-        var item = await context.IntakeWorkItems.SingleOrDefaultAsync(item =>
-            item.Id == workItemId && item.LeaseToken == leaseToken,
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        var item = await Locked(context, workItemId).SingleOrDefaultAsync(
+            item => item.LeaseToken == leaseToken,
             cancellationToken)
             ?? throw new InvalidOperationException("The intake work item lease was lost before completion.");
         var stagedReceiptId = item.StagedReceiptId;
@@ -535,37 +523,36 @@ public sealed class EfIntakeWorkStore(
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    private static async Task<DispatchCandidate?> FindNextDispatchCandidateAsync(
+    /// <summary>
+    /// The earliest due item waiting for dispatch, read as one row.
+    /// </summary>
+    private static Task<Guid?> FindNextDispatchCandidateAsync(
         PegasusDbContext context,
         DateTimeOffset nowUtc,
-        CancellationToken cancellationToken)
-    {
-        DispatchCandidate? next = null;
-        for (var offset = 0; ; offset += CandidateBatchSize)
-        {
-            var batch = await context.IntakeWorkItems
-                .AsNoTracking()
-                .Where(item => item.State == "pending" || item.State == "retry_scheduled")
-                .OrderBy(item => item.Id)
-                .Skip(offset)
-                .Take(CandidateBatchSize)
-                .Select(item => new DispatchCandidate(item.Id, item.DueAtUtc))
-                .ToListAsync(cancellationToken);
-            foreach (var candidate in batch)
-            {
-                if (candidate.DueAtUtc <= nowUtc
-                    && (next is null || Compare(candidate, next.Value) < 0))
-                {
-                    next = candidate;
-                }
-            }
+        CancellationToken cancellationToken) =>
+        context.IntakeWorkItems
+            .AsNoTracking()
+            .Where(item => (item.State == "pending" || item.State == "retry_scheduled")
+                && item.DueAtUtc <= nowUtc)
+            .OrderBy(item => item.DueAtUtc)
+            .ThenBy(item => item.Id)
+            .Select(item => (Guid?)item.Id)
+            .FirstOrDefaultAsync(cancellationToken);
 
-            if (batch.Count < CandidateBatchSize)
-            {
-                return next;
-            }
-        }
-    }
+    /// <summary>
+    /// The work item, read <c>UPDLOCK, HOLDLOCK</c> for the rest of the
+    /// transaction. A work item has no concurrency token, so each claim and
+    /// lease-guarded write reads it this way and a concurrent one waits.
+    /// </summary>
+    private static IQueryable<IntakeWorkItemEntity> Locked(PegasusDbContext context, Guid workItemId) =>
+        context.IntakeWorkItems.FromSqlInterpolated(
+            $"SELECT * FROM [IntakeWorkItems] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {workItemId}");
+
+    private static IQueryable<IntakeWorkItemEntity> LockedForReceipt(
+        PegasusDbContext context,
+        Guid stagedReceiptId) =>
+        context.IntakeWorkItems.FromSqlInterpolated(
+            $"SELECT * FROM [IntakeWorkItems] WITH (UPDLOCK, HOLDLOCK) WHERE [StagedReceiptId] = {stagedReceiptId}");
 
     private static async Task<RecoveryCandidate[]> FindRecoveryCandidatesAsync(
         PegasusDbContext context,
@@ -631,19 +618,11 @@ public sealed class EfIntakeWorkStore(
         }
     }
 
-    private static int Compare(DispatchCandidate left, DispatchCandidate right)
-    {
-        var comparison = left.DueAtUtc.CompareTo(right.DueAtUtc);
-        return comparison != 0 ? comparison : left.Id.CompareTo(right.Id);
-    }
-
     private static int Compare(RecoveryCandidate left, RecoveryCandidate right)
     {
         var comparison = left.RecoverableAtUtc.CompareTo(right.RecoverableAtUtc);
         return comparison != 0 ? comparison : left.Id.CompareTo(right.Id);
     }
-
-    private readonly record struct DispatchCandidate(Guid Id, DateTimeOffset DueAtUtc);
 
     private readonly record struct RecoveryCandidate(
         Guid Id,

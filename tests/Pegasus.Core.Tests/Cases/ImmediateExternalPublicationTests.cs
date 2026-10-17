@@ -10,6 +10,7 @@ using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Cases;
 
+[Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed class ImmediateExternalPublicationTests
 {
     private sealed class RecordingTriagePairing : ITriageCasePairing

@@ -46,6 +46,7 @@ public sealed class RecoveryTests
             store,
             services.GetRequiredService<IStagedArtifactAuthority>(),
             services.GetRequiredService<IIntakeArtifactStore>(),
+            new StagedArtifactSweepCursor(),
             clock);
         Assert.Equal(1, (await reconciler.ExecuteAsync(10)).RecoveredWorkItems);
         Assert.Equal(0, (await reconciler.ExecuteAsync(10)).RecoveredWorkItems);
@@ -88,6 +89,7 @@ public sealed class RecoveryTests
             store,
             services.GetRequiredService<IStagedArtifactAuthority>(),
             services.GetRequiredService<IIntakeArtifactStore>(),
+            new StagedArtifactSweepCursor(),
             clock);
 
         clock.Advance(TimeSpan.FromSeconds(59));

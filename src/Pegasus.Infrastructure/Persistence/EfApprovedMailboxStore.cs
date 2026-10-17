@@ -1,4 +1,3 @@
-using System.Data;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
@@ -151,8 +150,10 @@ public sealed class EfApprovedMailboxStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // A mailbox has no concurrency token, so its row is the first lock.
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [ApprovedMailboxes] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {request.MailboxId}",
             cancellationToken);
 
         var replay = await context.ActionHistory

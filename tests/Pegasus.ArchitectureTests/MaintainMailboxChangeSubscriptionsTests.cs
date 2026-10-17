@@ -84,20 +84,37 @@ public sealed class MaintainMailboxChangeSubscriptionsTests
     }
 
     [Fact]
-    public async Task ASubscriptionOutsideTheRenewalWindowMakesNoGraphCallAndIsStamped()
+    public async Task AnEstateWithNothingDueReadsOnceAndWritesNothing()
     {
-        var current = Active(expiresAtUtc: Now.AddHours(49));
-        var store = new FakeStore(Candidate(current));
+        var store = new FakeStore();
         var fake = new FakeGraph();
         var pass = Pass(store, fake);
 
         await pass.ExecuteAsync(default);
 
+        Assert.Single(store.Reads);
         Assert.Empty(fake.Requests);
+        Assert.Empty(store.Saved);
+        Assert.Empty(store.Failures);
+    }
+
+    [Fact]
+    public async Task AMissedSubscriptionIsRenewedAndSavedActive()
+    {
+        var missed = Active(expiresAtUtc: Now.AddDays(5))
+            with { LifecycleState = ApprovedMailboxSubscriptionLifecycleState.Missed };
+        var store = new FakeStore(Candidate(missed));
+        var fake = new FakeGraph();
+        var pass = Pass(store, fake);
+
+        await pass.ExecuteAsync(default);
+
+        var request = Assert.Single(fake.Requests);
+        Assert.Equal(HttpMethod.Patch, request.Method);
+        Assert.EndsWith($"/subscriptions/{SubscriptionId}", request.Path, StringComparison.Ordinal);
         var saved = Assert.Single(store.Saved);
-        Assert.Equal(Now, saved.Subscription.LastMaintainedAtUtc);
-        Assert.Null(saved.Subscription.LastMaintenanceFailureCode);
-        Assert.Equal(current.ExpiresAtUtc, saved.Subscription.ExpiresAtUtc);
+        Assert.Equal(ApprovedMailboxSubscriptionLifecycleState.Active, saved.Subscription.LifecycleState);
+        Assert.Equal(SubscriptionId, saved.ExpectedPriorSubscriptionId);
     }
 
     [Fact]

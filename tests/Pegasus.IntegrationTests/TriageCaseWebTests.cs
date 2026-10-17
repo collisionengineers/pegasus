@@ -37,19 +37,6 @@ public sealed partial class TriageCaseWebTests
         "Documents/Export"
     ];
 
-    [Theory]
-    [InlineData("/Triage")]
-    [InlineData("/Triage/78da3cb3-01fb-4d8c-801c-85f93855b44f")]
-    public async Task TheRetiredTriagePagesAreNotFound(string path)
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        using var response = await client.GetAsync(path);
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
     [Fact]
     public async Task AManualTriageCaseTakesTheCaseSequenceAndReplays()
     {

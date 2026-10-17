@@ -15,7 +15,7 @@ public sealed class CaseWorkspaceScriptContractTests
     public void ARetainedSectionsFormsAdvanceEitherNameOfTheCaseVersion()
     {
         var script = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
 
         Assert.Contains(
             "var version = form.querySelector('[name=\"expectedVersion\"], [name=\"expectedCaseVersion\"]');",
@@ -32,7 +32,7 @@ public sealed class CaseWorkspaceScriptContractTests
     public void TheTasksDialogLoadsItsBodyAsItOpensAndACatchUpOpensNoDialog()
     {
         var script = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
 
         Assert.Contains("event.target.closest('[data-dialog-open=\"case-tasks-dialog\"]')", script, StringComparison.Ordinal);
         Assert.Contains("fetch(fragmentPath + '?section=tasks'", script, StringComparison.Ordinal);
@@ -51,7 +51,7 @@ public sealed class CaseWorkspaceScriptContractTests
     public void TheViewerScrollsIntoViewInTheOnePlaceEveryOpenGoesThrough()
     {
         var script = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
 
         var show = FunctionBody(script, "function show(at) {");
         Assert.Contains("bringIntoView();", show, StringComparison.Ordinal);
@@ -76,7 +76,7 @@ public sealed class CaseWorkspaceScriptContractTests
     public void TheHeartbeatCatchesUpWithTheCaseAndNeverOffersToRenew()
     {
         var script = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
 
         var beat = FunctionBody(script, "function beat() {");
         Assert.Contains(
@@ -103,7 +103,7 @@ public sealed class CaseWorkspaceScriptContractTests
     public void TheEditScopeHeartbeatStopsWhenSignInRedirectsIt()
     {
         var site = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "site.js"));
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "site.js"));
 
         var start = site.IndexOf("function bindEditScopeHeartbeats(root) {", StringComparison.Ordinal);
         Assert.True(start >= 0);
@@ -126,7 +126,7 @@ public sealed class CaseWorkspaceScriptContractTests
     public void CatchingUpKeepsEverySectionHoldingAValueNotYetSent()
     {
         var script = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
 
         Assert.Contains(
             "if (!current || !main.contains(current) || holdsUnsent(current)) { return; }",
@@ -148,7 +148,7 @@ public sealed class CaseWorkspaceScriptContractTests
     public void ALandedSaveRedrawsTheSectionsThatShowWhatItChanged()
     {
         var script = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
 
         var settle = FunctionBody(script, "function settleQueue() {", "    ");
         Assert.Contains(
@@ -182,7 +182,7 @@ public sealed class CaseWorkspaceScriptContractTests
     public void ALandedDocumentActionRedrawsTheSectionsAsASaveDoes()
     {
         var script = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
 
         var action = FunctionBody(script, "function submitDocumentAction(form, submitter) {", "    ");
         Assert.Contains(
@@ -202,7 +202,7 @@ public sealed class CaseWorkspaceScriptContractTests
     public void ChoosingARepairSpecRedrawsOnlyTheRepairSpecPart()
     {
         var script = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
 
         Assert.Contains(
             "if (link.matches('[data-estimate-tab], [data-estimate-new]')) {",
@@ -237,7 +237,7 @@ public sealed class CaseWorkspaceScriptContractTests
     public void TheWorkCentreIntervalWaitsFiveMinutesFromTheLastAppliedRefresh()
     {
         var script = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "work-centre.js"));
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "work-centre.js"));
 
         Assert.Contains(
             "if (document.hidden || Date.now() - lastRefresh < FIVE_MINUTES) { return; }",
@@ -255,7 +255,7 @@ public sealed class CaseWorkspaceScriptContractTests
     public void TheLayoutScriptCarriesASavedMineScopeOnTheWorkCentreLinks()
     {
         var script = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(), "src", "Pegasus.Web", "wwwroot", "js", "site.js"));
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "site.js"));
 
         var start = script.IndexOf("window.localStorage.getItem('pegasus.workCentre.scope')", StringComparison.Ordinal);
         Assert.True(start >= 0, "The saved Work Centre scope is not read in site.js.");
@@ -276,22 +276,6 @@ public sealed class CaseWorkspaceScriptContractTests
         return script[start..end];
     }
 
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Pegasus.slnx")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate the Pegasus repository root.");
-    }
-
     /// <summary>
     /// Roadmap Lane H (FRD-16): the server answers a commit with the parts the script
     /// redraws after one, so a root the script gains and the answer never draws would
@@ -303,7 +287,7 @@ public sealed class CaseWorkspaceScriptContractTests
     [Fact]
     public void TheCommitAnswerDrawsEveryPartTheScriptRedrawsAfterACommit()
     {
-        var root = FindRepositoryRoot();
+        var root = RepositoryRoot.Find();
         var script = File.ReadAllText(Path.Combine(
             root, "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
         var cases = Path.Combine(root, "src", "Pegasus.Web", "Pages", "Cases");

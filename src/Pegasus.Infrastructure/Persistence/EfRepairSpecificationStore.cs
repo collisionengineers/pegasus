@@ -1,5 +1,4 @@
-﻿using System.Data;
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -79,9 +78,7 @@ public sealed class EfRepairSpecificationStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         _ = await RequiredWorkflowForUpdateAsync(context, caseId, cancellationToken);
         var existing = await context.ActionHistory
             .SingleOrDefaultAsync(
@@ -149,7 +146,7 @@ public sealed class EfRepairSpecificationStore(
 
     /// <summary>
     /// The Estimate Apply command: the saved Draft and both scaling snapshots
-    /// share this one serializable transaction and one operation key. The page
+    /// share this one transaction and one operation key. The page
     /// saves the specification with the Case before it asks.
     /// </summary>
     public async Task<RepairSpecificationVersion> ScaleAsync(
@@ -163,9 +160,8 @@ public sealed class EfRepairSpecificationStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken);
         // The Engineer's Value is read by the act, not posted: the hash is the
         // operator's intent, so a replay is judged on what was asked.
         var replayHash = Hash(request with { EngineerValue = null });
@@ -233,9 +229,8 @@ public sealed class EfRepairSpecificationStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken);
         var requestHash = Hash(request);
         if (await CaseOperationReplay.FindEventTypeAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken) is { } replayedEventType)
         {
@@ -319,9 +314,8 @@ public sealed class EfRepairSpecificationStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken);
         var requestHash = Hash(request);
         if (await CaseOperationReplay.FindEventTypeAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken) is { } replayedEventType)
         {
@@ -410,9 +404,8 @@ public sealed class EfRepairSpecificationStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken);
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
         var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken);
@@ -646,9 +639,8 @@ public sealed class EfRepairSpecificationStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken);
         var requestHash = Hash(request);
         if (await CaseOperationReplay.FindEventTypeAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken) is { } replayedEventType)
         {
@@ -703,9 +695,8 @@ public sealed class EfRepairSpecificationStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken);
         var requestHash = Hash(request);
         if (await CaseOperationReplay.FindAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
         {
@@ -739,9 +730,8 @@ public sealed class EfRepairSpecificationStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken);
         var requestHash = Hash(request);
         if (await CaseOperationReplay.FindEventTypeAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken) is { } replayedEventType)
         {

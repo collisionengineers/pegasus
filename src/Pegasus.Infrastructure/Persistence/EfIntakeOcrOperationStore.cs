@@ -1,4 +1,3 @@
-using System.Data;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Custody;
@@ -70,8 +69,8 @@ public sealed class EfIntakeOcrOperationStore(
 
     /// <summary>
     /// Records the operation's identity before anything is sent anywhere.
-    /// Idempotent on the operation key, under serializable isolation and behind
-    /// the key's unique index: a replay returns the recorded operation, and a
+    /// Idempotent on the operation key, behind the key's unique index: a
+    /// replay returns the recorded operation, and a
     /// key already used for a DIFFERENT source or page set is refused rather
     /// than overwritten.
     /// </summary>
@@ -89,8 +88,12 @@ public sealed class EfIntakeOcrOperationStore(
         var key = request.OperationKey.Trim();
         var pages = request.QualifiedPages.Order().ToArray();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The operation key's row, or the gap a new one would fill, is the
+        // first lock, so a second begin under the key waits and replays.
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [IntakeOcrOperations] WITH (UPDLOCK, HOLDLOCK) WHERE [OperationKey] = {key}",
+            cancellationToken);
 
         var existing = await context.Set<IntakeOcrOperationEntity>()
             .SingleOrDefaultAsync(item => item.OperationKey == key, cancellationToken);
@@ -342,8 +345,9 @@ public sealed class EfIntakeOcrOperationStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The paired work item has no concurrency token, so it is locked first.
+        await EfExternalWorkStore.LockAsync(context, operationId, cancellationToken);
         var entity = await context.Set<IntakeOcrOperationEntity>()
             .SingleOrDefaultAsync(item => item.Id == operationId, cancellationToken)
             ?? throw new IntakeOcrOperationConflictException();
@@ -466,8 +470,9 @@ public sealed class EfIntakeOcrOperationStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The paired work item has no concurrency token, so it is locked first.
+        await EfExternalWorkStore.LockAsync(context, operationId, cancellationToken);
         var entity = await context.Set<IntakeOcrOperationEntity>()
             .SingleOrDefaultAsync(item => item.Id == operationId, cancellationToken)
             ?? throw new IntakeOcrOperationConflictException();

@@ -1,4 +1,3 @@
-using System.Data;
 using System.Globalization;
 using System.Linq.Expressions;
 using System.Security.Cryptography;
@@ -52,9 +51,16 @@ public sealed class EfImageIntakeStore(
         var requestFingerprint = RegisterFingerprint(request, vrm);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The submission group, then the originating receipt, are the first
+        // locks, so a second registration of either waits and replays below.
+        if (request.SubmissionGroupId is { } lockedGroupId)
+        {
+            await context.Database.ExecuteSqlAsync(
+                $"SELECT 1 FROM [IntakeSubmissionGroups] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {lockedGroupId}",
+                cancellationToken);
+        }
+        await EfIntakeReceiptStore.LockAsync(context, request.Origin.ReceiptId, cancellationToken);
 
         var now = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
         var replay = await context.ImageIntakes
@@ -167,9 +173,14 @@ public sealed class EfImageIntakeStore(
                 "Only an image-only intake receipt awaiting sorting can register an Image intake.");
         }
 
-        var sequence = await context.ImageIntakeSequences.SingleOrDefaultAsync(
-            item => item.NormalizedVehicleRegistration == vrm,
-            cancellationToken);
+        // UPDLOCK, HOLDLOCK, as CaseIdentityAllocator: Image intakes of one
+        // vehicle registration queue here, and a missing row locks its key.
+        var sequence = await context.ImageIntakeSequences
+            .FromSqlInterpolated($"""
+                SELECT * FROM [ImageIntakeSequences] WITH (UPDLOCK, HOLDLOCK)
+                WHERE [NormalizedVehicleRegistration] = {vrm}
+                """)
+            .SingleOrDefaultAsync(cancellationToken);
         if (sequence is null)
         {
             sequence = new ImageIntakeSequenceEntity
@@ -452,9 +463,8 @@ public sealed class EfImageIntakeStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfIntakeReceiptStore.LockAsync(context, intakeReceiptId, cancellationToken);
         var registration = await FindForReceiptAsync(context, intakeReceiptId, cancellationToken)
             ?? await FindRegisteredGroupForMemberAsync(context, intakeReceiptId, cancellationToken);
         if (registration is null)
@@ -571,8 +581,11 @@ public sealed class EfImageIntakeStore(
     {
         ImageIntakeLifecycleRules.ValidateSetPrincipal(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // An Image intake has no concurrency token, so its row is locked
+        // before it is read.
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [ImageIntakes] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {request.ImageIntakeId}",
             cancellationToken);
         var entity = await context.ImageIntakes.SingleOrDefaultAsync(
             item => item.Id == request.ImageIntakeId,
@@ -661,7 +674,10 @@ public sealed class EfImageIntakeStore(
         var fingerprint = TransitionFingerprint(imageIntakeId, eventType, actor, reason, caseId,
             expectedStaffOriginAssociationVersion);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        // Serializable: an automatic merge is decided on the one eligible Case
+        // among every Case with the registration, and on each member
+        // receipt's association; no one row covers them.
+        await using var transaction = await context.Database.BeginSerializableAsync(cancellationToken);
         var replay = await context.ImageIntakeLifecycleEvents.AsNoTracking()
             .SingleOrDefaultAsync(item => item.OperationKey == operation, cancellationToken);
         if (replay is not null)
@@ -861,6 +877,63 @@ public sealed class EfImageIntakeStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await ProjectAsync(
+            NewestFirst(ListFilter(context, associated, state)),
+            context,
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ImageIntakeSummary>> ListWindowAsync(
+        bool? associated,
+        ImageInitiatedCaseState? state,
+        int skip,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(skip);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(take);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // The window is applied before the projection, so only its rows pay
+        // for the per-row reads.
+        return await ProjectAsync(
+            NewestFirst(ListFilter(context, associated, state)).Skip(skip).Take(take),
+            context,
+            cancellationToken);
+    }
+
+    public async Task<int?> ListPositionAsync(
+        bool? associated,
+        ImageInitiatedCaseState? state,
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var query = ListFilter(context, associated, state);
+        var createdAtUtc = await query
+            .Where(item => item.Id == id)
+            .Select(item => (DateTimeOffset?)item.CreatedAtUtc)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (createdAtUtc is not { } created)
+        {
+            return null;
+        }
+
+        // The rows ahead of it in the NewestFirst order.
+        return await query.CountAsync(
+            item => item.CreatedAtUtc > created
+                || (item.CreatedAtUtc == created && item.Id.CompareTo(id) > 0),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// The one owner of the <see cref="ListAsync"/> filter: lifecycle state and
+    /// whether the record has a current Case.
+    /// </summary>
+    private static IQueryable<ImageIntakeEntity> ListFilter(
+        PegasusDbContext context,
+        bool? associated,
+        ImageInitiatedCaseState? state)
+    {
         IQueryable<ImageIntakeEntity> query = context.ImageIntakes.AsNoTracking();
         if (state is { } lifecycleState)
         {
@@ -885,11 +958,15 @@ public sealed class EfImageIntakeStore(
                     hasCase.Parameters));
         }
 
-        return await ProjectAsync(
-            query.OrderByDescending(item => item.CreatedAtUtc),
-            context,
-            cancellationToken);
+        return query;
     }
+
+    /// <summary>
+    /// The one owner of the <see cref="ListAsync"/> order; the id breaks ties
+    /// so a window boundary falls the same way on every read.
+    /// </summary>
+    private static IOrderedQueryable<ImageIntakeEntity> NewestFirst(IQueryable<ImageIntakeEntity> query) =>
+        query.OrderByDescending(item => item.CreatedAtUtc).ThenByDescending(item => item.Id);
 
     public async Task<IReadOnlyList<ImageIntakeSummary>> ListPendingPairingAsync(
         int maximumItems,
@@ -1897,8 +1974,11 @@ public sealed class EfImageVrmSuggestionStore(
         ArgumentException.ThrowIfNullOrWhiteSpace(draft.OperationKey);
         var operationKey = draft.OperationKey.Trim();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        // The operation key's row, or the gap a new one would fill, is the
+        // first lock, so a second record under the key waits and replays.
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [ImageVrmSuggestions] WITH (UPDLOCK, HOLDLOCK) WHERE [OperationKey] = {operationKey}",
             cancellationToken);
         var existing = await context.ImageVrmSuggestions
             .AsNoTracking()
@@ -1964,8 +2044,9 @@ public sealed class EfImageVrmSuggestionStore(
 
         var operationKey = request.OperationKey.Trim();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [ImageVrmSuggestions] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {request.SuggestionId}",
             cancellationToken);
         var entity = await context.ImageVrmSuggestions.SingleOrDefaultAsync(
             item => item.Id == request.SuggestionId,

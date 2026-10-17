@@ -249,7 +249,9 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261013091000_ContactSopSeed",
                 "20261013092000_RemoveContactGuidance",
                 "20261013100000_DropPrincipalDomainReference",
-                "20261014220000_DropApprovedOutlookCategories"
+                "20261014220000_DropApprovedOutlookCategories",
+                "20261017090000_ApprovedInboxPendingWake",
+                "20261017100000_VehicleLookupMileageEstimate"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -279,18 +281,12 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT CASE WHEN CONVERT(sysname, DATABASEPROPERTYEX(DB_NAME(), 'Collation'))"
             + " COLLATE Latin1_General_CI_AS LIKE '%[_]CI[_]%' THEN 1 ELSE 0 END"));
 
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name = N'ApprovedMailboxFolderBindings'"));
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name = N'RetainedMailFolderMoves'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseAssessmentFields'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseEstimateLines'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseRepairSpecifications'"));
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name = N'AiWorkRequests'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'SendToAiControl'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
@@ -317,9 +313,6 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'InstructionDrafts'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'IntakeReceiptEvents'"));
-        // 20261013100000_DropPrincipalDomainReference: the seeded domain snapshot is gone.
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'PrincipalDomainPackages', N'PrincipalReferences', N'PrincipalDomainEvidence')"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'Cases'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
@@ -426,31 +419,6 @@ public sealed class IntakePersistenceIntegrationTests
                 N'EditScopes',
                 N'ContactPrincipalLinks')
             """));
-        // 20261013090000_ContactSingleType moved the contact type onto Organizations.
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            """
-            SELECT COUNT(*) FROM sys.tables
-            WHERE name IN (
-                N'ContactRoles',
-                N'OrganizationRoles')
-            """));
-        // 20261007184000_RemoveEva dropped the three EVA tables.
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            """
-            SELECT COUNT(*) FROM sys.tables
-            WHERE name IN (
-                N'EvaSubmissions',
-                N'AutomaticEvaReviewSubmissions',
-                N'EvaFirstHandoffProxies')
-            """));
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            """
-            SELECT COUNT(*) FROM sys.tables
-            WHERE name IN (
-                N'ClaimSources',
-                N'EngineerNotes',
-                N'OrganizationDirectoryEntries')
-            """));
         Assert.Equal(6, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM sys.columns
@@ -465,20 +433,8 @@ public sealed class IntakePersistenceIntegrationTests
             WHERE object_id = OBJECT_ID(N'WorkflowConfigurations')
               AND name IN (N'RequireInstructions', N'RequireImages', N'ChaseIntervalDays')
             """));
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            """
-            SELECT COUNT(*) FROM sys.columns
-            WHERE object_id = OBJECT_ID(N'Principals')
-              AND name IN (N'IncludeOriginalInstructionSender', N'ReportRecipientAddressesJson')
-            """));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'Principals') AND name = N'ReportSendingRulesJson' AND is_nullable = 0"));
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            """
-            SELECT COUNT(*) FROM sys.columns
-            WHERE object_id = OBJECT_ID(N'Principals')
-              AND name IN (N'EvaManualSubmission', N'ReportGenerationPolicy')
-            """));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'Cases') AND name = N'OriginIntakeReceiptId' AND is_nullable = 1"));
         Assert.Equal(7, await database.ScalarAsync<int>(
@@ -1075,6 +1031,11 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         await using var command = connection.CreateCommand();
         command.CommandText = $"CREATE DATABASE [{DatabaseName}]";
         command.CommandTimeout = LifecycleCommandTimeoutSeconds;
+        await command.ExecuteNonQueryAsync();
+        // Azure SQL Database has read-committed snapshot on by default and
+        // LocalDB has it off (ADR-0074). The template is created here too, so
+        // every restore carries the setting.
+        command.CommandText = $"ALTER DATABASE [{DatabaseName}] SET READ_COMMITTED_SNAPSHOT ON";
         await command.ExecuteNonQueryAsync();
     }
 

@@ -322,6 +322,7 @@ from where the Case mileage came from; it is not recorded separately.
 | Extracted from the instruction, including a third-party engineer report supplied with it | `principal` |
 | DVSA lookup | `online_data` |
 | Staff-entered: the Case page reads Custom, and nothing is picked (operator, 12 October 2026) | `online_data` |
+| Estimated from the MOT history: the Case page reads Estimated | `estimated` |
 | No mileage on the Case | `tbc` |
 
 The `owner`, `repairer` and `average` codes are still renderer sentences, but
@@ -383,7 +384,9 @@ neither picks a provider nor authorises an external call.
   version, estimate or range, calibration evidence and staff disposition stay
   distinct, source-labelled identities.
 - **Excluded.** No provider adapter, scheduled lookup, cohort dataset,
-  automatic external call or unreviewed Case change is created here.
+  automatic external call or unreviewed Case change is created here, except
+  that the lookup fills an empty Case mileage with an exact reading or an
+  estimate (operator, 16 October 2026).
 - **Irreversible choice.** The estimate may be derived only by this
   conservative algorithm. Unsafe evidence gives an abstention or a qualified
   range, never an invented mileage.

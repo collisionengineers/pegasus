@@ -76,8 +76,7 @@ public sealed class EfCaseDueChaserStore(
         Validate(transition);
         var requestHash = RequestHash(transition);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
 
         var replay = await context.Set<CaseDueChaserEntity>()
             .AsNoTracking()

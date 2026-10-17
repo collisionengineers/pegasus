@@ -56,6 +56,20 @@ public sealed class VehicleNoMotHistoryTests
         Assert.False(VehicleMileagePolicy.HasNoMotHistory(Observation(VehicleLookupOutcome.Current, null, []), null));
     }
 
+    [Fact]
+    public void NoMotHistoryAbstainsWhereTheBoxReadsNoMotHistory()
+    {
+        var answered = Observation(VehicleLookupOutcome.Current, null, []);
+        Assert.True(VehicleMileagePolicy.HasNoMotHistory(answered, Registration));
+
+        var estimate = MotMileageEstimationPolicy.Estimate(
+            answered.MotTests,
+            DateOnly.FromDateTime(answered.Provenance.RetrievedAtUtc.UtcDateTime));
+
+        Assert.Equal(MotMileageEstimateKind.Abstention, estimate.Kind);
+        Assert.Equal(MotMileageAbstentionReason.NoMotHistory, estimate.AbstentionReason);
+    }
+
     private static VehicleLookupObservation Observation(
         VehicleLookupOutcome outcome,
         string? failureCode,
@@ -72,6 +86,7 @@ public sealed class VehicleNoMotHistoryTests
             new("dvla-ves+dvsa-mot-history", "ves-1.2+mot-history-v1", "identity", at, at, at),
             null,
             tests,
+            null,
             null,
             failureCode is null ? null : new(failureCode, Retryable: false),
             at);

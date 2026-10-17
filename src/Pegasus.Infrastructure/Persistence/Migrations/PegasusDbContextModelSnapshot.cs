@@ -772,6 +772,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("nvarchar(320)");
 
+                    b.Property<DateTimeOffset?>("PendingWakeAtUtc")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<string>("ScopeFingerprint")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -7479,6 +7482,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<int?>("ManufactureYear")
                         .HasColumnType("int");
+
+                    b.Property<string>("MileageEstimateJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("MileageMethodKey")
                         .HasMaxLength(100)

@@ -35,7 +35,7 @@ namespace Pegasus.IntegrationTests;
 /// (operator, 28 September 2026).
 /// </summary>
 [Trait("Category", "SqlServer")]
-public sealed class CaseValuationV26WebTests
+public sealed class CaseValuationSectionWebTests
 {
     private static readonly (string Slug, string Name)[] GuideSources =
     [
@@ -1040,7 +1040,7 @@ public sealed class CaseValuationV26WebTests
             Substitute<ICaseDataQueries>(services, store);
             ConnectGlass(services, mva);
             services.AddScoped<IFileGuideValuationReport>(_ => filing);
-        });
+        }, keepDatabase: true);
 
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
         Assert.Contains("data-valuation-get", EntryCard(html, "glasses"), StringComparison.Ordinal);

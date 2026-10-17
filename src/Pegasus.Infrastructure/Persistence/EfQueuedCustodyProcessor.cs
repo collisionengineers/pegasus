@@ -750,7 +750,7 @@ internal sealed class EfQueuedCustodyProcessor(
         CancellationToken cancellationToken)
     {
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var now = timeProvider.GetUtcNow();
         var work = await TakeCompletableWorkAsync(context, workId, leaseToken, now, cancellationToken);
         if (work is null)
@@ -819,7 +819,7 @@ internal sealed class EfQueuedCustodyProcessor(
         CancellationToken cancellationToken)
     {
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var now = timeProvider.GetUtcNow();
         var work = await TakeCompletableWorkAsync(context, workId, leaseToken, now, cancellationToken);
         if (work is null)
@@ -869,7 +869,7 @@ internal sealed class EfQueuedCustodyProcessor(
         CancellationToken cancellationToken)
     {
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var now = timeProvider.GetUtcNow();
         var work = await TakeCompletableWorkAsync(
             context,
@@ -1322,7 +1322,7 @@ internal sealed class EfQueuedCustodyProcessor(
         CancellationToken cancellationToken)
     {
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var now = timeProvider.GetUtcNow();
         var work = await TakeCompletableWorkAsync(context, workId, leaseToken, now, cancellationToken);
         if (work is null)
@@ -1377,7 +1377,7 @@ internal sealed class EfQueuedCustodyProcessor(
         CancellationToken cancellationToken)
     {
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var now = timeProvider.GetUtcNow();
         var work = await TakeCompletableWorkAsync(context, workId, leaseToken, now, cancellationToken);
         if (work is null)

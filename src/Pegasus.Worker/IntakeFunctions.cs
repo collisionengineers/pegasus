@@ -27,7 +27,9 @@ namespace Pegasus.Worker;
 /// own five-minute timers, so they use this timer's warm instance instead of
 /// starting a cold one: the due-work sweep, then the approved-inbox fallback
 /// poll (Graph subscription maintenance first), then the sent-report instruction
-/// tidy (ADR-0071), a third job that was never on its own timer.
+/// tidy (ADR-0071), a third job that was never on its own timer. On every other
+/// minute it runs one folded job, the pending-wake poll: each mailbox whose wake
+/// found it leased or not yet due is polled then, not at the next fallback poll.
 /// </summary>
 /// <remarks>
 /// The dispatch runs first and nothing below delays it. Each folded job
@@ -87,18 +89,22 @@ public sealed partial class PendingWorkRecoveryFunction(
         }
 
         var foldedFailures = new List<ExceptionDispatchInfo>();
-        if (runFoldedJobs)
+        try
         {
-            try
+            if (runFoldedJobs)
             {
                 await RunFoldedJobAsync("due-work sweep", RunDueWorkSweepAsync, foldedFailures, cancellationToken);
                 await RunFoldedJobAsync("approved-inbox recovery", RunInboxRecoveryAsync, foldedFailures, cancellationToken);
                 await RunFoldedJobAsync("sent-report instruction tidy", RunInstructionTidyAsync, foldedFailures, cancellationToken);
             }
-            catch (Exception) when (dispatchFailure is not null && cancellationToken.IsCancellationRequested)
+            else
             {
-                dispatchFailure.Throw();
+                await RunFoldedJobAsync("pending-wake poll", RunPendingWakePollAsync, foldedFailures, cancellationToken);
             }
+        }
+        catch (Exception) when (dispatchFailure is not null && cancellationToken.IsCancellationRequested)
+        {
+            dispatchFailure.Throw();
         }
 
         dispatchFailure?.Throw();
@@ -136,6 +142,19 @@ public sealed partial class PendingWorkRecoveryFunction(
             InboxPollActor,
             cancellationToken);
         LogApprovedInboxPoll(logger, handled);
+    }
+
+    private async Task RunPendingWakePollAsync(CancellationToken cancellationToken)
+    {
+        var handled = await pollApprovedInbox.ExecutePendingWakesAsync(
+            50,
+            InboxPollActor,
+            cancellationToken);
+        // Most minutes have no recorded wake; they write no line.
+        if (handled > 0)
+        {
+            LogApprovedInboxPoll(logger, handled);
+        }
     }
 
     private async Task RunInstructionTidyAsync(CancellationToken cancellationToken)
@@ -473,9 +492,11 @@ public sealed partial class StagedArtifactReconciliationFunction(
             stagedLevel,
             result.RecoveredWorkItems,
             result.Completed,
+            result.Expired,
             result.Retained,
             result.Orphans,
             result.Unmatched,
+            result.UnmatchedKept,
             result.Failures);
 
         var cache = await documentContentCacheCleanup.ExecuteAsync(50, cancellationToken);
@@ -676,15 +697,17 @@ public sealed partial class StagedArtifactReconciliationFunction(
         ILogger logger, LogLevel level, int candidates, int linked, int failures, string? firstFailure);
 
     [LoggerMessage(
-        Message = "Reconciled staged intake artifacts: {RecoveredWorkItems} work items recovered, {Completed} completed and deleted, {Retained} retained, {Orphans} orphaned, {Unmatched} unmatched, and {Failures} failures.")]
+        Message = "Reconciled staged intake artifacts: {RecoveredWorkItems} work items recovered, {Completed} completed and deleted, {Expired} expired and deleted, {Retained} retained, {Orphans} orphaned, {Unmatched} unmatched ({UnmatchedKept} kept), and {Failures} failures.")]
     private static partial void LogStagedArtifactReconciliation(
         ILogger logger,
         LogLevel level,
         int recoveredWorkItems,
         int completed,
+        int expired,
         int retained,
         int orphans,
         int unmatched,
+        int unmatchedKept,
         int failures);
 
     [LoggerMessage(

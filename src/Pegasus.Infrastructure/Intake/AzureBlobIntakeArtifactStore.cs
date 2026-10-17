@@ -40,10 +40,7 @@ public sealed class AzureBlobIntakeArtifactStore
             storageKey,
             hash,
             content,
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                [HashMetadataName] = hash
-            },
+            CreateContentMetadata(hash),
             tags: null,
             cancellationToken);
         return storageKey;
@@ -76,10 +73,7 @@ public sealed class AzureBlobIntakeArtifactStore
                 buffered.ContentHash,
                 buffered.ContentLength,
                 buffered.Stream,
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    [HashMetadataName] = buffered.ContentHash
-                },
+                CreateContentMetadata(buffered.ContentHash),
                 tags: null,
                 cancellationToken);
         }
@@ -293,6 +287,51 @@ public sealed class AzureBlobIntakeArtifactStore
         }
     }
 
+    /// <summary>
+    /// Copies the staged blob to its content-addressed key inside the service,
+    /// so the bytes the caller has just read and verified are not sent again.
+    /// A destination that already exists, or whose copy did not finish with
+    /// those bytes, is reconciled rather than overwritten.
+    /// </summary>
+    public async Task<string> PromoteStagedAsync(
+        string stagingKey,
+        string contentHash,
+        ReadOnlyMemory<byte> verifiedContent,
+        CancellationToken cancellationToken)
+    {
+        var hash = ValidateContent(contentHash, verifiedContent);
+        if (!string.Equals(GetStagedStorageKeyHash(stagingKey), hash, StringComparison.Ordinal))
+        {
+            throw new IntakeArtifactIntegrityException();
+        }
+
+        var storageKey = $"sha256/{hash[..2]}/{hash}";
+        var destination = container.GetBlobClient(storageKey);
+        try
+        {
+            await EnsureContainerExistsAsync(cancellationToken);
+            if (!await TryCopyStagedAsync(
+                    container.GetBlobClient(stagingKey).Uri,
+                    destination,
+                    hash,
+                    verifiedContent.Length,
+                    cancellationToken))
+            {
+                await ReconcileDestinationAsync(
+                    destination,
+                    hash,
+                    verifiedContent.Length,
+                    cancellationToken);
+            }
+        }
+        catch (RequestFailedException exception)
+        {
+            throw DependencyUnavailable(exception);
+        }
+
+        return storageKey;
+    }
+
     public async Task<StagedArtifactInventoryItem?> GetStagedAsync(
         string storageKey,
         CancellationToken cancellationToken)
@@ -320,40 +359,46 @@ public sealed class AzureBlobIntakeArtifactStore
         }
     }
 
-    public async Task<IReadOnlyList<StagedArtifactInventoryItem>> ListStagedAsync(
+    public async Task<StagedArtifactInventoryPage> ListStagedAsync(
         int maximumItems,
+        string? continuation,
         CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         await EnsureContainerExistsAsync(cancellationToken);
 
-        var items = new List<StagedArtifactInventoryItem>(maximumItems);
-        await foreach (var blob in container.GetBlobsAsync(
-                           BlobTraits.Metadata | BlobTraits.Tags,
-                           BlobStates.None,
-                           StagingPrefix,
-                           cancellationToken))
+        await foreach (var page in container.GetBlobsAsync(
+                               BlobTraits.Metadata | BlobTraits.Tags,
+                               BlobStates.None,
+                               StagingPrefix,
+                               cancellationToken)
+                           .AsPages(continuation, maximumItems))
         {
-            if (!TryGetStagedStorageKeyHash(blob.Name, out var hash))
+            var items = new List<StagedArtifactInventoryItem>(page.Values.Count);
+            foreach (var blob in page.Values)
             {
-                continue;
+                if (!TryGetStagedStorageKeyHash(blob.Name, out var hash))
+                {
+                    continue;
+                }
+
+                items.Add(MapStaged(
+                    blob.Name,
+                    hash,
+                    blob.Properties.ContentLength ?? 0,
+                    blob.Properties.CreatedOn ?? DateTimeOffset.UnixEpoch,
+                    blob.Properties.ETag ?? default,
+                    blob.Metadata,
+                    blob.Tags));
             }
 
-            items.Add(MapStaged(
-                blob.Name,
-                hash,
-                blob.Properties.ContentLength ?? 0,
-                blob.Properties.CreatedOn ?? DateTimeOffset.UnixEpoch,
-                blob.Properties.ETag ?? default,
-                blob.Metadata,
-                blob.Tags));
-            if (items.Count == maximumItems)
-            {
-                break;
-            }
+            // The service ends the listing with an empty marker.
+            return new(
+                items,
+                string.IsNullOrEmpty(page.ContinuationToken) ? null : page.ContinuationToken);
         }
 
-        return items;
+        return new([], null);
     }
 
     public async Task<StagedArtifactInventoryItem?> TrySetStagedDispositionAsync(
@@ -438,32 +483,77 @@ public sealed class AzureBlobIntakeArtifactStore
         }
     }
 
-    public async Task<bool> DeleteCompletedStagedAsync(
+    public async Task<bool> DeleteStagedAsync(
         string storageKey,
         string expectedConcurrencyToken,
+        StagedArtifactDisposition expectedDisposition,
         CancellationToken cancellationToken)
     {
-        // Validates the key shape; the delete's ETag and Completed tag conditions guard the rest.
+        // Validates the key shape; the delete's ETag and tag conditions guard the rest.
         _ = GetStagedStorageKeyHash(storageKey);
         if (string.IsNullOrWhiteSpace(expectedConcurrencyToken))
         {
             return false;
         }
 
-        var expected = new ETag(expectedConcurrencyToken);
+        // The caller holds the item it just read or set. The ETag and the
+        // disposition tag condition on the delete itself reject a blob that
+        // changed or carries another disposition, so no re-read is needed.
+        return await DeleteIfUnchangedAsync(
+            container.GetBlobClient(storageKey),
+            new ETag(expectedConcurrencyToken),
+            expectedDisposition,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Three operations: read the ETag, tag the blob Completed under it, and
+    /// delete it under the same ETag and the Completed tag. A delete refused
+    /// here leaves a Completed tag over Pending metadata, which lists as
+    /// Unmatched and the reconciliation sweep repairs.
+    /// </summary>
+    public async Task<bool> TryCompleteStagedAsync(
+        string storageKey,
+        CancellationToken cancellationToken)
+    {
+        _ = GetStagedStorageKeyHash(storageKey);
         var blob = container.GetBlobClient(storageKey);
         try
         {
-            // The caller holds the item it just read or set Completed. The ETag
-            // and the Completed tag condition on the delete itself reject a
-            // blob that changed or is not Completed, so no re-read is needed.
+            var properties = await blob.GetPropertiesAsync(
+                cancellationToken: cancellationToken);
+            var etag = properties.Value.ETag;
+            await blob.SetTagsAsync(
+                CreateDispositionTags(StagedArtifactDisposition.Completed),
+                new BlobRequestConditions { IfMatch = etag },
+                cancellationToken);
+            return await DeleteIfUnchangedAsync(
+                blob,
+                etag,
+                StagedArtifactDisposition.Completed,
+                cancellationToken);
+        }
+        catch (RequestFailedException exception) when (exception.Status is 404 or 412)
+        {
+            return false;
+        }
+    }
+
+    private static async Task<bool> DeleteIfUnchangedAsync(
+        BlobClient blob,
+        ETag expected,
+        StagedArtifactDisposition expectedDisposition,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
             var deleted = await blob.DeleteIfExistsAsync(
                 DeleteSnapshotsOption.IncludeSnapshots,
                 new BlobRequestConditions
                 {
                     IfMatch = expected,
                     TagConditions = BuildDispositionTagCondition(
-                        StagedArtifactDisposition.Completed.ToString())
+                        expectedDisposition.ToString())
                 },
                 cancellationToken);
             return deleted.Value;
@@ -560,6 +650,79 @@ public sealed class AzureBlobIntakeArtifactStore
     }
 
     /// <summary>
+    /// Starts the copy and waits for it. True when it finished with the
+    /// expected length; false when the destination already exists. A copy that
+    /// failed or was aborted ends the wait without an exception and with a
+    /// length of zero, which the caller reconciles.
+    /// </summary>
+    private static async Task<bool> TryCopyStagedAsync(
+        Uri source,
+        BlobClient destination,
+        string hash,
+        long expectedLength,
+        CancellationToken cancellationToken)
+    {
+        CopyFromUriOperation copy;
+        try
+        {
+            copy = await destination.StartCopyFromUriAsync(
+                source,
+                new BlobCopyFromUriOptions
+                {
+                    Metadata = CreateContentMetadata(hash),
+                    DestinationConditions = new BlobRequestConditions { IfNoneMatch = ETag.All }
+                },
+                cancellationToken);
+        }
+        catch (RequestFailedException exception) when (exception.Status is 409 or 412)
+        {
+            return false;
+        }
+        catch (RequestFailedException exception) when (exception.Status == 404)
+        {
+            throw new IntakeArtifactIntegrityException();
+        }
+
+        return (await copy.WaitForCompletionAsync(cancellationToken)).Value == expectedLength;
+    }
+
+    /// <summary>
+    /// A destination that was already there, or whose copy did not finish as
+    /// expected: wait for a copy still running, delete the empty blob a failed
+    /// or aborted copy leaves (the queue retries and copies afresh), and
+    /// otherwise verify the stored bytes, as an existing upload is verified.
+    /// A blob that was never copied reads as Pending with no copy id.
+    /// </summary>
+    private static async Task ReconcileDestinationAsync(
+        BlobClient destination,
+        string hash,
+        long expectedLength,
+        CancellationToken cancellationToken)
+    {
+        var properties = (await destination.GetPropertiesAsync(
+            cancellationToken: cancellationToken)).Value;
+        if (properties.CopyStatus == CopyStatus.Pending && !string.IsNullOrEmpty(properties.CopyId))
+        {
+            await new CopyFromUriOperation(properties.CopyId, destination)
+                .WaitForCompletionAsync(cancellationToken);
+            properties = (await destination.GetPropertiesAsync(
+                cancellationToken: cancellationToken)).Value;
+        }
+
+        if (properties.CopyStatus is CopyStatus.Failed or CopyStatus.Aborted)
+        {
+            await destination.DeleteIfExistsAsync(
+                DeleteSnapshotsOption.IncludeSnapshots,
+                new BlobRequestConditions { IfMatch = properties.ETag },
+                cancellationToken);
+            throw new IntakeDependencyUnavailableException(
+                "The content-addressed copy of the staged artifact did not complete.");
+        }
+
+        await VerifyBlobAsync(destination, hash, expectedLength, cancellationToken);
+    }
+
+    /// <summary>
     /// The named fault Core retries on. Azure's own exception type stays in the
     /// adapter; Core matches only intake faults.
     /// </summary>
@@ -586,6 +749,12 @@ public sealed class AzureBlobIntakeArtifactStore
             throw new IntakeArtifactIntegrityException();
         }
     }
+
+    private static Dictionary<string, string> CreateContentMetadata(string hash) =>
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            [HashMetadataName] = hash
+        };
 
     private static Dictionary<string, string> CreateStagedMetadata(
         string hash,

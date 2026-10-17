@@ -1256,7 +1256,6 @@ public static class OperatorLabels
         "source_read_failure" or "source_reader_failure" =>
             "The file could not be read",
         "empty_message" => "The message was empty",
-        "message_too_large" => "The message was too large to process",
         "docx_limit_exceeded" =>
             "The Word document is larger than the processing limit allows",
         "intake_limit_exceeded" =>

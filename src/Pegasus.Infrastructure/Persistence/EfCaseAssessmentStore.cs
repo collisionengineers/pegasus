@@ -1,4 +1,3 @@
-using System.Data;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -14,7 +13,8 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// Persists the assessment surface with exactly the guards and evidence of a
-/// staff case save: one serializable transaction, operation-key replay via
+/// staff case save: one transaction under the Case's workflow lock,
+/// operation-key replay via
 /// the case workflow event stream, optimistic case version, the server-owned
 /// edit lease, and the same three history records (workflow event, permanent
 /// action history with before/after values, case history). An Automation
@@ -74,9 +74,8 @@ public sealed class EfCaseAssessmentStore(
         request = AssessmentPolicy.ValidateAndNormalize(request);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken);
         var requestHash = RequestHash(request);
         var replayed = await CaseOperationReplay.FindAsync(
             context, request.CaseId, request.OperationKey, requestHash, cancellationToken);

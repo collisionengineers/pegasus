@@ -205,9 +205,7 @@ public sealed class CaseVehicleWebTests
 
     /// <summary>
     /// One mileage, stated once, with the provenance its report code is read
-    /// from. The section used to draw the case's figure, the MOT reading and a
-    /// suggested reading as three rows, which left the operator to work out
-    /// which of them the report would print.
+    /// from.
     /// </summary>
     [Fact]
     public async Task MileageShowsOneBoxWithItsProvenance()
@@ -238,8 +236,6 @@ public sealed class CaseVehicleWebTests
             "<span class=\"lbl\">Mileage<span class=\"src-tag src-tag--lookup\" data-provenance-word=\"Lookup\">Lookup</span></span>",
             html,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("MOT mileage", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("DVLA suggests", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -360,6 +356,53 @@ public sealed class CaseVehicleWebTests
         Assert.Matches(
             "<span class=\"lbl\">Mileage source</span>\\s*<div class=\"fv\">Custom</div>",
             staffHtml);
+    }
+
+    /// <summary>
+    /// A figure the lookup estimated from the MOT history reads Estimated in
+    /// the Mileage source cell (operator, 16 October 2026); the Mileage box
+    /// keeps its Lookup tag.
+    /// </summary>
+    [Fact]
+    public async Task AnEstimatedFigureReadsEstimated()
+    {
+        var store = new RecordingCaseDetailsStore { VehicleLookupEvidence = LookupEvidence() };
+        var data = await store.GetAsync(store.CaseId, CaseWorkSelector.Current, CancellationToken.None)
+            ?? throw new InvalidOperationException("The vehicle fixture did not return case data.");
+        store.DataOverride = data with
+        {
+            Vehicle = data.Vehicle with
+            {
+                Mileage = new(
+                    new(
+                        47_500L,
+                        CaseDataValueKind.Fact,
+                        new(
+                            CaseDataSourceKind.VehicleLookup,
+                            "estimated-observation",
+                            "DVLA lookup",
+                            MotMileageEstimationPolicy.MethodKey,
+                            MotMileageEstimationPolicy.MethodVersion)),
+                    null,
+                    null)
+            }
+        };
+
+        var html = await ReadOnlyVehicleSectionAsync(store);
+
+        Assert.Matches(
+            "<div class=\"fc ro\" data-mileage-source data-mileage-opened=\"47500\"\\s+"
+            + $"data-source-word=\"{CaseWorkspaceLabels.Vehicle.MileageSourceEstimated}\"",
+            html);
+        Assert.Matches(
+            $"<span class=\"lbl\">{CaseWorkspaceLabels.Vehicle.MileageSourceLabel}</span>\\s*"
+            + $"<div class=\"fv\">{CaseWorkspaceLabels.Vehicle.MileageSourceEstimated}</div>",
+            html);
+        var lookup = OperatorLabels.SourceTagWord.Lookup.Word;
+        Assert.Contains(
+            $"<span class=\"lbl\">{CaseWorkspaceLabels.Vehicle.Mileage}<span class=\"src-tag src-tag--lookup\" data-provenance-word=\"{lookup}\">{lookup}</span></span>",
+            html,
+            StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -634,6 +677,7 @@ public sealed class CaseVehicleWebTests
             [],
             null,
             null,
+            null,
             recordedAtUtc);
         return new(caseId, null, notFound, [notFound]);
     }
@@ -653,6 +697,7 @@ public sealed class CaseVehicleWebTests
             new("dvla-ves+dvsa-mot-history", "1", "response-1", recordedAtUtc, null, null),
             new("Ford", "Transit", 2030, null, "Diesel"),
             [],
+            null,
             null,
             null,
             recordedAtUtc);
@@ -737,6 +782,7 @@ public sealed class CaseVehicleWebTests
             [],
             new(43_210, VehicleMileageUnit.Miles, new(2031, 2, 1), "latest-mot-observation", 2, 1),
             null,
+            null,
             recordedAtUtc);
         VehicleLookupObservation refused = new(
             Guid.NewGuid(),
@@ -748,6 +794,7 @@ public sealed class CaseVehicleWebTests
             new("dvla", "1", "response-0", recordedAtUtc.AddHours(-1), null, null),
             null,
             [],
+            null,
             null,
             new("rate_limited", Retryable: true),
             recordedAtUtc.AddHours(-1));

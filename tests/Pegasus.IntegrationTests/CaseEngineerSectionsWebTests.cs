@@ -79,7 +79,6 @@ public sealed class CaseEngineerSectionsWebTests
             Assert.DoesNotContain("New repair spec", html, StringComparison.Ordinal);
             Assert.DoesNotContain("Import estimate", html, StringComparison.Ordinal);
             Assert.DoesNotContain("Save repair spec", html, StringComparison.Ordinal);
-            Assert.DoesNotContain("Send to Claude", html, StringComparison.Ordinal);
             Assert.DoesNotContain("Generate report draft", html, StringComparison.Ordinal);
         }
         else

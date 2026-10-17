@@ -25,11 +25,12 @@ public static class PegasusSqlServer
 }
 
 /// <summary>
-/// SQL Server's retrying strategy, scoped to work that can be retried. Every
-/// store opens its own Serializable transaction, and Entity Framework refuses
-/// to run any operation inside a user transaction under a strategy that
-/// retries, so inside one this strategy neither refuses nor retries: the
-/// operation runs once and a fault surfaces to the store exactly as before.
+/// SQL Server's retrying strategy, scoped to work that can be retried. A store
+/// opens its own transaction through <see cref="PegasusTransactions"/>, and
+/// Entity Framework refuses to run any operation inside a user transaction
+/// under a strategy that retries, so inside one this strategy neither refuses
+/// nor retries: the operation runs once and a fault surfaces to the store
+/// exactly as before.
 /// Outside a transaction (read queries, the Worker's polls, the heartbeat's
 /// reads) a transient fault retries with SQL Server's defaults.
 /// </summary>
