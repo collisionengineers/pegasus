@@ -112,14 +112,14 @@ Case instead
 Unsafe material or an unresolved source-integrity problem still fails closed;
 choosing a destination cannot override that.
 
-The sixteen evidenced principal email routes share one route, classification,
-and match policy chain and use the existing instruction profiles. The exact
-sender identity and the selected current document profile must agree;
-document identity alone never allocates a Case. A proved forwarded original
-is current material, not discarded quoted history. Unrelated reports and old
-thread content can neither supply nor veto a current instruction's profile.
-The accepted identities, work-type predicates, preserved QDOS body and Triage
-rules, and the shared fail-closed procedure are owned by
+The seventeen evidenced principal email routes share one route,
+classification, and match policy chain and use the existing instruction
+profiles. The exact sender identity and the selected current document profile
+must agree; document identity alone never allocates a Case. A proved forwarded
+original is current material, not discarded quoted history. Unrelated reports
+and old thread content can neither supply nor veto a current instruction's
+profile. The accepted identities, work-type predicates, preserved QDOS body
+and Triage rules, and the shared fail-closed procedure are owned by
 [FRD-09](frd-09-principal-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association).
 
 Acceptance joins a profile's typed instruction values to the canonical Case

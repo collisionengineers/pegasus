@@ -497,6 +497,13 @@ public sealed class Top15InstructionCorpusTests
         ,new("KERR", $"{CorpusRoot}/KERR 03.msg", "60807a55b75d7511e98bb721f286a113f7662926444e5002c325b2e6bba2a2c2", new("Steven Maguire", "SR/VRL/1/5257", "SE66LJK", new(2026, 3, 21)), [new(null, "Acorn/Haven", "TPI: the third party's insurer.")])
         ,new("KERR", $"{CorpusRoot}/KERR 04.msg", "754e165a6d9c0075aef20c06c3394e993aec615e1d1e95720e8fc7a8afef8db4", new("Mrs Roseann Dean", "SR/VRL/1/5274", "KM60OCB", new(2026, 4, 9)), [new("Claimant name", "Stephen Robertson", "The sender of the instruction message.")])
         ,new("KERR", $"{CorpusRoot}/KERR 05.msg", "78813ea0d2fa5bb10e73d2cc4c623ccdd0ca0e24738de5e97256890320306dc7", new("Muhammad Junaid", "CH/LEG/3/3818", "WD74HLC", new(2026, 2, 10)), [new(null, "Hastings Direct", "TPI: the third party's insurer."), new("Claimant name", "Caitlin Hart", "The sender of the instruction message.")])
+        // SWAN dates the letter above its title and prints the accident date
+        // after an "RTA -" prefix in the labelled block.
+        ,new("SWAN", $"{CorpusRoot}/SWAN 01.docx", "d8eab26c5a7c522c17901c2d81be4729f74b628159df0c7c48f8bb9c4cc74d89", new("Mr Muhammed Tahmid Nadim Ahmed", "01239- Muhammed.Ahmed", "PN19VUA", new(2026, 4, 10)), [new("Incident date", "2026-04-24", "Date: the letter's own date.")])
+        ,new("SWAN", $"{CorpusRoot}/SWAN 02.docx", "c9ef76a0a46d95bc8a31257444534a16c1d850d898c45134faca64131cf793e9", new("Mr Shahid Yaseen", "01214- Shahid.Yaseen", "BH17PKC", new(2026, 3, 26)), [new("Incident date", "2026-04-02", "Date: the letter's own date.")])
+        ,new("SWAN", $"{CorpusRoot}/SWAN 03.docx", "81ebf171fe46979ef9fa3effbe61e16789b4b6f5e8f7044bdc445d87c4206111", new("Miss Anna Jammeh", "01200- Anna.Jammeh", "KY70RLZ", new(2026, 3, 18)), [new("Incident date", "2026-04-01", "Date: the letter's own date.")])
+        ,new("SWAN", $"{CorpusRoot}/SWAN 04.docx", "4929e82195367e24c89fa5491c2f91688c7b2c74d49fde67f3555688a2dc4e48", new("Mr Souhail Elhamdanhy", "01186- Souhail.Elhamdanhy", "LX20HUH", new(2026, 3, 10)), [new("Incident date", "2026-03-13", "Date: the letter's own date.")])
+        ,new("SWAN", $"{CorpusRoot}/SWAN 05.docx", "8723a19be7759b81dec2ddc905c74ff42464f4a740ca925a2a5ab770396cc7d2", new("Mr Washim Saddik Mirza", "01169- Washim.Mirza", "GX64VEM", new(2026, 2, 27)), [new("Incident date", "2026-03-06", "Date: the letter's own date.")])
     ];
 
     private static readonly FwExpectation[] FwExpectations =
@@ -596,7 +603,8 @@ public sealed class Top15InstructionCorpusTests
             new MpInstructionExtractionPolicy(),
             new YmlInstructionExtractionPolicy(),
             new AlsInstructionExtractionPolicy(),
-            new BcInstructionExtractionPolicy()
+            new BcInstructionExtractionPolicy(),
+            new SwanInstructionExtractionPolicy()
         ];
 
     [ReferencePackFact]
@@ -605,7 +613,7 @@ public sealed class Top15InstructionCorpusTests
         var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
         var selector = new InstructionExtractionPolicySelector(Policies());
         var representatives = Expectations.GroupBy(sample => sample.Profile).Select(group => group.First()).ToArray();
-        Assert.Equal(16, representatives.Length);
+        Assert.Equal(17, representatives.Length);
         foreach (var sample in representatives)
         {
             var bytes = await File.ReadAllBytesAsync(Path.Combine(PackRoot(), sample.PackRelativePath));
@@ -703,7 +711,7 @@ public sealed class Top15InstructionCorpusTests
         var failures = new List<string>();
         var counts = new Dictionary<(string Profile, string Field, string Disposition), int>();
 
-        Assert.Equal(86, Expectations.Length);
+        Assert.Equal(91, Expectations.Length);
 
         foreach (var expectation in Expectations)
         {
