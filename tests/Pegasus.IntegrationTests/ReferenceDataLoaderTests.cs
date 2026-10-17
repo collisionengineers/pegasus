@@ -150,10 +150,10 @@ public sealed class ReferenceDataLoaderTests
             "1 Loader Street, Testtown, LD1 1AA|LD1 1AA|2",
             await database.ScalarAsync<string>(
                 """
-                SELECT location.Address + N'|' + location.Postcode + N'|'
-                    + CONVERT(nvarchar(10), (SELECT COUNT(*) FROM InspectionLocationPrincipalLinks AS link WHERE link.InspectionLocationId = location.Id))
-                FROM InspectionLocations AS location
-                WHERE location.Source = N'register' AND location.SourceRecordId = N'X0001'
+                SELECT loc.Address + N'|' + loc.Postcode + N'|'
+                    + CONVERT(nvarchar(10), (SELECT COUNT(*) FROM InspectionLocationPrincipalLinks AS lnk WHERE lnk.InspectionLocationId = loc.Id))
+                FROM InspectionLocations AS loc
+                WHERE loc.Source = N'register' AND loc.SourceRecordId = N'X0001'
                 """));
 
         // (a) the Principals, then (b) every other contact, then (c) the locations.
