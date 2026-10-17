@@ -1816,7 +1816,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
-    public async Task MarketResearchCompletionAtomicallyRetainsEvidenceValuationAndDraftReadyJob()
+    public async Task MarketResearchCompletionAtomicallyRetainsEvidenceValuationAndCompletedJob()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("market-research-accept-case");
@@ -1875,15 +1875,29 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var completed = await complete.ExecuteAsync(command, CancellationToken.None);
         var replay = await complete.ExecuteAsync(command, CancellationToken.None);
 
-        Assert.Equal(AiJobState.DraftReady, completed.Job.State);
+        Assert.Equal(AiJobState.Completed, completed.Job.State);
+        Assert.NotNull(completed.Job.ClosedAtUtc);
+        Assert.Null(completed.Job.DraftReadyAtUtc);
         Assert.Equal(AiJobResultKind.MarketResearch, completed.Job.ResultKind);
         Assert.Equal(ValuationSource.AiMarketResearch, completed.Valuation.Details.Source);
         Assert.Equal(completed.Document.Occurrence.Id, replay.Document.Occurrence.Id);
+        Assert.Equal(completed.Document.Version.Id, replay.Document.Version.Id);
         Assert.Equal(completed.Valuation.ValuationId, replay.Valuation.ValuationId);
+        Assert.Equal(AiJobState.Completed, replay.Job.State);
         Assert.True(replay.IsReplay);
+        var completedAgain = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            complete.ExecuteAsync(
+                command with { OperationKey = "market-research-complete-again" },
+                CancellationToken.None));
+        Assert.Equal("An AI job cannot move from Completed to Completed.", completedAgain.Message);
         Assert.Equal(1, content.StoreCount);
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var reused = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             complete.ExecuteAsync(command with { RetailValue = 12001m }, CancellationToken.None));
+        Assert.Equal("The market research operation key was reused with different inputs.", reused.Message);
+        Assert.DoesNotContain(
+            await aiJobs.ListOpenAsync(CancellationToken.None),
+            job => job.JobId == taken.JobId);
+        Assert.Equal(0, (await aiJobs.GetCountsAsync(CancellationToken.None)).Active);
 
         await using var context = await harness.Factory.CreateDbContextAsync();
         Assert.Equal(1, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
@@ -1904,13 +1918,19 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"UPDATE AiJobs SET MarketResearchMileage = NULL WHERE JobId = {taken.JobId}"));
         Assert.Null(await ReadEngineersValueAsync(harness, caseId));
+        var jobHistory = await context.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == "ai_job"
+                && item.AggregateId == taken.JobId.ToString("D"))
+            .OrderBy(item => item.EventKind)
+            .Select(item => item.EventKind)
+            .ToArrayAsync();
+        Assert.Equal(["ai_job_completed", "ai_job_created", "ai_job_taken"], jobHistory);
         Assert.Equal(ActorKind.Automation.ToString(), await context.ActionHistory
             .Where(item => item.AggregateType == "ai_job"
                 && item.AggregateId == taken.JobId.ToString("D")
-                && item.EventKind == "ai_job_draft_ready")
-            .OrderByDescending(item => item.OccurredAtUtc)
+                && item.EventKind == "ai_job_completed")
             .Select(item => item.ActorKind)
-            .FirstAsync());
+            .SingleAsync());
     }
 
     [Fact]
@@ -1966,7 +1986,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             complete.ExecuteAsync(command, CancellationToken.None));
-        Assert.Equal("An AI job cannot move from Queued to DraftReady.", exception.Message);
+        Assert.Equal("An AI job cannot move from Queued to Completed.", exception.Message);
 
         await using var context = await harness.Factory.CreateDbContextAsync();
         var unchanged = await context.AiJobs.AsNoTracking()

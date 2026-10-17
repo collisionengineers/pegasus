@@ -356,7 +356,7 @@ Choosing **Market Research** on the Valuation screen creates a ledger job.
 External Claude Cowork, using the Pegasus connector and its own research
 tools, does the research and produces files. The connector files the findings
 document, with the Market research document type, and the AI market research
-card, and the job becomes Draft ready. Market research is a document type, not
+card, and the job becomes Completed. Market research is a document type, not
 an image tag (operator, 7 October 2026).
 The tools and the research run outside this repository. Research evidence and
 any source-labelled valuation proposal never become the Engineer's Value on

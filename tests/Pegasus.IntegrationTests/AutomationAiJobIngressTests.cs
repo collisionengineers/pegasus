@@ -755,7 +755,7 @@ public sealed class AutomationAiJobIngressTests
             ToolCallPayload(21, "pegasus_ai_job_complete_market_research", arguments)))
         {
             var result = await ReadStructuredContentAsync(response);
-            Assert.Equal("DraftReady", result.GetProperty("job").GetProperty("state").GetString());
+            Assert.Equal("Completed", result.GetProperty("job").GetProperty("state").GetString());
             Assert.False(result.GetProperty("isReplay").GetBoolean());
         }
         using (var response = await PostMcpAsync(
@@ -772,7 +772,7 @@ public sealed class AutomationAiJobIngressTests
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateType = N'ai_job' AND AggregateId = N'{taken.JobId:D}' AND EventKind = N'ai_job_draft_ready' AND ActorKind = N'Automation' AND ActorSubjectId = N'{ClientId}'"));
+            $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateType = N'ai_job' AND AggregateId = N'{taken.JobId:D}' AND EventKind = N'ai_job_completed' AND ActorKind = N'Automation' AND ActorSubjectId = N'{ClientId}'"));
     }
 
     [Fact]
@@ -832,97 +832,8 @@ public sealed class AutomationAiJobIngressTests
             ToolCallPayload(27, "pegasus_ai_job_complete_market_research", arguments)))
         {
             var result = await ReadStructuredContentAsync(response);
-            Assert.Equal("DraftReady", result.GetProperty("job").GetProperty("state").GetString());
-            Assert.False(result.GetProperty("isReplay").GetBoolean());
-        }
-
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
-    }
-
-    [Fact]
-    public async Task MarketResearchCompletionReplaySurvivesStaffConfirmation()
-    {
-        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
-        using var mcpFactory = WithAutomationMcp(factory);
-        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
-        AiJobRecord taken;
-        await using (var scope = mcpFactory.Services.CreateAsyncScope())
-        {
-            var services = scope.ServiceProvider;
-            var created = await services.GetRequiredService<IAiJobStore>().CreateAsync(
-                new(
-                    AiJobKind.MarketResearch,
-                    AiJobSubjectKind.Case,
-                    caseId,
-                    "fixture-reference",
-                    "Research comparable vehicles.",
-                    null,
-                    null,
-                    Staff,
-                    "market-research-confirmed-replay-seed",
-                    AiJobPolicy.DefaultExpiry),
-                CancellationToken.None);
-            taken = await services.GetRequiredService<IWorkAiJob>().TakeAsync(
-                new(created.JobId, created.Version, Client, "market-research-confirmed-replay-take"),
-                CancellationToken.None);
-        }
-
-        using var client = mcpFactory.CreateClient();
-        var token = await RequestTokenAsync(client, JobsScope);
-        var arguments = new
-        {
-            jobId = taken.JobId,
-            expectedJobVersion = taken.Version,
-            caseId,
-            operationKey = "mcp:market-research-confirmed-replay-complete",
-            fileName = "market-research.pdf",
-            mediaType = "application/pdf",
-            contentBase64 = Convert.ToBase64String(new byte[] { 1, 2, 3 }),
-            recordedDate = "2031-05-06",
-            recordedTime = "10:30",
-            mileage = 42000,
-            retailValue = 12000m,
-            tradeValue = 10000m
-        };
-
-        Guid occurrenceId;
-        Guid versionId;
-        Guid valuationId;
-        long draftReadyVersion;
-        using (var response = await PostMcpAsync(
-            client,
-            token,
-            ToolCallPayload(24, "pegasus_ai_job_complete_market_research", arguments)))
-        {
-            var result = await ReadStructuredContentAsync(response);
-            Assert.False(result.GetProperty("isReplay").GetBoolean());
-            occurrenceId = result.GetProperty("documentOccurrenceId").GetGuid();
-            versionId = result.GetProperty("documentVersionId").GetGuid();
-            valuationId = result.GetProperty("valuationId").GetGuid();
-            draftReadyVersion = result.GetProperty("job").GetProperty("version").GetInt64();
-        }
-
-        await using (var scope = mcpFactory.Services.CreateAsyncScope())
-        {
-            await scope.ServiceProvider.GetRequiredService<IConfirmAiJob>().ExecuteAsync(
-                new(taken.JobId, draftReadyVersion, Staff, "market-research-confirm"),
-                CancellationToken.None);
-        }
-
-        using (var response = await PostMcpAsync(
-            client,
-            token,
-            ToolCallPayload(25, "pegasus_ai_job_complete_market_research", arguments)))
-        {
-            var result = await ReadStructuredContentAsync(response);
-            Assert.True(result.GetProperty("isReplay").GetBoolean());
             Assert.Equal("Completed", result.GetProperty("job").GetProperty("state").GetString());
-            Assert.Equal(occurrenceId, result.GetProperty("documentOccurrenceId").GetGuid());
-            Assert.Equal(versionId, result.GetProperty("documentVersionId").GetGuid());
-            Assert.Equal(valuationId, result.GetProperty("valuationId").GetGuid());
+            Assert.False(result.GetProperty("isReplay").GetBoolean());
         }
 
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
@@ -982,7 +893,7 @@ public sealed class AutomationAiJobIngressTests
                 "mcp:market-research-staff-editing-complete"));
         var result = await ReadStructuredContentAsync(response);
 
-        Assert.Equal("DraftReady", result.GetProperty("job").GetProperty("state").GetString());
+        Assert.Equal("Completed", result.GetProperty("job").GetProperty("state").GetString());
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
@@ -1037,7 +948,7 @@ public sealed class AutomationAiJobIngressTests
 
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, JobsScope);
-        using (var response = await PostMcpAsync(
+        using var response = await PostMcpAsync(
             client,
             token,
             MarketResearchCompletionPayload(
@@ -1045,12 +956,10 @@ public sealed class AutomationAiJobIngressTests
                 taken.JobId,
                 taken.Version,
                 caseId,
-                $"mcp:market-research-{closure}-complete")))
-        {
-            using var document = await ReadJsonRpcAsync(response);
-            Assert.DoesNotContain("DraftReady", document.RootElement.ToString(), StringComparison.Ordinal);
-        }
+                $"mcp:market-research-{closure}-complete"));
 
+        Assert.Equal("Taken", await factory.Database.ScalarAsync<string>(
+            $"SELECT State FROM AiJobs WHERE JobId = '{taken.JobId:D}'"));
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(

@@ -353,7 +353,7 @@ internal sealed class AiJobMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Completes this client's MarketResearch job as Draft ready with one retained findings document and one AI market research valuation. Requires automation.jobs only: it takes no Case edit lease and no Case version, because a source card is not a Case field edit and the Engineer is usually still editing the Case, so it never waits on or ends their session. Nothing is accepted automatically.")]
+    [Description("Completes this client's MarketResearch job as Completed with one retained findings document and one AI market research valuation. Requires automation.jobs only: it takes no Case edit lease and no Case version, because a source card is not a Case field edit and the Engineer is usually still editing the Case, so it never waits on or ends their session. Nothing is accepted automatically.")]
     public async Task<MarketResearchCompletionToolResult> CompleteMarketResearchAsync(
         [Description("The MarketResearch job identifier this client holds.")] Guid jobId,
         [Description("The job version the caller observed; a stale value fails closed.")] long expectedJobVersion,
