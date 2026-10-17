@@ -6,7 +6,7 @@ using Pegasus.Core.Reports;
 namespace Pegasus.Core.Tests.Reports;
 
 /// <summary>
-/// The one report dispatch plan (Report Sending SOP v5, rule R12; operator,
+/// The one report dispatch plan (Report Sending SOP v8, rule R12; operator,
 /// 6 October 2026): recipients in the SOP's order with removals winning,
 /// three-valued rule evaluation, the reply or new message, required
 /// companions and filed estimates, holds, a rule's Stop, questions and
@@ -518,6 +518,103 @@ public sealed class ReportDispatchPolicyTests
         Assert.Null(ReportDispatchPolicy.Evaluate(0, rule, Facts(rules, withInstruction: false), []));
     }
 
+    // ---- Reference prefix and Previous job (Report Sending SOP v8) -----------
+
+    /// <summary>A reference prefix is the report reference's letters before a dot, and is never asked.</summary>
+    [Fact]
+    public void AReferencePrefixReadsTheReportReferenceAndIsNeverAsked()
+    {
+        var rule = Rule(ReportSendingRuleMatch.All, new(["x@rule.example"], []),
+            new ReportSendingCondition(ReportSendingConditionKind.RefPrefix, ["a"]));
+        var rules = Rules() with { Rules = [rule] };
+        ReportDispatchFacts For(string reference) => Facts(rules) with { CaseReference = reference };
+
+        Assert.True(ReportDispatchPolicy.Evaluate(0, rule, For("a.PCH26118"), []));
+        Assert.True(ReportDispatchPolicy.Evaluate(0, rule, For("A.PCH26118"), []));
+        Assert.False(ReportDispatchPolicy.Evaluate(0, rule, For("PCH26118"), []));
+        Assert.False(ReportDispatchPolicy.Evaluate(0, rule, For("ab.PCH26118"), []));
+        // A decision never overrides the reference.
+        Assert.False(ReportDispatchPolicy.Evaluate(0, rule, For("PCH26118"), [new(0, 0, true)]));
+        Assert.Empty(ReportDispatchPolicy.Plan(For("PCH26118"), [], Now).Undecided);
+    }
+
+    /// <summary>
+    /// A previous job is what the dispatch facts query reports: another Case
+    /// of the same Principal with the same registration has a sent report
+    /// (operator, 16 October 2026). It is never asked and no answer changes it.
+    /// </summary>
+    [Fact]
+    public void APreviousJobReadsTheCrossCaseLookupAndIsNeverAsked()
+    {
+        var rule = Rule(ReportSendingRuleMatch.All, new(["x@rule.example"], []),
+            new ReportSendingCondition(ReportSendingConditionKind.PreviousJob, []));
+        var facts = Facts(Rules() with { Rules = [rule] });
+
+        Assert.True(ReportDispatchPolicy.Evaluate(0, rule, facts with { PreviousJob = true }, []));
+        Assert.False(ReportDispatchPolicy.Evaluate(0, rule, facts with { PreviousJob = false }, [new(0, 0, true)]));
+        var plan = ReportDispatchPolicy.Plan(facts, [], Now);
+        Assert.Empty(plan.Undecided);
+        Assert.Empty(plan.Cc);
+        Assert.Equal("x@rule.example", Assert.Single(ReportDispatchPolicy.Plan(facts with { PreviousJob = true }, [], Now).Cc).Address);
+    }
+
+    /// <summary>
+    /// PCH under Report Sending SOP v8: a repairable iRevolution job copies
+    /// iRevolution, reminds and checks the rate card; an audit job (the
+    /// instruction says audit, the reference carries the a. prefix, or the
+    /// vehicle is a previous job) removes that copy, and the removal wins.
+    /// </summary>
+    [Theory]
+    [InlineData("repairable job", "PCH26118", "Instruction for AB12 CDE", false, true)]
+    [InlineData("audit mentioned", "PCH26118", "Audit instruction for AB12 CDE", false, false)]
+    [InlineData("audit reference", "a.PCH26118", "Instruction for AB12 CDE", false, false)]
+    [InlineData("previous job", "PCH26118", "Instruction for AB12 CDE", true, false)]
+    public void TheAuditRuleRemovesTheCopyTheRepairableRuleAdds(
+        string row, string reference, string text, bool previousJob, bool copied)
+    {
+        Assert.NotEmpty(row);
+        var rules = Rules() with
+        {
+            SendTo = ["SBL@connexus.example"],
+            ReplyAll = false,
+            Rules =
+            [
+                Rule(ReportSendingRuleMatch.All,
+                    new(["repairs@irevolution.example"], [], Remind: "Authorise the garage", RateCard: true),
+                    ClaimSource(CarId),
+                    new ReportSendingCondition(ReportSendingConditionKind.Outcome, ["repairable"])),
+                Rule(ReportSendingRuleMatch.Any,
+                    new([], ["repairs@irevolution.example"]),
+                    Mentions("audit"),
+                    new ReportSendingCondition(ReportSendingConditionKind.RefPrefix, ["a"]),
+                    new ReportSendingCondition(ReportSendingConditionKind.PreviousJob, []))
+            ]
+        };
+        var facts = Facts(rules, instruction: Instruction(cc: ["handler@pch.example"])) with
+        {
+            CaseReference = reference,
+            InstructionText = text,
+            ClaimSourceId = CarId,
+            ClaimSourceName = "iRevolution Repair Network",
+            Outcome = "repairable",
+            PreviousJob = previousJob
+        };
+
+        var plan = ReportDispatchPolicy.Plan(facts, [], Now);
+
+        Assert.Empty(plan.Undecided);
+        Assert.Equal("SBL@connexus.example", Assert.Single(plan.To).Address);
+        Assert.Equal(copied, plan.Cc.Any(copy => copy.Address == "repairs@irevolution.example"));
+        Assert.DoesNotContain(plan.Cc, copy => copy.Address == "handler@pch.example");
+        Assert.Equal(["Authorise the garage", ReportDispatchPolicy.RateCardTask], plan.AfterSendTasks);
+        if (!copied)
+        {
+            var removal = Assert.Single(plan.Removed);
+            Assert.Equal("repairs@irevolution.example", removal.Address);
+            Assert.Equal("Rule 2: Mentions audit, Reference prefix a, Previous job", removal.Reason);
+        }
+    }
+
     // ---- subject ---------------------------------------------------------------
 
     // Which mailbox a report leaves from, and whether it is a reply, is
@@ -702,6 +799,34 @@ public sealed class ReportDispatchPolicyTests
         Assert.Equal(["Send the WhatsApp.", "Tell Andy."], unticked.AfterSendTasks);
     }
 
+    /// <summary>
+    /// A rule's Rate card is the after-sending reminder to check the estimate
+    /// against the card, after that rule's own reminder and once however many
+    /// rules ask for it (operator, 16 October 2026).
+    /// </summary>
+    [Fact]
+    public void ARulesRateCardJoinsTheTasksAfterItsReminderOnce()
+    {
+        var rules = Rules() with
+        {
+            Reminders = ["Send the WhatsApp."],
+            Rules =
+            [
+                Rule(ReportSendingRuleMatch.All, new([], [], Remind: "Tell Andy.", RateCard: true), ClaimSource(CarId)),
+                Rule(ReportSendingRuleMatch.All, new([], [], RateCard: true), ClaimSource(SmcId)),
+                Rule(ReportSendingRuleMatch.All, new([], [], Remind: "Call the garage.", RateCard: true), ClaimSource(CarId))
+            ]
+        };
+
+        var plan = ReportDispatchPolicy.Plan(Facts(rules) with { ClaimSourceId = CarId }, [], Now);
+        var other = ReportDispatchPolicy.Plan(Facts(rules) with { ClaimSourceId = EasdonsId }, [], Now);
+
+        Assert.Equal(
+            ["Send the WhatsApp.", "Tell Andy.", ReportDispatchPolicy.RateCardTask, "Call the garage."],
+            plan.AfterSendTasks);
+        Assert.Equal(["Send the WhatsApp."], other.AfterSendTasks);
+    }
+
     // ---- companions, estimates, fee note -------------------------------------
 
     [Fact]
@@ -730,6 +855,46 @@ public sealed class ReportDispatchPolicyTests
         Assert.Equal([CaseReportArtifactKind.RepairSpecification], partly.MissingCompanions);
         Assert.Empty(complete.MissingCompanions);
         Assert.Empty(Plan(Rules()).RequiredCompanions);
+    }
+
+    /// <summary>
+    /// A rule that holds replaces the attach flags it names for this send, in
+    /// rule order so a later rule wins, and a flag it leaves unnamed keeps the
+    /// Principal's (Report Sending SOP v8, rule R14). Companions, filed
+    /// estimates and warnings all read the result.
+    /// </summary>
+    [Fact]
+    public void AnAppliedRulesAttachOverrideChangesTheCompanionsEstimatesAndWarnings()
+    {
+        var rules = Rules() with
+        {
+            Attach = ReportSendingAttachments.Default with { VehicleImagesDocument = true, Audatex = true },
+            Rules =
+            [
+                Rule(ReportSendingRuleMatch.All,
+                    new([], [], Attach: new(VehicleImagesDocument: false, FigureBreakdown: true, FeeNoteSeparate: false)),
+                    ClaimSource(CarId)),
+                Rule(ReportSendingRuleMatch.All, new([], [], Attach: new(Audatex: false, Estimate: true)), ClaimSource(CarId)),
+                Rule(ReportSendingRuleMatch.All, new([], [], Attach: new(Estimate: false)), ClaimSource(CarId)),
+                Rule(ReportSendingRuleMatch.All, new([], [], Attach: new(FigureBreakdown: false)), ClaimSource(SmcId))
+            ]
+        };
+        var facts = Facts(rules) with { FiledEstimates = [AudatexFiled, GlassFiled] };
+
+        var principal = ReportDispatchPolicy.Plan(facts with { ClaimSourceId = EasdonsId }, [], Now);
+        var overridden = ReportDispatchPolicy.Plan(facts with { ClaimSourceId = CarId }, [], Now);
+
+        Assert.Equal([CaseReportArtifactKind.ImagePack], principal.RequiredCompanions);
+        Assert.Equal([CaseReportArtifactKind.ImagePack], principal.MissingCompanions);
+        Assert.Equal([AudatexFiled.Attachment], principal.FiledEstimates);
+        Assert.Contains(ReportDispatchPolicy.NoSeparateFeeNoteWarning, principal.Warnings);
+
+        // The images document is no longer required and the figure breakdown is;
+        // Audatex is off, and the third rule's Estimate off beats the second's on.
+        Assert.Equal([CaseReportArtifactKind.RepairSpecification], overridden.RequiredCompanions);
+        Assert.Equal([CaseReportArtifactKind.RepairSpecification], overridden.MissingCompanions);
+        Assert.Empty(overridden.FiledEstimates);
+        Assert.Empty(overridden.Warnings);
     }
 
     [Fact]
@@ -848,12 +1013,18 @@ public sealed class ReportDispatchPolicyTests
     [InlineData("repairer")]
     [InlineData("outcome")]
     [InlineData("instruction text")]
+    [InlineData("rate card")]
+    [InlineData("attach override")]
     public void TheFingerprintChangesWithEveryFactTheQuestionsDependOn(string fact)
     {
         var facts = FingerprintFacts();
+        ReportDispatchFacts WithActions(ReportSendingActions then) =>
+            facts with { Rules = facts.Rules with { Rules = [Rule(ReportSendingRuleMatch.All, then, ClaimSource(CarId))] } };
         var changed = fact switch
         {
             "rules" => facts with { Rules = facts.Rules with { Hold = "Wait." } },
+            "rate card" => WithActions(new(["x@rule.example"], [], RateCard: true)),
+            "attach override" => WithActions(new(["x@rule.example"], [], Attach: new(Estimate: true))),
             "instruction" => facts with { Instruction = facts.Instruction! with { RetainedMessageId = Guid.NewGuid() } },
             "sender" => facts with { Instruction = facts.Instruction! with { EffectiveSender = "other@insurer.example" } },
             "claim source" => facts with { ClaimSourceId = SmcId },

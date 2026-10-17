@@ -2017,6 +2017,12 @@ public static class OperatorLabels
         public const string ActionHold = "Hold";
         public const string ActionStop = "Stop";
         public const string ActionStopHint = "Send is refused; staff may override with a reason.";
+        public const string ActionRateCard = "Rate card";
+        /// <summary>A rule's three choices for each attach flag (operator, 16 October 2026).</summary>
+        public const string AttachAsThePrincipal = "As the Principal";
+        public const string AttachOverrideOn = "Attach";
+        public const string AttachOverrideOff = "Do not attach";
+        public const string RefPrefixLettersOnly = "A reference prefix is letters only.";
 
         /// <summary>A report sending condition as the rule row names it.</summary>
         public static string ConditionKind(Pegasus.Core.Reports.ReportSendingConditionKind kind) => kind switch
@@ -2029,6 +2035,8 @@ public static class OperatorLabels
             Pegasus.Core.Reports.ReportSendingConditionKind.Outcome => "Outcome",
             Pegasus.Core.Reports.ReportSendingConditionKind.BodyshopMentions => "Bodyshop mentions",
             Pegasus.Core.Reports.ReportSendingConditionKind.CaseType => "Case type",
+            Pegasus.Core.Reports.ReportSendingConditionKind.RefPrefix => "Reference prefix",
+            Pegasus.Core.Reports.ReportSendingConditionKind.PreviousJob => "Previous job",
             _ => kind.ToString()
         };
 

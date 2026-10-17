@@ -100,11 +100,16 @@ inputs with an Add button; Send to only, Reply all, Garage figures and the
 six Attach choices are ticks; Hold and the First and Re-send attachment
 names are text, with no length limit. Rules are repeated rows, each with
 Match (All or Any condition), three condition lines (a kind, then a Contact
-list, the four outcomes, or text for Images from, Instruction mentions,
-Bodyshop mentions and Sender is not; the kinds, in order, are Claim Source,
-Repairer, Images from, Instruction mentions, Sender is not, Outcome and
-Bodyshop mentions), and the actions Cc add, Cc remove,
-Remind, Hold and Stop. A Remove rule button per row, one spare blank row, an Add rule button,
+list, the four outcomes, the Case types, or text for Images from,
+Instruction mentions, Bodyshop mentions, Sender is not and Reference prefix;
+Previous job takes no value; the kinds, in order, are Claim Source,
+Repairer, Images from, Instruction mentions, Sender is not, Outcome,
+Bodyshop mentions, Case type, Reference prefix and Previous job), and the
+actions Cc add, Cc remove, Remind, Hold, Stop, a Rate card tick and the five
+Attach choices other than report images, each As the Principal, Attach or
+Do not attach (Report Sending SOP v8; operator, 16 October 2026). A
+non-letter reference prefix is refused: "A reference prefix is letters
+only." A Remove rule button per row, one spare blank row, an Add rule button,
 and one Save report sending. The Salvage matrix panel follows it: one
 table per salvage category, with From (£), To (£) and Percentage paid (%)
 columns, a Remove button per row, one spare blank row, an Add band button,

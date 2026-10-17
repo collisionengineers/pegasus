@@ -1,9 +1,10 @@
 using Pegasus.Core.Reports;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.Core.Tests.Reports;
 
 /// <summary>
-/// The per-Principal report sending rules (Report Sending SOP v5, 2 October
+/// The per-Principal report sending rules (Report Sending SOP v8, 15 October
 /// 2026): what Normalize accepts and refuses, and how two values compare.
 /// </summary>
 public sealed class PrincipalReportSendingRulesTests
@@ -215,6 +216,121 @@ public sealed class PrincipalReportSendingRulesTests
             }).Rules).If).Values.Single());
     }
 
+    /// <summary>A reference prefix is letters only, without the dot (Report Sending SOP v8).</summary>
+    [Fact]
+    public void ReferencePrefixesAreLettersTrimmedAndUniqueWithoutCase()
+    {
+        var normalized = PrincipalReportSendingRules.Normalize(Rules() with
+        {
+            Rules = [Rule(ReportSendingConditionKind.RefPrefix, [" a ", "A", "ab"])]
+        });
+        Assert.Equal(["a", "ab"], Assert.Single(Assert.Single(normalized.Rules).If).Values.ToArray());
+
+        foreach (var refused in new[] { "a.", "a1", "a b" })
+        {
+            var error = Refused(Rules() with
+            {
+                Rules =
+                [
+                    Rule(ReportSendingConditionKind.Mentions, ["audit"]),
+                    Rule(ReportSendingConditionKind.RefPrefix, [refused])
+                ]
+            });
+            Assert.Equal(ReportSendingRulesRule.InvalidRefPrefix, error.Rule);
+            Assert.Equal(1, error.RuleIndex);
+        }
+    }
+
+    /// <summary>A previous job takes no value, so one with none is kept and any typed value is dropped.</summary>
+    [Fact]
+    public void APreviousJobConditionIsKeptWithNoValue()
+    {
+        var normalized = PrincipalReportSendingRules.Normalize(Rules() with
+        {
+            Rules =
+            [
+                Rule(ReportSendingConditionKind.PreviousJob, []),
+                Rule(ReportSendingConditionKind.PreviousJob, ["typed"])
+            ]
+        });
+
+        Assert.All(normalized.Rules, rule =>
+        {
+            var condition = Assert.Single(rule.If);
+            Assert.Equal(ReportSendingConditionKind.PreviousJob, condition.Kind);
+            Assert.Empty(condition.Values);
+        });
+    }
+
+    /// <summary>
+    /// A Rate card or an attach override naming a flag is an action of its
+    /// own; an override naming no flag is dropped, so it alone is no action.
+    /// </summary>
+    [Fact]
+    public void ARateCardAndAnAttachOverrideAreActionsAndAnOverrideNamingNoFlagIsDropped()
+    {
+        var normalized = PrincipalReportSendingRules.Normalize(Rules() with
+        {
+            Rules =
+            [
+                Rule(ReportSendingConditionKind.Mentions, ["Luton"], new([], [], RateCard: true)),
+                Rule(ReportSendingConditionKind.Mentions, ["Luton"], new([], [], Attach: new(Estimate: true, FigureBreakdown: false))),
+                Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["a@example.com"], [], Attach: new()))
+            ]
+        });
+
+        Assert.True(normalized.Rules[0].Then.RateCard);
+        Assert.Null(normalized.Rules[0].Then.Attach);
+        Assert.Equal(new ReportSendingAttachOverride(Estimate: true, FigureBreakdown: false), normalized.Rules[1].Then.Attach);
+        Assert.False(normalized.Rules[1].Then.RateCard);
+        Assert.Null(normalized.Rules[2].Then.Attach);
+
+        var error = Refused(Rules() with
+        {
+            Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new([], [], Attach: new()))]
+        });
+        Assert.Equal(ReportSendingRulesRule.EmptyActions, error.Rule);
+    }
+
+    /// <summary>
+    /// The stored text: the default and a rule with neither a Rate card nor an
+    /// attach override write what they wrote before them, and both new fields
+    /// round trip.
+    /// </summary>
+    [Fact]
+    public void TheStoredTextOfTheDefaultAndOfARuleWithoutTheNewFieldsIsUnchanged()
+    {
+        Assert.Equal(
+            """{"sendTo":[],"sendToOnly":false,"replyAll":true,"cc":[],"neverCc":[],"attach":{"feeNoteSeparate":true,"estimate":false,"audatex":false,"reportImages":true,"vehicleImagesDocument":false,"figureBreakdown":false},"garageFigures":false,"reminders":[],"rules":[]}""",
+            EfOrganizationAdministration.ToReportSendingJson(PrincipalReportSendingRules.Default));
+
+        var plain = Rules() with
+        {
+            Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new([], ["b@example.com"], Remind: "Tell Andy."))]
+        };
+        Assert.EndsWith(
+            ""","rules":[{"match":"All","if":[{"kind":"Mentions","values":["Luton"]}],"then":{"ccAdd":[],"ccRemove":["b@example.com"],"remind":"Tell Andy."}}]}""",
+            EfOrganizationAdministration.ToReportSendingJson(plain),
+            StringComparison.Ordinal);
+
+        var v8 = Rules() with
+        {
+            Rules =
+            [
+                new(
+                    ReportSendingRuleMatch.Any,
+                    [new(ReportSendingConditionKind.RefPrefix, ["a"]), new(ReportSendingConditionKind.PreviousJob, [])],
+                    new([], ["b@example.com"], RateCard: true, Attach: new(Audatex: false)))
+            ]
+        };
+        var json = EfOrganizationAdministration.ToReportSendingJson(v8);
+        Assert.EndsWith(
+            ""","rules":[{"match":"Any","if":[{"kind":"RefPrefix","values":["a"]},{"kind":"PreviousJob","values":[]}],"then":{"ccAdd":[],"ccRemove":["b@example.com"],"rateCard":true,"attach":{"audatex":false}}}]}""",
+            json,
+            StringComparison.Ordinal);
+        Assert.Equal(v8, EfOrganizationAdministration.ReadReportSending(json));
+    }
+
     [Fact]
     public void EveryRuleNeedsAConditionWithAValueAndAnAction()
     {
@@ -339,6 +455,9 @@ public sealed class PrincipalReportSendingRulesTests
             Rules() with { Reminders = ["Remind."] },
             Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"])] },
             Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], match: ReportSendingRuleMatch.Any)] },
+            Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["cc@example.com"], [], RateCard: true))] },
+            Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["cc@example.com"], [], Attach: new(Estimate: true)))] },
+            Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["cc@example.com"], [], Attach: new(Estimate: false)))] },
             Rules() with { AttachmentName = new("{reg} Initial", "{reg} Supplementary") }
         };
 

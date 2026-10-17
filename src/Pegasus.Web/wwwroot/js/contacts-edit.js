@@ -47,7 +47,7 @@
     var sendingEditor = document.querySelector('[data-report-sending-editor]');
     if (sendingEditor) {
         var rulesHost = sendingEditor.querySelector('[data-rs-rules]');
-        var textKinds = ['ImagesFrom', 'Mentions', 'BodyshopMentions', 'SenderNot'];
+        var textKinds = ['ImagesFrom', 'Mentions', 'BodyshopMentions', 'SenderNot', 'RefPrefix'];
         var syncCondition = function (condition) {
             var kind = condition.querySelector('[data-rs-kind]').value;
             condition.querySelectorAll('[data-rs-value]').forEach(function (field) {
