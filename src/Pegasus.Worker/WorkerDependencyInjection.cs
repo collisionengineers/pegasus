@@ -113,6 +113,7 @@ public static class WorkerDependencyInjection
         services.AddSingleton<Pegasus.Core.ICursorProtector, Pegasus.Infrastructure.Support.UnavailableCursorProtector>();
         azureClientRegistration.AddTo(services);
         services.AddSingleton<StaffNotificationPurgeSchedule>();
+        services.AddSingleton<StagedArtifactSweepCursor>();
 
         if (developmentOffline)
         {

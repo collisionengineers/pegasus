@@ -350,19 +350,23 @@ public sealed partial class FileSystemIntakeArtifactStore(string rootPath)
             metadata?.ConcurrencyToken ?? string.Empty);
     }
 
-    public async Task<IReadOnlyList<StagedArtifactInventoryItem>> ListStagedAsync(
+    /// <summary>
+    /// Keys in ordinal order, so the continuation (the last key examined)
+    /// resumes the listing where the previous page stopped.
+    /// </summary>
+    public async Task<StagedArtifactInventoryPage> ListStagedAsync(
         int maximumItems,
+        string? continuation,
         CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         var stagingRoot = Path.Combine(rootPath, "staging");
         if (!Directory.Exists(stagingRoot))
         {
-            return [];
+            return new([], null);
         }
 
-        var items = new List<StagedArtifactInventoryItem>(maximumItems);
-        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var keys = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var candidatePath in Directory.EnumerateFiles(
                      stagingRoot,
                      "*",
@@ -372,25 +376,28 @@ public sealed partial class FileSystemIntakeArtifactStore(string rootPath)
             var path = candidatePath.EndsWith(MetadataSuffix, StringComparison.Ordinal)
                 ? candidatePath[..^MetadataSuffix.Length]
                 : candidatePath;
-            if (!HashRegex().IsMatch(Path.GetFileName(path)) || !visited.Add(path))
+            if (HashRegex().IsMatch(Path.GetFileName(path)))
             {
-                continue;
-            }
-
-            var storageKey = Path.GetRelativePath(rootPath, path)
-                .Replace(Path.DirectorySeparatorChar, '/');
-            var item = await GetStagedAsync(storageKey, cancellationToken);
-            if (item is not null)
-            {
-                items.Add(item);
-                if (items.Count == maximumItems)
-                {
-                    break;
-                }
+                keys.Add(Path.GetRelativePath(rootPath, path)
+                    .Replace(Path.DirectorySeparatorChar, '/'));
             }
         }
 
-        return items;
+        var remaining = keys
+            .Where(key => continuation is null || string.CompareOrdinal(key, continuation) > 0)
+            .Take(maximumItems + 1)
+            .ToList();
+        var examined = remaining.Take(maximumItems).ToList();
+        var items = new List<StagedArtifactInventoryItem>(examined.Count);
+        foreach (var storageKey in examined)
+        {
+            if (await GetStagedAsync(storageKey, cancellationToken) is { } item)
+            {
+                items.Add(item);
+            }
+        }
+
+        return new(items, remaining.Count > maximumItems ? examined[^1] : null);
     }
 
     public async Task<StagedArtifactInventoryItem?> TrySetStagedDispositionAsync(
@@ -433,18 +440,24 @@ public sealed partial class FileSystemIntakeArtifactStore(string rootPath)
         }
     }
 
-    public async Task<bool> DeleteCompletedStagedAsync(
+    public async Task<bool> DeleteStagedAsync(
         string storageKey,
         string expectedConcurrencyToken,
+        StagedArtifactDisposition expectedDisposition,
         CancellationToken cancellationToken)
     {
         var path = ResolveStaged(storageKey);
+        if (string.IsNullOrWhiteSpace(expectedConcurrencyToken))
+        {
+            return false;
+        }
+
         await stagingGate.WaitAsync(cancellationToken);
         try
         {
             var current = await GetStagedAsync(storageKey, cancellationToken);
             if (current is null
-                || current.Disposition != StagedArtifactDisposition.Completed
+                || current.Disposition != expectedDisposition
                 || !string.Equals(
                     current.ConcurrencyToken,
                     expectedConcurrencyToken,
@@ -453,8 +466,7 @@ public sealed partial class FileSystemIntakeArtifactStore(string rootPath)
                 return false;
             }
 
-            File.Delete(path);
-            File.Delete(MetadataPath(path));
+            DeleteStagedFiles(path);
             return true;
         }
         finally
@@ -462,6 +474,29 @@ public sealed partial class FileSystemIntakeArtifactStore(string rootPath)
             stagingGate.Release();
         }
     }
+
+    public async Task<bool> TryCompleteStagedAsync(
+        string storageKey,
+        CancellationToken cancellationToken)
+    {
+        var path = ResolveStaged(storageKey);
+        await stagingGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (!File.Exists(path) && !File.Exists(MetadataPath(path)))
+            {
+                return false;
+            }
+
+            DeleteStagedFiles(path);
+            return true;
+        }
+        finally
+        {
+            stagingGate.Release();
+        }
+    }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref disposeState, 1) == 0)
@@ -470,6 +505,12 @@ public sealed partial class FileSystemIntakeArtifactStore(string rootPath)
         }
 
         GC.SuppressFinalize(this);
+    }
+
+    private static void DeleteStagedFiles(string artifactPath)
+    {
+        File.Delete(artifactPath);
+        File.Delete(MetadataPath(artifactPath));
     }
 
     private static async Task StoreImmutableAsync(

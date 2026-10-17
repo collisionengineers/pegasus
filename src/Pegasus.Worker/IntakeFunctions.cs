@@ -473,9 +473,11 @@ public sealed partial class StagedArtifactReconciliationFunction(
             stagedLevel,
             result.RecoveredWorkItems,
             result.Completed,
+            result.Expired,
             result.Retained,
             result.Orphans,
             result.Unmatched,
+            result.UnmatchedKept,
             result.Failures);
 
         var cache = await documentContentCacheCleanup.ExecuteAsync(50, cancellationToken);
@@ -676,15 +678,17 @@ public sealed partial class StagedArtifactReconciliationFunction(
         ILogger logger, LogLevel level, int candidates, int linked, int failures, string? firstFailure);
 
     [LoggerMessage(
-        Message = "Reconciled staged intake artifacts: {RecoveredWorkItems} work items recovered, {Completed} completed and deleted, {Retained} retained, {Orphans} orphaned, {Unmatched} unmatched, and {Failures} failures.")]
+        Message = "Reconciled staged intake artifacts: {RecoveredWorkItems} work items recovered, {Completed} completed and deleted, {Expired} expired and deleted, {Retained} retained, {Orphans} orphaned, {Unmatched} unmatched ({UnmatchedKept} kept), and {Failures} failures.")]
     private static partial void LogStagedArtifactReconciliation(
         ILogger logger,
         LogLevel level,
         int recoveredWorkItems,
         int completed,
+        int expired,
         int retained,
         int orphans,
         int unmatched,
+        int unmatchedKept,
         int failures);
 
     [LoggerMessage(
