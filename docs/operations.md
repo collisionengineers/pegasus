@@ -4,6 +4,48 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 109 - 17 October 2026 (deployment live)
+
+Release 109 deployed [PR 1386](https://github.com/collisionengineers/pegasus/pull/1386), the
+combine of waves 1b and 2 of the release-readiness programme (26 PRs, 1359 to 1385 less the
+Release 108 record): the test-suite plans (PRs 1359, 1360, 1363, 1365, 1367, 1368, 1370, 1371,
+1372, 1379, 1380 and 1385: derived migration chain list, hygiene and renamed classes, absence
+tests removed, statement pins as ceilings, the Core parser serial collection, template-database
+role tests, copy asserts through labels, the DB-less web factory, duplicate coverage, retired
+pre-V1 upgrade tests, one database per report-generation class, the refreshed duration table);
+the isolation programme's [PR 1361](https://github.com/collisionengineers/pegasus/pull/1361) and
+[PR 1382](https://github.com/collisionengineers/pegasus/pull/1382) (read committed default and
+the stores' isolation table, with the outbox dispatch claim seek); staged-blob orphan deletion
+([PR 1362](https://github.com/collisionengineers/pegasus/pull/1362)) and the server-side copy
+([PR 1381](https://github.com/collisionengineers/pegasus/pull/1381)); MOT mileage estimation
+([PR 1366](https://github.com/collisionengineers/pegasus/pull/1366) policy,
+[PR 1384](https://github.com/collisionengineers/pegasus/pull/1384) wiring with its migration);
+a mailbox wake kept while the lease is held
+([PR 1383](https://github.com/collisionengineers/pegasus/pull/1383), with its migration);
+Market Research jobs ending Completed ([PR 1373](https://github.com/collisionengineers/pegasus/pull/1373));
+subscription maintenance reading only due rows ([PR 1369](https://github.com/collisionengineers/pegasus/pull/1369));
+staff Take over of an Automation lease ([PR 1377](https://github.com/collisionengineers/pegasus/pull/1377));
+paged Unidentified and Awaiting lists ([PR 1376](https://github.com/collisionengineers/pegasus/pull/1376), #967);
+the 150 MiB mail bound ([PR 1374](https://github.com/collisionengineers/pegasus/pull/1374), #968);
+the ModelContextProtocol.AspNetCore bump ([PR 1375](https://github.com/collisionengineers/pegasus/pull/1375), #974);
+and the third PDF image decode path ([PR 1378](https://github.com/collisionengineers/pegasus/pull/1378), #989).
+
+The route was the additive migration route: the two migrations and the grant bootstrap ran
+while the Release 108 bytes stayed live, then the normal App Service route deployed Web and
+Worker. Both are Running on the approved release and full production smoke passed first time.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `83bec25566599611380090c299b6de5de3ddf871`, the merge of PR 1386 into `dev`; `main` and `dev` both read it back. Manifest SHA-256 `6624CFB2253E841EFA31FD12CD2406A58A023EC441AA9CE94078F1F31A35B53F` (schema 3, clean, `win-x64`/`efbundle.exe`); `web.zip` `BE52E3640F9BA9362461621A0FDFBB4E6689F3775E241ED98D090E9C417CCF97`; `worker.zip` `DB691581AF4072AA3CF3B414F13A23C3D55FB98313C5CC6727EA6130A9E93106`; `classifier.zip` `9D4A8AAC4D07534E892A164EEB0FC45F89A657D7521DE5CB3D40EFC322DD8B51` (built, not deployed: no classifier Function App exists); `efbundle.exe` `107AEA5D38FF9BED9BE411414EC5AE39BFF0F516082EDA3D93130E155C1D92BE`. Built 06:27-06:36Z in a detached worktree at the release SHA; Local and Artifact plan validations passed. Tools: .NET SDK 10.0.302, Node v24.15.0, npm 11.14.1, az 2.88.0, azd 1.34.1. |
+| Review and promotion | Every constituent PR was CI-green and independently reviewed; PR 1386's head tree equals the release tree, its lost-work audit was explained in its body (seven union resolutions, three combination fix commits, compiled model regenerated at the tip with no difference) and its checks passed first time (run 39007516349: unit, six `sql-integration` shards, coverage, invariants, classifier, infrastructure; every shard found 255 of 255 classes with a recorded duration). One promotion from `main` `947c03ea5` at 06:26:26Z, under the operator's authorisation of 16 October for the programme's landings, promotions and deployments. |
+| Schema and grants | Additive. Deployed head `20261014220000_DropApprovedOutlookCategories` (222 applied); new head `20261017100000_VehicleLookupMileageEstimate` (224) through `20261017090000_ApprovedInboxPendingWake` (column `PendingWakeAtUtc` on `ApprovedInboxPollStates`) and `20261017100000_VehicleLookupMileageEstimate` (column `MileageEstimateJson` on `VehicleLookupObservations` and `GRANT UPDATE` on it to the Web runtime role). PreMigration gate 06:37:30Z; bundle applied both 06:37:30-06:37:37Z with Web and Worker Running on `947c03ea5`; bootstrap passed 06:37:55Z (681 catalogued permission/denial rows, 479 effective runtime DML rows); head verified 06:37:57Z. |
+| Deployment | PreDeploy 06:38:32Z; PreProvision passed (B1 quota in `uksouth` 3); provision 06:39:02Z found no changes; `web.zip` deployed with `--clean true --restart true` 06:42:35Z, exact release read back 06:43:04Z; `worker.zip` deployed 06:44:41Z. |
+| Production smoke | Passed 06:45:28Z: Worker activation `approved-live-worker`; Web Running on `DOTNETCORE\|10.0`; deployment record `75f0eba4-62bd-441b-8dde-093c9f0a8a69` (OneDeploy, 06:39:28Z); active package `20261017063910.zip` SHA-256 equals the approved `web.zip`; intake liveness passed (last poll 06:45:02Z; Graph subscription expires 2026-10-18 17:10:00Z); all five Disabled settings `false`. |
+| Query Store | State `READ_WRITE`. Before snapshot (24 h to 06:27Z, 88 statements) at ignored `artifacts/performance/query-store-release-109-before-20261017T0627Z.csv` (the isolation programme, the claim seek, the subscription-maintenance predicate and the paged lists change data access). The after snapshots for Releases 107, 108 and 109 are owed after a day of use. |
+| Still owed | Live proof signed in: a mailbox wake that finds the lease held is kept and polled afterwards; the MOT mileage estimate fills a Case and reads `Estimated` as its source; Take over of an Automation lease; the Unidentified and Awaiting lists page; Market Research jobs end Completed. The Graph subscription expiring 2026-10-18 17:10:00Z is inside the 48 h window the due-rows predicate reads, so its renewal is the first live proof of PR 1369. The isolation programme owes a week of deadlock (1205) telemetry before its PR 3. Release 108's owed items stand. |
+| PR states | PRs 1359 to 1363, 1365 to 1386 read Merged with their heads in `main` and `dev`. #967, #968 and #974 were closed at landing; #989 stays open (PR 1378 refers to it: the JPEG 2000 photo-PDF question is the operator's). |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-109-83bec255`; the stage drivers and their logs at `artifacts/releases/release-109-driver`. |
+
 ## Release 108 - 16 October 2026 (deployment live)
 
 Release 108 deployed [PR 1357](https://github.com/collisionengineers/pegasus/pull/1357)
@@ -32,7 +74,7 @@ are Running on the approved release and full production smoke passed first time.
 | Deployment | Serving Web before the release read `eff3ad287` (Release 107). PreDeploy 22:51:22Z; PreProvision passed (B1 quota in `uksouth` 3); provision 22:54:13Z found no changes; `web.zip` deployed with `--clean true --restart true` 22:58:15Z, exact release read back 22:58:42Z; `worker.zip` deployed 23:00:21Z. |
 | Production smoke | Passed 23:01:12Z: Worker activation `approved-live-worker`; Web Running on `DOTNETCORE\|10.0`; deployment record `5bd855e0-a103-4772-b699-0016d0de7d1e` (OneDeploy, 22:54:40Z); active package `20261016225422.zip` SHA-256 equals the approved `web.zip`; intake liveness passed (last poll 23:00:00Z; Graph subscription expires 2026-10-18 17:10:00Z); all five Disabled settings `false`. |
 | Query Store | State `READ_WRITE`. Before snapshot (24 h to 22:50Z, 84 statements) at ignored `artifacts/performance/query-store-release-108-before-20261016T2250Z.csv`, taken because PR 1341 removes the rail count reads and PR 1344 changes the Close, Unlink and replacement stores. The after snapshot is owed after a day of use, with Release 107's. |
-| Still owed | Live proof signed in: the Actions menu on a Report sent Case offers no Place on Hold and no Close; Close, Correct principal and Unlink on a Case holding an open task proceed and the replacement cancels the original's open tasks; every closed Case reads Closed and the Close dialog requires a reason; the shell rail shows no counts. One `gh workflow run dependency-advisories.yml` on `main` and its run read. Release 107's owed items stand. |
+| Still owed | Live proof signed in: the Actions menu on a Report sent Case offers no Place on Hold and no Close; Close, Correct principal and Unlink on a Case holding an open task proceed and the replacement cancels the original's open tasks; every closed Case reads Closed and the Close dialog requires a reason; the shell rail shows no counts. Release 107's owed items stand. The first `gh workflow run dependency-advisories.yml` on `main` (run 38980487956, dispatched 23:15Z, 16 October) completed `success`: the locked restore raised no advisory and opened no issue. |
 | PR states | PRs 1338 to 1348, 1357 and 1358 read Merged with their heads in `main` and `dev`. #1212 was closed at landing; its follow-ups #1349 to #1356 stay open. |
 | Evidence | Exact artifacts retained at ignored `artifacts/releases/release-108-947c03ea`; the stage driver, its log and the build log at `artifacts/releases/release-108-driver`. |
 
