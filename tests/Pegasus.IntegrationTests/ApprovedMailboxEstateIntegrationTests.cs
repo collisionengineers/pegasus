@@ -49,7 +49,8 @@ public sealed class ApprovedMailboxEstateIntegrationTests
         if (previouslyPolled)
         {
             var previous = Assert.IsType<ApprovedInboxPollLease>(await pollStore.ClaimAsync(
-                mailbox, cutoff.AddMinutes(-2), TimeSpan.FromMinutes(1), CancellationToken.None));
+                mailbox, ApprovedInboxClaimKind.Sweep, cutoff.AddMinutes(-2), TimeSpan.FromMinutes(1),
+                CancellationToken.None));
             await pollStore.CompleteAsync(
                 mailboxId, previous.LeaseToken, "old-cursor", cutoff.AddMinutes(-1), CancellationToken.None);
         }
@@ -79,7 +80,7 @@ public sealed class ApprovedMailboxEstateIntegrationTests
         Assert.Equal(mailbox.ActivatedAtUtc, currentMailbox.ActivatedAtUtc);
         Assert.Equal(mailbox.Address, currentMailbox.Address);
         var claim = Assert.IsType<ApprovedInboxPollLease>(await pollStore.ClaimAsync(
-            currentMailbox, cutoff, TimeSpan.FromMinutes(1), CancellationToken.None));
+            currentMailbox, ApprovedInboxClaimKind.Sweep, cutoff, TimeSpan.FromMinutes(1), CancellationToken.None));
         Assert.Equal(cutoff, claim.StartBoundaryUtc);
         Assert.Equal(mailbox.ActivatedAtUtc, claim.ActivatedAtUtc);
         Assert.Equal(currentMailbox.Generation, claim.Generation);
@@ -89,7 +90,7 @@ public sealed class ApprovedMailboxEstateIntegrationTests
             mailboxId, claim.LeaseToken, "recovery-cursor", cutoff, CancellationToken.None);
         await pollStore.CompleteNotificationAsync(mailboxId, claim.LeaseToken, CancellationToken.None);
         var nextClaim = Assert.IsType<ApprovedInboxPollLease>(await pollStore.ClaimAsync(
-            currentMailbox, cutoff, TimeSpan.FromMinutes(1), CancellationToken.None));
+            currentMailbox, ApprovedInboxClaimKind.Sweep, cutoff, TimeSpan.FromMinutes(1), CancellationToken.None));
         Assert.Equal("recovery-cursor", nextClaim.Cursor);
         Assert.Equal(cutoff, nextClaim.StartBoundaryUtc);
     }

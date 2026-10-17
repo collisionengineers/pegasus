@@ -12,6 +12,7 @@ internal sealed class EfApprovedInboxPollStore(
 {
     public async Task<ApprovedInboxPollLease?> ClaimAsync(
         ApprovedIntakeMailbox mailbox,
+        ApprovedInboxClaimKind kind,
         DateTimeOffset nowUtc,
         TimeSpan leaseDuration,
         CancellationToken cancellationToken)
@@ -94,6 +95,7 @@ internal sealed class EfApprovedInboxPollStore(
             state.LeaseExpiresAtUtc = null;
             state.LastCompletedAtUtc = null;
             state.LastFailureCode = null;
+            state.PendingWakeAtUtc = null;
         }
 
         if ((state.LeaseToken is null) != (state.LeaseExpiresAtUtc is null))
@@ -104,6 +106,13 @@ internal sealed class EfApprovedInboxPollStore(
         if (state.DueAtUtc > nowUtc
             || state.LeaseExpiresAtUtc is { } leaseExpiresAtUtc && leaseExpiresAtUtc > nowUtc)
         {
+            // The wake is kept for the recovery timer's next minute rather than
+            // dropped; a sweep that cannot poll now comes round again anyway.
+            if (kind != ApprovedInboxClaimKind.Sweep)
+            {
+                state.PendingWakeAtUtc = nowUtc;
+            }
+
             await context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return null;
@@ -111,6 +120,12 @@ internal sealed class EfApprovedInboxPollStore(
 
         state.LeaseToken = Guid.NewGuid().ToString("N");
         state.LeaseExpiresAtUtc = nowUtc.Add(leaseDuration);
+        // A delta read answers every wake recorded before it; one message's read does not.
+        if (kind != ApprovedInboxClaimKind.MessageWake)
+        {
+            state.PendingWakeAtUtc = null;
+        }
+
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(
@@ -123,6 +138,17 @@ internal sealed class EfApprovedInboxPollStore(
             state.LeaseToken,
             state.StartBoundaryUtc,
             state.Generation);
+    }
+
+    public async Task<IReadOnlyList<Guid>> ListPendingWakeAsync(CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.ApprovedInboxPollStates
+            .AsNoTracking()
+            .Where(item => item.PendingWakeAtUtc != null)
+            .OrderBy(item => item.PendingWakeAtUtc)
+            .Select(item => item.ApprovedMailboxId)
+            .ToListAsync(cancellationToken);
     }
 
     public Task AdvanceAsync(

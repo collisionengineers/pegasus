@@ -204,13 +204,39 @@ public interface IApprovedInboxSource
         CancellationToken cancellationToken) => Task.FromResult<ApprovedInboxMessage?>(null);
 }
 
+/// <summary>Why a poll claims a mailbox's lease.</summary>
+public enum ApprovedInboxClaimKind
+{
+    /// <summary>The fallback poll of the whole estate.</summary>
+    Sweep,
+
+    /// <summary>A wake that reads the mailbox's delta: a lifecycle event or a recorded wake.</summary>
+    MailboxWake,
+
+    /// <summary>A creation notification that reads its one message.</summary>
+    MessageWake
+}
+
 public interface IApprovedInboxPollStore
 {
+    /// <summary>
+    /// The mailbox's lease, or null when the mailbox is no longer offered, not yet
+    /// due or leased to another poll. A wake that finds it not yet due or leased is
+    /// recorded, so the recovery timer polls the mailbox on its next minute
+    /// (operator ruling of 15 October 2026); a blocked sweep records nothing. A
+    /// granted <see cref="ApprovedInboxClaimKind.Sweep"/> or
+    /// <see cref="ApprovedInboxClaimKind.MailboxWake"/> reads the delta, so it clears
+    /// the recorded wake; a <see cref="ApprovedInboxClaimKind.MessageWake"/> leaves it.
+    /// </summary>
     Task<ApprovedInboxPollLease?> ClaimAsync(
         ApprovedIntakeMailbox mailbox,
+        ApprovedInboxClaimKind kind,
         DateTimeOffset nowUtc,
         TimeSpan leaseDuration,
         CancellationToken cancellationToken);
+
+    /// <summary>The mailboxes with a recorded wake, oldest first. A read: it claims nothing.</summary>
+    Task<IReadOnlyList<Guid>> ListPendingWakeAsync(CancellationToken cancellationToken);
 
     Task AdvanceAsync(
         Guid approvedMailboxId,
@@ -301,12 +327,67 @@ public sealed class PollApprovedInbox(
             ValidateMailbox(mailbox);
         }
 
+        return await PollEachAsync(
+            mailboxes,
+            ApprovedInboxClaimKind.Sweep,
+            maximumMessages,
+            actorCode,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Polls, as a mailbox wake, each mailbox whose wake found it leased or not yet
+    /// due, so that wake is answered before the next fallback poll (operator ruling
+    /// of 15 October 2026). When no wake is recorded this is one read, and the estate
+    /// is not listed. A recorded mailbox the estate no longer offers is skipped.
+    /// </summary>
+    public async Task<int> ExecutePendingWakesAsync(
+        int maximumMessages,
+        ActionActor actor,
+        CancellationToken cancellationToken = default)
+    {
+        var actorCode = ValidateRequest(maximumMessages, actor);
+        var pending = await pollStore.ListPendingWakeAsync(cancellationToken);
+        ArgumentNullException.ThrowIfNull(pending);
+        if (pending.Count == 0)
+        {
+            return 0;
+        }
+
+        var offered = await approvedIntakeMailboxes.ListPollableAsync(cancellationToken);
+        ArgumentNullException.ThrowIfNull(offered);
+        var mailboxes = pending
+            .Select(approvedMailboxId => offered.FirstOrDefault(
+                mailbox => mailbox.ApprovedMailboxId == approvedMailboxId))
+            .OfType<ApprovedIntakeMailbox>()
+            .ToArray();
+        foreach (var mailbox in mailboxes)
+        {
+            ValidateMailbox(mailbox);
+        }
+
+        return await PollEachAsync(
+            mailboxes,
+            ApprovedInboxClaimKind.MailboxWake,
+            maximumMessages,
+            actorCode,
+            cancellationToken);
+    }
+
+    private async Task<int> PollEachAsync(
+        IReadOnlyList<ApprovedIntakeMailbox> mailboxes,
+        ApprovedInboxClaimKind kind,
+        int maximumMessages,
+        string actorCode,
+        CancellationToken cancellationToken)
+    {
         var handledMessages = 0;
         var failures = new List<Exception>();
         foreach (var mailbox in mailboxes)
         {
             handledMessages += await PollMailboxAsync(
                 mailbox,
+                kind,
                 maximumMessages,
                 actorCode,
                 failures,
@@ -354,6 +435,7 @@ public sealed class PollApprovedInbox(
         var failures = new List<Exception>();
         var handled = await PollMailboxAsync(
             mailbox,
+            ApprovedInboxClaimKind.MailboxWake,
             maximumMessages,
             actorCode,
             failures,
@@ -383,6 +465,7 @@ public sealed class PollApprovedInbox(
 
         var lease = await pollStore.ClaimAsync(
             mailbox,
+            ApprovedInboxClaimKind.MessageWake,
             timeProvider.GetUtcNow(),
             PollLeaseDuration,
             cancellationToken);
@@ -512,6 +595,7 @@ public sealed class PollApprovedInbox(
 
     private async Task<int> PollMailboxAsync(
         ApprovedIntakeMailbox mailbox,
+        ApprovedInboxClaimKind kind,
         int maximumMessages,
         string actorCode,
         List<Exception> failures,
@@ -527,6 +611,7 @@ public sealed class PollApprovedInbox(
         {
             lease = await pollStore.ClaimAsync(
                 mailbox,
+                kind,
                 timeProvider.GetUtcNow(),
                 PollLeaseDuration,
                 cancellationToken);
