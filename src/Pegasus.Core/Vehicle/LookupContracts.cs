@@ -93,6 +93,8 @@ public sealed record VehicleLookupResult(
     IReadOnlyList<MotTestObservation> MotTests,
     VehicleLookupFailure? Failure)
 {
+    public bool HasEvidence => Vehicle is not null || MotTests.Count > 0;
+
     public void EnsureValidFor(VehicleLookupRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -125,11 +127,10 @@ public sealed record VehicleLookupResult(
             throw new InvalidDataException("The MOT observation collection is required.");
         }
 
-        var hasEvidence = Vehicle is not null || MotTests.Count > 0;
         if ((Outcome is VehicleLookupOutcome.Current
                 or VehicleLookupOutcome.Stale
                 or VehicleLookupOutcome.Partial)
-            && !hasEvidence)
+            && !HasEvidence)
         {
             throw new InvalidDataException("A successful or partial vehicle lookup must contain evidence.");
         }
@@ -138,12 +139,12 @@ public sealed record VehicleLookupResult(
                 or VehicleLookupOutcome.Throttled
                 or VehicleLookupOutcome.Unavailable
                 or VehicleLookupOutcome.Failed)
-            && hasEvidence)
+            && HasEvidence)
         {
             throw new InvalidDataException("A non-evidence lookup outcome cannot contain vehicle or MOT evidence.");
         }
 
-        if (hasEvidence && SourceObservedAtUtc is null)
+        if (HasEvidence && SourceObservedAtUtc is null)
         {
             throw new InvalidDataException("Vehicle evidence must retain its source observation time.");
         }
