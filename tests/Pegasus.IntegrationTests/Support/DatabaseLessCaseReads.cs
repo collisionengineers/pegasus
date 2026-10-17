@@ -79,8 +79,9 @@ internal sealed class DatabaseLessCaseReads :
 
     /// <summary>
     /// The claim sources <c>20261012190000_PrincipalReportSendingRules</c>
-    /// (slots 01 to 05) and <c>20261013091000_ContactSopSeed</c> (06 to 0a)
-    /// seed, in the store's name order. No migration seeds a repairer.
+    /// (slots 01 to 05), <c>20261013091000_ContactSopSeed</c> (06 to 0a) and
+    /// <c>20261017120000_ReportSendingSopV8</c> (0b) seed, in the store's name
+    /// order. No migration seeds a repairer.
     /// </summary>
     private static readonly IReadOnlyList<ContactDirectoryRecord> ClaimSources =
     [
@@ -90,6 +91,7 @@ internal sealed class DatabaseLessCaseReads :
         SeededClaimSource("00000000-0000-4000-8000-00000000f004", "Expert Claims"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f007", "Guardian Accident Claims"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f008", "Hackney Solutions"),
+        SeededClaimSource("00000000-0000-4000-8000-00000000f00b", "iRevolution Repair Network"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f009", "James Claims"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f005", "Rapid Rental Solutions"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f002", "SMC"),
