@@ -98,12 +98,13 @@ public sealed class EfContactDirectoryAdministration(
         return await LoadRecordsAsync(context, ids, latestCases: null, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<PrincipalAdministrationDetails>> ListPrincipalChoicesAsync(ActionActor actor, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<PrincipalAdministrationDetails>> ListPrincipalChoicesAsync(ActionActor actor, Guid? contactId, CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.ManageOrganizationsAndPrincipals);
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         var rows = await context.Principals.AsNoTracking().Include(item => item.Organization)
-            .Where(item => item.IsActive).OrderBy(item => item.Organization.Name).ThenBy(item => item.Code).ToArrayAsync(cancellationToken);
+            .Where(item => item.IsActive || (contactId != null && item.ContactLinks.Any(link => link.OrganizationId == contactId)))
+            .OrderBy(item => item.Organization.Name).ThenBy(item => item.Code).ToArrayAsync(cancellationToken);
         return rows.Select(ToPrincipalChoice).ToArray();
     }
 
@@ -175,11 +176,19 @@ public sealed class EfContactDirectoryAdministration(
                 principal.IsActive = entity.Active;
                 changed = true;
             }
+            // An existing Principal takes the posted mode (operator, 16 October 2026).
+            var inspectionMode = PrincipalInspectionModePolicy.ToCode(request.PrincipalInspectionMode);
+            if (principal.InspectionMode != inspectionMode)
+            {
+                principal.InspectionMode = inspectionMode;
+                changed = true;
+            }
         }
 
+        // A link may name an inactive Principal (operator, 16 October 2026).
         var requestedPrincipalIds = request.LinkedPrincipalIds.ToArray();
         var principals = await context.Principals
-            .Where(item => requestedPrincipalIds.Contains(item.Id) && item.IsActive)
+            .Where(item => requestedPrincipalIds.Contains(item.Id))
             .ToArrayAsync(cancellationToken);
         if (principals.Length != requestedPrincipalIds.Length || principals.Any(item => item.OrganizationId == entity.Id))
             throw new ContactDirectoryException(ContactDirectoryError.InvalidPrincipalAssociation);
@@ -300,7 +309,10 @@ public sealed class EfContactDirectoryAdministration(
             entity.Principals.Select(item => item.Id).Order().ToArray(),
             entity.NotesOnEveryCase,
             entity.Principals.OrderByDescending(item => item.IsActive).ThenBy(item => item.Code, StringComparer.Ordinal)
-                .Select(item => item.Code).FirstOrDefault());
+                .Select(item => item.Code).FirstOrDefault(),
+            // The mode a save compares with: the current Principal's, the one without a successor.
+            entity.Principals.Where(item => item.SuccessorId is null)
+                .Select(item => (CaseInspectionMode?)PrincipalInspectionModePolicy.Parse(item.InspectionMode)).FirstOrDefault());
     }
 
     private sealed class LatestCaseRow

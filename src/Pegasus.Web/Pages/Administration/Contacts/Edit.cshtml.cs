@@ -117,7 +117,7 @@ public sealed class EditModel(
         await LoadPrincipalAsync(actor, cancellationToken);
         InitializePrincipalSettings();
         await LoadReportSendingChoicesAsync(actor, cancellationToken);
-        PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, cancellationToken);
+        PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, ContactId, cancellationToken);
         return Page();
     }
 
@@ -416,7 +416,7 @@ public sealed class EditModel(
             InitializePrincipalSettings();
             await LoadReportSendingChoicesAsync(actor, cancellationToken);
         }
-        PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, cancellationToken);
+        PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, ContactId, cancellationToken);
     }
 
     // The mailboxes a new message may leave from (the Outgoing ones that can
@@ -472,7 +472,8 @@ public sealed class EditModel(
     {
         if (Principal is null) return;
         PrincipalCode = Principal.Code;
-        PrincipalInspectionMode = Principal.InspectionMode;
+        // The mode the save compares with: the current Principal's, the one without a successor.
+        PrincipalInspectionMode = Contact?.PrincipalInspectionMode ?? Principal.InspectionMode;
         PrincipalExpectedVersion = Principal.Version;
         ReplacementExpectedVersion = Principal.Version;
         DefaultFee = Principal.DefaultFee;

@@ -256,7 +256,7 @@ internal sealed class DatabaseLessCaseReads :
         Refused<IReadOnlyList<ContactDirectoryRecord>>(nameof(IContactDirectoryQueries));
 
     Task<IReadOnlyList<PrincipalAdministrationDetails>> IContactDirectoryQueries.ListPrincipalChoicesAsync(
-        ActionActor actor, CancellationToken cancellationToken) =>
+        ActionActor actor, Guid? contactId, CancellationToken cancellationToken) =>
         Refused<IReadOnlyList<PrincipalAdministrationDetails>>(nameof(IContactDirectoryQueries));
 
     Task<CaseEditLease?> IResumeCaseEditLease.ExecuteAsync(

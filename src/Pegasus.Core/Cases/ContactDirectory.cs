@@ -30,7 +30,8 @@ public sealed record ContactDirectoryRecord(
     IReadOnlyList<Guid>? LinkedPrincipalIds = null,
     IReadOnlyList<Guid>? OwnPrincipalIds = null,
     string? NotesOnEveryCase = null,
-    string? PrincipalCode = null);
+    string? PrincipalCode = null,
+    CaseInspectionMode? PrincipalInspectionMode = null);
 
 public sealed record ContactDirectoryQuery(
     ActionActor Actor,
@@ -76,8 +77,13 @@ public interface IContactDirectoryQueries
         ActionActor actor, ContactRole role, CancellationToken cancellationToken);
     Task<IReadOnlyList<ContactDirectoryRecord>> FindPossibleMatchesAsync(
         ActionActor actor, string name, CancellationToken cancellationToken);
+    /// <summary>
+    /// The Principals a contact may link: every active one and, for
+    /// <paramref name="contactId"/>, the inactive ones it already links, so a
+    /// save of that contact keeps them (operator, 16 October 2026).
+    /// </summary>
     Task<IReadOnlyList<PrincipalAdministrationDetails>> ListPrincipalChoicesAsync(
-        ActionActor actor, CancellationToken cancellationToken);
+        ActionActor actor, Guid? contactId, CancellationToken cancellationToken);
 }
 
 public static class ContactDirectoryQueriesExtensions

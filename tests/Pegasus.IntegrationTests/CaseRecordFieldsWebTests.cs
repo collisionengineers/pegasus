@@ -600,7 +600,7 @@ public sealed class CaseRecordFieldsWebTests
             Task.FromResult<IReadOnlyList<ContactDirectoryRecord>>([]);
 
         Task<IReadOnlyList<PrincipalAdministrationDetails>> IContactDirectoryQueries.ListPrincipalChoicesAsync(
-            ActionActor actor, CancellationToken cancellationToken) =>
+            ActionActor actor, Guid? contactId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<PrincipalAdministrationDetails>>([]);
     }
 

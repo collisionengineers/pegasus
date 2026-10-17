@@ -145,7 +145,7 @@ public sealed class IndexModel(
     // The Principal choices serve the create dialog and the Linked principals column.
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, cancellationToken);
+        PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, contactId: null, cancellationToken);
         // The selected type opens at the requested page; with no type every panel shows its first page.
         PageNumber = Type is null ? 1 : ContactDirectoryPolicy.NormalizePage(PageNumber);
         var roles = Type is { } selected ? new[] { selected } : Enum.GetValues<ContactRole>();
