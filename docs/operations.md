@@ -4,6 +4,35 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 110 - 17 October 2026 (deployment live)
+
+Release 110 deployed [PR 1391](https://github.com/collisionengineers/pegasus/pull/1391), the first
+landing of wave 3 of the release-readiness programme: the isolation programme's
+[PR 1390](https://github.com/collisionengineers/pegasus/pull/1390) (one three-attempt retry at the
+store boundary of keyed saves, `StoreConcurrencyRetry`, replacing the per-store loops);
+[PR 1388](https://github.com/collisionengineers/pegasus/pull/1388) (TST-04 PR 2: 144 inline
+recording-store test sites on the database-less web factory); and
+[PR 1387](https://github.com/collisionengineers/pegasus/pull/1387) (ADR-0076: the reviewed register
+is the Contact directory data contract, DATA-02, with the PRD, FRD-04, FRD-06, capabilities and
+`reference/README.md` lines it names).
+
+The route was the normal App Service route with the migration identity unchanged: no bundle, grant
+or bootstrap ran. Web and Worker are Running on the approved release and full production smoke
+passed first time.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `3604e2888878f675fe05f4ff148d2a185f121652`, the merge of PR 1391 into `dev`; `main` and `dev` both read it back. Manifest SHA-256 `61F1603AD696AF169E3089944B25CF69785375E0BA296C41FEE2D66FDC846912` (schema 3, clean, `win-x64`/`efbundle.exe`); `web.zip` `A83DF49C7ECF58BCA64217A7AAEE110D54871449D86E8B61D50D5EE12B1411BD`; `worker.zip` `AE8820BB8C4838741D819DA23DCE5B3CC17B5A4895E53695381B15664D098A44`; `classifier.zip` `9AC68942DAAF55419291492DF3B8E1703EEF11FD8EF0F1D7D5E97E2CE3FDE907` (built, not deployed: no classifier Function App exists); `efbundle.exe` `B1BC292BA210B97D52BFA1DBB65B984F337FBA364F231504217520A723CCF19B` (built, not run). Built 09:41-09:48Z in a detached worktree at the release SHA; Local and Artifact plan validations passed. Tools: .NET SDK 10.0.302, Node v24.15.0, npm 11.14.1, az 2.88.0, azd 1.34.1. |
+| Review and promotion | Every constituent PR was CI-green and independently reviewed; PR 1391's head tree equals the release tree, its lost-work audit passed with no FAIL or REVIEW line (three `--no-ff` merges, no conflict, no fix commit) and its checks passed first time (run 39020514915: changes, invariants, unit, six `sql-integration` shards and coverage; infrastructure and classifier skipped by path). One promotion from `main` `83bec2556` at 09:40:47Z, under the operator's authorisation of 16 October for the programme's landings, promotions and deployments. |
+| Schema and grants | Unchanged. Live head `20261017100000_VehicleLookupMileageEstimate` (224 applied) read at 09:49:06Z and equal to the manifest identity; no bundle, grant or bootstrap run. |
+| Deployment | PreDeploy 09:49:26Z; PreProvision passed 09:49:43Z (B1 quota in `uksouth` 3); provision 09:49:53Z found no changes; `web.zip` deployed with `--clean true --restart true` 09:54:10Z, exact release read back 09:54:29Z; `worker.zip` deployed 09:56:12Z. |
+| Production smoke | Passed 09:56:59Z: Worker activation `approved-live-worker`; Web Running on `DOTNETCORE\|10.0`; deployment record `8fa0bb4b-60e2-45b3-ae0e-4fcb7e5f567a` (OneDeploy, 09:50:22Z); active package `20261017095002.zip` SHA-256 equals the approved `web.zip`; intake liveness passed (last poll 09:55:00Z; Graph subscription expires 2026-10-18 17:10:00Z); all five Disabled settings `false`. |
+| Subscription maintenance | First live proof of PR 1369, read before this release at 09:19Z from `dbo.ApprovedMailboxSubscriptions` (read-only): the one Approved mailbox's subscription had been renewed at 08:20Z (generation 6, expiry 2026-10-23 08:20:00Z) and its `LastMaintainedAtUtc` is that renewal, not the latest five-minute pass. The three mailboxes Disabled since 13 October keep `Active` subscription rows expiring 2026-10-18 17:10:00Z with `LastMaintainedAtUtc` 2026-10-13 05:20Z; the due-rows predicate reads Approved mailboxes only, so they are not candidates, and the smoke's "subscription expires" line quotes one of them. |
+| Query Store | State `READ_WRITE`. Before snapshot (24 h to 09:48Z, 98 statements) at ignored `artifacts/performance/query-store-release-110-before-20261017T0948Z.csv` (PR 1390 changes the retry around keyed saves). The after snapshots for Releases 107, 108, 109 and 110 are owed after a day of use. |
+| Still owed | Live proof signed in: a 1205 or lost-race retry under `StoreConcurrencyRetry` logged as an attempt, not a failed request; the isolation programme's week of deadlock telemetry now runs against PR 3. Release 108 and 109 owed items stand. |
+| PR states | PRs 1387, 1388, 1390 and 1391 read Merged with their heads in `main` and `dev`. No issue was linked. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-110-3604e288`; the stage driver and its log at `artifacts/releases/release-110-driver`. |
+
 ## Release 109 - 17 October 2026 (deployment live)
 
 Release 109 deployed [PR 1386](https://github.com/collisionengineers/pegasus/pull/1386), the
