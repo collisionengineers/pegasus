@@ -4,6 +4,39 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 111 - 17 October 2026 (deployment live)
+
+Release 111 deployed [PR 1398](https://github.com/collisionengineers/pegasus/pull/1398), the second
+landing of wave 3 of the release-readiness programme, the reference-data chain stacked on
+ADR-0076: [PR 1392](https://github.com/collisionengineers/pegasus/pull/1392) (the
+`InspectionLocations` reference table and its Principal links, offered at Inspect at through the
+existing `Directory` source kind, with its migration);
+[PR 1394](https://github.com/collisionengineers/pegasus/pull/1394) (REF-06 A: the report sending
+rule model reads the SOP v8 constructs, Reference prefix, Previous job, Rate card and the attach
+override, on the Principal's Report sending form; no migration);
+[PR 1395](https://github.com/collisionengineers/pegasus/pull/1395) (the Contacts list pages one type
+at a time, 50 a panel); [PR 1396](https://github.com/collisionengineers/pegasus/pull/1396) (the
+contact save sets an existing Principal's inspection mode and keeps links to inactive Principals);
+and [PR 1397](https://github.com/collisionengineers/pegasus/pull/1397) (the one-off reference-data
+loader under `scripts/reference-data-loader`, run by the operator, not by the application).
+
+The route was the additive migration route: the migration and the grant bootstrap ran while the
+Release 110 bytes stayed live, then the normal App Service route deployed Web and Worker. Both are
+Running on the approved release and full production smoke passed first time. No reference data was
+loaded: the loader's production run is a separate step after REF-06 B.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `9f893a717b234146e8beaeb72dda09692492a338`, the merge of PR 1398 into `dev`; `main` and `dev` both read it back. Manifest SHA-256 `DE433CE69F20A5983A302320B0A27FAE8E8A792903D0132431D1D6F87DAA450C` (schema 3, clean, `win-x64`/`efbundle.exe`); `web.zip` `B1D62AD350FACF464D5F1DE6F393294E3596AFD4778295C750B5791354418361`; `worker.zip` `4D13F454A8655F90045453284AB9D832C01AE8DB65BD47092D57149132360501`; `classifier.zip` `01AF51085FDBFA62382580A22097C567FD01FD0F58C6A8893E0C152DB9ADFCCD` (built, not deployed: no classifier Function App exists); `efbundle.exe` `99125DF5C501AF93FE0997B6C2916E510DD203B9F0D330F4F59CAD6370E5D1D5`. Built 17:00-17:08Z in a detached worktree at the release SHA; Local and Artifact plan validations passed. Tools: .NET SDK 10.0.302, Node v24.15.0, npm 11.14.1, az 2.88.0, azd 1.34.1. |
+| Review and promotion | Every constituent PR was CI-green and independently reviewed; PR 1398's head tree equals the release tree, its lost-work audit passed with no FAIL or REVIEW line (five `--no-ff` merges in stack order, no conflict, no fix commit, no local build: `dev`'s changes since the stack's base touched no entity, configuration or migration, so PR 1392's compiled model stood) and its checks passed first time (run 39049500452: changes, invariants, infrastructure, unit, six `sql-integration` shards and coverage; classifier skipped by path). One promotion from `main` `3604e2888` at 17:00:11Z, under the operator's authorisation of 16 October for the programme's landings, promotions and deployments. |
+| Schema and grants | Additive. Deployed head `20261017100000_VehicleLookupMileageEstimate` (224 applied); new head `20261017110000_InspectionLocations` (225): tables `InspectionLocations` (Name, Address, Postcode, Source, SourceRecordId, ReviewedAtUtc, Active, Version; four check constraints; a unique index on Source and SourceRecordId) and `InspectionLocationPrincipalLinks` (Principal and location keys; cascade from Principals, restrict from locations); `GRANT SELECT` on both and `GRANT INSERT` on the links to the Web runtime role, `DENY DELETE` on both to both runtime roles; the loader writes as the operator outside both roles. PreMigration gate 17:10:16Z; bundle applied 17:10:17-17:10:24Z with Web and Worker Running on `3604e2888`; bootstrap passed 17:10:43Z (688 catalogued permission/denial rows, 482 effective runtime DML rows: the post-migration matrix check PR 1392 owed); head verified 17:10:45Z. |
+| Deployment | PreDeploy 17:11:21Z; PreProvision passed 17:11:38Z (B1 quota in `uksouth` 3); provision 17:11:49Z found no changes; `web.zip` deployed with `--clean true --restart true` 17:15:41Z, exact release read back 17:15:47Z; `worker.zip` deployed 17:17:26Z. |
+| Production smoke | Passed 17:18:18Z: Worker activation `approved-live-worker`; Web Running on `DOTNETCORE\|10.0`; deployment record `3b3e3de4-2cdc-4084-b7f0-e2f1e0e47395` (OneDeploy, 17:12:19Z); active package `20261017171155.zip` SHA-256 equals the approved `web.zip`; intake liveness passed (last poll 17:15:00Z; Graph subscription expires 2026-10-18 17:10:00Z, a Disabled mailbox's row as the Release 110 record explains); all five Disabled settings `false`. |
+| Query Store | State `READ_WRITE`. Before snapshot (24 h to 16:59Z, 205 statements) at ignored `artifacts/performance/query-store-release-111-before-20261017T1659Z.csv` (the Contacts list now pages; the edit-session Case page reads a Principal's locations on every render). The after snapshots for Releases 107 to 111 are owed after a day of use. |
+| Still owed | Live proof signed in: a Principal's Report sending form shows Reference prefix, Previous job, Rate card and the attach override and refuses a non-letter prefix naming its rule; the Contacts list pages a type at 50 rows; a contact save sets an existing Principal's inspection mode. After the authorised reference-data load (REF-04, after REF-06 B): a Case offering a Principal's reviewed locations at Inspect at, and the Repairers list over five pages. For the operator: the FRD-06 and FRD-16 words "the Principal's reviewed locations" and the architecture row (PR 1392, R121), the FRD "disabled" against the code's "absent" (R127 (d)), and the runbook "Reference-data load" section and architecture sentence (PR 1397, R121). Release 108 to 110 owed items stand. |
+| PR states | PRs 1392, 1394, 1395, 1396, 1397 and 1398 read Merged with their heads in `main` and `dev`. No issue was linked. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-111-9f893a71`; the stage drivers and their logs at `artifacts/releases/release-111-driver`. |
+
 ## Release 110 - 17 October 2026 (deployment live)
 
 Release 110 deployed [PR 1391](https://github.com/collisionengineers/pegasus/pull/1391), the first
