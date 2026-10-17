@@ -52,7 +52,7 @@ public sealed class ContactDirectoryRoleLookupTests
             ActionActor actor, Guid organizationId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<IReadOnlyList<ContactDirectoryRecord>> ListAsync(
+        public Task<ContactDirectoryPage> ListAsync(
             ContactDirectoryQuery query, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

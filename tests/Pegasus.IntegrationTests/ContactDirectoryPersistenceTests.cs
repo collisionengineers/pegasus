@@ -175,19 +175,24 @@ public sealed class ContactDirectoryPersistenceTests
 
         await using var queryScope = database.CreateAsyncScope();
         var queries = queryScope.ServiceProvider.GetRequiredService<IContactDirectoryQueries>();
-        var listed = await queries.ListAsync(new(Administrator, null, fixturePrefix), CancellationToken.None);
+        async Task<IReadOnlyList<ContactDirectoryRecord>> ListOfType(ContactRole role) =>
+            (await queries.ListAsync(new(Administrator, role, fixturePrefix), CancellationToken.None)).Items;
+        var listedPrincipals = await ListOfType(ContactRole.Principal);
+        var listedRepairers = await ListOfType(ContactRole.Repairer);
+        var listedClaimSources = await ListOfType(ContactRole.ClaimSource);
 
         Assert.Equal(
-            [firstPrincipal.OrganizationId, secondPrincipal.OrganizationId, repairer.OrganizationId, claimSource.OrganizationId],
-            listed.Select(item => item.OrganizationId));
+            [firstPrincipal.OrganizationId, secondPrincipal.OrganizationId],
+            listedPrincipals.Select(item => item.OrganizationId));
+        Assert.Equal([repairer.OrganizationId], listedRepairers.Select(item => item.OrganizationId));
+        Assert.Equal([claimSource.OrganizationId], listedClaimSources.Select(item => item.OrganizationId));
 
-        var latest = Assert.Single(listed, item => item.OrganizationId == firstPrincipal.OrganizationId);
+        var latest = Assert.Single(listedPrincipals, item => item.OrganizationId == firstPrincipal.OrganizationId);
         Assert.Equal(receivedAtUtc, latest.LastCaseReceivedAtUtc);
         Assert.Equal("CASE-A", latest.LastCaseReference);
         Assert.Equal("LCD01", latest.PrincipalCode);
         Assert.All(
-            listed.Where(item => item.OrganizationId == claimSource.OrganizationId
-                || item.OrganizationId == repairer.OrganizationId),
+            listedRepairers.Concat(listedClaimSources),
             item =>
             {
                 Assert.Null(item.LastCaseReceivedAtUtc);
@@ -199,6 +204,73 @@ public sealed class ContactDirectoryPersistenceTests
         var listedRepairer = Assert.Single(repairers, item => item.OrganizationId == repairer.OrganizationId);
         Assert.Null(listedRepairer.LastCaseReceivedAtUtc);
         Assert.Null(listedRepairer.LastCaseReference);
+    }
+
+    [Fact]
+    public async Task ListPagesATypeByNameWithoutSkippingOrRepeatingARow()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        const string repairerPrefix = "Paged repairer ";
+        // Zero-padded, so name order is number order; added newest-first in one save.
+        string[] repairerNames = [.. Enumerable.Range(0, 120).Select(number => $"{repairerPrefix}{number:D3}")];
+        await using (var scope = database.CreateAsyncScope())
+        {
+            var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            await using (context)
+            {
+                context.Organizations.AddRange(repairerNames.OrderDescending().Select(name => new OrganizationEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Name = name,
+                    Role = "repairer",
+                    Active = true,
+                    Version = 0
+                }));
+                await context.SaveChangesAsync();
+            }
+        }
+        const string principalPrefix = "Paged principal ";
+        string[] principalNames = [.. Enumerable.Range(1, 3).Select(number => $"{principalPrefix}{number}")];
+        foreach (var number in Enumerable.Range(1, 3))
+        {
+            await SaveAsync(database, NewPrincipal($"{principalPrefix}{number}", $"PGP{number}"));
+        }
+
+        await using var queryScope = database.CreateAsyncScope();
+        var queries = queryScope.ServiceProvider.GetRequiredService<IContactDirectoryQueries>();
+        Task<ContactDirectoryPage> ReadPage(ContactRole role, int pageNumber, string search) =>
+            queries.ListAsync(new(Administrator, role, search, pageNumber), CancellationToken.None);
+
+        var pages = new[]
+        {
+            await ReadPage(ContactRole.Repairer, 1, repairerPrefix),
+            await ReadPage(ContactRole.Repairer, 2, repairerPrefix),
+            await ReadPage(ContactRole.Repairer, 3, repairerPrefix)
+        };
+        Assert.Equal([1, 2, 3], pages.Select(page => page.PageNumber));
+        Assert.Equal([50, 50, 20], pages.Select(page => page.Items.Count));
+        Assert.Equal([true, true, false], pages.Select(page => page.HasNextPage));
+        Assert.Equal(repairerNames, pages.SelectMany(page => page.Items).Select(item => item.Name));
+
+        var beyond = await ReadPage(ContactRole.Repairer, 4, repairerPrefix);
+        Assert.Empty(beyond.Items);
+        Assert.False(beyond.HasNextPage);
+
+        var principals = await ReadPage(ContactRole.Principal, 1, principalPrefix);
+        Assert.Equal(principalNames, principals.Items.Select(item => item.Name));
+        Assert.False(principals.HasNextPage);
+
+        // A prefix narrows to 100 rows, so the second page holds exactly a full page and no more.
+        var narrowedFirst = await ReadPage(ContactRole.Repairer, 1, repairerPrefix + "0");
+        var narrowedSecond = await ReadPage(ContactRole.Repairer, 2, repairerPrefix + "0");
+        Assert.Equal(
+            repairerNames.Take(100),
+            narrowedFirst.Items.Concat(narrowedSecond.Items).Select(item => item.Name));
+        Assert.True(narrowedFirst.HasNextPage);
+        Assert.False(narrowedSecond.HasNextPage);
+        Assert.Empty((await ReadPage(ContactRole.Repairer, 3, repairerPrefix + "0")).Items);
     }
 
     private static SaveContactRequest NewPrincipal(string name, string code) => new(
