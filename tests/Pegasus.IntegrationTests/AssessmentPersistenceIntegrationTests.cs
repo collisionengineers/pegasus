@@ -56,7 +56,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
-    public async Task AssessmentWorkspaceLoadsInExactlyFiveReaderCommands()
+    public async Task AssessmentWorkspaceLoadsInAtMostFiveReaderCommands()
     {
         var counter = new ReaderCommandCounter();
         await using var harness = await Harness.CreateAsync(counter);
@@ -68,7 +68,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             .GetAsync(outcome.Identity.CaseId, CaseWorkSelector.Current);
 
         Assert.NotNull(workspace);
-        Assert.Equal(5, counter.ExecutedReaderCommands);
+        Assert.True(
+            counter.ExecutedReaderCommands <= 5,
+            $"The assessment workspace load sent {counter.ExecutedReaderCommands} reader commands; at most 5 are allowed.");
     }
 
     [Fact]

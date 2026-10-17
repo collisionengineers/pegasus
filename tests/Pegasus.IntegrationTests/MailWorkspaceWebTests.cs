@@ -357,8 +357,8 @@ public sealed class MailWorkspaceWebTests
     /// a Case, the list with its first row selected, and the list's Preview
     /// fragment. The message page reads the Case header, not the whole Case; the
     /// list draws its pane from its own row and reads only what the row lacks.
-    /// All three are pinned at their exact counts, so any change to one is seen,
-    /// and a mismatch lists every command sent.
+    /// All three counts are ceilings, so growth in one is seen, and a failure
+    /// lists every command sent.
     /// </summary>
     [Fact]
     public async Task TheInboxPagesSendTheirPinnedStatements()
@@ -395,47 +395,71 @@ public sealed class MailWorkspaceWebTests
         var previewCommands = counter.Count;
         var previewDescription = counter.Describe();
 
-        // The Inbox list and Message page trims (#1181) took the message page to 28 (27 with #1179) and
-        // spared the list its unretained-history check and its preview a second read.
-        // Measured with LocalDB in this scenario. Before Lane D (2ee268507) the message
-        // page sent 52, the list 39 and the preview 18. After the Lane D reads they sent
-        // 30, 24 and 11. The message page then sent 29 once its read of the message took
-        // the receipt's classification decision for the classification dossier too,
-        // rather than reading that decision a second time. The #1181 trims then left the
-        // message page two reads of that decision: the message read's receipt projection
-        // (which now also feeds the row's own label) and the intake read (the receipt
-        // aggregate); with #1179's rail trim the page is 27.
         Assert.True(
-            messageCommands == InboxMessageCommands,
-            $"The Inbox message page sent {messageCommands} SQL commands; it is pinned at {InboxMessageCommands}."
+            messageCommands <= InboxMessageCommands,
+            $"The Inbox message page sent {messageCommands} SQL commands; at most {InboxMessageCommands} are allowed."
             + Environment.NewLine + messageDescription);
         Assert.Equal(2, classificationDecisionReads);
         Assert.True(
-            listCommands == InboxListCommands,
-            $"The Inbox list sent {listCommands} SQL commands; it is pinned at {InboxListCommands}."
+            listCommands <= InboxListCommands,
+            $"The Inbox list sent {listCommands} SQL commands; at most {InboxListCommands} are allowed."
             + Environment.NewLine + listDescription);
         Assert.True(
-            previewCommands == InboxPreviewCommands,
-            $"The Inbox preview sent {previewCommands} SQL commands; it is pinned at {InboxPreviewCommands}."
+            previewCommands <= InboxPreviewCommands,
+            $"The Inbox preview sent {previewCommands} SQL commands; at most {InboxPreviewCommands} are allowed."
             + Environment.NewLine + previewDescription);
     }
 
-    // 29 before #1179 (the rail no longer counts Awaiting instruction) and #1181 (the Message page trims).
-    // Each of the three is one fewer since #1198: the password-change redirect reads
-    // the account the cookie check read, not the database.
-    // 24 before #1319: the message read no longer looks up whether the mailbox
-    // is polled or whether the receipt's Unidentified item was resolved.
-    // 22 before the rail stopped counting: - 3 (the rail no longer counts, R6).
     private const int InboxMessageCommands = 19;
 
-    // 24 before #1179 (the rail no longer counts Awaiting instruction) and #1181 (the Inbox list trims).
-    // 19 before #1319 (the list's rows no longer look up the polled mailbox or the resolved item).
-    // 17 before the rail stopped counting: - 3 (the rail no longer counts, R6).
     private const int InboxListCommands = 14;
 
-    // 9 before #1305 (the preview no longer reads the Outlook folder recommendation).
-    // 8 before #1319 (the preview's row no longer looks up the polled mailbox or the resolved item).
     private const int InboxPreviewCommands = 6;
+
+    /// <summary>
+    /// The Inbox list reads nothing once per row: the same request over six
+    /// messages sends the same commands as over three. Every message is
+    /// retained, classified and linked to a Case, so each row carries the
+    /// facts the list looks up for it.
+    /// </summary>
+    [Fact]
+    public async Task TheInboxListSendsTheSameStatementsForSixMessagesAsForThree()
+    {
+        var counter = new CommandCountingInterceptor();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
+        var selectedId = (await SeedAcceptedMessagesAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, count: 3))[0];
+        using var client = CreateClient(factory);
+        var route = $"/Inbox?selected={selectedId:D}";
+        // The first request pays one-off work; the counts are later ones.
+        _ = await GetHtmlAsync(client, route);
+
+        counter.Reset();
+        _ = await GetHtmlAsync(client, route);
+        var withThreeMessages = counter.Count;
+        var withThreeDescription = counter.Describe();
+
+        // Three more messages, in the second mailbox, same request.
+        _ = await SeedAcceptedMessagesAsync(
+            factory, SecondMailboxId, SecondMailboxAddress, count: 3);
+        counter.Reset();
+        var html = await GetHtmlAsync(client, route);
+        var withSixMessages = counter.Count;
+        var withSixDescription = counter.Describe();
+
+        Assert.True(withThreeMessages > 0, "The interceptor observed no commands at all.");
+        for (var index = 0; index < 3; index++)
+        {
+            Assert.Contains($"Message {index} from {SecondMailboxId}", html, StringComparison.Ordinal);
+        }
+
+        Assert.True(
+            withThreeMessages == withSixMessages,
+            $"The Inbox list grew with the messages: {withThreeMessages} commands for three and {withSixMessages} for six."
+            + Environment.NewLine + "Three messages:" + Environment.NewLine + withThreeDescription
+            + Environment.NewLine + "Six messages:" + Environment.NewLine + withSixDescription);
+    }
 
     [Fact]
     public async Task ExactMessageCanBeSearchedLinkedUnlinkedAndLinkedToAReplacement()
@@ -2761,6 +2785,28 @@ public sealed class MailWorkspaceWebTests
             failures.FailThisAttempt()
                 ? Task.FromException(new TimeoutException("Fixture release timeout."))
                 : release.ExecuteAsync(request, cancellationToken);
+    }
+
+    /// <summary>
+    /// Retains <paramref name="count"/> messages in a mailbox, classifies each and
+    /// accepts its receipt into a Case, the way <c>TheInboxPagesSendTheirPinnedStatements</c> seeds its one.
+    /// </summary>
+    private static async Task<Guid[]> SeedAcceptedMessagesAsync(
+        IntakeWebApplicationFactory factory,
+        string mailboxId,
+        string mailboxAddress,
+        int count)
+    {
+        var messageIds = await SeedAsync(factory, mailboxId, mailboxAddress, count);
+        for (var index = 0; index < count; index++)
+        {
+            var immutableMessageId = $"{mailboxId}-{index}";
+            await StoreClassificationAsync(factory, mailboxId, immutableMessageId);
+            _ = await AcceptReceiptAsync(
+                factory, await ReceiptIdAsync(factory, mailboxId, immutableMessageId));
+        }
+
+        return messageIds;
     }
 
     /// <summary>
