@@ -307,7 +307,7 @@ public sealed class VehicleWorkflowTests
     private static VehicleLookupResult Result(
         VehicleLookupOutcome outcome,
         VehicleDetails? vehicle = null,
-        IReadOnlyList<MotTestObservation>? motTests = null,
+        MotTestObservation[]? motTests = null,
         VehicleLookupFailure? failure = null) =>
         new(
             "AB12CDE",
@@ -317,7 +317,7 @@ public sealed class VehicleWorkflowTests
             $"response-{outcome}",
             FixedUtcNow,
             EffectiveAtUtc: null,
-            SourceObservedAtUtc: vehicle is null && (motTests is null || motTests.Count == 0)
+            SourceObservedAtUtc: vehicle is null && (motTests is null || motTests.Length == 0)
                 ? null
                 : FixedUtcNow.AddDays(-1),
             vehicle,
