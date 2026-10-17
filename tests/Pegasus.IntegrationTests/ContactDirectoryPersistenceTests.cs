@@ -15,6 +15,8 @@ public sealed class ContactDirectoryPersistenceTests
         Guid.Parse("4fa2d0a6-2f1c-4b6e-8f9a-3d4a9e8a7c11"),
         [StaffRole.Administrator]);
 
+    private static readonly JsonSerializerOptions HistoryJson = new(JsonSerializerDefaults.Web);
+
     [Fact]
     public async Task SaveKeepsTheLinkedPrincipalsAndTheOneFixedType()
     {
@@ -426,7 +428,7 @@ public sealed class ContactDirectoryPersistenceTests
         string.Empty);
 
     private static ContactDirectoryRecord HistoryRecord(string? json) =>
-        JsonSerializer.Deserialize<ContactDirectoryRecord>(json!, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        JsonSerializer.Deserialize<ContactDirectoryRecord>(json!, HistoryJson)!;
 
     private static async Task<ContactDirectoryRecord> SaveAsync(
         LocalDbTestDatabase database,
