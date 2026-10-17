@@ -61,7 +61,7 @@ zero, so the next allocation is `QDOSyy001`.
   (`AspNet*`, `OpenIddict*`), each staff member's stored external credential
   (`UserExternalCredentials`, e.g. the Glass's login, which only its owner can
   re-enter), mailbox configuration and Graph subscriptions,
-  `Organizations*`/`Principals*`, `PrincipalDomain*`/
+  `Organizations*`/`Principals*`, `InspectionLocation*`, `PrincipalDomain*`/
   `PrincipalReferences`, `WorkflowConfigurations`, `SendToAiControl`,
   `SecurityEvents`, `ValuationPresets`, `EmailTemplates` and `CaseListPresets`
   (administrator-managed configuration), `ImageTags` (the image-tag

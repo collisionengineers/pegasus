@@ -371,6 +371,7 @@ public static class DependencyInjection
         services.AddScoped<EfContactDirectoryAdministration>();
         services.AddScoped<IContactDirectoryAdministration>(provider => provider.GetRequiredService<EfContactDirectoryAdministration>());
         services.AddScoped<IContactDirectoryQueries>(provider => provider.GetRequiredService<EfContactDirectoryAdministration>());
+        services.AddScoped<IInspectionLocationAdministration, EfInspectionLocationAdministration>();
         services.AddScoped<EfApprovedMailboxStore>();
         services.AddScoped<IApprovedMailboxStore>(
             provider => provider.GetRequiredService<EfApprovedMailboxStore>());

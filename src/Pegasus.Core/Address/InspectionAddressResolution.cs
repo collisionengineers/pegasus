@@ -188,7 +188,18 @@ public enum InspectionAddressChoiceKind
     RepairerLocation,
     StorageLocation,
     PreviousAddress,
-    ManualEntry
+    ManualEntry,
+
+    /// <summary>
+    /// A reviewed inspection location linked to the Case's Principal, offered
+    /// by its own name between Storage location and the previous addresses
+    /// (operator, 16 October 2026). Its rows are the "new
+    /// <c>InspectionLocations</c> reference table read by the existing
+    /// <c>Directory</c> source kind" (R22, operator, 15 October 2026), that is
+    /// <see cref="InspectionLocationSourceKind.Directory"/>. Stored by name, so
+    /// its position here is free.
+    /// </summary>
+    DirectoryLocation
 }
 
 public sealed record InspectionAddressChoicesData(
@@ -198,12 +209,18 @@ public sealed record InspectionAddressChoicesData(
     IReadOnlyList<string> PreviousAddresses,
     // The Case's recorded repairer name, so the repairer option
     // says which repairer rather than only offering an address.
-    string? RepairerName = null)
+    string? RepairerName = null,
+    // The reviewed inspection locations linked to the Case's Principal.
+    IReadOnlyList<DirectoryInspectionLocation>? DirectoryLocations = null)
 {
-    /// <summary>The choices a Case offers from its own data and its Principal's history.</summary>
+    /// <summary>
+    /// The choices a Case offers from its own data, its Principal's history
+    /// and its Principal's reviewed inspection locations.
+    /// </summary>
     public static InspectionAddressChoicesData Of(
         CaseDataProjection data,
-        IReadOnlyList<string> previousAddresses)
+        IReadOnlyList<string> previousAddresses,
+        IReadOnlyList<DirectoryInspectionLocation>? directoryLocations = null)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(previousAddresses);
@@ -212,13 +229,15 @@ public sealed record InspectionAddressChoicesData(
             data.Inspection.RepairerAddress?.Current?.Value,
             data.Inspection.StorageLocation?.Current?.Value,
             previousAddresses,
-            data.Inspection.RepairerName?.Current?.Value);
+            data.Inspection.RepairerName?.Current?.Value,
+            directoryLocations);
     }
 }
 
 /// <param name="SourceLabel">
 /// Which record the address came from, where the Case knows it — the
-/// repairer's name today. Null when the kind is the whole provenance.
+/// repairer's or the reviewed location's name. Null when the kind is the
+/// whole provenance.
 /// </param>
 public sealed record InspectionAddressChoice(
     InspectionAddressChoiceKind Kind,
@@ -248,6 +267,11 @@ public static class InspectionAddressChoices
                 data.RepairerAddress,
                 data.RepairerName),
             new(InspectionAddressChoiceKind.StorageLocation, data.StorageLocation),
+            .. (data.DirectoryLocations ?? []).Select(location =>
+                new InspectionAddressChoice(
+                    InspectionAddressChoiceKind.DirectoryLocation,
+                    location.Address,
+                    location.Name)),
             .. data.PreviousAddresses.Select(address =>
                 new InspectionAddressChoice(InspectionAddressChoiceKind.PreviousAddress, address)),
             new(InspectionAddressChoiceKind.ManualEntry, null)
@@ -263,6 +287,16 @@ public interface IInspectionAddressChoicesQueries
     /// come from the Case data the caller already holds.
     /// </summary>
     Task<IReadOnlyList<string>> GetPreviousAddressesAsync(
+        Guid caseId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The active reviewed inspection locations linked to the Case's
+    /// Principal, ordered by name. FRD-06: reference data "may rank
+    /// suggestions but never choose an address", so the order is the name's
+    /// alone and nothing is chosen.
+    /// </summary>
+    Task<IReadOnlyList<DirectoryInspectionLocation>> GetDirectoryLocationsAsync(
         Guid caseId,
         CancellationToken cancellationToken);
 }

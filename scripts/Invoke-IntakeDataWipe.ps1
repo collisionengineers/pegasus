@@ -27,18 +27,21 @@ $preserve = @(
     'PrincipalDomainEvidence', 'PrincipalDomainPackages', 'PrincipalReferences',
     'WorkflowConfigurations', 'LabourRateCards', 'ImageTags', 'SendToAiControl', 'SecurityEvents',
     'CaseSequences', 'ImageIntakeSequences', 'TriageSequences', 'UnidentifiedSequences',
-    'ValuationPresets', 'EmailTemplates', 'CaseListPresets'
+    'ValuationPresets', 'EmailTemplates', 'CaseListPresets',
+    'InspectionLocations', 'InspectionLocationPrincipalLinks'
 )
 # Preserved only where the schema has it: 20260924180000_CaseWorksAndTriageCases
 # drops TriageSequences (a Triage Case takes its reference from CaseSequences);
 # 20260927002303_EmailTemplates adds EmailTemplates; 20261013090000_ContactSingleType
 # drops ContactRoles and OrganizationRoles; 20261013100000_DropPrincipalDomainReference
 # drops the three PrincipalDomain reference tables;
-# 20261014220000_DropApprovedOutlookCategories drops ApprovedOutlookCategories.
+# 20261014220000_DropApprovedOutlookCategories drops ApprovedOutlookCategories;
+# 20261017110000_InspectionLocations adds InspectionLocations and
+# InspectionLocationPrincipalLinks.
 $optionalPreserve = @(
     'TriageSequences', 'EmailTemplates', 'ContactRoles', 'OrganizationRoles',
     'PrincipalDomainEvidence', 'PrincipalDomainPackages', 'PrincipalReferences',
-    'ApprovedOutlookCategories'
+    'ApprovedOutlookCategories', 'InspectionLocations', 'InspectionLocationPrincipalLinks'
 )
 
 Write-Output "=== Blob inventory: $storageAccount/$container ==="
