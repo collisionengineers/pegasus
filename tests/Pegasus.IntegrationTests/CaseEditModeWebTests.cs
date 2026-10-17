@@ -1255,13 +1255,8 @@ public sealed class CaseEditModeWebTests
         var fields = scenario.FromPage(page);
 
         store.NextFailure = scenario.Refusal;
-        using var response = await PostOrAbandonAsync(workspace, scenario, fields);
+        await scenario.Post(workspace, fields);
 
-        if (scenario.Redirect is { } query)
-        {
-            Assert.NotNull(response);
-            AssertPrg(response!, store.CaseId, query);
-        }
         Assert.Equal(scenario.Claims, store.Claims.Count);
         Assert.All(store.Claims, claim => Assert.Equal(store.CaseVersion, claim.ExpectedVersion));
         Assert.Equal(scenario.Ran, scenario.Commands());
@@ -1635,17 +1630,14 @@ public sealed class CaseEditModeWebTests
     /// <summary>
     /// One row of <see cref="AnActionOutsideEditModeRunsUnderALeaseClaimedForIt"/>:
     /// the Case and the ports the page runs over, the page the action posts
-    /// from and what it posts, and what the post leaves behind. Redirect is the
-    /// query the answer redirects with; null is a request abandoned
-    /// mid-command, which has no answer to read.
+    /// from and what it posts, and what the post leaves behind.
     /// </summary>
     private sealed record LeaseScenario(
         RecordingCaseDetailsStore Store,
         Action<IServiceCollection> Ports,
         string Page,
         Func<string, (string Name, string Value)[]> FromPage,
-        string Post,
-        string? Redirect,
+        LeasePost Post,
         Exception? Refusal,
         int Claims,
         IReadOnlyList<LeaseCommand> Ran,
@@ -1737,8 +1729,9 @@ public sealed class CaseEditModeWebTests
                 ("editLeaseToken", string.Empty),
                 ("reason", "Awaiting the claimant's photographs"),
             ],
-            Post: $"/Cases/{id}/Workflow?handler=Hold",
-            Redirect: (command is AbandonedHold) ? null : string.Empty,
+            Post: command is AbandonedHold
+                ? PostAbandoned($"/Cases/{id}/Workflow?handler=Hold")
+                : PostThatRedirects(store.CaseId, $"/Cases/{id}/Workflow?handler=Hold", string.Empty),
             Refusal: colleague ? new CaseEditLeaseConflictException(store.CaseId, store.CaseVersion) : null,
             Claims: colleague ? 0 : 1,
             Ran: ran
@@ -1815,8 +1808,8 @@ public sealed class CaseEditModeWebTests
 
                 return fields.ToArray();
             },
-            Post: $"/Cases/{id}?handler={handler}&section=report",
-            Redirect: "section=report",
+            Post: PostThatRedirects(
+                store.CaseId, $"/Cases/{id}?handler={handler}&section=report", "section=report"),
             Refusal: colleague ? new CaseEditLeaseConflictException(store.CaseId, store.CaseVersion) : null,
             Claims: colleague ? 0 : 1,
             Ran: colleague
@@ -1838,24 +1831,38 @@ public sealed class CaseEditModeWebTests
         store.Claims.Any(claim => claim.Actor.SubjectId == subjectId);
 
     /// <summary>
-    /// The answer to the post. A request abandoned mid-command may reach the
-    /// caller as the cancellation itself, which is no answer.
+    /// The post of a <see cref="LeaseScenario"/>, with the answer it must get.
     /// </summary>
-    private static async Task<HttpResponseMessage?> PostOrAbandonAsync(
-        LeasedWorkspace workspace,
-        LeaseScenario scenario,
-        (string Name, string Value)[] fields)
-    {
-        try
+    private delegate Task LeasePost(LeasedWorkspace workspace, (string Name, string Value)[] fields);
+
+    /// <summary>
+    /// A post answered by a redirect back to the Case with the given query.
+    /// </summary>
+    private static LeasePost PostThatRedirects(Guid caseId, string url, string query) =>
+        async (workspace, fields) =>
         {
-            return await workspace.Client.PostAsync(
-                scenario.Post, Form(workspace.AntiforgeryToken, fields));
-        }
-        catch (OperationCanceledException) when (scenario.Redirect is null)
+            using var response = await workspace.Client.PostAsync(
+                url, Form(workspace.AntiforgeryToken, fields));
+            AssertPrg(response, caseId, query);
+        };
+
+    /// <summary>
+    /// A request abandoned mid-command may reach the caller as the
+    /// cancellation itself, which is no answer to read.
+    /// </summary>
+    private static LeasePost PostAbandoned(string url) =>
+        async (workspace, fields) =>
         {
-            return null;
-        }
-    }
+            try
+            {
+                using var response = await workspace.Client.PostAsync(
+                    url, Form(workspace.AntiforgeryToken, fields));
+            }
+            catch (OperationCanceledException)
+            {
+                // The host may surface the abandoned request to the caller.
+            }
+        };
 
     private sealed class RefusingHold : IHoldCase
     {
