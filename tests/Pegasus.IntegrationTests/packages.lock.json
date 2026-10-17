@@ -1561,6 +1561,13 @@
           "System.Security.Cryptography.Pkcs": "[10.0.13, )"
         }
       },
+      "pegasus.referencedataloader": {
+        "type": "Project",
+        "dependencies": {
+          "Pegasus.Core": "[0.1.0-alpha.1, )",
+          "Pegasus.Infrastructure": "[0.1.0-alpha.1, )"
+        }
+      },
       "pegasus.web": {
         "type": "Project",
         "dependencies": {

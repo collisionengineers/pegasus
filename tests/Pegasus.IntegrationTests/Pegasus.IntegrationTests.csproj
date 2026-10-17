@@ -38,6 +38,8 @@
     <ProjectReference Include="..\..\src\Pegasus.Web\Pegasus.Web.csproj" />
     <ProjectReference Include="..\..\src\Pegasus.Infrastructure\Pegasus.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Pegasus.Worker\Pegasus.Worker.csproj" />
+    <!-- The one-off reference-data loader, outside Pegasus.slnx: ReferenceDataLoaderTests run it against LocalDB. -->
+    <ProjectReference Include="..\..\scripts\reference-data-loader\Pegasus.ReferenceDataLoader.csproj" />
   </ItemGroup>
 
 </Project>

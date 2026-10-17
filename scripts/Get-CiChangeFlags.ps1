@@ -25,8 +25,9 @@ $ChangedPath = @($ChangedPath | Where-Object { $_ -notmatch $noLanePattern })
 # the report renderer draws, and .gitattributes fixes the checked-out bytes of
 # the reference data and embedded resources those tests read. The classifier
 # agent under src/ is a Node project no .NET build or test reads; it has its
-# own lane.
-$buildPattern = '^(src/(?!pegasus-classifier-agent/)|tests/)|^Pegasus\.slnx$|\.csproj$|\.props$|\.targets$|packages\.lock\.json$|^global\.json$|^nuget\.config$|^\.gitattributes$|^infra/|^reference/|^docs/design/brand/logos/|^scripts/[^/]+\.sql$|^scripts/test-shard-durations\.json$|^scripts/(Invoke-TestShard|Update-TestShardDurations|Test-(MainBranchHistory|TestShard)|Get-CiChangeFlags|Get-CiHeavyLaneDecision)\.ps1$|^\.github/workflows/ci\.yml$|^\.github/actions/'
+# own lane. The reference-data loader under scripts/ is outside Pegasus.slnx,
+# but Pegasus.IntegrationTests references it, so the build compiles it.
+$buildPattern = '^(src/(?!pegasus-classifier-agent/)|tests/)|^Pegasus\.slnx$|^scripts/reference-data-loader/|\.csproj$|\.props$|\.targets$|packages\.lock\.json$|^global\.json$|^nuget\.config$|^\.gitattributes$|^infra/|^reference/|^docs/design/brand/logos/|^scripts/[^/]+\.sql$|^scripts/test-shard-durations\.json$|^scripts/(Invoke-TestShard|Update-TestShardDurations|Test-(MainBranchHistory|TestShard)|Get-CiChangeFlags|Get-CiHeavyLaneDecision)\.ps1$|^\.github/workflows/ci\.yml$|^\.github/actions/'
 # PegasusPlatform.ps1 carries the release manifest validator and the Worker
 # census the release scripts share, so it routes to the infrastructure lane.
 $infrastructurePattern = '^infra/|^azure\.yaml$|^src/Pegasus\.Infrastructure/Persistence/Migrations/|^scripts/(Get-CiChangeFlags|Get-CiHeavyLaneDecision|Test-CiChangeFlags|Test-AzureDeploymentPlan|Test-ReleaseValidation|Test-MigrationGrants|Invoke-ProductionSmoke|Build-ReleaseArtifacts|Invoke-ProductionAdministratorBootstrap|Invoke-AzureDatabaseBootstrap|PegasusPlatform)\.ps1$|^\.github/workflows/ci\.yml$'
