@@ -315,7 +315,7 @@ public sealed class CaseViewsWebTests
         var store = AuditedCase();
         var reports = new ReportsPerWork(store.CaseId);
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
-            Substitute<ICaseReportGenerationStore>(services, reports));
+            Substitute<ICaseReportGenerationStore>(services, reports), keepDatabase: true);
         var sentLine = $"{Reference} · {Frame.Sent} {OperatorLabels.OfficeTime(InspectionSentAtUtc)}";
 
         var auditHtml = WebUtility.HtmlDecode(await workspace.GetWorkspaceAsync());
@@ -480,7 +480,7 @@ public sealed class CaseViewsWebTests
         store.GiveAudit(InspectionSentAtUtc, inspectionSent: false);
         var reports = new ReportsPerWork(store.CaseId);
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
-            Substitute<ICaseReportGenerationStore>(services, reports));
+            Substitute<ICaseReportGenerationStore>(services, reports), keepDatabase: true);
 
         var inspectionHtml = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?view=inspection"));
         var inspectionReport = Section(inspectionHtml, "section-report-title");
@@ -821,7 +821,7 @@ public sealed class CaseViewsWebTests
             Substitute<ICaseReportSnapshotSource>(
                 services,
                 new AssessmentReportDraftWebTests.FakeProjectionSource(AssessmentReportDraftWebTests.ReadyInput(store.CaseId)));
-        });
+        }, keepDatabase: true);
         var caseId = store.CaseId.ToString("D");
 
         using var generated = await workspace.Client.PostAsync(
@@ -903,7 +903,7 @@ public sealed class CaseViewsWebTests
             Substitute<ICaseReportGenerationStore>(services, new ReportsPerWork(store.CaseId));
             Substitute<IGenerateCaseReport>(services, commands);
             Substitute<ISendCaseReport>(services, commands);
-        });
+        }, keepDatabase: true);
         var caseId = store.CaseId.ToString("D");
         var version = store.CaseVersion.ToString(CultureInfo.InvariantCulture);
 

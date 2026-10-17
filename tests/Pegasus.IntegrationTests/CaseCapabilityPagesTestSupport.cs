@@ -33,11 +33,15 @@ internal static partial class CaseWebTestSupport
     internal const string SecondSupportingFileName = "interior.jpg";
     internal const string UnusedFileName = "plate.jpg";
 
+    /// <param name="keepDatabase">Builds the restored-database host, for a test that needs a read no database-less default answers.</param>
     internal static async Task<LeasedWorkspace> EnterEditModeAsync(
         RecordingCaseDetailsStore store,
-        Action<IServiceCollection> substitutePorts)
+        Action<IServiceCollection> substitutePorts,
+        bool keepDatabase = false)
     {
-        var baseFactory = new IntakeWebApplicationFactory();
+        var baseFactory = keepDatabase
+            ? new IntakeWebApplicationFactory()
+            : IntakeWebApplicationFactory.WithoutDatabase();
         var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -59,18 +63,50 @@ internal static partial class CaseWebTestSupport
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
-        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        using var claim = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
-            Form(
-                AntiforgeryValue(initial),
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", InputValue(initial, "operationKey"))));
-        AssertPrg(claim, store.CaseId);
-        var leased = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Equal(store.LeaseToken, InputValue(leased, "editLeaseToken"));
-        return new(baseFactory, factory, client, store, AntiforgeryValue(leased));
+        return await ClaimEditModeAsync(baseFactory, factory, client, store);
+    }
+
+    /// <summary>
+    /// Enters edit mode on the Case and reads the leased record. A failed entry
+    /// disposes the hosts, so a database-less host names the connection it
+    /// refused in place of the failure that refusal caused.
+    /// </summary>
+    private static async Task<LeasedWorkspace> ClaimEditModeAsync(
+        IntakeWebApplicationFactory baseFactory,
+        WebApplicationFactory<Program> factory,
+        HttpClient client,
+        RecordingCaseDetailsStore store)
+    {
+        try
+        {
+            var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+            using var claim = await client.PostAsync(
+                $"/Cases/{store.CaseId:D}?handler=ClaimLease",
+                Form(
+                    AntiforgeryValue(initial),
+                    ("id", store.CaseId.ToString("D")),
+                    ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                    ("operationKey", InputValue(initial, "operationKey"))));
+            AssertPrg(claim, store.CaseId);
+            var leased = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+            Assert.Equal(store.LeaseToken, InputValue(leased, "editLeaseToken"));
+            return new(baseFactory, factory, client, store, AntiforgeryValue(leased));
+        }
+        catch
+        {
+            DisposeHosts(client, factory, baseFactory);
+            throw;
+        }
+    }
+
+    private static void DisposeHosts(
+        HttpClient client,
+        WebApplicationFactory<Program> factory,
+        IntakeWebApplicationFactory baseFactory)
+    {
+        client.Dispose();
+        factory.Dispose();
+        baseFactory.Dispose();
     }
 
     internal static void Substitute<T>(IServiceCollection services, T instance)
@@ -188,12 +224,7 @@ internal static partial class CaseWebTestSupport
             params (string Name, string Value)[] fields) =>
             LifecycleForm(AntiforgeryToken, Store, operationKey, reason, fields);
 
-        public void Dispose()
-        {
-            Client.Dispose();
-            factory.Dispose();
-            baseFactory.Dispose();
-        }
+        public void Dispose() => DisposeHosts(Client, factory, baseFactory);
     }
 
     internal sealed partial class RecordingCaseDetailsStore
@@ -217,12 +248,16 @@ internal static partial class CaseWebTestSupport
     /// store's. Without a lease a lazy section (Vehicle among them) is a
     /// placeholder unless <paramref name="section"/> addresses it.
     /// </summary>
+    /// <param name="keepDatabase">Builds the restored-database host, for a test that needs a read no database-less default answers.</param>
     internal static async Task<string> ReadCaseAsync(
         RecordingCaseDetailsStore store,
         Action<IServiceCollection>? substitutePorts = null,
-        string? section = null)
+        string? section = null,
+        bool keepDatabase = false)
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = keepDatabase
+            ? new IntakeWebApplicationFactory()
+            : IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -1289,34 +1324,35 @@ internal static partial class CaseWebTestSupport
     /// no edit lease: for an action that claims its own lease, or to enter
     /// edit mode from.
     /// </summary>
+    /// <param name="keepDatabase">Builds the restored-database host, for a test that needs a read no database-less default answers.</param>
     internal static async Task<LeasedWorkspace> OpenEngineerWorkspaceAsync(
         RecordingCaseDetailsStore store,
         Action<IServiceCollection> substitutePorts,
-        StaffRole role = StaffRole.Engineer)
+        StaffRole role = StaffRole.Engineer,
+        bool keepDatabase = false)
     {
-        var (baseFactory, factory, client) = EngineerClient(store, substitutePorts, role);
-        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        return new(baseFactory, factory, client, store, AntiforgeryValue(initial));
+        var (baseFactory, factory, client) = EngineerClient(store, substitutePorts, role, keepDatabase);
+        try
+        {
+            var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+            return new(baseFactory, factory, client, store, AntiforgeryValue(initial));
+        }
+        catch
+        {
+            DisposeHosts(client, factory, baseFactory);
+            throw;
+        }
     }
 
+    /// <param name="keepDatabase">Builds the restored-database host, for a test that needs a read no database-less default answers.</param>
     internal static async Task<LeasedWorkspace> EnterEngineerEditModeAsync(
         RecordingCaseDetailsStore store,
         Action<IServiceCollection> substitutePorts,
-        StaffRole role = StaffRole.Engineer)
+        StaffRole role = StaffRole.Engineer,
+        bool keepDatabase = false)
     {
-        var (baseFactory, factory, client) = EngineerClient(store, substitutePorts, role);
-        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        using var claim = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
-            Form(
-                AntiforgeryValue(initial),
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", InputValue(initial, "operationKey"))));
-        AssertPrg(claim, store.CaseId);
-        var leased = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Equal(store.LeaseToken, InputValue(leased, "editLeaseToken"));
-        return new(baseFactory, factory, client, store, AntiforgeryValue(leased));
+        var (baseFactory, factory, client) = EngineerClient(store, substitutePorts, role, keepDatabase);
+        return await ClaimEditModeAsync(baseFactory, factory, client, store);
     }
 
     /// <summary>
@@ -1328,9 +1364,12 @@ internal static partial class CaseWebTestSupport
         EngineerClient(
             RecordingCaseDetailsStore store,
             Action<IServiceCollection> substitutePorts,
-            StaffRole role)
+            StaffRole role,
+            bool keepDatabase)
     {
-        var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var baseFactory = keepDatabase
+            ? new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true)
+            : IntakeWebApplicationFactory.WithoutDatabase();
         var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {

@@ -1615,7 +1615,7 @@ public sealed class CaseEditModeWebTests
         {
             ReadyReportPorts(services, store, generator);
             Substitute<ICaseReportGenerationStore>(services, generation);
-        });
+        }, keepDatabase: true);
         var form = HandlerForm(await ReportSectionAsync(workspace), handler);
         Assert.DoesNotContain("name=\"editLeaseToken\"", form, StringComparison.Ordinal);
 
@@ -1658,7 +1658,7 @@ public sealed class CaseEditModeWebTests
         {
             ReadyReportPorts(services, store, generator);
             Substitute<ICaseReportGenerationStore>(services, generation);
-        });
+        }, keepDatabase: true);
 
         var html = await ReportSectionAsync(workspace);
 

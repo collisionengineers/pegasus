@@ -828,7 +828,7 @@ public sealed class CaseDetailsWebTests
             ]
         };
         using var workspace = await EnterEditModeAsync(store, services =>
-            Substitute<IMarkAsOriginalReportStore>(services, store));
+            Substitute<IMarkAsOriginalReportStore>(services, store), keepDatabase: true);
         var before = await workspace.GetWorkspaceAsync();
         var filesBefore = await GetHtmlAsync(
             workspace.Client,

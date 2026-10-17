@@ -1040,7 +1040,7 @@ public sealed class CaseValuationSectionWebTests
             Substitute<ICaseDataQueries>(services, store);
             ConnectGlass(services, mva);
             services.AddScoped<IFileGuideValuationReport>(_ => filing);
-        });
+        }, keepDatabase: true);
 
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
         Assert.Contains("data-valuation-get", EntryCard(html, "glasses"), StringComparison.Ordinal);
