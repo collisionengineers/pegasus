@@ -473,7 +473,7 @@ public sealed class CaseRecordFieldsWebTests
     public async Task TheRailAndFoldedPanelsArePaintedFromTheirCookies(string? cookie, bool remembered)
     {
         var store = new RecordingCaseDetailsStore();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -658,7 +658,7 @@ public sealed class CaseRecordFieldsWebTests
     [Fact]
     public async Task ASaveCarriesTheClaimantContactNumberAndAddressThroughToTheCommand()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -712,7 +712,7 @@ public sealed class CaseRecordFieldsWebTests
     [Fact]
     public async Task AutomaticReadinessRendersWithoutManualCompletenessControls()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore
         {
             State = CaseLifecycleState.Review,

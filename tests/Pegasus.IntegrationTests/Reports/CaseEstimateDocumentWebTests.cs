@@ -27,7 +27,7 @@ public sealed class CaseEstimateDocumentWebTests
             [],
             3));
         var presentations = new RecordingEstimateDocumentPresentations();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
             Substitute<IRenderCaseEstimateDocument>(services, renderer);
@@ -69,7 +69,7 @@ public sealed class CaseEstimateDocumentWebTests
         var renderer = new RecordingEstimateDocumentRenderer();
         var useCase = new RenderCaseEstimateDocument(
             workspace, workspace, estimates, renderer, TimeProvider.System);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
             Substitute<IRenderCaseEstimateDocument>(services, useCase);
@@ -96,7 +96,7 @@ public sealed class CaseEstimateDocumentWebTests
     {
         var renderer = new StubEstimateDocumentUseCase(new(
             RenderCaseEstimateDocumentOutcome.NotRenderable, null, ["The estimate has no lines."]));
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
             Substitute<IRenderCaseEstimateDocument>(services, renderer);
@@ -137,7 +137,7 @@ public sealed class CaseEstimateDocumentWebTests
         var renderer = new RecordingEstimateDocumentRenderer();
         var useCase = new RenderCaseEstimateDocument(
             workspace, workspace, estimates, renderer, TimeProvider.System);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
             Substitute<IRenderCaseEstimateDocument>(services, useCase);

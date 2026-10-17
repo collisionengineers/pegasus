@@ -41,7 +41,7 @@ public sealed class CaseDamageAndViewerWebTests
             "[{\"areas\":[\"rear\",\"left_rear\"],\"severity\":\"moderate\",\"note\":\"Rear panel deformed\"}," +
             "{\"areas\":[\"underside\"],\"severity\":\"heavy\",\"note\":\"\"}," +
             "{\"areas\":[\"left_side\",\"right_side\"],\"disc\":{\"x\":0.5,\"y\":0.53,\"r\":0.08},\"severity\":\"light\",\"note\":\"Roof dent\"}]");
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services => source.Substitute(services)));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -135,7 +135,7 @@ public sealed class CaseDamageAndViewerWebTests
         var source = new DamageSource(
             "[{\"areas\":[\"front\"],\"severity\":\"moderate\",\"note\":\"\"}]",
             vehicleType);
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services => source.Substitute(services)));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -420,7 +420,7 @@ public sealed class CaseDamageAndViewerWebTests
     [Fact]
     public async Task ASaveCarriesTheDamageWorkbenchFieldsThroughToTheWorkspaceCommand()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore
         {
             State = CaseLifecycleState.ReportPreparation,

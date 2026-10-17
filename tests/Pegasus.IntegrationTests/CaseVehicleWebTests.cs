@@ -551,7 +551,7 @@ public sealed class CaseVehicleWebTests
         {
             State = canOpenAssessment ? CaseLifecycleState.NotReady : CaseLifecycleState.Held
         };
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -627,7 +627,7 @@ public sealed class CaseVehicleWebTests
     /// <summary>The case's vehicle section as an operator without the lease sees it.</summary>
     private static async Task<string> ReadOnlyVehicleSectionAsync(RecordingCaseDetailsStore store)
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var readOnlyFactory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {

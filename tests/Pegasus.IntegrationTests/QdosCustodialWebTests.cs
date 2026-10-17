@@ -27,7 +27,7 @@ public sealed class QdosCustodialWebTests
     [Fact]
     public async Task CanonicalDownloadOwnerCallsCoreAndReturnsVerifiedSafeMetadata()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var handlers = new RecordingDocumentHandlers();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -87,9 +87,8 @@ public sealed class QdosCustodialWebTests
         // document is arbitrary operator-supplied content, so retained HTML
         // served inline from this origin would execute as same-origin script --
         // the flag therefore allowlists what a browser renders inertly. One
-        // route observed under four media types, so one host and one restored
-        // database serve them all.
-        using var baseFactory = new IntakeWebApplicationFactory();
+        // route observed under four media types, so one host serves them all.
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var handlers = new RecordingDocumentHandlers();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>

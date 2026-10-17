@@ -23,7 +23,7 @@ public sealed class AssessmentVehiclePrefillWebTests
     public async Task CaseVehicleSectionShowsLookupEvidence()
     {
         var caseId = Guid.NewGuid();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -62,7 +62,7 @@ public sealed class AssessmentVehiclePrefillWebTests
     public async Task ConfirmedVehicleFactsTakePrecedenceOverLookupObservation()
     {
         var caseId = Guid.NewGuid();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -99,7 +99,7 @@ public sealed class AssessmentVehiclePrefillWebTests
     public async Task PartialConfirmedVehicleEvidenceKeepsTheAcceptedRegistrationVisible()
     {
         var caseId = Guid.NewGuid();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {

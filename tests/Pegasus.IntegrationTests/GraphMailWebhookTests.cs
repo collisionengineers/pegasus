@@ -16,7 +16,7 @@ public sealed class GraphMailWebhookTests
     [Fact]
     public async Task ValidationHandshakeReturnsDecodedOpaqueTokenAsPlainText()
     {
-        using var factory = new IntakeWebApplicationFactory();
+        using var factory = IntakeWebApplicationFactory.WithoutDatabase();
         using var client = factory.CreateClient();
 
         using var response = await client.PostAsync(
@@ -35,7 +35,7 @@ public sealed class GraphMailWebhookTests
         var subscriptionId = Guid.NewGuid();
         var resource = "users/mailbox-id/mailFolders/inbox-id/messages";
         var enqueuer = new RecordingEnqueuer();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
             services.RemoveAll<IApprovedMailboxSubscriptionStore>();
@@ -78,7 +78,7 @@ public sealed class GraphMailWebhookTests
         var mailboxId = Guid.NewGuid();
         var subscriptionId = Guid.NewGuid();
         var enqueuer = new RecordingEnqueuer();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Configure(baseFactory, mailboxId, subscriptionId, enqueuer);
         using var client = factory.CreateClient();
 
@@ -105,7 +105,7 @@ public sealed class GraphMailWebhookTests
     {
         var subscriptionId = Guid.NewGuid();
         var enqueuer = new RecordingEnqueuer();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Configure(baseFactory, Guid.NewGuid(), subscriptionId, enqueuer);
         using var client = factory.CreateClient();
 
@@ -123,7 +123,7 @@ public sealed class GraphMailWebhookTests
     {
         var knownSubscriptionId = Guid.NewGuid();
         var enqueuer = new RecordingEnqueuer();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Configure(baseFactory, Guid.NewGuid(), knownSubscriptionId, enqueuer);
         using var client = factory.CreateClient();
 
@@ -146,7 +146,7 @@ public sealed class GraphMailWebhookTests
     public async Task ValidNotificationQueueFailureReturnsRetryableServerError()
     {
         var subscriptionId = Guid.NewGuid();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Configure(
             baseFactory,
             Guid.NewGuid(),

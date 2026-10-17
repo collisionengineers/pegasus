@@ -27,7 +27,7 @@ public sealed class CaseReportApprovalWebTests
     [Fact]
     public async Task GeneratedArtifactDownloadWritesTheImmutableBytesAndDisposesTheStreamAfterTheResponse()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         var artifacts = new RecordingGeneratedArtifactStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
@@ -73,7 +73,7 @@ public sealed class CaseReportApprovalWebTests
     [Fact]
     public async Task GeneratedArtifactDownloadIsNotFoundOutsideTheReportJourney()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var store = new RecordingCaseDetailsStore();
         var artifacts = new RecordingGeneratedArtifactStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>

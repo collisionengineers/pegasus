@@ -35,7 +35,7 @@ public sealed class CaseAssetPreparationWebTests
     {
         var fixture = new PreparedImages();
         var store = fixture.Store();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -77,7 +77,7 @@ public sealed class CaseAssetPreparationWebTests
         var fixture = new PreparedImages();
         var store = fixture.Store();
         store.Preparations = [];
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -147,7 +147,7 @@ public sealed class CaseAssetPreparationWebTests
                     custody: DocumentCustodyStatus.Pending)
             ]
         };
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -724,7 +724,7 @@ public sealed class CaseAssetPreparationWebTests
     {
         var fixture = new PreparedImages();
         var store = fixture.Store();
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
