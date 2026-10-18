@@ -78,8 +78,9 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult r, Instruction
     [GeneratedRegex(@"(?im)^\s*Accident\s+Date\s*:[ \t]*(?<v>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex Accident();
     [GeneratedRegex(@"(?ims)Accident\s+Circumstances\s*:[ \t]*(?<v>.+?)(?=\n\s*Client\s+Details)", RegexOptions.CultureInvariant, 100)] private static partial Regex Circ();
     // The name paragraph follows the paired Client/Owner header in binary
-    // DOC; the owner's Name remains across a single tab after the client Tel.
-    [GeneratedRegex(@"(?ims)Client\s+Details.*?(?:\n|\t{2})[ \t]*Name\s*:[ \t]*(?<client>[^\t\r\n]+).*?\n\s*Address\s*:[ \t]*(?<address>[^\t\r\n]+).*?(?:\tName\s*:[ \t]*(?<owner>[^\t\r\n]+))?\s*\n.*?VAT\s+Registered", RegexOptions.CultureInvariant, 100)] private static partial Regex Party();
+    // DOC. The block ends at the address row: a VAT row is not required, and
+    // the owner's Name across a single tab after the client Tel is Owner()'s.
+    [GeneratedRegex(@"(?ims)Client\s+Details.*?(?:\n|\t{2})[ \t]*Name\s*:[ \t]*(?<client>[^\t\r\n]+).*?\n\s*Address\s*:[ \t]*(?<address>[^\t\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex Party();
     [GeneratedRegex(@"(?im)^\s*Tel\s*:[^\r\n]*\tName\s*:[ \t]*(?<owner>[^\t\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex Owner();
     [GeneratedRegex(@"(?im)^\s*VAT\s+Registered\s*:[ \t]*(?<v>yes|no)\b", RegexOptions.CultureInvariant, 100)] private static partial Regex Vat();
     [GeneratedRegex(@"(?im)^\s*Vehicle\s+Reg\s*:[ \t]*(?<v>[^\t\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex Vrm();

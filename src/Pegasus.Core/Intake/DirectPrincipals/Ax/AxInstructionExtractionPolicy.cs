@@ -45,6 +45,15 @@ public sealed class AxInstructionExtractionPolicy
     ];
 
     private static readonly InstructionFieldEngine.LabelRegexCache Cache = new(Definitions);
+
+    // The row labels of the recorded layout; a wrapped value never runs into one.
+    private static readonly string[] RowLabels =
+    [
+        "Name", "Address", "Postcode", "Telephone", "VRM", "Vehicle", "Make/Model", "Accident", "Circumstances",
+        "Pre Existing", "Damage", "VAT Registered", "Fault Insurer", "Repair Notes", "AX Reference",
+        "Client Details", "Bodyshop Details", "Third Party Details"
+    ];
+
     public string PrincipalCode => SupportedPrincipalCode;
     public string DocumentProfileKey => DocumentProfileKeyValue;
     public int DocumentProfileVersion => DocumentProfileVersionValue;
@@ -100,7 +109,7 @@ public sealed class AxInstructionExtractionPolicy
         var header = text[..client];
         var deadline = header.Split('\n').FirstOrDefault(line => line.Contains("Report Due on", StringComparison.OrdinalIgnoreCase));
         yield return fragment with { Text = text[client..clientEnd] };
-        yield return fragment with { Text = $"AX Reference: {FirstColumnValueAfter(header, "AX Reference")}" };
+        yield return fragment with { Text = $"AX Reference: {WrappedValueAfter(header, "AX Reference", endsAtRightColumn: true)}" };
         if (deadline is not null && DateToken(deadline) is { } deadlineDate)
             yield return fragment with { Text = $"{DeadlineField}: {deadlineDate}" };
         if (Circumstances(text[client..clientEnd]) is { } circumstances)
@@ -115,11 +124,11 @@ public sealed class AxInstructionExtractionPolicy
         {
             var end = NextSection(text.Length, bodyshop, client, thirdParty);
             var block = text[bodyshop..end];
-            yield return fragment with { Text = $"Repairer name: {FirstColumnValueAfter(block, "Name")}" };
+            yield return fragment with { Text = $"Repairer name: {WrappedValueAfter(block, "Name")}" };
             var address = Address(block);
             if (address is not null)
                 yield return fragment with { Text = $"{RepairerAddressField}: {address}" };
-            var telephone = FirstColumnValueAfter(block, "Telephone");
+            var telephone = WrappedValueAfter(block, "Telephone");
             if (telephone.Length > 0)
                 yield return fragment with { Text = $"{RepairerTelephoneField}: {telephone}" };
         }
@@ -134,6 +143,29 @@ public sealed class AxInstructionExtractionPolicy
         if (index < 0) return string.Empty;
         var value = text[(index + label.Length)..].TrimStart(' ', '\t', ':');
         return Regex.Split(value.Split('\n')[0], @"\s{2,}", RegexOptions.CultureInvariant)[0].Trim();
+    }
+
+    // FirstColumnValueAfter plus the lines the value wrapped onto, joined by one space. The join ends at a blank
+    // line or a row label; for the header reference it also ends at a line printed to the right of the value,
+    // which is the page's right-hand column. Name and Telephone join contiguous lines only.
+    private static string WrappedValueAfter(string text, string label, bool endsAtRightColumn = false)
+    {
+        var value = FirstColumnValueAfter(text, label);
+        if (value.Length == 0) return value;
+        var labelAt = text.IndexOf(label, StringComparison.OrdinalIgnoreCase);
+        var lineStart = text.LastIndexOf('\n', labelAt) + 1;
+        var lines = text[lineStart..].Split('\n');
+        var valueColumn = lines[0].IndexOf(value, labelAt - lineStart + label.Length, StringComparison.Ordinal);
+        List<string> parts = [value];
+        foreach (var line in lines.Skip(1))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.Length == 0
+                || RowLabels.Any(rowLabel => trimmed.StartsWith(rowLabel, StringComparison.OrdinalIgnoreCase))
+                || (endsAtRightColumn && line.Length - line.TrimStart().Length > valueColumn)) break;
+            parts.Add(trimmed);
+        }
+        return string.Join(' ', parts);
     }
 
     private static string? Circumstances(string clientBlock)

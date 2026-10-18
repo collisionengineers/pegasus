@@ -56,6 +56,80 @@ public sealed class AxInstructionExtractionPolicyTests
         Assert.Equal("AX", selection.Policy!.PrincipalCode);
     }
 
+    [Fact]
+    public void AReferenceWrappedOntoASecondLineIsJoined()
+    {
+        // The second line starts at the column where the reference value starts.
+        var result = Extract(Layout(
+            $"AX Reference      : AX-0001\n{Indent(20)}WRAPPED", "           Name: Example Motors"));
+
+        Assert.Equal("AX-0001 WRAPPED", Field(result, "Claim reference"));
+    }
+
+    [Fact]
+    public void AReferenceBesideARightColumnLineIsNotJoined()
+    {
+        // The recorded header prints the right-hand column on the line beneath, indented 77 columns.
+        var result = Extract(Layout(
+            $"AX Reference      : AX-0001{Indent(31)}Right column text\n{Indent(77)}continues in the right column",
+            "           Name: Example Motors"));
+
+        Assert.Equal("AX-0001", Field(result, "Claim reference"));
+    }
+
+    [Fact]
+    public void ARepairerNameAndTelephoneWrappedOntoASecondLineAreJoined()
+    {
+        var result = Extract(Layout(Header,
+            "           Name: Example Motors\n           and Sons\n\n"
+            + "           Address: 1 Example Road\n\n"
+            + "         Telephone: 01234 567890\n         or 01234 567891"));
+
+        Assert.Equal("Example Motors and Sons", Field(result, "Repairer name"));
+        Assert.Equal("01234 567890 or 01234 567891", Field(result, "Repairer telephone"));
+    }
+
+    [Fact]
+    public void ARepairerNameAndTelephoneBeforeABlankLineOrLabelStayOneLine()
+    {
+        var blankLines = Extract(Layout(Header,
+            "           Name: Example Motors\n\n           Address: 1 Example Road\n\n"
+            + "         Telephone: 01234 567890\n"));
+        var labelsBeneath = Extract(Layout(Header,
+            "           Name: Example Motors\n           Address: 1 Example Road\n"
+            + "         Telephone: 01234 567890\n         Postcode: AB1 2CD"));
+
+        foreach (var result in new[] { blankLines, labelsBeneath })
+        {
+            Assert.Equal("Example Motors", Field(result, "Repairer name"));
+            Assert.Equal("01234 567890", Field(result, "Repairer telephone"));
+        }
+    }
+
+    [Fact]
+    public void SingleLineAxValuesReadAsBefore()
+    {
+        var result = Extract(Layout(
+            $"AX Reference      : AX-0001{Indent(31)}Right column text",
+            $"           Name: Example Motors{Indent(5)}(trading name)\n\n"
+            + $"         Telephone: 01234 567890{Indent(3)}(office)"));
+
+        Assert.Equal("AX-0001", Field(result, "Claim reference"));
+        Assert.Equal("Example Motors", Field(result, "Repairer name"));
+        Assert.Equal("01234 567890", Field(result, "Repairer telephone"));
+    }
+
+    private const string Header = "AX Reference      : AX-0001";
+
+    private static string Indent(int columns) => new(' ', columns);
+
+    // Invented text in the recorded layout: the header, then the Client Details, Bodyshop Details and
+    // Third Party Details blocks, each row separated by a blank line.
+    private static string Layout(string header, string bodyshopRows) =>
+        $"{header}\n\n Client Details\n\n           Name: Mr Example\n\n            VRM: AB12CDE\n\n"
+        + $"             Vehicle: FORD FOCUS\n\n Bodyshop Details\n\n{bodyshopRows}\n\n"
+        + "Third Party Details\n\n            VRM: ZZ99ZZZ\n";
+
     private static InstructionExtractionResult Extract(string text) => new AxInstructionExtractionPolicy().Extract(
         Read(text), new(2026, 5, 6, 12, 0, 0, TimeSpan.Zero),
         new("AX", AxInstructionExtractionPolicy.DocumentProfileKeyValue, 1));
