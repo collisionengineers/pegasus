@@ -112,7 +112,7 @@ Case instead
 Unsafe material or an unresolved source-integrity problem still fails closed;
 choosing a destination cannot override that.
 
-The eighteen evidenced principal email routes share one route,
+The nineteen evidenced principal email routes share one route,
 classification, and match policy chain and use the existing instruction
 profiles. The exact sender identity and the selected current document profile
 must agree; document identity alone never allocates a Case. A proved forwarded
