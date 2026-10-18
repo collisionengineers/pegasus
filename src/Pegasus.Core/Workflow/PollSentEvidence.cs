@@ -190,7 +190,7 @@ public sealed class PollSentEvidence(
     IAutoLinkReportEvidence autoLinkReportEvidence,
     TimeProvider timeProvider,
     IRetainedMailboxMessageStore retainedMessages,
-    IStaffMailSendStore? staffMailSendStore = null)
+    IStaffMailSendStore? staffMailSendStore = null) : IDisposable
 {
     private static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan FailureRetryDelay = TimeSpan.FromSeconds(30);
@@ -198,6 +198,13 @@ public sealed class PollSentEvidence(
     private readonly record struct HandledItem(
         SentEvidencePollOutcomeKind Kind,
         bool ReportEvidenceRetained);
+
+    // A claim reads every Outgoing mailbox's state in one Serializable
+    // transaction, so two claims at once would contend for the same rows. Only
+    // the claim waits here; the polls that follow it run together.
+    private readonly SemaphoreSlim claimGate = new(1, 1);
+
+    public void Dispose() => claimGate.Dispose();
 
     public async Task<PollSentEvidenceBatchResult> ExecuteBatchAsync(
         int maximumMailboxes, int maximumPages, int maximumItemsPerPage,
@@ -207,38 +214,59 @@ public sealed class PollSentEvidence(
         {
             throw new ArgumentOutOfRangeException(nameof(maximumMailboxes));
         }
+        var totals = new Lock();
         var attempted = 0;
         var failed = 0;
         var pages = 0;
         var items = 0;
         var reportEvidence = 0;
         string? firstFailure = null;
-        for (var index = 0; index < maximumMailboxes; index++)
+        var slotsTaken = 0;
+
+        // Each loop takes the next of the maximumMailboxes slots, polls the
+        // mailbox its claim names, and ends when a claim names none. A loop that
+        // ends does not end the others.
+        async Task ClaimLoopAsync()
         {
-            try
+            while (Interlocked.Increment(ref slotsTaken) <= maximumMailboxes)
             {
-                var result = await ExecuteAsync(
-                    maximumPages, maximumItemsPerPage, actor, cancellationToken);
-                if (result == PollSentEvidenceResult.Empty)
+                try
                 {
-                    break;
+                    var result = await ExecuteAsync(
+                        maximumPages, maximumItemsPerPage, actor, cancellationToken);
+                    if (result == PollSentEvidenceResult.Empty)
+                    {
+                        return;
+                    }
+                    lock (totals)
+                    {
+                        attempted++;
+                        pages += result.PagesRead;
+                        items += result.ItemsHandled;
+                        reportEvidence += result.ReportEvidenceRetained;
+                    }
                 }
-                attempted++;
-                pages += result.PagesRead;
-                items += result.ItemsHandled;
-                reportEvidence += result.ReportEvidenceRetained;
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception exception)
-            {
-                attempted++;
-                failed++;
-                firstFailure ??= $"{exception.GetType().Name}: {exception.Message}";
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    lock (totals)
+                    {
+                        attempted++;
+                        failed++;
+                        firstFailure ??= $"{exception.GetType().Name}: {exception.Message}";
+                    }
+                }
             }
         }
+
+        await Task.WhenAll(
+            Enumerable.Range(
+                    0,
+                    Math.Min(PollApprovedInbox.MaximumConcurrentMailboxPolls, maximumMailboxes))
+                .Select(_ => ClaimLoopAsync()));
         return new(attempted, failed, pages, items, reportEvidence, firstFailure);
     }
 
@@ -269,8 +297,17 @@ public sealed class PollSentEvidence(
             throw new UnauthorizedAccessException("Sent-evidence polling requires a system-worker actor.");
         }
 
-        var lease = await pollStore.ClaimAsync(
-            timeProvider.GetUtcNow(), LeaseDuration, cancellationToken);
+        ApprovedSentPollLease? lease;
+        await claimGate.WaitAsync(cancellationToken);
+        try
+        {
+            lease = await pollStore.ClaimAsync(
+                timeProvider.GetUtcNow(), LeaseDuration, cancellationToken);
+        }
+        finally
+        {
+            claimGate.Release();
+        }
         if (lease is null)
         {
             return PollSentEvidenceResult.Empty;

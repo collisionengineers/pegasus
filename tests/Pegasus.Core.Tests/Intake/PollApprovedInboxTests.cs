@@ -60,7 +60,9 @@ public sealed class PollApprovedInboxTests
         var handled = await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
 
         Assert.Equal(2, handled);
-        Assert.Equal(["mailbox-a", "mailbox-b"], harness.PollStore.ClaimedMailboxIds);
+        Assert.Equal(
+            ["mailbox-a", "mailbox-b"],
+            harness.PollStore.ClaimedMailboxIds.Order(StringComparer.Ordinal));
         Assert.Equal("cursor-a1", harness.PollStore.Cursors["mailbox-a"]);
         Assert.Equal("cursor-b1", harness.PollStore.Cursors["mailbox-b"]);
         Assert.Empty(harness.PollStore.Releases);
@@ -187,7 +189,7 @@ public sealed class PollApprovedInboxTests
 
         Assert.Equal(
             [("mailbox-a", "inbox-a"), ("mailbox-b", "inbox-b")],
-            harness.Source.Reads);
+            harness.Source.Reads.OrderBy(read => read.MailboxId, StringComparer.Ordinal));
     }
 
     [Fact]
@@ -253,7 +255,7 @@ public sealed class PollApprovedInboxTests
                 ("mailbox-a", "invalid_mailbox_source"),
                 ("mailbox-b", "mailbox_poll_failure")
             ],
-            harness.PollStore.Releases);
+            harness.PollStore.Releases.OrderBy(release => release.MailboxId, StringComparer.Ordinal));
     }
 
     [Fact]
@@ -345,7 +347,7 @@ public sealed class PollApprovedInboxTests
         // A sweep asks as a sweep, so the store records no wake for the mailbox it skipped.
         Assert.Equal(
             [("mailbox-a", ApprovedInboxClaimKind.Sweep), ("mailbox-b", ApprovedInboxClaimKind.Sweep)],
-            harness.PollStore.Claims);
+            harness.PollStore.Claims.OrderBy(claim => claim.MailboxId, StringComparer.Ordinal));
     }
 
     [Fact]
@@ -405,7 +407,7 @@ public sealed class PollApprovedInboxTests
     }
 
     [Fact]
-    public async Task ThePendingWakePollPollsOnlyTheRecordedMailboxesOldestFirstAsMailboxWakes()
+    public async Task ThePendingWakePollPollsOnlyTheRecordedMailboxesAsMailboxWakes()
     {
         var harness = new Harness(FirstMailbox, SecondMailbox, ThirdMailbox);
         harness.PollStore.PendingWakes.AddRange([ThirdMailbox.ApprovedMailboxId, FirstMailbox.ApprovedMailboxId]);
@@ -417,8 +419,8 @@ public sealed class PollApprovedInboxTests
 
         Assert.Equal(2, handled);
         Assert.Equal(
-            [("mailbox-c", ApprovedInboxClaimKind.MailboxWake), ("mailbox-a", ApprovedInboxClaimKind.MailboxWake)],
-            harness.PollStore.Claims);
+            [("mailbox-a", ApprovedInboxClaimKind.MailboxWake), ("mailbox-c", ApprovedInboxClaimKind.MailboxWake)],
+            harness.PollStore.Claims.OrderBy(claim => claim.MailboxId, StringComparer.Ordinal));
         Assert.False(harness.PollStore.Cursors.ContainsKey("mailbox-b"));
     }
 
@@ -735,6 +737,78 @@ public sealed class PollApprovedInboxTests
         Assert.False(harness.PollStore.Cursors.ContainsKey("mailbox-a"));
     }
 
+    [Fact]
+    public async Task UpToThreeMailboxesArePolledAtOnceAndNoMore()
+    {
+        var mailboxes = Enumerable.Range(1, 5).Select(NumberedMailbox).ToArray();
+        var harness = new Harness(mailboxes);
+        harness.Source.ReadProbe.HoldUntil = PollApprovedInbox.MaximumConcurrentMailboxPolls;
+        foreach (var mailbox in mailboxes)
+        {
+            harness.Source.Enqueue(mailbox.GraphMailboxId, Message($"{mailbox.GraphMailboxId}-1", "cursor-1"));
+        }
+
+        var handled = await harness.Poll()
+            .ExecuteAsync(10, WorkerActor(), CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(5, handled);
+        Assert.Equal(PollApprovedInbox.MaximumConcurrentMailboxPolls, harness.Source.ReadProbe.Peak);
+        Assert.Equal(
+            mailboxes.Select(mailbox => mailbox.GraphMailboxId),
+            harness.PollStore.ClaimedMailboxIds.Order(StringComparer.Ordinal));
+        Assert.All(mailboxes, mailbox => Assert.Equal("cursor-1", harness.PollStore.Cursors[mailbox.GraphMailboxId]));
+    }
+
+    [Fact]
+    public async Task ConcurrentFailuresAreReportedInEstateOrder()
+    {
+        var harness = new Harness(FirstMailbox, SecondMailbox, ThirdMailbox);
+        harness.Source.Fail(FirstMailbox.GraphMailboxId, new InvalidDataException("bad page"));
+        harness.Source.Fail(ThirdMailbox.GraphMailboxId, new IOException("the source is unavailable"));
+        harness.Source.Enqueue(SecondMailbox.GraphMailboxId, Message("b-1", "cursor-b1"));
+        // The third mailbox fails first: the first mailbox's read waits until the
+        // third mailbox's lease has been released.
+        harness.Source.HoldReadUntil(
+            FirstMailbox.GraphMailboxId,
+            harness.PollStore.Released(ThirdMailbox.GraphMailboxId));
+
+        var exception = await Assert.ThrowsAsync<AggregateException>(() =>
+            harness.Poll()
+                .ExecuteAsync(10, WorkerActor(), CancellationToken.None)
+                .WaitAsync(TimeSpan.FromSeconds(30)));
+
+        Assert.Equal(2, exception.InnerExceptions.Count);
+        Assert.IsType<InvalidDataException>(exception.InnerExceptions[0]);
+        Assert.IsType<IOException>(exception.InnerExceptions[1]);
+        Assert.Equal("cursor-b1", harness.PollStore.Cursors["mailbox-b"]);
+    }
+
+    [Fact]
+    public async Task CancellingThePollThrowsCancellationNotAFailure()
+    {
+        var harness = new Harness(FirstMailbox, SecondMailbox);
+        harness.Source.ReadProbe.HoldUntil = 2;
+        harness.Source.ReadProbe.HoldUntilCancelled = true;
+        using var cancellation = new CancellationTokenSource();
+
+        var poll = harness.Poll().ExecuteAsync(10, WorkerActor(), cancellation.Token);
+        await harness.Source.ReadProbe.AllHeld.WaitAsync(TimeSpan.FromSeconds(30));
+        await cancellation.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => poll.WaitAsync(TimeSpan.FromSeconds(30)));
+        Assert.Empty(harness.PollStore.Releases);
+    }
+
+    private static ApprovedIntakeMailbox NumberedMailbox(int number) =>
+        new(
+            Guid.NewGuid(),
+            $"mailbox-{number}",
+            $"m{number}@collisionengineers.co.uk",
+            $"inbox-{number}",
+            NowUtc.AddDays(-1));
+
     private static ActionActor WorkerActor() =>
         ActionActor.SystemWorker("approved-inbox-poller");
 
@@ -817,6 +891,7 @@ public sealed class PollApprovedInboxTests
 
     private sealed class RetainedStore : IRetainedMailboxMessageStore
     {
+        private readonly Lock sync = new();
         private Exception? failure;
 
         internal List<RetainedMailboxMessage> Retained { get; } = [];
@@ -832,7 +907,11 @@ public sealed class PollApprovedInboxTests
                 return Task.FromException(failure);
             }
 
-            Retained.Add(message);
+            lock (sync)
+            {
+                Retained.Add(message);
+            }
+
             return Task.CompletedTask;
         }
 
@@ -840,13 +919,18 @@ public sealed class PollApprovedInboxTests
             Guid mailboxId,
             string immutableMessageId,
             string canonicalInternetMessageIdentity,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(Retained.Any(item =>
-                item.MailboxId == mailboxId
-                && string.Equals(item.ImmutableMessageId, immutableMessageId, StringComparison.Ordinal)
-                && item.Metadata.InternetMessageIdentity is { } identity
-                && MailboxMessageIdentity.CanonicalizeInternetMessageIdentity(identity)
-                    == canonicalInternetMessageIdentity));
+            CancellationToken cancellationToken)
+        {
+            lock (sync)
+            {
+                return Task.FromResult(Retained.Any(item =>
+                    item.MailboxId == mailboxId
+                    && string.Equals(item.ImmutableMessageId, immutableMessageId, StringComparison.Ordinal)
+                    && item.Metadata.InternetMessageIdentity is { } identity
+                    && MailboxMessageIdentity.CanonicalizeInternetMessageIdentity(identity)
+                        == canonicalInternetMessageIdentity));
+            }
+        }
     }
 
     private sealed class MailboxEstate(List<ApprovedIntakeMailbox> mailboxes) : IApprovedIntakeMailboxes
@@ -874,12 +958,20 @@ public sealed class PollApprovedInboxTests
                 && approvedAddresses.Contains(mailboxAddress));
     }
 
+    /// <summary>
+    /// Safe to call from several mailbox polls at once: every member that touches
+    /// the recorded state takes <c>sync</c>.
+    /// </summary>
     private sealed class PollStore : IApprovedInboxPollStore
     {
+        private readonly Lock sync = new();
         private readonly Dictionary<Guid, string> graphIds = [];
         private readonly HashSet<string> withheld = new(StringComparer.Ordinal);
 
         private readonly Dictionary<string, Exception> claimFailures = new(StringComparer.Ordinal);
+
+        private readonly Dictionary<string, TaskCompletionSource> releaseSignals =
+            new(StringComparer.Ordinal);
 
         private Exception? releaseFailure;
 
@@ -906,6 +998,26 @@ public sealed class PollApprovedInboxTests
 
         internal void FailRelease(Exception exception) => releaseFailure = exception;
 
+        /// <summary>Completes once the mailbox's lease has been released.</summary>
+        internal Task Released(string mailboxId)
+        {
+            lock (sync)
+            {
+                return ReleaseSignal(mailboxId).Task;
+            }
+        }
+
+        private TaskCompletionSource ReleaseSignal(string mailboxId)
+        {
+            if (!releaseSignals.TryGetValue(mailboxId, out var signal))
+            {
+                signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                releaseSignals[mailboxId] = signal;
+            }
+
+            return signal;
+        }
+
         public Task<ApprovedInboxPollLease?> ClaimAsync(
             ApprovedIntakeMailbox mailbox,
             ApprovedInboxClaimKind kind,
@@ -913,28 +1025,31 @@ public sealed class PollApprovedInboxTests
             TimeSpan leaseDuration,
             CancellationToken cancellationToken)
         {
-            Claims.Add((mailbox.GraphMailboxId, kind));
-            if (claimFailures.TryGetValue(mailbox.GraphMailboxId, out var failure))
+            lock (sync)
             {
-                return Task.FromException<ApprovedInboxPollLease?>(failure);
-            }
+                Claims.Add((mailbox.GraphMailboxId, kind));
+                if (claimFailures.TryGetValue(mailbox.GraphMailboxId, out var failure))
+                {
+                    return Task.FromException<ApprovedInboxPollLease?>(failure);
+                }
 
-            if (withheld.Contains(mailbox.GraphMailboxId))
-            {
-                return Task.FromResult<ApprovedInboxPollLease?>(null);
-            }
+                if (withheld.Contains(mailbox.GraphMailboxId))
+                {
+                    return Task.FromResult<ApprovedInboxPollLease?>(null);
+                }
 
-            graphIds[mailbox.ApprovedMailboxId] = mailbox.GraphMailboxId;
-            ClaimedMailboxIds.Add(mailbox.GraphMailboxId);
-            Cursors.TryGetValue(mailbox.GraphMailboxId, out var cursor);
-            return Task.FromResult<ApprovedInboxPollLease?>(new(
-                mailbox.ApprovedMailboxId,
-                mailbox.GraphMailboxId,
-                mailbox.Address,
-                mailbox.InboxFolderIdentity,
-                mailbox.ActivatedAtUtc,
-                cursor,
-                $"lease-{mailbox.GraphMailboxId}"));
+                graphIds[mailbox.ApprovedMailboxId] = mailbox.GraphMailboxId;
+                ClaimedMailboxIds.Add(mailbox.GraphMailboxId);
+                Cursors.TryGetValue(mailbox.GraphMailboxId, out var cursor);
+                return Task.FromResult<ApprovedInboxPollLease?>(new(
+                    mailbox.ApprovedMailboxId,
+                    mailbox.GraphMailboxId,
+                    mailbox.Address,
+                    mailbox.InboxFolderIdentity,
+                    mailbox.ActivatedAtUtc,
+                    cursor,
+                    $"lease-{mailbox.GraphMailboxId}"));
+            }
         }
 
         public Task<IReadOnlyList<Guid>> ListPendingWakeAsync(CancellationToken cancellationToken) =>
@@ -947,7 +1062,11 @@ public sealed class PollApprovedInboxTests
             DateTimeOffset advancedAtUtc,
             CancellationToken cancellationToken)
         {
-            Cursors[graphIds[approvedMailboxId]] = nextCursor;
+            lock (sync)
+            {
+                Cursors[graphIds[approvedMailboxId]] = nextCursor;
+            }
+
             return Task.CompletedTask;
         }
 
@@ -959,8 +1078,12 @@ public sealed class PollApprovedInboxTests
             DateTimeOffset quarantinedAtUtc,
             CancellationToken cancellationToken)
         {
-            Quarantines.Add((graphIds[approvedMailboxId], message.ImmutableMessageId, message.FailureCode));
-            Cursors[graphIds[approvedMailboxId]] = nextCursor;
+            lock (sync)
+            {
+                Quarantines.Add((graphIds[approvedMailboxId], message.ImmutableMessageId, message.FailureCode));
+                Cursors[graphIds[approvedMailboxId]] = nextCursor;
+            }
+
             return Task.CompletedTask;
         }
 
@@ -971,7 +1094,11 @@ public sealed class PollApprovedInboxTests
             DateTimeOffset completedAtUtc,
             CancellationToken cancellationToken)
         {
-            Cursors[graphIds[approvedMailboxId]] = nextCursor;
+            lock (sync)
+            {
+                Cursors[graphIds[approvedMailboxId]] = nextCursor;
+            }
+
             return Task.CompletedTask;
         }
 
@@ -980,7 +1107,11 @@ public sealed class PollApprovedInboxTests
             string leaseToken,
             CancellationToken cancellationToken)
         {
-            CompletedNotifications.Add(approvedMailboxId);
+            lock (sync)
+            {
+                CompletedNotifications.Add(approvedMailboxId);
+            }
+
             return Task.CompletedTask;
         }
 
@@ -996,19 +1127,45 @@ public sealed class PollApprovedInboxTests
                 return Task.FromException(releaseFailure);
             }
 
-            Releases.Add((graphIds[approvedMailboxId], failureCode));
+            lock (sync)
+            {
+                var mailboxId = graphIds[approvedMailboxId];
+                Releases.Add((mailboxId, failureCode));
+                ReleaseSignal(mailboxId).TrySetResult();
+            }
+
             return Task.CompletedTask;
         }
     }
 
+    /// <summary>
+    /// Safe to call from several mailbox polls at once: every member that touches
+    /// the recorded state takes <c>sync</c>. <see cref="ReadProbe"/> counts the
+    /// reads in flight and can hold them until they overlap.
+    /// </summary>
     private sealed class InboxSource : IApprovedInboxSource
     {
+        private readonly Lock sync = new();
+
         private readonly Dictionary<string, List<ApprovedInboxMessage>> queued =
             new(StringComparer.Ordinal);
 
         private readonly Dictionary<string, Exception> failures = new(StringComparer.Ordinal);
 
+        private readonly Dictionary<string, Task> readsAfter = new(StringComparer.Ordinal);
+
         internal List<(string MailboxId, string InboxFolderIdentity)> Reads { get; } = [];
+
+        internal ConcurrentCallProbe ReadProbe { get; } = new();
+
+        /// <summary>Keep the mailbox's read waiting until <paramref name="until"/> completes.</summary>
+        internal void HoldReadUntil(string mailboxId, Task until)
+        {
+            lock (sync)
+            {
+                readsAfter[mailboxId] = until;
+            }
+        }
 
         internal ApprovedInboxMessage? Notified { get; set; }
 
@@ -1024,40 +1181,77 @@ public sealed class PollApprovedInboxTests
 
         internal void Enqueue(string mailboxId, ApprovedInboxMessage message)
         {
-            if (!queued.TryGetValue(mailboxId, out var messages))
+            lock (sync)
             {
-                messages = [];
-                queued[mailboxId] = messages;
-            }
+                if (!queued.TryGetValue(mailboxId, out var messages))
+                {
+                    messages = [];
+                    queued[mailboxId] = messages;
+                }
 
-            messages.Add(message);
+                messages.Add(message);
+            }
         }
 
-        internal void Fail(string mailboxId, Exception exception) =>
-            failures[mailboxId] = exception;
+        internal void Fail(string mailboxId, Exception exception)
+        {
+            lock (sync)
+            {
+                failures[mailboxId] = exception;
+            }
+        }
 
         public Task<ApprovedInboxPage> ReadAsync(
             ApprovedInboxPollLease lease,
             int maximumMessages,
             CancellationToken cancellationToken)
         {
-            Reads.Add((lease.GraphMailboxId, lease.InboxFolderIdentity));
-            if (failures.TryGetValue(lease.GraphMailboxId, out var failure))
+            lock (sync)
             {
-                return Task.FromException<ApprovedInboxPage>(failure);
-            }
+                Reads.Add((lease.GraphMailboxId, lease.InboxFolderIdentity));
+                if (failures.TryGetValue(lease.GraphMailboxId, out var failure))
+                {
+                    return Task.FromException<ApprovedInboxPage>(failure);
+                }
 
-            if (!queued.TryGetValue(lease.GraphMailboxId, out var messages) || messages.Count == 0)
-            {
-                return Task.FromResult(new ApprovedInboxPage([], lease.Cursor ?? "empty"));
-            }
+                if (!queued.TryGetValue(lease.GraphMailboxId, out var messages) || messages.Count == 0)
+                {
+                    return Task.FromResult(new ApprovedInboxPage([], lease.Cursor ?? "empty"));
+                }
 
-            var page = messages.Take(maximumMessages).ToArray();
-            messages.RemoveRange(0, page.Length);
-            return Task.FromResult(new ApprovedInboxPage(page, page[^1].NextCursor));
+                var page = messages.Take(maximumMessages).ToArray();
+                messages.RemoveRange(0, page.Length);
+                return Task.FromResult(new ApprovedInboxPage(page, page[^1].NextCursor));
+            }
         }
 
-        public async Task<ApprovedInboxPage> ReadAsync(
+        public Task<ApprovedInboxPage> ReadAsync(
+            ApprovedInboxPollLease lease,
+            int maximumMessages,
+            RetainedMessageCheck alreadyRetained,
+            CancellationToken cancellationToken) => ReadProbe.RunAsync(
+            async () =>
+            {
+                Task? after;
+                lock (sync)
+                {
+                    readsAfter.TryGetValue(lease.GraphMailboxId, out after);
+                }
+
+                if (after is not null)
+                {
+                    await after.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+                }
+
+                return await ReadSkippingRetainedAsync(
+                    lease,
+                    maximumMessages,
+                    alreadyRetained,
+                    cancellationToken);
+            },
+            cancellationToken);
+
+        private async Task<ApprovedInboxPage> ReadSkippingRetainedAsync(
             ApprovedInboxPollLease lease,
             int maximumMessages,
             RetainedMessageCheck alreadyRetained,
@@ -1077,7 +1271,11 @@ public sealed class PollApprovedInboxTests
                 if (message.RetainedMetadata?.InternetMessageIdentity is { } identity
                     && await alreadyRetained(message.ImmutableMessageId, identity, cancellationToken))
                 {
-                    Skipped.Add(message.ImmutableMessageId);
+                    lock (sync)
+                    {
+                        Skipped.Add(message.ImmutableMessageId);
+                    }
+
                     continue;
                 }
 
@@ -1099,8 +1297,10 @@ public sealed class PollApprovedInboxTests
             Task.FromResult(Notified);
     }
 
+    /// <summary>Safe to call from several mailbox polls at once.</summary>
     private sealed class ArtifactStore : IIntakeArtifactStore, IIntakeQuarantineArtifactStore
     {
+        private readonly Lock sync = new();
         private readonly Dictionary<string, byte[]> stored = new(StringComparer.Ordinal);
 
         public Task<string> StoreAsync(
@@ -1109,15 +1309,24 @@ public sealed class PollApprovedInboxTests
             CancellationToken cancellationToken)
         {
             var key = $"sha256/{contentHash[..2]}/{contentHash}";
-            stored[key] = content.ToArray();
+            lock (sync)
+            {
+                stored[key] = content.ToArray();
+            }
+
             return Task.FromResult(key);
         }
 
         public Task<ReadOnlyMemory<byte>?> ReadAsync(
             string storageKey,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<ReadOnlyMemory<byte>?>(
-                stored.TryGetValue(storageKey, out var content) ? content : null);
+            CancellationToken cancellationToken)
+        {
+            lock (sync)
+            {
+                return Task.FromResult<ReadOnlyMemory<byte>?>(
+                    stored.TryGetValue(storageKey, out var content) ? content : null);
+            }
+        }
 
         public async Task<StagedArtifactInventoryItem> StageAsync(
             Guid stagedReceiptId,
@@ -1149,7 +1358,13 @@ public sealed class PollApprovedInboxTests
             IntakeQuarantineArtifact artifact,
             CancellationToken cancellationToken)
         {
-            if (!stored.TryGetValue(artifact.StorageKey, out var content)
+            byte[]? content;
+            lock (sync)
+            {
+                stored.TryGetValue(artifact.StorageKey, out content);
+            }
+
+            if (content is null
                 || content.LongLength != artifact.ContentLength
                 || !string.Equals(
                     Convert.ToHexString(SHA256.HashData(content)),
@@ -1169,26 +1384,35 @@ public sealed class PollApprovedInboxTests
     /// </summary>
     private sealed class WorkStore : IIntakeWorkStore
     {
+        private readonly Lock sync = new();
         private readonly Dictionary<string, IntakeStagedReceipt> received =
             new(StringComparer.Ordinal);
 
         public Task<IntakeStagedReceipt?> FindBySourceIdentityAsync(
             IntakeSourceIdentity sourceIdentity,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(
-                received.TryGetValue(sourceIdentity.ExternalReceiptToken, out var receipt)
-                    ? receipt
-                    : null);
+            CancellationToken cancellationToken)
+        {
+            lock (sync)
+            {
+                return Task.FromResult(
+                    received.TryGetValue(sourceIdentity.ExternalReceiptToken, out var receipt)
+                        ? receipt
+                        : null);
+            }
+        }
 
         public Task<ReceivedIntake> ReceiveAsync(
             IntakeStagedReceipt receipt,
             string operationKey,
             CancellationToken cancellationToken)
         {
-            var duplicate = !received.TryAdd(
-                receipt.SourceIdentity.ExternalReceiptToken,
-                receipt);
-            return Task.FromResult(new ReceivedIntake(receipt.Id, duplicate));
+            lock (sync)
+            {
+                var duplicate = !received.TryAdd(
+                    receipt.SourceIdentity.ExternalReceiptToken,
+                    receipt);
+                return Task.FromResult(new ReceivedIntake(receipt.Id, duplicate));
+            }
         }
 
         public Task<IntakeWorkItem?> ClaimDispatchAsync(
