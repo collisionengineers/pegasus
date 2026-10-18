@@ -276,7 +276,10 @@ public static class DependencyInjection
         services.AddScoped<IFiledEstimateAttachmentQueries, EfFiledEstimateAttachmentQueries>();
         // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
         // hosts) that never compose ASP.NET Identity. The administration and
-        // per-user credential surfaces live in AddPegasusStaffIdentity.
+        // per-user credential surfaces live in AddPegasusStaffIdentity. The
+        // queries keep display names in StaffAccountReads, so the Worker that
+        // shares them composes it here too.
+        services.AddSingleton<StaffAccountReads>();
         services.AddScoped<EfStaffAccountQueries>();
         services.AddScoped<IStaffAccountQueries>(provider => provider.GetRequiredService<EfStaffAccountQueries>());
         services.AddScoped<ICaseEngineerChoices>(provider => provider.GetRequiredService<EfStaffAccountQueries>());
@@ -400,6 +403,7 @@ public static class DependencyInjection
         services.AddScoped<ICaseStaffNotifier, CaseStaffNotifier>();
         services.AddScoped<IMyStaffNotifications, MyStaffNotifications>();
         services.AddScoped<PurgeStaffNotifications>();
+        services.AddMemoryCache();
         services.AddScoped<Pegasus.Core.ReleaseNotes.IReleaseNoteStore, EfReleaseNoteStore>();
         services.AddScoped<Pegasus.Core.ReleaseNotes.IMyReleaseNotes, Pegasus.Core.ReleaseNotes.MyReleaseNotes>();
         services.AddScoped<Pegasus.Core.Support.IProblemReportStore, EfProblemReportStore>();
@@ -711,7 +715,6 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddSingleton<StaffAccountReads>();
         services.AddScoped<EfStaffAccountAdministration>();
         services.AddScoped<ICreateStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());

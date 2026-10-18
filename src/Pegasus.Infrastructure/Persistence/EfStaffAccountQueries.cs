@@ -15,7 +15,9 @@ namespace Pegasus.Infrastructure.Persistence;
 /// name. Each read uses its own context, never the request's scoped one, so a
 /// page may run it beside other reads.
 /// </summary>
-public sealed class EfStaffAccountQueries(IDbContextFactory<PegasusDbContext> contextFactory)
+public sealed class EfStaffAccountQueries(
+    IDbContextFactory<PegasusDbContext> contextFactory,
+    StaffAccountReads accountReads)
     : IStaffAccountQueries,
       ICaseEngineerChoices
 {
@@ -136,6 +138,50 @@ public sealed class EfStaffAccountQueries(IDbContextFactory<PegasusDbContext> co
         return accounts
             .Select(account => Summary(account.Row, ParseSingleRole(account.RoleNames)))
             .ToArray();
+    }
+
+    /// <summary>
+    /// Usernames kept in <see cref="StaffAccountReads"/> are served from it and
+    /// the rest read through <see cref="GetManyAsync"/>, which, like the
+    /// single-account read, is never kept. Every account writer in this
+    /// process evicts after its commit and the Web runs as one instance
+    /// (ADR-0058), so a change made in Pegasus is seen on the next call; a
+    /// change made outside it (direct SQL, the intake wipe) is seen once the
+    /// name expires. An id with no account is never kept.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<Guid, string>> GetNamesAsync(
+        IReadOnlyCollection<Guid> staffIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(staffIds);
+        var names = new Dictionary<Guid, string>();
+        var unkept = new List<Guid>();
+        foreach (var staffId in staffIds.Distinct())
+        {
+            if (accountReads.TryGetName(staffId) is { } kept)
+            {
+                names[staffId] = kept;
+            }
+            else
+            {
+                unkept.Add(staffId);
+            }
+        }
+
+        if (unkept.Count == 0)
+        {
+            return names;
+        }
+
+        // Taken before the read: a commit that evicts meanwhile refuses the names.
+        var generation = accountReads.Generation;
+        foreach (var account in await GetManyAsync(unkept, cancellationToken))
+        {
+            names[account.Id] = account.UserName;
+            accountReads.SetName(account.Id, account.UserName, generation);
+        }
+
+        return names;
     }
 
     public async Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(

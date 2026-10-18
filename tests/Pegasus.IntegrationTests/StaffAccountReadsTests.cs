@@ -37,6 +37,36 @@ public sealed class StaffAccountReadsTests
         Assert.Null(reads.TryGet(staffId));
     }
 
+    [Fact]
+    public void ANameIsKeptUntilTheLifetimeEnds()
+    {
+        var clock = new MutableClock(new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero));
+        var reads = new StaffAccountReads(clock);
+        var staffId = Guid.NewGuid();
+        reads.SetName(staffId, "alex", reads.Generation);
+
+        clock.Now += StaffSessionPolicy.AccountReadLifetime - TimeSpan.FromTicks(1);
+        Assert.Equal("alex", reads.TryGetName(staffId));
+        clock.Now += TimeSpan.FromTicks(1);
+        Assert.Null(reads.TryGetName(staffId));
+    }
+
+    [Fact]
+    public void AnEvictionRemovesTheNameAndRefusesOneReadBeforeIt()
+    {
+        var reads = new StaffAccountReads(TimeProvider.System);
+        var staffId = Guid.NewGuid();
+        reads.SetName(staffId, "alex", reads.Generation);
+        reads.Evict(staffId);
+        Assert.Null(reads.TryGetName(staffId));
+
+        // A name was read, then an account change committed and evicted.
+        var generation = reads.Generation;
+        reads.Evict(staffId);
+        reads.SetName(staffId, "alex", generation);
+        Assert.Null(reads.TryGetName(staffId));
+    }
+
     private sealed class MutableClock(DateTimeOffset now) : TimeProvider
     {
         public DateTimeOffset Now { get; set; } = now;

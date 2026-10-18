@@ -47,7 +47,7 @@ public sealed class WorkCentreStatementCountWebTests
             $"A full Work Centre load sent {counter.Count} SQL commands; at most {WorkCentreCommands} are allowed." + Environment.NewLine + counter.Describe());
     }
 
-    private const int WorkCentreCommands = 27;
+    private const int WorkCentreCommands = 26;
 
     /// <summary>
     /// The Work Centre reads no section once per row: a load with six new Cases

@@ -411,9 +411,9 @@ public sealed class MailWorkspaceWebTests
             + Environment.NewLine + previewDescription);
     }
 
-    private const int InboxMessageCommands = 19;
+    private const int InboxMessageCommands = 18;
 
-    private const int InboxListCommands = 14;
+    private const int InboxListCommands = 13;
 
     private const int InboxPreviewCommands = 6;
 

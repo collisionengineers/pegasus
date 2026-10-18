@@ -236,7 +236,8 @@ public sealed partial class ReleaseNotesWebTests
     /// The shell asks for the newest unacknowledged note on every full page. It
     /// is one read that joins the person's acknowledgement (before: two reads,
     /// the newest note with its body, then the acknowledgement), and the body is
-    /// read only for a note that is about to be shown.
+    /// read only for a note that is about to be shown. The answer is kept for
+    /// the person until a publish or their acknowledgement changes it.
     /// </summary>
     [Fact]
     public async Task TheShellReadsTheNewestNoteAndItsAcknowledgementInOneCommand()
@@ -267,6 +268,11 @@ public sealed partial class ReleaseNotesWebTests
         Assert.DoesNotContain("whats-new-dialog", await GetHtmlAsync(user, "/"), StringComparison.Ordinal);
         // Acknowledged: the joined read alone.
         Assert.Equal(1, recorder.ReleaseNoteReads);
+
+        // The answer is kept for the person, so a repeat load reads nothing.
+        recorder.Reset();
+        Assert.DoesNotContain("whats-new-dialog", await GetHtmlAsync(user, "/"), StringComparison.Ordinal);
+        Assert.Equal(0, recorder.ReleaseNoteReads);
     }
 
     [Fact]

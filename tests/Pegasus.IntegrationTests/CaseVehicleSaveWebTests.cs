@@ -213,7 +213,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             + Environment.NewLine + saveDescription);
     }
 
-    private const int CasePageCommands = 40;
+    private const int CasePageCommands = 39;
 
     private const int CaseSaveCommands = 30;
 

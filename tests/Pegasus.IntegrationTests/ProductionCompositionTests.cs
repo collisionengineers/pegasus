@@ -20,6 +20,7 @@ using Pegasus.Core.CaseExport;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
+using Pegasus.Core.ReleaseNotes;
 using Pegasus.Core.Reports;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Custody;
@@ -675,6 +676,20 @@ public sealed class ProductionCompositionTests
         Assert.Null(scope.ServiceProvider.GetService<IAddCaseDocument>());
         Assert.IsType<UnavailableDeletedMailSearchSource>(
             scope.ServiceProvider.GetRequiredService<IDeletedMailSearchSource>());
+    }
+
+    [Fact]
+    public void AnInfrastructureOnlyHostResolvesTheStaffNamesAndReleaseNoteReads()
+    {
+        // The Worker composes AddPegasusInfrastructure and never AddPegasusStaffIdentity.
+        var services = NewServices();
+        services.AddPegasusInfrastructure(ConfigureDatabase);
+        using var provider = services.BuildServiceProvider(validateScopes: true);
+        using var scope = provider.CreateScope();
+
+        Assert.IsType<EfStaffAccountQueries>(
+            scope.ServiceProvider.GetRequiredService<IStaffAccountQueries>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IReleaseNoteStore>());
     }
 
     [Fact]
